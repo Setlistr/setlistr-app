@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { Square, Clock, MapPin, Music, Mic, MicOff, Loader2 } from 'lucide-react'
+import { Square, MapPin, Music, Mic, MicOff, Loader2, X } from 'lucide-react'
 import type { Performance } from '@/types'
 
 type DetectedSong = {
@@ -23,16 +23,17 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   const [isListening, setIsListening] = useState(false)
   const [isDetecting, setIsDetecting] = useState(false)
   const [detectStatus, setDetectStatus] = useState<string>('')
+  const [showNamePrompt, setShowNamePrompt] = useState(false)
+  const [promptInput, setPromptInput] = useState('')
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<Blob[]>([])
   const listenIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const streamRef = useRef<MediaStream | null>(null)
 
   useEffect(() => {
     const supabase = createClient()
     supabase.from('performances').select('*').eq('id', params.id).single()
-      .then(({ data }) => {
-        if (data) setPerformance(data)
-      })
+      .then(({ data }) => { if (data) setPerformance(data) })
   }, [params.id])
 
   // Elapsed timer
@@ -49,16 +50,12 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   useEffect(() => {
     if (!performance) return
     const totalSeconds = (performance.set_duration_minutes + performance.auto_close_buffer_minutes) * 60
-    if (elapsed >= totalSeconds && !ending) {
-      handleEnd()
-    }
+    if (elapsed >= totalSeconds && !ending) handleEnd()
   }, [elapsed, performance, ending])
 
   // Cleanup on unmount
   useEffect(() => {
-    return () => {
-      stopListening()
-    }
+    return () => stopListening()
   }, [])
 
   const detectSong = useCallback(async (audioBlob: Blob) => {
@@ -66,19 +63,13 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
     setDetectStatus('Identifying song...')
     try {
       const formData = new FormData()
-      formData.append('file', audioBlob, 'audio.webm')
-      formData.append('return', 'apple_music,spotify')
-      formData.append('api_token', process.env.NEXT_PUBLIC_AUDD_API_KEY || '')
+      formData.append('audio', audioBlob, 'audio.webm')
 
-      const res = await fetch('https://api.audd.io/', {
-        method: 'POST',
-        body: formData,
-      })
+      const res = await fetch('/api/identify', { method: 'POST', body: formData })
       const data = await res.json()
 
-      if (data.status === 'success' && data.result) {
-        const { title, artist } = data.result
-        // Avoid duplicates
+      if (data.detected) {
+        const { title, artist } = data
         setSongs(prev => {
           const alreadyExists = prev.some(
             s => s.title.toLowerCase() === title.toLowerCase() &&
@@ -86,58 +77,63 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
           )
           if (alreadyExists) {
             setDetectStatus(`Already logged: ${title}`)
+            setTimeout(() => setDetectStatus(''), 3000)
             return prev
           }
-          setDetectStatus(`✓ Detected: ${title} — ${artist}`)
+          setDetectStatus(`✓ ${title} — ${artist}`)
+          setTimeout(() => setDetectStatus(''), 4000)
           return [...prev, { title, artist, source: 'detected' }]
         })
       } else {
-        setDetectStatus('No song detected — keep playing!')
+        setDetectStatus("Can't identify — what song is this?")
+        setShowNamePrompt(true)
       }
-    } catch (err) {
+    } catch {
       setDetectStatus('Detection failed — check connection')
+      setTimeout(() => setDetectStatus(''), 4000)
     } finally {
       setIsDetecting(false)
-      setTimeout(() => setDetectStatus(''), 4000)
     }
   }, [])
 
   const startListening = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      streamRef.current = stream
       setIsListening(true)
       setDetectStatus('Listening...')
 
       const recordAndDetect = () => {
+        // Don't record if a detection is already in progress
+        if (isDetecting) return
         chunksRef.current = []
-        const recorder = new MediaRecorder(stream, { mimeType: 'audio/webm' })
+
+        // Pick best supported format
+        const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+          ? 'audio/webm;codecs=opus'
+          : MediaRecorder.isTypeSupported('audio/webm')
+          ? 'audio/webm'
+          : 'audio/mp4'
+
+        const recorder = new MediaRecorder(stream, { mimeType })
         mediaRecorderRef.current = recorder
-
-        recorder.ondataavailable = (e) => {
-          if (e.data.size > 0) chunksRef.current.push(e.data)
-        }
-
+        recorder.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data) }
         recorder.onstop = () => {
-          const blob = new Blob(chunksRef.current, { type: 'audio/webm' })
+          const blob = new Blob(chunksRef.current, { type: mimeType })
           detectSong(blob)
         }
-
         recorder.start()
-        // Record 8 seconds per sample
-        setTimeout(() => {
-          if (recorder.state === 'recording') recorder.stop()
-        }, 8000)
+        // 10 seconds gives ACRCloud more signal to work with
+        setTimeout(() => { if (recorder.state === 'recording') recorder.stop() }, 10000)
       }
 
-      // Start immediately, then every 30 seconds
       recordAndDetect()
-      listenIntervalRef.current = setInterval(recordAndDetect, 30000)
-
-    } catch (err) {
+      listenIntervalRef.current = setInterval(recordAndDetect, 35000)
+    } catch {
       setDetectStatus('Microphone access denied')
       setIsListening(false)
     }
-  }, [detectSong])
+  }, [detectSong, isDetecting])
 
   const stopListening = useCallback(() => {
     if (listenIntervalRef.current) {
@@ -146,7 +142,10 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
     }
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
       mediaRecorderRef.current.stop()
-      mediaRecorderRef.current.stream.getTracks().forEach(t => t.stop())
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(t => t.stop())
+      streamRef.current = null
     }
     setIsListening(false)
     setDetectStatus('')
@@ -189,6 +188,22 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
     setSongInput('')
   }
 
+  function submitPrompt() {
+    const trimmed = promptInput.trim()
+    if (!trimmed) { dismissPrompt(); return }
+    setSongs(s => [...s, { title: trimmed, artist: performance?.artist_name || '', source: 'manual' }])
+    setPromptInput('')
+    setShowNamePrompt(false)
+    setDetectStatus(`✓ Added: ${trimmed}`)
+    setTimeout(() => setDetectStatus(''), 3000)
+  }
+
+  function dismissPrompt() {
+    setShowNamePrompt(false)
+    setPromptInput('')
+    setDetectStatus('')
+  }
+
   function formatTime(s: number) {
     const m = Math.floor(s / 60)
     const sec = s % 60
@@ -211,6 +226,40 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   return (
     <div className="min-h-screen bg-ink text-cream flex flex-col"
       style={{ background: 'radial-gradient(ellipse at 50% 0%, #1e1c18 0%, #0f0e0c 100%)' }}>
+
+      {/* Name prompt modal */}
+      {showNamePrompt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-6"
+          style={{ background: 'rgba(0,0,0,0.75)' }}>
+          <div className="bg-[#1a1814] border border-[#2e2b26] rounded-2xl p-6 w-full max-w-sm">
+            <div className="flex items-center justify-between mb-1">
+              <h3 className="text-cream font-semibold">What song is this?</h3>
+              <button onClick={dismissPrompt} className="text-ink-light hover:text-cream">
+                <X size={18} />
+              </button>
+            </div>
+            <p className="text-ink-light text-xs mb-4">Couldn't identify automatically — name it manually</p>
+            <input
+              autoFocus
+              value={promptInput}
+              onChange={e => setPromptInput(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && submitPrompt()}
+              placeholder="Song title..."
+              className="w-full bg-[#0f0e0c] border border-[#2e2b26] rounded-xl px-3 py-2.5 text-cream placeholder:text-[#4a4640] text-sm focus:outline-none focus:border-gold mb-3"
+            />
+            <div className="flex gap-2">
+              <button onClick={dismissPrompt}
+                className="flex-1 border border-[#2e2b26] text-ink-light rounded-xl py-2.5 text-sm hover:text-cream transition-colors">
+                Skip
+              </button>
+              <button onClick={submitPrompt}
+                className="flex-1 bg-gold text-ink font-semibold rounded-xl py-2.5 text-sm hover:bg-yellow-400 transition-colors">
+                Add Song
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Live indicator */}
       <div className="flex items-center justify-center gap-2 pt-6 pb-2">
@@ -236,15 +285,11 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         <div className="text-ink-light text-sm mb-8">
           {remaining > 0 ? `${formatTime(remaining)} remaining` : `${formatTime(elapsed - totalSeconds)} over`}
         </div>
-
-        {/* Progress bar */}
         <div className="w-full max-w-xs bg-[#2a2620] rounded-full h-1.5 mb-2">
           <div className="h-1.5 rounded-full bg-gold transition-all duration-1000"
             style={{ width: `${progress * 100}%` }} />
         </div>
-        <div className="text-xs text-ink-light">
-          Auto-closes at {formatTime(autoCloseAt)}
-        </div>
+        <div className="text-xs text-ink-light">Auto-closes at {formatTime(autoCloseAt)}</div>
       </div>
 
       {/* Song capture */}
@@ -262,20 +307,18 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
                   : 'bg-gold hover:bg-yellow-400 text-ink'
               } disabled:opacity-60`}
             >
-              {isDetecting ? (
-                <Loader2 size={16} className="animate-spin" />
-              ) : isListening ? (
-                <MicOff size={16} />
-              ) : (
-                <Mic size={16} />
-              )}
-              {isListening ? 'Stop Listening' : 'Auto-Detect Songs'}
+              {isDetecting ? <Loader2 size={16} className="animate-spin" />
+                : isListening ? <MicOff size={16} />
+                : <Mic size={16} />}
+              {isDetecting ? 'Identifying...'
+                : isListening ? 'Stop Listening'
+                : 'Auto-Detect Songs'}
             </button>
-            {detectStatus && (
+            {detectStatus && !showNamePrompt && (
               <p className="text-center text-xs mt-2 text-gold">{detectStatus}</p>
             )}
-            {isListening && !isDetecting && (
-              <p className="text-center text-xs mt-1 text-ink-light">Sampling every 30s</p>
+            {isListening && !isDetecting && !showNamePrompt && (
+              <p className="text-center text-xs mt-1 text-ink-light">Sampling every 35s</p>
             )}
           </div>
 
