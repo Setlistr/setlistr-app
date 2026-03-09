@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Investors — Setlistr.ai</title>
+  <link rel="stylesheet" href="/setlistr.css">
+  <style>
+    .investor-page { padding: 120px 48px 80px; }
+    .investor-inner { max-width: 900px; margin: 0 auto; }
+
+    .investor-hero { margin-bottom: 80px; }
+    .investor-hero h1 {
+      font-family: var(--font-display);
+      font-size: clamp(44px, 6vw, 80px);
+      font-weight: 500;
+      line-height: 1.0;
+      margin-bottom: 24px;
+    }
+    .investor-hero p {
+      font-size: 18px;
+      color: var(--text-secondary);
+      max-width: 560px;
+      line-height: 1.65;
+    }
+
+    .divider { height: 1px; background: var(--border); margin: 64px 0; }
+
+    /* ── STATS ── */
+    .inv-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--border); margin: 40px 0; }
+    .inv-stat { background: var(--surface); padding: 36px 32px; }
+    .inv-stat-value { font-family: var(--font-display); font-size: 48px; font-weight: 500; color: var(--gold); line-height:1; margin-bottom:8px; }
+    .inv-stat-label { font-size: 13px; color: var(--text-secondary); }
+
+    /* ── SECTION ── */
+    .inv-section { margin-bottom: 64px; }
+    .inv-section h2 { font-family: var(--font-display); font-size: 36px; font-weight: 500; margin-bottom: 20px; line-height: 1.15; }
+    .inv-section p { font-size: 15px; color: var(--text-secondary); line-height: 1.7; margin-bottom: 16px; }
+
+    /* ── COMPARISON TABLE ── */
+    .comp-table { width: 100%; border-collapse: collapse; margin: 32px 0; font-size: 14px; }
+    .comp-table th { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-muted); padding: 12px 16px; text-align: center; border-bottom: 1px solid var(--border); }
+    .comp-table th:first-child { text-align: left; }
+    .comp-table td { padding: 14px 16px; border-bottom: 1px solid var(--border); text-align: center; color: var(--text-secondary); }
+    .comp-table td:first-child { text-align: left; font-weight: 500; color: var(--ink); }
+    .comp-table tr:last-child td { border-bottom: none; }
+    .comp-table .setlistr-col { background: rgba(201,149,42,0.05); color: var(--gold) !important; font-weight: 600; }
+    .comp-table .check { color: var(--gold); font-size: 16px; }
+    .comp-table .cross { color: #ccc; font-size: 14px; }
+    .comp-table .partial { color: #e8b84b; font-size: 12px; font-family: var(--font-mono); }
+
+    /* ── REVENUE MODEL ── */
+    .rev-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin: 32px 0; }
+    .rev-card { border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 28px 24px; }
+    .rev-num { font-family: var(--font-display); font-size: 36px; font-weight: 500; color: rgba(0,0,0,0.08); margin-bottom: 12px; }
+    .rev-title { font-family: var(--font-display); font-size: 20px; font-weight: 500; color: var(--ink); margin-bottom: 8px; }
+    .rev-body { font-size: 13px; color: var(--text-secondary); line-height: 1.6; }
+
+    /* ── DEFENSIBILITY ── */
+    .def-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin: 32px 0; }
+    .def-card { padding: 28px 24px; background: var(--surface-mid); border-radius: var(--radius-lg); }
+    .def-icon { width: 40px; height: 40px; background: rgba(201,149,42,0.1); border-radius: var(--radius); display: flex; align-items: center; justify-content: center; margin-bottom: 16px; }
+    .def-icon svg { width: 18px; height: 18px; stroke: var(--gold); fill: none; stroke-width: 1.5; }
+    .def-card h4 { font-family: var(--font-display); font-size: 18px; font-weight: 500; margin-bottom: 6px; }
+    .def-card p { font-size: 13px; color: var(--text-secondary); line-height: 1.6; }
+
+    /* ── THE ASK ── */
+    .ask-card {
+      background: var(--ink);
+      border-radius: var(--radius-lg);
+      padding: 48px;
+      margin: 40px 0;
+      border-left: 4px solid var(--gold);
+    }
+    .ask-amount {
+      font-family: var(--font-display);
+      font-size: clamp(32px,4vw,52px);
+      font-weight: 500;
+      color: var(--off-white);
+      margin-bottom: 8px;
+    }
+    .ask-sub {
+      font-size: 14px;
+      color: rgba(255,255,255,0.4);
+      margin-bottom: 40px;
+    }
+    .ask-use { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin: 32px 0; }
+    .ask-use-item { border-top: 1px solid rgba(255,255,255,0.1); padding-top: 20px; }
+    .ask-use-pct { font-family: var(--font-display); font-size: 32px; font-weight: 500; color: var(--gold); margin-bottom: 8px; }
+    .ask-use-title { font-size: 13px; font-weight: 500; color: var(--off-white); margin-bottom: 4px; }
+    .ask-use-body { font-size: 12px; color: rgba(255,255,255,0.35); line-height: 1.5; }
+    .milestones { margin: 32px 0; }
+    .milestone { display: flex; align-items: flex-start; gap: 20px; padding: 16px 0; border-bottom: 1px solid rgba(255,255,255,0.06); }
+    .milestone:last-child { border-bottom: none; }
+    .milestone-date { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.08em; color: var(--gold); width: 80px; flex-shrink: 0; padding-top: 2px; }
+    .milestone-text { font-size: 14px; color: rgba(255,255,255,0.6); line-height: 1.5; }
+    .ask-cta { margin-top: 32px; display: flex; gap: 16px; flex-wrap: wrap; }
+
+    /* ── TEAM ── */
+    .team-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 32px; margin: 32px 0; }
+    .team-card { display: flex; gap: 20px; align-items: flex-start; padding: 28px; border: 1px solid var(--border); border-radius: var(--radius-lg); }
+    .team-avatar { width: 56px; height: 56px; border-radius: 50%; background: var(--surface-mid); display: flex; align-items: center; justify-content: center; font-family: var(--font-display); font-size: 20px; font-weight: 500; color: var(--text-secondary); flex-shrink: 0; }
+    .team-info h4 { font-family: var(--font-display); font-size: 20px; font-weight: 500; color: var(--ink); margin-bottom: 2px; }
+    .team-info .team-title { font-size: 12px; font-family: var(--font-mono); letter-spacing: 0.06em; color: var(--gold); text-transform: uppercase; margin-bottom: 8px; }
+    .team-info p { font-size: 13px; color: var(--text-secondary); line-height: 1.6; }
+    .advisors { display: flex; gap: 24px; flex-wrap: wrap; margin: 24px 0; }
+    .advisor { padding: 12px 20px; border: 1px solid var(--border); border-radius: 40px; font-size: 13px; color: var(--text-secondary); }
+    .advisor strong { color: var(--ink); }
+
+    .callout {
+      background: rgba(201,149,42,0.07);
+      border: 1px solid rgba(201,149,42,0.2);
+      border-radius: var(--radius-lg);
+      padding: 24px 28px;
+      font-size: 14px;
+      color: var(--ink);
+      line-height: 1.65;
+      margin: 24px 0;
+      font-style: italic;
+    }
+
+    @media (max-width: 768px) {
+      .investor-page { padding: 100px 24px 60px; }
+      .inv-stats { grid-template-columns: 1fr; }
+      .rev-grid { grid-template-columns: 1fr; }
+      .def-grid { grid-template-columns: 1fr; }
+      .ask-use { grid-template-columns: 1fr; }
+      .team-grid { grid-template-columns: 1fr; }
+      .ask-card { padding: 28px 24px; }
+    }
+  </style>
+</head>
+<body>
+  <div id="nav-placeholder"></div>
+
+  <div class="investor-page">
+    <div class="investor-inner">
+
+      <div class="investor-hero fade-up">
+        <p class="section-label">Infrastructure Investment Opportunity</p>
+        <h1>A new data layer<br>for the music<br>industry.</h1>
+        <p>$13B in global performance royalties. No unified performance database. We're building the infrastructure that connects them.</p>
+      </div>
+
+      <!-- MARKET STATS -->
+      <div class="inv-section scroll-reveal">
+        <p class="section-label">Market Opportunity</p>
+        <div class="inv-stats">
+          <div class="inv-stat">
+            <div class="inv-stat-value">$13B</div>
+            <div class="inv-stat-label">Global music performance royalties collected annually</div>
+          </div>
+          <div class="inv-stat">
+            <div class="inv-stat-value">$3–4B</div>
+            <div class="inv-stat-label">Live + public performance royalties (our serviceable market)</div>
+          </div>
+          <div class="inv-stat">
+            <div class="inv-stat-value">$700M+</div>
+            <div class="inv-stat-label">Potentially misallocated annually due to missing setlist data</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- PROBLEM -->
+      <div class="inv-section scroll-reveal">
+        <p class="section-label">The Problem</p>
+        <h2>Live music runs on incomplete data.</h2>
+        <p>73% of live performances are never reported to PROs. ASCAP and BMI only auto-track the top 300 grossing tours. Every other artist must self-report — and most don't. When royalties go unclaimed for three years, PROs redistribute them using internal market formulas, not actual performances.</p>
+        <p>The problem isn't that artists don't care. It's that until now, accurate setlist capture required human effort at every show on earth. That's a logistics problem. We solve it with software.</p>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin:28px 0;">
+          <div style="padding:20px;background:var(--surface-mid);border-radius:var(--radius-lg);">
+            <div style="font-family:var(--font-display);font-size:36px;font-weight:500;color:var(--gold);margin-bottom:4px;">73%</div>
+            <div style="font-size:13px;color:var(--text-secondary);">Of performances never reported</div>
+          </div>
+          <div style="padding:20px;background:var(--surface-mid);border-radius:var(--radius-lg);">
+            <div style="font-family:var(--font-display);font-size:36px;font-weight:500;color:var(--gold);margin-bottom:4px;">40%</div>
+            <div style="font-size:13px;color:var(--text-secondary);">Of songwriters never receive live royalties</div>
+          </div>
+        </div>
+        <div class="callout">"Streaming and radio have mature analytics infrastructure. Live music — the industry's fastest-growing revenue segment — has nothing equivalent. Setlistr is building what should have existed twenty years ago."</div>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- SOLUTION -->
+      <div class="inv-section scroll-reveal">
+        <p class="section-label">Technical Approach</p>
+        <h2>We identify compositions, not recordings.</h2>
+        <p>This distinction is what makes Setlistr technically defensible. Recording fingerprinting (Shazam, ACRCloud) fails in live environments — a live cover of "Fast Car" sounds nothing like Tracy Chapman's studio recording. Setlistr matches on three composition-level signals:</p>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin:24px 0;">
+          <div>
+            <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:0.1em;color:var(--gold);margin-bottom:12px;">WE MATCH</div>
+            <div style="font-size:14px;color:var(--text-secondary);line-height:2;">Lyrics (phonetic matching)<br>Melodic patterns (key/tempo agnostic)<br>Structural signals (verse/chorus shape)</div>
+          </div>
+          <div>
+            <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:0.1em;color:var(--text-muted);margin-bottom:12px;">WE DON'T MATCH</div>
+            <div style="font-size:14px;color:var(--text-muted);line-height:2;">Specific recordings<br>Studio arrangements<br>Artist voice identity</div>
+          </div>
+        </div>
+        <p style="font-style:italic;color:var(--text-secondary);">No audio is recorded or stored. Only acoustic fingerprints are processed in real time.</p>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- COMPETITIVE -->
+      <div class="inv-section scroll-reveal">
+        <p class="section-label">Competitive Landscape</p>
+        <h2>Why Setlistr wins.</h2>
+        <table class="comp-table">
+          <thead>
+            <tr>
+              <th></th>
+              <th style="color:var(--gold);">Setlistr</th>
+              <th>Muzooka</th>
+              <th>Setlist.fm</th>
+              <th>ASCAP/BMI</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>AI composition detection</td>
+              <td class="setlistr-col"><span class="check">✓</span></td>
+              <td><span class="cross">✗</span></td>
+              <td><span class="cross">✗</span></td>
+              <td><span class="cross">✗</span></td>
+            </tr>
+            <tr>
+              <td>No artist action required</td>
+              <td class="setlistr-col"><span class="check">✓</span></td>
+              <td><span class="cross">✗</span></td>
+              <td><span class="cross">✗</span></td>
+              <td><span class="cross">✗</span></td>
+            </tr>
+            <tr>
+              <td>Cover song identification</td>
+              <td class="setlistr-col"><span class="check">✓</span></td>
+              <td><span class="cross">✗</span></td>
+              <td><span class="cross">✗</span></td>
+              <td><span class="cross">✗</span></td>
+            </tr>
+            <tr>
+              <td>Multi-PRO submission</td>
+              <td class="setlistr-col"><span class="check">✓</span></td>
+              <td><span class="partial">Partial</span></td>
+              <td><span class="cross">✗</span></td>
+              <td><span class="cross">✗</span></td>
+            </tr>
+            <tr>
+              <td>Public verified registry</td>
+              <td class="setlistr-col"><span class="check">✓</span></td>
+              <td><span class="cross">✗</span></td>
+              <td><span class="partial">Unverified</span></td>
+              <td><span class="cross">✗</span></td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="callout">Muzooka streamlines manual setlist submission. We automate detection. An artist using Setlistr doesn't submit anything — the composition is identified, verified, and reported automatically from the stage.</div>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- BUSINESS MODEL -->
+      <div class="inv-section scroll-reveal">
+        <p class="section-label">Business Model</p>
+        <h2>Three revenue streams.</h2>
+        <div class="rev-grid">
+          <div class="rev-card">
+            <div class="rev-num">1</div>
+            <div class="rev-title">Subscription</div>
+            <div class="rev-body">SaaS platform for artists, managers, and publishers. Per-seat pricing with roster tiers. Primary acquisition channel: artist managers.</div>
+          </div>
+          <div class="rev-card">
+            <div class="rev-num">2</div>
+            <div class="rev-title">Enterprise Licensing</div>
+            <div class="rev-body">API access and direct integrations for PROs, labels, and publishing houses. Annual contract. Targets the highest-value accounts.</div>
+          </div>
+          <div class="rev-card">
+            <div class="rev-num">3</div>
+            <div class="rev-title">Royalty Recovery Fees</div>
+            <div class="rev-body">Transaction fee on verified performance submissions that result in royalty recovery. Revenue aligns directly with value delivered.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- DEFENSIBILITY -->
+      <div class="inv-section scroll-reveal">
+        <p class="section-label">Defensibility</p>
+        <h2>The moats get stronger over time.</h2>
+        <div class="def-grid">
+          <div class="def-card">
+            <div class="def-icon"><svg viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg></div>
+            <h4>Growing Dataset</h4>
+            <p>Historical performance data cannot be replicated. Every show we capture becomes a permanent competitive asset.</p>
+          </div>
+          <div class="def-card">
+            <div class="def-icon"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg></div>
+            <h4>Network Effects</h4>
+            <p>More performances → better composition matching → more accurate registry → more PRO trust → more value for every user.</p>
+          </div>
+          <div class="def-card">
+            <div class="def-icon"><svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg></div>
+            <h4>Industry Integrations</h4>
+            <p>Direct connections with PROs, venue platforms, and tour management tools create switching costs and data network advantages.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- THE ASK -->
+      <div class="inv-section scroll-reveal">
+        <p class="section-label">Join the Round</p>
+        <div class="ask-card">
+          <div class="ask-amount">We are raising $750K<br>in pre-seed funding.</div>
+          <div class="ask-sub">Targeting close: June 2026 · Accredited investors only</div>
+          <div class="ask-use">
+            <div class="ask-use-item">
+              <div class="ask-use-pct">45%</div>
+              <div class="ask-use-title">Product & Engineering</div>
+              <div class="ask-use-body">Complete PRO API integrations for ASCAP, BMI, and SOCAN. Launch iOS app.</div>
+            </div>
+            <div class="ask-use-item">
+              <div class="ask-use-pct">30%</div>
+              <div class="ask-use-title">Partnerships</div>
+              <div class="ask-use-body">Sign 3 venue pilots and 1 formal PRO integration agreement.</div>
+            </div>
+            <div class="ask-use-item">
+              <div class="ask-use-pct">25%</div>
+              <div class="ask-use-title">Go-to-Market</div>
+              <div class="ask-use-body">Build Nashville presence, close first 50 paying accounts.</div>
+            </div>
+          </div>
+          <div class="milestones">
+            <div style="font-family:var(--font-mono);font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:rgba(255,255,255,0.3);margin-bottom:16px;">Milestones with this capital</div>
+            <div class="milestone">
+              <div class="milestone-date">Q2 2026</div>
+              <div class="milestone-text">First venue pilot live in Nashville. Automated PRO report generation in production.</div>
+            </div>
+            <div class="milestone">
+              <div class="milestone-date">Q3 2026</div>
+              <div class="milestone-text">First PRO integration agreement signed. 100+ active beta users.</div>
+            </div>
+            <div class="milestone">
+              <div class="milestone-date">Q4 2026</div>
+              <div class="milestone-text">500 active rightsholders on platform. Seed round materials ready.</div>
+            </div>
+          </div>
+          <div class="ask-cta">
+            <a href="mailto:invest@setlistr.ai" class="btn btn-primary">Request Investment Deck</a>
+            <a href="mailto:invest@setlistr.ai" class="btn btn-outline-light">Schedule a Call</a>
+          </div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- TEAM -->
+      <div class="inv-section scroll-reveal">
+        <p class="section-label">The Team</p>
+        <h2>Who's building this.</h2>
+        <div class="team-grid">
+          <div class="team-card">
+            <div class="team-avatar">DS</div>
+            <div class="team-info">
+              <h4>Daryl Scott</h4>
+              <div class="team-title">Co-Founder</div>
+              <p>Award-winning songwriter and President of Honky Tonk Record Co. SOCAN Award winner, CMAO winner, and multi-time CCMA nominee. Brings firsthand experience from both the creative and business sides of the music industry as a songwriter, label executive, and artist advocate.</p>
+            </div>
+          </div>
+          <div class="team-card">
+            <div class="team-avatar">JS</div>
+            <div class="team-info">
+              <h4>Jesse Slack</h4>
+              <div class="team-title">Co-Founder</div>
+              <p>Nashville-based songwriter, music entrepreneur, and sync licensing executive. Years of experience working with publishers, performance rights organizations, and licensing platforms. Identified the live performance reporting gap firsthand and built Setlistr to solve it.</p>
+            </div>
+          </div>
+          <div class="team-card">
+            <div class="team-avatar">KR</div>
+            <div class="team-info">
+              <h4>Kode Roberts</h4>
+              <div class="team-title">Chief Marketing Officer</div>
+              <p>Marketing executive and artist manager with deep background in music strategy, brand development, and artist growth. Through her work with The Familie Management, she has seen firsthand how broken set list reporting and royalty submission can be for artists and songwriters.</p>
+            </div>
+          </div>
+        </div>
+        <div style="margin-top:32px;">
+          <p style="font-size:13px;color:var(--text-muted);">Interested in advising? <a href="mailto:hello@setlistr.ai" style="color:var(--gold);">hello@setlistr.ai</a></p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div id="footer-placeholder"></div>
+  <script src="/setlistr-components.js"></script>
+  <script>renderNav('Investors'); renderFooter();</script>
+</body>
+</html>

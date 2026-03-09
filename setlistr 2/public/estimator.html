@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Royalty Estimator — Setlistr.ai</title>
+  <meta name="description" content="Calculate how much in live performance royalties you may be leaving on the table. Free, instant, no signup required.">
+  <link rel="stylesheet" href="/setlistr.css">
+  <style>
+    .estimator-page {
+      min-height: 100vh;
+      padding: 120px 48px 80px;
+    }
+    .estimator-inner {
+      max-width: 960px;
+      margin: 0 auto;
+    }
+    .estimator-header {
+      margin-bottom: 64px;
+    }
+    .estimator-header h1 {
+      font-family: var(--font-display);
+      font-size: clamp(40px, 5vw, 68px);
+      font-weight: 500;
+      line-height: 1.05;
+      margin-bottom: 16px;
+    }
+    .estimator-header p {
+      font-size: 17px;
+      color: var(--text-secondary);
+      max-width: 480px;
+      line-height: 1.65;
+    }
+    .estimator-layout {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 48px;
+      align-items: start;
+    }
+    /* ── FORM ────────────────────────────────────── */
+    .estimator-form {
+      background: var(--surface-mid);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 40px;
+    }
+    .form-group {
+      margin-bottom: 28px;
+    }
+    .form-label {
+      display: block;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-secondary);
+      margin-bottom: 10px;
+    }
+    .form-select, .form-input {
+      width: 100%;
+      padding: 12px 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      font-family: var(--font-body);
+      font-size: 15px;
+      color: var(--ink);
+      outline: none;
+      appearance: none;
+      transition: border-color var(--transition);
+    }
+    .form-select:focus, .form-input:focus { border-color: var(--gold); }
+    .form-select {
+      background-image: url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L6 6L11 1' stroke='%239a9a94' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 16px center;
+      padding-right: 40px;
+      cursor: pointer;
+    }
+    .range-wrapper {
+      position: relative;
+    }
+    .range-display {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .range-value {
+      font-family: var(--font-display);
+      font-size: 28px;
+      font-weight: 500;
+      color: var(--ink);
+    }
+    .range-unit {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-muted);
+      letter-spacing: 0.08em;
+    }
+    input[type="range"] {
+      width: 100%;
+      -webkit-appearance: none;
+      height: 4px;
+      border-radius: 2px;
+      background: linear-gradient(to right, var(--gold) 0%, var(--gold) 50%, var(--border) 50%, var(--border) 100%);
+      outline: none;
+      cursor: pointer;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 18px; height: 18px;
+      background: var(--gold);
+      border-radius: 50%;
+      border: 3px solid white;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+      transition: transform 0.15s;
+    }
+    input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.15); }
+    .writer-note {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 6px;
+    }
+    .calc-btn {
+      width: 100%;
+      padding: 16px;
+      background: var(--gold);
+      color: var(--ink);
+      border: none;
+      border-radius: var(--radius);
+      font-family: var(--font-body);
+      font-size: 14px;
+      font-weight: 500;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all var(--transition);
+      margin-top: 8px;
+    }
+    .calc-btn:hover { background: var(--gold-light); transform: translateY(-1px); }
+
+    /* ── RESULTS ─────────────────────────────────── */
+    .results-panel {
+      position: sticky;
+      top: 80px;
+    }
+    .results-empty {
+      border: 1px dashed rgba(0,0,0,0.12);
+      border-radius: var(--radius-lg);
+      padding: 64px 40px;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+    .results-empty svg {
+      width: 48px; height: 48px;
+      stroke: rgba(0,0,0,0.15);
+      fill: none;
+      stroke-width: 1;
+      margin-bottom: 16px;
+    }
+    .results-card {
+      display: none;
+      background: var(--ink);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      animation: fadeUp 0.5s ease;
+    }
+    .results-header {
+      background: rgba(201,149,42,0.12);
+      border-bottom: 1px solid rgba(201,149,42,0.2);
+      padding: 24px 32px;
+    }
+    .results-label {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--gold);
+      margin-bottom: 6px;
+    }
+    .results-headline {
+      font-family: var(--font-display);
+      font-size: 14px;
+      color: rgba(255,255,255,0.6);
+      font-weight: 400;
+    }
+    .results-scenarios {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1px;
+      background: rgba(255,255,255,0.05);
+    }
+    .scenario {
+      background: var(--ink);
+      padding: 28px 24px;
+      text-align: center;
+      transition: background var(--transition);
+    }
+    .scenario.highlight {
+      background: rgba(201,149,42,0.08);
+      border-bottom: 2px solid var(--gold);
+    }
+    .scenario-label {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.35);
+      margin-bottom: 10px;
+    }
+    .scenario.highlight .scenario-label { color: var(--gold); }
+    .scenario-value {
+      font-family: var(--font-display);
+      font-size: 32px;
+      font-weight: 500;
+      color: rgba(255,255,255,0.5);
+      line-height: 1;
+      margin-bottom: 4px;
+    }
+    .scenario.highlight .scenario-value { color: var(--gold-light); font-size: 40px; }
+    .scenario-rate {
+      font-size: 11px;
+      color: rgba(255,255,255,0.2);
+    }
+    .scenario.highlight .scenario-rate { color: rgba(201,149,42,0.5); }
+    .results-breakdown {
+      padding: 28px 32px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+    .breakdown-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+      font-size: 13px;
+      color: rgba(255,255,255,0.4);
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+    }
+    .breakdown-row:last-child { border-bottom: none; }
+    .breakdown-row span:last-child {
+      font-family: var(--font-mono);
+      color: rgba(255,255,255,0.6);
+    }
+    .results-cta {
+      padding: 28px 32px;
+    }
+    .results-cta p {
+      font-size: 13px;
+      color: rgba(255,255,255,0.4);
+      margin-bottom: 16px;
+      line-height: 1.5;
+    }
+    .results-waitlist {
+      display: flex;
+      gap: 10px;
+    }
+    .results-waitlist input {
+      flex: 1;
+      padding: 12px 16px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: var(--radius);
+      font-family: var(--font-body);
+      font-size: 13px;
+      color: var(--off-white);
+      outline: none;
+    }
+    .results-waitlist input::placeholder { color: rgba(255,255,255,0.25); }
+    .results-waitlist input:focus { border-color: var(--gold); }
+    .results-waitlist button {
+      padding: 12px 20px;
+      background: var(--gold);
+      color: var(--ink);
+      border: none;
+      border-radius: var(--radius);
+      font-family: var(--font-body);
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background var(--transition);
+    }
+    .results-waitlist button:hover { background: var(--gold-light); }
+    .results-signup-success {
+      display: none;
+      font-size: 13px;
+      color: var(--gold);
+      padding: 12px 0;
+    }
+    .results-note {
+      padding: 16px 32px 28px;
+      font-size: 11px;
+      color: rgba(255,255,255,0.2);
+      line-height: 1.6;
+      font-family: var(--font-mono);
+      letter-spacing: 0.02em;
+    }
+
+    /* ── FAQ ──────────────────────────────────────── */
+    .faq-section {
+      margin-top: 80px;
+      padding-top: 64px;
+      border-top: 1px solid var(--border);
+      max-width: 960px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    .faq-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 32px;
+      margin-top: 40px;
+    }
+    .faq-item h4 {
+      font-family: var(--font-display);
+      font-size: 18px;
+      font-weight: 500;
+      color: var(--ink);
+      margin-bottom: 8px;
+    }
+    .faq-item p {
+      font-size: 14px;
+      color: var(--text-secondary);
+      line-height: 1.65;
+    }
+
+    @media (max-width: 768px) {
+      .estimator-layout { grid-template-columns: 1fr; }
+      .results-panel { position: static; }
+      .faq-grid { grid-template-columns: 1fr; }
+      .estimator-page { padding: 100px 24px 60px; }
+    }
+  </style>
+</head>
+<body>
+  <div id="nav-placeholder"></div>
+
+  <div class="estimator-page">
+    <div class="estimator-inner">
+      <div class="estimator-header fade-up">
+        <p class="section-label">Royalty Estimator</p>
+        <h1>How much are you<br>leaving on the table?</h1>
+        <p>Enter your performance details. See your estimated annual royalties — and what you're missing without proper reporting.</p>
+      </div>
+
+      <div class="estimator-layout">
+        <!-- FORM -->
+        <div class="estimator-form fade-up-delay-1">
+          <div class="form-group">
+            <label class="form-label">Venue Type</label>
+            <select class="form-select" id="venue-type" onchange="updateEstimate()">
+              <option value="small">Small Venue (under 500 capacity)</option>
+              <option value="mid" selected>Mid-Size Venue (500–2,000 capacity)</option>
+              <option value="large">Large Venue (2,000–10,000 capacity)</option>
+              <option value="arena">Arena / Festival (10,000+)</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Performances Per Year</label>
+            <div class="range-wrapper">
+              <div class="range-display">
+                <span class="range-value" id="shows-val">50</span>
+                <span class="range-unit">shows / year</span>
+              </div>
+              <input type="range" id="shows-range" min="1" max="200" value="50" oninput="syncRange(this,'shows-val');updateEstimate()">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Average Songs Per Setlist</label>
+            <div class="range-wrapper">
+              <div class="range-display">
+                <span class="range-value" id="songs-val">18</span>
+                <span class="range-unit">songs</span>
+              </div>
+              <input type="range" id="songs-range" min="5" max="40" value="18" oninput="syncRange(this,'songs-val');updateEstimate()">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Your Writer Share (%)</label>
+            <div class="range-wrapper">
+              <div class="range-display">
+                <span class="range-value" id="share-val">100</span>
+                <span class="range-unit">%</span>
+              </div>
+              <input type="range" id="share-range" min="10" max="100" value="100" oninput="syncRange(this,'share-val');updateEstimate()">
+            </div>
+            <p class="writer-note">If you co-write, enter your percentage (e.g. 50% for 2 equal writers)</p>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Primary Territory</label>
+            <select class="form-select" id="territory" onchange="updateEstimate()">
+              <option value="us">United States</option>
+              <option value="uk">United Kingdom</option>
+              <option value="ca">Canada</option>
+              <option value="eu">Europe (EU)</option>
+              <option value="au">Australia</option>
+              <option value="global">Global / Multiple</option>
+            </select>
+          </div>
+
+          <button class="calc-btn" onclick="updateEstimate(); showResults()">Calculate My Royalties →</button>
+        </div>
+
+        <!-- RESULTS -->
+        <div class="results-panel fade-up-delay-2">
+          <div class="results-empty" id="results-empty">
+            <svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+            <p>Adjust the inputs and click<br><strong>Calculate My Royalties</strong><br>to see your estimate.</p>
+          </div>
+          <div class="results-card" id="results-card">
+            <div class="results-header">
+              <div class="results-label">Estimated Annual Royalties</div>
+              <div class="results-headline" id="results-headline">Based on your performance profile</div>
+            </div>
+            <div class="results-scenarios">
+              <div class="scenario">
+                <div class="scenario-label">Conservative</div>
+                <div class="scenario-value" id="val-conservative">—</div>
+                <div class="scenario-rate">40% reporting rate</div>
+              </div>
+              <div class="scenario highlight">
+                <div class="scenario-label">Expected</div>
+                <div class="scenario-value" id="val-expected">—</div>
+                <div class="scenario-rate">75% reporting rate</div>
+              </div>
+              <div class="scenario">
+                <div class="scenario-label">Optimistic</div>
+                <div class="scenario-value" id="val-optimistic">—</div>
+                <div class="scenario-rate">100% reporting rate</div>
+              </div>
+            </div>
+            <div class="results-breakdown">
+              <div class="breakdown-row"><span>Total performances</span><span id="bd-perfs">—</span></div>
+              <div class="breakdown-row"><span>Total song performances</span><span id="bd-songs">—</span></div>
+              <div class="breakdown-row"><span>Rate per performance</span><span id="bd-rate">—</span></div>
+              <div class="breakdown-row"><span>Your writer share</span><span id="bd-share">—</span></div>
+              <div class="breakdown-row" style="border-top:1px solid rgba(255,255,255,0.08);margin-top:8px;padding-top:16px;color:rgba(255,255,255,0.7);">
+                <span style="font-weight:500;">With full Setlistr reporting</span>
+                <span id="bd-total" style="color:var(--gold-light);font-weight:500;">—</span>
+              </div>
+            </div>
+            <div class="results-cta">
+              <p>Join the waitlist and be first to start recovering your royalties when we launch.</p>
+              <div class="results-waitlist" id="results-waitlist-form">
+                <input type="email" placeholder="your@email.com" id="results-email">
+                <button onclick="signupFromResults()">Join Waitlist</button>
+              </div>
+              <div class="results-signup-success" id="results-signup-success">✓ You're on the list. We'll be in touch.</div>
+            </div>
+            <div class="results-note">
+              Estimates based on industry averages. Actual royalties vary by PRO, territory, and composition registration status. Rates assume $8–12 per song performance (US). Payment timing: typically 9–18 months after performance date.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- FAQ -->
+      <div class="faq-section">
+        <p class="section-label">Common Questions</p>
+        <div class="faq-grid">
+          <div class="faq-item">
+            <h4>Why haven't I been paid already?</h4>
+            <p>PROs like ASCAP and BMI only auto-track the top 300 grossing tours. Everyone else must self-report — and most don't. If your setlists aren't being submitted, the money is pooled and redistributed using market formulas, not your actual performances.</p>
+          </div>
+          <div class="faq-item">
+            <h4>What counts as a "performance royalty"?</h4>
+            <p>Every time a song you wrote is performed live in public, you're owed a performance royalty — whether you're the performer or not. This includes cover performances by other artists at venues with blanket PRO licenses.</p>
+          </div>
+          <div class="faq-item">
+            <h4>How does Setlistr know what I played?</h4>
+            <p>Setlistr uses AI composition matching to identify songs during the performance. Unlike audio fingerprinting, we match at the composition level — so a live cover of a song is still correctly identified as your composition, regardless of key or tempo.</p>
+          </div>
+          <div class="faq-item">
+            <h4>When do royalties actually arrive?</h4>
+            <p>PRO payment timelines vary by organization and territory — typically 9–18 months after the performance date. Setlistr tracks submission status and notifies you when payments are expected.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="footer-placeholder"></div>
+
+  <script src="/setlistr-components.js"></script>
+  <script>
+    renderNav('Estimator');
+    renderFooter();
+
+    const RATES = {
+      small:  { min: 4, max: 7 },
+      mid:    { min: 8, max: 12 },
+      large:  { min: 14, max: 22 },
+      arena:  { min: 28, max: 60 }
+    };
+    const TERRITORY_MULT = { us:1, uk:0.92, ca:0.78, eu:0.85, au:0.7, global:1.15 };
+
+    let calculated = false;
+
+    function syncRange(el, valId) {
+      document.getElementById(valId).textContent = el.value;
+      const pct = (el.value - el.min) / (el.max - el.min) * 100;
+      el.style.background = `linear-gradient(to right, var(--gold) ${pct}%, var(--gold) ${pct}%, rgba(0,0,0,0.1) ${pct}%, rgba(0,0,0,0.1) 100%)`;
+    }
+
+    function fmt(n) {
+      if (n >= 1000) return '$' + (n/1000).toFixed(1).replace(/\.0$/,'') + 'K';
+      return '$' + Math.round(n).toLocaleString();
+    }
+
+    function updateEstimate() {
+      const venue = document.getElementById('venue-type').value;
+      const shows = parseInt(document.getElementById('shows-range').value);
+      const songs = parseInt(document.getElementById('songs-range').value);
+      const share = parseInt(document.getElementById('share-range').value) / 100;
+      const territory = document.getElementById('territory').value;
+
+      const rate = (RATES[venue].min + RATES[venue].max) / 2;
+      const mult = TERRITORY_MULT[territory];
+      const songPerfs = shows * songs;
+      const base = songPerfs * rate * share * mult;
+
+      const conservative = base * 0.40;
+      const expected = base * 0.75;
+      const optimistic = base * 1.0;
+
+      document.getElementById('val-conservative').textContent = fmt(conservative);
+      document.getElementById('val-expected').textContent = fmt(expected);
+      document.getElementById('val-optimistic').textContent = fmt(optimistic);
+      document.getElementById('bd-perfs').textContent = shows.toLocaleString() + ' shows';
+      document.getElementById('bd-songs').textContent = songPerfs.toLocaleString() + ' song perfs';
+      document.getElementById('bd-rate').textContent = '$' + RATES[venue].min + '–$' + RATES[venue].max;
+      document.getElementById('bd-share').textContent = Math.round(share * 100) + '%';
+      document.getElementById('bd-total').textContent = fmt(optimistic) + ' / year';
+      document.getElementById('results-headline').textContent =
+        `${shows} shows · ${songs} songs · ${Math.round(share*100)}% writer share`;
+    }
+
+    function showResults() {
+      calculated = true;
+      document.getElementById('results-empty').style.display = 'none';
+      document.getElementById('results-card').style.display = 'block';
+    }
+
+    function signupFromResults() {
+      const email = document.getElementById('results-email').value.trim();
+      if (!email || !email.includes('@')) return;
+      const existing = JSON.parse(localStorage.getItem('sl_waitlist') || '[]');
+      if (!existing.includes(email)) { existing.push(email); localStorage.setItem('sl_waitlist', JSON.stringify(existing)); }
+      document.getElementById('results-waitlist-form').style.display = 'none';
+      document.getElementById('results-signup-success').style.display = 'block';
+    }
+
+    // Init sliders
+    document.querySelectorAll('input[type="range"]').forEach(r => syncRange(r, r.id.replace('-range','-val')));
+    updateEstimate();
+  </script>
+</body>
+</html>

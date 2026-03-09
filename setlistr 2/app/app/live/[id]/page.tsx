@@ -1,0 +1,178 @@
+'use client'
+import { useEffect, useState, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
+import { Square, Clock, MapPin, Music } from 'lucide-react'
+import type { Performance } from '@/types'
+
+export default function LiveCapturePage({ params }: { params: { id: string } }) {
+  const router = useRouter()
+  const [performance, setPerformance] = useState<Performance | null>(null)
+  const [elapsed, setElapsed] = useState(0)
+  const [ending, setEnding] = useState(false)
+  const [songInput, setSongInput] = useState('')
+  const [songs, setSongs] = useState<string[]>([])
+
+  useEffect(() => {
+    const supabase = createClient()
+    supabase.from('performances').select('*').eq('id', params.id).single()
+      .then(({ data }) => {
+        if (data) setPerformance(data)
+      })
+  }, [params.id])
+
+  // Elapsed timer
+  useEffect(() => {
+    if (!performance?.started_at) return
+    const start = new Date(performance.started_at).getTime()
+    const tick = () => setElapsed(Math.floor((Date.now() - start) / 1000))
+    tick()
+    const interval = setInterval(tick, 1000)
+    return () => clearInterval(interval)
+  }, [performance?.started_at])
+
+  // Auto-close
+  useEffect(() => {
+    if (!performance) return
+    const totalSeconds = (performance.set_duration_minutes + performance.auto_close_buffer_minutes) * 60
+    if (elapsed >= totalSeconds && !ending) {
+      handleEnd()
+    }
+  }, [elapsed, performance, ending])
+
+  const handleEnd = useCallback(async () => {
+    if (ending || !performance) return
+    setEnding(true)
+    const supabase = createClient()
+
+    await supabase.from('performances').update({
+      status: 'review',
+      ended_at: new Date().toISOString(),
+    }).eq('id', performance.id)
+
+    await supabase.from('capture_sessions').update({
+      ended_at: new Date().toISOString(),
+      status: 'ended',
+    }).eq('performance_id', performance.id)
+
+    // Save any songs entered during live session
+    if (songs.length > 0) {
+      await supabase.from('performance_songs').insert(
+        songs.map((title, i) => ({
+          performance_id: performance.id,
+          title,
+          artist: performance.artist_name,
+          position: i + 1,
+        }))
+      )
+    }
+
+    router.push(`/app/review/${performance.id}`)
+  }, [ending, performance, songs, router])
+
+  function addSong() {
+    const trimmed = songInput.trim()
+    if (!trimmed) return
+    setSongs(s => [...s, trimmed])
+    setSongInput('')
+  }
+
+  function formatTime(s: number) {
+    const m = Math.floor(s / 60)
+    const sec = s % 60
+    return `${m}:${sec.toString().padStart(2, '0')}`
+  }
+
+  if (!performance) {
+    return (
+      <div className="min-h-screen bg-ink flex items-center justify-center">
+        <div className="text-gold animate-pulse">Loading...</div>
+      </div>
+    )
+  }
+
+  const totalSeconds = performance.set_duration_minutes * 60
+  const progress = Math.min(elapsed / totalSeconds, 1)
+  const remaining = Math.max(totalSeconds - elapsed, 0)
+  const autoCloseAt = totalSeconds + performance.auto_close_buffer_minutes * 60
+
+  return (
+    <div className="min-h-screen bg-ink text-cream flex flex-col"
+      style={{ background: 'radial-gradient(ellipse at 50% 0%, #1e1c18 0%, #0f0e0c 100%)' }}>
+
+      {/* Live indicator */}
+      <div className="flex items-center justify-center gap-2 pt-6 pb-2">
+        <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse"/>
+        <span className="text-xs uppercase tracking-[0.3em] text-red-400 font-medium">Live Now</span>
+      </div>
+
+      {/* Venue info */}
+      <div className="text-center px-6 py-4">
+        <h1 className="font-display text-2xl text-cream mb-1">{performance.venue_name}</h1>
+        <div className="flex items-center justify-center gap-1 text-ink-light text-sm">
+          <MapPin size={12} />
+          <span>{performance.city}, {performance.country}</span>
+        </div>
+        <p className="text-gold text-sm mt-1 font-medium">{performance.artist_name}</p>
+      </div>
+
+      {/* Big timer */}
+      <div className="flex-1 flex flex-col items-center justify-center px-6">
+        <div className="text-7xl font-mono font-bold text-cream tracking-tight mb-2">
+          {formatTime(elapsed)}
+        </div>
+        <div className="text-ink-light text-sm mb-8">
+          {remaining > 0 ? `${formatTime(remaining)} remaining` : `${formatTime(elapsed - totalSeconds)} over`}
+        </div>
+
+        {/* Progress bar */}
+        <div className="w-full max-w-xs bg-[#2a2620] rounded-full h-1.5 mb-2">
+          <div className="h-1.5 rounded-full bg-gold transition-all duration-1000"
+            style={{ width: `${progress * 100}%` }} />
+        </div>
+        <div className="text-xs text-ink-light">
+          Auto-closes at {formatTime(autoCloseAt)}
+        </div>
+      </div>
+
+      {/* Song capture */}
+      <div className="px-4 pb-4 max-w-lg mx-auto w-full">
+        <div className="bg-[#1a1814] rounded-2xl border border-[#2e2b26] p-4 mb-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Music size={14} className="text-gold" />
+            <span className="text-xs uppercase tracking-wider text-ink-light">Log a Song</span>
+          </div>
+          <div className="flex gap-2">
+            <input
+              value={songInput}
+              onChange={e => setSongInput(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && addSong()}
+              placeholder="Song title..."
+              className="flex-1 bg-[#0f0e0c] border border-[#2e2b26] rounded-xl px-3 py-2.5 text-cream placeholder:text-[#4a4640] text-sm focus:outline-none focus:border-gold"
+            />
+            <button onClick={addSong} className="bg-gold text-ink font-semibold px-4 rounded-xl text-sm">
+              Add
+            </button>
+          </div>
+          {songs.length > 0 && (
+            <div className="mt-3 flex flex-col gap-1">
+              {songs.map((s, i) => (
+                <div key={i} className="flex items-center gap-2 text-sm text-cream">
+                  <span className="text-gold font-mono text-xs w-4">{i + 1}</span>
+                  <span>{s}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* End button */}
+        <button onClick={handleEnd} disabled={ending}
+          className="flex items-center justify-center gap-2 w-full bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white font-bold rounded-2xl py-4 transition-colors">
+          <Square size={16} fill="currentColor" />
+          {ending ? 'Ending...' : 'End Performance'}
+        </button>
+      </div>
+    </div>
+  )
+}

@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Performance Registry — Setlistr.ai</title>
+  <link rel="stylesheet" href="/setlistr.css">
+  <style>
+    .registry-page { padding: 120px 48px 80px; background: var(--ink); min-height: 100vh; }
+    .registry-inner { max-width: 1100px; margin: 0 auto; }
+    .registry-hero { margin-bottom: 56px; }
+    .registry-hero h1 { font-family: var(--font-display); font-size: clamp(44px,6vw,76px); font-weight: 500; line-height: 1.0; color: var(--off-white); margin-bottom: 16px; }
+    .registry-hero p { font-size: 17px; color: rgba(255,255,255,0.4); max-width: 480px; line-height: 1.65; }
+
+    /* ── SEARCH ── */
+    .search-bar {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: var(--radius);
+      padding: 0 20px;
+      margin-bottom: 12px;
+      transition: border-color 0.2s;
+    }
+    .search-bar:focus-within { border-color: var(--gold); }
+    .search-bar svg { width: 18px; height: 18px; stroke: rgba(255,255,255,0.3); fill: none; stroke-width: 1.5; flex-shrink: 0; margin-right: 12px; }
+    .search-bar input {
+      flex: 1;
+      padding: 16px 0;
+      background: transparent;
+      border: none;
+      font-family: var(--font-body);
+      font-size: 15px;
+      color: var(--off-white);
+      outline: none;
+    }
+    .search-bar input::placeholder { color: rgba(255,255,255,0.25); }
+    .search-filters { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 40px; }
+    .filter-pill {
+      padding: 7px 16px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 40px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 0.06em;
+      color: rgba(255,255,255,0.4);
+      cursor: pointer;
+      transition: all 0.2s;
+      user-select: none;
+    }
+    .filter-pill:hover, .filter-pill.active { background: rgba(201,149,42,0.12); border-color: var(--gold); color: var(--gold); }
+
+    /* ── TABLE ── */
+    .reg-table { width: 100%; border-collapse: collapse; }
+    .reg-table th {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.2);
+      text-align: left;
+      padding: 12px 16px 16px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+    .reg-table td {
+      padding: 18px 16px 18px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+      vertical-align: middle;
+      font-size: 14px;
+      color: rgba(255,255,255,0.6);
+    }
+    .reg-table tr:hover td { background: rgba(255,255,255,0.02); }
+    .reg-song-title { font-weight: 500; color: var(--off-white); margin-bottom: 2px; }
+    .reg-song-writer { font-size: 12px; color: rgba(255,255,255,0.3); }
+    .reg-artist { color: rgba(255,255,255,0.7); }
+    .reg-venue { }
+    .reg-date { font-family: var(--font-mono); font-size: 12px; }
+    .reg-conf {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--gold-light);
+    }
+    .reg-conf::before { content: ''; width: 6px; height: 6px; background: var(--gold); border-radius: 50%; flex-shrink: 0; }
+    .cover-badge {
+      display: inline-block;
+      padding: 2px 7px;
+      background: rgba(255,255,255,0.06);
+      border-radius: 3px;
+      font-family: var(--font-mono);
+      font-size: 9px;
+      letter-spacing: 0.08em;
+      color: rgba(255,255,255,0.25);
+      text-transform: uppercase;
+      margin-left: 6px;
+    }
+
+    /* ── PAGINATION / STATS ── */
+    .reg-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 32px;
+      padding-top: 24px;
+      border-top: 1px solid rgba(255,255,255,0.06);
+    }
+    .reg-count { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.08em; color: rgba(255,255,255,0.2); }
+    .reg-count span { color: var(--gold); }
+    .reg-stats { display: flex; gap: 32px; }
+    .reg-stat { text-align: right; }
+    .reg-stat-val { font-family: var(--font-display); font-size: 22px; font-weight: 500; color: var(--gold); }
+    .reg-stat-lbl { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.08em; color: rgba(255,255,255,0.2); }
+
+    /* nav override for dark bg */
+    .nav { background: rgba(8,8,8,0.95) !important; border-bottom-color: rgba(255,255,255,0.06) !important; }
+    .nav-logo { color: var(--off-white) !important; }
+    .nav-mark span { background: var(--off-white) !important; }
+    .nav-wordmark { color: var(--off-white) !important; }
+    .nav-links a { color: rgba(255,255,255,0.4) !important; }
+    .nav-links a:hover, .nav-links a.active { color: var(--off-white) !important; }
+
+    @media (max-width: 768px) {
+      .registry-page { padding: 100px 24px 60px; }
+      .reg-table th:nth-child(3), .reg-table td:nth-child(3),
+      .reg-table th:nth-child(5), .reg-table td:nth-child(5) { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div id="nav-placeholder"></div>
+
+  <div class="registry-page">
+    <div class="registry-inner">
+      <div class="registry-hero fade-up">
+        <p class="section-label" style="color:rgba(201,149,42,0.7);">The Global Registry</p>
+        <h1>Every verified<br>performance.<br><em style="color:var(--gold);">On record.</em></h1>
+        <p>A permanent, public database of verified live performances. Search by artist, song, songwriter, or venue.</p>
+      </div>
+
+      <div class="search-bar fade-up-delay-1">
+        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" id="search-input" placeholder="Search artist, song, songwriter, venue…" oninput="filterTable()">
+      </div>
+
+      <div class="search-filters fade-up-delay-2">
+        <div class="filter-pill active" onclick="setFilter(this,'all')">All Performances</div>
+        <div class="filter-pill" onclick="setFilter(this,'covers')">Covers Only</div>
+        <div class="filter-pill" onclick="setFilter(this,'us')">United States</div>
+        <div class="filter-pill" onclick="setFilter(this,'uk')">United Kingdom</div>
+        <div class="filter-pill" onclick="setFilter(this,'nashville')">Nashville</div>
+      </div>
+
+      <table class="reg-table fade-up-delay-2">
+        <thead>
+          <tr>
+            <th>Song / Writer</th>
+            <th>Performed By</th>
+            <th>Venue</th>
+            <th>Date</th>
+            <th>Confidence</th>
+          </tr>
+        </thead>
+        <tbody id="registry-body">
+        </tbody>
+      </table>
+
+      <div class="reg-meta fade-up-delay-3">
+        <div class="reg-count">Showing <span id="showing-count">20</span> of <span>2,847,293</span> verified performances</div>
+        <div class="reg-stats">
+          <div class="reg-stat">
+            <div class="reg-stat-val">847K</div>
+            <div class="reg-stat-lbl">Songs verified</div>
+          </div>
+          <div class="reg-stat">
+            <div class="reg-stat-val">45K</div>
+            <div class="reg-stat-lbl">Venues</div>
+          </div>
+          <div class="reg-stat">
+            <div class="reg-stat-val">120</div>
+            <div class="reg-stat-lbl">Countries</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top:64px;padding-top:64px;border-top:1px solid rgba(255,255,255,0.06);text-align:center;">
+        <h2 style="font-family:var(--font-display);font-size:36px;font-weight:500;color:var(--off-white);margin-bottom:12px;">Add your performances to the registry.</h2>
+        <p style="color:rgba(255,255,255,0.4);margin-bottom:28px;font-size:15px;">Join the waitlist. Be first when we launch.</p>
+        <a href="/#waitlist" class="btn btn-primary" style="font-size:14px;padding:14px 32px;">Join the Waitlist →</a>
+      </div>
+    </div>
+  </div>
+
+  <div id="footer-placeholder"></div>
+
+  <script src="/setlistr-components.js"></script>
+  <script>
+    renderNav('Registry');
+    renderFooter();
+
+    const REGISTRY_DATA = [
+      { song: 'Tennessee Whiskey', writer: 'Chris Stapleton', artist: 'Chris Stapleton', venue: 'Red Rocks Amphitheatre', location: 'Morrison, CO', date: '2026-03-06', conf: 99, cover: false, tags: ['us'] },
+      { song: 'Fast Car', writer: 'Tracy Chapman', artist: 'Luke Combs', venue: 'Bridgestone Arena', location: 'Nashville, TN', date: '2026-03-05', conf: 96, cover: true, tags: ['us','nashville'] },
+      { song: 'Wagon Wheel', writer: 'Ketch Secor / Bob Dylan', artist: 'Old Crow Medicine Show', venue: '9:30 Club', location: 'Washington, DC', date: '2026-03-05', conf: 98, cover: false, tags: ['us'] },
+      { song: 'Something in the Orange', writer: 'Zach Bryan', artist: 'Zach Bryan', venue: 'The Fillmore', location: 'San Francisco, CA', date: '2026-03-04', conf: 97, cover: false, tags: ['us'] },
+      { song: 'Take Me Home, Country Roads', writer: 'Denver / Danoff / Nivert', artist: 'John Denver Tribute', venue: 'O2 Academy Brixton', location: 'London, UK', date: '2026-03-04', conf: 94, cover: true, tags: ['uk'] },
+      { song: 'Whiskey River', writer: 'Johnny Bush', artist: 'Willie Nelson', venue: 'Ryman Auditorium', location: 'Nashville, TN', date: '2026-03-03', conf: 99, cover: false, tags: ['us','nashville'] },
+      { song: 'The House That Built Me', writer: 'Tom Douglas / Allen Shamblin', artist: 'Miranda Lambert', venue: 'Ascend Amphitheater', location: 'Nashville, TN', date: '2026-03-02', conf: 98, cover: false, tags: ['us','nashville'] },
+      { song: 'Jolene', writer: 'Dolly Parton', artist: 'Beyoncé', venue: 'SoFi Stadium', location: 'Los Angeles, CA', date: '2026-03-01', conf: 99, cover: true, tags: ['us'] },
+      { song: 'Ring of Fire', writer: 'June Carter Cash / Merle Kilgore', artist: 'Social Distortion', venue: 'The Troubadour', location: 'West Hollywood, CA', date: '2026-02-28', conf: 92, cover: true, tags: ['us'] },
+      { song: 'Strawberry Wine', writer: 'Matraca Berg / Gary Harrison', artist: 'Deana Carter', venue: 'Bluebird Cafe', location: 'Nashville, TN', date: '2026-02-28', conf: 97, cover: false, tags: ['us','nashville'] },
+      { song: 'White Flag', writer: 'Tom Jones / Dido Armstrong', artist: 'Thomas Rhett', venue: 'Grand Ole Opry', location: 'Nashville, TN', date: '2026-02-27', conf: 95, cover: true, tags: ['us','nashville'] },
+      { song: "Daddy's Money", writer: 'Phil O\'Donnell / Marty Stuart', artist: 'Ricochet', venue: 'Station Inn', location: 'Nashville, TN', date: '2026-02-26', conf: 91, cover: false, tags: ['us','nashville'] },
+      { song: 'Always on My Mind', writer: 'Wayne Thompson / Mark James / Johnny Christopher', artist: 'Willie Nelson', venue: 'Austin City Limits', location: 'Austin, TX', date: '2026-02-25', conf: 98, cover: true, tags: ['us'] },
+      { song: "Somebody That I Used to Know", writer: 'Gotye / Kimbra', artist: 'Brandi Carlile', venue: 'Paramount Theatre', location: 'Seattle, WA', date: '2026-02-24', conf: 93, cover: true, tags: ['us'] },
+      { song: 'Waterfall', writer: 'Amy Wadge', artist: 'Ed Sheeran', venue: 'The O2 Arena', location: 'London, UK', date: '2026-02-24', conf: 97, cover: false, tags: ['uk'] },
+      { song: 'Before He Cheats', writer: 'Josh Kear / Chris Tompkins', artist: 'Carrie Underwood', venue: 'Madison Square Garden', location: 'New York, NY', date: '2026-02-23', conf: 99, cover: false, tags: ['us'] },
+      { song: 'I Will Always Love You', writer: 'Dolly Parton', artist: 'Dolly Parton', venue: 'Dollywood', location: 'Pigeon Forge, TN', date: '2026-02-22', conf: 99, cover: false, tags: ['us','nashville'] },
+      { song: "Shallow", writer: 'Lady Gaga / Mark Ronson / Anthony Rossomando / Andrew Wyatt', artist: 'Cam', venue: 'The Basement East', location: 'Nashville, TN', date: '2026-02-21', conf: 95, cover: true, tags: ['us','nashville'] },
+      { song: "Dust in the Wind", writer: 'Kerry Livgren', artist: 'Kansas', venue: 'Paramount Theatre', location: 'Denver, CO', date: '2026-02-20', conf: 96, cover: false, tags: ['us'] },
+      { song: "Fancy", writer: 'Bobbie Gentry', artist: 'Reba McEntire', venue: 'Bridgestone Arena', location: 'Nashville, TN', date: '2026-02-19', conf: 98, cover: true, tags: ['us','nashville'] },
+    ];
+
+    let activeFilter = 'all';
+
+    function setFilter(el, filter) {
+      document.querySelectorAll('.filter-pill').forEach(p => p.classList.remove('active'));
+      el.classList.add('active');
+      activeFilter = filter;
+      renderTable();
+    }
+
+    function filterTable() { renderTable(); }
+
+    function renderTable() {
+      const q = document.getElementById('search-input').value.toLowerCase();
+      let rows = REGISTRY_DATA.filter(r => {
+        const matchesSearch = !q ||
+          r.song.toLowerCase().includes(q) ||
+          r.writer.toLowerCase().includes(q) ||
+          r.artist.toLowerCase().includes(q) ||
+          r.venue.toLowerCase().includes(q) ||
+          r.location.toLowerCase().includes(q);
+        const matchesFilter = activeFilter === 'all' ||
+          (activeFilter === 'covers' && r.cover) ||
+          r.tags.includes(activeFilter);
+        return matchesSearch && matchesFilter;
+      });
+
+      document.getElementById('showing-count').textContent = rows.length;
+      document.getElementById('registry-body').innerHTML = rows.map(r => `
+        <tr>
+          <td>
+            <div class="reg-song-title">${r.song}${r.cover ? '<span class="cover-badge">Cover</span>' : ''}</div>
+            <div class="reg-song-writer">${r.writer}</div>
+          </td>
+          <td class="reg-artist">${r.artist}</td>
+          <td class="reg-venue">${r.venue}<div style="font-size:12px;color:rgba(255,255,255,0.25);">${r.location}</div></td>
+          <td class="reg-date">${r.date}</td>
+          <td><span class="reg-conf">${r.conf}%</span></td>
+        </tr>
+      `).join('');
+    }
+
+    renderTable();
+  </script>
+</body>
+</html>

@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Product — Setlistr.ai</title>
+  <link rel="stylesheet" href="/setlistr.css">
+  <style>
+    .product-page { padding: 120px 48px 80px; }
+    .product-inner { max-width: 960px; margin: 0 auto; }
+    .product-hero { margin-bottom: 80px; }
+    .product-hero h1 { font-family: var(--font-display); font-size: clamp(44px,6vw,76px); font-weight: 500; line-height: 1.05; margin-bottom: 20px; }
+    .product-hero p { font-size: 17px; color: var(--text-secondary); max-width: 500px; line-height: 1.65; }
+    .divider { height: 1px; background: var(--border); margin: 64px 0; }
+
+    /* ── FEATURE ROWS ── */
+    .feature-row { display: grid; grid-template-columns: 1fr 1fr; gap: 64px; align-items: center; margin-bottom: 80px; }
+    .feature-row.reverse { direction: rtl; }
+    .feature-row.reverse > * { direction: ltr; }
+    .feature-content { }
+    .feature-content h2 { font-family: var(--font-display); font-size: 36px; font-weight: 500; line-height: 1.15; margin-bottom: 14px; }
+    .feature-content p { font-size: 15px; color: var(--text-secondary); line-height: 1.7; margin-bottom: 12px; }
+    .feature-visual {
+      background: var(--ink);
+      border-radius: 12px;
+      padding: 32px;
+      box-shadow: 0 24px 60px rgba(0,0,0,0.15);
+    }
+
+    /* mini UI components */
+    .mini-header { display: flex; align-items: center; gap: 8px; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid rgba(255,255,255,0.06); }
+    .mini-dot { width: 8px; height: 8px; border-radius: 50%; }
+    .mini-dot.green { background: #22c55e; animation: pulse 2s ease infinite; }
+    .mini-dot.gold { background: var(--gold); }
+    .mini-title { font-family: var(--font-mono); font-size: 11px; color: rgba(255,255,255,0.4); letter-spacing: 0.1em; text-transform: uppercase; }
+
+    .song-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,0.04); }
+    .song-row:last-child { border-bottom: none; }
+    .song-info { }
+    .song-name { font-size: 14px; font-weight: 500; color: var(--off-white); margin-bottom: 2px; }
+    .song-writer { font-size: 12px; color: rgba(255,255,255,0.3); }
+    .conf-bar { display: flex; align-items: center; gap: 8px; }
+    .conf-track { width: 60px; height: 3px; background: rgba(255,255,255,0.08); border-radius: 2px; overflow: hidden; }
+    .conf-fill { height: 100%; background: var(--gold); border-radius: 2px; }
+    .conf-pct { font-family: var(--font-mono); font-size: 11px; color: var(--gold); }
+
+    .report-format { padding: 20px; background: rgba(255,255,255,0.03); border-radius: 8px; margin-bottom: 12px; }
+    .report-format-label { font-family: var(--font-mono); font-size: 10px; color: var(--gold); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 8px; }
+    .report-row { display: flex; justify-content: space-between; padding: 5px 0; font-size: 12px; color: rgba(255,255,255,0.4); border-bottom: 1px solid rgba(255,255,255,0.03); }
+    .report-row:last-child { border-bottom: none; }
+
+    .pro-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .pro-pill { padding: 8px 12px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; text-align: center; font-family: var(--font-mono); font-size: 11px; color: rgba(255,255,255,0.5); letter-spacing: 0.06em; transition: all 0.2s; cursor: pointer; }
+    .pro-pill:hover, .pro-pill.selected { background: rgba(201,149,42,0.15); border-color: var(--gold); color: var(--gold); }
+
+    /* ── WORKFLOW ── */
+    .workflow { display: flex; flex-direction: column; gap: 0; margin: 40px 0; }
+    .workflow-step { display: flex; gap: 24px; padding-bottom: 32px; position: relative; }
+    .workflow-step:not(:last-child)::after { content: ''; position: absolute; left: 15px; top: 36px; bottom: 0; width: 1px; background: var(--border); }
+    .workflow-num { width: 32px; height: 32px; border-radius: 50%; background: var(--gold); color: var(--ink); font-family: var(--font-mono); font-size: 12px; font-weight: 600; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .workflow-content h4 { font-family: var(--font-display); font-size: 20px; font-weight: 500; color: var(--ink); margin-bottom: 6px; padding-top: 4px; }
+    .workflow-content p { font-size: 14px; color: var(--text-secondary); line-height: 1.65; }
+
+    @media (max-width: 768px) {
+      .product-page { padding: 100px 24px 60px; }
+      .feature-row { grid-template-columns: 1fr; }
+      .feature-row.reverse { direction: ltr; }
+    }
+    @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.5;transform:scale(0.8)} }
+  </style>
+</head>
+<body>
+  <div id="nav-placeholder"></div>
+  <div class="product-page">
+    <div class="product-inner">
+
+      <div class="product-hero fade-up">
+        <p class="section-label">The Platform</p>
+        <h1>Capture. Verify.<br>Report. Collect.</h1>
+        <p>The complete workflow for live performance royalty reporting — automated from stage to PRO submission.</p>
+      </div>
+
+      <!-- FEATURE: DETECTION -->
+      <div class="feature-row scroll-reveal">
+        <div class="feature-content">
+          <p class="section-label">01 — Capture</p>
+          <h2>Passive detection. No action required.</h2>
+          <p>Setlistr listens during the performance. No audio is recorded or stored — only acoustic fingerprints are processed in real time, on device.</p>
+          <p>Open the app before the show. Everything else is automatic.</p>
+        </div>
+        <div class="feature-visual">
+          <div class="mini-header">
+            <div class="mini-dot green"></div>
+            <span class="mini-title">Listening for live performance…</span>
+          </div>
+          <div style="text-align:center;padding:24px 0;">
+            <div style="width:64px;height:64px;background:rgba(201,149,42,0.15);border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;border:2px solid rgba(201,149,42,0.3);">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#c9952a" stroke-width="1.5"><path d="M12 2a3 3 0 013 3v7a3 3 0 01-6 0V5a3 3 0 013-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>
+            </div>
+            <div style="font-family:var(--font-mono);font-size:12px;color:rgba(255,255,255,0.5);margin-bottom:4px;">Red Rocks Amphitheatre, Morrison</div>
+            <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-top:8px;">
+              <div style="width:6px;height:6px;background:#22c55e;border-radius:50%;"></div>
+              <span style="font-family:var(--font-mono);font-size:11px;color:#22c55e;letter-spacing:0.08em;">NO AUDIO RECORDED OR STORED</span>
+            </div>
+          </div>
+          <div style="height:40px;overflow:hidden;opacity:0.4;">
+            <svg viewBox="0 0 300 40" fill="none" xmlns="http://www.w3.org/2000/svg" style="width:100%">
+              <path d="M0 20 Q15 5 30 20 Q45 35 60 20 Q75 5 90 20 Q105 35 120 15 Q135 5 150 20 Q165 35 180 20 Q195 5 210 20 Q225 35 240 25 Q255 10 270 20 Q285 30 300 20" stroke="#c9952a" stroke-width="1.5" fill="none"/>
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      <!-- FEATURE: COMPOSITION MATCHING -->
+      <div class="feature-row reverse scroll-reveal">
+        <div class="feature-content">
+          <p class="section-label">02 — Identify</p>
+          <h2>Composition-level matching, not recording fingerprinting.</h2>
+          <p>Most audio detection tools match against studio recordings. They fail with live music — different key, different tempo, different arrangement.</p>
+          <p>Setlistr matches on lyrics, melodic patterns, and structural signals. A live cover of "Fast Car" is correctly identified as Tracy Chapman's composition regardless of who's playing it.</p>
+        </div>
+        <div class="feature-visual">
+          <div class="mini-header">
+            <div class="mini-dot gold"></div>
+            <span class="mini-title">Detected Setlist</span>
+          </div>
+          <div class="song-row">
+            <div class="song-info"><div class="song-name">Tennessee Whiskey</div><div class="song-writer">Chris Stapleton</div></div>
+            <div class="conf-bar"><div class="conf-track"><div class="conf-fill" style="width:99%"></div></div><span class="conf-pct">99%</span></div>
+          </div>
+          <div class="song-row">
+            <div class="song-info"><div class="song-name">Fast Car <span style="font-size:10px;color:rgba(255,255,255,0.25);margin-left:4px;">COVER</span></div><div class="song-writer">Tracy Chapman</div></div>
+            <div class="conf-bar"><div class="conf-track"><div class="conf-fill" style="width:96%"></div></div><span class="conf-pct">96%</span></div>
+          </div>
+          <div class="song-row">
+            <div class="song-info"><div class="song-name">Wagon Wheel</div><div class="song-writer">Ketch Secor / Bob Dylan</div></div>
+            <div class="conf-bar"><div class="conf-track"><div class="conf-fill" style="width:98%"></div></div><span class="conf-pct">98%</span></div>
+          </div>
+          <div class="song-row">
+            <div class="song-info"><div class="song-name">Take Me Home, Country Roads</div><div class="song-writer">Denver / Danoff / Nivert</div></div>
+            <div class="conf-bar"><div class="conf-track"><div class="conf-fill" style="width:94%"></div></div><span class="conf-pct">94%</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- FEATURE: REPORTING -->
+      <div class="feature-row scroll-reveal">
+        <div class="feature-content">
+          <p class="section-label">03 — Report</p>
+          <h2>PRO-formatted reports. One submission covers all territories.</h2>
+          <p>Setlistr generates formatted setlist reports for ASCAP, BMI, SESAC, SOCAN, PRS, APRA AMCOS, and more — automatically.</p>
+          <p>Select your PROs, choose your territories, hit submit. Reports are formatted to each organization's exact specifications.</p>
+        </div>
+        <div class="feature-visual">
+          <div class="mini-header">
+            <div class="mini-dot gold"></div>
+            <span class="mini-title">PRO Selection</span>
+          </div>
+          <div class="pro-grid" style="margin-bottom:20px;">
+            <div class="pro-pill selected">ASCAP</div>
+            <div class="pro-pill selected">BMI</div>
+            <div class="pro-pill">SESAC</div>
+            <div class="pro-pill selected">SOCAN</div>
+            <div class="pro-pill selected">PRS</div>
+            <div class="pro-pill">APRA</div>
+          </div>
+          <div class="report-format">
+            <div class="report-format-label">ASCAP Format Preview</div>
+            <div class="report-row"><span>Tennessee Whiskey</span><span>Chris Stapleton</span></div>
+            <div class="report-row"><span>Fast Car</span><span>Tracy Chapman</span></div>
+            <div class="report-row"><span>Wagon Wheel</span><span>Secor / Dylan</span></div>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <div style="flex:1;padding:10px;background:var(--gold);color:var(--ink);border-radius:4px;font-family:var(--font-mono);font-size:11px;text-align:center;letter-spacing:0.06em;font-weight:600;">SUBMIT TO PROS →</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- WORKFLOW SUMMARY -->
+      <div class="scroll-reveal">
+        <p class="section-label">The Full Workflow</p>
+        <h2 style="font-family:var(--font-display);font-size:36px;font-weight:500;margin-bottom:40px;line-height:1.15;">Everything that happens<br>before royalties arrive.</h2>
+        <div class="workflow">
+          <div class="workflow-step">
+            <div class="workflow-num">1</div>
+            <div class="workflow-content"><h4>Open app before the show</h4><p>Search or add your venue. Setlistr pulls venue info, capacity, and PRO territory automatically.</p></div>
+          </div>
+          <div class="workflow-step">
+            <div class="workflow-num">2</div>
+            <div class="workflow-content"><h4>Play your set</h4><p>Setlistr listens passively. No audio stored. Composition matching runs in real time.</p></div>
+          </div>
+          <div class="workflow-step">
+            <div class="workflow-num">3</div>
+            <div class="workflow-content"><h4>Review the detected setlist</h4><p>After the show, review and approve the auto-detected setlist. Edit any low-confidence matches. Add anything missed.</p></div>
+          </div>
+          <div class="workflow-step">
+            <div class="workflow-num">4</div>
+            <div class="workflow-content"><h4>Select PROs and submit</h4><p>Choose which PROs to report to and which territories apply. One tap submits to all simultaneously in the correct format.</p></div>
+          </div>
+          <div class="workflow-step">
+            <div class="workflow-num">5</div>
+            <div class="workflow-content"><h4>Track status and collect</h4><p>Every submission is logged in your dashboard with status tracking. Royalties typically arrive 9–18 months after submission.</p></div>
+          </div>
+        </div>
+      </div>
+
+      <div style="text-align:center;padding:64px 0 24px;" class="scroll-reveal">
+        <a href="/estimator" class="btn btn-primary" style="font-size:14px;padding:16px 32px;">Calculate Your Missing Royalties →</a>
+        <p style="margin-top:16px;font-size:13px;color:var(--text-muted);">No signup required</p>
+      </div>
+
+    </div>
+  </div>
+  <div id="footer-placeholder"></div>
+  <script src="/setlistr-components.js"></script>
+  <script>renderNav('Product'); renderFooter();</script>
+</body>
+</html>
