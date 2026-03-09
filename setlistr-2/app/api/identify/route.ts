@@ -1,6 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
 
+const CRLF = '\r\n'
+
+function textPart(boundary: string, name: string, value: string): Buffer {
+  return Buffer.from(
+    `--${boundary}${CRLF}` +
+    `Content-Disposition: form-data; name="${name}"${CRLF}${CRLF}` +
+    `${value}${CRLF}`
+  )
+}
+
 export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData()
@@ -26,17 +36,7 @@ export async function POST(req: NextRequest) {
 
     console.log('ACR bytes:', sampleBytes, 'ts:', timestamp, 'sig:', signature)
 
-    // Build multipart body manually to avoid any FormData quirks
     const boundary = '----ACRCloudBoundary' + Date.now()
-    const CRLF = '\r\n'
-
-    function textPart(name: string, value: string): Buffer {
-      return Buffer.from(
-        `--${boundary}${CRLF}` +
-        `Content-Disposition: form-data; name="${name}"${CRLF}${CRLF}` +
-        `${value}${CRLF}`
-      )
-    }
 
     const filePart = Buffer.concat([
       Buffer.from(
@@ -49,12 +49,12 @@ export async function POST(req: NextRequest) {
     ])
 
     const body = Buffer.concat([
-      textPart('access_key', accessKey),
-      textPart('data_type', dataType),
-      textPart('signature_version', signatureVersion),
-      textPart('signature', signature),
-      textPart('sample_bytes', sampleBytes.toString()),
-      textPart('timestamp', timestamp),
+      textPart(boundary, 'access_key', accessKey),
+      textPart(boundary, 'data_type', dataType),
+      textPart(boundary, 'signature_version', signatureVersion),
+      textPart(boundary, 'signature', signature),
+      textPart(boundary, 'sample_bytes', sampleBytes.toString()),
+      textPart(boundary, 'timestamp', timestamp),
       filePart,
       Buffer.from(`--${boundary}--${CRLF}`),
     ])
