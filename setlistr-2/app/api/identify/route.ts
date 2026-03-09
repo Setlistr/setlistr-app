@@ -7,6 +7,8 @@ export async function POST(req: NextRequest) {
     const audioFile = formData.get('audio') as File
     if (!audioFile) return NextResponse.json({ error: 'No audio' }, { status: 400 })
 
+    console.log('ACR: audio received, size:', audioFile.size, 'type:', audioFile.type)
+
     const host = process.env.ACRCLOUD_HOST!
     const accessKey = process.env.ACRCLOUD_ACCESS_KEY!
     const accessSecret = process.env.ACRCLOUD_ACCESS_SECRET!
@@ -35,6 +37,7 @@ export async function POST(req: NextRequest) {
     })
 
     const data = await res.json()
+    console.log('ACR response:', JSON.stringify(data))
 
     if (data.status?.code === 0 && data.metadata?.music?.length > 0) {
       const match = data.metadata.music[0]
@@ -45,7 +48,8 @@ export async function POST(req: NextRequest) {
         album: match.album?.name || '',
       })
     } else {
-      return NextResponse.json({ detected: false })
+      console.log('ACR: no match, status code:', data.status?.code, 'msg:', data.status?.msg)
+      return NextResponse.json({ detected: false, debug: { code: data.status?.code, msg: data.status?.msg } })
     }
   } catch (err) {
     console.error('ACRCloud error:', err)
