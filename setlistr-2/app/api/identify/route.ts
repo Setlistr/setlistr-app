@@ -1,15 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import crypto from 'crypto'
-
-const CRLF = '\r\n'
-
-function textPart(boundary: string, name: string, value: string): Buffer {
-  return Buffer.from(
-    `--${boundary}${CRLF}` +
-    `Content-Disposition: form-data; name="${name}"${CRLF}${CRLF}` +
-    `${value}${CRLF}`
-  )
-}
 
 export async function POST(req: NextRequest) {
   try {
@@ -17,76 +6,43 @@ export async function POST(req: NextRequest) {
     const audioFile = formData.get('audio') as File
     if (!audioFile) return NextResponse.json({ error: 'No audio' }, { status: 400 })
 
-    const host = process.env.ACRCLOUD_HOST!
-    const accessKey = process.env.ACRCLOUD_ACCESS_KEY!
-    const accessSecret = process.env.ACRCLOUD_ACCESS_SECRET!
-
     const arrayBuffer = await audioFile.arrayBuffer()
     const audioBuffer = Buffer.from(arrayBuffer)
-    const sampleBytes = audioBuffer.length
 
-    const httpMethod = 'POST'
-    const httpUri = '/v1/identify'
-    const dataType = 'audio'
-    const signatureVersion = '1'
-    const timestamp = (Date.now() / 1000).toString()
+    console.log('Shazam: audio bytes:', audioBuffer.length)
 
-    const stringToSign = [httpMethod, httpUri, accessKey, dataType, signatureVersion, timestamp].join('\n')
-    const signature = crypto.createHmac('sha1', accessSecret).update(stringToSign).digest('base64')
-
-    console.log('ACR bytes:', sampleBytes, 'ts:', timestamp, 'sig:', signature)
-
-    const boundary = '----ACRCloudBoundary' + Date.now()
-
-    const filePart = Buffer.concat([
-      Buffer.from(
-        `--${boundary}${CRLF}` +
-        `Content-Disposition: form-data; name="sample"; filename="audio.wav"${CRLF}` +
-        `Content-Type: audio/wav${CRLF}${CRLF}`
-      ),
-      audioBuffer,
-      Buffer.from(CRLF),
-    ])
-
-    const body = Buffer.concat([
-      textPart(boundary, 'access_key', accessKey),
-      textPart(boundary, 'data_type', dataType),
-      textPart(boundary, 'signature_version', signatureVersion),
-      textPart(boundary, 'signature', signature),
-      textPart(boundary, 'sample_bytes', sampleBytes.toString()),
-      textPart(boundary, 'timestamp', timestamp),
-      filePart,
-      Buffer.from(`--${boundary}--${CRLF}`),
-    ])
-
-    const res = await fetch(`https://${host}/v1/identify`, {
+    const res = await fetch('https://shazam-song-recognition-api.p.rapidapi.com/recognize/file', {
       method: 'POST',
       headers: {
-        'Content-Type': `multipart/form-data; boundary=${boundary}`,
-        'Content-Length': body.length.toString(),
+        'x-rapidapi-host': 'shazam-song-recognition-api.p.rapidapi.com',
+        'x-rapidapi-key': process.env.RAPIDAPI_KEY!,
+        'Content-Type': 'audio/webm',
       },
-      body,
+      body: audioBuffer,
     })
 
     const data = await res.json()
-    console.log('ACR response:', JSON.stringify(data))
+    console.log('Shazam response:', JSON.stringify(data))
 
-    if (data.status?.code === 0 && data.metadata?.music?.length > 0) {
-      const match = data.metadata.music[0]
+    if (data?.track?.title) {
       return NextResponse.json({
         detected: true,
-        title: match.title,
-        artist: match.artists?.[0]?.name || '',
-        album: match.album?.name || '',
+        title: data.track.title,
+        artist: data.track.subtitle || '',
       })
     } else {
       return NextResponse.json({
         detected: false,
-        debug: { code: data.status?.code, msg: data.status?.msg }
+        debug: data
       })
     }
   } catch (err) {
-    console.error('ACRCloud error:', err)
+    console.error('Shazam error:', err)
     return NextResponse.json({ error: 'Identification failed' }, { status: 500 })
   }
 }
+```
+
+Also add to Vercel env vars:
+```
+RAPIDAPI_KEY=67ce28653amsh55dba963a9fcd0bp106c09jsn210c854319dd
