@@ -41,8 +41,4 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Identification failed' }, { status: 500 })
   }
 }
-```
 
-Also add to Vercel env vars:
-```
-RAPIDAPI_KEY=67ce28653amsh55dba963a9fcd0bp106c09jsn210c854319dd
