@@ -1,6 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
 
+const CRLF = '\r\n'
+
+function field(boundary: string, name: string, value: string): Buffer {
+  return Buffer.from(
+    `--${boundary}${CRLF}` +
+    `Content-Disposition: form-data; name="${name}"${CRLF}${CRLF}` +
+    `${value}${CRLF}`
+  )
+}
+
 export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData()
@@ -23,15 +33,6 @@ export async function POST(req: NextRequest) {
     console.log('sampleBytes:', sampleBytes)
 
     const boundary = `----FormBoundary${crypto.randomBytes(8).toString('hex')}`
-    const CRLF = '\r\n'
-
-    function field(name: string, value: string): Buffer {
-      return Buffer.from(
-        `--${boundary}${CRLF}` +
-        `Content-Disposition: form-data; name="${name}"${CRLF}${CRLF}` +
-        `${value}${CRLF}`
-      )
-    }
 
     const filePart = Buffer.concat([
       Buffer.from(
@@ -44,12 +45,12 @@ export async function POST(req: NextRequest) {
     ])
 
     const body = Buffer.concat([
-      field('access_key', accessKey),
-      field('data_type', 'audio'),
-      field('signature_version', '1'),
-      field('signature', signature),
-      field('sample_bytes', sampleBytes.toString()),
-      field('timestamp', timestamp),
+      field(boundary, 'access_key', accessKey),
+      field(boundary, 'data_type', 'audio'),
+      field(boundary, 'signature_version', '1'),
+      field(boundary, 'signature', signature),
+      field(boundary, 'sample_bytes', sampleBytes.toString()),
+      field(boundary, 'timestamp', timestamp),
       filePart,
       Buffer.from(`--${boundary}--${CRLF}`),
     ])
