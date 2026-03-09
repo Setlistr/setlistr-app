@@ -1,9 +1,15 @@
 'use client'
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { Square, Clock, MapPin, Music } from 'lucide-react'
+import { Square, Clock, MapPin, Music, Mic, MicOff, Loader2 } from 'lucide-react'
 import type { Performance } from '@/types'
+
+type DetectedSong = {
+  title: string
+  artist: string
+  source: 'detected' | 'manual'
+}
 
 export default function LiveCapturePage({ params }: { params: { id: string } }) {
   const router = useRouter()
@@ -11,7 +17,15 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   const [elapsed, setElapsed] = useState(0)
   const [ending, setEnding] = useState(false)
   const [songInput, setSongInput] = useState('')
-  const [songs, setSongs] = useState<string[]>([])
+  const [songs, setSongs] = useState<DetectedSong[]>([])
+
+  // Audio detection state
+  const [isListening, setIsListening] = useState(false)
+  const [isDetecting, setIsDetecting] = useState(false)
+  const [detectStatus, setDetectStatus] = useState<string>('')
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const chunksRef = useRef<Blob[]>([])
+  const listenIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
     const supabase = createClient()
@@ -40,9 +54,108 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
     }
   }, [elapsed, performance, ending])
 
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      stopListening()
+    }
+  }, [])
+
+  const detectSong = useCallback(async (audioBlob: Blob) => {
+    setIsDetecting(true)
+    setDetectStatus('Identifying song...')
+    try {
+      const formData = new FormData()
+      formData.append('file', audioBlob, 'audio.webm')
+      formData.append('return', 'apple_music,spotify')
+      formData.append('api_token', process.env.NEXT_PUBLIC_AUDD_API_KEY || '')
+
+      const res = await fetch('https://api.audd.io/', {
+        method: 'POST',
+        body: formData,
+      })
+      const data = await res.json()
+
+      if (data.status === 'success' && data.result) {
+        const { title, artist } = data.result
+        // Avoid duplicates
+        setSongs(prev => {
+          const alreadyExists = prev.some(
+            s => s.title.toLowerCase() === title.toLowerCase() &&
+                 s.artist.toLowerCase() === artist.toLowerCase()
+          )
+          if (alreadyExists) {
+            setDetectStatus(`Already logged: ${title}`)
+            return prev
+          }
+          setDetectStatus(`✓ Detected: ${title} — ${artist}`)
+          return [...prev, { title, artist, source: 'detected' }]
+        })
+      } else {
+        setDetectStatus('No song detected — keep playing!')
+      }
+    } catch (err) {
+      setDetectStatus('Detection failed — check connection')
+    } finally {
+      setIsDetecting(false)
+      setTimeout(() => setDetectStatus(''), 4000)
+    }
+  }, [])
+
+  const startListening = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      setIsListening(true)
+      setDetectStatus('Listening...')
+
+      const recordAndDetect = () => {
+        chunksRef.current = []
+        const recorder = new MediaRecorder(stream, { mimeType: 'audio/webm' })
+        mediaRecorderRef.current = recorder
+
+        recorder.ondataavailable = (e) => {
+          if (e.data.size > 0) chunksRef.current.push(e.data)
+        }
+
+        recorder.onstop = () => {
+          const blob = new Blob(chunksRef.current, { type: 'audio/webm' })
+          detectSong(blob)
+        }
+
+        recorder.start()
+        // Record 8 seconds per sample
+        setTimeout(() => {
+          if (recorder.state === 'recording') recorder.stop()
+        }, 8000)
+      }
+
+      // Start immediately, then every 30 seconds
+      recordAndDetect()
+      listenIntervalRef.current = setInterval(recordAndDetect, 30000)
+
+    } catch (err) {
+      setDetectStatus('Microphone access denied')
+      setIsListening(false)
+    }
+  }, [detectSong])
+
+  const stopListening = useCallback(() => {
+    if (listenIntervalRef.current) {
+      clearInterval(listenIntervalRef.current)
+      listenIntervalRef.current = null
+    }
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+      mediaRecorderRef.current.stop()
+      mediaRecorderRef.current.stream.getTracks().forEach(t => t.stop())
+    }
+    setIsListening(false)
+    setDetectStatus('')
+  }, [])
+
   const handleEnd = useCallback(async () => {
     if (ending || !performance) return
     setEnding(true)
+    stopListening()
     const supabase = createClient()
 
     await supabase.from('performances').update({
@@ -55,25 +168,24 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
       status: 'ended',
     }).eq('performance_id', performance.id)
 
-    // Save any songs entered during live session
     if (songs.length > 0) {
       await supabase.from('performance_songs').insert(
-        songs.map((title, i) => ({
+        songs.map((song, i) => ({
           performance_id: performance.id,
-          title,
-          artist: performance.artist_name,
+          title: song.title,
+          artist: song.artist || performance.artist_name,
           position: i + 1,
         }))
       )
     }
 
     router.push(`/app/review/${performance.id}`)
-  }, [ending, performance, songs, router])
+  }, [ending, performance, songs, router, stopListening])
 
   function addSong() {
     const trimmed = songInput.trim()
     if (!trimmed) return
-    setSongs(s => [...s, trimmed])
+    setSongs(s => [...s, { title: trimmed, artist: performance?.artist_name || '', source: 'manual' }])
     setSongInput('')
   }
 
@@ -138,9 +250,39 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
       {/* Song capture */}
       <div className="px-4 pb-4 max-w-lg mx-auto w-full">
         <div className="bg-[#1a1814] rounded-2xl border border-[#2e2b26] p-4 mb-4">
+
+          {/* Auto-detect button */}
+          <div className="mb-4">
+            <button
+              onClick={isListening ? stopListening : startListening}
+              disabled={isDetecting}
+              className={`w-full flex items-center justify-center gap-2 rounded-xl py-3 font-semibold text-sm transition-all ${
+                isListening
+                  ? 'bg-red-600 hover:bg-red-500 text-white'
+                  : 'bg-gold hover:bg-yellow-400 text-ink'
+              } disabled:opacity-60`}
+            >
+              {isDetecting ? (
+                <Loader2 size={16} className="animate-spin" />
+              ) : isListening ? (
+                <MicOff size={16} />
+              ) : (
+                <Mic size={16} />
+              )}
+              {isListening ? 'Stop Listening' : 'Auto-Detect Songs'}
+            </button>
+            {detectStatus && (
+              <p className="text-center text-xs mt-2 text-gold">{detectStatus}</p>
+            )}
+            {isListening && !isDetecting && (
+              <p className="text-center text-xs mt-1 text-ink-light">Sampling every 30s</p>
+            )}
+          </div>
+
+          {/* Manual entry */}
           <div className="flex items-center gap-2 mb-3">
             <Music size={14} className="text-gold" />
-            <span className="text-xs uppercase tracking-wider text-ink-light">Log a Song</span>
+            <span className="text-xs uppercase tracking-wider text-ink-light">Or Add Manually</span>
           </div>
           <div className="flex gap-2">
             <input
@@ -154,12 +296,22 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
               Add
             </button>
           </div>
+
+          {/* Song list */}
           {songs.length > 0 && (
             <div className="mt-3 flex flex-col gap-1">
               {songs.map((s, i) => (
                 <div key={i} className="flex items-center gap-2 text-sm text-cream">
                   <span className="text-gold font-mono text-xs w-4">{i + 1}</span>
-                  <span>{s}</span>
+                  <div className="flex-1">
+                    <span>{s.title}</span>
+                    {s.artist && s.artist !== performance.artist_name && (
+                      <span className="text-ink-light text-xs ml-1">— {s.artist}</span>
+                    )}
+                  </div>
+                  {s.source === 'detected' && (
+                    <span className="text-xs text-gold/60">⚡ auto</span>
+                  )}
                 </div>
               ))}
             </div>
