@@ -7,11 +7,16 @@ export async function POST(req: NextRequest) {
     const audioFile = formData.get('audio') as File
     if (!audioFile) return NextResponse.json({ error: 'No audio' }, { status: 400 })
 
-    console.log('ACR: audio received, size:', audioFile.size, 'type:', audioFile.type)
-
     const host = process.env.ACRCLOUD_HOST!
     const accessKey = process.env.ACRCLOUD_ACCESS_KEY!
     const accessSecret = process.env.ACRCLOUD_ACCESS_SECRET!
+
+    // Convert file to buffer to get exact byte length
+    const arrayBuffer = await audioFile.arrayBuffer()
+    const buffer = Buffer.from(arrayBuffer)
+    const sampleBytes = buffer.length
+
+    console.log('ACR: audio size bytes:', sampleBytes)
 
     const httpMethod = 'POST'
     const httpUri = '/v1/identify'
@@ -22,13 +27,17 @@ export async function POST(req: NextRequest) {
     const stringToSign = [httpMethod, httpUri, accessKey, dataType, signatureVersion, timestamp].join('\n')
     const signature = crypto.createHmac('sha1', accessSecret).update(stringToSign).digest('base64')
 
+    console.log('ACR: stringToSign:', stringToSign)
+    console.log('ACR: signature:', signature)
+
     const acrForm = new FormData()
-    acrForm.append('sample', audioFile)
+    const audioBlob = new Blob([buffer], { type: audioFile.type || 'audio/webm' })
+    acrForm.append('sample', audioBlob, 'audio.webm')
     acrForm.append('access_key', accessKey)
     acrForm.append('data_type', dataType)
     acrForm.append('signature_version', signatureVersion)
     acrForm.append('signature', signature)
-    acrForm.append('sample_bytes', audioFile.size.toString())
+    acrForm.append('sample_bytes', sampleBytes.toString())
     acrForm.append('timestamp', timestamp)
 
     const res = await fetch(`https://${host}/v1/identify`, {
@@ -48,8 +57,10 @@ export async function POST(req: NextRequest) {
         album: match.album?.name || '',
       })
     } else {
-      console.log('ACR: no match, status code:', data.status?.code, 'msg:', data.status?.msg)
-      return NextResponse.json({ detected: false, debug: { code: data.status?.code, msg: data.status?.msg } })
+      return NextResponse.json({
+        detected: false,
+        debug: { code: data.status?.code, msg: data.status?.msg }
+      })
     }
   } catch (err) {
     console.error('ACRCloud error:', err)
