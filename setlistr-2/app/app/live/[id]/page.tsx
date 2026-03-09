@@ -18,8 +18,6 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   const [ending, setEnding] = useState(false)
   const [songInput, setSongInput] = useState('')
   const [songs, setSongs] = useState<DetectedSong[]>([])
-
-  // Audio detection state
   const [isListening, setIsListening] = useState(false)
   const [isDetecting, setIsDetecting] = useState(false)
   const [detectStatus, setDetectStatus] = useState<string>('')
@@ -34,7 +32,6 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
       .then(({ data }) => { if (data) setPerformance(data) })
   }, [params.id])
 
-  // Elapsed timer
   useEffect(() => {
     if (!performance?.started_at) return
     const start = new Date(performance.started_at).getTime()
@@ -44,14 +41,12 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
     return () => clearInterval(interval)
   }, [performance?.started_at])
 
-  // Auto-close
   useEffect(() => {
     if (!performance) return
     const totalSeconds = (performance.set_duration_minutes + performance.auto_close_buffer_minutes) * 60
     if (elapsed >= totalSeconds && !ending) handleEnd()
   }, [elapsed, performance, ending])
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => stopListening()
   }, [])
@@ -62,10 +57,8 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
     try {
       const formData = new FormData()
       formData.append('audio', audioBlob, 'audio.webm')
-
       const res = await fetch('/api/identify', { method: 'POST', body: formData })
       const data = await res.json()
-
       if (data.detected) {
         const { title, artist } = data
         setSongs(prev => {
@@ -100,17 +93,13 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
       setDetectStatus('Listening...')
 
       const recordAndDetect = () => {
-        // Don't record if a detection is already in progress
         if (isDetecting) return
         chunksRef.current = []
-
-        // Pick best supported format
         const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
           ? 'audio/webm;codecs=opus'
           : MediaRecorder.isTypeSupported('audio/webm')
           ? 'audio/webm'
           : 'audio/mp4'
-
         const recorder = new MediaRecorder(stream, { mimeType })
         mediaRecorderRef.current = recorder
         recorder.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data) }
@@ -119,12 +108,11 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
           detectSong(blob)
         }
         recorder.start()
-        // 10 seconds gives ACRCloud more signal to work with
-        setTimeout(() => { if (recorder.state === 'recording') recorder.stop() }, 10000)
+        setTimeout(() => { if (recorder.state === 'recording') recorder.stop() }, 20000)
       }
 
       recordAndDetect()
-      listenIntervalRef.current = setInterval(recordAndDetect, 35000)
+      listenIntervalRef.current = setInterval(recordAndDetect, 45000)
     } catch {
       setDetectStatus('Microphone access denied')
       setIsListening(false)
@@ -152,17 +140,14 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
     setEnding(true)
     stopListening()
     const supabase = createClient()
-
     await supabase.from('performances').update({
       status: 'review',
       ended_at: new Date().toISOString(),
     }).eq('id', performance.id)
-
     await supabase.from('capture_sessions').update({
       ended_at: new Date().toISOString(),
       status: 'ended',
     }).eq('performance_id', performance.id)
-
     if (songs.length > 0) {
       await supabase.from('performance_songs').insert(
         songs.map((song, i) => ({
@@ -173,7 +158,6 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         }))
       )
     }
-
     router.push(`/app/review/${performance.id}`)
   }, [ending, performance, songs, router, stopListening])
 
@@ -207,13 +191,11 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
     <div className="min-h-screen bg-ink text-cream flex flex-col"
       style={{ background: 'radial-gradient(ellipse at 50% 0%, #1e1c18 0%, #0f0e0c 100%)' }}>
 
-      {/* Live indicator */}
       <div className="flex items-center justify-center gap-2 pt-6 pb-2">
         <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse"/>
         <span className="text-xs uppercase tracking-[0.3em] text-red-400 font-medium">Live Now</span>
       </div>
 
-      {/* Venue info */}
       <div className="text-center px-6 py-4">
         <h1 className="font-display text-2xl text-cream mb-1">{performance.venue_name}</h1>
         <div className="flex items-center justify-center gap-1 text-ink-light text-sm">
@@ -223,7 +205,6 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         <p className="text-gold text-sm mt-1 font-medium">{performance.artist_name}</p>
       </div>
 
-      {/* Big timer */}
       <div className="flex-1 flex flex-col items-center justify-center px-6">
         <div className="text-7xl font-mono font-bold text-cream tracking-tight mb-2">
           {formatTime(elapsed)}
@@ -238,37 +219,29 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         <div className="text-xs text-ink-light">Auto-closes at {formatTime(autoCloseAt)}</div>
       </div>
 
-      {/* Song capture */}
       <div className="px-4 pb-4 max-w-lg mx-auto w-full">
         <div className="bg-[#1a1814] rounded-2xl border border-[#2e2b26] p-4 mb-4">
-
-          {/* Auto-detect button */}
           <div className="mb-4">
             <button
               onClick={isListening ? stopListening : startListening}
               disabled={isDetecting}
               className={`w-full flex items-center justify-center gap-2 rounded-xl py-3 font-semibold text-sm transition-all ${
-                isListening
-                  ? 'bg-red-600 hover:bg-red-500 text-white'
-                  : 'bg-gold hover:bg-yellow-400 text-ink'
+                isListening ? 'bg-red-600 hover:bg-red-500 text-white' : 'bg-gold hover:bg-yellow-400 text-ink'
               } disabled:opacity-60`}
             >
               {isDetecting ? <Loader2 size={16} className="animate-spin" />
                 : isListening ? <MicOff size={16} />
                 : <Mic size={16} />}
-              {isDetecting ? 'Identifying...'
-                : isListening ? 'Stop Listening'
-                : 'Auto-Detect Songs'}
+              {isDetecting ? 'Identifying...' : isListening ? 'Stop Listening' : 'Auto-Detect Songs'}
             </button>
             {detectStatus && (
               <p className="text-center text-xs mt-2 text-gold">{detectStatus}</p>
             )}
             {isListening && !isDetecting && (
-              <p className="text-center text-xs mt-1 text-ink-light">Sampling every 35s</p>
+              <p className="text-center text-xs mt-1 text-ink-light">Sampling every 45s</p>
             )}
           </div>
 
-          {/* Manual entry */}
           <div className="flex items-center gap-2 mb-3">
             <Music size={14} className="text-gold" />
             <span className="text-xs uppercase tracking-wider text-ink-light">Or Add Manually</span>
@@ -286,7 +259,6 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
             </button>
           </div>
 
-          {/* Song list */}
           {songs.length > 0 && (
             <div className="mt-3 flex flex-col gap-1">
               {songs.map((s, i) => (
@@ -307,7 +279,6 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
           )}
         </div>
 
-        {/* End button */}
         <button onClick={handleEnd} disabled={ending}
           className="flex items-center justify-center gap-2 w-full bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white font-bold rounded-2xl py-4 transition-colors">
           <Square size={16} fill="currentColor" />
