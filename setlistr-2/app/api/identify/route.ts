@@ -11,51 +11,61 @@ export async function POST(req: NextRequest) {
     const accessKey = process.env.ACRCLOUD_ACCESS_KEY!
     const accessSecret = process.env.ACRCLOUD_ACCESS_SECRET!
 
-    // Convert to buffer to get exact byte length
     const arrayBuffer = await audioFile.arrayBuffer()
-    const buffer = Buffer.from(arrayBuffer)
-    const sampleBytes = buffer.length
-
-    console.log('ACR: audio bytes:', sampleBytes)
+    const audioBuffer = Buffer.from(arrayBuffer)
+    const sampleBytes = audioBuffer.length
 
     const httpMethod = 'POST'
     const httpUri = '/v1/identify'
     const dataType = 'audio'
     const signatureVersion = '1'
-    // Use float timestamp like Python's time.time()
     const timestamp = (Date.now() / 1000).toString()
 
-    const stringToSign = [
-      httpMethod,
-      httpUri,
-      accessKey,
-      dataType,
-      signatureVersion,
-      timestamp,
-    ].join('\n')
+    const stringToSign = [httpMethod, httpUri, accessKey, dataType, signatureVersion, timestamp].join('\n')
+    const signature = crypto.createHmac('sha1', accessSecret).update(stringToSign).digest('base64')
 
-    // Match Python: hmac.new(access_secret.encode('ascii'), string_to_sign.encode('ascii'), ...)
-    const signature = crypto
-      .createHmac('sha1', Buffer.from(accessSecret, 'ascii'))
-      .update(Buffer.from(stringToSign, 'ascii'))
-      .digest('base64')
+    console.log('ACR bytes:', sampleBytes, 'ts:', timestamp, 'sig:', signature)
 
-    console.log('ACR: timestamp:', timestamp)
-    console.log('ACR: stringToSign:', stringToSign)
+    // Build multipart body manually to avoid any FormData quirks
+    const boundary = '----ACRCloudBoundary' + Date.now()
+    const CRLF = '\r\n'
 
-    const acrForm = new FormData()
-    const audioBlob = new Blob([buffer], { type: 'audio/webm' })
-    acrForm.append('sample', audioBlob, 'audio.webm')
-    acrForm.append('sample_bytes', sampleBytes.toString())
-    acrForm.append('access_key', accessKey)
-    acrForm.append('data_type', dataType)
-    acrForm.append('signature_version', signatureVersion)
-    acrForm.append('signature', signature)
-    acrForm.append('timestamp', timestamp)
+    function textPart(name: string, value: string): Buffer {
+      return Buffer.from(
+        `--${boundary}${CRLF}` +
+        `Content-Disposition: form-data; name="${name}"${CRLF}${CRLF}` +
+        `${value}${CRLF}`
+      )
+    }
+
+    const filePart = Buffer.concat([
+      Buffer.from(
+        `--${boundary}${CRLF}` +
+        `Content-Disposition: form-data; name="sample"; filename="audio.wav"${CRLF}` +
+        `Content-Type: audio/wav${CRLF}${CRLF}`
+      ),
+      audioBuffer,
+      Buffer.from(CRLF),
+    ])
+
+    const body = Buffer.concat([
+      textPart('access_key', accessKey),
+      textPart('data_type', dataType),
+      textPart('signature_version', signatureVersion),
+      textPart('signature', signature),
+      textPart('sample_bytes', sampleBytes.toString()),
+      textPart('timestamp', timestamp),
+      filePart,
+      Buffer.from(`--${boundary}--${CRLF}`),
+    ])
 
     const res = await fetch(`https://${host}/v1/identify`, {
       method: 'POST',
-      body: acrForm,
+      headers: {
+        'Content-Type': `multipart/form-data; boundary=${boundary}`,
+        'Content-Length': body.length.toString(),
+      },
+      body,
     })
 
     const data = await res.json()
