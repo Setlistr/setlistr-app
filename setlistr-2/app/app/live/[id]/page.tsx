@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { Square, MapPin, Music, Mic, MicOff, Loader2, X } from 'lucide-react'
+import { Square, MapPin, Music, Mic, MicOff, Loader2 } from 'lucide-react'
 import type { Performance } from '@/types'
 
 type DetectedSong = {
@@ -23,8 +23,6 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   const [isListening, setIsListening] = useState(false)
   const [isDetecting, setIsDetecting] = useState(false)
   const [detectStatus, setDetectStatus] = useState<string>('')
-  const [showNamePrompt, setShowNamePrompt] = useState(false)
-  const [promptInput, setPromptInput] = useState('')
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<Blob[]>([])
   const listenIntervalRef = useRef<NodeJS.Timeout | null>(null)
@@ -85,12 +83,10 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
           return [...prev, { title, artist, source: 'detected' }]
         })
       } else {
-        setDetectStatus("Can't identify — what song is this?")
-        setShowNamePrompt(true)
+        setDetectStatus('Listening...')
       }
     } catch {
-      setDetectStatus('Detection failed — check connection')
-      setTimeout(() => setDetectStatus(''), 4000)
+      setDetectStatus('Listening...')
     } finally {
       setIsDetecting(false)
     }
@@ -188,22 +184,6 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
     setSongInput('')
   }
 
-  function submitPrompt() {
-    const trimmed = promptInput.trim()
-    if (!trimmed) { dismissPrompt(); return }
-    setSongs(s => [...s, { title: trimmed, artist: performance?.artist_name || '', source: 'manual' }])
-    setPromptInput('')
-    setShowNamePrompt(false)
-    setDetectStatus(`✓ Added: ${trimmed}`)
-    setTimeout(() => setDetectStatus(''), 3000)
-  }
-
-  function dismissPrompt() {
-    setShowNamePrompt(false)
-    setPromptInput('')
-    setDetectStatus('')
-  }
-
   function formatTime(s: number) {
     const m = Math.floor(s / 60)
     const sec = s % 60
@@ -226,40 +206,6 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   return (
     <div className="min-h-screen bg-ink text-cream flex flex-col"
       style={{ background: 'radial-gradient(ellipse at 50% 0%, #1e1c18 0%, #0f0e0c 100%)' }}>
-
-      {/* Name prompt modal */}
-      {showNamePrompt && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-6"
-          style={{ background: 'rgba(0,0,0,0.75)' }}>
-          <div className="bg-[#1a1814] border border-[#2e2b26] rounded-2xl p-6 w-full max-w-sm">
-            <div className="flex items-center justify-between mb-1">
-              <h3 className="text-cream font-semibold">What song is this?</h3>
-              <button onClick={dismissPrompt} className="text-ink-light hover:text-cream">
-                <X size={18} />
-              </button>
-            </div>
-            <p className="text-ink-light text-xs mb-4">Couldn't identify automatically — name it manually</p>
-            <input
-              autoFocus
-              value={promptInput}
-              onChange={e => setPromptInput(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && submitPrompt()}
-              placeholder="Song title..."
-              className="w-full bg-[#0f0e0c] border border-[#2e2b26] rounded-xl px-3 py-2.5 text-cream placeholder:text-[#4a4640] text-sm focus:outline-none focus:border-gold mb-3"
-            />
-            <div className="flex gap-2">
-              <button onClick={dismissPrompt}
-                className="flex-1 border border-[#2e2b26] text-ink-light rounded-xl py-2.5 text-sm hover:text-cream transition-colors">
-                Skip
-              </button>
-              <button onClick={submitPrompt}
-                className="flex-1 bg-gold text-ink font-semibold rounded-xl py-2.5 text-sm hover:bg-yellow-400 transition-colors">
-                Add Song
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Live indicator */}
       <div className="flex items-center justify-center gap-2 pt-6 pb-2">
@@ -314,10 +260,10 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
                 : isListening ? 'Stop Listening'
                 : 'Auto-Detect Songs'}
             </button>
-            {detectStatus && !showNamePrompt && (
+            {detectStatus && (
               <p className="text-center text-xs mt-2 text-gold">{detectStatus}</p>
             )}
-            {isListening && !isDetecting && !showNamePrompt && (
+            {isListening && !isDetecting && (
               <p className="text-center text-xs mt-1 text-ink-light">Sampling every 35s</p>
             )}
           </div>
