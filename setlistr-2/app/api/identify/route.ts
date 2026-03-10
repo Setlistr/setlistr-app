@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import crypto from 'node:crypto'
+import crypto from 'crypto'
 
 export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
 
 const HOST = (process.env.ACRCLOUD_HOST || 'identify-us-west-2.acrcloud.com').trim()
 const ACCESS_KEY = (process.env.ACRCLOUD_ACCESS_KEY || '').trim()
@@ -15,8 +16,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'No audio file' }, { status: 400 })
     }
 
-    const bytes = Buffer.from(await audio.arrayBuffer())
+    const audioBuffer = Buffer.from(await audio.arrayBuffer())
     const timestamp = Math.floor(Date.now() / 1000).toString()
+
+    console.log('Runtime:', process.version)
+    console.log('Audio bytes:', audioBuffer.length)
+    console.log('ACCESS_KEY:', ACCESS_KEY)
 
     const stringToSign = [
       'POST',
@@ -27,60 +32,31 @@ export async function POST(req: NextRequest) {
       timestamp,
     ].join('\n')
 
+    console.log('STRING TO SIGN:', stringToSign)
+
     const signature = crypto
       .createHmac('sha1', ACCESS_SECRET)
-      .update(stringToSign, 'utf8')
+      .update(stringToSign)
       .digest('base64')
 
-    const boundary = '--------ACRCloud' + Date.now()
-    const CRLF = '\r\n'
+    console.log('SIGNATURE:', signature)
 
-    const fields = {
-      access_key: ACCESS_KEY,
-      sample_bytes: String(bytes.length),
-      timestamp,
-      signature,
-      data_type: 'audio',
-      signature_version: '1',
-    }
-
-    const parts: Buffer[] = []
-
-    Object.entries(fields).forEach(([key, value]) => {
-      parts.push(Buffer.from(
-        `--${boundary}${CRLF}` +
-        `Content-Disposition: form-data; name="${key}"${CRLF}${CRLF}` +
-        `${value}${CRLF}`
-      ))
-    })
-
-    parts.push(Buffer.concat([
-      Buffer.from(
-        `--${boundary}${CRLF}` +
-        `Content-Disposition: form-data; name="sample"; filename="sample.webm"${CRLF}` +
-        `Content-Type: audio/webm${CRLF}${CRLF}`
-      ),
-      bytes,
-      Buffer.from(CRLF),
-    ]))
-
-    parts.push(Buffer.from(`--${boundary}--${CRLF}`))
-
-    const body = Buffer.concat(parts)
+    const form = new FormData()
+    form.append('access_key', ACCESS_KEY)
+    form.append('sample_bytes', audioBuffer.length.toString())
+    form.append('sample', new Blob([audioBuffer]), 'sample.webm')
+    form.append('timestamp', timestamp)
+    form.append('signature', signature)
+    form.append('data_type', 'audio')
+    form.append('signature_version', '1')
 
     const res = await fetch(`https://${HOST}/v1/identify`, {
       method: 'POST',
-      headers: {
-        'Content-Type': `multipart/form-data; boundary=${boundary}`,
-        'Content-Length': String(body.length),
-      },
-      // @ts-ignore
-      body,
-      duplex: 'half',
+      body: form,
     })
 
     const data = await res.json()
-    console.log('ACRCloud:', JSON.stringify(data))
+    console.log('ACRCloud response:', JSON.stringify(data))
 
     const humming = data?.metadata?.humming?.[0]
     const music = data?.metadata?.music?.[0]
