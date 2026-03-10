@@ -32,27 +32,27 @@ export async function POST(req: NextRequest) {
       .update(stringToSign, 'utf8')
       .digest('base64')
 
-    // Build params as URL-encoded fields + raw audio
-    const params = new URLSearchParams()
-    params.append('access_key', ACCESS_KEY)
-    params.append('sample_bytes', String(bytes.length))
-    params.append('timestamp', timestamp)
-    params.append('signature', signature)
-    params.append('data_type', 'audio')
-    params.append('signature_version', '1')
-
     const boundary = '--------ACRCloud' + Date.now()
     const CRLF = '\r\n'
 
+    const fields = {
+      access_key: ACCESS_KEY,
+      sample_bytes: String(bytes.length),
+      timestamp,
+      signature,
+      data_type: 'audio',
+      signature_version: '1',
+    }
+
     const parts: Buffer[] = []
 
-    for (const [key, value] of params.entries()) {
+    Object.entries(fields).forEach(([key, value]) => {
       parts.push(Buffer.from(
         `--${boundary}${CRLF}` +
         `Content-Disposition: form-data; name="${key}"${CRLF}${CRLF}` +
         `${value}${CRLF}`
       ))
-    }
+    })
 
     parts.push(Buffer.concat([
       Buffer.from(
