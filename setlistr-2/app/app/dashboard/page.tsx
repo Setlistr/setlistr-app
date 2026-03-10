@@ -1,6 +1,7 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import { PlusCircle, Zap, Music2, MapPin, Clock, ChevronRight } from 'lucide-react'
+import { RoyaltyWidget } from '@/components/RoyaltyWidget'
 
 export default async function DashboardPage() {
   const supabase = await createServerSupabaseClient()
@@ -13,6 +14,7 @@ export default async function DashboardPage() {
     { count: completedCount },
     { data: songStats },
     { data: venueStats },
+    { data: performancesWithSongs },
   ] = await Promise.all([
     supabase.from('performances').select('*').eq('user_id', user!.id).order('created_at', { ascending: false }).limit(5),
     supabase.from('performances').select('*', { count: 'exact', head: true }).eq('user_id', user!.id),
@@ -20,11 +22,17 @@ export default async function DashboardPage() {
     supabase.from('performances').select('*', { count: 'exact', head: true }).eq('user_id', user!.id).eq('status', 'completed'),
     supabase.from('performance_songs').select('performance_id, performances!inner(user_id)').eq('performances.user_id', user!.id),
     supabase.from('performances').select('city').eq('user_id', user!.id),
+    supabase.from('performances').select('id, venue_name, city, country, set_duration_minutes, performance_songs(count)').eq('user_id', user!.id).eq('status', 'completed'),
   ])
 
   const totalSongs = songStats?.length ?? 0
   const uniqueVenues = new Set(venueStats?.map((v: any) => v.city) ?? []).size
   const isLive = (liveCount ?? 0) > 0
+
+  const royaltyPerformances = (performancesWithSongs ?? []).map((p: any) => ({
+    ...p,
+    song_count: p.performance_songs?.[0]?.count || 0,
+  }))
 
   return (
     <div className="min-h-screen text-cream flex flex-col"
@@ -47,7 +55,7 @@ export default async function DashboardPage() {
         </div>
       )}
 
-      <div className="px-4 max-w-lg mx-auto w-full mb-6">
+      <div className="px-4 max-w-lg mx-auto w-full mb-4">
         <div className="grid grid-cols-2 gap-3">
           <div className="bg-[#1a1814] border border-[#2e2b26] rounded-2xl p-4">
             <div className="text-gold mb-2"><Music2 size={18} /></div>
@@ -70,6 +78,10 @@ export default async function DashboardPage() {
             <div className="text-xs text-[#6a6660] uppercase tracking-wider mt-0.5">Completed</div>
           </div>
         </div>
+      </div>
+
+      <div className="px-4 max-w-lg mx-auto w-full mb-6">
+        <RoyaltyWidget performances={royaltyPerformances} />
       </div>
 
       <div className="px-4 max-w-lg mx-auto w-full mb-8">
