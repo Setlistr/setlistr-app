@@ -1,42 +1,35 @@
-// app/api/identify/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "node:crypto";
 
 export const runtime = "nodejs";
 
-const HOST = (process.env.ACRCLOUD_HOST || "identify-us-west-2.acrcloud.com").trim();
+const HOST = (process.env.ACRCLOUD_HOST || "").trim();
 const ACCESS_KEY = (process.env.ACRCLOUD_ACCESS_KEY || "").trim();
 const ACCESS_SECRET = (process.env.ACRCLOUD_ACCESS_SECRET || "").trim();
 
-function makeSignature({
-  accessKey,
-  accessSecret,
-  timestamp,
-}: {
-  accessKey: string;
-  accessSecret: string;
-  timestamp: string;
-}) {
+function createSignature(timestamp: string) {
+  // Exact ACRCloud v1 signature string format:
+  // POST\n/v1/identify\n{access_key}\naudio\n1\n{timestamp}
   const stringToSign = [
     "POST",
     "/v1/identify",
-    accessKey,
+    ACCESS_KEY,
     "audio",
     "1",
     timestamp,
   ].join("\n");
 
   const signature = crypto
-    .createHmac("sha1", accessSecret)
-    .update(stringToSign, "utf8")
+    .createHmac("sha1", Buffer.from(ACCESS_SECRET, "utf8"))
+    .update(Buffer.from(stringToSign, "utf8"))
     .digest("base64");
 
-  return { stringToSign, signature };
+  return { signature, stringToSign };
 }
 
 export async function POST(req: NextRequest) {
   try {
-    if (!ACCESS_KEY || !ACCESS_SECRET || !HOST) {
+    if (!HOST || !ACCESS_KEY || !ACCESS_SECRET) {
       return NextResponse.json(
         {
           detected: false,
@@ -61,85 +54,82 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const bytes = Buffer.from(await audio.arrayBuffer());
+    const audioBuffer = Buffer.from(await audio.arrayBuffer());
     const timestamp = Math.floor(Date.now() / 1000).toString();
 
-    const { stringToSign, signature } = makeSignature({
-      accessKey: ACCESS_KEY,
-      accessSecret: ACCESS_SECRET,
-      timestamp,
-    });
+    const { signature, stringToSign } = createSignature(timestamp);
 
-    const form = new FormData();
-    form.append("access_key", ACCESS_KEY);
-    form.append("sample_bytes", String(bytes.length));
-    form.append(
-      "sample",
-      new Blob([bytes], { type: audio.type || "application/octet-stream" }),
-      audio.name || "sample.webm"
-    );
-    form.append("timestamp", timestamp);
-    form.append("signature", signature);
-    form.append("data_type", "audio");
-    form.append("signature_version", "1");
+    const acrForm = new FormData();
+    acrForm.append("access_key", ACCESS_KEY);
+    acrForm.append("sample_bytes", String(audioBuffer.length));
+    acrForm.append("sample", new Blob([audioBuffer], { type: audio.type || "audio/webm" }), audio.name || "sample.webm");
+    acrForm.append("timestamp", timestamp);
+    acrForm.append("signature", signature);
+    acrForm.append("data_type", "audio");
+    acrForm.append("signature_version", "1");
 
-    const acrRes = await fetch(`https://${HOST}/v1/identify`, {
+    const acrResponse = await fetch(`https://${HOST}/v1/identify`, {
       method: "POST",
-      body: form,
+      body: acrForm,
     });
 
-    const raw = await acrRes.text();
+    const rawText = await acrResponse.text();
 
-    let json: any;
+    let payload: any;
     try {
-      json = JSON.parse(raw);
+      payload = JSON.parse(rawText);
     } catch {
       return NextResponse.json(
         {
           detected: false,
           error: "ACRCloud returned non-JSON",
+          raw: rawText,
           debug: {
             stringToSign,
-            postedFields: {
-              access_key: ACCESS_KEY,
-              sample_bytes: String(bytes.length),
-              timestamp,
-              data_type: "audio",
-              signature_version: "1",
-              signature,
-              host: HOST,
-              endpoint: "/v1/identify",
-            },
-            raw,
+            host: HOST,
+            timestamp,
           },
         },
         { status: 502 }
       );
     }
 
-    const humming = json?.metadata?.humming;
-    if (Array.isArray(humming) && humming.length > 0) {
-      const first = humming[0];
-      const title = first?.title ?? null;
+    // Cover Song / Humming-style projects may not return metadata.music.
+    // Check humming first, then music as fallback.
+    const humming = payload?.metadata?.humming;
+    const music = payload?.metadata?.music;
+
+    const best =
+      Array.isArray(humming) && humming.length > 0
+        ? humming[0]
+        : Array.isArray(music) && music.length > 0
+        ? music[0]
+        : null;
+
+    if (best) {
+      const title = best?.title ?? null;
       const artist =
-        Array.isArray(first?.artists) && first.artists.length
-          ? first.artists.map((a: any) => a?.name).filter(Boolean).join(", ")
+        Array.isArray(best?.artists) && best.artists.length > 0
+          ? best.artists.map((a: any) => a?.name).filter(Boolean).join(", ")
           : null;
 
-      if (title) {
-        return NextResponse.json({ detected: true, title, artist });
-      }
+      return NextResponse.json({
+        detected: true,
+        title,
+        artist,
+        debug: payload?.status ?? null,
+      });
     }
 
     return NextResponse.json({
       detected: false,
-      debug: json?.status ?? null,
+      debug: payload?.status ?? null,
     });
-  } catch (err: any) {
+  } catch (error: any) {
     return NextResponse.json(
       {
         detected: false,
-        error: err?.message || "Unknown error",
+        error: error?.message || "Unknown error",
       },
       { status: 500 }
     );
