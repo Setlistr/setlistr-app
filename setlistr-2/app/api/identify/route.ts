@@ -32,18 +32,51 @@ export async function POST(req: NextRequest) {
       .update(stringToSign, 'utf8')
       .digest('base64')
 
-    const form = new FormData()
-    form.append('access_key', ACCESS_KEY)
-    form.append('sample_bytes', String(bytes.length))
-    form.append('sample', new Blob([bytes], { type: 'audio/webm' }), 'sample.webm')
-    form.append('timestamp', timestamp)
-    form.append('signature', signature)
-    form.append('data_type', 'audio')
-    form.append('signature_version', '1')
+    // Build params as URL-encoded fields + raw audio
+    const params = new URLSearchParams()
+    params.append('access_key', ACCESS_KEY)
+    params.append('sample_bytes', String(bytes.length))
+    params.append('timestamp', timestamp)
+    params.append('signature', signature)
+    params.append('data_type', 'audio')
+    params.append('signature_version', '1')
+
+    const boundary = '--------ACRCloud' + Date.now()
+    const CRLF = '\r\n'
+
+    const parts: Buffer[] = []
+
+    for (const [key, value] of params.entries()) {
+      parts.push(Buffer.from(
+        `--${boundary}${CRLF}` +
+        `Content-Disposition: form-data; name="${key}"${CRLF}${CRLF}` +
+        `${value}${CRLF}`
+      ))
+    }
+
+    parts.push(Buffer.concat([
+      Buffer.from(
+        `--${boundary}${CRLF}` +
+        `Content-Disposition: form-data; name="sample"; filename="sample.webm"${CRLF}` +
+        `Content-Type: audio/webm${CRLF}${CRLF}`
+      ),
+      bytes,
+      Buffer.from(CRLF),
+    ]))
+
+    parts.push(Buffer.from(`--${boundary}--${CRLF}`))
+
+    const body = Buffer.concat(parts)
 
     const res = await fetch(`https://${HOST}/v1/identify`, {
       method: 'POST',
-      body: form,
+      headers: {
+        'Content-Type': `multipart/form-data; boundary=${boundary}`,
+        'Content-Length': String(body.length),
+      },
+      // @ts-ignore
+      body,
+      duplex: 'half',
     })
 
     const data = await res.json()
@@ -63,10 +96,7 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    return NextResponse.json({
-      detected: false,
-      debug: data.status,
-    })
+    return NextResponse.json({ detected: false, debug: data.status })
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 })
   }
