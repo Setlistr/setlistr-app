@@ -108,11 +108,11 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
           detectSong(blob)
         }
         recorder.start()
-        setTimeout(() => { if (recorder.state === 'recording') recorder.stop() }, 20000)
+        setTimeout(() => { if (recorder.state === 'recording') recorder.stop() }, 12000)
       }
 
       recordAndDetect()
-      listenIntervalRef.current = setInterval(recordAndDetect, 45000)
+      listenIntervalRef.current = setInterval(recordAndDetect, 30000)
     } catch {
       setDetectStatus('Microphone access denied')
       setIsListening(false)
@@ -238,7 +238,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
               <p className="text-center text-xs mt-2 text-gold">{detectStatus}</p>
             )}
             {isListening && !isDetecting && (
-              <p className="text-center text-xs mt-1 text-ink-light">Sampling every 45s</p>
+              <p className="text-center text-xs mt-1 text-ink-light">Sampling every 30s</p>
             )}
           </div>
 
