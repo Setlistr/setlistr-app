@@ -8,6 +8,28 @@ const HOST = (process.env.ACRCLOUD_HOST || 'identify-us-west-2.acrcloud.com').tr
 const ACCESS_KEY = (process.env.ACRCLOUD_ACCESS_KEY || '').trim()
 const ACCESS_SECRET = (process.env.ACRCLOUD_ACCESS_SECRET || '').trim()
 
+function extractBestMatch(payload: any) {
+  if (Array.isArray(payload?.metadata?.humming) && payload.metadata.humming.length > 0) {
+    const m = payload.metadata.humming[0]
+    return {
+      title: m?.title ?? null,
+      artist: Array.isArray(m?.artists) ? m.artists.map((a: any) => a?.name).filter(Boolean).join(', ') : null,
+      source: 'humming',
+    }
+  }
+  if (Array.isArray(payload?.metadata?.music) && payload.metadata.music.length > 0) {
+    const m = payload.metadata.music[0]
+    if (m?.title || m?.artists) {
+      return {
+        title: m?.title ?? null,
+        artist: Array.isArray(m?.artists) ? m.artists.map((a: any) => a?.name).filter(Boolean).join(', ') : null,
+        source: 'music',
+      }
+    }
+  }
+  return null
+}
+
 export async function POST(req: NextRequest) {
   try {
     const incoming = await req.formData()
@@ -19,27 +41,8 @@ export async function POST(req: NextRequest) {
     const audioBuffer = Buffer.from(await audio.arrayBuffer())
     const timestamp = Math.floor(Date.now() / 1000).toString()
 
-    console.log('Runtime:', process.version)
-    console.log('Audio bytes:', audioBuffer.length)
-    console.log('ACCESS_KEY:', ACCESS_KEY)
-
-    const stringToSign = [
-      'POST',
-      '/v1/identify',
-      ACCESS_KEY,
-      'audio',
-      '1',
-      timestamp,
-    ].join('\n')
-
-    console.log('STRING TO SIGN:', stringToSign)
-
-    const signature = crypto
-      .createHmac('sha1', ACCESS_SECRET)
-      .update(stringToSign)
-      .digest('base64')
-
-    console.log('SIGNATURE:', signature)
+    const stringToSign = ['POST', '/v1/identify', ACCESS_KEY, 'audio', '1', timestamp].join('\n')
+    const signature = crypto.createHmac('sha1', ACCESS_SECRET).update(stringToSign).digest('base64')
 
     const form = new FormData()
     form.append('access_key', ACCESS_KEY)
@@ -50,29 +53,27 @@ export async function POST(req: NextRequest) {
     form.append('data_type', 'audio')
     form.append('signature_version', '1')
 
-    const res = await fetch(`https://${HOST}/v1/identify`, {
-      method: 'POST',
-      body: form,
-    })
+    const res = await fetch(`https://${HOST}/v1/identify`, { method: 'POST', body: form })
+    const payload = await res.json()
 
-    const data = await res.json()
-    console.log('ACRCloud response:', JSON.stringify(data))
+    console.log('ACRCloud full response:', JSON.stringify(payload))
 
-    const humming = data?.metadata?.humming?.[0]
-    const music = data?.metadata?.music?.[0]
-    const match = humming || music
+    const match = extractBestMatch(payload)
 
-    if (data.status?.code === 0 && match) {
-      return NextResponse.json({
-        detected: true,
-        title: match.title,
-        artist: match.artists?.[0]?.name || '',
-        isrc: match.external_ids?.isrc || '',
-        source: humming ? 'humming' : 'fingerprint',
-      })
+    if (match?.title) {
+      return NextResponse.json({ detected: true, title: match.title, artist: match.artist, source: match.source })
     }
 
-    return NextResponse.json({ detected: false, debug: data.status })
+    return NextResponse.json({
+      detected: false,
+      debug: {
+        status: payload?.status ?? null,
+        metadataKeys: payload?.metadata ? Object.keys(payload.metadata) : [],
+        musicCount: Array.isArray(payload?.metadata?.music) ? payload.metadata.music.length : 0,
+        hummingCount: Array.isArray(payload?.metadata?.humming) ? payload.metadata.humming.length : 0,
+        sampleBytes: audioBuffer.length,
+      },
+    })
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 })
   }
