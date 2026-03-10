@@ -59,7 +59,6 @@ export default function NewPerformancePage() {
 
     if (err) { setError(err.message); setLoading(false); return }
 
-    // Create capture session
     await supabase.from('capture_sessions').insert({
       performance_id: performance.id,
       started_at: new Date().toISOString(),
@@ -70,25 +69,28 @@ export default function NewPerformancePage() {
   }
 
   return (
-    <div className="px-4 py-6 max-w-lg mx-auto">
-      <div className="flex items-center gap-3 mb-8">
-        <button onClick={() => router.back()} className="text-ink-light hover:text-ink">
-          <ChevronLeft size={22} />
-        </button>
-        <div>
-          <p className="text-xs text-ink-light uppercase tracking-[0.2em]">New Performance</p>
-          <h1 className="font-display text-2xl text-ink">Set Up Show</h1>
+    <div className="min-h-screen text-cream flex flex-col"
+      style={{ background: 'radial-gradient(ellipse at 50% 0%, #1e1c18 0%, #0f0e0c 100%)' }}>
+
+      <div className="px-4 pt-8 pb-6 max-w-lg mx-auto w-full">
+        <div className="flex items-center gap-3 mb-1">
+          <button onClick={() => router.back()} className="text-[#6a6660] hover:text-cream transition-colors">
+            <ChevronLeft size={22} />
+          </button>
+          <div>
+            <p className="text-xs text-gold/60 uppercase tracking-[0.3em]">New Performance</p>
+            <h1 className="font-display text-2xl text-cream">Set Up Show</h1>
+          </div>
         </div>
       </div>
 
-      <div className="flex flex-col gap-5">
-        {/* Artist */}
+      <div className="px-4 max-w-lg mx-auto w-full flex flex-col gap-5 pb-12">
+
         <Field label="Artist Name" required>
           <input value={form.artist_name} onChange={e => set('artist_name', e.target.value)}
             placeholder="e.g. Daryl Scott" className={input} />
         </Field>
 
-        {/* Venue */}
         <Field label="Venue Name" required>
           <input value={form.venue_name} onChange={e => set('venue_name', e.target.value)}
             placeholder="e.g. The Bluebird Cafe" className={input} />
@@ -101,17 +103,19 @@ export default function NewPerformancePage() {
           </Field>
           <Field label="Country">
             <select value={form.country} onChange={e => set('country', e.target.value)} className={input}>
-              {COUNTRIES.map(c => <option key={c}>{c}</option>)}
+              {COUNTRIES.map(c => <option key={c} className="bg-[#1a1814]">{c}</option>)}
             </select>
           </Field>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
           <Field label="Date">
-            <input type="date" value={form.performance_date} onChange={e => set('performance_date', e.target.value)} className={input} />
+            <input type="date" value={form.performance_date}
+              onChange={e => set('performance_date', e.target.value)} className={input} />
           </Field>
           <Field label="Start Time">
-            <input type="time" value={form.start_time} onChange={e => set('start_time', e.target.value)} className={input} />
+            <input type="time" value={form.start_time}
+              onChange={e => set('start_time', e.target.value)} className={input} />
           </Field>
         </div>
 
@@ -128,20 +132,23 @@ export default function NewPerformancePage() {
 
         <Field label="Notes (optional)">
           <textarea value={form.notes} onChange={e => set('notes', e.target.value)}
-            placeholder="Any notes about this show..." rows={3} className={`${input} resize-none`} />
+            placeholder="Any notes about this show..." rows={3}
+            className={`${input} resize-none`} />
         </Field>
 
         {error && (
-          <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-red-600 text-sm">{error}</div>
+          <div className="bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-3 text-red-400 text-sm">
+            {error}
+          </div>
         )}
 
         <button onClick={handleStart} disabled={loading}
-          className="flex items-center justify-center gap-2 w-full bg-gold hover:bg-gold-light disabled:opacity-50 text-ink font-bold rounded-2xl py-4 text-lg transition-colors mt-2">
+          className="flex items-center justify-center gap-2 w-full bg-gold hover:bg-yellow-400 disabled:opacity-50 text-ink font-bold rounded-2xl py-4 text-lg transition-colors mt-2">
           <Play size={20} fill="currentColor" />
           {loading ? 'Starting...' : 'Start Performance'}
         </button>
 
-        <p className="text-center text-xs text-ink-light">
+        <p className="text-center text-xs text-[#6a6660]">
           Session will auto-close after {form.set_duration_minutes + form.auto_close_buffer_minutes} minutes
         </p>
       </div>
@@ -149,12 +156,12 @@ export default function NewPerformancePage() {
   )
 }
 
-const input = "w-full bg-white border border-cream-dark rounded-xl px-4 py-3 text-ink placeholder:text-ink-light/50 focus:outline-none focus:border-gold transition-colors text-sm"
+const input = "w-full bg-[#1a1814] border border-[#2e2b26] rounded-xl px-4 py-3 text-cream placeholder:text-[#4a4640] focus:outline-none focus:border-gold transition-colors text-sm"
 
 function Field({ label, children, required }: { label: string; children: React.ReactNode; required?: boolean }) {
   return (
     <div>
-      <label className="text-xs text-ink-light uppercase tracking-wider block mb-1.5">
+      <label className="text-xs text-[#6a6660] uppercase tracking-wider block mb-1.5">
         {label}{required && <span className="text-gold ml-0.5">*</span>}
       </label>
       {children}
