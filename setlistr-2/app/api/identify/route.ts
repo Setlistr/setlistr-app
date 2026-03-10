@@ -1,90 +1,114 @@
-import { NextRequest, NextResponse } from 'next/server'
-import crypto from 'crypto'
+// app/api/identify/route.ts
+import { NextRequest, NextResponse } from "next/server";
+import crypto from "node:crypto";
 
-const CRLF = '\r\n'
+export const runtime = "nodejs";
 
-function field(boundary: string, name: string, value: string): Buffer {
-  return Buffer.from(
-    `--${boundary}${CRLF}` +
-    `Content-Disposition: form-data; name="${name}"${CRLF}${CRLF}` +
-    `${value}${CRLF}`
-  )
+const ACRCLOUD_HOST = process.env.ACRCLOUD_HOST || "identify-us-west-2.acrcloud.com";
+const ACRCLOUD_ACCESS_KEY = process.env.ACRCLOUD_ACCESS_KEY!;
+const ACRCLOUD_ACCESS_SECRET = process.env.ACRCLOUD_ACCESS_SECRET!;
+
+function signAcrcloud(params: {
+  method: "POST";
+  httpUri: "/v1/identify";
+  accessKey: string;
+  dataType: "audio";
+  signatureVersion: "1";
+  timestamp: string;
+  accessSecret: string;
+}) {
+  const stringToSign = [
+    params.method,
+    params.httpUri,
+    params.accessKey,
+    params.dataType,
+    params.signatureVersion,
+    params.timestamp,
+  ].join("\n");
+
+  const signature = crypto
+    .createHmac("sha1", params.accessSecret)
+    .update(stringToSign, "utf8")
+    .digest("base64");
+
+  return { stringToSign, signature };
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const formData = await req.formData()
-    const audioFile = formData.get('audio') as File
-    if (!audioFile) return NextResponse.json({ error: 'No audio' }, { status: 400 })
+    if (!ACRCLOUD_ACCESS_KEY || !ACRCLOUD_ACCESS_SECRET) {
+      return NextResponse.json(
+        { error: "Missing ACRCloud environment variables" },
+        { status: 500 }
+      );
+    }
 
-    const host = process.env.ACRCLOUD_HOST!
-    const accessKey = process.env.ACRCLOUD_ACCESS_KEY!
-    const accessSecret = process.env.ACRCLOUD_ACCESS_SECRET!
+    const incoming = await req.formData();
+    const audioFile = incoming.get("audio");
 
-    const audioBuffer = Buffer.from(await audioFile.arrayBuffer())
-    const sampleBytes = audioBuffer.length
+    if (!(audioFile instanceof File)) {
+      return NextResponse.json(
+        { error: 'Expected FormData field "audio" as a File' },
+        { status: 400 }
+      );
+    }
 
-    const timestamp = (new Date().getTime() / 1000).toString()
-    const stringToSign = ['POST', '/v1/identify', accessKey, 'audio', '1', timestamp].join('\n')
-    const signature = crypto.createHmac('sha1', accessSecret).update(stringToSign).digest('base64')
+    const arrayBuffer = await audioFile.arrayBuffer();
+    const audioBuffer = Buffer.from(arrayBuffer);
 
-    const boundary = `----ACRBoundary${Date.now()}`
+    const timestamp = Math.floor(Date.now() / 1000).toString();
 
-    const filePart = Buffer.concat([
-      Buffer.from(
-        `--${boundary}${CRLF}` +
-        `Content-Disposition: form-data; name="sample"; filename="sample.webm"${CRLF}` +
-        `Content-Type: audio/webm${CRLF}${CRLF}`
-      ),
-      audioBuffer,
-      Buffer.from(CRLF),
-    ])
+    const { signature } = signAcrcloud({
+      method: "POST",
+      httpUri: "/v1/identify",
+      accessKey: ACRCLOUD_ACCESS_KEY,
+      dataType: "audio",
+      signatureVersion: "1",
+      timestamp,
+      accessSecret: ACRCLOUD_ACCESS_SECRET,
+    });
 
-    const body = Buffer.concat([
-      field(boundary, 'access_key', accessKey),
-      field(boundary, 'data_type', 'audio'),
-      field(boundary, 'signature_version', '1'),
-      field(boundary, 'signature', signature),
-      field(boundary, 'sample_bytes', sampleBytes.toString()),
-      field(boundary, 'timestamp', timestamp),
-      filePart,
-      Buffer.from(`--${boundary}--${CRLF}`),
-    ])
+    const form = new FormData();
+    form.append("access_key", ACRCLOUD_ACCESS_KEY);
+    form.append("sample_bytes", String(audioBuffer.length));
+    form.append(
+      "sample",
+      new Blob([audioBuffer], { type: audioFile.type || "application/octet-stream" }),
+      audioFile.name || "sample.webm"
+    );
+    form.append("timestamp", timestamp);
+    form.append("signature", signature);
+    form.append("data_type", "audio");
+    form.append("signature_version", "1");
 
-    const res = await fetch(`https://${host}/v1/identify`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': `multipart/form-data; boundary=${boundary}`,
-        'Content-Length': body.length.toString(),
-      },
-      body,
-    })
+    const acrResponse = await fetch(`https://${ACRCLOUD_HOST}/v1/identify`, {
+      method: "POST",
+      body: form,
+      // Do NOT set Content-Type manually — fetch sets the correct boundary automatically
+    });
 
-    const data = await res.json()
-    console.log('ACRCloud response:', JSON.stringify(data))
+    const payload = await acrResponse.json();
 
-    const hummingMatch = data.metadata?.humming?.[0]
-    const musicMatch = data.metadata?.music?.[0]
-    const match = hummingMatch || musicMatch
+    const humming = payload?.metadata?.humming;
+    const music = payload?.metadata?.music;
+    const match = (Array.isArray(humming) && humming[0]) || (Array.isArray(music) && music[0]);
 
-    if (data.status?.code === 0 && match) {
+    if (match?.title) {
       return NextResponse.json({
         detected: true,
         title: match.title,
-        artist: match.artists?.[0]?.name || '',
-        album: match.album?.name || '',
-        isrc: match.external_ids?.isrc || '',
-        score: match.score || null,
-        source: hummingMatch ? 'humming' : 'fingerprint',
-      })
-    } else {
-      return NextResponse.json({
-        detected: false,
-        debug: { code: data.status?.code, msg: data.status?.msg }
-      })
+        artist: Array.isArray(match.artists)
+          ? match.artists.map((a: any) => a?.name).filter(Boolean).join(", ")
+          : "",
+        isrc: match.external_ids?.isrc || "",
+      });
     }
-  } catch (err) {
-    console.error('ACRCloud error:', err)
-    return NextResponse.json({ error: 'Identification failed' }, { status: 500 })
+
+    return NextResponse.json({
+      detected: false,
+      debug: payload?.status ?? null,
+    });
+  } catch (error: any) {
+    return NextResponse.json({ error: error?.message || "Unknown error" }, { status: 500 });
   }
 }
