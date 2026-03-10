@@ -5,8 +5,8 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 const HOST = 'identify-us-west-2.acrcloud.com'
-const ACCESS_KEY = 'c020f9da8514cf745ae87971153e08b2'
-const ACCESS_SECRET = 'yYwlNleqKf9o9xVldVhxcb3lVdZ8jBv1WrNUoVbJ'
+const ACCESS_KEY = '81af58b16d932703e6a233f054666f3b'
+const ACCESS_SECRET = 'vNLUzrw4OOaiKiaw4FTdPQlqTNTGj3VbCNmotS22'
 
 export async function POST(req: NextRequest) {
   try {
@@ -49,6 +49,7 @@ export async function POST(req: NextRequest) {
         detected: true,
         title: match.title,
         artist: match.artists?.[0]?.name || '',
+        source: humming ? 'humming' : 'fingerprint',
       })
     }
 
