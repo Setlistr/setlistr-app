@@ -7,9 +7,8 @@ const HOST = (process.env.ACRCLOUD_HOST || "").trim();
 const ACCESS_KEY = (process.env.ACRCLOUD_ACCESS_KEY || "").trim();
 const ACCESS_SECRET = (process.env.ACRCLOUD_ACCESS_SECRET || "").trim();
 
-function createSignature(timestamp: string) {
-  // Exact ACRCloud v1 signature string format:
-  // POST\n/v1/identify\n{access_key}\naudio\n1\n{timestamp}
+function buildSignature(timestamp: string) {
+  // EXACT ACRCloud v1 signature string
   const stringToSign = [
     "POST",
     "/v1/identify",
@@ -24,7 +23,7 @@ function createSignature(timestamp: string) {
     .update(Buffer.from(stringToSign, "utf8"))
     .digest("base64");
 
-  return { signature, stringToSign };
+  return { stringToSign, signature };
 }
 
 export async function POST(req: NextRequest) {
@@ -33,7 +32,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           detected: false,
-          error: "Missing ACRCloud env vars",
+          error: "Missing ACRCloud environment variables",
           debug: {
             hasHost: Boolean(HOST),
             hasAccessKey: Boolean(ACCESS_KEY),
@@ -55,18 +54,24 @@ export async function POST(req: NextRequest) {
     }
 
     const audioBuffer = Buffer.from(await audio.arrayBuffer());
-    const timestamp = Math.floor(Date.now() / 1000).toString();
 
-    const { signature, stringToSign } = createSignature(timestamp);
+    // ACRCloud suggests short audio clips; use 5–15 seconds when testing.
+    const timestamp = Math.floor(Date.now() / 1000).toString();
+    const { stringToSign, signature } = buildSignature(timestamp);
 
     const acrForm = new FormData();
     acrForm.append("access_key", ACCESS_KEY);
     acrForm.append("sample_bytes", String(audioBuffer.length));
-    acrForm.append("sample", new Blob([audioBuffer], { type: audio.type || "audio/webm" }), audio.name || "sample.webm");
     acrForm.append("timestamp", timestamp);
     acrForm.append("signature", signature);
     acrForm.append("data_type", "audio");
     acrForm.append("signature_version", "1");
+
+    acrForm.append(
+      "sample",
+      new Blob([audioBuffer], { type: audio.type || "application/octet-stream" }),
+      audio.name || "sample.webm"
+    );
 
     const acrResponse = await fetch(`https://${HOST}/v1/identify`, {
       method: "POST",
@@ -83,41 +88,32 @@ export async function POST(req: NextRequest) {
         {
           detected: false,
           error: "ACRCloud returned non-JSON",
-          raw: rawText,
+          rawText,
           debug: {
-            stringToSign,
             host: HOST,
             timestamp,
+            stringToSign,
+            sampleBytes: audioBuffer.length,
           },
         },
         { status: 502 }
       );
     }
 
-    // Cover Song / Humming-style projects may not return metadata.music.
-    // Check humming first, then music as fallback.
-    const humming = payload?.metadata?.humming;
-    const music = payload?.metadata?.music;
+    // Your project may return music or humming depending on engine/config
+    const match =
+      payload?.metadata?.humming?.[0] ??
+      payload?.metadata?.music?.[0] ??
+      null;
 
-    const best =
-      Array.isArray(humming) && humming.length > 0
-        ? humming[0]
-        : Array.isArray(music) && music.length > 0
-        ? music[0]
-        : null;
-
-    if (best) {
-      const title = best?.title ?? null;
-      const artist =
-        Array.isArray(best?.artists) && best.artists.length > 0
-          ? best.artists.map((a: any) => a?.name).filter(Boolean).join(", ")
-          : null;
-
+    if (match) {
       return NextResponse.json({
         detected: true,
-        title,
-        artist,
-        debug: payload?.status ?? null,
+        title: match.title ?? null,
+        artist:
+          Array.isArray(match.artists) && match.artists.length > 0
+            ? match.artists.map((a: any) => a?.name).filter(Boolean).join(", ")
+            : null,
       });
     }
 
@@ -129,7 +125,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         detected: false,
-        error: error?.message || "Unknown error",
+        error: error?.message || "Unknown server error",
       },
       { status: 500 }
     );
