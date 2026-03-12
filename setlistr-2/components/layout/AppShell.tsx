@@ -1,7 +1,7 @@
 'use client'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, PlusCircle, Clock, LogOut, BarChart2 } from 'lucide-react'
+import { LayoutDashboard, PlusCircle, Clock, LogOut, BarChart2, Settings } from 'lucide-react'
 import Image from 'next/image'
 import type { Profile } from '@/types'
 import { createClient } from '@/lib/supabase/client'
@@ -58,6 +58,13 @@ export function AppShell({ children, profile }: { children: React.ReactNode; pro
               Admin
             </Link>
           )}
+          <Link
+            href="/app/settings"
+            className="p-1.5 rounded-lg transition-colors"
+            style={{ color: pathname === '/app/settings' ? '#c9a84c' : '#5a5448' }}
+          >
+            <Settings size={15} />
+          </Link>
           <button
             onClick={signOut}
             className="p-1.5 rounded-lg transition-colors"
