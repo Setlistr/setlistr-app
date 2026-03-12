@@ -93,7 +93,7 @@ export async function POST(req: NextRequest) {
       detected: false,
       acr_message: err.message,
       raw_response: { error: err.message },
-    }).catch(() => {}) // don't let logging failure break the response
+     // don't let logging failure break the response
 
     return NextResponse.json({ error: err.message }, { status: 500 })
   }
