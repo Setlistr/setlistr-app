@@ -4,6 +4,18 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { ChevronLeft, Play } from 'lucide-react'
 
+const C = {
+  bg: '#0a0908',
+  card: '#141210',
+  border: 'rgba(255,255,255,0.07)',
+  input: '#0f0e0c',
+  inputBorder: 'rgba(255,255,255,0.09)',
+  text: '#f0ece3',
+  secondary: '#a09070',
+  muted: '#6a6050',
+  gold: '#c9a84c',
+}
+
 const COUNTRIES = ['United States', 'United Kingdom', 'Canada', 'Australia', 'Germany', 'France', 'Japan', 'Brazil', 'Other']
 
 export default function NewPerformancePage() {
@@ -33,7 +45,6 @@ export default function NewPerformancePage() {
     }
     setLoading(true)
     setError('')
-
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { router.push('/auth/login'); return }
@@ -68,87 +79,98 @@ export default function NewPerformancePage() {
     router.push(`/app/live/${performance.id}`)
   }
 
-  return (
-    <div className="min-h-screen text-cream flex flex-col"
-      style={{ background: 'radial-gradient(ellipse at 50% 0%, #1e1c18 0%, #0f0e0c 100%)' }}>
+  const inputClass = "w-full rounded-xl px-4 py-3 text-sm focus:outline-none transition-colors"
+  const inputStyle = {
+    background: C.input,
+    border: `1px solid ${C.inputBorder}`,
+    color: C.text,
+  }
 
+  return (
+    <div className="min-h-screen flex flex-col" style={{ background: C.bg }}>
       <div className="px-4 pt-8 pb-6 max-w-lg mx-auto w-full">
         <div className="flex items-center gap-3 mb-1">
-          <button onClick={() => router.back()} className="text-[#6a6660] hover:text-cream transition-colors">
+          <button onClick={() => router.back()} style={{ color: C.secondary }}>
             <ChevronLeft size={22} />
           </button>
           <div>
-            <p className="text-xs text-gold/60 uppercase tracking-[0.3em]">New Performance</p>
-            <h1 className="font-display text-2xl text-cream">Set Up Show</h1>
+            <p className="text-[11px] uppercase tracking-[0.3em]" style={{ color: C.gold + '99' }}>New Performance</p>
+            <h1 className="font-display text-2xl" style={{ color: C.text }}>Set Up Show</h1>
           </div>
         </div>
       </div>
 
       <div className="px-4 max-w-lg mx-auto w-full flex flex-col gap-5 pb-12">
-
-        <Field label="Artist Name" required>
+        <Field label="Artist Name" required color={C.secondary}>
           <input value={form.artist_name} onChange={e => set('artist_name', e.target.value)}
-            placeholder="e.g. Daryl Scott" className={input} />
+            placeholder="e.g. Jesse Slack" className={inputClass} style={inputStyle} />
         </Field>
 
-        <Field label="Venue Name" required>
+        <Field label="Venue Name" required color={C.secondary}>
           <input value={form.venue_name} onChange={e => set('venue_name', e.target.value)}
-            placeholder="e.g. The Bluebird Cafe" className={input} />
+            placeholder="e.g. The Bluebird Cafe" className={inputClass} style={inputStyle} />
         </Field>
 
         <div className="grid grid-cols-2 gap-3">
-          <Field label="City" required>
+          <Field label="City" required color={C.secondary}>
             <input value={form.city} onChange={e => set('city', e.target.value)}
-              placeholder="Nashville" className={input} />
+              placeholder="Nashville" className={inputClass} style={inputStyle} />
           </Field>
-          <Field label="Country">
-            <select value={form.country} onChange={e => set('country', e.target.value)} className={input}>
-              {COUNTRIES.map(c => <option key={c} className="bg-[#1a1814]">{c}</option>)}
+          <Field label="Country" color={C.secondary}>
+            <select value={form.country} onChange={e => set('country', e.target.value)}
+              className={inputClass} style={{ ...inputStyle, appearance: 'none' as any }}>
+              {COUNTRIES.map(c => <option key={c} style={{ background: '#141210' }}>{c}</option>)}
             </select>
           </Field>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Date">
+          <Field label="Date" color={C.secondary}>
             <input type="date" value={form.performance_date}
-              onChange={e => set('performance_date', e.target.value)} className={input} />
+              onChange={e => set('performance_date', e.target.value)}
+              className={inputClass} style={inputStyle} />
           </Field>
-          <Field label="Start Time">
+          <Field label="Start Time" color={C.secondary}>
             <input type="time" value={form.start_time}
-              onChange={e => set('start_time', e.target.value)} className={input} />
+              onChange={e => set('start_time', e.target.value)}
+              className={inputClass} style={inputStyle} />
           </Field>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Set Duration (min)">
+          <Field label="Set Duration (min)" color={C.secondary}>
             <input type="number" value={form.set_duration_minutes} min={10} max={360}
-              onChange={e => set('set_duration_minutes', parseInt(e.target.value))} className={input} />
+              onChange={e => set('set_duration_minutes', parseInt(e.target.value))}
+              className={inputClass} style={inputStyle} />
           </Field>
-          <Field label="Buffer (min)">
+          <Field label="Buffer (min)" color={C.secondary}>
             <input type="number" value={form.auto_close_buffer_minutes} min={0} max={30}
-              onChange={e => set('auto_close_buffer_minutes', parseInt(e.target.value))} className={input} />
+              onChange={e => set('auto_close_buffer_minutes', parseInt(e.target.value))}
+              className={inputClass} style={inputStyle} />
           </Field>
         </div>
 
-        <Field label="Notes (optional)">
+        <Field label="Notes (optional)" color={C.secondary}>
           <textarea value={form.notes} onChange={e => set('notes', e.target.value)}
             placeholder="Any notes about this show..." rows={3}
-            className={`${input} resize-none`} />
+            className={`${inputClass} resize-none`} style={inputStyle} />
         </Field>
 
         {error && (
-          <div className="bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-3 text-red-400 text-sm">
+          <div className="rounded-xl px-4 py-3 text-sm"
+            style={{ background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.2)', color: '#f87171' }}>
             {error}
           </div>
         )}
 
         <button onClick={handleStart} disabled={loading}
-          className="flex items-center justify-center gap-2 w-full bg-gold hover:bg-yellow-400 disabled:opacity-50 text-ink font-bold rounded-2xl py-4 text-lg transition-colors mt-2">
+          className="flex items-center justify-center gap-2 w-full font-bold rounded-2xl py-4 text-lg transition-colors mt-2 disabled:opacity-50"
+          style={{ background: C.gold, color: '#0a0908' }}>
           <Play size={20} fill="currentColor" />
           {loading ? 'Starting...' : 'Start Performance'}
         </button>
 
-        <p className="text-center text-xs text-[#6a6660]">
+        <p className="text-center text-xs" style={{ color: C.muted }}>
           Session will auto-close after {form.set_duration_minutes + form.auto_close_buffer_minutes} minutes
         </p>
       </div>
@@ -156,13 +178,11 @@ export default function NewPerformancePage() {
   )
 }
 
-const input = "w-full bg-[#1a1814] border border-[#2e2b26] rounded-xl px-4 py-3 text-cream placeholder:text-[#4a4640] focus:outline-none focus:border-gold transition-colors text-sm"
-
-function Field({ label, children, required }: { label: string; children: React.ReactNode; required?: boolean }) {
+function Field({ label, children, required, color }: { label: string; children: React.ReactNode; required?: boolean; color: string }) {
   return (
     <div>
-      <label className="text-xs text-[#6a6660] uppercase tracking-wider block mb-1.5">
-        {label}{required && <span className="text-gold ml-0.5">*</span>}
+      <label className="text-[11px] uppercase tracking-wider block mb-1.5" style={{ color }}>
+        {label}{required && <span style={{ color: '#c9a84c' }} className="ml-0.5">*</span>}
       </label>
       {children}
     </div>
