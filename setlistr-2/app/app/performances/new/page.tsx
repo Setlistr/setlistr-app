@@ -114,10 +114,31 @@ export default function NewPerformancePage() {
     notes: '',
   })
 
-  function set(key: string, value: string | number) {
+function set(key: string, value: string | number) {
     setForm(f => ({ ...f, [key]: value }))
   }
 
+  // Pre-fill artist name from profile
+  useEffect(() => {
+    async function loadProfile() {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('artist_name, full_name')
+        .eq('id', user.id)
+        .single()
+      if (profile?.artist_name) {
+        set('artist_name', profile.artist_name)
+      } else if (profile?.full_name) {
+        set('artist_name', profile.full_name)
+      }
+    }
+    loadProfile()
+  }, [])
+
+  // Search venues as user types
   // Search venues as user types
   useEffect(() => {
     if (!venueQuery.trim() || venueSelected) {
