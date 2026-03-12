@@ -11,13 +11,21 @@ type Performance = {
   song_count?: number
 }
 
+type ImpactType = 'positive' | 'neutral' | 'negative'
+
+type Driver = {
+  label: string
+  value: string
+  impact: ImpactType
+}
+
 type RoyaltyEstimate = {
   low: number
   mid: number
   high: number
   perSong: { low: number; high: number }
   confidence: 'low' | 'medium' | 'high'
-  drivers: { label: string; value: string; impact: 'positive' | 'neutral' | 'negative' }[]
+  drivers: Driver[]
 }
 
 function estimateRoyalties(performances: Performance[]) {
@@ -49,17 +57,31 @@ function estimateRoyalties(performances: Performance[]) {
     const confidence: 'low' | 'medium' | 'high' =
       songs >= 8 && duration >= 45 ? 'medium' : 'low'
 
-    const drivers = [
-      { label: 'Venue size', value: venueLabel, impact: isLargeVenue ? 'positive' : isSmallVenue ? 'negative' : 'neutral' as any },
-      { label: 'Territory', value: territoryLabel, impact: isEU ? 'positive' : isUSCA ? 'neutral' : 'negative' as any },
-      { label: 'Set duration', value: `${duration} min`, impact: duration >= 60 ? 'positive' : 'neutral' as any },
-      { label: 'Songs performed', value: `${songs} songs`, impact: songs >= 10 ? 'positive' : 'neutral' as any },
+    const venueImpact: ImpactType = isLargeVenue ? 'positive' : isSmallVenue ? 'negative' : 'neutral'
+    const territoryImpact: ImpactType = isEU ? 'positive' : isUSCA ? 'neutral' : 'negative'
+    const durationImpact: ImpactType = duration >= 60 ? 'positive' : 'neutral'
+    const songsImpact: ImpactType = songs >= 10 ? 'positive' : 'neutral'
+
+    const drivers: Driver[] = [
+      { label: 'Venue size', value: venueLabel, impact: venueImpact },
+      { label: 'Territory', value: territoryLabel, impact: territoryImpact },
+      { label: 'Set duration', value: `${duration} min`, impact: durationImpact },
+      { label: 'Songs performed', value: `${songs} songs`, impact: songsImpact },
     ]
 
-    return {
-      performance: p,
-      estimate: { low, mid, high, perSong: { low: Math.round(low / Math.max(songs, 1)), high: Math.round(high / Math.max(songs, 1)) }, confidence, drivers } as RoyaltyEstimate
+    const estimate: RoyaltyEstimate = {
+      low,
+      mid,
+      high,
+      perSong: {
+        low: Math.round(low / Math.max(songs, 1)),
+        high: Math.round(high / Math.max(songs, 1)),
+      },
+      confidence,
+      drivers,
     }
+
+    return { performance: p, estimate }
   })
 
   const totalLow = breakdown.reduce((sum, b) => sum + b.estimate.low, 0)
