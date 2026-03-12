@@ -1,4 +1,5 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { PlusCircle, Zap, Music2, MapPin, Clock, ChevronRight } from 'lucide-react'
 import { RoyaltyWidget } from '@/components/RoyaltyWidget'
@@ -6,6 +7,10 @@ import { RoyaltyWidget } from '@/components/RoyaltyWidget'
 export default async function DashboardPage() {
   const supabase = await createServerSupabaseClient()
   const { data: { user } } = await supabase.auth.getUser()
+
+  // Redirect to onboarding if profile not set up
+  const { data: profile } = await supabase.from('profiles').select('full_name').eq('id', user!.id).single()
+  if (!profile?.full_name) redirect('/app/onboarding')
 
   const [
     { data: performances },
@@ -22,7 +27,6 @@ export default async function DashboardPage() {
     supabase.from('performances').select('*', { count: 'exact', head: true }).eq('user_id', user!.id).eq('status', 'completed'),
     supabase.from('performance_songs').select('performance_id, performances!inner(user_id)').eq('performances.user_id', user!.id),
     supabase.from('performances').select('city').eq('user_id', user!.id),
-    // Show royalty widget for review + completed performances that have songs
     supabase.from('performances').select('id, venue_name, city, country, set_duration_minutes, performance_songs(count)').eq('user_id', user!.id).in('status', ['completed', 'review']),
   ])
 
@@ -68,7 +72,7 @@ export default async function DashboardPage() {
             <div key={label} className="rounded-2xl p-4" style={{ background: '#141210', border: '1px solid rgba(255,255,255,0.06)' }}>
               <div className="mb-2" style={{ color: '#c9a84c' }}><Icon size={18} /></div>
               <div className="text-3xl font-bold" style={{ color: '#f0ece3' }}>{value}</div>
-              <div className="text-[11px] uppercase tracking-wider mt-0.5" style={{ color: '#5a5448' }}>{label}</div>
+              <div className="text-[11px] uppercase tracking-wider mt-0.5" style={{ color: '#a09070' }}>{label}</div>
             </div>
           ))}
         </div>
@@ -102,9 +106,9 @@ export default async function DashboardPage() {
 
         {!performances?.length ? (
           <div className="text-center py-12">
-            <Clock size={32} className="mx-auto mb-3 opacity-20" style={{ color: '#a09880' }} />
-            <p className="text-sm" style={{ color: '#a09880' }}>No performances yet</p>
-            <p className="text-xs mt-1" style={{ color: '#5a5448' }}>Your show history will appear here</p>
+            <Clock size={32} className="mx-auto mb-3 opacity-20" style={{ color: '#a09070' }} />
+            <p className="text-sm" style={{ color: '#a09070' }}>No performances yet</p>
+            <p className="text-xs mt-1" style={{ color: '#6a6050' }}>Your show history will appear here</p>
           </div>
         ) : (
           <div className="flex flex-col gap-2">
@@ -119,7 +123,7 @@ export default async function DashboardPage() {
                   <div className="font-medium text-sm" style={{ color: '#f0ece3' }}>
                     {p.venue_name}
                   </div>
-                  <div className="text-xs mt-0.5" style={{ color: '#5a5448' }}>
+                  <div className="text-xs mt-0.5" style={{ color: '#a09070' }}>
                     {p.city} · {p.started_at ? new Date(p.started_at).toLocaleDateString() : new Date(p.performance_date).toLocaleDateString()}
                   </div>
                 </div>
@@ -139,11 +143,11 @@ export default async function DashboardPage() {
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, { label: string; bg: string; color: string; border: string }> = {
     draft:      { label: 'Draft',      color: '#a09880', bg: 'rgba(160,152,128,0.1)', border: 'rgba(160,152,128,0.15)' },
-    live:       { label: '● Live',     color: '#f87171', bg: 'rgba(248,113,113,0.1)', border: 'rgba(248,113,113,0.2)' },
-    processing: { label: 'Processing', color: '#fbbf24', bg: 'rgba(251,191,36,0.1)',  border: 'rgba(251,191,36,0.2)' },
-    review:     { label: 'Review',     color: '#c9a84c', bg: 'rgba(201,168,76,0.1)',  border: 'rgba(201,168,76,0.2)' },
-    completed:  { label: 'Done',       color: '#4ade80', bg: 'rgba(74,222,128,0.1)',  border: 'rgba(74,222,128,0.2)' },
-    complete:   { label: 'Done',       color: '#4ade80', bg: 'rgba(74,222,128,0.1)',  border: 'rgba(74,222,128,0.2)' },
+    live:       { label: '● Live',     color: '#f87171', bg: 'rgba(248,113,113,0.1)', border: 'rgba(248,113,113,0.2)'  },
+    processing: { label: 'Processing', color: '#fbbf24', bg: 'rgba(251,191,36,0.1)',  border: 'rgba(251,191,36,0.2)'  },
+    review:     { label: 'Review',     color: '#c9a84c', bg: 'rgba(201,168,76,0.1)',  border: 'rgba(201,168,76,0.2)'  },
+    completed:  { label: 'Done',       color: '#4ade80', bg: 'rgba(74,222,128,0.1)',  border: 'rgba(74,222,128,0.2)'  },
+    complete:   { label: 'Done',       color: '#4ade80', bg: 'rgba(74,222,128,0.1)',  border: 'rgba(74,222,128,0.2)'  },
   }
   const s = map[status] ?? { label: status, color: '#a09880', bg: 'rgba(160,152,128,0.1)', border: 'rgba(160,152,128,0.15)' }
   return (
