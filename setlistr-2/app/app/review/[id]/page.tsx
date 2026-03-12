@@ -155,7 +155,6 @@ function SortableRow({ song, index, onDelete, onEdit }: {
         )}
       </div>
 
-      {/* Swap panel */}
       {mode === 'swap' && (
         <div className="mt-3 flex flex-col gap-2 pt-3" style={{ borderTop: `1px solid ${C.border}` }}>
           <p className="text-[11px] uppercase tracking-wider" style={{ color: C.gold }}>
@@ -203,6 +202,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [showComplete, setShowComplete] = useState(false)
   const [newTitle, setNewTitle] = useState('')
   const [newArtist, setNewArtist] = useState('')
   const [showAdd, setShowAdd] = useState(false)
@@ -275,10 +275,8 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
     await supabase.from('performances').update({ status: 'completed' }).eq('id', performance.id)
     setSaving(false)
     setSaved(true)
-    setTimeout(() => {
-      router.push('/app/dashboard')
-    }, 1200)
-  }, [performance, songs, router])
+    setShowComplete(true)
+  }, [performance, songs])
 
   function formatDate(dateStr: string) {
     return new Date(dateStr).toLocaleDateString('en-US', {
@@ -327,6 +325,92 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: C.bg }}>
+
+      {/* Completion screen */}
+      {showComplete && (
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center px-6"
+          style={{ background: '#0a0908' }}>
+          <div className="fixed top-0 left-1/2 -translate-x-1/2 w-[400px] h-[300px] pointer-events-none"
+            style={{ background: 'radial-gradient(ellipse, rgba(201,168,76,0.08) 0%, transparent 70%)' }} />
+
+          <div className="w-full max-w-sm flex flex-col items-center text-center">
+            <div className="w-16 h-16 rounded-full flex items-center justify-center mb-6"
+              style={{ background: 'rgba(201,168,76,0.12)', border: '1px solid rgba(201,168,76,0.2)' }}>
+              <Check size={28} style={{ color: C.gold }} />
+            </div>
+
+            <h1 className="font-display text-3xl mb-2" style={{ color: C.text }}>Show Complete!</h1>
+            <p className="text-sm mb-1" style={{ color: C.secondary }}>
+              {performance?.venue_name} · {performance?.city}
+            </p>
+            <p className="text-sm mb-8" style={{ color: C.muted }}>
+              {songs.length} song{songs.length !== 1 ? 's' : ''} logged
+            </p>
+
+            {/* Setlist summary */}
+            <div className="w-full rounded-2xl p-4 mb-4 text-left"
+              style={{ background: C.card, border: `1px solid ${C.border}` }}>
+              <p className="text-[11px] uppercase tracking-wider mb-3" style={{ color: C.secondary }}>Setlist</p>
+              <div className="flex flex-col gap-2 max-h-40 overflow-y-auto">
+                {songs.map((s, i) => (
+                  <div key={s.id} className="flex items-center gap-3">
+                    <span className="font-mono text-xs w-4 shrink-0 text-right" style={{ color: C.gold }}>
+                      {i + 1}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-sm truncate" style={{ color: C.text }}>{s.title}</p>
+                      {s.artist && <p className="text-xs truncate" style={{ color: C.muted }}>{s.artist}</p>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* PRO export */}
+            <div className="w-full rounded-2xl p-4 mb-4"
+              style={{ background: C.card, border: `1px solid ${C.border}` }}>
+              <p className="text-[11px] uppercase tracking-wider mb-3" style={{ color: C.secondary }}>
+                Export for PRO Submission
+              </p>
+              <div className="flex flex-col gap-2">
+                {(['SOCAN', 'ASCAP', 'BMI'] as PRO[]).map(pro => (
+                  <button key={pro}
+                    onClick={() => generateExportCSV(pro)}
+                    className="flex items-center justify-between px-4 py-2.5 rounded-xl text-sm font-medium transition-all"
+                    style={{ border: `1px solid ${C.border}`, color: C.text, background: 'transparent' }}
+                    onMouseEnter={e => {
+                      (e.currentTarget as HTMLElement).style.borderColor = C.gold
+                      ;(e.currentTarget as HTMLElement).style.color = C.gold
+                    }}
+                    onMouseLeave={e => {
+                      (e.currentTarget as HTMLElement).style.borderColor = C.border
+                      ;(e.currentTarget as HTMLElement).style.color = C.text
+                    }}>
+                    <span className="flex items-center gap-2"><Download size={14} />{pro} Export</span>
+                    <span className="text-xs" style={{ color: C.muted }}>
+                      {pro === 'SOCAN' ? 'Canada' : 'USA'}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <button
+              onClick={() => router.push('/app/dashboard')}
+              className="w-full font-bold rounded-2xl py-4 transition-colors mb-3"
+              style={{ background: C.gold, color: '#0a0908' }}>
+              Back to Dashboard
+            </button>
+
+            <button
+              onClick={() => setShowComplete(false)}
+              className="text-sm transition-colors"
+              style={{ color: C.muted }}>
+              Back to Review
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="px-4 pt-8 pb-4 max-w-lg mx-auto w-full">
         <div className="flex items-center gap-2 mb-1">
