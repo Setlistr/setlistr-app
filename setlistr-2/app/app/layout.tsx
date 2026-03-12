@@ -31,5 +31,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     created_at: new Date().toISOString(),
   }
 
-  return <AppShell profile={resolvedProfile}>{children}</AppShell>
+const isOnboarding = !resolvedProfile.full_name
+const url = request?.url
+
+if (isOnboarding && !resolvedProfile.full_name) {
+  // handled client side
 }
+
+return <AppShell profile={resolvedProfile} needsOnboarding={!resolvedProfile.full_name}>{children}</AppShell>
