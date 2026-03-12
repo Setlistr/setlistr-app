@@ -1,5 +1,4 @@
 @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600;700&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -14,9 +13,10 @@
 
 body {
   font-family: var(--font-sans);
-  background: #f2efe8;
-  color: #1a1814;
+  background: #0a0908;
+  color: #e8e4db;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 .font-display { font-family: var(--font-display); }
@@ -24,7 +24,13 @@ body {
 /* Scrollbar */
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #d4af50; border-radius: 2px; }
+::-webkit-scrollbar-thumb { background: #c9a84c; border-radius: 2px; }
 
 /* Safe area for mobile */
 .pb-safe { padding-bottom: env(safe-area-inset-bottom, 16px); }
+
+/* Text hierarchy */
+.text-primary   { color: #f0ece3; }
+.text-secondary { color: #a09880; }
+.text-muted     { color: #5a5448; }
+.text-gold      { color: #c9a84c; }
