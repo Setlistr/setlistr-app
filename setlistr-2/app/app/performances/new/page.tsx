@@ -64,9 +64,9 @@ const SEED_VENUES: { name: string; city: string; country: string }[] = [
   { name: 'The Chicago Theatre', city: 'Chicago', country: 'United States' },
   // Austin
   { name: 'ACL Live at the Moody Center', city: 'Austin', country: 'United States' },
-  { name: 'Stubb's Waller Creek Amphitheater', city: 'Austin', country: 'United States' },
+{ name: "Stubb's Waller Creek Amphitheater", city: 'Austin', country: 'United States' },
   { name: 'The Parish', city: 'Austin', country: 'United States' },
-  { name: 'Emo's Austin', city: 'Austin', country: 'United States' },
+{ name: "Emo's Austin", city: 'Austin', country: 'United States' },
   { name: 'Continental Club', city: 'Austin', country: 'United States' },
   // Atlanta
   { name: 'The Fox Theatre', city: 'Atlanta', country: 'United States' },
