@@ -1,7 +1,7 @@
 'use client'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, PlusCircle, Clock, LogOut } from 'lucide-react'
+import { LayoutDashboard, PlusCircle, Clock, LogOut, BarChart2 } from 'lucide-react'
 import Image from 'next/image'
 import type { Profile } from '@/types'
 import { createClient } from '@/lib/supabase/client'
@@ -15,6 +15,7 @@ const NAV = [
   { href: '/app/dashboard', icon: LayoutDashboard, label: 'Home' },
   { href: '/app/performances/new', icon: PlusCircle, label: 'New Show' },
   { href: '/app/performances/history', icon: Clock, label: 'History' },
+  { href: '/app/stats', icon: BarChart2, label: 'Stats' },
 ]
 
 export function AppShell({ children, profile }: { children: React.ReactNode; profile: Profile }) {
