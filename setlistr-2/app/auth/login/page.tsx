@@ -38,10 +38,10 @@ export default function LoginPage() {
       {/* Logo */}
       <div className="flex flex-col items-center mb-10">
         <Image
-          src="/logo-pill.png"
+          src="/logo-white.png"
           alt="Setlistr"
-          width={220}
-          height={56}
+          width={320}
+          height={82}
           className="mb-6"
           priority
         />
