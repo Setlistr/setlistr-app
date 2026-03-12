@@ -85,16 +85,14 @@ export async function POST(req: NextRequest) {
       detected: false,
       debug: { status: payload?.status, sampleBytes: audioBytes },
     })
-  } catch (err: any) {
-    // Log the error too
+} catch (err: any) {
     await supabase.from('recognition_logs').insert({
       performance_id: performanceId || null,
       audio_bytes: audioBytes,
       detected: false,
       acr_message: err.message,
       raw_response: { error: err.message },
-     // don't let logging failure break the response
-
+    })
     return NextResponse.json({ error: err.message }, { status: 500 })
   }
 }
