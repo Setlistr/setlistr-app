@@ -55,8 +55,9 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
     setIsDetecting(true)
     setDetectStatus('Identifying song...')
     try {
-      const formData = new FormData()
-      formData.append('audio', audioBlob, 'audio.webm')
+const formData = new FormData()
+formData.append('audio', audioBlob, 'audio.webm')
+formData.append('performance_id', params.id)
       const res = await fetch('/api/identify', { method: 'POST', body: formData })
       const data = await res.json()
       if (data.detected) {
