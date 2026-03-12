@@ -36,7 +36,7 @@ const SEED_VENUES: { name: string; city: string; country: string }[] = [
   { name: 'Zanies Comedy Club', city: 'Nashville', country: 'United States' },
   { name: 'The 5 Spot', city: 'Nashville', country: 'United States' },
   { name: 'Tootsies Orchid Lounge', city: 'Nashville', country: 'United States' },
-  { name: 'Robert's Western World', city: 'Nashville', country: 'United States' },
+{ name: "Robert's Western World", city: 'Nashville', country: 'United States' },
   { name: 'Honky Tonk Central', city: 'Nashville', country: 'United States' },
   // New York
   { name: 'Madison Square Garden', city: 'New York', country: 'United States' },
@@ -47,7 +47,7 @@ const SEED_VENUES: { name: string; city: string; country: string }[] = [
   { name: 'Webster Hall', city: 'New York', country: 'United States' },
   { name: 'Irving Plaza', city: 'New York', country: 'United States' },
   { name: 'Music Hall of Williamsburg', city: 'New York', country: 'United States' },
-  { name: 'Baby's All Right', city: 'New York', country: 'United States' },
+{ name: "Baby's All Right", city: 'New York', country: 'United States' },
   // Los Angeles
   { name: 'The Troubadour', city: 'Los Angeles', country: 'United States' },
   { name: 'Hollywood Bowl', city: 'Los Angeles', country: 'United States' },
@@ -85,7 +85,7 @@ const SEED_VENUES: { name: string; city: string; country: string }[] = [
   // UK
   { name: 'The O2 Arena', city: 'London', country: 'United Kingdom' },
   { name: 'Royal Albert Hall', city: 'London', country: 'United Kingdom' },
-  { name: 'Ronnie Scott's', city: 'London', country: 'United Kingdom' },
+{ name: "Ronnie Scott's", city: 'London', country: 'United Kingdom' },
   { name: 'Brixton Academy', city: 'London', country: 'United Kingdom' },
   // Canada
   { name: 'Massey Hall', city: 'Toronto', country: 'Canada' },
