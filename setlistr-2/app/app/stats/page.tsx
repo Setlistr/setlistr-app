@@ -1,3 +1,4 @@
+import React from 'react'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { Music2, MapPin, Calendar, TrendingUp, Mic2 } from 'lucide-react'
