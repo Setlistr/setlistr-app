@@ -1,4 +1,3 @@
-import React from 'react'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { Music2, MapPin, Calendar, TrendingUp, Mic2 } from 'lucide-react'
@@ -175,4 +174,34 @@ export default async function StatsPage() {
           {/* Top venues */}
           {topVenues.length > 0 && (
             <div className="rounded-2xl p-4" style={{ background: C.card, border: `1px solid ${C.border}` }}>
-              <div className="fle
+              <div className="flex items-center gap-2 mb-4">
+                <MapPin size={15} style={{ color: C.gold }} />
+                <p className="text-xs uppercase tracking-wider" style={{ color: C.secondary }}>Top Venues</p>
+              </div>
+              <div className="flex flex-col gap-3">
+                {topVenues.map((venue, i) => (
+                  <div key={venue.name} className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span className="font-mono text-xs w-4 shrink-0 text-right" style={{ color: C.gold }}>
+                        {i + 1}
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-sm truncate" style={{ color: C.text }}>{venue.name}</p>
+                        <p className="text-xs" style={{ color: C.secondary }}>{venue.city}</p>
+                      </div>
+                    </div>
+                    <span className="text-xs shrink-0 px-2 py-0.5 rounded-full"
+                      style={{ color: C.gold, background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.2)' }}>
+                      {venue.count} show{venue.count !== 1 ? 's' : ''}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+        </div>
+      )}
+    </div>
+  )
+}
