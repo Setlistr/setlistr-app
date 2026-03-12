@@ -6,6 +6,11 @@ import Image from 'next/image'
 import type { Profile } from '@/types'
 import { createClient } from '@/lib/supabase/client'
 
+const ADMIN_EMAILS = [
+  'jesse.slack.music@gmail.com',
+  'darylscottsongs@gmail.com',
+]
+
 const NAV = [
   { href: '/app/dashboard', icon: LayoutDashboard, label: 'Home' },
   { href: '/app/performances/new', icon: PlusCircle, label: 'New Show' },
@@ -20,6 +25,8 @@ export function AppShell({ children, profile }: { children: React.ReactNode; pro
     await supabase.auth.signOut()
     window.location.href = '/auth/login'
   }
+
+  const isAdmin = ADMIN_EMAILS.includes(profile.email)
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: '#0a0908' }}>
@@ -37,6 +44,19 @@ export function AppShell({ children, profile }: { children: React.ReactNode; pro
           <span className="text-xs hidden sm:block" style={{ color: '#5a5448' }}>
             {profile.email}
           </span>
+          {isAdmin && (
+            <Link
+              href="/app/admin"
+              className="text-[11px] px-2.5 py-1 rounded-lg font-medium transition-colors"
+              style={{
+                color: pathname === '/app/admin' ? '#c9a84c' : '#6a6050',
+                border: '1px solid rgba(255,255,255,0.07)',
+                background: pathname === '/app/admin' ? 'rgba(201,168,76,0.1)' : 'transparent',
+              }}
+            >
+              Admin
+            </Link>
+          )}
           <button
             onClick={signOut}
             className="p-1.5 rounded-lg transition-colors"
