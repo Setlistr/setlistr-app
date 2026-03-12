@@ -32,7 +32,7 @@ export function AppShell({ children, profile }: { children: React.ReactNode; pro
           borderBottom: '1px solid rgba(255,255,255,0.06)',
         }}
       >
-        <Image src="/logo-pill.png" alt="Setlistr" width={110} height={28} priority />
+        <Image src="/logo-white.png" alt="Setlistr" width={140} height={36} priority />
         <div className="flex items-center gap-3">
           <span className="text-xs hidden sm:block" style={{ color: '#5a5448' }}>
             {profile.email}
