@@ -11,7 +11,7 @@ import {
   useSortable, verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { GripVertical, Trash2, Plus, Download, Check, Pencil, X, Music2, MapPin, Calendar } from 'lucide-react'
+import { GripVertical, Trash2, Plus, Download, Check, Pencil, X, Music2, MapPin, Calendar, RefreshCw } from 'lucide-react'
 
 const C = {
   bg: '#0a0908',
@@ -53,9 +53,11 @@ function SortableRow({ song, index, onDelete, onEdit }: {
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: song.id })
-  const [editing, setEditing] = useState(false)
+  const [mode, setMode] = useState<'view' | 'edit' | 'swap'>('view')
   const [editTitle, setEditTitle] = useState(song.title)
   const [editArtist, setEditArtist] = useState(song.artist)
+  const [swapQuery, setSwapQuery] = useState('')
+  const [swapArtist, setSwapArtist] = useState('')
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -66,7 +68,16 @@ function SortableRow({ song, index, onDelete, onEdit }: {
   function saveEdit() {
     if (editTitle.trim()) {
       onEdit(song.id, editTitle.trim(), editArtist.trim())
-      setEditing(false)
+      setMode('view')
+    }
+  }
+
+  function saveSwap() {
+    if (swapQuery.trim()) {
+      onEdit(song.id, swapQuery.trim(), swapArtist.trim())
+      setMode('view')
+      setSwapQuery('')
+      setSwapArtist('')
     }
   }
 
@@ -76,63 +87,109 @@ function SortableRow({ song, index, onDelete, onEdit }: {
       style={{
         ...style,
         background: isDragging ? '#1e1c18' : C.card,
-        border: `1px solid ${isDragging ? C.gold : C.border}`,
+        border: `1px solid ${isDragging ? C.gold : mode !== 'view' ? C.gold + '60' : C.border}`,
       }}
-      className="flex items-center gap-3 p-3 rounded-xl transition-all"
+      className="flex flex-col p-3 rounded-xl transition-all"
     >
-      <button {...attributes} {...listeners}
-        className="cursor-grab active:cursor-grabbing touch-none"
-        style={{ color: C.muted }}>
-        <GripVertical size={16} />
-      </button>
+      <div className="flex items-center gap-3">
+        <button {...attributes} {...listeners}
+          className="cursor-grab active:cursor-grabbing touch-none shrink-0"
+          style={{ color: C.muted }}>
+          <GripVertical size={16} />
+        </button>
 
-      <span className="font-mono text-xs w-5 text-right shrink-0" style={{ color: C.gold }}>
-        {index + 1}
-      </span>
+        <span className="font-mono text-xs w-5 text-right shrink-0" style={{ color: C.gold }}>
+          {index + 1}
+        </span>
 
-      {editing ? (
-        <div className="flex-1 flex gap-2">
-          <input autoFocus value={editTitle}
-            onChange={e => setEditTitle(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && saveEdit()}
-            placeholder="Song title"
-            className="flex-1 rounded-lg px-2 py-1 text-sm focus:outline-none"
+        {mode === 'edit' ? (
+          <div className="flex-1 flex gap-2">
+            <input autoFocus value={editTitle}
+              onChange={e => setEditTitle(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && saveEdit()}
+              placeholder="Song title"
+              className="flex-1 rounded-lg px-2 py-1 text-sm focus:outline-none"
+              style={{ background: C.input, border: `1px solid ${C.gold}`, color: C.text }}
+            />
+            <input value={editArtist}
+              onChange={e => setEditArtist(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && saveEdit()}
+              placeholder="Artist"
+              className="w-28 rounded-lg px-2 py-1 text-sm focus:outline-none"
+              style={{ background: C.input, border: `1px solid ${C.border}`, color: C.text }}
+            />
+            <button onClick={saveEdit} style={{ color: C.gold }}><Check size={16} /></button>
+            <button onClick={() => setMode('view')} style={{ color: C.muted }}><X size={16} /></button>
+          </div>
+        ) : (
+          <div className="flex-1 min-w-0">
+            <p className="text-sm truncate" style={{ color: C.text }}>{song.title}</p>
+            {song.artist && (
+              <p className="text-xs truncate" style={{ color: C.secondary }}>{song.artist}</p>
+            )}
+          </div>
+        )}
+
+        {mode === 'view' && (
+          <div className="flex items-center gap-1 shrink-0">
+            {song.source === 'detected' && (
+              <span className="text-xs mr-1" style={{ color: C.gold + '80' }}>⚡</span>
+            )}
+            <button onClick={() => setMode('swap')}
+              className="p-1.5 rounded-lg transition-colors"
+              title="Wrong song? Swap it"
+              style={{ color: C.muted }}>
+              <RefreshCw size={13} />
+            </button>
+            <button onClick={() => { setEditTitle(song.title); setEditArtist(song.artist); setMode('edit') }}
+              className="p-1.5 rounded-lg transition-colors"
+              style={{ color: C.muted }}>
+              <Pencil size={13} />
+            </button>
+            <button onClick={() => onDelete(song.id)}
+              className="p-1.5 rounded-lg transition-colors"
+              style={{ color: C.muted }}>
+              <Trash2 size={13} />
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Swap panel */}
+      {mode === 'swap' && (
+        <div className="mt-3 flex flex-col gap-2 pt-3" style={{ borderTop: `1px solid ${C.border}` }}>
+          <p className="text-[11px] uppercase tracking-wider" style={{ color: C.gold }}>
+            Replace "{song.title}" with:
+          </p>
+          <input
+            autoFocus
+            value={swapQuery}
+            onChange={e => setSwapQuery(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && saveSwap()}
+            placeholder="Correct song title"
+            className="rounded-lg px-3 py-2 text-sm focus:outline-none"
             style={{ background: C.input, border: `1px solid ${C.gold}`, color: C.text }}
           />
-          <input value={editArtist}
-            onChange={e => setEditArtist(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && saveEdit()}
-            placeholder="Artist"
-            className="w-32 rounded-lg px-2 py-1 text-sm focus:outline-none"
+          <input
+            value={swapArtist}
+            onChange={e => setSwapArtist(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && saveSwap()}
+            placeholder="Artist (optional)"
+            className="rounded-lg px-3 py-2 text-sm focus:outline-none"
             style={{ background: C.input, border: `1px solid ${C.border}`, color: C.text }}
           />
-          <button onClick={saveEdit} style={{ color: C.gold }}><Check size={16} /></button>
-          <button onClick={() => setEditing(false)} style={{ color: C.muted }}><X size={16} /></button>
-        </div>
-      ) : (
-        <div className="flex-1 min-w-0">
-          <p className="text-sm truncate" style={{ color: C.text }}>{song.title}</p>
-          {song.artist && (
-            <p className="text-xs truncate" style={{ color: C.secondary }}>{song.artist}</p>
-          )}
-        </div>
-      )}
-
-      {!editing && (
-        <div className="flex items-center gap-1 shrink-0">
-          {song.source === 'detected' && (
-            <span className="text-xs mr-1" style={{ color: C.gold + '80' }}>⚡</span>
-          )}
-          <button onClick={() => setEditing(true)}
-            className="p-1.5 rounded-lg transition-colors"
-            style={{ color: C.muted }}>
-            <Pencil size={13} />
-          </button>
-          <button onClick={() => onDelete(song.id)}
-            className="p-1.5 rounded-lg transition-colors"
-            style={{ color: C.muted }}>
-            <Trash2 size={13} />
-          </button>
+          <div className="flex gap-2">
+            <button onClick={saveSwap}
+              className="flex-1 font-semibold rounded-lg py-2 text-sm"
+              style={{ background: C.gold, color: '#0a0908' }}>
+              Swap Song
+            </button>
+            <button onClick={() => setMode('view')}
+              className="px-4 rounded-lg py-2 text-sm"
+              style={{ background: '#1e1c18', color: C.text }}>
+              Cancel
+            </button>
+          </div>
         </div>
       )}
     </div>
@@ -218,8 +275,10 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
     await supabase.from('performances').update({ status: 'completed' }).eq('id', performance.id)
     setSaving(false)
     setSaved(true)
-    setTimeout(() => setSaved(false), 2000)
-  }, [performance, songs])
+    setTimeout(() => {
+      router.push('/app/dashboard')
+    }, 1200)
+  }, [performance, songs, router])
 
   function formatDate(dateStr: string) {
     return new Date(dateStr).toLocaleDateString('en-US', {
@@ -269,7 +328,6 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
   return (
     <div className="min-h-screen flex flex-col" style={{ background: C.bg }}>
 
-      {/* Header */}
       <div className="px-4 pt-8 pb-4 max-w-lg mx-auto w-full">
         <div className="flex items-center gap-2 mb-1">
           <div className="w-1.5 h-1.5 rounded-full" style={{ background: C.gold }} />
@@ -298,7 +356,6 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
         </div>
       </div>
 
-      {/* Song count + add */}
       <div className="px-4 max-w-lg mx-auto w-full mb-3">
         <div className="flex items-center justify-between">
           <span className="text-sm" style={{ color: C.secondary }}>
@@ -313,7 +370,6 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
         </div>
       </div>
 
-      {/* Add song form */}
       {showAdd && (
         <div className="px-4 max-w-lg mx-auto w-full mb-3">
           <div className="rounded-xl p-3 flex flex-col gap-2"
@@ -348,7 +404,6 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
         </div>
       )}
 
-      {/* Song list */}
       <div className="px-4 max-w-lg mx-auto w-full flex-1">
         {songs.length === 0 ? (
           <div className="text-center py-16">
@@ -370,10 +425,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
         )}
       </div>
 
-      {/* Footer actions */}
       <div className="px-4 pb-8 pt-4 max-w-lg mx-auto w-full flex flex-col gap-3 mt-4">
-
-        {/* Export */}
         <div className="rounded-2xl p-4" style={{ background: C.card, border: `1px solid ${C.border}` }}>
           <button onClick={() => setShowExport(!showExport)}
             className="w-full flex items-center justify-between">
@@ -409,7 +461,6 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
           )}
         </div>
 
-        {/* Save */}
         <button onClick={handleSave} disabled={saving || saved}
           className="w-full flex items-center justify-center gap-2 font-bold rounded-2xl py-4 transition-all disabled:opacity-60"
           style={{
