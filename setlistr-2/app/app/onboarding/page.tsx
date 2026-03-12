@@ -42,13 +42,11 @@ export default function OnboardingPage() {
     <div className="min-h-screen flex flex-col items-center justify-center px-6"
       style={{ background: `radial-gradient(ellipse at 50% 0%, #1a1814 0%, ${C.bg} 100%)` }}>
 
-      {/* Glow */}
       <div className="fixed top-0 left-1/2 -translate-x-1/2 w-[500px] h-[300px] pointer-events-none"
         style={{ background: 'radial-gradient(ellipse, rgba(201,168,76,0.08) 0%, transparent 70%)' }} />
 
       <div className="w-full max-w-sm">
 
-        {/* Logo */}
         <div className="flex justify-center mb-10">
           <Image src="/logo-white.png" alt="Setlistr" width={180} height={46} priority />
         </div>
@@ -73,7 +71,7 @@ export default function OnboardingPage() {
                 value={fullName}
                 onChange={e => setFullName(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && fullName.trim() && setStep(2)}
-                placeholder="Jesse Slack"
+                placeholder="e.g. John Smith"
                 className="w-full rounded-xl px-4 py-3 text-sm focus:outline-none transition-colors"
                 style={{ background: C.input, border: `1px solid ${C.border}`, color: C.text }}
               />
@@ -111,7 +109,7 @@ export default function OnboardingPage() {
                 value={artistName}
                 onChange={e => setArtistName(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && artistName.trim() && handleFinish()}
-                placeholder="Jesse Slack"
+                placeholder="e.g. Hozier, The Midnight..."
                 className="w-full rounded-xl px-4 py-3 text-sm focus:outline-none transition-colors"
                 style={{ background: C.input, border: `1px solid ${C.border}`, color: C.text }}
               />
@@ -135,7 +133,6 @@ export default function OnboardingPage() {
           </div>
         )}
 
-        {/* Step indicator */}
         <div className="flex justify-center gap-2 mt-8">
           {[1, 2].map(s => (
             <div key={s} className="h-1 rounded-full transition-all"
