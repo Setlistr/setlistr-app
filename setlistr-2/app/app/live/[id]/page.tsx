@@ -5,6 +5,17 @@ import { createClient } from '@/lib/supabase/client'
 import { Square, MapPin, Music, Mic, MicOff, Loader2 } from 'lucide-react'
 import type { Performance } from '@/types'
 
+const C = {
+  bg: '#0a0908',
+  card: '#141210',
+  border: 'rgba(255,255,255,0.07)',
+  input: '#0f0e0c',
+  text: '#f0ece3',
+  secondary: '#a09070',
+  muted: '#6a6050',
+  gold: '#c9a84c',
+}
+
 type DetectedSong = {
   title: string
   artist: string
@@ -55,9 +66,9 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
     setIsDetecting(true)
     setDetectStatus('Identifying song...')
     try {
-const formData = new FormData()
-formData.append('audio', audioBlob, 'audio.webm')
-formData.append('performance_id', params.id)
+      const formData = new FormData()
+      formData.append('audio', audioBlob, 'audio.webm')
+      formData.append('performance_id', params.id)
       const res = await fetch('/api/identify', { method: 'POST', body: formData })
       const data = await res.json()
       if (data.detected) {
@@ -84,7 +95,7 @@ formData.append('performance_id', params.id)
     } finally {
       setIsDetecting(false)
     }
-  }, [])
+  }, [params.id])
 
   const startListening = useCallback(async () => {
     try {
@@ -177,8 +188,8 @@ formData.append('performance_id', params.id)
 
   if (!performance) {
     return (
-      <div className="min-h-screen bg-ink flex items-center justify-center">
-        <div className="text-gold animate-pulse">Loading...</div>
+      <div className="min-h-screen flex items-center justify-center" style={{ background: C.bg }}>
+        <div className="animate-pulse" style={{ color: C.gold }}>Loading...</div>
       </div>
     )
   }
@@ -189,46 +200,61 @@ formData.append('performance_id', params.id)
   const autoCloseAt = totalSeconds + performance.auto_close_buffer_minutes * 60
 
   return (
-    <div className="min-h-screen bg-ink text-cream flex flex-col"
-      style={{ background: 'radial-gradient(ellipse at 50% 0%, #1e1c18 0%, #0f0e0c 100%)' }}>
+    <div className="min-h-screen flex flex-col" style={{ background: C.bg }}>
 
+      {/* Live indicator */}
       <div className="flex items-center justify-center gap-2 pt-6 pb-2">
-        <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse"/>
+        <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
         <span className="text-xs uppercase tracking-[0.3em] text-red-400 font-medium">Live Now</span>
       </div>
 
+      {/* Venue info */}
       <div className="text-center px-6 py-4">
-        <h1 className="font-display text-2xl text-cream mb-1">{performance.venue_name}</h1>
-        <div className="flex items-center justify-center gap-1 text-ink-light text-sm">
+        <h1 className="font-display text-2xl mb-1" style={{ color: C.text }}>
+          {performance.venue_name}
+        </h1>
+        <div className="flex items-center justify-center gap-1 text-sm" style={{ color: C.secondary }}>
           <MapPin size={12} />
           <span>{performance.city}, {performance.country}</span>
         </div>
-        <p className="text-gold text-sm mt-1 font-medium">{performance.artist_name}</p>
+        <p className="text-sm mt-1 font-medium" style={{ color: C.gold }}>
+          {performance.artist_name}
+        </p>
       </div>
 
+      {/* Timer */}
       <div className="flex-1 flex flex-col items-center justify-center px-6">
-        <div className="text-7xl font-mono font-bold text-cream tracking-tight mb-2">
+        <div className="text-7xl font-mono font-bold tracking-tight mb-2" style={{ color: C.text }}>
           {formatTime(elapsed)}
         </div>
-        <div className="text-ink-light text-sm mb-8">
-          {remaining > 0 ? `${formatTime(remaining)} remaining` : `${formatTime(elapsed - totalSeconds)} over`}
+        <div className="text-sm mb-8" style={{ color: C.secondary }}>
+          {remaining > 0
+            ? `${formatTime(remaining)} remaining`
+            : `${formatTime(elapsed - totalSeconds)} over`}
         </div>
-        <div className="w-full max-w-xs bg-[#2a2620] rounded-full h-1.5 mb-2">
-          <div className="h-1.5 rounded-full bg-gold transition-all duration-1000"
-            style={{ width: `${progress * 100}%` }} />
+        <div className="w-full max-w-xs rounded-full h-1.5 mb-2" style={{ background: '#2a2620' }}>
+          <div className="h-1.5 rounded-full transition-all duration-1000"
+            style={{ width: `${progress * 100}%`, background: C.gold }} />
         </div>
-        <div className="text-xs text-ink-light">Auto-closes at {formatTime(autoCloseAt)}</div>
+        <div className="text-xs" style={{ color: C.muted }}>
+          Auto-closes at {formatTime(autoCloseAt)}
+        </div>
       </div>
 
+      {/* Controls */}
       <div className="px-4 pb-4 max-w-lg mx-auto w-full">
-        <div className="bg-[#1a1814] rounded-2xl border border-[#2e2b26] p-4 mb-4">
+        <div className="rounded-2xl p-4 mb-4" style={{ background: C.card, border: `1px solid ${C.border}` }}>
+
+          {/* Detect button */}
           <div className="mb-4">
             <button
               onClick={isListening ? stopListening : startListening}
               disabled={isDetecting}
-              className={`w-full flex items-center justify-center gap-2 rounded-xl py-3 font-semibold text-sm transition-all ${
-                isListening ? 'bg-red-600 hover:bg-red-500 text-white' : 'bg-gold hover:bg-yellow-400 text-ink'
-              } disabled:opacity-60`}
+              className="w-full flex items-center justify-center gap-2 rounded-xl py-3 font-semibold text-sm transition-all disabled:opacity-60"
+              style={{
+                background: isListening ? '#dc2626' : C.gold,
+                color: isListening ? '#fff' : '#0a0908',
+              }}
             >
               {isDetecting ? <Loader2 size={16} className="animate-spin" />
                 : isListening ? <MicOff size={16} />
@@ -236,16 +262,19 @@ formData.append('performance_id', params.id)
               {isDetecting ? 'Identifying...' : isListening ? 'Stop Listening' : 'Auto-Detect Songs'}
             </button>
             {detectStatus && (
-              <p className="text-center text-xs mt-2 text-gold">{detectStatus}</p>
+              <p className="text-center text-xs mt-2" style={{ color: C.gold }}>{detectStatus}</p>
             )}
             {isListening && !isDetecting && (
-              <p className="text-center text-xs mt-1 text-ink-light">Sampling every 30s</p>
+              <p className="text-center text-xs mt-1" style={{ color: C.secondary }}>Sampling every 30s</p>
             )}
           </div>
 
+          {/* Manual add */}
           <div className="flex items-center gap-2 mb-3">
-            <Music size={14} className="text-gold" />
-            <span className="text-xs uppercase tracking-wider text-ink-light">Or Add Manually</span>
+            <Music size={14} style={{ color: C.gold }} />
+            <span className="text-xs uppercase tracking-wider" style={{ color: C.secondary }}>
+              Or Add Manually
+            </span>
           </div>
           <div className="flex gap-2">
             <input
@@ -253,26 +282,34 @@ formData.append('performance_id', params.id)
               onChange={e => setSongInput(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && addSong()}
               placeholder="Song title..."
-              className="flex-1 bg-[#0f0e0c] border border-[#2e2b26] rounded-xl px-3 py-2.5 text-cream placeholder:text-[#4a4640] text-sm focus:outline-none focus:border-gold"
+              className="flex-1 rounded-xl px-3 py-2.5 text-sm focus:outline-none"
+              style={{
+                background: C.input,
+                border: `1px solid ${C.border}`,
+                color: C.text,
+              }}
             />
-            <button onClick={addSong} className="bg-gold text-ink font-semibold px-4 rounded-xl text-sm">
+            <button onClick={addSong}
+              className="font-semibold px-4 rounded-xl text-sm"
+              style={{ background: C.gold, color: '#0a0908' }}>
               Add
             </button>
           </div>
 
+          {/* Song list */}
           {songs.length > 0 && (
-            <div className="mt-3 flex flex-col gap-1">
+            <div className="mt-3 flex flex-col gap-1.5">
               {songs.map((s, i) => (
-                <div key={i} className="flex items-center gap-2 text-sm text-cream">
-                  <span className="text-gold font-mono text-xs w-4">{i + 1}</span>
+                <div key={i} className="flex items-center gap-2 text-sm">
+                  <span className="font-mono text-xs w-4" style={{ color: C.gold }}>{i + 1}</span>
                   <div className="flex-1">
-                    <span>{s.title}</span>
+                    <span style={{ color: C.text }}>{s.title}</span>
                     {s.artist && s.artist !== performance.artist_name && (
-                      <span className="text-ink-light text-xs ml-1">— {s.artist}</span>
+                      <span className="text-xs ml-1" style={{ color: C.secondary }}>— {s.artist}</span>
                     )}
                   </div>
                   {s.source === 'detected' && (
-                    <span className="text-xs text-gold/60">⚡ auto</span>
+                    <span className="text-xs" style={{ color: C.gold + '80' }}>⚡ auto</span>
                   )}
                 </div>
               ))}
@@ -280,8 +317,10 @@ formData.append('performance_id', params.id)
           )}
         </div>
 
+        {/* End button */}
         <button onClick={handleEnd} disabled={ending}
-          className="flex items-center justify-center gap-2 w-full bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white font-bold rounded-2xl py-4 transition-colors">
+          className="flex items-center justify-center gap-2 w-full font-bold rounded-2xl py-4 transition-colors disabled:opacity-50"
+          style={{ background: '#dc2626', color: '#fff' }}>
           <Square size={16} fill="currentColor" />
           {ending ? 'Ending...' : 'End Performance'}
         </button>
