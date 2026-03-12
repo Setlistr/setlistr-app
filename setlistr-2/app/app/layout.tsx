@@ -6,10 +6,8 @@ import type { Profile } from '@/types'
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createServerSupabaseClient()
   const { data: { user } } = await supabase.auth.getUser()
-
   if (!user) redirect('/auth/login')
 
-  // Upsert profile
   const { data: profile } = await supabase
     .from('profiles')
     .upsert({
@@ -31,11 +29,5 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     created_at: new Date().toISOString(),
   }
 
-const isOnboarding = !resolvedProfile.full_name
-const url = request?.url
-
-if (isOnboarding && !resolvedProfile.full_name) {
-  // handled client side
+  return <AppShell profile={resolvedProfile}>{children}</AppShell>
 }
-
-return <AppShell profile={resolvedProfile} needsOnboarding={!resolvedProfile.full_name}>{children}</AppShell>
