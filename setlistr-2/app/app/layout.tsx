@@ -8,17 +8,16 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/auth/login')
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .upsert({
-      id: user.id,
-      email: user.email!,
-      full_name: user.user_metadata?.full_name ?? null,
-      role: 'artist',
-      updated_at: new Date().toISOString(),
-    }, { onConflict: 'id', ignoreDuplicates: false })
-    .select()
-    .single()
+const { data: profile } = await supabase
+  .from('profiles')
+  .upsert({
+    id: user.id,
+    email: user.email!,
+    role: 'artist',
+    updated_at: new Date().toISOString(),
+  }, { onConflict: 'id', ignoreDuplicates: true })
+  .select()
+  .single()
 
   const resolvedProfile: Profile = profile ?? {
     id: user.id,
