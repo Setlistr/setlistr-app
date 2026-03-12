@@ -3,23 +3,26 @@ import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import {
-  DndContext,
-  closestCenter,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  DragEndEvent,
+  DndContext, closestCenter, KeyboardSensor, PointerSensor,
+  useSensor, useSensors, DragEndEvent,
 } from '@dnd-kit/core'
 import {
-  arrayMove,
-  SortableContext,
-  sortableKeyboardCoordinates,
-  useSortable,
-  verticalListSortingStrategy,
+  arrayMove, SortableContext, sortableKeyboardCoordinates,
+  useSortable, verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { GripVertical, Trash2, Plus, Download, Check, Pencil, X, Music2, MapPin, Calendar } from 'lucide-react'
+
+const C = {
+  bg: '#0a0908',
+  card: '#141210',
+  border: 'rgba(255,255,255,0.07)',
+  input: '#0f0e0c',
+  text: '#f0ece3',
+  secondary: '#a09070',
+  muted: '#6a6050',
+  gold: '#c9a84c',
+}
 
 type Song = {
   id: string
@@ -42,12 +45,7 @@ type Performance = {
 
 type PRO = 'SOCAN' | 'ASCAP' | 'BMI'
 
-function SortableRow({
-  song,
-  index,
-  onDelete,
-  onEdit,
-}: {
+function SortableRow({ song, index, onDelete, onEdit }: {
   song: Song
   index: number
   onDelete: (id: string) => void
@@ -55,7 +53,6 @@ function SortableRow({
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: song.id })
-
   const [editing, setEditing] = useState(false)
   const [editTitle, setEditTitle] = useState(song.title)
   const [editArtist, setEditArtist] = useState(song.artist)
@@ -76,52 +73,47 @@ function SortableRow({
   return (
     <div
       ref={setNodeRef}
-      style={style}
-      className={`flex items-center gap-3 p-3 rounded-xl border transition-all ${
-        isDragging
-          ? 'bg-[#2a2620] border-gold shadow-lg shadow-gold/10'
-          : 'bg-[#1a1814] border-[#2e2b26] hover:border-[#3e3b36]'
-      }`}
+      style={{
+        ...style,
+        background: isDragging ? '#1e1c18' : C.card,
+        border: `1px solid ${isDragging ? C.gold : C.border}`,
+      }}
+      className="flex items-center gap-3 p-3 rounded-xl transition-all"
     >
-      <button
-        {...attributes}
-        {...listeners}
-        className="text-[#4a4640] hover:text-gold cursor-grab active:cursor-grabbing touch-none"
-      >
+      <button {...attributes} {...listeners}
+        className="cursor-grab active:cursor-grabbing touch-none"
+        style={{ color: C.muted }}>
         <GripVertical size={16} />
       </button>
 
-      <span className="text-gold font-mono text-xs w-5 text-right shrink-0">{index + 1}</span>
+      <span className="font-mono text-xs w-5 text-right shrink-0" style={{ color: C.gold }}>
+        {index + 1}
+      </span>
 
       {editing ? (
         <div className="flex-1 flex gap-2">
-          <input
-            autoFocus
-            value={editTitle}
+          <input autoFocus value={editTitle}
             onChange={e => setEditTitle(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && saveEdit()}
             placeholder="Song title"
-            className="flex-1 bg-[#0f0e0c] border border-gold rounded-lg px-2 py-1 text-cream text-sm focus:outline-none"
+            className="flex-1 rounded-lg px-2 py-1 text-sm focus:outline-none"
+            style={{ background: C.input, border: `1px solid ${C.gold}`, color: C.text }}
           />
-          <input
-            value={editArtist}
+          <input value={editArtist}
             onChange={e => setEditArtist(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && saveEdit()}
             placeholder="Artist"
-            className="w-32 bg-[#0f0e0c] border border-[#2e2b26] rounded-lg px-2 py-1 text-cream text-sm focus:outline-none"
+            className="w-32 rounded-lg px-2 py-1 text-sm focus:outline-none"
+            style={{ background: C.input, border: `1px solid ${C.border}`, color: C.text }}
           />
-          <button onClick={saveEdit} className="text-gold hover:text-yellow-300">
-            <Check size={16} />
-          </button>
-          <button onClick={() => setEditing(false)} className="text-[#4a4640] hover:text-cream">
-            <X size={16} />
-          </button>
+          <button onClick={saveEdit} style={{ color: C.gold }}><Check size={16} /></button>
+          <button onClick={() => setEditing(false)} style={{ color: C.muted }}><X size={16} /></button>
         </div>
       ) : (
         <div className="flex-1 min-w-0">
-          <p className="text-cream text-sm truncate">{song.title}</p>
+          <p className="text-sm truncate" style={{ color: C.text }}>{song.title}</p>
           {song.artist && (
-            <p className="text-[#6a6660] text-xs truncate">{song.artist}</p>
+            <p className="text-xs truncate" style={{ color: C.secondary }}>{song.artist}</p>
           )}
         </div>
       )}
@@ -129,18 +121,16 @@ function SortableRow({
       {!editing && (
         <div className="flex items-center gap-1 shrink-0">
           {song.source === 'detected' && (
-            <span className="text-xs text-gold/50 mr-1">⚡</span>
+            <span className="text-xs mr-1" style={{ color: C.gold + '80' }}>⚡</span>
           )}
-          <button
-            onClick={() => setEditing(true)}
-            className="p-1.5 text-[#4a4640] hover:text-gold rounded-lg hover:bg-[#2a2620] transition-colors"
-          >
+          <button onClick={() => setEditing(true)}
+            className="p-1.5 rounded-lg transition-colors"
+            style={{ color: C.muted }}>
             <Pencil size={13} />
           </button>
-          <button
-            onClick={() => onDelete(song.id)}
-            className="p-1.5 text-[#4a4640] hover:text-red-400 rounded-lg hover:bg-[#2a2620] transition-colors"
-          >
+          <button onClick={() => onDelete(song.id)}
+            className="p-1.5 rounded-lg transition-colors"
+            style={{ color: C.muted }}>
             <Trash2 size={13} />
           </button>
         </div>
@@ -200,14 +190,13 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
 
   function handleAdd() {
     if (!newTitle.trim()) return
-    const newSong: Song = {
+    setSongs(prev => [...prev, {
       id: `manual-${Date.now()}`,
       title: newTitle.trim(),
       artist: newArtist.trim() || (performance?.artist_name || ''),
       position: songs.length + 1,
       source: 'manual',
-    }
-    setSongs(prev => [...prev, newSong])
+    }])
     setNewTitle('')
     setNewArtist('')
     setShowAdd(false)
@@ -240,29 +229,25 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
 
   function formatDuration() {
     if (!performance?.started_at || !performance?.ended_at) return ''
-    const start = new Date(performance.started_at)
-    const end = new Date(performance.ended_at)
-    const mins = Math.round((end.getTime() - start.getTime()) / 60000)
+    const mins = Math.round(
+      (new Date(performance.ended_at).getTime() - new Date(performance.started_at).getTime()) / 60000
+    )
     return `${mins} min`
   }
 
   function generateExportCSV(pro: PRO) {
     if (!performance) return
-
     const headers: Record<PRO, string[]> = {
       SOCAN: ['Title', 'Artist', 'Composer', 'Publisher', 'ISRC', 'Duration', 'Date', 'Venue', 'City'],
       ASCAP: ['Title', 'Performer', 'Composer/Author', 'Publisher', 'ISRC', 'Venue', 'Date', 'City', 'State'],
-      BMI: ['Song Title', 'Artist', 'BMI Work #', 'Composer', 'Publisher', 'Venue Name', 'Date', 'City'],
+      BMI:   ['Song Title', 'Artist', 'BMI Work #', 'Composer', 'Publisher', 'Venue Name', 'Date', 'City'],
     }
-
     const rows = songs.map(s => {
       const date = performance.started_at ? new Date(performance.started_at).toLocaleDateString() : ''
       if (pro === 'SOCAN') return [s.title, s.artist, '', '', '', '', date, performance.venue_name, performance.city]
       if (pro === 'ASCAP') return [s.title, performance.artist_name, '', '', '', performance.venue_name, date, performance.city, '']
-      if (pro === 'BMI') return [s.title, performance.artist_name, '', '', '', performance.venue_name, date, performance.city]
-      return []
+      return [s.title, performance.artist_name, '', '', '', performance.venue_name, date, performance.city]
     })
-
     const csv = [headers[pro], ...rows].map(r => r.map(v => `"${v}"`).join(',')).join('\n')
     const blob = new Blob([csv], { type: 'text/csv' })
     const url = URL.createObjectURL(blob)
@@ -275,23 +260,27 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-ink flex items-center justify-center">
-        <div className="text-gold animate-pulse">Loading...</div>
+      <div className="min-h-screen flex items-center justify-center" style={{ background: C.bg }}>
+        <div className="animate-pulse" style={{ color: C.gold }}>Loading...</div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen text-cream flex flex-col"
-      style={{ background: 'radial-gradient(ellipse at 50% 0%, #1e1c18 0%, #0f0e0c 100%)' }}>
+    <div className="min-h-screen flex flex-col" style={{ background: C.bg }}>
 
+      {/* Header */}
       <div className="px-4 pt-8 pb-4 max-w-lg mx-auto w-full">
         <div className="flex items-center gap-2 mb-1">
-          <div className="w-1.5 h-1.5 rounded-full bg-gold" />
-          <span className="text-xs uppercase tracking-[0.3em] text-gold/60 font-medium">Review Setlist</span>
+          <div className="w-1.5 h-1.5 rounded-full" style={{ background: C.gold }} />
+          <span className="text-[11px] uppercase tracking-[0.3em] font-medium" style={{ color: C.gold + '99' }}>
+            Review Setlist
+          </span>
         </div>
-        <h1 className="font-display text-3xl text-cream mb-1">{performance?.venue_name}</h1>
-        <div className="flex flex-wrap gap-3 text-sm text-[#6a6660]">
+        <h1 className="font-display text-3xl mb-2" style={{ color: C.text }}>
+          {performance?.venue_name}
+        </h1>
+        <div className="flex flex-wrap gap-3 text-sm" style={{ color: C.secondary }}>
           <span className="flex items-center gap-1">
             <MapPin size={12} />
             {performance?.city}, {performance?.country}
@@ -309,44 +298,49 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
         </div>
       </div>
 
+      {/* Song count + add */}
       <div className="px-4 max-w-lg mx-auto w-full mb-3">
         <div className="flex items-center justify-between">
-          <span className="text-sm text-[#6a6660]">
+          <span className="text-sm" style={{ color: C.secondary }}>
             {songs.length} song{songs.length !== 1 ? 's' : ''} detected
           </span>
-          <button
-            onClick={() => setShowAdd(!showAdd)}
-            className="flex items-center gap-1.5 text-xs text-gold hover:text-yellow-300 transition-colors"
-          >
+          <button onClick={() => setShowAdd(!showAdd)}
+            className="flex items-center gap-1.5 text-xs transition-colors"
+            style={{ color: C.gold }}>
             <Plus size={14} />
             Add song
           </button>
         </div>
       </div>
 
+      {/* Add song form */}
       {showAdd && (
         <div className="px-4 max-w-lg mx-auto w-full mb-3">
-          <div className="bg-[#1a1814] border border-gold/30 rounded-xl p-3 flex flex-col gap-2">
-            <input
-              autoFocus
-              value={newTitle}
+          <div className="rounded-xl p-3 flex flex-col gap-2"
+            style={{ background: C.card, border: `1px solid ${C.gold}40` }}>
+            <input autoFocus value={newTitle}
               onChange={e => setNewTitle(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleAdd()}
               placeholder="Song title"
-              className="bg-[#0f0e0c] border border-[#2e2b26] rounded-lg px-3 py-2 text-cream text-sm focus:outline-none focus:border-gold"
+              className="rounded-lg px-3 py-2 text-sm focus:outline-none"
+              style={{ background: C.input, border: `1px solid ${C.border}`, color: C.text }}
             />
-            <input
-              value={newArtist}
+            <input value={newArtist}
               onChange={e => setNewArtist(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleAdd()}
               placeholder={`Artist (default: ${performance?.artist_name})`}
-              className="bg-[#0f0e0c] border border-[#2e2b26] rounded-lg px-3 py-2 text-cream text-sm focus:outline-none focus:border-gold"
+              className="rounded-lg px-3 py-2 text-sm focus:outline-none"
+              style={{ background: C.input, border: `1px solid ${C.border}`, color: C.text }}
             />
             <div className="flex gap-2">
-              <button onClick={handleAdd} className="flex-1 bg-gold text-ink font-semibold rounded-lg py-2 text-sm">
+              <button onClick={handleAdd}
+                className="flex-1 font-semibold rounded-lg py-2 text-sm"
+                style={{ background: C.gold, color: '#0a0908' }}>
                 Add
               </button>
-              <button onClick={() => setShowAdd(false)} className="px-4 bg-[#2a2620] text-cream rounded-lg py-2 text-sm">
+              <button onClick={() => setShowAdd(false)}
+                className="px-4 rounded-lg py-2 text-sm"
+                style={{ background: '#1e1c18', color: C.text }}>
                 Cancel
               </button>
             </div>
@@ -354,25 +348,21 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
         </div>
       )}
 
+      {/* Song list */}
       <div className="px-4 max-w-lg mx-auto w-full flex-1">
         {songs.length === 0 ? (
-          <div className="text-center py-16 text-[#4a4640]">
-            <Music2 size={32} className="mx-auto mb-3 opacity-30" />
-            <p className="text-sm">No songs detected</p>
-            <p className="text-xs mt-1">Add songs manually above</p>
+          <div className="text-center py-16">
+            <Music2 size={32} className="mx-auto mb-3 opacity-20" style={{ color: C.secondary }} />
+            <p className="text-sm" style={{ color: C.secondary }}>No songs detected</p>
+            <p className="text-xs mt-1" style={{ color: C.muted }}>Add songs manually above</p>
           </div>
         ) : (
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             <SortableContext items={songs.map(s => s.id)} strategy={verticalListSortingStrategy}>
               <div className="flex flex-col gap-2">
                 {songs.map((song, index) => (
-                  <SortableRow
-                    key={song.id}
-                    song={song}
-                    index={index}
-                    onDelete={handleDelete}
-                    onEdit={handleEdit}
-                  />
+                  <SortableRow key={song.id} song={song} index={index}
+                    onDelete={handleDelete} onEdit={handleEdit} />
                 ))}
               </div>
             </SortableContext>
@@ -380,35 +370,37 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
         )}
       </div>
 
+      {/* Footer actions */}
       <div className="px-4 pb-8 pt-4 max-w-lg mx-auto w-full flex flex-col gap-3 mt-4">
-        <div className="bg-[#1a1814] border border-[#2e2b26] rounded-2xl p-4">
-          <button
-            onClick={() => setShowExport(!showExport)}
-            className="w-full flex items-center justify-between"
-          >
-            <span className="flex items-center gap-2 text-sm font-semibold text-cream">
-              <Download size={16} className="text-gold" />
+
+        {/* Export */}
+        <div className="rounded-2xl p-4" style={{ background: C.card, border: `1px solid ${C.border}` }}>
+          <button onClick={() => setShowExport(!showExport)}
+            className="w-full flex items-center justify-between">
+            <span className="flex items-center gap-2 text-sm font-semibold" style={{ color: C.text }}>
+              <Download size={16} style={{ color: C.gold }} />
               Export for PRO Submission
             </span>
-            <span className="text-[#4a4640] text-xs">{showExport ? '▲' : '▼'}</span>
+            <span className="text-xs" style={{ color: C.muted }}>{showExport ? '▲' : '▼'}</span>
           </button>
 
           {showExport && (
             <div className="mt-3 flex flex-col gap-2">
-              <p className="text-xs text-[#6a6660] mb-1">Select your PRO to download a formatted CSV:</p>
+              <p className="text-xs mb-1" style={{ color: C.secondary }}>
+                Select your PRO to download a formatted CSV:
+              </p>
               {(['SOCAN', 'ASCAP', 'BMI'] as PRO[]).map(pro => (
-                <button
-                  key={pro}
+                <button key={pro}
                   onClick={() => generateExportCSV(pro)}
-                  className={`flex items-center justify-between px-4 py-2.5 rounded-xl border text-sm font-medium transition-all ${
-                    selectedPRO === pro
-                      ? 'border-gold bg-gold/10 text-gold'
-                      : 'border-[#2e2b26] text-cream hover:border-[#4a4640]'
-                  }`}
                   onMouseEnter={() => setSelectedPRO(pro)}
-                >
+                  className="flex items-center justify-between px-4 py-2.5 rounded-xl text-sm font-medium transition-all"
+                  style={{
+                    border: `1px solid ${selectedPRO === pro ? C.gold : C.border}`,
+                    background: selectedPRO === pro ? C.gold + '1a' : 'transparent',
+                    color: selectedPRO === pro ? C.gold : C.text,
+                  }}>
                   <span>{pro}</span>
-                  <span className="text-xs text-[#6a6660]">
+                  <span className="text-xs" style={{ color: C.secondary }}>
                     {pro === 'SOCAN' ? 'Canada' : 'USA'} · Download CSV
                   </span>
                 </button>
@@ -417,24 +409,19 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
           )}
         </div>
 
-        <button
-          onClick={handleSave}
-          disabled={saving || saved}
-          className={`w-full flex items-center justify-center gap-2 font-bold rounded-2xl py-4 transition-all ${
-            saved
-              ? 'bg-green-600 text-white'
-              : 'bg-gold hover:bg-yellow-400 text-ink disabled:opacity-60'
-          }`}
-        >
-          {saved ? (
-            <><Check size={18} />Saved!</>
-          ) : saving ? 'Saving...' : 'Save & Complete'}
+        {/* Save */}
+        <button onClick={handleSave} disabled={saving || saved}
+          className="w-full flex items-center justify-center gap-2 font-bold rounded-2xl py-4 transition-all disabled:opacity-60"
+          style={{
+            background: saved ? '#16a34a' : C.gold,
+            color: saved ? '#fff' : '#0a0908',
+          }}>
+          {saved ? <><Check size={18} />Saved!</> : saving ? 'Saving...' : 'Save & Complete'}
         </button>
 
-        <button
-          onClick={() => router.push('/app/dashboard')}
-          className="text-center text-sm text-[#4a4640] hover:text-cream transition-colors"
-        >
+        <button onClick={() => router.push('/app/dashboard')}
+          className="text-center text-sm transition-colors"
+          style={{ color: C.secondary }}>
           Back to Dashboard
         </button>
       </div>
