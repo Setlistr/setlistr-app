@@ -22,7 +22,8 @@ export default async function DashboardPage() {
     supabase.from('performances').select('*', { count: 'exact', head: true }).eq('user_id', user!.id).eq('status', 'completed'),
     supabase.from('performance_songs').select('performance_id, performances!inner(user_id)').eq('performances.user_id', user!.id),
     supabase.from('performances').select('city').eq('user_id', user!.id),
-    supabase.from('performances').select('id, venue_name, city, country, set_duration_minutes, performance_songs(count)').eq('user_id', user!.id).eq('status', 'completed'),
+    // Show royalty widget for review + completed performances that have songs
+    supabase.from('performances').select('id, venue_name, city, country, set_duration_minutes, performance_songs(count)').eq('user_id', user!.id).in('status', ['completed', 'review']),
   ])
 
   const totalSongs = songStats?.length ?? 0
@@ -35,17 +36,17 @@ export default async function DashboardPage() {
   }))
 
   return (
-    <div className="min-h-screen text-cream flex flex-col"
-      style={{ background: 'radial-gradient(ellipse at 50% 0%, #1e1c18 0%, #0f0e0c 100%)' }}>
+    <div className="min-h-screen flex flex-col" style={{ background: '#0a0908' }}>
 
       <div className="px-4 pt-8 pb-4 max-w-lg mx-auto w-full">
-        <p className="text-xs text-gold/60 uppercase tracking-[0.3em] mb-1">Performance Registry</p>
-        <h1 className="font-display text-3xl text-cream">Dashboard</h1>
+        <p className="text-[11px] uppercase tracking-[0.3em] mb-1" style={{ color: '#c9a84c99' }}>Performance Registry</p>
+        <h1 className="font-display text-3xl" style={{ color: '#f0ece3' }}>Dashboard</h1>
       </div>
 
       {isLive && (
         <div className="px-4 max-w-lg mx-auto w-full mb-4">
-          <div className="bg-red-600/20 border border-red-500/30 rounded-2xl px-4 py-3 flex items-center justify-between">
+          <div className="rounded-2xl px-4 py-3 flex items-center justify-between"
+            style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)' }}>
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
               <span className="text-red-400 font-semibold text-sm">You have a live performance</span>
@@ -55,73 +56,76 @@ export default async function DashboardPage() {
         </div>
       )}
 
+      {/* Stats grid */}
       <div className="px-4 max-w-lg mx-auto w-full mb-4">
         <div className="grid grid-cols-2 gap-3">
-          <div className="bg-[#1a1814] border border-[#2e2b26] rounded-2xl p-4">
-            <div className="text-gold mb-2"><Music2 size={18} /></div>
-            <div className="text-3xl font-bold text-cream">{totalCount ?? 0}</div>
-            <div className="text-xs text-[#6a6660] uppercase tracking-wider mt-0.5">Total Shows</div>
-          </div>
-          <div className="bg-[#1a1814] border border-[#2e2b26] rounded-2xl p-4">
-            <div className="text-gold mb-2"><Music2 size={18} /></div>
-            <div className="text-3xl font-bold text-cream">{totalSongs}</div>
-            <div className="text-xs text-[#6a6660] uppercase tracking-wider mt-0.5">Songs Logged</div>
-          </div>
-          <div className="bg-[#1a1814] border border-[#2e2b26] rounded-2xl p-4">
-            <div className="text-gold mb-2"><MapPin size={18} /></div>
-            <div className="text-3xl font-bold text-cream">{uniqueVenues}</div>
-            <div className="text-xs text-[#6a6660] uppercase tracking-wider mt-0.5">Unique Cities</div>
-          </div>
-          <div className="bg-[#1a1814] border border-[#2e2b26] rounded-2xl p-4">
-            <div className="text-gold mb-2"><Zap size={18} /></div>
-            <div className="text-3xl font-bold text-cream">{completedCount ?? 0}</div>
-            <div className="text-xs text-[#6a6660] uppercase tracking-wider mt-0.5">Completed</div>
-          </div>
+          {[
+            { icon: Music2, value: totalCount ?? 0, label: 'Total Shows' },
+            { icon: Music2, value: totalSongs, label: 'Songs Logged' },
+            { icon: MapPin, value: uniqueVenues, label: 'Unique Cities' },
+            { icon: Zap, value: completedCount ?? 0, label: 'Completed' },
+          ].map(({ icon: Icon, value, label }) => (
+            <div key={label} className="rounded-2xl p-4" style={{ background: '#141210', border: '1px solid rgba(255,255,255,0.06)' }}>
+              <div className="mb-2" style={{ color: '#c9a84c' }}><Icon size={18} /></div>
+              <div className="text-3xl font-bold" style={{ color: '#f0ece3' }}>{value}</div>
+              <div className="text-[11px] uppercase tracking-wider mt-0.5" style={{ color: '#5a5448' }}>{label}</div>
+            </div>
+          ))}
         </div>
       </div>
 
+      {/* Royalty widget */}
       <div className="px-4 max-w-lg mx-auto w-full mb-6">
         <RoyaltyWidget performances={royaltyPerformances} />
       </div>
 
+      {/* CTA */}
       <div className="px-4 max-w-lg mx-auto w-full mb-8">
         <Link href="/app/performances/new"
-          className="flex items-center justify-center gap-2 w-full bg-gold hover:bg-yellow-400 text-ink rounded-2xl py-4 font-bold transition-colors">
+          className="flex items-center justify-center gap-2 w-full rounded-2xl py-4 font-bold transition-colors text-sm tracking-wide"
+          style={{ background: '#c9a84c', color: '#0a0908' }}>
           <PlusCircle size={18} />
           Start New Performance
         </Link>
       </div>
 
+      {/* Recent performances */}
       <div className="px-4 max-w-lg mx-auto w-full pb-12">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="font-semibold text-cream">Recent Performances</h2>
-          <Link href="/app/performances/history" className="text-xs text-gold hover:text-yellow-300 transition-colors">
+          <h2 className="font-semibold" style={{ color: '#f0ece3' }}>Recent Performances</h2>
+          <Link href="/app/performances/history"
+            className="text-xs transition-colors"
+            style={{ color: '#c9a84c' }}>
             View all
           </Link>
         </div>
 
         {!performances?.length ? (
-          <div className="text-center py-12 text-[#4a4640]">
-            <Clock size={32} className="mx-auto mb-3 opacity-30" />
-            <p className="text-sm">No performances yet</p>
-            <p className="text-xs mt-1 opacity-60">Your show history will appear here</p>
+          <div className="text-center py-12">
+            <Clock size={32} className="mx-auto mb-3 opacity-20" style={{ color: '#a09880' }} />
+            <p className="text-sm" style={{ color: '#a09880' }}>No performances yet</p>
+            <p className="text-xs mt-1" style={{ color: '#5a5448' }}>Your show history will appear here</p>
           </div>
         ) : (
           <div className="flex flex-col gap-2">
             {performances.map((p: any) => (
-              <Link key={p.id} href={p.status === 'live' ? `/app/live/${p.id}` : `/app/review/${p.id}`}
-                className="bg-[#1a1814] border border-[#2e2b26] rounded-xl px-4 py-3 flex items-center justify-between hover:border-gold transition-colors group">
+              <Link
+                key={p.id}
+                href={p.status === 'live' ? `/app/live/${p.id}` : `/app/review/${p.id}`}
+                className="rounded-xl px-4 py-3 flex items-center justify-between transition-all group"
+                style={{ background: '#141210', border: '1px solid rgba(255,255,255,0.06)' }}
+              >
                 <div>
-                  <div className="font-medium text-cream text-sm group-hover:text-gold transition-colors">
+                  <div className="font-medium text-sm" style={{ color: '#f0ece3' }}>
                     {p.venue_name}
                   </div>
-                  <div className="text-xs text-[#6a6660] mt-0.5">
+                  <div className="text-xs mt-0.5" style={{ color: '#5a5448' }}>
                     {p.city} · {p.started_at ? new Date(p.started_at).toLocaleDateString() : new Date(p.performance_date).toLocaleDateString()}
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <StatusBadge status={p.status} />
-                  <ChevronRight size={14} className="text-[#3e3b36] group-hover:text-gold transition-colors" />
+                  <ChevronRight size={14} style={{ color: '#3a3530' }} />
                 </div>
               </Link>
             ))}
@@ -133,17 +137,18 @@ export default async function DashboardPage() {
 }
 
 function StatusBadge({ status }: { status: string }) {
-  const map: Record<string, { label: string; color: string }> = {
-    draft: { label: 'Draft', color: 'text-[#6a6660] bg-[#2a2620] border border-[#3e3b36]' },
-    live: { label: '● Live', color: 'text-red-400 bg-red-400/10 border border-red-400/20 animate-pulse' },
-    processing: { label: 'Processing', color: 'text-amber-400 bg-amber-400/10 border border-amber-400/20' },
-    review: { label: 'Review', color: 'text-gold bg-gold/10 border border-gold/20' },
-    completed: { label: 'Done', color: 'text-green-400 bg-green-400/10 border border-green-400/20' },
-    complete: { label: 'Done', color: 'text-green-400 bg-green-400/10 border border-green-400/20' },
+  const map: Record<string, { label: string; bg: string; color: string; border: string }> = {
+    draft:      { label: 'Draft',      color: '#a09880', bg: 'rgba(160,152,128,0.1)', border: 'rgba(160,152,128,0.15)' },
+    live:       { label: '● Live',     color: '#f87171', bg: 'rgba(248,113,113,0.1)', border: 'rgba(248,113,113,0.2)' },
+    processing: { label: 'Processing', color: '#fbbf24', bg: 'rgba(251,191,36,0.1)',  border: 'rgba(251,191,36,0.2)' },
+    review:     { label: 'Review',     color: '#c9a84c', bg: 'rgba(201,168,76,0.1)',  border: 'rgba(201,168,76,0.2)' },
+    completed:  { label: 'Done',       color: '#4ade80', bg: 'rgba(74,222,128,0.1)',  border: 'rgba(74,222,128,0.2)' },
+    complete:   { label: 'Done',       color: '#4ade80', bg: 'rgba(74,222,128,0.1)',  border: 'rgba(74,222,128,0.2)' },
   }
-  const s = map[status] ?? { label: status, color: 'text-[#6a6660] bg-[#2a2620] border border-[#3e3b36]' }
+  const s = map[status] ?? { label: status, color: '#a09880', bg: 'rgba(160,152,128,0.1)', border: 'rgba(160,152,128,0.15)' }
   return (
-    <span className={`text-[10px] font-medium px-2 py-1 rounded-full uppercase tracking-wider ${s.color}`}>
+    <span className="text-[10px] font-medium px-2 py-1 rounded-full uppercase tracking-wider"
+      style={{ color: s.color, background: s.bg, border: `1px solid ${s.border}` }}>
       {s.label}
     </span>
   )
