@@ -1,6 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import Image from 'next/image'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -21,45 +22,47 @@ export default function LoginPage() {
     } else {
       const { error } = await supabase.auth.signUp({ email, password })
       if (error) { setError(error.message); setLoading(false); return }
-      // Auto sign in after signup
       await supabase.auth.signInWithPassword({ email, password })
     }
-    // Hard redirect so middleware can set cookies properly
     window.location.href = '/app/dashboard'
   }
 
   return (
-    <div className="min-h-screen bg-ink flex flex-col items-center justify-center px-4"
-      style={{ background: 'radial-gradient(ellipse at 50% 0%, #2a2620 0%, #1a1814 70%)' }}>
+    <div className="min-h-screen flex flex-col items-center justify-center px-4"
+      style={{ background: 'radial-gradient(ellipse at 50% 0%, #1e1c18 0%, #0a0908 100%)' }}>
+
+      {/* Subtle top glow */}
+      <div className="fixed top-0 left-1/2 -translate-x-1/2 w-[600px] h-[300px] rounded-full opacity-10 blur-[120px] pointer-events-none"
+        style={{ background: 'radial-gradient(ellipse, #c9a84c 0%, transparent 70%)' }} />
 
       {/* Logo */}
-      <div className="flex flex-col items-center mb-12 animate-fade-in">
-        <div className="flex flex-col gap-[3px] w-8 mb-5">
-          <div className="h-[3px] w-full bg-gold rounded-sm"/>
-          <div className="h-[3px] w-[65%] bg-gold rounded-sm"/>
-          <div className="h-[3px] w-[80%] bg-gold rounded-sm"/>
-          <div className="flex items-center gap-[5px]">
-            <div className="h-[3px] w-[45%] bg-gold rounded-sm"/>
-            <div className="h-[7px] w-[7px] rounded-full bg-gold"/>
-          </div>
-        </div>
-        <div className="font-display text-3xl text-cream tracking-wide">Setlistr</div>
-        <p className="text-ink-light text-xs tracking-[0.2em] uppercase mt-1">Live Performance Registry</p>
+      <div className="flex flex-col items-center mb-10">
+        <Image
+          src="/logo-pill.png"
+          alt="Setlistr"
+          width={220}
+          height={56}
+          className="mb-6"
+          priority
+        />
+        <p className="text-[#5a5650] text-[11px] tracking-[0.25em] uppercase">Live Performance Registry</p>
       </div>
 
       {/* Card */}
-      <div className="w-full max-w-sm animate-slide-up" style={{ animationDelay: '0.1s', opacity: 0 }}>
-        <div className="bg-[#211f1b] rounded-2xl p-8 border border-[#2e2b26]">
+      <div className="w-full max-w-sm">
+        <div className="rounded-2xl p-8 border border-[#2a2720]"
+          style={{ background: 'linear-gradient(160deg, #1e1c18 0%, #161410 100%)' }}>
+
           <h1 className="text-cream text-lg font-semibold mb-1">
             {mode === 'signin' ? 'Welcome back' : 'Create your account'}
           </h1>
-          <p className="text-ink-light text-sm mb-7">
+          <p className="text-[#5a5650] text-sm mb-7">
             {mode === 'signin' ? 'Sign in to continue' : 'Start capturing performances tonight'}
           </p>
 
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <div className="flex flex-col gap-4">
             <div>
-              <label className="text-xs text-ink-light uppercase tracking-wider block mb-1.5">Email</label>
+              <label className="text-[10px] text-[#5a5650] uppercase tracking-[0.15em] block mb-1.5">Email</label>
               <input
                 type="email"
                 value={email}
@@ -67,11 +70,11 @@ export default function LoginPage() {
                 placeholder="you@example.com"
                 autoComplete="email"
                 required
-                className="w-full bg-[#1a1814] border border-[#2e2b26] rounded-xl px-4 py-3 text-cream placeholder:text-[#4a4640] focus:outline-none focus:border-gold transition-colors"
+                className="w-full bg-[#0f0e0c] border border-[#2a2720] rounded-xl px-4 py-3 text-cream placeholder:text-[#3a3830] focus:outline-none focus:border-gold transition-colors text-sm"
               />
             </div>
             <div>
-              <label className="text-xs text-ink-light uppercase tracking-wider block mb-1.5">Password</label>
+              <label className="text-[10px] text-[#5a5650] uppercase tracking-[0.15em] block mb-1.5">Password</label>
               <input
                 type="password"
                 value={password}
@@ -80,7 +83,7 @@ export default function LoginPage() {
                 autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
                 required
                 minLength={6}
-                className="w-full bg-[#1a1814] border border-[#2e2b26] rounded-xl px-4 py-3 text-cream placeholder:text-[#4a4640] focus:outline-none focus:border-gold transition-colors"
+                className="w-full bg-[#0f0e0c] border border-[#2a2720] rounded-xl px-4 py-3 text-cream placeholder:text-[#3a3830] focus:outline-none focus:border-gold transition-colors text-sm"
               />
             </div>
 
@@ -91,24 +94,28 @@ export default function LoginPage() {
             )}
 
             <button
-              type="submit"
+              onClick={handleSubmit as any}
               disabled={loading}
-              className="w-full bg-gold hover:bg-gold-light disabled:opacity-50 text-ink font-semibold rounded-xl py-3.5 transition-colors mt-2"
+              className="w-full bg-gold hover:bg-yellow-400 disabled:opacity-50 text-ink font-bold rounded-xl py-3.5 transition-all mt-1 text-sm tracking-wide"
             >
               {loading ? '...' : mode === 'signin' ? 'Sign In' : 'Create Account'}
             </button>
-          </form>
+          </div>
 
-          <p className="text-center text-xs text-ink-light mt-6">
+          <p className="text-center text-xs text-[#4a4640] mt-6">
             {mode === 'signin' ? "No account? " : "Have an account? "}
             <button
               onClick={() => { setMode(m => m === 'signin' ? 'signup' : 'signin'); setError('') }}
-              className="text-gold hover:text-gold-light font-medium"
+              className="text-gold hover:text-yellow-300 font-medium transition-colors"
             >
               {mode === 'signin' ? 'Sign up' : 'Sign in'}
             </button>
           </p>
         </div>
+
+        <p className="text-center text-[10px] text-[#3a3830] mt-6 tracking-wider uppercase">
+          Private Beta · Invite Only
+        </p>
       </div>
     </div>
   )
