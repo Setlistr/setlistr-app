@@ -1,4 +1,3 @@
-
 'use client'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -8,31 +7,32 @@ import { Plus, TrendingUp, Mic, Music4 } from 'lucide-react'
 const C = {
   bg: '#0a0908', card: '#141210', cardHover: '#181614',
   border: 'rgba(255,255,255,0.07)', borderGold: 'rgba(201,168,76,0.3)',
-  input: '#0f0e0c', text: '#f0ece3', secondary: '#a09070', muted: '#6a6050',
+  text: '#f0ece3', secondary: '#a09070', muted: '#6a6050',
   gold: '#c9a84c', goldDim: 'rgba(201,168,76,0.1)',
   green: '#4ade80', greenDim: 'rgba(74,222,128,0.08)',
   red: '#f87171', redDim: 'rgba(248,113,113,0.08)',
+  blue: '#60a5fa', blueDim: 'rgba(96,165,250,0.1)',
 }
 
-type Show = {
+type Performance = {
   id: string
-  name: string                  // your actual column
-  show_type: string
-  status: string                // live | completed | review | draft
-  scheduled_at: string | null
-  started_at: string | null
+  venue_name: string
+  artist_name: string
+  city: string
+  country: string
+  status: string        // live | review | complete | completed
+  started_at: string
   created_at: string
-  performance_id?: string | null
   song_count?: number
 }
 
-// Map your real DB statuses to display labels
 const STATUS_LABEL: Record<string, { label: string; color: string; bg: string }> = {
-  live:      { label: 'Live',          color: C.red,    bg: C.redDim },
-  draft:     { label: 'In Progress',   color: C.gold,   bg: C.goldDim },
-  review:    { label: 'Needs Review',  color: '#60a5fa', bg: 'rgba(96,165,250,0.1)' },
-  completed: { label: 'Completed',     color: C.green,  bg: C.greenDim },
-  exported:  { label: 'Exported',      color: C.green,  bg: C.greenDim },
+  live:      { label: 'Live',         color: C.red,   bg: C.redDim },
+  pending:   { label: 'Live',         color: C.red,   bg: C.redDim },
+  review:    { label: 'Needs Review', color: C.blue,  bg: C.blueDim },
+  complete:  { label: 'Completed',    color: C.green, bg: C.greenDim },
+  completed: { label: 'Completed',    color: C.green, bg: C.greenDim },
+  exported:  { label: 'Exported',     color: C.green, bg: C.greenDim },
 }
 
 function timeAgo(d: string) {
@@ -45,61 +45,43 @@ function timeAgo(d: string) {
   return `${Math.floor(days / 30)}mo ago`
 }
 
-function formatScheduled(d: string | null) {
-  if (!d) return ''
-  return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-}
-
 export default function DashboardPage() {
   const router = useRouter()
-  const [shows, setShows]         = useState<Show[]>([])
-  const [loading, setLoading]     = useState(true)
-  const [liveShow, setLiveShow]   = useState<Show | null>(null)
-  const [totalShows, setTotalShows] = useState(0)
-  const [totalSongs, setTotalSongs] = useState(0)
+  const [performances, setPerformances] = useState<Performance[]>([])
+  const [loading, setLoading]           = useState(true)
+  const [livePerf, setLivePerf]         = useState<Performance | null>(null)
+  const [totalSongs, setTotalSongs]     = useState(0)
 
   useEffect(() => {
     const supabase = createClient()
 
     async function load() {
-      // Fetch shows + their linked performance id
-      const { data: showData, error } = await supabase
-        .from('shows')
-        .select(`
-          id,
-          name,
-          show_type,
-          status,
-          scheduled_at,
-          started_at,
-          created_at,
-          performances ( id, song_count )
-        `)
+      // Query performances directly — this is where your data actually lives
+      const { data, error } = await supabase
+        .from('performances')
+        .select('id, venue_name, artist_name, city, country, status, started_at, created_at')
         .order('created_at', { ascending: false })
         .limit(20)
 
-      if (error) console.error('Dashboard load error:', error)
+      if (error) console.error('Dashboard error:', error)
 
-      if (showData) {
-        const mapped: Show[] = showData.map((s: any) => ({
-          id: s.id,
-          name: s.name || 'Untitled Show',
-          show_type: s.show_type || 'single',
-          status: s.status || 'draft',
-          scheduled_at: s.scheduled_at,
-          started_at: s.started_at,
-          created_at: s.created_at,
-          performance_id: s.performances?.[0]?.id || null,
-          song_count: s.performances?.[0]?.song_count || 0,
-        }))
+      if (data) {
+        setPerformances(data)
 
-        setShows(mapped)
-        setTotalShows(mapped.length)
-        setTotalSongs(mapped.reduce((acc, s) => acc + (s.song_count || 0), 0))
+        // Find any live/pending show to resume
+        const live = data.find((p: Performance) =>
+          p.status === 'live' || p.status === 'pending'
+        )
+        setLivePerf(live || null)
 
-        // Find a currently live show to resume
-        const live = mapped.find(s => s.status === 'live' || s.status === 'draft')
-        setLiveShow(live || null)
+        // Get song counts from performance_songs
+        const { data: songData } = await supabase
+          .from('performance_songs')
+          .select('performance_id')
+
+        if (songData) {
+          setTotalSongs(songData.length)
+        }
       }
 
       setLoading(false)
@@ -108,24 +90,19 @@ export default function DashboardPage() {
     load()
   }, [])
 
-  // Royalty estimate: ~$1.65/song, shown as a ±30% range
+  // Royalty estimate ±30% range
   const mid  = Math.round(totalSongs * 1.65)
   const low  = Math.round(mid * 0.7)
   const high = Math.round(mid * 1.3)
 
-  // ── Routing — the fix ──────────────────────────────────────────────────────
-  function navigateToShow(show: Show) {
-    if (!show.performance_id) return
-    // live or draft → go to live capture
-    if (show.status === 'live' || show.status === 'draft') {
-      router.push(`/app/live/${show.performance_id}`)
+  function navigateToPerformance(p: Performance) {
+    if (p.status === 'live' || p.status === 'pending') {
+      router.push(`/app/live/${p.id}`)
     } else {
-      // completed, review, exported → go to review page
-      router.push(`/app/review/${show.performance_id}`)
+      router.push(`/app/review/${p.id}`)
     }
   }
 
-  // ── Loading ────────────────────────────────────────────────────────────────
   if (loading) {
     return (
       <div style={{
@@ -143,12 +120,13 @@ export default function DashboardPage() {
             Loading
           </span>
         </div>
-        <style>{`@keyframes breathe { 0%,100%{transform:scale(1);opacity:.3} 50%{transform:scale(1.2);opacity:.8} }`}</style>
+        <style>{`@keyframes breathe{0%,100%{transform:scale(1);opacity:.3}50%{transform:scale(1.2);opacity:.8}}`}</style>
       </div>
     )
   }
 
-  const recentShows = shows.slice(0, 5)
+  const recentPerfs = performances.slice(0, 5)
+  const totalShows  = performances.length
 
   return (
     <div style={{
@@ -230,7 +208,7 @@ export default function DashboardPage() {
         </div>
 
         {/* ── Resume live show ── */}
-        {liveShow && (
+        {livePerf && (
           <div style={{ animation: 'fadeUp 0.4s ease', marginBottom: 20 }}>
             <p style={{
               fontSize: 10, fontWeight: 700, letterSpacing: '0.14em',
@@ -239,7 +217,7 @@ export default function DashboardPage() {
               Resume
             </p>
             <button
-              onClick={() => navigateToShow(liveShow)}
+              onClick={() => navigateToPerformance(livePerf)}
               style={{
                 width: '100%', background: C.card,
                 border: `1px solid ${C.borderGold}`,
@@ -262,23 +240,20 @@ export default function DashboardPage() {
                   animation: 'pulse-dot 1.4s ease-in-out infinite',
                 }} />
               </div>
-
               <div style={{ flex: 1, minWidth: 0 }}>
                 <p style={{ fontSize: 15, fontWeight: 700, color: C.text, margin: '0 0 3px' }}>
-                  {liveShow.name}
+                  {livePerf.venue_name}
                 </p>
                 <p style={{ fontSize: 12, color: C.secondary, margin: 0 }}>
-                  {liveShow.show_type === 'writers_round' ? "Writer's Round" : 'Single Artist'}
-                  {liveShow.song_count ? ` · ${liveShow.song_count} songs` : ''}
+                  {livePerf.artist_name}
+                  {livePerf.city ? ` · ${livePerf.city}` : ''}
                 </p>
               </div>
-
               <div style={{
                 background: C.goldDim, border: `1px solid ${C.borderGold}`,
                 borderRadius: 8, padding: '6px 10px',
                 fontSize: 11, fontWeight: 700, color: C.gold,
-                letterSpacing: '0.06em', textTransform: 'uppercase',
-                flexShrink: 0,
+                letterSpacing: '0.06em', textTransform: 'uppercase', flexShrink: 0,
               }}>
                 Continue →
               </div>
@@ -286,14 +261,14 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* ── Royalty Estimator ── */}
+        {/* ── Royalty Estimator + Stats ── */}
         {totalShows > 0 && (
           <div style={{
             display: 'grid', gridTemplateColumns: '1fr 1fr',
             gap: 10, marginBottom: 20,
             animation: 'fadeUp 0.45s ease',
           }}>
-            {/* Royalty card */}
+            {/* Royalty card — spans full width */}
             <div style={{
               background: C.card, border: `1px solid ${C.border}`,
               borderRadius: 14, padding: '16px',
@@ -314,10 +289,12 @@ export default function DashboardPage() {
                     margin: 0, fontFamily: '"DM Mono", monospace',
                     letterSpacing: '-0.02em',
                   }}>
-                    ${low.toLocaleString()} – ${high.toLocaleString()}
+                    {totalSongs > 0 ? `$${low.toLocaleString()} – $${high.toLocaleString()}` : '—'}
                   </p>
                   <p style={{ fontSize: 12, color: C.secondary, margin: '4px 0 0' }}>
-                    estimated from {totalSongs} song{totalSongs !== 1 ? 's' : ''} across {totalShows} show{totalShows !== 1 ? 's' : ''}
+                    {totalSongs > 0
+                      ? `estimated from ${totalSongs} song${totalSongs !== 1 ? 's' : ''} across ${totalShows} show${totalShows !== 1 ? 's' : ''}`
+                      : 'Complete a show to see your estimate'}
                   </p>
                 </div>
                 <div style={{
@@ -329,7 +306,7 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* Shows count */}
+            {/* Shows */}
             <div style={{
               background: C.card, border: `1px solid ${C.border}`,
               borderRadius: 14, padding: '14px',
@@ -344,7 +321,7 @@ export default function DashboardPage() {
               }}>{totalShows}</p>
             </div>
 
-            {/* Songs count */}
+            {/* Songs */}
             <div style={{
               background: C.card, border: `1px solid ${C.border}`,
               borderRadius: 14, padding: '14px',
@@ -373,7 +350,7 @@ export default function DashboardPage() {
             }}>
               Recent Shows
             </p>
-            {shows.length > 5 && (
+            {performances.length > 5 && (
               <button
                 onClick={() => router.push('/app/history')}
                 style={{
@@ -387,7 +364,7 @@ export default function DashboardPage() {
           </div>
 
           {/* Empty state */}
-          {recentShows.length === 0 && (
+          {recentPerfs.length === 0 && (
             <div style={{
               background: C.card, border: `1px solid ${C.border}`,
               borderRadius: 14, padding: '40px 20px', textAlign: 'center',
@@ -421,29 +398,27 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {/* Show rows */}
-          {recentShows.length > 0 && (
+          {/* Performance rows */}
+          {recentPerfs.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {recentShows.map((show, i) => {
-                const status = STATUS_LABEL[show.status] || STATUS_LABEL.completed
-                const dateStr = show.scheduled_at || show.started_at || show.created_at
+              {recentPerfs.map((perf, i) => {
+                const status = STATUS_LABEL[perf.status] || STATUS_LABEL.review
+                const dateStr = perf.started_at || perf.created_at
 
                 return (
                   <button
-                    key={show.id}
-                    onClick={() => navigateToShow(show)}
+                    key={perf.id}
+                    onClick={() => navigateToPerformance(perf)}
                     style={{
                       background: C.card, border: `1px solid ${C.border}`,
                       borderRadius: 12, padding: '14px 16px',
-                      cursor: show.performance_id ? 'pointer' : 'default',
-                      textAlign: 'left',
+                      cursor: 'pointer', textAlign: 'left',
                       transition: 'background 0.15s ease, border-color 0.15s ease',
                       display: 'flex', alignItems: 'center', gap: 12,
                       fontFamily: 'inherit',
                       animation: `fadeUp ${0.5 + i * 0.06}s ease`,
                     }}
                     onMouseEnter={e => {
-                      if (!show.performance_id) return
                       const el = e.currentTarget as HTMLElement
                       el.style.background = C.cardHover
                       el.style.borderColor = 'rgba(255,255,255,0.12)'
@@ -472,18 +447,18 @@ export default function DashboardPage() {
 
                     <div style={{ width: 1, height: 30, background: C.border, flexShrink: 0 }} />
 
-                    {/* Name + type */}
+                    {/* Venue + artist */}
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <p style={{
                         fontSize: 14, fontWeight: 600, color: C.text,
                         margin: '0 0 2px', whiteSpace: 'nowrap',
                         overflow: 'hidden', textOverflow: 'ellipsis',
                       }}>
-                        {show.name}
+                        {perf.venue_name}
                       </p>
                       <p style={{ fontSize: 11, color: C.secondary, margin: 0 }}>
-                        {show.show_type === 'writers_round' ? "Writer's Round" : 'Single Artist'}
-                        {show.song_count ? ` · ${show.song_count} songs` : ''}
+                        {perf.artist_name}
+                        {perf.city ? ` · ${perf.city}` : ''}
                       </p>
                     </div>
 
@@ -502,7 +477,7 @@ export default function DashboardPage() {
                         {status.label}
                       </span>
                       <span style={{ fontSize: 10, color: C.muted }}>
-                        {timeAgo(show.created_at)}
+                        {timeAgo(perf.created_at)}
                       </span>
                     </div>
                   </button>
