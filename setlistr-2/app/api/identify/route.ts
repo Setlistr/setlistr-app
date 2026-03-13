@@ -18,11 +18,17 @@ export async function POST(req: NextRequest) {
   const startTime = Date.now()
   let audioBytes = 0
   let performanceId: string | null = null
+  let showId: string | null = null
+  let setlistId: string | null = null
+  let artistId: string | null = null
 
   try {
     const incoming = await req.formData()
     const audio = incoming.get('audio')
     performanceId = incoming.get('performance_id') as string | null
+    showId = incoming.get('show_id') as string | null
+    setlistId = incoming.get('setlist_id') as string | null
+    artistId = incoming.get('artist_id') as string | null
 
     if (!(audio instanceof File)) {
       return NextResponse.json({ error: 'No audio file' }, { status: 400 })
@@ -30,8 +36,43 @@ export async function POST(req: NextRequest) {
 
     const audioBuffer = Buffer.from(await audio.arrayBuffer())
     audioBytes = audioBuffer.length
-    const timestamp = Math.floor(Date.now() / 1000).toString()
 
+    // 1. Store audio capture record
+    const { data: capture } = await supabase
+      .from('audio_captures')
+      .insert({
+        show_id: showId,
+        artist_id: artistId,
+        captured_by: null, // could pass user_id if needed
+        duration_seconds: 12,
+        file_size_bytes: audioBytes,
+        mime_type: 'audio/webm',
+        captured_at: new Date().toISOString(),
+      })
+      .select()
+      .single()
+
+    // 2. Create recognition job
+    const { data: job } = await supabase
+      .from('recognition_jobs')
+      .insert({
+        audio_capture_id: capture?.id || null,
+        vendor: 'acrcloud',
+        status: 'processing',
+        submitted_at: new Date().toISOString(),
+        raw_request: {
+          host: HOST,
+          audio_bytes: audioBytes,
+          performance_id: performanceId,
+          show_id: showId,
+          setlist_id: setlistId,
+        },
+      })
+      .select()
+      .single()
+
+    // 3. Call ACRCloud
+    const timestamp = Math.floor(Date.now() / 1000).toString()
     const stringToSign = ['POST', '/v1/identify', ACCESS_KEY, 'audio', '1', timestamp].join('\n')
     const signature = crypto.createHmac('sha1', ACCESS_SECRET).update(stringToSign).digest('base64')
 
@@ -46,14 +87,126 @@ export async function POST(req: NextRequest) {
 
     const res = await fetch(`https://${HOST}/v1/identify`, { method: 'POST', body: form })
     const payload = await res.json()
-
     const durationSeconds = Math.round((Date.now() - startTime) / 1000)
+
     const humming = payload?.metadata?.humming?.[0]
     const music = payload?.metadata?.music?.[0]
     const match = humming || music
     const detected = payload.status?.code === 0 && !!match
 
-    // Log every recognition attempt to Supabase
+    // 4. Update job with response
+    if (job) {
+      await supabase.from('recognition_jobs').update({
+        status: detected ? 'completed' : 'completed',
+        completed_at: new Date().toISOString(),
+        raw_response: payload,
+      }).eq('id', job.id)
+    }
+
+    // 5. Store all recognition results (candidates)
+    let topResultId: string | null = null
+    if (job && payload?.metadata?.music?.length > 0) {
+      const candidates = payload.metadata.music.slice(0, 3)
+      for (let i = 0; i < candidates.length; i++) {
+        const c = candidates[i]
+        const { data: result } = await supabase
+          .from('recognition_results')
+          .insert({
+            job_id: job.id,
+            rank: i + 1,
+            title: c.title,
+            artist_name: c.artists?.[0]?.name || '',
+            album: c.album?.name || '',
+            isrc: c.external_ids?.isrc || '',
+            score: c.score ? parseFloat(c.score) : null,
+            raw_data: c,
+          })
+          .select()
+          .single()
+        if (i === 0 && result) topResultId = result.id
+      }
+    }
+
+    // Also store humming result if present
+    if (job && humming && !music) {
+      const { data: result } = await supabase
+        .from('recognition_results')
+        .insert({
+          job_id: job.id,
+          rank: 1,
+          title: humming.title,
+          artist_name: humming.artists?.[0]?.name || '',
+          score: humming.score ? parseFloat(humming.score) : null,
+          raw_data: humming,
+        })
+        .select()
+        .single()
+      if (result) topResultId = result.id
+    }
+
+    // 6. Create recognition decision
+    let decisionId: string | null = null
+    if (job && detected && match) {
+      const score = match.score ? parseFloat(match.score) : 0
+      const decisionType = score >= 80 ? 'auto' : 'manual_confirm'
+
+      const { data: decision } = await supabase
+        .from('recognition_decisions')
+        .insert({
+          job_id: job.id,
+          chosen_result_id: topResultId,
+          decision_type: decisionType,
+          final_title: match.title,
+          final_artist: match.artists?.[0]?.name || '',
+          final_isrc: match.external_ids?.isrc || '',
+          decided_at: new Date().toISOString(),
+        })
+        .select()
+        .single()
+      if (decision) decisionId = decision.id
+    }
+
+    // 7. Write setlist_item if detected and we have a setlist
+    let setlistItemId: string | null = null
+    if (detected && match && setlistId && decisionId) {
+      // Check for duplicate in this setlist
+      const { data: existing } = await supabase
+        .from('setlist_items')
+        .select('id')
+        .eq('setlist_id', setlistId)
+        .ilike('title', match.title)
+        .single()
+
+      if (!existing) {
+        // Get current max position
+        const { data: lastItem } = await supabase
+          .from('setlist_items')
+          .select('position')
+          .eq('setlist_id', setlistId)
+          .order('position', { ascending: false })
+          .limit(1)
+          .single()
+
+        const position = (lastItem?.position || 0) + 1
+
+        const { data: newItem } = await supabase
+          .from('setlist_items')
+          .insert({
+            setlist_id: setlistId,
+            title: match.title,
+            artist_name: match.artists?.[0]?.name || '',
+            position,
+            source: 'recognized',
+            recognition_decision_id: decisionId,
+          })
+          .select()
+          .single()
+
+        if (newItem) setlistItemId = newItem.id
+      }
+    }
+
+    // 8. Legacy recognition_logs (keep for admin view compatibility)
     await supabase.from('recognition_logs').insert({
       performance_id: performanceId || null,
       audio_bytes: audioBytes,
@@ -78,14 +231,20 @@ export async function POST(req: NextRequest) {
         artist: match.artists?.[0]?.name || '',
         isrc: match.external_ids?.isrc || '',
         source: humming ? 'humming' : 'fingerprint',
+        setlist_item_id: setlistItemId,
+        job_id: job?.id,
+        decision_id: decisionId,
       })
     }
 
     return NextResponse.json({
       detected: false,
+      job_id: job?.id,
       debug: { status: payload?.status, sampleBytes: audioBytes },
     })
-} catch (err: any) {
+
+  } catch (err: any) {
+    // Legacy error log
     await supabase.from('recognition_logs').insert({
       performance_id: performanceId || null,
       audio_bytes: audioBytes,
