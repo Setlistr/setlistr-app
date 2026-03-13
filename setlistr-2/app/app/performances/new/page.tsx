@@ -18,14 +18,12 @@ const C = {
 
 const COUNTRIES = ['United States', 'United Kingdom', 'Canada', 'Australia', 'Germany', 'France', 'Japan', 'Brazil', 'Other']
 
-// Seed venues — grows over time as users add their own
 const SEED_VENUES: { name: string; city: string; country: string }[] = [
-  // Nashville
   { name: 'The Bluebird Cafe', city: 'Nashville', country: 'United States' },
   { name: 'Ryman Auditorium', city: 'Nashville', country: 'United States' },
   { name: 'Station Inn', city: 'Nashville', country: 'United States' },
   { name: 'The Listening Room Cafe', city: 'Nashville', country: 'United States' },
-  { name: ' 3rd and Lindsley', city: 'Nashville', country: 'United States' },
+  { name: '3rd and Lindsley', city: 'Nashville', country: 'United States' },
   { name: 'Mercy Lounge', city: 'Nashville', country: 'United States' },
   { name: 'Cannery Ballroom', city: 'Nashville', country: 'United States' },
   { name: 'The Basement', city: 'Nashville', country: 'United States' },
@@ -33,12 +31,10 @@ const SEED_VENUES: { name: string; city: string; country: string }[] = [
   { name: 'Bridgestone Arena', city: 'Nashville', country: 'United States' },
   { name: 'Ascend Amphitheater', city: 'Nashville', country: 'United States' },
   { name: 'Exit/In', city: 'Nashville', country: 'United States' },
-  { name: 'Zanies Comedy Club', city: 'Nashville', country: 'United States' },
   { name: 'The 5 Spot', city: 'Nashville', country: 'United States' },
   { name: 'Tootsies Orchid Lounge', city: 'Nashville', country: 'United States' },
-{ name: "Robert's Western World", city: 'Nashville', country: 'United States' },
+  { name: "Robert's Western World", city: 'Nashville', country: 'United States' },
   { name: 'Honky Tonk Central', city: 'Nashville', country: 'United States' },
-  // New York
   { name: 'Madison Square Garden', city: 'New York', country: 'United States' },
   { name: 'Carnegie Hall', city: 'New York', country: 'United States' },
   { name: 'Bowery Ballroom', city: 'New York', country: 'United States' },
@@ -46,48 +42,34 @@ const SEED_VENUES: { name: string; city: string; country: string }[] = [
   { name: 'Radio City Music Hall', city: 'New York', country: 'United States' },
   { name: 'Webster Hall', city: 'New York', country: 'United States' },
   { name: 'Irving Plaza', city: 'New York', country: 'United States' },
-  { name: 'Music Hall of Williamsburg', city: 'New York', country: 'United States' },
-{ name: "Baby's All Right", city: 'New York', country: 'United States' },
-  // Los Angeles
+  { name: "Baby's All Right", city: 'New York', country: 'United States' },
   { name: 'The Troubadour', city: 'Los Angeles', country: 'United States' },
   { name: 'Hollywood Bowl', city: 'Los Angeles', country: 'United States' },
   { name: 'The Roxy Theatre', city: 'Los Angeles', country: 'United States' },
   { name: 'The Wiltern', city: 'Los Angeles', country: 'United States' },
-  { name: 'Staples Center', city: 'Los Angeles', country: 'United States' },
   { name: 'The Palladium', city: 'Los Angeles', country: 'United States' },
   { name: 'Largo at the Coronet', city: 'Los Angeles', country: 'United States' },
-  // Chicago
   { name: 'The Metro', city: 'Chicago', country: 'United States' },
   { name: 'Empty Bottle', city: 'Chicago', country: 'United States' },
   { name: 'Thalia Hall', city: 'Chicago', country: 'United States' },
   { name: 'United Center', city: 'Chicago', country: 'United States' },
-  { name: 'The Chicago Theatre', city: 'Chicago', country: 'United States' },
-  // Austin
   { name: 'ACL Live at the Moody Center', city: 'Austin', country: 'United States' },
-{ name: "Stubb's Waller Creek Amphitheater", city: 'Austin', country: 'United States' },
+  { name: "Stubb's Waller Creek Amphitheater", city: 'Austin', country: 'United States' },
   { name: 'The Parish', city: 'Austin', country: 'United States' },
-{ name: "Emo's Austin", city: 'Austin', country: 'United States' },
+  { name: "Emo's Austin", city: 'Austin', country: 'United States' },
   { name: 'Continental Club', city: 'Austin', country: 'United States' },
-  // Atlanta
   { name: 'The Fox Theatre', city: 'Atlanta', country: 'United States' },
   { name: 'Tabernacle', city: 'Atlanta', country: 'United States' },
-  { name: 'Terminal West', city: 'Atlanta', country: 'United States' },
-  // Seattle
   { name: 'The Showbox', city: 'Seattle', country: 'United States' },
   { name: 'Neumos', city: 'Seattle', country: 'United States' },
-  { name: 'Climate Pledge Arena', city: 'Seattle', country: 'United States' },
-  // Other US
   { name: 'Red Rocks Amphitheatre', city: 'Morrison', country: 'United States' },
-  { name: 'The Independent', city: 'San Francisco', country: 'United States' },
   { name: 'The Fillmore', city: 'San Francisco', country: 'United States' },
   { name: '9:30 Club', city: 'Washington', country: 'United States' },
   { name: 'The Anthem', city: 'Washington', country: 'United States' },
-  // UK
   { name: 'The O2 Arena', city: 'London', country: 'United Kingdom' },
   { name: 'Royal Albert Hall', city: 'London', country: 'United Kingdom' },
-{ name: "Ronnie Scott's", city: 'London', country: 'United Kingdom' },
+  { name: "Ronnie Scott's", city: 'London', country: 'United Kingdom' },
   { name: 'Brixton Academy', city: 'London', country: 'United Kingdom' },
-  // Canada
   { name: 'Massey Hall', city: 'Toronto', country: 'Canada' },
   { name: 'The Commodore Ballroom', city: 'Vancouver', country: 'Canada' },
 ]
@@ -110,15 +92,13 @@ export default function NewPerformancePage() {
     performance_date: new Date().toISOString().split('T')[0],
     start_time: '20:00',
     set_duration_minutes: 60,
-    auto_close_buffer_minutes: 5,
     notes: '',
   })
 
-function set(key: string, value: string | number) {
+  function set(key: string, value: string | number) {
     setForm(f => ({ ...f, [key]: value }))
   }
 
-  // Pre-fill artist name from profile
   useEffect(() => {
     async function loadProfile() {
       const supabase = createClient()
@@ -129,17 +109,12 @@ function set(key: string, value: string | number) {
         .select('artist_name, full_name')
         .eq('id', user.id)
         .single()
-      if (profile?.artist_name) {
-        set('artist_name', profile.artist_name)
-      } else if (profile?.full_name) {
-        set('artist_name', profile.full_name)
-      }
+      if (profile?.artist_name) set('artist_name', profile.artist_name)
+      else if (profile?.full_name) set('artist_name', profile.full_name)
     }
     loadProfile()
   }, [])
 
-  // Search venues as user types
-  // Search venues as user types
   useEffect(() => {
     if (!venueQuery.trim() || venueSelected) {
       setVenueResults([])
@@ -154,7 +129,6 @@ function set(key: string, value: string | number) {
     setShowDropdown(true)
   }, [venueQuery, venueSelected])
 
-  // Close dropdown on outside click
   useEffect(() => {
     function handleClick(e: MouseEvent) {
       if (venueRef.current && !venueRef.current.contains(e.target as Node)) {
@@ -191,11 +165,106 @@ function set(key: string, value: string | number) {
     }
     setLoading(true)
     setError('')
+
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { router.push('/auth/login'); return }
 
-    const { data: performance, error: err } = await supabase
+    // 1. Get or create artist record for this user
+    let artistId: string
+    const { data: existingArtist } = await supabase
+      .from('artists')
+      .select('id')
+      .eq('user_id', user.id)
+      .single()
+
+    if (existingArtist) {
+      artistId = existingArtist.id
+      // Update name in case they changed it
+      await supabase.from('artists').update({
+        name: form.artist_name,
+        updated_at: new Date().toISOString(),
+      }).eq('id', artistId)
+    } else {
+      const { data: newArtist, error: artistErr } = await supabase
+        .from('artists')
+        .insert({ user_id: user.id, name: form.artist_name })
+        .select()
+        .single()
+      if (artistErr || !newArtist) { setError('Failed to create artist profile'); setLoading(false); return }
+      artistId = newArtist.id
+    }
+
+    // 2. Get or create venue record
+    let venueId: string | null = null
+    const { data: existingVenue } = await supabase
+      .from('venues')
+      .select('id')
+      .ilike('name', form.venue_name)
+      .eq('city', form.city)
+      .single()
+
+    if (existingVenue) {
+      venueId = existingVenue.id
+    } else {
+      const { data: newVenue } = await supabase
+        .from('venues')
+        .insert({ name: form.venue_name, city: form.city, country: form.country })
+        .select()
+        .single()
+      if (newVenue) venueId = newVenue.id
+    }
+
+    // 3. Create the show
+    const scheduledAt = new Date(`${form.performance_date}T${form.start_time}`).toISOString()
+    const { data: show, error: showErr } = await supabase
+      .from('shows')
+      .insert({
+        venue_id: venueId,
+        name: null,
+        show_type: 'single',
+        scheduled_at: scheduledAt,
+        started_at: new Date().toISOString(),
+        status: 'live',
+        created_by: user.id,
+      })
+      .select()
+      .single()
+
+    if (showErr || !show) { setError(showErr?.message || 'Failed to create show'); setLoading(false); return }
+
+    // 4. Add artist to show lineup
+    await supabase.from('show_artists').insert({
+      show_id: show.id,
+      artist_id: artistId,
+      performance_order: 1,
+      headliner: true,
+      status: 'confirmed',
+    })
+
+    // 5. Create setlist for this artist
+    const { data: setlist, error: setlistErr } = await supabase
+      .from('setlists')
+      .insert({
+        show_id: show.id,
+        artist_id: artistId,
+        status: 'draft',
+      })
+      .select()
+      .single()
+
+    if (setlistErr || !setlist) { setError(setlistErr?.message || 'Failed to create setlist'); setLoading(false); return }
+
+    // 6. Create capture session
+    await supabase.from('capture_sessions').insert({
+      show_id: show.id,
+      artist_id: artistId,
+      started_at: new Date().toISOString(),
+      status: 'active',
+    })
+
+    // 7. Also write to legacy performances table so live page still works
+    const { data: performance } = await supabase
       .from('performances')
       .insert({
         user_id: user.id,
@@ -206,21 +275,18 @@ function set(key: string, value: string | number) {
         performance_date: form.performance_date,
         start_time: form.start_time,
         set_duration_minutes: form.set_duration_minutes,
-        auto_close_buffer_minutes: form.auto_close_buffer_minutes,
+        auto_close_buffer_minutes: 5,
         notes: form.notes,
         status: 'live',
         started_at: new Date().toISOString(),
+        show_id: show.id,
+        setlist_id: setlist.id,
+        artist_id: artistId,
       })
       .select()
       .single()
 
-    if (err) { setError(err.message); setLoading(false); return }
-
-    await supabase.from('capture_sessions').insert({
-      performance_id: performance.id,
-      started_at: new Date().toISOString(),
-      status: 'active',
-    })
+    if (!performance) { setError('Failed to create performance record'); setLoading(false); return }
 
     router.push(`/app/live/${performance.id}`)
   }
@@ -249,7 +315,6 @@ function set(key: string, value: string | number) {
             placeholder="e.g. The Midnight" className={inputClass} style={inputStyle} />
         </Field>
 
-        {/* Venue autocomplete */}
         <Field label="Venue Name" required color={C.secondary}>
           <div className="relative" ref={venueRef}>
             <input
@@ -263,11 +328,9 @@ function set(key: string, value: string | number) {
                 borderColor: venueSelected ? 'rgba(201,168,76,0.3)' : C.inputBorder,
               }}
             />
-
             {showDropdown && (
               <div className="absolute z-50 w-full mt-1 rounded-xl overflow-hidden"
                 style={{ background: '#1a1814', border: `1px solid ${C.border}`, boxShadow: '0 8px 32px rgba(0,0,0,0.6)' }}>
-
                 {venueResults.map(venue => (
                   <button key={`${venue.name}-${venue.city}`}
                     onMouseDown={() => selectVenue(venue)}
@@ -279,8 +342,6 @@ function set(key: string, value: string | number) {
                     </div>
                   </button>
                 ))}
-
-                {/* Add new venue option */}
                 <button onMouseDown={addNewVenue}
                   className="w-full px-4 py-3 text-left flex items-center gap-3 transition-colors hover:bg-white/5 border-t"
                   style={{ borderColor: C.border }}>
@@ -321,18 +382,11 @@ function set(key: string, value: string | number) {
           </Field>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Set Duration (min)" color={C.secondary}>
-            <input type="number" value={form.set_duration_minutes} min={10} max={360}
-              onChange={e => set('set_duration_minutes', parseInt(e.target.value))}
-              className={inputClass} style={inputStyle} />
-          </Field>
-          <Field label="Buffer (min)" color={C.secondary}>
-            <input type="number" value={form.auto_close_buffer_minutes} min={0} max={30}
-              onChange={e => set('auto_close_buffer_minutes', parseInt(e.target.value))}
-              className={inputClass} style={inputStyle} />
-          </Field>
-        </div>
+        <Field label="Set Duration (min)" color={C.secondary}>
+          <input type="number" value={form.set_duration_minutes} min={10} max={360}
+            onChange={e => set('set_duration_minutes', parseInt(e.target.value))}
+            className={inputClass} style={inputStyle} />
+        </Field>
 
         <Field label="Notes (optional)" color={C.secondary}>
           <textarea value={form.notes} onChange={e => set('notes', e.target.value)}
@@ -355,7 +409,7 @@ function set(key: string, value: string | number) {
         </button>
 
         <p className="text-center text-xs" style={{ color: C.muted }}>
-          Session will auto-close after {form.set_duration_minutes + form.auto_close_buffer_minutes} minutes
+          Recognition starts automatically when you begin
         </p>
       </div>
     </div>
