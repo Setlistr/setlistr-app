@@ -30,6 +30,7 @@ type Song = {
   artist: string
   position: number
   source?: string
+  recognition_decision_id?: string | null
 }
 
 type Performance = {
@@ -41,6 +42,8 @@ type Performance = {
   started_at: string
   ended_at: string
   set_duration_minutes: number
+  setlist_id?: string | null
+  show_id?: string | null
 }
 
 type PRO = 'SOCAN' | 'ASCAP' | 'BMI'
@@ -132,7 +135,7 @@ function SortableRow({ song, index, onDelete, onEdit }: {
 
         {mode === 'view' && (
           <div className="flex items-center gap-1 shrink-0">
-            {song.source === 'detected' && (
+            {song.source === 'recognized' && (
               <span className="text-xs mr-1" style={{ color: C.gold + '80' }}>⚡</span>
             )}
             <button onClick={() => setMode('swap')}
@@ -198,6 +201,7 @@ function SortableRow({ song, index, onDelete, onEdit }: {
 export default function ReviewPage({ params }: { params: { id: string } }) {
   const router = useRouter()
   const [performance, setPerformance] = useState<Performance | null>(null)
+  const [setlistId, setSetlistId] = useState<string | null>(null)
   const [songs, setSongs] = useState<Song[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -216,14 +220,59 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
 
   useEffect(() => {
     const supabase = createClient()
-    Promise.all([
-      supabase.from('performances').select('*').eq('id', params.id).single(),
-      supabase.from('performance_songs').select('*').eq('performance_id', params.id).order('position'),
-    ]).then(([{ data: perf }, { data: songData }]) => {
-      if (perf) setPerformance(perf)
-      if (songData) setSongs(songData.map(s => ({ ...s, id: s.id || String(s.position) })))
-      setLoading(false)
-    })
+
+    supabase.from('performances')
+      .select('*')
+      .eq('id', params.id)
+      .single()
+      .then(async ({ data: perf }) => {
+        if (!perf) { setLoading(false); return }
+        setPerformance(perf)
+
+        // Try new setlist_items first
+        const resolvedSetlistId = perf.setlist_id || null
+        setSetlistId(resolvedSetlistId)
+
+        if (resolvedSetlistId) {
+          const { data: items } = await supabase
+            .from('setlist_items')
+            .select('*')
+            .eq('setlist_id', resolvedSetlistId)
+            .order('position')
+
+          if (items && items.length > 0) {
+            setSongs(items.map(s => ({
+              id: s.id,
+              title: s.title,
+              artist: s.artist_name || '',
+              position: s.position,
+              source: s.source,
+              recognition_decision_id: s.recognition_decision_id,
+            })))
+            setLoading(false)
+            return
+          }
+        }
+
+        // Fallback to legacy performance_songs
+        const { data: songData } = await supabase
+          .from('performance_songs')
+          .select('*')
+          .eq('performance_id', params.id)
+          .order('position')
+
+        if (songData) {
+          setSongs(songData.map(s => ({
+            id: s.id || String(s.position),
+            title: s.title,
+            artist: s.artist || '',
+            position: s.position,
+            source: s.source || 'recognized',
+            recognition_decision_id: null,
+          })))
+        }
+        setLoading(false)
+      })
   }, [params.id])
 
   function handleDragEnd(event: DragEndEvent) {
@@ -253,6 +302,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
       artist: newArtist.trim() || (performance?.artist_name || ''),
       position: songs.length + 1,
       source: 'manual',
+      recognition_decision_id: null,
     }])
     setNewTitle('')
     setNewArtist('')
@@ -263,7 +313,86 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
     if (!performance) return
     setSaving(true)
     const supabase = createClient()
-    await supabase.from('performance_songs').delete().eq('performance_id', performance.id)
+
+    // 1. Save to new setlist_items if we have a setlist
+    if (setlistId) {
+      // Delete existing items
+      await supabase.from('setlist_items')
+        .delete()
+        .eq('setlist_id', setlistId)
+
+      // Re-insert all items
+      await supabase.from('setlist_items').insert(
+        songs.map((s, i) => ({
+          setlist_id: setlistId,
+          title: s.title,
+          artist_name: s.artist,
+          position: i + 1,
+          source: s.source || 'manual',
+          recognition_decision_id: s.recognition_decision_id || null,
+        }))
+      )
+
+      // Create manual_override decisions for any edited recognized songs
+      for (const song of songs) {
+        if (song.recognition_decision_id) {
+          // Check if title/artist changed from original decision
+          const { data: originalDecision } = await supabase
+            .from('recognition_decisions')
+            .select('final_title, final_artist')
+            .eq('id', song.recognition_decision_id)
+            .single()
+
+          if (originalDecision &&
+            (originalDecision.final_title !== song.title ||
+             originalDecision.final_artist !== song.artist)) {
+            // Get the job_id from original decision
+            const { data: origFull } = await supabase
+              .from('recognition_decisions')
+              .select('job_id')
+              .eq('id', song.recognition_decision_id)
+              .single()
+
+            if (origFull?.job_id) {
+              // Create override decision
+              const { data: newDecision } = await supabase
+                .from('recognition_decisions')
+                .insert({
+                  job_id: origFull.job_id,
+                  decision_type: 'manual_override',
+                  final_title: song.title,
+                  final_artist: song.artist,
+                  notes: `Corrected from: ${originalDecision.final_title} by ${originalDecision.final_artist}`,
+                  decided_at: new Date().toISOString(),
+                })
+                .select()
+                .single()
+
+              // Update setlist_item to point to new decision
+              if (newDecision) {
+                await supabase.from('setlist_items')
+                  .update({ recognition_decision_id: newDecision.id })
+                  .eq('setlist_id', setlistId)
+                  .eq('title', song.title)
+              }
+            }
+          }
+        }
+      }
+
+      // Confirm setlist
+      await supabase.from('setlists').update({
+        status: 'confirmed',
+        confirmed_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }).eq('id', setlistId)
+    }
+
+    // 2. Legacy: keep performance_songs in sync
+    await supabase.from('performance_songs')
+      .delete()
+      .eq('performance_id', performance.id)
+
     await supabase.from('performance_songs').insert(
       songs.map((s, i) => ({
         performance_id: performance.id,
@@ -272,11 +401,22 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
         position: i + 1,
       }))
     )
-    await supabase.from('performances').update({ status: 'completed' }).eq('id', performance.id)
+
+    // 3. Mark performance and show completed
+    await supabase.from('performances')
+      .update({ status: 'completed' })
+      .eq('id', performance.id)
+
+    if (performance.show_id) {
+      await supabase.from('shows')
+        .update({ status: 'completed' })
+        .eq('id', performance.show_id)
+    }
+
     setSaving(false)
     setSaved(true)
     setShowComplete(true)
-  }, [performance, songs])
+  }, [performance, songs, setlistId])
 
   function formatDate(dateStr: string) {
     return new Date(dateStr).toLocaleDateString('en-US', {
@@ -347,7 +487,6 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
               {songs.length} song{songs.length !== 1 ? 's' : ''} logged
             </p>
 
-            {/* Setlist summary */}
             <div className="w-full rounded-2xl p-4 mb-4 text-left"
               style={{ background: C.card, border: `1px solid ${C.border}` }}>
               <p className="text-[11px] uppercase tracking-wider mb-3" style={{ color: C.secondary }}>Setlist</p>
@@ -366,7 +505,6 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
               </div>
             </div>
 
-            {/* PRO export */}
             <div className="w-full rounded-2xl p-4 mb-4"
               style={{ background: C.card, border: `1px solid ${C.border}` }}>
               <p className="text-[11px] uppercase tracking-wider mb-3" style={{ color: C.secondary }}>
@@ -395,15 +533,13 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
               </div>
             </div>
 
-            <button
-              onClick={() => router.push('/app/dashboard')}
+            <button onClick={() => router.push('/app/dashboard')}
               className="w-full font-bold rounded-2xl py-4 transition-colors mb-3"
               style={{ background: C.gold, color: '#0a0908' }}>
               Back to Dashboard
             </button>
 
-            <button
-              onClick={() => setShowComplete(false)}
+            <button onClick={() => setShowComplete(false)}
               className="text-sm transition-colors"
               style={{ color: C.muted }}>
               Back to Review
