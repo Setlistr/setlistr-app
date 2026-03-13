@@ -23,7 +23,7 @@ export default function NewShowPage() {
   const [name, setName] = useState('')
   const [showType, setShowType] = useState<'single' | 'writers_round'>('single')
   const [scheduledAt, setScheduledAt] = useState(
-    new Date().toISOString().slice(0, 16) // YYYY-MM-DDTHH:MM
+    new Date().toISOString().slice(0, 16)
   )
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -46,7 +46,6 @@ export default function NewShowPage() {
         ? new Date(scheduledAt).toISOString()
         : null
 
-      // 1) Create the show
       const { data: show, error: showError } = await supabase
         .from('shows')
         .insert({
@@ -62,7 +61,6 @@ export default function NewShowPage() {
 
       if (showError) throw showError
 
-      // 2) Create the linked performance
       const { data: performance, error: perfError } = await supabase
         .from('performances')
         .insert({
@@ -72,7 +70,7 @@ export default function NewShowPage() {
           venue_name: name.trim(),
           city: '',
           country: '',
-          status: 'pending',
+          status: 'live',
           set_duration_minutes: 60,
           auto_close_buffer_minutes: 5,
           started_at: new Date().toISOString(),
