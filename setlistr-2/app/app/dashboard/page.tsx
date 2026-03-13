@@ -1,8 +1,9 @@
+
 'use client'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { Plus, ArrowRight, Music4, MapPin, Calendar, Clock, ChevronRight, TrendingUp, Mic } from 'lucide-react'
+import { Plus, TrendingUp, Mic, Music4 } from 'lucide-react'
 
 const C = {
   bg: '#0a0908', card: '#141210', cardHover: '#181614',
@@ -10,30 +11,28 @@ const C = {
   input: '#0f0e0c', text: '#f0ece3', secondary: '#a09070', muted: '#6a6050',
   gold: '#c9a84c', goldDim: 'rgba(201,168,76,0.1)',
   green: '#4ade80', greenDim: 'rgba(74,222,128,0.08)',
+  red: '#f87171', redDim: 'rgba(248,113,113,0.08)',
 }
 
 type Show = {
   id: string
-  artist: string
-  venue: string
-  city: string
-  date: string
-  status: 'draft' | 'reviewed' | 'exported' | 'completed'
-  song_count: number
+  name: string                  // your actual column
+  show_type: string
+  status: string                // live | completed | review | draft
+  scheduled_at: string | null
+  started_at: string | null
   created_at: string
-  // joined from performances
-  performance_id?: string
+  performance_id?: string | null
+  song_count?: number
 }
 
+// Map your real DB statuses to display labels
 const STATUS_LABEL: Record<string, { label: string; color: string; bg: string }> = {
-  draft:     { label: 'In Progress', color: C.gold,      bg: C.goldDim },
-  reviewed:  { label: 'Reviewed',    color: '#60a5fa',   bg: 'rgba(96,165,250,0.1)' },
-  exported:  { label: 'Exported',    color: C.green,     bg: C.greenDim },
-  completed: { label: 'Completed',   color: C.green,     bg: C.greenDim },
-}
-
-function formatDate(d: string) {
-  return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  live:      { label: 'Live',          color: C.red,    bg: C.redDim },
+  draft:     { label: 'In Progress',   color: C.gold,   bg: C.goldDim },
+  review:    { label: 'Needs Review',  color: '#60a5fa', bg: 'rgba(96,165,250,0.1)' },
+  completed: { label: 'Completed',     color: C.green,  bg: C.greenDim },
+  exported:  { label: 'Exported',      color: C.green,  bg: C.greenDim },
 }
 
 function timeAgo(d: string) {
@@ -46,41 +45,61 @@ function timeAgo(d: string) {
   return `${Math.floor(days / 30)}mo ago`
 }
 
+function formatScheduled(d: string | null) {
+  if (!d) return ''
+  return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
 export default function DashboardPage() {
   const router = useRouter()
-  const [shows, setShows]             = useState<Show[]>([])
-  const [loading, setLoading]         = useState(true)
-  const [draftShow, setDraftShow]     = useState<Show | null>(null)
-  const [totalShows, setTotalShows]   = useState(0)
-  const [totalSongs, setTotalSongs]   = useState(0)
+  const [shows, setShows]         = useState<Show[]>([])
+  const [loading, setLoading]     = useState(true)
+  const [liveShow, setLiveShow]   = useState<Show | null>(null)
+  const [totalShows, setTotalShows] = useState(0)
+  const [totalSongs, setTotalSongs] = useState(0)
 
   useEffect(() => {
     const supabase = createClient()
 
     async function load() {
-      // Fetch shows with linked performance_id
-      const { data: showData } = await supabase
+      // Fetch shows + their linked performance id
+      const { data: showData, error } = await supabase
         .from('shows')
         .select(`
-          id, artist, venue, city, date, status, song_count, created_at,
-          performances(id)
+          id,
+          name,
+          show_type,
+          status,
+          scheduled_at,
+          started_at,
+          created_at,
+          performances ( id, song_count )
         `)
         .order('created_at', { ascending: false })
         .limit(20)
 
+      if (error) console.error('Dashboard load error:', error)
+
       if (showData) {
         const mapped: Show[] = showData.map((s: any) => ({
-          ...s,
+          id: s.id,
+          name: s.name || 'Untitled Show',
+          show_type: s.show_type || 'single',
+          status: s.status || 'draft',
+          scheduled_at: s.scheduled_at,
+          started_at: s.started_at,
+          created_at: s.created_at,
           performance_id: s.performances?.[0]?.id || null,
+          song_count: s.performances?.[0]?.song_count || 0,
         }))
 
         setShows(mapped)
         setTotalShows(mapped.length)
         setTotalSongs(mapped.reduce((acc, s) => acc + (s.song_count || 0), 0))
 
-        // Most recent draft = resume candidate
-        const draft = mapped.find(s => s.status === 'draft')
-        setDraftShow(draft || null)
+        // Find a currently live show to resume
+        const live = mapped.find(s => s.status === 'live' || s.status === 'draft')
+        setLiveShow(live || null)
       }
 
       setLoading(false)
@@ -89,17 +108,24 @@ export default function DashboardPage() {
     load()
   }, [])
 
-  // Placeholder royalty math — ~$1.65/song average across PROs
-  const estimatedRoyalties = Math.round(totalSongs * 1.65)
+  // Royalty estimate: ~$1.65/song, shown as a ±30% range
+  const mid  = Math.round(totalSongs * 1.65)
+  const low  = Math.round(mid * 0.7)
+  const high = Math.round(mid * 1.3)
 
+  // ── Routing — the fix ──────────────────────────────────────────────────────
   function navigateToShow(show: Show) {
-    if (show.status === 'draft' && show.performance_id) {
+    if (!show.performance_id) return
+    // live or draft → go to live capture
+    if (show.status === 'live' || show.status === 'draft') {
       router.push(`/app/live/${show.performance_id}`)
-    } else if (show.performance_id) {
+    } else {
+      // completed, review, exported → go to review page
       router.push(`/app/review/${show.performance_id}`)
     }
   }
 
+  // ── Loading ────────────────────────────────────────────────────────────────
   if (loading) {
     return (
       <div style={{
@@ -142,11 +168,10 @@ export default function DashboardPage() {
         position: 'relative', zIndex: 1,
       }}>
 
-        {/* ── Top nav ── */}
+        {/* ── Nav ── */}
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '20px 0 28px',
-          animation: 'fadeUp 0.3s ease',
+          padding: '20px 0 28px', animation: 'fadeUp 0.3s ease',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{
@@ -204,8 +229,8 @@ export default function DashboardPage() {
           </button>
         </div>
 
-        {/* ── Resume draft ── */}
-        {draftShow && (
+        {/* ── Resume live show ── */}
+        {liveShow && (
           <div style={{ animation: 'fadeUp 0.4s ease', marginBottom: 20 }}>
             <p style={{
               fontSize: 10, fontWeight: 700, letterSpacing: '0.14em',
@@ -214,7 +239,7 @@ export default function DashboardPage() {
               Resume
             </p>
             <button
-              onClick={() => navigateToShow(draftShow)}
+              onClick={() => navigateToShow(liveShow)}
               style={{
                 width: '100%', background: C.card,
                 border: `1px solid ${C.borderGold}`,
@@ -226,7 +251,6 @@ export default function DashboardPage() {
               onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = C.cardHover}
               onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = C.card}
             >
-              {/* Pulsing live dot */}
               <div style={{
                 width: 40, height: 40, borderRadius: '50%',
                 background: C.goldDim, border: `1px solid ${C.borderGold}`,
@@ -241,11 +265,11 @@ export default function DashboardPage() {
 
               <div style={{ flex: 1, minWidth: 0 }}>
                 <p style={{ fontSize: 15, fontWeight: 700, color: C.text, margin: '0 0 3px' }}>
-                  {draftShow.venue}
+                  {liveShow.name}
                 </p>
                 <p style={{ fontSize: 12, color: C.secondary, margin: 0 }}>
-                  {draftShow.artist} · {formatDate(draftShow.date)}
-                  {draftShow.song_count > 0 && ` · ${draftShow.song_count} songs`}
+                  {liveShow.show_type === 'writers_round' ? "Writer's Round" : 'Single Artist'}
+                  {liveShow.song_count ? ` · ${liveShow.song_count} songs` : ''}
                 </p>
               </div>
 
@@ -262,14 +286,14 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* ── Stats row ── */}
+        {/* ── Royalty Estimator ── */}
         {totalShows > 0 && (
           <div style={{
             display: 'grid', gridTemplateColumns: '1fr 1fr',
             gap: 10, marginBottom: 20,
             animation: 'fadeUp 0.45s ease',
           }}>
-            {/* Royalty estimate */}
+            {/* Royalty card */}
             <div style={{
               background: C.card, border: `1px solid ${C.border}`,
               borderRadius: 14, padding: '16px',
@@ -283,30 +307,29 @@ export default function DashboardPage() {
                     display: 'flex', alignItems: 'center', gap: 5,
                   }}>
                     <TrendingUp size={10} />
-                    Royalty Estimate
+                    Royalty Opportunity
                   </p>
                   <p style={{
-                    fontSize: 30, fontWeight: 800, color: C.gold,
+                    fontSize: 28, fontWeight: 800, color: C.gold,
                     margin: 0, fontFamily: '"DM Mono", monospace',
                     letterSpacing: '-0.02em',
                   }}>
-                    ${estimatedRoyalties.toLocaleString()}
+                    ${low.toLocaleString()} – ${high.toLocaleString()}
                   </p>
                   <p style={{ fontSize: 12, color: C.secondary, margin: '4px 0 0' }}>
-                    estimated from {totalSongs} songs across {totalShows} show{totalShows !== 1 ? 's' : ''}
+                    estimated from {totalSongs} song{totalSongs !== 1 ? 's' : ''} across {totalShows} show{totalShows !== 1 ? 's' : ''}
                   </p>
                 </div>
                 <div style={{
                   fontSize: 9, color: C.muted, letterSpacing: '0.06em',
-                  textTransform: 'uppercase', textAlign: 'right', lineHeight: 1.5,
-                  maxWidth: 80,
+                  textTransform: 'uppercase', textAlign: 'right', lineHeight: 1.6,
                 }}>
                   Avg<br />$1.65/<br />song
                 </div>
               </div>
             </div>
 
-            {/* Total shows */}
+            {/* Shows count */}
             <div style={{
               background: C.card, border: `1px solid ${C.border}`,
               borderRadius: 14, padding: '14px',
@@ -321,7 +344,7 @@ export default function DashboardPage() {
               }}>{totalShows}</p>
             </div>
 
-            {/* Total songs */}
+            {/* Songs count */}
             <div style={{
               background: C.card, border: `1px solid ${C.border}`,
               borderRadius: 14, padding: '14px',
@@ -338,7 +361,7 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* ── Recent shows ── */}
+        {/* ── Recent Shows ── */}
         <div style={{ animation: 'fadeUp 0.5s ease', paddingBottom: 48 }}>
           <div style={{
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -356,7 +379,6 @@ export default function DashboardPage() {
                 style={{
                   background: 'none', border: 'none', color: C.muted,
                   fontSize: 11, cursor: 'pointer', fontFamily: 'inherit',
-                  letterSpacing: '0.04em',
                 }}
               >
                 View all →
@@ -368,8 +390,7 @@ export default function DashboardPage() {
           {recentShows.length === 0 && (
             <div style={{
               background: C.card, border: `1px solid ${C.border}`,
-              borderRadius: 14, padding: '40px 20px',
-              textAlign: 'center',
+              borderRadius: 14, padding: '40px 20px', textAlign: 'center',
             }}>
               <div style={{
                 width: 52, height: 52, borderRadius: '50%',
@@ -400,11 +421,13 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {/* Show list */}
+          {/* Show rows */}
           {recentShows.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {recentShows.map((show, i) => {
-                const status = STATUS_LABEL[show.status] || STATUS_LABEL.draft
+                const status = STATUS_LABEL[show.status] || STATUS_LABEL.completed
+                const dateStr = show.scheduled_at || show.started_at || show.created_at
+
                 return (
                   <button
                     key={show.id}
@@ -412,13 +435,15 @@ export default function DashboardPage() {
                     style={{
                       background: C.card, border: `1px solid ${C.border}`,
                       borderRadius: 12, padding: '14px 16px',
-                      cursor: 'pointer', textAlign: 'left',
+                      cursor: show.performance_id ? 'pointer' : 'default',
+                      textAlign: 'left',
                       transition: 'background 0.15s ease, border-color 0.15s ease',
                       display: 'flex', alignItems: 'center', gap: 12,
                       fontFamily: 'inherit',
                       animation: `fadeUp ${0.5 + i * 0.06}s ease`,
                     }}
                     onMouseEnter={e => {
+                      if (!show.performance_id) return
                       const el = e.currentTarget as HTMLElement
                       el.style.background = C.cardHover
                       el.style.borderColor = 'rgba(255,255,255,0.12)'
@@ -430,42 +455,39 @@ export default function DashboardPage() {
                     }}
                   >
                     {/* Date block */}
-                    <div style={{
-                      minWidth: 40, textAlign: 'center', flexShrink: 0,
-                    }}>
+                    <div style={{ minWidth: 36, textAlign: 'center', flexShrink: 0 }}>
                       <p style={{
-                        fontSize: 18, fontWeight: 800, color: C.text, margin: 0,
+                        fontSize: 17, fontWeight: 800, color: C.text, margin: 0,
                         fontFamily: '"DM Mono", monospace', lineHeight: 1,
                       }}>
-                        {new Date(show.date).getDate()}
+                        {new Date(dateStr).getDate()}
                       </p>
                       <p style={{
                         fontSize: 9, color: C.muted, margin: '2px 0 0',
                         textTransform: 'uppercase', letterSpacing: '0.08em',
                       }}>
-                        {new Date(show.date).toLocaleDateString('en-US', { month: 'short' })}
+                        {new Date(dateStr).toLocaleDateString('en-US', { month: 'short' })}
                       </p>
                     </div>
 
-                    {/* Divider */}
-                    <div style={{ width: 1, height: 32, background: C.border, flexShrink: 0 }} />
+                    <div style={{ width: 1, height: 30, background: C.border, flexShrink: 0 }} />
 
-                    {/* Info */}
+                    {/* Name + type */}
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <p style={{
                         fontSize: 14, fontWeight: 600, color: C.text,
-                        margin: '0 0 3px', whiteSpace: 'nowrap',
+                        margin: '0 0 2px', whiteSpace: 'nowrap',
                         overflow: 'hidden', textOverflow: 'ellipsis',
                       }}>
-                        {show.venue}
+                        {show.name}
                       </p>
                       <p style={{ fontSize: 11, color: C.secondary, margin: 0 }}>
-                        {show.artist}
-                        {show.song_count > 0 && ` · ${show.song_count} songs`}
+                        {show.show_type === 'writers_round' ? "Writer's Round" : 'Single Artist'}
+                        {show.song_count ? ` · ${show.song_count} songs` : ''}
                       </p>
                     </div>
 
-                    {/* Status */}
+                    {/* Status + time */}
                     <div style={{
                       display: 'flex', flexDirection: 'column', alignItems: 'flex-end',
                       gap: 4, flexShrink: 0,
@@ -493,9 +515,9 @@ export default function DashboardPage() {
 
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500;700&display=swap');
-        @keyframes fadeUp   { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
-        @keyframes pulse-dot{ 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(.8)} }
-        @keyframes breathe  { 0%,100%{transform:scale(1);opacity:.3} 50%{transform:scale(1.2);opacity:.8} }
+        @keyframes fadeUp    { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes pulse-dot { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(.8)} }
+        @keyframes breathe   { 0%,100%{transform:scale(1);opacity:.3} 50%{transform:scale(1.2);opacity:.8} }
         * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
       `}</style>
     </div>
