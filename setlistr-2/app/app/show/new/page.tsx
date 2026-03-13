@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { MapPin, User, Building2, Calendar, ArrowRight, Music4 } from 'lucide-react'
+import { Building2, Calendar, ArrowRight, Music4, Music2 } from 'lucide-react'
 
 const C = {
   bg: '#0a0908', card: '#141210', border: 'rgba(255,255,255,0.07)',
@@ -13,17 +13,16 @@ const C = {
 
 export default function NewShowPage() {
   const router = useRouter()
-  const [artist, setArtist]   = useState('')
-  const [venue, setVenue]     = useState('')
-  const [city, setCity]       = useState('')
-  const [date, setDate]       = useState(new Date().toISOString().split('T')[0])
+  const [name, setName]           = useState('') // the show/venue name
+  const [showType, setShowType]   = useState<'single' | 'writers_round'>('single')
+  const [scheduledAt, setScheduledAt] = useState(
+    new Date().toISOString().slice(0, 16) // "YYYY-MM-DDTHH:MM"
+  )
   const [loading, setLoading] = useState(false)
   const [error, setError]     = useState('')
 
-  // ── Validation ──────────────────────────────────────────────────────────────
-  const isValid = artist.trim().length > 0 && venue.trim().length > 0 && date.length > 0
+  const isValid = name.trim().length > 0
 
-  // ── Submit ──────────────────────────────────────────────────────────────────
   async function handleSubmit() {
     if (!isValid || loading) return
     setLoading(true)
@@ -33,31 +32,30 @@ export default function NewShowPage() {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
 
+      // 1. Create the show
       const { data: show, error: showError } = await supabase
         .from('shows')
         .insert({
-          artist,
-          venue,
-          city: city.trim() || null,
-          date,
-          status: 'draft',
-          song_count: 0,
-          user_id: user?.id || null,
-          created_at: new Date().toISOString(),
+          name: name.trim(),
+          show_type: showType,
+          scheduled_at: scheduledAt ? new Date(scheduledAt).toISOString() : null,
+          started_at: new Date().toISOString(),
+          status: 'live',
+          created_by: user?.id || null,
         })
         .select()
         .single()
 
       if (showError) throw showError
 
-      // Create a performance record linked to the show
+      // 2. Create the performance linked to the show
       const { data: performance, error: perfError } = await supabase
         .from('performances')
         .insert({
           show_id: show.id,
-          artist_name: artist,
-          venue_name: venue,
-          city: city.trim() || '',
+          artist_name: name.trim(), // use show name as fallback artist name
+          venue_name: name.trim(),
+          city: '',
           country: '',
           status: 'pending',
           set_duration_minutes: 60,
@@ -75,44 +73,6 @@ export default function NewShowPage() {
       setError(err?.message || 'Something went wrong. Please try again.')
       setLoading(false)
     }
-  }
-
-  // ── Field helper ────────────────────────────────────────────────────────────
-  function Field({
-    icon, label, value, onChange, type = 'text', placeholder, required,
-  }: {
-    icon: React.ReactNode; label: string; value: string
-    onChange: (v: string) => void; type?: string
-    placeholder?: string; required?: boolean
-  }) {
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-        <label style={{
-          fontSize: 10, fontWeight: 700, letterSpacing: '0.12em',
-          textTransform: 'uppercase', color: C.muted,
-          display: 'flex', alignItems: 'center', gap: 5,
-        }}>
-          {icon}
-          {label}
-          {required && <span style={{ color: C.gold, marginLeft: 2 }}>*</span>}
-        </label>
-        <input
-          type={type}
-          value={value}
-          onChange={e => onChange(e.target.value)}
-          placeholder={placeholder}
-          onKeyDown={e => e.key === 'Enter' && handleSubmit()}
-          style={{
-            background: C.input,
-            border: `1px solid ${value.trim() ? C.borderGold : C.border}`,
-            borderRadius: 10, padding: '12px 14px',
-            color: C.text, fontSize: 15, fontFamily: 'inherit',
-            width: '100%', transition: 'border-color 0.15s ease',
-            colorScheme: 'dark',
-          }}
-        />
-      </div>
-    )
   }
 
   return (
@@ -136,11 +96,8 @@ export default function NewShowPage() {
         animation: 'fadeUp 0.4s ease',
       }}>
 
-        {/* Logo mark */}
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 10,
-          marginBottom: 32,
-        }}>
+        {/* Logo */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 32 }}>
           <div style={{
             width: 36, height: 36, borderRadius: '50%',
             background: C.goldDim, border: `1px solid ${C.borderGold}`,
@@ -156,11 +113,7 @@ export default function NewShowPage() {
           </div>
         </div>
 
-        {/* Heading */}
-        <h1 style={{
-          fontSize: 28, fontWeight: 800, color: C.text,
-          margin: '0 0 6px', letterSpacing: '-0.025em',
-        }}>
+        <h1 style={{ fontSize: 28, fontWeight: 800, color: C.text, margin: '0 0 6px', letterSpacing: '-0.025em' }}>
           Set up your show
         </h1>
         <p style={{ fontSize: 14, color: C.secondary, margin: '0 0 28px' }}>
@@ -171,36 +124,93 @@ export default function NewShowPage() {
         <div style={{
           background: C.card, border: `1px solid ${C.border}`,
           borderRadius: 16, padding: '24px',
-          display: 'flex', flexDirection: 'column', gap: 18,
+          display: 'flex', flexDirection: 'column', gap: 20,
           marginBottom: 16,
         }}>
-          <Field
-            icon={<User size={10} />}
-            label="Artist" value={artist}
-            onChange={setArtist}
-            placeholder="e.g. The War on Drugs"
-            required
-          />
-          <Field
-            icon={<Building2 size={10} />}
-            label="Venue" value={venue}
-            onChange={setVenue}
-            placeholder="e.g. Massey Hall"
-            required
-          />
-          <Field
-            icon={<MapPin size={10} />}
-            label="City" value={city}
-            onChange={setCity}
-            placeholder="e.g. Toronto, ON"
-          />
-          <Field
-            icon={<Calendar size={10} />}
-            label="Date" value={date}
-            onChange={setDate}
-            type="date"
-            required
-          />
+
+          {/* Show Name */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <label style={{
+              fontSize: 10, fontWeight: 700, letterSpacing: '0.12em',
+              textTransform: 'uppercase', color: C.muted,
+              display: 'flex', alignItems: 'center', gap: 5,
+            }}>
+              <Building2 size={10} />
+              Show Name
+              <span style={{ color: C.gold }}>*</span>
+            </label>
+            <input
+              autoFocus
+              type="text"
+              value={name}
+              onChange={e => setName(e.target.value)}
+              placeholder="e.g. Massey Hall, Jesse's House..."
+              onKeyDown={e => e.key === 'Enter' && handleSubmit()}
+              style={{
+                background: C.input,
+                border: `1px solid ${name.trim() ? C.borderGold : C.border}`,
+                borderRadius: 10, padding: '13px 14px',
+                color: C.text, fontSize: 15, fontFamily: 'inherit',
+                width: '100%', transition: 'border-color 0.15s ease',
+              }}
+            />
+          </div>
+
+          {/* Show Type */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <label style={{
+              fontSize: 10, fontWeight: 700, letterSpacing: '0.12em',
+              textTransform: 'uppercase', color: C.muted,
+              display: 'flex', alignItems: 'center', gap: 5,
+            }}>
+              <Music2 size={10} />
+              Show Type
+            </label>
+            <div style={{ display: 'flex', gap: 8 }}>
+              {(['single', 'writers_round'] as const).map(type => (
+                <button
+                  key={type}
+                  onClick={() => setShowType(type)}
+                  style={{
+                    flex: 1, padding: '10px',
+                    background: showType === type ? C.goldDim : 'transparent',
+                    border: `1px solid ${showType === type ? C.borderGold : C.border}`,
+                    borderRadius: 10,
+                    color: showType === type ? C.gold : C.secondary,
+                    fontSize: 12, fontWeight: 600,
+                    cursor: 'pointer', transition: 'all 0.15s ease',
+                    fontFamily: 'inherit',
+                  }}
+                >
+                  {type === 'single' ? 'Single Artist' : "Writer's Round"}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Scheduled Date/Time */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <label style={{
+              fontSize: 10, fontWeight: 700, letterSpacing: '0.12em',
+              textTransform: 'uppercase', color: C.muted,
+              display: 'flex', alignItems: 'center', gap: 5,
+            }}>
+              <Calendar size={10} />
+              Scheduled Time
+            </label>
+            <input
+              type="datetime-local"
+              value={scheduledAt}
+              onChange={e => setScheduledAt(e.target.value)}
+              style={{
+                background: C.input,
+                border: `1px solid ${scheduledAt ? C.borderGold : C.border}`,
+                borderRadius: 10, padding: '12px 14px',
+                color: C.text, fontSize: 14, fontFamily: 'inherit',
+                width: '100%', colorScheme: 'dark',
+              }}
+            />
+          </div>
         </div>
 
         {/* Error */}
@@ -253,8 +263,7 @@ export default function NewShowPage() {
           style={{
             background: 'none', border: 'none', color: C.muted,
             fontSize: 12, cursor: 'pointer', letterSpacing: '0.04em',
-            fontFamily: 'inherit', padding: '12px', width: '100%',
-            marginTop: 4,
+            fontFamily: 'inherit', padding: '12px', width: '100%', marginTop: 4,
           }}
         >
           ← Back to Dashboard
@@ -269,7 +278,7 @@ export default function NewShowPage() {
         * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
         input::placeholder { color: #6a6050; }
         input:focus { border-color: rgba(201,168,76,0.4) !important; outline: none; }
-        input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.5); cursor: pointer; }
+        input[type="datetime-local"]::-webkit-calendar-picker-indicator { filter: invert(0.5); cursor: pointer; }
       `}</style>
     </div>
   )
