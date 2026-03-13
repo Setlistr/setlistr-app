@@ -2,7 +2,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { ChevronLeft, Play, Plus, MapPin } from 'lucide-react'
+import { ChevronLeft, Play, Plus, MapPin, Users, User, Music } from 'lucide-react'
 
 const C = {
   bg: '#0a0908',
@@ -74,14 +74,25 @@ const SEED_VENUES: { name: string; city: string; country: string }[] = [
   { name: 'The Commodore Ballroom', city: 'Vancouver', country: 'Canada' },
 ]
 
+type ShowType = 'single' | 'writers_round' | 'multi'
+
+type AdditionalArtist = {
+  id: string
+  name: string
+}
+
 export default function NewPerformancePage() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [showType, setShowType] = useState<ShowType>('single')
   const [venueQuery, setVenueQuery] = useState('')
   const [venueResults, setVenueResults] = useState<typeof SEED_VENUES>([])
   const [showDropdown, setShowDropdown] = useState(false)
   const [venueSelected, setVenueSelected] = useState(false)
+  const [additionalArtists, setAdditionalArtists] = useState<AdditionalArtist[]>([])
+  const [newArtistName, setNewArtistName] = useState('')
+  const [showAddArtist, setShowAddArtist] = useState(false)
   const venueRef = useRef<HTMLDivElement>(null)
 
   const [form, setForm] = useState({
@@ -158,6 +169,20 @@ export default function NewPerformancePage() {
     setShowDropdown(false)
   }
 
+  function addArtist() {
+    if (!newArtistName.trim()) return
+    setAdditionalArtists(prev => [...prev, {
+      id: `temp-${Date.now()}`,
+      name: newArtistName.trim(),
+    }])
+    setNewArtistName('')
+    setShowAddArtist(false)
+  }
+
+  function removeArtist(id: string) {
+    setAdditionalArtists(prev => prev.filter(a => a.id !== id))
+  }
+
   async function handleStart() {
     if (!form.artist_name || !form.venue_name || !form.city) {
       setError('Please fill in artist name, venue, and city')
@@ -170,7 +195,7 @@ export default function NewPerformancePage() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { router.push('/auth/login'); return }
 
-    // 1. Get or create artist record for this user
+    // 1. Get or create primary artist
     let artistId: string
     const { data: existingArtist } = await supabase
       .from('artists')
@@ -180,7 +205,6 @@ export default function NewPerformancePage() {
 
     if (existingArtist) {
       artistId = existingArtist.id
-      // Update name in case they changed it
       await supabase.from('artists').update({
         name: form.artist_name,
         updated_at: new Date().toISOString(),
@@ -195,14 +219,14 @@ export default function NewPerformancePage() {
       artistId = newArtist.id
     }
 
-    // 2. Get or create venue record
+    // 2. Get or create venue
     let venueId: string | null = null
     const { data: existingVenue } = await supabase
       .from('venues')
       .select('id')
       .ilike('name', form.venue_name)
       .eq('city', form.city)
-      .single()
+      .maybeSingle()
 
     if (existingVenue) {
       venueId = existingVenue.id
@@ -215,14 +239,13 @@ export default function NewPerformancePage() {
       if (newVenue) venueId = newVenue.id
     }
 
-    // 3. Create the show
+    // 3. Create show
     const scheduledAt = new Date(`${form.performance_date}T${form.start_time}`).toISOString()
     const { data: show, error: showErr } = await supabase
       .from('shows')
       .insert({
         venue_id: venueId,
-        name: null,
-        show_type: 'single',
+        show_type: showType,
         scheduled_at: scheduledAt,
         started_at: new Date().toISOString(),
         status: 'live',
@@ -233,29 +256,25 @@ export default function NewPerformancePage() {
 
     if (showErr || !show) { setError(showErr?.message || 'Failed to create show'); setLoading(false); return }
 
-    // 4. Add artist to show lineup
+    // 4. Add primary artist to show
     await supabase.from('show_artists').insert({
       show_id: show.id,
       artist_id: artistId,
       performance_order: 1,
-      headliner: true,
+      headliner: showType === 'single',
       status: 'confirmed',
     })
 
-    // 5. Create setlist for this artist
+    // 5. Create setlist for primary artist
     const { data: setlist, error: setlistErr } = await supabase
       .from('setlists')
-      .insert({
-        show_id: show.id,
-        artist_id: artistId,
-        status: 'draft',
-      })
+      .insert({ show_id: show.id, artist_id: artistId, status: 'draft' })
       .select()
       .single()
 
-    if (setlistErr || !setlist) { setError(setlistErr?.message || 'Failed to create setlist'); setLoading(false); return }
+    if (setlistErr || !setlist) { setError('Failed to create setlist'); setLoading(false); return }
 
-    // 6. Create capture session
+    // 6. Create capture session for primary artist
     await supabase.from('capture_sessions').insert({
       show_id: show.id,
       artist_id: artistId,
@@ -263,7 +282,40 @@ export default function NewPerformancePage() {
       status: 'active',
     })
 
-    // 7. Also write to legacy performances table so live page still works
+    // 7. Add additional artists (writers round / multi)
+    if (additionalArtists.length > 0) {
+      for (let i = 0; i < additionalArtists.length; i++) {
+        const a = additionalArtists[i]
+
+        // Create artist record (no user_id — not yet a Setlistr user)
+        const { data: addedArtist } = await supabase
+          .from('artists')
+          .insert({ name: a.name, user_id: null })
+          .select()
+          .single()
+
+        if (addedArtist) {
+          // Add to show lineup
+          await supabase.from('show_artists').insert({
+            show_id: show.id,
+            artist_id: addedArtist.id,
+            performance_order: i + 2,
+            headliner: false,
+            invited_by: user.id,
+            status: 'confirmed',
+          })
+
+          // Create their setlist
+          await supabase.from('setlists').insert({
+            show_id: show.id,
+            artist_id: addedArtist.id,
+            status: 'draft',
+          })
+        }
+      }
+    }
+
+    // 8. Legacy performance record for live page compatibility
     const { data: performance } = await supabase
       .from('performances')
       .insert({
@@ -294,6 +346,12 @@ export default function NewPerformancePage() {
   const inputClass = "w-full rounded-xl px-4 py-3 text-sm focus:outline-none transition-colors"
   const inputStyle = { background: C.input, border: `1px solid ${C.inputBorder}`, color: C.text }
 
+  const showTypes: { type: ShowType; label: string; desc: string; icon: typeof User }[] = [
+    { type: 'single', label: 'Solo / Band', desc: 'One artist, one setlist', icon: User },
+    { type: 'writers_round', label: "Writers Round", desc: 'Multiple songwriters, taking turns', icon: Music },
+    { type: 'multi', label: 'Multi-Artist', desc: 'Several acts on one bill', icon: Users },
+  ]
+
   return (
     <div className="min-h-screen flex flex-col" style={{ background: C.bg }}>
       <div className="px-4 pt-8 pb-6 max-w-lg mx-auto w-full">
@@ -310,12 +368,110 @@ export default function NewPerformancePage() {
 
       <div className="px-4 max-w-lg mx-auto w-full flex flex-col gap-5 pb-12">
 
-        <Field label="Artist Name" required color={C.secondary}>
+        {/* Show type selector */}
+        <div>
+          <label className="text-[11px] uppercase tracking-wider block mb-2" style={{ color: C.secondary }}>
+            Show Type
+          </label>
+          <div className="flex flex-col gap-2">
+            {showTypes.map(({ type, label, desc, icon: Icon }) => (
+              <button
+                key={type}
+                onClick={() => setShowType(type)}
+                className="flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all"
+                style={{
+                  background: showType === type ? 'rgba(201,168,76,0.08)' : C.card,
+                  border: `1px solid ${showType === type ? C.gold : C.border}`,
+                }}
+              >
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+                  style={{ background: showType === type ? 'rgba(201,168,76,0.15)' : 'rgba(255,255,255,0.04)' }}>
+                  <Icon size={16} style={{ color: showType === type ? C.gold : C.muted }} />
+                </div>
+                <div>
+                  <p className="text-sm font-medium" style={{ color: showType === type ? C.gold : C.text }}>{label}</p>
+                  <p className="text-xs" style={{ color: C.muted }}>{desc}</p>
+                </div>
+                {showType === type && (
+                  <div className="ml-auto w-2 h-2 rounded-full" style={{ background: C.gold }} />
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <Field label="Your Artist Name" required color={C.secondary}>
           <input value={form.artist_name} onChange={e => set('artist_name', e.target.value)}
             placeholder="e.g. The Midnight" className={inputClass} style={inputStyle} />
         </Field>
 
-        <Field label="Venue Name" required color={C.secondary}>
+        {/* Additional artists for writers round / multi */}
+        {(showType === 'writers_round' || showType === 'multi') && (
+          <div>
+            <label className="text-[11px] uppercase tracking-wider block mb-2" style={{ color: C.secondary }}>
+              {showType === 'writers_round' ? 'Other Songwriters' : 'Other Artists on the Bill'}
+            </label>
+
+            {additionalArtists.length > 0 && (
+              <div className="flex flex-col gap-2 mb-2">
+                {additionalArtists.map((a, i) => (
+                  <div key={a.id} className="flex items-center justify-between px-4 py-2.5 rounded-xl"
+                    style={{ background: C.card, border: `1px solid ${C.border}` }}>
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs font-mono" style={{ color: C.gold }}>
+                        {i + 2}
+                      </span>
+                      <span className="text-sm" style={{ color: C.text }}>{a.name}</span>
+                    </div>
+                    <button onClick={() => removeArtist(a.id)}
+                      className="text-xs px-2 py-1 rounded-lg"
+                      style={{ color: C.muted }}>
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {showAddArtist ? (
+              <div className="flex gap-2">
+                <input
+                  autoFocus
+                  value={newArtistName}
+                  onChange={e => setNewArtistName(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && addArtist()}
+                  placeholder="Artist name"
+                  className="flex-1 rounded-xl px-3 py-2.5 text-sm focus:outline-none"
+                  style={{ background: C.input, border: `1px solid ${C.gold}`, color: C.text }}
+                />
+                <button onClick={addArtist}
+                  className="px-4 rounded-xl text-sm font-semibold"
+                  style={{ background: C.gold, color: '#0a0908' }}>
+                  Add
+                </button>
+                <button onClick={() => setShowAddArtist(false)}
+                  className="px-3 rounded-xl text-sm"
+                  style={{ background: C.card, color: C.muted, border: `1px solid ${C.border}` }}>
+                  ✕
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setShowAddArtist(true)}
+                className="w-full flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm transition-all"
+                style={{ background: C.card, border: `1px solid ${C.border}`, color: C.secondary }}
+              >
+                <Plus size={14} style={{ color: C.gold }} />
+                Add {showType === 'writers_round' ? 'songwriter' : 'artist'}
+              </button>
+            )}
+            <p className="text-xs mt-2" style={{ color: C.muted }}>
+              Each artist gets their own setlist. You can invite them to Setlistr later.
+            </p>
+          </div>
+        )}
+
+        <Field label="Venue" required color={C.secondary}>
           <div className="relative" ref={venueRef}>
             <input
               value={venueQuery}
@@ -408,9 +564,11 @@ export default function NewPerformancePage() {
           {loading ? 'Starting...' : 'Start Performance'}
         </button>
 
-        <p className="text-center text-xs" style={{ color: C.muted }}>
-          Recognition starts automatically when you begin
-        </p>
+        {(showType === 'writers_round' || showType === 'multi') && additionalArtists.length > 0 && (
+          <p className="text-center text-xs" style={{ color: C.muted }}>
+            {additionalArtists.length + 1} artists · {additionalArtists.length + 1} separate setlists will be created
+          </p>
+        )}
       </div>
     </div>
   )
