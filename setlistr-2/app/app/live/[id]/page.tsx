@@ -20,11 +20,15 @@ type DetectedSong = {
   title: string
   artist: string
   source: 'detected' | 'manual'
+  setlist_item_id?: string
 }
 
 export default function LiveCapturePage({ params }: { params: { id: string } }) {
   const router = useRouter()
   const [performance, setPerformance] = useState<Performance | null>(null)
+  const [showId, setShowId] = useState<string | null>(null)
+  const [setlistId, setSetlistId] = useState<string | null>(null)
+  const [artistId, setArtistId] = useState<string | null>(null)
   const [elapsed, setElapsed] = useState(0)
   const [ending, setEnding] = useState(false)
   const [songInput, setSongInput] = useState('')
@@ -39,8 +43,18 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
 
   useEffect(() => {
     const supabase = createClient()
-    supabase.from('performances').select('*').eq('id', params.id).single()
-      .then(({ data }) => { if (data) setPerformance(data) })
+    supabase.from('performances')
+      .select('*, show_id, setlist_id, artist_id')
+      .eq('id', params.id)
+      .single()
+      .then(({ data }) => {
+        if (data) {
+          setPerformance(data)
+          setShowId(data.show_id || null)
+          setSetlistId(data.setlist_id || null)
+          setArtistId(data.artist_id || null)
+        }
+      })
   }, [params.id])
 
   useEffect(() => {
@@ -54,7 +68,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
 
   useEffect(() => {
     if (!performance) return
-    const totalSeconds = (performance.set_duration_minutes + performance.auto_close_buffer_minutes) * 60
+    const totalSeconds = (performance.set_duration_minutes + (performance.auto_close_buffer_minutes || 5)) * 60
     if (elapsed >= totalSeconds && !ending) handleEnd()
   }, [elapsed, performance, ending])
 
@@ -69,10 +83,15 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
       const formData = new FormData()
       formData.append('audio', audioBlob, 'audio.webm')
       formData.append('performance_id', params.id)
+      if (showId) formData.append('show_id', showId)
+      if (setlistId) formData.append('setlist_id', setlistId)
+      if (artistId) formData.append('artist_id', artistId)
+
       const res = await fetch('/api/identify', { method: 'POST', body: formData })
       const data = await res.json()
+
       if (data.detected) {
-        const { title, artist } = data
+        const { title, artist, setlist_item_id } = data
         setSongs(prev => {
           const alreadyExists = prev.some(
             s => s.title.toLowerCase() === title.toLowerCase() &&
@@ -85,7 +104,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
           }
           setDetectStatus(`✓ ${title} — ${artist}`)
           setTimeout(() => setDetectStatus(''), 4000)
-          return [...prev, { title, artist, source: 'detected' }]
+          return [...prev, { title, artist, source: 'detected', setlist_item_id }]
         })
       } else {
         setDetectStatus('Listening...')
@@ -95,7 +114,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
     } finally {
       setIsDetecting(false)
     }
-  }, [params.id])
+  }, [params.id, showId, setlistId, artistId])
 
   const startListening = useCallback(async () => {
     try {
@@ -152,14 +171,60 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
     setEnding(true)
     stopListening()
     const supabase = createClient()
+
+    // Update performance status
     await supabase.from('performances').update({
       status: 'review',
       ended_at: new Date().toISOString(),
     }).eq('id', performance.id)
+
+    // Update show status
+    if (showId) {
+      await supabase.from('shows').update({
+        status: 'completed',
+        ended_at: new Date().toISOString(),
+      }).eq('id', showId)
+    }
+
+    // End capture session
     await supabase.from('capture_sessions').update({
       ended_at: new Date().toISOString(),
       status: 'ended',
     }).eq('performance_id', performance.id)
+
+    // Write manual songs to setlist_items (detected songs already written by identify route)
+    if (setlistId) {
+      const manualSongs = songs.filter(s => s.source === 'manual')
+      if (manualSongs.length > 0) {
+        // Get current max position
+        const { data: existingItems } = await supabase
+          .from('setlist_items')
+          .select('position')
+          .eq('setlist_id', setlistId)
+          .order('position', { ascending: false })
+          .limit(1)
+
+        const startPosition = (existingItems?.[0]?.position || 0) + 1
+
+        await supabase.from('setlist_items').insert(
+          manualSongs.map((song, i) => ({
+            setlist_id: setlistId,
+            title: song.title,
+            artist_name: song.artist || performance.artist_name,
+            position: startPosition + i,
+            source: 'manual',
+          }))
+        )
+      }
+
+      // Update setlist status to review
+      await supabase.from('setlists').update({
+        status: 'review',
+        updated_at: new Date().toISOString(),
+      }).eq('id', setlistId)
+    }
+
+    // Legacy: write all songs to performance_songs for review page compatibility
     if (songs.length > 0) {
       await supabase.from('performance_songs').insert(
         songs.map((song, i) => ({
@@ -170,13 +235,18 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         }))
       )
     }
-    router.push(`/app/review/${performance.id}`)
-  }, [ending, performance, songs, router, stopListening])
 
-  function addSong() {
+    router.push(`/app/review/${performance.id}`)
+  }, [ending, performance, songs, router, stopListening, showId, setlistId])
+
+  async function addSong() {
     const trimmed = songInput.trim()
     if (!trimmed) return
-    setSongs(s => [...s, { title: trimmed, artist: performance?.artist_name || '', source: 'manual' }])
+    setSongs(s => [...s, {
+      title: trimmed,
+      artist: performance?.artist_name || '',
+      source: 'manual'
+    }])
     setSongInput('')
   }
 
@@ -197,18 +267,16 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   const totalSeconds = performance.set_duration_minutes * 60
   const progress = Math.min(elapsed / totalSeconds, 1)
   const remaining = Math.max(totalSeconds - elapsed, 0)
-  const autoCloseAt = totalSeconds + performance.auto_close_buffer_minutes * 60
+  const autoCloseAt = totalSeconds + (performance.auto_close_buffer_minutes || 5) * 60
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: C.bg }}>
 
-      {/* Live indicator */}
       <div className="flex items-center justify-center gap-2 pt-6 pb-2">
         <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
         <span className="text-xs uppercase tracking-[0.3em] text-red-400 font-medium">Live Now</span>
       </div>
 
-      {/* Venue info */}
       <div className="text-center px-6 py-4">
         <h1 className="font-display text-2xl mb-1" style={{ color: C.text }}>
           {performance.venue_name}
@@ -222,7 +290,6 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         </p>
       </div>
 
-      {/* Timer */}
       <div className="flex-1 flex flex-col items-center justify-center px-6">
         <div className="text-7xl font-mono font-bold tracking-tight mb-2" style={{ color: C.text }}>
           {formatTime(elapsed)}
@@ -241,11 +308,9 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         </div>
       </div>
 
-      {/* Controls */}
       <div className="px-4 pb-4 max-w-lg mx-auto w-full">
         <div className="rounded-2xl p-4 mb-4" style={{ background: C.card, border: `1px solid ${C.border}` }}>
 
-          {/* Detect button */}
           <div className="mb-4">
             <button
               onClick={isListening ? stopListening : startListening}
@@ -269,7 +334,6 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
             )}
           </div>
 
-          {/* Manual add */}
           <div className="flex items-center gap-2 mb-3">
             <Music size={14} style={{ color: C.gold }} />
             <span className="text-xs uppercase tracking-wider" style={{ color: C.secondary }}>
@@ -283,11 +347,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
               onKeyDown={e => e.key === 'Enter' && addSong()}
               placeholder="Song title..."
               className="flex-1 rounded-xl px-3 py-2.5 text-sm focus:outline-none"
-              style={{
-                background: C.input,
-                border: `1px solid ${C.border}`,
-                color: C.text,
-              }}
+              style={{ background: C.input, border: `1px solid ${C.border}`, color: C.text }}
             />
             <button onClick={addSong}
               className="font-semibold px-4 rounded-xl text-sm"
@@ -296,7 +356,6 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
             </button>
           </div>
 
-          {/* Song list */}
           {songs.length > 0 && (
             <div className="mt-3 flex flex-col gap-1.5">
               {songs.map((s, i) => (
@@ -317,7 +376,6 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
           )}
         </div>
 
-        {/* End button */}
         <button onClick={handleEnd} disabled={ending}
           className="flex items-center justify-center gap-2 w-full font-bold rounded-2xl py-4 transition-colors disabled:opacity-50"
           style={{ background: '#dc2626', color: '#fff' }}>
