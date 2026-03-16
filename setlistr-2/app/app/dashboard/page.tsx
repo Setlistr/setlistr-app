@@ -20,10 +20,30 @@ type Performance = {
   artist_name: string
   city: string
   country: string
-  status: string        // live | review | complete | completed
+  status: string
   started_at: string
   created_at: string
-  song_count?: number
+  show_type?: string
+}
+
+// ─── Royalty estimate helper ──────────────────────────────────────────────────
+// Easy to improve later — swap in real PRO rates or per-user settings
+function calcRoyaltyRange(songs: { show_type?: string }[]): {
+  low: number; high: number; perSong: number
+} {
+  if (songs.length === 0) return { low: 0, high: 0, perSong: 0 }
+
+  // Weight by show type — writer's rounds typically generate more writer royalties
+  const total = songs.reduce((acc, s) => {
+    const base = s.show_type === 'writers_round' ? 1.75 : 1.25
+    return acc + base
+  }, 0)
+
+  const low  = Math.round(total * 0.7)
+  const high = Math.round(total * 1.3)
+  const perSong = Math.round((total / songs.length) * 100) / 100
+
+  return { low, high, perSong }
 }
 
 const STATUS_LABEL: Record<string, { label: string; color: string; bg: string }> = {
@@ -51,15 +71,18 @@ export default function DashboardPage() {
   const [loading, setLoading]           = useState(true)
   const [livePerf, setLivePerf]         = useState<Performance | null>(null)
   const [totalSongs, setTotalSongs]     = useState(0)
+  const [needsReview, setNeedsReview]   = useState(0)
+  const [exported, setExported]         = useState(0)
+  // Each song row includes show_type for weighted estimate
+  const [songRows, setSongRows]         = useState<{ show_type?: string }[]>([])
 
   useEffect(() => {
     const supabase = createClient()
 
     async function load() {
-      // Query performances directly — this is where your data actually lives
       const { data, error } = await supabase
         .from('performances')
-        .select('id, venue_name, artist_name, city, country, status, started_at, created_at')
+        .select('id, venue_name, artist_name, city, country, status, started_at, created_at, show_type')
         .order('created_at', { ascending: false })
         .limit(20)
 
@@ -67,20 +90,28 @@ export default function DashboardPage() {
 
       if (data) {
         setPerformances(data)
+        setNeedsReview(data.filter((p: Performance) => p.status === 'review').length)
+        setExported(data.filter((p: Performance) => p.status === 'exported' || p.status === 'completed' || p.status === 'complete').length)
 
-        // Find any live/pending show to resume
-        const live = data.find((p: Performance) =>
-          p.status === 'live' || p.status === 'pending'
-        )
+        const live = data.find((p: Performance) => p.status === 'live' || p.status === 'pending')
         setLivePerf(live || null)
 
-        // Get song counts from performance_songs
+        // Get songs with their performance's show_type for weighted estimate
         const { data: songData } = await supabase
           .from('performance_songs')
           .select('performance_id')
 
         if (songData) {
           setTotalSongs(songData.length)
+
+          // Map each song to its show_type via the performances we already loaded
+          const perfMap: Record<string, string> = {}
+          data.forEach((p: Performance) => { perfMap[p.id] = p.show_type || 'single' })
+
+          const rows = songData.map((s: { performance_id: string }) => ({
+            show_type: perfMap[s.performance_id] || 'single',
+          }))
+          setSongRows(rows)
         }
       }
 
@@ -90,10 +121,9 @@ export default function DashboardPage() {
     load()
   }, [])
 
-  // Royalty estimate ±30% range
-  const mid  = Math.round(totalSongs * 1.65)
-  const low  = Math.round(mid * 0.7)
-  const high = Math.round(mid * 1.3)
+  const { low, high } = calcRoyaltyRange(songRows)
+  const totalShows    = performances.length
+  const recentPerfs   = performances.slice(0, 5)
 
   function navigateToPerformance(p: Performance) {
     if (p.status === 'live' || p.status === 'pending') {
@@ -124,9 +154,6 @@ export default function DashboardPage() {
       </div>
     )
   }
-
-  const recentPerfs = performances.slice(0, 5)
-  const totalShows  = performances.length
 
   return (
     <div style={{
@@ -261,82 +288,113 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* ── Royalty Estimator + Stats ── */}
-        {totalShows > 0 && (
+        {/* ── Royalty Estimator ── */}
+        <div style={{
+          marginBottom: 20, animation: 'fadeUp 0.45s ease',
+        }}>
           <div style={{
-            display: 'grid', gridTemplateColumns: '1fr 1fr',
-            gap: 10, marginBottom: 20,
-            animation: 'fadeUp 0.45s ease',
+            background: C.card, border: `1px solid ${C.border}`,
+            borderRadius: 14, padding: '20px',
           }}>
-            {/* Royalty card — spans full width */}
+            {/* Header */}
             <div style={{
-              background: C.card, border: `1px solid ${C.border}`,
-              borderRadius: 14, padding: '16px',
-              gridColumn: '1 / -1',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              marginBottom: 14,
             }}>
-              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-                <div>
-                  <p style={{
-                    fontSize: 10, fontWeight: 700, letterSpacing: '0.12em',
-                    textTransform: 'uppercase', color: C.muted, margin: '0 0 8px',
-                    display: 'flex', alignItems: 'center', gap: 5,
-                  }}>
-                    <TrendingUp size={10} />
-                    Royalty Opportunity
-                  </p>
-                  <p style={{
-                    fontSize: 28, fontWeight: 800, color: C.gold,
-                    margin: 0, fontFamily: '"DM Mono", monospace',
-                    letterSpacing: '-0.02em',
-                  }}>
-                    {totalSongs > 0 ? `$${low.toLocaleString()} – $${high.toLocaleString()}` : '—'}
-                  </p>
-                  <p style={{ fontSize: 12, color: C.secondary, margin: '4px 0 0' }}>
-                    {totalSongs > 0
-                      ? `estimated from ${totalSongs} song${totalSongs !== 1 ? 's' : ''} across ${totalShows} show${totalShows !== 1 ? 's' : ''}`
-                      : 'Complete a show to see your estimate'}
-                  </p>
-                </div>
-                <div style={{
-                  fontSize: 9, color: C.muted, letterSpacing: '0.06em',
-                  textTransform: 'uppercase', textAlign: 'right', lineHeight: 1.6,
+              <p style={{
+                fontSize: 10, fontWeight: 700, letterSpacing: '0.12em',
+                textTransform: 'uppercase', color: C.muted, margin: 0,
+                display: 'flex', alignItems: 'center', gap: 5,
+              }}>
+                <TrendingUp size={10} />
+                Royalty Opportunity
+              </p>
+              <span style={{
+                fontSize: 9, color: C.muted, letterSpacing: '0.06em',
+                textTransform: 'uppercase',
+                background: 'rgba(255,255,255,0.04)',
+                border: `1px solid ${C.border}`,
+                borderRadius: 20, padding: '3px 8px',
+              }}>
+                Estimate
+              </span>
+            </div>
+
+            {/* Main number */}
+            {totalSongs === 0 ? (
+              /* Empty state */
+              <div>
+                <p style={{
+                  fontSize: 22, fontWeight: 800, color: C.muted,
+                  margin: '0 0 6px', fontFamily: '"DM Mono", monospace',
+                  letterSpacing: '-0.02em',
                 }}>
-                  Avg<br />$1.65/<br />song
-                </div>
+                  $— – $—
+                </p>
+                <p style={{ fontSize: 13, color: C.muted, margin: '0 0 16px', lineHeight: 1.5 }}>
+                  Start tracking performances to see your estimated royalty range.
+                </p>
               </div>
+            ) : (
+              <div>
+                <p style={{
+                  fontSize: 32, fontWeight: 800, color: C.gold,
+                  margin: '0 0 4px', fontFamily: '"DM Mono", monospace',
+                  letterSpacing: '-0.02em',
+                }}>
+                  ${low.toLocaleString()} – ${high.toLocaleString()}
+                </p>
+                <p style={{ fontSize: 12, color: C.secondary, margin: '0 0 16px' }}>
+                  Estimated opportunity across {totalShows} show{totalShows !== 1 ? 's' : ''}
+                </p>
+              </div>
+            )}
+
+            {/* Supporting metrics */}
+            <div style={{
+              display: 'grid', gridTemplateColumns: '1fr 1fr 1fr',
+              gap: 8, marginBottom: 14,
+            }}>
+              {[
+                { label: 'Shows', value: totalShows },
+                { label: 'Songs', value: totalSongs },
+                { label: 'Needs Review', value: needsReview },
+              ].map(stat => (
+                <div key={stat.label} style={{
+                  background: 'rgba(255,255,255,0.03)',
+                  border: `1px solid ${C.border}`,
+                  borderRadius: 8, padding: '8px 10px', textAlign: 'center',
+                }}>
+                  <p style={{
+                    fontSize: 16, fontWeight: 800, color: stat.value > 0 ? C.text : C.muted,
+                    margin: 0, fontFamily: '"DM Mono", monospace',
+                  }}>
+                    {stat.value}
+                  </p>
+                  <p style={{
+                    fontSize: 9, color: C.muted, margin: '2px 0 0',
+                    letterSpacing: '0.08em', textTransform: 'uppercase',
+                  }}>
+                    {stat.label}
+                  </p>
+                </div>
+              ))}
             </div>
 
-            {/* Shows */}
-            <div style={{
-              background: C.card, border: `1px solid ${C.border}`,
-              borderRadius: 14, padding: '14px',
+            {/* Credibility disclaimer */}
+            <p style={{
+              fontSize: 10, color: C.muted, margin: 0, lineHeight: 1.5,
+              borderTop: `1px solid ${C.border}`, paddingTop: 12,
             }}>
-              <p style={{
-                fontSize: 10, fontWeight: 700, letterSpacing: '0.12em',
-                textTransform: 'uppercase', color: C.muted, margin: '0 0 6px',
-              }}>Shows</p>
-              <p style={{
-                fontSize: 26, fontWeight: 800, color: C.text, margin: 0,
-                fontFamily: '"DM Mono", monospace',
-              }}>{totalShows}</p>
-            </div>
-
-            {/* Songs */}
-            <div style={{
-              background: C.card, border: `1px solid ${C.border}`,
-              borderRadius: 14, padding: '14px',
-            }}>
-              <p style={{
-                fontSize: 10, fontWeight: 700, letterSpacing: '0.12em',
-                textTransform: 'uppercase', color: C.muted, margin: '0 0 6px',
-              }}>Songs Logged</p>
-              <p style={{
-                fontSize: 26, fontWeight: 800, color: C.text, margin: 0,
-                fontFamily: '"DM Mono", monospace',
-              }}>{totalSongs}</p>
-            </div>
+              Based on recorded songs and typical live performance reporting ranges.
+              {needsReview > 0 && (
+                <span style={{ color: C.gold }}>
+                  {' '}Reviewing {needsReview} unsubmitted show{needsReview !== 1 ? 's' : ''} may increase your opportunity.
+                </span>
+              )}
+            </p>
           </div>
-        )}
+        </div>
 
         {/* ── Recent Shows ── */}
         <div style={{ animation: 'fadeUp 0.5s ease', paddingBottom: 48 }}>
@@ -402,7 +460,7 @@ export default function DashboardPage() {
           {recentPerfs.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {recentPerfs.map((perf, i) => {
-                const status = STATUS_LABEL[perf.status] || STATUS_LABEL.review
+                const status  = STATUS_LABEL[perf.status] || STATUS_LABEL.review
                 const dateStr = perf.started_at || perf.created_at
 
                 return (
@@ -429,7 +487,6 @@ export default function DashboardPage() {
                       el.style.borderColor = C.border
                     }}
                   >
-                    {/* Date block */}
                     <div style={{ minWidth: 36, textAlign: 'center', flexShrink: 0 }}>
                       <p style={{
                         fontSize: 17, fontWeight: 800, color: C.text, margin: 0,
@@ -447,7 +504,6 @@ export default function DashboardPage() {
 
                     <div style={{ width: 1, height: 30, background: C.border, flexShrink: 0 }} />
 
-                    {/* Venue + artist */}
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <p style={{
                         fontSize: 14, fontWeight: 600, color: C.text,
@@ -462,7 +518,6 @@ export default function DashboardPage() {
                       </p>
                     </div>
 
-                    {/* Status + time */}
                     <div style={{
                       display: 'flex', flexDirection: 'column', alignItems: 'flex-end',
                       gap: 4, flexShrink: 0,
