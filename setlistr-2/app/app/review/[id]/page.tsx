@@ -36,6 +36,9 @@ type Song = {
   position: number
   source?: string
   recognition_decision_id?: string | null
+  isrc?: string
+  composer?: string
+  publisher?: string
 }
 
 type Performance = {
@@ -343,19 +346,20 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
           }
         }
 
-        const { data: songData } = await supabase
-          .from('performance_songs').select('*')
-          .eq('performance_id', params.id).order('position')
-        if (songData) {
-          setSongs(songData.map(s => ({
-            id: s.id || String(s.position), title: s.title,
-            artist: s.artist || '', position: s.position,
-            source: s.source || 'recognized', recognition_decision_id: null,
-          })))
-        }
-        setLoading(false)
-      })
-  }, [params.id])
+const { data: songData } = await supabase
+  .from('performance_songs').select('*')
+  .eq('performance_id', params.id).order('position')
+if (songData) {
+  setSongs(songData.map(s => ({
+    id: s.id || String(s.position), title: s.title,
+    artist: s.artist || '', position: s.position,
+    source: s.source || 'recognized',
+    recognition_decision_id: null,
+    isrc: s.isrc || '',
+    composer: s.composer || '',
+    publisher: s.publisher || '',
+  })))
+}
 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event
@@ -444,27 +448,45 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
     setSaving(false); setSaved(true); setShowComplete(true)
   }, [performance, songs, setlistId])
 
-  function generateExportCSV(pro: PRO) {
-    if (!performance) return
-    const headers: Record<PRO, string[]> = {
-      SOCAN: ['Title', 'Artist', 'Composer', 'Publisher', 'ISRC', 'Duration', 'Date', 'Venue', 'City'],
-      ASCAP: ['Title', 'Performer', 'Composer/Author', 'Publisher', 'ISRC', 'Venue', 'Date', 'City', 'State'],
-      BMI:   ['Song Title', 'Artist', 'BMI Work #', 'Composer', 'Publisher', 'Venue Name', 'Date', 'City'],
-    }
-    const rows = songs.map(s => {
-      const date = new Date(performance.started_at).toLocaleDateString()
-      if (pro === 'SOCAN') return [s.title, s.artist, '', '', '', '', date, performance.venue_name, performance.city]
-      if (pro === 'ASCAP') return [s.title, performance.artist_name, '', '', '', performance.venue_name, date, performance.city, '']
-      return [s.title, performance.artist_name, '', '', '', performance.venue_name, date, performance.city]
-    })
-    const csv = [headers[pro], ...rows].map(r => r.map(v => `"${v}"`).join(',')).join('\n')
-    const blob = new Blob([csv], { type: 'text/csv' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${pro}-setlist-${performance.venue_name}-${new Date(performance.started_at).toLocaleDateString().replace(/\//g, '-')}.csv`
-    a.click(); URL.revokeObjectURL(url)
+function generateExportCSV(pro: PRO) {
+  if (!performance) return
+  const date = new Date(performance.started_at).toLocaleDateString()
+
+  const headers: Record<PRO, string[]> = {
+    SOCAN: ['Title', 'Artist', 'Composer', 'Publisher', 'ISRC', 'Duration', 'Date', 'Venue', 'City'],
+    ASCAP: ['Title', 'Performer', 'Composer/Author', 'Publisher', 'ISRC', 'Venue', 'Date', 'City', 'State'],
+    BMI:   ['Song Title', 'Artist', 'BMI Work #', 'Composer', 'Publisher', 'Venue Name', 'Date', 'City'],
   }
+
+  const rows = songs.map(s => {
+    const composer  = s.composer  || ''
+    const publisher = s.publisher || ''
+    const isrc      = s.isrc      || ''
+
+    if (pro === 'SOCAN') return [
+      s.title, s.artist, composer, publisher, isrc, '', date, performance.venue_name, performance.city
+    ]
+    if (pro === 'ASCAP') return [
+      s.title, performance.artist_name, composer, publisher, isrc, performance.venue_name, date, performance.city, performance.country || ''
+    ]
+    // BMI
+    return [
+      s.title, performance.artist_name, '', composer, publisher, performance.venue_name, date, performance.city
+    ]
+  })
+
+  const csv = [headers[pro], ...rows]
+    .map(r => r.map(v => `"${v}"`).join(','))
+    .join('\n')
+
+  const blob = new Blob([csv], { type: 'text/csv' })
+  const url  = URL.createObjectURL(blob)
+  const a    = document.createElement('a')
+  a.href     = url
+  a.download = `${pro}-setlist-${performance.venue_name}-${new Date(performance.started_at).toLocaleDateString().replace(/\//g, '-')}.csv`
+  a.click()
+  URL.revokeObjectURL(url)
+}
 
   function formatDate(d: string) {
     return new Date(d).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
