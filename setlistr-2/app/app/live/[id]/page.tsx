@@ -501,19 +501,16 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
       }).eq('id', setlistId)
     }
 
-    if (songs.length > 0) {
-      await supabase.from('performance_songs').insert(
-        songs.map((song, i) => ({
-          performance_id: performance.id,
-          title: song.title,
-          artist: song.artist || performance.artist_name,
-          position: i + 1,
-          // Store original detection for correction tracking
-          detected_title: song.detected_title || song.title,
-          detected_artist: song.detected_artist || song.artist,
-        }))
-      )
-    }
+if (songs.length > 0) {
+  await supabase.from('performance_songs').insert(
+    songs.map((song, i) => ({
+      performance_id: performance.id,
+      title: song.title,
+      artist: song.artist || performance.artist_name,
+      position: i + 1,
+    }))
+  )
+}
 
     router.push(`/app/review/${performance.id}`)
   }, [ending, performance, songs, router, stopListening, showId, setlistId])
