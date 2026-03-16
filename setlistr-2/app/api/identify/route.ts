@@ -14,6 +14,129 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 )
 
+// ─── MusicBrainz enrichment ───────────────────────────────────────────────────
+// Fetches composer and publisher data using ISRC or title+artist fallback.
+// MusicBrainz is free, no API key required. Rate limit: 1 req/sec — fine for our use.
+
+interface EnrichedSongData {
+  isrc: string
+  composer: string
+  publisher: string
+}
+
+async function enrichFromMusicBrainz(
+  title: string,
+  artist: string,
+  isrcFromACR: string
+): Promise<EnrichedSongData> {
+  const result: EnrichedSongData = {
+    isrc: isrcFromACR || '',
+    composer: '',
+    publisher: '',
+  }
+
+  try {
+    let recordingId: string | null = null
+
+    // ── Strategy 1: Look up by ISRC (most reliable) ───────────────────────────
+    if (isrcFromACR) {
+      const isrcUrl = `https://musicbrainz.org/ws/2/isrc/${isrcFromACR}?inc=recordings&fmt=json`
+      const isrcRes = await fetch(isrcUrl, {
+        headers: { 'User-Agent': 'Setlistr/1.0 (setlistr.app)' },
+      })
+
+      if (isrcRes.ok) {
+        const isrcData = await isrcRes.json()
+        recordingId = isrcData?.recordings?.[0]?.id || null
+      }
+    }
+
+    // ── Strategy 2: Search by title + artist if no ISRC match ────────────────
+    if (!recordingId) {
+      const query = encodeURIComponent(`recording:"${title}" AND artist:"${artist}"`)
+      const searchUrl = `https://musicbrainz.org/ws/2/recording?query=${query}&limit=1&fmt=json`
+      const searchRes = await fetch(searchUrl, {
+        headers: { 'User-Agent': 'Setlistr/1.0 (setlistr.app)' },
+      })
+
+      if (searchRes.ok) {
+        const searchData = await searchRes.json()
+        const topResult = searchData?.recordings?.[0]
+
+        if (topResult) {
+          recordingId = topResult.id
+
+          // If ACRCloud didn't return an ISRC, grab it from MusicBrainz
+          if (!result.isrc && topResult.isrcs?.length > 0) {
+            result.isrc = topResult.isrcs[0]
+          }
+        }
+      }
+    }
+
+    // ── Strategy 3: Fetch full recording details for composer + publisher ─────
+    if (recordingId) {
+      const detailUrl = `https://musicbrainz.org/ws/2/recording/${recordingId}?inc=artist-credits+work-rels+artists&fmt=json`
+      const detailRes = await fetch(detailUrl, {
+        headers: { 'User-Agent': 'Setlistr/1.0 (setlistr.app)' },
+      })
+
+      if (detailRes.ok) {
+        const detail = await detailRes.json()
+
+        // Extract composers from work relationships
+        const workRels = detail?.relations?.filter(
+          (r: any) => r['target-type'] === 'work'
+        ) || []
+
+        if (workRels.length > 0) {
+          const workId = workRels[0]?.work?.id
+          if (workId) {
+            // Fetch the work to get composer credits
+            const workUrl = `https://musicbrainz.org/ws/2/work/${workId}?inc=artist-rels&fmt=json`
+            const workRes = await fetch(workUrl, {
+              headers: { 'User-Agent': 'Setlistr/1.0 (setlistr.app)' },
+            })
+
+            if (workRes.ok) {
+              const workData = await workRes.json()
+
+              // Composers are artist relations with type "composer" or "writer"
+              const composerRels = workData?.relations?.filter(
+                (r: any) => r.type === 'composer' || r.type === 'writer' || r.type === 'lyricist'
+              ) || []
+
+              if (composerRels.length > 0) {
+                result.composer = composerRels
+                  .map((r: any) => r.artist?.name)
+                  .filter(Boolean)
+                  .join(', ')
+              }
+
+              // Publishers are label relations on the work
+              const publisherRels = workData?.relations?.filter(
+                (r: any) => r.type === 'publishing' || r['target-type'] === 'label'
+              ) || []
+
+              if (publisherRels.length > 0) {
+                result.publisher = publisherRels
+                  .map((r: any) => r.label?.name || r.artist?.name)
+                  .filter(Boolean)
+                  .join(', ')
+              }
+            }
+          }
+        }
+      }
+    }
+  } catch (err) {
+    // MusicBrainz enrichment is best-effort — never block the main response
+    console.error('[MusicBrainz] enrichment failed:', err)
+  }
+
+  return result
+}
+
 export async function POST(req: NextRequest) {
   const startTime = Date.now()
   let audioBytes = 0
@@ -43,7 +166,7 @@ export async function POST(req: NextRequest) {
       .insert({
         show_id: showId,
         artist_id: artistId,
-        captured_by: null, // could pass user_id if needed
+        captured_by: null,
         duration_seconds: 12,
         file_size_bytes: audioBytes,
         mime_type: 'audio/webm',
@@ -97,13 +220,13 @@ export async function POST(req: NextRequest) {
     // 4. Update job with response
     if (job) {
       await supabase.from('recognition_jobs').update({
-        status: detected ? 'completed' : 'completed',
+        status: 'completed',
         completed_at: new Date().toISOString(),
         raw_response: payload,
       }).eq('id', job.id)
     }
 
-    // 5. Store all recognition results (candidates)
+    // 5. Store recognition results
     let topResultId: string | null = null
     if (job && payload?.metadata?.music?.length > 0) {
       const candidates = payload.metadata.music.slice(0, 3)
@@ -127,7 +250,6 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Also store humming result if present
     if (job && humming && !music) {
       const { data: result } = await supabase
         .from('recognition_results')
@@ -144,7 +266,23 @@ export async function POST(req: NextRequest) {
       if (result) topResultId = result.id
     }
 
-    // 6. Create recognition decision
+    // 6. If detected — enrich with MusicBrainz ────────────────────────────────
+    // This runs after ACRCloud returns, adding ISRC + composer + publisher
+    let enriched: EnrichedSongData = {
+      isrc: match?.external_ids?.isrc || '',
+      composer: '',
+      publisher: '',
+    }
+
+    if (detected && match) {
+      enriched = await enrichFromMusicBrainz(
+        match.title,
+        match.artists?.[0]?.name || '',
+        match.external_ids?.isrc || ''
+      )
+    }
+
+    // 7. Create recognition decision
     let decisionId: string | null = null
     if (job && detected && match) {
       const score = match.score ? parseFloat(match.score) : 0
@@ -158,7 +296,7 @@ export async function POST(req: NextRequest) {
           decision_type: decisionType,
           final_title: match.title,
           final_artist: match.artists?.[0]?.name || '',
-          final_isrc: match.external_ids?.isrc || '',
+          final_isrc: enriched.isrc,
           decided_at: new Date().toISOString(),
         })
         .select()
@@ -166,10 +304,9 @@ export async function POST(req: NextRequest) {
       if (decision) decisionId = decision.id
     }
 
-    // 7. Write setlist_item if detected and we have a setlist
+    // 8. Write setlist_item if detected and we have a setlist
     let setlistItemId: string | null = null
     if (detected && match && setlistId && decisionId) {
-      // Check for duplicate in this setlist
       const { data: existing } = await supabase
         .from('setlist_items')
         .select('id')
@@ -178,7 +315,6 @@ export async function POST(req: NextRequest) {
         .single()
 
       if (!existing) {
-        // Get current max position
         const { data: lastItem } = await supabase
           .from('setlist_items')
           .select('position')
@@ -206,7 +342,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 8. Legacy recognition_logs (keep for admin view compatibility)
+    // 9. Legacy recognition_logs
     await supabase.from('recognition_logs').insert({
       performance_id: performanceId || null,
       audio_bytes: audioBytes,
@@ -217,7 +353,7 @@ export async function POST(req: NextRequest) {
       title: match?.title ?? null,
       artist: match?.artists?.[0]?.name ?? null,
       album: match?.album?.name ?? null,
-      isrc: match?.external_ids?.isrc ?? null,
+      isrc: enriched.isrc || null,
       score: match?.score ? parseFloat(match.score) : null,
       source: humming ? 'humming' : music ? 'fingerprint' : null,
       raw_response: payload,
@@ -229,7 +365,10 @@ export async function POST(req: NextRequest) {
         detected: true,
         title: match.title,
         artist: match.artists?.[0]?.name || '',
-        isrc: match.external_ids?.isrc || '',
+        // ── Enriched fields — now included in every detection response ──
+        isrc: enriched.isrc,
+        composer: enriched.composer,
+        publisher: enriched.publisher,
         source: humming ? 'humming' : 'fingerprint',
         setlist_item_id: setlistItemId,
         job_id: job?.id,
@@ -244,7 +383,6 @@ export async function POST(req: NextRequest) {
     })
 
   } catch (err: any) {
-    // Legacy error log
     await supabase.from('recognition_logs').insert({
       performance_id: performanceId || null,
       audio_bytes: audioBytes,
