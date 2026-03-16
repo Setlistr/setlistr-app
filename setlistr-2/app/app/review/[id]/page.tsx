@@ -11,24 +11,16 @@ import {
   useSortable, verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { GripVertical, Trash2, Plus, Download, Check, Pencil, X, Music2, MapPin, Calendar, RefreshCw } from 'lucide-react'
+import { GripVertical, Trash2, Download, Check, Pencil, X, Music2, MapPin, Calendar, RefreshCw } from 'lucide-react'
 
 const C = {
-  bg: '#0a0908',
-  card: '#141210',
-  cardHover: '#181614',
-  border: 'rgba(255,255,255,0.07)',
-  borderGold: 'rgba(201,168,76,0.3)',
-  input: '#0f0e0c',
-  text: '#f0ece3',
-  secondary: '#a09070',
-  muted: '#6a6050',
-  gold: '#c9a84c',
-  goldDim: 'rgba(201,168,76,0.1)',
-  green: '#4ade80',
-  red: '#dc2626',
+  bg: '#0a0908', card: '#141210', cardHover: '#181614',
+  border: 'rgba(255,255,255,0.07)', borderGold: 'rgba(201,168,76,0.3)',
+  input: '#0f0e0c', text: '#f0ece3', secondary: '#a09070', muted: '#6a6050',
+  gold: '#c9a84c', goldDim: 'rgba(201,168,76,0.1)', green: '#4ade80', red: '#dc2626',
 }
 
+// ── Song type now includes enriched fields ────────────────────────────────────
 type Song = {
   id: string
   title: string
@@ -73,10 +65,7 @@ function SortableRow({ song, index, onDelete, onEdit, artistName }: {
   const [swapQuery, setSwapQuery] = useState('')
   const [swapArtist, setSwapArtist] = useState('')
 
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-  }
+  const style = { transform: CSS.Transform.toString(transform), transition }
 
   function saveEdit() {
     if (editTitle.trim()) { onEdit(song.id, editTitle.trim(), editArtist.trim()); setMode('view') }
@@ -97,12 +86,7 @@ function SortableRow({ song, index, onDelete, onEdit, artistName }: {
         ...style,
         opacity: isDragging ? 0.4 : 1,
         background: isDragging ? C.cardHover : C.card,
-        border: `1px solid ${
-          isDragging ? C.gold + '50'
-          : mode !== 'view' ? C.borderGold
-          : isAuto ? 'rgba(201,168,76,0.12)'
-          : C.border
-        }`,
+        border: `1px solid ${isDragging ? C.gold + '50' : mode !== 'view' ? C.borderGold : isAuto ? 'rgba(201,168,76,0.12)' : C.border}`,
         borderRadius: 12,
         padding: mode !== 'view' ? '12px 14px' : '0',
         transition: 'border-color 0.15s, background 0.15s, box-shadow 0.15s',
@@ -110,183 +94,86 @@ function SortableRow({ song, index, onDelete, onEdit, artistName }: {
         animation: 'rowIn 0.2s ease',
       }}
     >
-      {/* View / Edit header row */}
       <div style={{
         display: 'flex', alignItems: 'center', gap: 10,
         padding: mode !== 'view' ? '0 0 10px' : '10px 12px',
         borderBottom: mode !== 'view' ? `1px solid ${C.border}` : 'none',
       }}>
-        {/* Drag handle */}
-        <button
-          {...attributes} {...listeners}
-          style={{
-            color: C.muted, cursor: 'grab', flexShrink: 0,
-            display: 'flex', alignItems: 'center', padding: '2px',
-            touchAction: 'none',
-          }}
-        >
+        <button {...attributes} {...listeners} style={{ color: C.muted, cursor: 'grab', flexShrink: 0, display: 'flex', alignItems: 'center', padding: '2px', touchAction: 'none' }}>
           <GripVertical size={14} />
         </button>
 
-        {/* Position */}
-        <span style={{
-          fontSize: 11, fontWeight: 700, color: C.muted,
-          minWidth: 16, textAlign: 'right', flexShrink: 0,
-          fontFamily: '"DM Mono", monospace',
-          fontVariantNumeric: 'tabular-nums',
-        }}>
+        <span style={{ fontSize: 11, fontWeight: 700, color: C.muted, minWidth: 16, textAlign: 'right', flexShrink: 0, fontFamily: '"DM Mono", monospace', fontVariantNumeric: 'tabular-nums' }}>
           {index + 1}
         </span>
 
-        {/* Title / edit inputs */}
         {mode === 'edit' ? (
           <div style={{ flex: 1, display: 'flex', gap: 8 }}>
-            <input
-              autoFocus value={editTitle}
-              onChange={e => setEditTitle(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && saveEdit()}
-              placeholder="Song title"
-              style={{
-                flex: 1, background: C.input, border: `1px solid ${C.gold}`,
-                borderRadius: 8, padding: '7px 10px', color: C.text,
-                fontSize: 13, outline: 'none', fontFamily: 'inherit',
-              }}
-            />
-            <input
-              value={editArtist}
-              onChange={e => setEditArtist(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && saveEdit()}
-              placeholder="Artist"
-              style={{
-                width: 110, background: C.input, border: `1px solid ${C.border}`,
-                borderRadius: 8, padding: '7px 10px', color: C.text,
-                fontSize: 13, outline: 'none', fontFamily: 'inherit',
-              }}
-            />
+            <input autoFocus value={editTitle} onChange={e => setEditTitle(e.target.value)} onKeyDown={e => e.key === 'Enter' && saveEdit()} placeholder="Song title"
+              style={{ flex: 1, background: C.input, border: `1px solid ${C.gold}`, borderRadius: 8, padding: '7px 10px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit' }} />
+            <input value={editArtist} onChange={e => setEditArtist(e.target.value)} onKeyDown={e => e.key === 'Enter' && saveEdit()} placeholder="Artist"
+              style={{ width: 110, background: C.input, border: `1px solid ${C.border}`, borderRadius: 8, padding: '7px 10px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit' }} />
             <button onClick={saveEdit} style={{ color: C.gold, flexShrink: 0 }}><Check size={15} /></button>
             <button onClick={() => setMode('view')} style={{ color: C.muted, flexShrink: 0 }}><X size={15} /></button>
           </div>
         ) : (
           <div style={{ flex: 1, minWidth: 0 }}>
-            <p style={{
-              fontSize: 14, fontWeight: 600, color: C.text,
-              margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-            }}>
+            <p style={{ fontSize: 14, fontWeight: 600, color: C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {song.title}
             </p>
             {song.artist && song.artist !== artistName && (
-              <p style={{
-                fontSize: 11, color: C.secondary,
-                margin: '2px 0 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-              }}>
+              <p style={{ fontSize: 11, color: C.secondary, margin: '2px 0 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {song.artist}
+              </p>
+            )}
+            {/* Show ISRC if available */}
+            {song.isrc && (
+              <p style={{ fontSize: 10, color: C.muted, margin: '2px 0 0', fontFamily: '"DM Mono", monospace', letterSpacing: '0.04em' }}>
+                {song.isrc}
               </p>
             )}
           </div>
         )}
 
-        {/* Action buttons — view mode only */}
         {mode === 'view' && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
-            {isAuto && (
-              <span style={{
-                fontSize: 9, fontWeight: 700, letterSpacing: '0.1em',
-                color: C.gold, opacity: 0.55, marginRight: 4,
-                textTransform: 'uppercase',
-              }}>⚡</span>
-            )}
-            <button
-              onClick={() => setMode('swap')}
-              title="Wrong song?"
-              style={{
-                color: C.muted, padding: '5px', borderRadius: 6,
-                display: 'flex', alignItems: 'center',
-                transition: 'color 0.15s',
-              }}
+            {isAuto && <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', color: C.gold, opacity: 0.55, marginRight: 4, textTransform: 'uppercase' }}>⚡</span>}
+            <button onClick={() => setMode('swap')} title="Wrong song?"
+              style={{ color: C.muted, padding: '5px', borderRadius: 6, display: 'flex', alignItems: 'center', transition: 'color 0.15s' }}
               onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = C.secondary}
-              onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = C.muted}
-            >
+              onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = C.muted}>
               <RefreshCw size={12} />
             </button>
-            <button
-              onClick={() => { setEditTitle(song.title); setEditArtist(song.artist); setMode('edit') }}
-              style={{
-                color: C.muted, padding: '5px', borderRadius: 6,
-                display: 'flex', alignItems: 'center',
-                transition: 'color 0.15s',
-              }}
+            <button onClick={() => { setEditTitle(song.title); setEditArtist(song.artist); setMode('edit') }}
+              style={{ color: C.muted, padding: '5px', borderRadius: 6, display: 'flex', alignItems: 'center', transition: 'color 0.15s' }}
               onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = C.secondary}
-              onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = C.muted}
-            >
+              onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = C.muted}>
               <Pencil size={12} />
             </button>
-            <button
-              onClick={() => onDelete(song.id)}
-              style={{
-                color: C.muted, padding: '5px', borderRadius: 6,
-                display: 'flex', alignItems: 'center',
-                transition: 'color 0.15s',
-              }}
+            <button onClick={() => onDelete(song.id)}
+              style={{ color: C.muted, padding: '5px', borderRadius: 6, display: 'flex', alignItems: 'center', transition: 'color 0.15s' }}
               onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = C.red}
-              onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = C.muted}
-            >
+              onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = C.muted}>
               <Trash2 size={12} />
             </button>
           </div>
         )}
       </div>
 
-      {/* Swap panel */}
       {mode === 'swap' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <p style={{
-            fontSize: 10, fontWeight: 700, letterSpacing: '0.12em',
-            textTransform: 'uppercase', color: C.gold, margin: 0,
-          }}>
+          <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.gold, margin: 0 }}>
             Replace "{song.title}" with:
           </p>
-          <input
-            autoFocus value={swapQuery}
-            onChange={e => setSwapQuery(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && saveSwap()}
-            placeholder="Correct song title"
-            style={{
-              background: C.input, border: `1px solid ${C.gold}`,
-              borderRadius: 8, padding: '9px 12px', color: C.text,
-              fontSize: 13, outline: 'none', fontFamily: 'inherit',
-            }}
-          />
-          <input
-            value={swapArtist}
-            onChange={e => setSwapArtist(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && saveSwap()}
-            placeholder="Artist (optional)"
-            style={{
-              background: C.input, border: `1px solid ${C.border}`,
-              borderRadius: 8, padding: '9px 12px', color: C.text,
-              fontSize: 13, outline: 'none', fontFamily: 'inherit',
-            }}
-          />
+          <input autoFocus value={swapQuery} onChange={e => setSwapQuery(e.target.value)} onKeyDown={e => e.key === 'Enter' && saveSwap()} placeholder="Correct song title"
+            style={{ background: C.input, border: `1px solid ${C.gold}`, borderRadius: 8, padding: '9px 12px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit' }} />
+          <input value={swapArtist} onChange={e => setSwapArtist(e.target.value)} onKeyDown={e => e.key === 'Enter' && saveSwap()} placeholder="Artist (optional)"
+            style={{ background: C.input, border: `1px solid ${C.border}`, borderRadius: 8, padding: '9px 12px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit' }} />
           <div style={{ display: 'flex', gap: 8 }}>
-            <button
-              onClick={saveSwap}
-              style={{
-                flex: 1, background: C.gold, border: 'none',
-                borderRadius: 8, padding: '9px', color: '#0a0908',
-                fontSize: 12, fontWeight: 700, letterSpacing: '0.06em',
-                textTransform: 'uppercase', cursor: 'pointer',
-              }}
-            >
+            <button onClick={saveSwap} style={{ flex: 1, background: C.gold, border: 'none', borderRadius: 8, padding: '9px', color: '#0a0908', fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}>
               Swap
             </button>
-            <button
-              onClick={() => setMode('view')}
-              style={{
-                padding: '9px 16px', background: 'rgba(255,255,255,0.04)',
-                border: `1px solid ${C.border}`, borderRadius: 8,
-                color: C.secondary, fontSize: 12, cursor: 'pointer',
-              }}
-            >
+            <button onClick={() => setMode('view')} style={{ padding: '9px 16px', background: 'rgba(255,255,255,0.04)', border: `1px solid ${C.border}`, borderRadius: 8, color: C.secondary, fontSize: 12, cursor: 'pointer' }}>
               Cancel
             </button>
           </div>
@@ -301,18 +188,17 @@ function SortableRow({ song, index, onDelete, onEdit, artistName }: {
 export default function ReviewPage({ params }: { params: { id: string } }) {
   const router = useRouter()
   const [performance, setPerformance] = useState<Performance | null>(null)
-  const [setlistId, setSetlistId] = useState<string | null>(null)
-  const [songs, setSongs] = useState<Song[]>([])
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
+  const [setlistId, setSetlistId]     = useState<string | null>(null)
+  const [songs, setSongs]             = useState<Song[]>([])
+  const [loading, setLoading]         = useState(true)
+  const [saving, setSaving]           = useState(false)
+  const [saved, setSaved]             = useState(false)
   const [showComplete, setShowComplete] = useState(false)
-  const [newTitle, setNewTitle] = useState('')
-  const [newArtist, setNewArtist] = useState('')
-  const [showAdd, setShowAdd] = useState(false)
+  const [newTitle, setNewTitle]       = useState('')
+  const [newArtist, setNewArtist]     = useState('')
+  const [showAdd, setShowAdd]         = useState(false)
   const [selectedPRO, setSelectedPRO] = useState<PRO>('SOCAN')
-  const [showExport, setShowExport] = useState(false)
-  const [mounted, setMounted] = useState(false)
+  const [showExport, setShowExport]   = useState(false)
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -320,7 +206,6 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
   )
 
   useEffect(() => {
-    setMounted(true)
     const supabase = createClient()
     supabase.from('performances')
       .select('*')
@@ -341,25 +226,32 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
               id: s.id, title: s.title, artist: s.artist_name || '',
               position: s.position, source: s.source,
               recognition_decision_id: s.recognition_decision_id,
+              isrc: s.isrc || '', composer: s.composer || '', publisher: s.publisher || '',
             })))
             setLoading(false); return
           }
         }
 
-const { data: songData } = await supabase
-  .from('performance_songs').select('*')
-  .eq('performance_id', params.id).order('position')
-if (songData) {
-  setSongs(songData.map(s => ({
-    id: s.id || String(s.position), title: s.title,
-    artist: s.artist || '', position: s.position,
-    source: s.source || 'recognized',
-    recognition_decision_id: null,
-    isrc: s.isrc || '',
-    composer: s.composer || '',
-    publisher: s.publisher || '',
-  })))
-}
+        // ── Fallback: performance_songs — now includes isrc, composer, publisher ──
+        const { data: songData } = await supabase
+          .from('performance_songs').select('*')
+          .eq('performance_id', params.id).order('position')
+        if (songData) {
+          setSongs(songData.map(s => ({
+            id: s.id || String(s.position),
+            title: s.title,
+            artist: s.artist || '',
+            position: s.position,
+            source: s.source || 'recognized',
+            recognition_decision_id: null,
+            isrc: s.isrc || '',
+            composer: s.composer || '',
+            publisher: s.publisher || '',
+          })))
+        }
+        setLoading(false)
+      })
+  }, [params.id])
 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event
@@ -389,6 +281,7 @@ if (songData) {
       position: songs.length + 1,
       source: 'manual',
       recognition_decision_id: null,
+      isrc: '', composer: '', publisher: '',
     }])
     setNewTitle(''); setNewArtist(''); setShowAdd(false)
   }
@@ -437,7 +330,13 @@ if (songData) {
     await supabase.from('performance_songs').delete().eq('performance_id', performance.id)
     await supabase.from('performance_songs').insert(
       songs.map((s, i) => ({
-        performance_id: performance.id, title: s.title, artist: s.artist, position: i + 1,
+        performance_id: performance.id,
+        title: s.title,
+        artist: s.artist,
+        position: i + 1,
+        isrc: s.isrc || null,
+        composer: s.composer || null,
+        publisher: s.publisher || null,
       }))
     )
     await supabase.from('performances').update({ status: 'completed' }).eq('id', performance.id)
@@ -448,45 +347,43 @@ if (songData) {
     setSaving(false); setSaved(true); setShowComplete(true)
   }, [performance, songs, setlistId])
 
-function generateExportCSV(pro: PRO) {
-  if (!performance) return
-  const date = new Date(performance.started_at).toLocaleDateString()
+  // ── CSV export — now includes ISRC and composer ───────────────────────────
+  function generateExportCSV(pro: PRO) {
+    if (!performance) return
+    const date = new Date(performance.started_at).toLocaleDateString()
 
-  const headers: Record<PRO, string[]> = {
-    SOCAN: ['Title', 'Artist', 'Composer', 'Publisher', 'ISRC', 'Duration', 'Date', 'Venue', 'City'],
-    ASCAP: ['Title', 'Performer', 'Composer/Author', 'Publisher', 'ISRC', 'Venue', 'Date', 'City', 'State'],
-    BMI:   ['Song Title', 'Artist', 'BMI Work #', 'Composer', 'Publisher', 'Venue Name', 'Date', 'City'],
+    const headers: Record<PRO, string[]> = {
+      SOCAN: ['Title', 'Artist', 'Composer', 'Publisher', 'ISRC', 'Duration', 'Date', 'Venue', 'City'],
+      ASCAP: ['Title', 'Performer', 'Composer/Author', 'Publisher', 'ISRC', 'Venue', 'Date', 'City', 'State'],
+      BMI:   ['Song Title', 'Artist', 'BMI Work #', 'Composer', 'Publisher', 'Venue Name', 'Date', 'City'],
+    }
+
+    const rows = songs.map(s => {
+      const composer  = s.composer  || ''
+      const publisher = s.publisher || ''
+      const isrc      = s.isrc      || ''
+
+      if (pro === 'SOCAN') return [
+        s.title, s.artist, composer, publisher, isrc, '', date, performance.venue_name, performance.city,
+      ]
+      if (pro === 'ASCAP') return [
+        s.title, performance.artist_name, composer, publisher, isrc, performance.venue_name, date, performance.city, performance.country || '',
+      ]
+      // BMI
+      return [
+        s.title, performance.artist_name, '', composer, publisher, performance.venue_name, date, performance.city,
+      ]
+    })
+
+    const csv = [headers[pro], ...rows].map(r => r.map(v => `"${v}"`).join(',')).join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url  = URL.createObjectURL(blob)
+    const a    = document.createElement('a')
+    a.href     = url
+    a.download = `${pro}-setlist-${performance.venue_name}-${new Date(performance.started_at).toLocaleDateString().replace(/\//g, '-')}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
   }
-
-  const rows = songs.map(s => {
-    const composer  = s.composer  || ''
-    const publisher = s.publisher || ''
-    const isrc      = s.isrc      || ''
-
-    if (pro === 'SOCAN') return [
-      s.title, s.artist, composer, publisher, isrc, '', date, performance.venue_name, performance.city
-    ]
-    if (pro === 'ASCAP') return [
-      s.title, performance.artist_name, composer, publisher, isrc, performance.venue_name, date, performance.city, performance.country || ''
-    ]
-    // BMI
-    return [
-      s.title, performance.artist_name, '', composer, publisher, performance.venue_name, date, performance.city
-    ]
-  })
-
-  const csv = [headers[pro], ...rows]
-    .map(r => r.map(v => `"${v}"`).join(','))
-    .join('\n')
-
-  const blob = new Blob([csv], { type: 'text/csv' })
-  const url  = URL.createObjectURL(blob)
-  const a    = document.createElement('a')
-  a.href     = url
-  a.download = `${pro}-setlist-${performance.venue_name}-${new Date(performance.started_at).toLocaleDateString().replace(/\//g, '-')}.csv`
-  a.click()
-  URL.revokeObjectURL(url)
-}
 
   function formatDate(d: string) {
     return new Date(d).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
@@ -498,23 +395,12 @@ function generateExportCSV(pro: PRO) {
     return `${mins} min`
   }
 
-  // ── Loading ──────────────────────────────────────────────────────────────────
-
   if (loading) {
     return (
-      <div style={{
-        minHeight: '100svh', background: C.bg,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-      }}>
+      <div style={{ minHeight: '100svh', background: C.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
-          <div style={{
-            width: 44, height: 44, borderRadius: '50%',
-            border: `1.5px solid ${C.gold}`,
-            animation: 'breathe 1.8s ease-in-out infinite',
-          }} />
-          <span style={{ color: C.muted, fontSize: 11, letterSpacing: '0.15em', textTransform: 'uppercase' }}>
-            Loading
-          </span>
+          <div style={{ width: 44, height: 44, borderRadius: '50%', border: `1.5px solid ${C.gold}`, animation: 'breathe 1.8s ease-in-out infinite' }} />
+          <span style={{ color: C.muted, fontSize: 11, letterSpacing: '0.15em', textTransform: 'uppercase' }}>Loading</span>
         </div>
         <style>{`@keyframes breathe { 0%,100%{transform:scale(1);opacity:.3} 50%{transform:scale(1.2);opacity:.8} }`}</style>
       </div>
@@ -524,157 +410,69 @@ function generateExportCSV(pro: PRO) {
   const autoCount = songs.filter(s => s.source === 'recognized' || s.source === 'detected').length
   const dur = formatDuration()
 
-  // ── Completion overlay ───────────────────────────────────────────────────────
-
   if (showComplete) {
     return (
       <div style={{
-        minHeight: '100svh', background: C.bg,
-        display: 'flex', flexDirection: 'column',
-        alignItems: 'center', justifyContent: 'center',
-        padding: '24px 20px',
+        minHeight: '100svh', background: C.bg, display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center', padding: '24px 20px',
         fontFamily: '"DM Sans", system-ui, sans-serif',
       }}>
-        {/* Ambient glow */}
-        <div style={{
-          position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)',
-          width: '120vw', height: '50vh', pointerEvents: 'none',
-          background: 'radial-gradient(ellipse at 50% 0%, rgba(74,222,128,0.07) 0%, transparent 65%)',
-        }} />
+        <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '50vh', pointerEvents: 'none', background: 'radial-gradient(ellipse at 50% 0%, rgba(74,222,128,0.07) 0%, transparent 65%)' }} />
 
-        <div style={{
-          width: '100%', maxWidth: 420, position: 'relative', zIndex: 1,
-          display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center',
-          animation: 'fadeUp 0.5s ease',
-        }}>
-          {/* Check mark */}
-          <div style={{
-            width: 64, height: 64, borderRadius: '50%', marginBottom: 24,
-            background: 'rgba(74,222,128,0.1)',
-            border: '1px solid rgba(74,222,128,0.25)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>
+        <div style={{ width: '100%', maxWidth: 420, position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', animation: 'fadeUp 0.5s ease' }}>
+          <div style={{ width: 64, height: 64, borderRadius: '50%', marginBottom: 24, background: 'rgba(74,222,128,0.1)', border: '1px solid rgba(74,222,128,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <Check size={26} color={C.green} strokeWidth={2.5} />
           </div>
 
-          <h1 style={{
-            fontSize: 28, fontWeight: 800, color: C.text,
-            margin: '0 0 6px', letterSpacing: '-0.03em',
-          }}>
-            Setlist Saved
-          </h1>
-          <p style={{ fontSize: 14, color: C.secondary, margin: '0 0 4px' }}>
-            {performance?.venue_name} · {performance?.city}
-          </p>
+          <h1 style={{ fontSize: 28, fontWeight: 800, color: C.text, margin: '0 0 6px', letterSpacing: '-0.03em' }}>Setlist Saved</h1>
+          <p style={{ fontSize: 14, color: C.secondary, margin: '0 0 4px' }}>{performance?.venue_name} · {performance?.city}</p>
           <p style={{ fontSize: 12, color: C.muted, margin: '0 0 28px' }}>
             {songs.length} songs · {autoCount > 0 ? `${autoCount} auto-detected` : 'all manual'}
           </p>
 
-          {/* Setlist preview */}
-          <div style={{
-            width: '100%', background: C.card,
-            border: `1px solid ${C.border}`, borderRadius: 16,
-            padding: '16px', marginBottom: 16,
-            maxHeight: 240, overflowY: 'auto',
-          }}>
-            <p style={{
-              fontSize: 10, fontWeight: 700, letterSpacing: '0.14em',
-              textTransform: 'uppercase', color: C.muted, margin: '0 0 12px',
-            }}>
-              Setlist
-            </p>
+          <div style={{ width: '100%', background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '16px', marginBottom: 16, maxHeight: 240, overflowY: 'auto' }}>
+            <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.muted, margin: '0 0 12px' }}>Setlist</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {songs.map((s, i) => (
                 <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span style={{
-                    fontSize: 10, color: C.muted, minWidth: 16, textAlign: 'right',
-                    fontFamily: '"DM Mono", monospace', fontVariantNumeric: 'tabular-nums',
-                  }}>
-                    {i + 1}
-                  </span>
-                  <div style={{ minWidth: 0 }}>
+                  <span style={{ fontSize: 10, color: C.muted, minWidth: 16, textAlign: 'right', fontFamily: '"DM Mono", monospace', fontVariantNumeric: 'tabular-nums' }}>{i + 1}</span>
+                  <div style={{ minWidth: 0, flex: 1 }}>
                     <p style={{ fontSize: 13, color: C.text, margin: 0, fontWeight: 600 }}>{s.title}</p>
                     {s.artist && s.artist !== performance?.artist_name && (
                       <p style={{ fontSize: 11, color: C.muted, margin: '1px 0 0' }}>{s.artist}</p>
                     )}
+                    {s.isrc && <p style={{ fontSize: 9, color: C.muted, margin: '1px 0 0', fontFamily: '"DM Mono", monospace' }}>{s.isrc}</p>}
                   </div>
                   {(s.source === 'recognized' || s.source === 'detected') && (
-                    <span style={{ fontSize: 9, color: C.gold, opacity: 0.5, marginLeft: 'auto', flexShrink: 0 }}>⚡</span>
+                    <span style={{ fontSize: 9, color: C.gold, opacity: 0.5, flexShrink: 0 }}>⚡</span>
                   )}
                 </div>
               ))}
             </div>
           </div>
 
-          {/* PRO Export */}
-          <div style={{
-            width: '100%', background: C.card,
-            border: `1px solid ${C.border}`, borderRadius: 16,
-            padding: '16px', marginBottom: 20,
-          }}>
-            <p style={{
-              fontSize: 10, fontWeight: 700, letterSpacing: '0.14em',
-              textTransform: 'uppercase', color: C.muted, margin: '0 0 12px',
-              display: 'flex', alignItems: 'center', gap: 6,
-            }}>
+          <div style={{ width: '100%', background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '16px', marginBottom: 20 }}>
+            <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.muted, margin: '0 0 12px', display: 'flex', alignItems: 'center', gap: 6 }}>
               <Download size={10} />
               PRO Submission Export
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {(['SOCAN', 'ASCAP', 'BMI'] as PRO[]).map(pro => (
-                <button
-                  key={pro}
-                  onClick={() => generateExportCSV(pro)}
-                  style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '10px 14px',
-                    background: 'transparent',
-                    border: `1px solid ${C.border}`,
-                    borderRadius: 10, color: C.text, fontSize: 13, fontWeight: 600,
-                    cursor: 'pointer', transition: 'all 0.15s ease',
-                    fontFamily: 'inherit',
-                  }}
-                  onMouseEnter={e => {
-                    const el = e.currentTarget as HTMLElement
-                    el.style.borderColor = C.gold + '60'
-                    el.style.color = C.gold
-                    el.style.background = C.goldDim
-                  }}
-                  onMouseLeave={e => {
-                    const el = e.currentTarget as HTMLElement
-                    el.style.borderColor = C.border
-                    el.style.color = C.text
-                    el.style.background = 'transparent'
-                  }}
-                >
+                <button key={pro} onClick={() => generateExportCSV(pro)}
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: 'transparent', border: `1px solid ${C.border}`, borderRadius: 10, color: C.text, fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s ease', fontFamily: 'inherit' }}
+                  onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.borderColor = C.gold + '60'; el.style.color = C.gold; el.style.background = C.goldDim }}
+                  onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.borderColor = C.border; el.style.color = C.text; el.style.background = 'transparent' }}>
                   <span>{pro}</span>
-                  <span style={{ fontSize: 11, color: C.muted }}>
-                    {pro === 'SOCAN' ? 'Canada' : 'USA'} · CSV
-                  </span>
+                  <span style={{ fontSize: 11, color: C.muted }}>{pro === 'SOCAN' ? 'Canada' : 'USA'} · CSV</span>
                 </button>
               ))}
             </div>
           </div>
 
-          <button
-            onClick={() => router.push('/app/dashboard')}
-            style={{
-              width: '100%', padding: '14px',
-              background: C.gold, border: 'none', borderRadius: 12,
-              color: '#0a0908', fontSize: 13, fontWeight: 800,
-              letterSpacing: '0.06em', textTransform: 'uppercase',
-              cursor: 'pointer', marginBottom: 12,
-            }}
-          >
+          <button onClick={() => router.push('/app/dashboard')} style={{ width: '100%', padding: '14px', background: C.gold, border: 'none', borderRadius: 12, color: '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', marginBottom: 12 }}>
             Back to Dashboard
           </button>
-          <button
-            onClick={() => setShowComplete(false)}
-            style={{
-              background: 'none', border: 'none', color: C.muted,
-              fontSize: 12, cursor: 'pointer', letterSpacing: '0.04em',
-            }}
-          >
+          <button onClick={() => setShowComplete(false)} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 12, cursor: 'pointer', letterSpacing: '0.04em' }}>
             Back to Review
           </button>
         </div>
@@ -687,201 +485,72 @@ function generateExportCSV(pro: PRO) {
     )
   }
 
-  // ── Main review page ─────────────────────────────────────────────────────────
-
   return (
-    <div style={{
-      minHeight: '100svh', background: C.bg,
-      fontFamily: '"DM Sans", system-ui, sans-serif',
-      display: 'flex', flexDirection: 'column',
-    }}>
+    <div style={{ minHeight: '100svh', background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif', display: 'flex', flexDirection: 'column' }}>
 
-      {/* Ambient top glow */}
-      <div style={{
-        position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)',
-        width: '100vw', height: '40vh', pointerEvents: 'none', zIndex: 0,
-        background: 'radial-gradient(ellipse at 50% 0%, rgba(201,168,76,0.05) 0%, transparent 65%)',
-      }} />
+      <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '100vw', height: '40vh', pointerEvents: 'none', zIndex: 0, background: 'radial-gradient(ellipse at 50% 0%, rgba(201,168,76,0.05) 0%, transparent 65%)' }} />
 
-      <div style={{
-        position: 'relative', zIndex: 1,
-        flex: 1, display: 'flex', flexDirection: 'column',
-        maxWidth: 480, width: '100%', margin: '0 auto',
-        padding: '0 16px',
-        boxSizing: 'border-box',
-      }}>
+      <div style={{ position: 'relative', zIndex: 1, flex: 1, display: 'flex', flexDirection: 'column', maxWidth: 480, width: '100%', margin: '0 auto', padding: '0 16px', boxSizing: 'border-box' }}>
 
         {/* ── Header ── */}
         <div style={{ paddingTop: 28, paddingBottom: 20, animation: 'fadeUp 0.4s ease' }}>
-          {/* Review label */}
-          <div style={{
-            display: 'inline-flex', alignItems: 'center', gap: 6,
-            background: C.goldDim, border: `1px solid ${C.borderGold}`,
-            borderRadius: 20, padding: '4px 10px', marginBottom: 14,
-          }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 20, padding: '4px 10px', marginBottom: 14 }}>
             <div style={{ width: 5, height: 5, borderRadius: '50%', background: C.gold }} />
-            <span style={{
-              fontSize: 10, fontWeight: 700, letterSpacing: '0.14em',
-              textTransform: 'uppercase', color: C.gold,
-            }}>
-              Review Setlist
-            </span>
+            <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.gold }}>Review Setlist</span>
           </div>
 
-          <h1 style={{
-            fontSize: 26, fontWeight: 800, color: C.text,
-            margin: '0 0 8px', letterSpacing: '-0.025em', lineHeight: 1.15,
-          }}>
+          <h1 style={{ fontSize: 26, fontWeight: 800, color: C.text, margin: '0 0 8px', letterSpacing: '-0.025em', lineHeight: 1.15 }}>
             {performance?.venue_name}
           </h1>
 
-          {/* Meta row */}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: C.secondary }}>
-              <MapPin size={11} />
-              {performance?.city}, {performance?.country}
-            </span>
-            {performance?.started_at && (
-              <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: C.secondary }}>
-                <Calendar size={11} />
-                {formatDate(performance.started_at)}
-              </span>
-            )}
-            {dur && (
-              <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: C.secondary }}>
-                <Music2 size={11} />
-                {dur}
-              </span>
-            )}
+            <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: C.secondary }}><MapPin size={11} />{performance?.city}, {performance?.country}</span>
+            {performance?.started_at && <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: C.secondary }}><Calendar size={11} />{formatDate(performance.started_at)}</span>}
+            {dur && <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: C.secondary }}><Music2 size={11} />{dur}</span>}
           </div>
 
-          {/* Stats strip */}
-          <div style={{
-            display: 'flex', gap: 8, marginTop: 16,
-          }}>
+          <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
             {[
               { label: 'Songs', value: songs.length },
               { label: 'Auto-detected', value: autoCount },
               { label: 'Manual', value: songs.length - autoCount },
             ].map(stat => (
-              <div key={stat.label} style={{
-                flex: 1, padding: '10px 12px',
-                background: C.card, border: `1px solid ${C.border}`,
-                borderRadius: 10, textAlign: 'center',
-              }}>
-                <p style={{
-                  fontSize: 20, fontWeight: 800, color: C.gold,
-                  margin: 0, fontFamily: '"DM Mono", monospace',
-                  fontVariantNumeric: 'tabular-nums',
-                }}>
-                  {stat.value}
-                </p>
-                <p style={{ fontSize: 9, color: C.muted, margin: '2px 0 0', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-                  {stat.label}
-                </p>
+              <div key={stat.label} style={{ flex: 1, padding: '10px 12px', background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, textAlign: 'center' }}>
+                <p style={{ fontSize: 20, fontWeight: 800, color: C.gold, margin: 0, fontFamily: '"DM Mono", monospace', fontVariantNumeric: 'tabular-nums' }}>{stat.value}</p>
+                <p style={{ fontSize: 9, color: C.muted, margin: '2px 0 0', letterSpacing: '0.08em', textTransform: 'uppercase' }}>{stat.label}</p>
               </div>
             ))}
           </div>
         </div>
 
         {/* ── Song list header ── */}
-        <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          marginBottom: 10,
-          animation: 'fadeUp 0.4s 0.05s ease both',
-        }}>
-          <span style={{
-            fontSize: 10, fontWeight: 700, letterSpacing: '0.14em',
-            textTransform: 'uppercase', color: C.muted,
-          }}>
-            Setlist
-          </span>
-          <button
-            onClick={() => setShowAdd(!showAdd)}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 5,
-              background: showAdd ? C.goldDim : 'transparent',
-              border: `1px solid ${showAdd ? C.borderGold : C.border}`,
-              borderRadius: 20, padding: '5px 10px',
-              color: showAdd ? C.gold : C.muted,
-              fontSize: 11, fontWeight: 700, cursor: 'pointer',
-              letterSpacing: '0.06em', transition: 'all 0.15s ease',
-              fontFamily: 'inherit',
-            }}
-          >
-            <span style={{
-              display: 'inline-block',
-              transform: showAdd ? 'rotate(45deg)' : 'rotate(0)',
-              transition: 'transform 0.2s ease',
-              fontSize: 14, lineHeight: 1,
-            }}>+</span>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, animation: 'fadeUp 0.4s 0.05s ease both' }}>
+          <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.muted }}>Setlist</span>
+          <button onClick={() => setShowAdd(!showAdd)}
+            style={{ display: 'flex', alignItems: 'center', gap: 5, background: showAdd ? C.goldDim : 'transparent', border: `1px solid ${showAdd ? C.borderGold : C.border}`, borderRadius: 20, padding: '5px 10px', color: showAdd ? C.gold : C.muted, fontSize: 11, fontWeight: 700, cursor: 'pointer', letterSpacing: '0.06em', transition: 'all 0.15s ease', fontFamily: 'inherit' }}>
+            <span style={{ display: 'inline-block', transform: showAdd ? 'rotate(45deg)' : 'rotate(0)', transition: 'transform 0.2s ease', fontSize: 14, lineHeight: 1 }}>+</span>
             Add Song
           </button>
         </div>
 
         {/* ── Add song panel ── */}
         {showAdd && (
-          <div style={{
-            background: C.card, border: `1px solid ${C.borderGold}`,
-            borderRadius: 12, padding: 14, marginBottom: 10,
-            display: 'flex', flexDirection: 'column', gap: 8,
-            animation: 'slideUp 0.2s ease',
-          }}>
-            <input
-              autoFocus value={newTitle}
-              onChange={e => setNewTitle(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleAdd()}
-              placeholder="Song title"
-              style={{
-                background: C.input, border: `1px solid ${C.border}`,
-                borderRadius: 8, padding: '10px 12px', color: C.text,
-                fontSize: 13, outline: 'none', fontFamily: 'inherit',
-                width: '100%', boxSizing: 'border-box',
-              }}
-            />
-            <input
-              value={newArtist}
-              onChange={e => setNewArtist(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleAdd()}
-              placeholder={`Artist (default: ${performance?.artist_name})`}
-              style={{
-                background: C.input, border: `1px solid ${C.border}`,
-                borderRadius: 8, padding: '10px 12px', color: C.text,
-                fontSize: 13, outline: 'none', fontFamily: 'inherit',
-                width: '100%', boxSizing: 'border-box',
-              }}
-            />
+          <div style={{ background: C.card, border: `1px solid ${C.borderGold}`, borderRadius: 12, padding: 14, marginBottom: 10, display: 'flex', flexDirection: 'column', gap: 8, animation: 'slideUp 0.2s ease' }}>
+            <input autoFocus value={newTitle} onChange={e => setNewTitle(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAdd()} placeholder="Song title"
+              style={{ background: C.input, border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 12px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' }} />
+            <input value={newArtist} onChange={e => setNewArtist(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAdd()} placeholder={`Artist (default: ${performance?.artist_name})`}
+              style={{ background: C.input, border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 12px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' }} />
             <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={handleAdd} disabled={!newTitle.trim()} style={{
-                flex: 1, background: newTitle.trim() ? C.gold : C.muted,
-                border: 'none', borderRadius: 8, padding: '10px',
-                color: '#0a0908', fontSize: 12, fontWeight: 700,
-                letterSpacing: '0.06em', textTransform: 'uppercase',
-                cursor: newTitle.trim() ? 'pointer' : 'not-allowed',
-                opacity: newTitle.trim() ? 1 : 0.4, fontFamily: 'inherit',
-              }}>Add</button>
-              <button onClick={() => setShowAdd(false)} style={{
-                padding: '10px 16px', background: 'rgba(255,255,255,0.04)',
-                border: `1px solid ${C.border}`, borderRadius: 8,
-                color: C.secondary, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit',
-              }}>Cancel</button>
+              <button onClick={handleAdd} disabled={!newTitle.trim()} style={{ flex: 1, background: newTitle.trim() ? C.gold : C.muted, border: 'none', borderRadius: 8, padding: '10px', color: '#0a0908', fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: newTitle.trim() ? 'pointer' : 'not-allowed', opacity: newTitle.trim() ? 1 : 0.4, fontFamily: 'inherit' }}>Add</button>
+              <button onClick={() => setShowAdd(false)} style={{ padding: '10px 16px', background: 'rgba(255,255,255,0.04)', border: `1px solid ${C.border}`, borderRadius: 8, color: C.secondary, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
             </div>
           </div>
         )}
 
         {/* ── Empty state ── */}
         {songs.length === 0 && (
-          <div style={{
-            display: 'flex', flexDirection: 'column', alignItems: 'center',
-            justifyContent: 'center', padding: '64px 0',
-            animation: 'fadeUp 0.4s ease',
-          }}>
-            <div style={{
-              width: 56, height: 56, borderRadius: '50%',
-              background: C.card, border: `1px solid ${C.border}`,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              marginBottom: 16,
-            }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '64px 0', animation: 'fadeUp 0.4s ease' }}>
+            <div style={{ width: 56, height: 56, borderRadius: '50%', background: C.card, border: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
               <Music2 size={22} color={C.muted} />
             </div>
             <p style={{ fontSize: 14, color: C.secondary, margin: 0 }}>No songs detected</p>
@@ -896,11 +565,7 @@ function generateExportCSV(pro: PRO) {
               <SortableContext items={songs.map(s => s.id)} strategy={verticalListSortingStrategy}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {songs.map((song, index) => (
-                    <SortableRow
-                      key={song.id} song={song} index={index}
-                      onDelete={handleDelete} onEdit={handleEdit}
-                      artistName={performance?.artist_name || ''}
-                    />
+                    <SortableRow key={song.id} song={song} index={index} onDelete={handleDelete} onEdit={handleEdit} artistName={performance?.artist_name || ''} />
                   ))}
                 </div>
               </SortableContext>
@@ -909,67 +574,25 @@ function generateExportCSV(pro: PRO) {
         )}
 
         {/* ── Export accordion ── */}
-        <div style={{
-          marginTop: 20,
-          background: C.card, border: `1px solid ${C.border}`,
-          borderRadius: 14, overflow: 'hidden',
-          animation: 'fadeUp 0.4s 0.15s ease both',
-        }}>
-          <button
-            onClick={() => setShowExport(!showExport)}
-            style={{
-              width: '100%', display: 'flex', alignItems: 'center',
-              justifyContent: 'space-between', padding: '14px 16px',
-              background: 'none', border: 'none', cursor: 'pointer',
-              fontFamily: 'inherit',
-            }}
-          >
-            <span style={{
-              display: 'flex', alignItems: 'center', gap: 8,
-              fontSize: 13, fontWeight: 600, color: C.text,
-            }}>
+        <div style={{ marginTop: 20, background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, overflow: 'hidden', animation: 'fadeUp 0.4s 0.15s ease both' }}>
+          <button onClick={() => setShowExport(!showExport)}
+            style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 600, color: C.text }}>
               <Download size={14} color={C.gold} />
               Export for PRO Submission
             </span>
-            <span style={{
-              fontSize: 10, color: C.muted,
-              transform: showExport ? 'rotate(180deg)' : 'rotate(0)',
-              transition: 'transform 0.2s ease',
-              display: 'inline-block',
-            }}>▼</span>
+            <span style={{ fontSize: 10, color: C.muted, transform: showExport ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s ease', display: 'inline-block' }}>▼</span>
           </button>
 
           {showExport && (
-            <div style={{
-              padding: '0 14px 14px',
-              borderTop: `1px solid ${C.border}`,
-              animation: 'slideUp 0.15s ease',
-            }}>
-              <p style={{ fontSize: 11, color: C.muted, margin: '12px 0 10px' }}>
-                Select your PRO to download a formatted CSV:
-              </p>
+            <div style={{ padding: '0 14px 14px', borderTop: `1px solid ${C.border}`, animation: 'slideUp 0.15s ease' }}>
+              <p style={{ fontSize: 11, color: C.muted, margin: '12px 0 10px' }}>Select your PRO to download a formatted CSV:</p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {(['SOCAN', 'ASCAP', 'BMI'] as PRO[]).map(pro => (
-                  <button
-                    key={pro}
-                    onClick={() => generateExportCSV(pro)}
-                    onMouseEnter={() => setSelectedPRO(pro)}
-                    style={{
-                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                      padding: '11px 14px',
-                      background: selectedPRO === pro ? C.goldDim : 'transparent',
-                      border: `1px solid ${selectedPRO === pro ? C.borderGold : C.border}`,
-                      borderRadius: 10, cursor: 'pointer',
-                      transition: 'all 0.15s ease', fontFamily: 'inherit',
-                    }}
-                  >
-                    <span style={{
-                      fontSize: 13, fontWeight: 600,
-                      color: selectedPRO === pro ? C.gold : C.text,
-                    }}>{pro}</span>
-                    <span style={{ fontSize: 11, color: C.muted }}>
-                      {pro === 'SOCAN' ? 'Canada' : 'USA'} · CSV ↓
-                    </span>
+                  <button key={pro} onClick={() => generateExportCSV(pro)} onMouseEnter={() => setSelectedPRO(pro)}
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '11px 14px', background: selectedPRO === pro ? C.goldDim : 'transparent', border: `1px solid ${selectedPRO === pro ? C.borderGold : C.border}`, borderRadius: 10, cursor: 'pointer', transition: 'all 0.15s ease', fontFamily: 'inherit' }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: selectedPRO === pro ? C.gold : C.text }}>{pro}</span>
+                    <span style={{ fontSize: 11, color: C.muted }}>{pro === 'SOCAN' ? 'Canada' : 'USA'} · CSV ↓</span>
                   </button>
                 ))}
               </div>
@@ -978,61 +601,20 @@ function generateExportCSV(pro: PRO) {
         </div>
 
         {/* ── Save CTA ── */}
-        <div style={{
-          paddingTop: 14, paddingBottom: 40,
-          display: 'flex', flexDirection: 'column', gap: 10,
-          animation: 'fadeUp 0.4s 0.2s ease both',
-        }}>
-          <button
-            onClick={handleSave}
-            disabled={saving || saved}
-            style={{
-              width: '100%', padding: '15px',
-              background: saved ? '#16a34a' : C.gold,
-              border: 'none', borderRadius: 12,
-              color: saved ? '#fff' : '#0a0908',
-              fontSize: 13, fontWeight: 800,
-              letterSpacing: '0.08em', textTransform: 'uppercase',
-              cursor: saving || saved ? 'not-allowed' : 'pointer',
-              opacity: saving ? 0.7 : 1,
-              transition: 'all 0.25s ease',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-              fontFamily: 'inherit',
-            }}
-          >
-            {saved ? (
-              <><Check size={16} strokeWidth={2.5} /> Saved</>
-            ) : saving ? (
-              <>
-                <div style={{
-                  width: 14, height: 14, borderRadius: '50%',
-                  border: `2px solid #0a090840`,
-                  borderTopColor: '#0a0908',
-                  animation: 'spin 0.7s linear infinite',
-                  flexShrink: 0,
-                }} />
-                Saving...
-              </>
-            ) : (
-              'Save & Complete'
-            )}
+        <div style={{ paddingTop: 14, paddingBottom: 40, display: 'flex', flexDirection: 'column', gap: 10, animation: 'fadeUp 0.4s 0.2s ease both' }}>
+          <button onClick={handleSave} disabled={saving || saved}
+            style={{ width: '100%', padding: '15px', background: saved ? '#16a34a' : C.gold, border: 'none', borderRadius: 12, color: saved ? '#fff' : '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: saving || saved ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1, transition: 'all 0.25s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit' }}>
+            {saved ? <><Check size={16} strokeWidth={2.5} /> Saved</> : saving ? (
+              <><div style={{ width: 14, height: 14, borderRadius: '50%', border: `2px solid #0a090840`, borderTopColor: '#0a0908', animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />Saving...</>
+            ) : 'Save & Complete'}
           </button>
 
-          <button
-            onClick={() => router.push('/app/dashboard')}
-            style={{
-              background: 'none', border: 'none',
-              color: C.muted, fontSize: 12, cursor: 'pointer',
-              letterSpacing: '0.04em', fontFamily: 'inherit',
-              padding: '6px',
-            }}
-          >
+          <button onClick={() => router.push('/app/dashboard')} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 12, cursor: 'pointer', letterSpacing: '0.04em', fontFamily: 'inherit', padding: '6px' }}>
             Back to Dashboard
           </button>
         </div>
       </div>
 
-      {/* ── Global styles ── */}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500;700&display=swap');
         @keyframes fadeUp  { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
@@ -1049,3 +631,4 @@ function generateExportCSV(pro: PRO) {
     </div>
   )
 }
+
