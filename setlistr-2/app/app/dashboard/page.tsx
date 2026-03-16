@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { Plus, TrendingUp, Mic, Music4 } from 'lucide-react'
+import { Plus, TrendingUp, Mic, Music4, RefreshCw } from 'lucide-react'
 
 const C = {
   bg: '#0a0908', card: '#141210', cardHover: '#181614',
@@ -25,23 +25,17 @@ type Performance = {
   created_at: string
 }
 
-// ─── Royalty estimate helper ──────────────────────────────────────────────────
-// Easy to improve later — swap in real PRO rates or per-user settings
 function calcRoyaltyRange(songs: { show_type?: string }[]): {
   low: number; high: number; perSong: number
 } {
   if (songs.length === 0) return { low: 0, high: 0, perSong: 0 }
-
-  // Weight by show type — writer's rounds typically generate more writer royalties
   const total = songs.reduce((acc, s) => {
     const base = s.show_type === 'writers_round' ? 1.75 : 1.25
     return acc + base
   }, 0)
-
   const low  = Math.round(total * 0.7)
   const high = Math.round(total * 1.3)
   const perSong = Math.round((total / songs.length) * 100) / 100
-
   return { low, high, perSong }
 }
 
@@ -72,7 +66,6 @@ export default function DashboardPage() {
   const [totalSongs, setTotalSongs]     = useState(0)
   const [needsReview, setNeedsReview]   = useState(0)
   const [exported, setExported]         = useState(0)
-  // Each song row includes show_type for weighted estimate
   const [songRows, setSongRows]         = useState<{ show_type?: string }[]>([])
 
   useEffect(() => {
@@ -89,19 +82,19 @@ export default function DashboardPage() {
       if (data) {
         setPerformances(data)
         setNeedsReview(data.filter((p: Performance) => p.status === 'review').length)
-        setExported(data.filter((p: Performance) => p.status === 'exported' || p.status === 'completed' || p.status === 'complete').length)
+        setExported(data.filter((p: Performance) =>
+          p.status === 'exported' || p.status === 'completed' || p.status === 'complete'
+        ).length)
 
         const live = data.find((p: Performance) => p.status === 'live' || p.status === 'pending')
         setLivePerf(live || null)
 
-        // Get songs with their performance's show_type for weighted estimate
         const { data: songData } = await supabase
           .from('performance_songs')
           .select('performance_id')
 
         if (songData) {
           setTotalSongs(songData.length)
-          // Default all to single for now — update when show_type is available
           const rows = songData.map(() => ({ show_type: 'single' }))
           setSongRows(rows)
         }
@@ -202,6 +195,7 @@ export default function DashboardPage() {
             Capture your setlist in real time.
           </p>
 
+          {/* Start New Show */}
           <button
             onClick={() => router.push('/app/show/new')}
             style={{
@@ -219,6 +213,37 @@ export default function DashboardPage() {
             <Plus size={16} strokeWidth={2.5} />
             Start New Show
           </button>
+
+          {/* Reuse Previous Setlist — only shown when past shows exist */}
+          {performances.length > 0 && (
+            <button
+              onClick={() => router.push('/app/show/new?reuse=true')}
+              style={{
+                width: '100%', padding: '13px',
+                background: 'transparent',
+                border: `1px solid ${C.border}`,
+                borderRadius: 14, marginTop: 10,
+                color: C.secondary, fontSize: 13, fontWeight: 600,
+                letterSpacing: '0.04em',
+                cursor: 'pointer', transition: 'all 0.15s ease',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                fontFamily: 'inherit',
+              }}
+              onMouseEnter={e => {
+                const el = e.currentTarget as HTMLElement
+                el.style.borderColor = C.borderGold
+                el.style.color = C.gold
+              }}
+              onMouseLeave={e => {
+                const el = e.currentTarget as HTMLElement
+                el.style.borderColor = C.border
+                el.style.color = C.secondary
+              }}
+            >
+              <RefreshCw size={14} />
+              Reuse a Previous Setlist
+            </button>
+          )}
         </div>
 
         {/* ── Resume live show ── */}
@@ -276,14 +301,11 @@ export default function DashboardPage() {
         )}
 
         {/* ── Royalty Estimator ── */}
-        <div style={{
-          marginBottom: 20, animation: 'fadeUp 0.45s ease',
-        }}>
+        <div style={{ marginBottom: 20, animation: 'fadeUp 0.45s ease' }}>
           <div style={{
             background: C.card, border: `1px solid ${C.border}`,
             borderRadius: 14, padding: '20px',
           }}>
-            {/* Header */}
             <div style={{
               display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               marginBottom: 14,
@@ -307,9 +329,7 @@ export default function DashboardPage() {
               </span>
             </div>
 
-            {/* Main number */}
             {totalSongs === 0 ? (
-              /* Empty state */
               <div>
                 <p style={{
                   fontSize: 22, fontWeight: 800, color: C.muted,
@@ -337,7 +357,6 @@ export default function DashboardPage() {
               </div>
             )}
 
-            {/* Supporting metrics */}
             <div style={{
               display: 'grid', gridTemplateColumns: '1fr 1fr 1fr',
               gap: 8, marginBottom: 14,
@@ -353,7 +372,8 @@ export default function DashboardPage() {
                   borderRadius: 8, padding: '8px 10px', textAlign: 'center',
                 }}>
                   <p style={{
-                    fontSize: 16, fontWeight: 800, color: stat.value > 0 ? C.gold : C.muted,
+                    fontSize: 16, fontWeight: 800,
+                    color: stat.value > 0 ? C.gold : C.muted,
                     margin: 0, fontFamily: '"DM Mono", monospace',
                   }}>
                     {stat.value}
@@ -368,7 +388,6 @@ export default function DashboardPage() {
               ))}
             </div>
 
-            {/* Credibility disclaimer */}
             <p style={{
               fontSize: 10, color: C.muted, margin: 0, lineHeight: 1.5,
               borderTop: `1px solid ${C.border}`, paddingTop: 12,
@@ -408,7 +427,6 @@ export default function DashboardPage() {
             )}
           </div>
 
-          {/* Empty state */}
           {recentPerfs.length === 0 && (
             <div style={{
               background: C.card, border: `1px solid ${C.border}`,
@@ -443,7 +461,6 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {/* Performance rows */}
           {recentPerfs.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {recentPerfs.map((perf, i) => {
