@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Building2, Calendar, ArrowRight, Music4, Music2, RefreshCw, Check } from 'lucide-react'
 
@@ -21,7 +21,8 @@ type PastPerformance = {
 }
 
 export default function NewShowPage() {
-  const router = useRouter()
+  const router       = useRouter()
+  const searchParams = useSearchParams()
 
   // ── New show state ──────────────────────────────────────────────────────────
   const [name, setName]                 = useState('')
@@ -31,12 +32,12 @@ export default function NewShowPage() {
   const [loading, setLoading]           = useState(false)
   const [error, setError]               = useState('')
 
-  // ── Reuse setlist state ─────────────────────────────────────────────────────
-  const [showReuse, setShowReuse]               = useState(false)
-  const [pastPerfs, setPastPerfs]               = useState<PastPerformance[]>([])
-  const [pastLoading, setPastLoading]           = useState(false)
-  const [selectedPast, setSelectedPast]         = useState<PastPerformance | null>(null)
-  const [cloning, setCloning]                   = useState(false)
+  // ── Reuse setlist state — auto-open if ?reuse=true ──────────────────────────
+  const [showReuse, setShowReuse]       = useState(searchParams.get('reuse') === 'true')
+  const [pastPerfs, setPastPerfs]       = useState<PastPerformance[]>([])
+  const [pastLoading, setPastLoading]   = useState(false)
+  const [selectedPast, setSelectedPast] = useState<PastPerformance | null>(null)
+  const [cloning, setCloning]           = useState(false)
 
   const isValid = name.trim().length > 0
 
@@ -48,7 +49,6 @@ export default function NewShowPage() {
     const supabase = createClient()
 
     async function loadPast() {
-      // Load recent completed performances
       const { data: perfs } = await supabase
         .from('performances')
         .select('id, venue_name, artist_name, started_at')
@@ -58,7 +58,6 @@ export default function NewShowPage() {
 
       if (!perfs) { setPastLoading(false); return }
 
-      // Get song counts for each performance
       const { data: songs } = await supabase
         .from('performance_songs')
         .select('performance_id')
@@ -77,7 +76,6 @@ export default function NewShowPage() {
           started_at: p.started_at,
           song_count: countMap[p.id] || 0,
         }))
-        // Only show performances that actually have songs
         .filter(p => p.song_count > 0)
 
       setPastPerfs(mapped)
@@ -156,7 +154,6 @@ export default function NewShowPage() {
         ? new Date(scheduledAt).toISOString()
         : null
 
-      // 1. Create the show
       const { data: show, error: showError } = await supabase
         .from('shows')
         .insert({
@@ -172,7 +169,6 @@ export default function NewShowPage() {
 
       if (showError) throw showError
 
-      // 2. Create the performance
       const { data: performance, error: perfError } = await supabase
         .from('performances')
         .insert({
@@ -193,7 +189,7 @@ export default function NewShowPage() {
 
       if (perfError) throw perfError
 
-      // 3. Fetch songs from the selected past performance (ordered by position)
+      // Fetch songs from past performance in order
       const { data: sourceSongs, error: songsError } = await supabase
         .from('performance_songs')
         .select('title, artist, position')
@@ -202,7 +198,7 @@ export default function NewShowPage() {
 
       if (songsError) throw songsError
 
-      // 4. Insert cloned songs into new performance
+      // Clone songs into new performance
       if (sourceSongs && sourceSongs.length > 0) {
         const { error: insertError } = await supabase
           .from('performance_songs')
@@ -214,11 +210,10 @@ export default function NewShowPage() {
               position: s.position || i + 1,
             }))
           )
-
         if (insertError) throw insertError
       }
 
-      // 5. Go straight to review so user can confirm/edit before export
+      // Go to review so user can confirm/edit before export
       router.push(`/app/review/${performance.id}`)
     } catch (err: any) {
       setError(err?.message || 'Something went wrong. Please try again.')
@@ -384,7 +379,7 @@ export default function NewShowPage() {
           </div>
         )}
 
-        {/* ── Primary CTA ── */}
+        {/* ── Primary CTA — hidden when reuse panel open ── */}
         {!showReuse && (
           <button
             onClick={handleSubmit}
@@ -505,7 +500,6 @@ export default function NewShowPage() {
                         {isSelected && <Check size={11} color="#0a0908" strokeWidth={3} />}
                       </div>
 
-                      {/* Info */}
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <p style={{
                           fontSize: 13, fontWeight: 600,
@@ -520,7 +514,6 @@ export default function NewShowPage() {
                         </p>
                       </div>
 
-                      {/* Song count */}
                       <span style={{
                         fontSize: 11, fontWeight: 700,
                         color: isSelected ? C.gold : C.muted,
@@ -534,7 +527,7 @@ export default function NewShowPage() {
               </div>
             )}
 
-            {/* Clone CTA — only shown when a past perf is selected */}
+            {/* Clone CTA */}
             {selectedPast && (
               <div style={{ marginTop: 12, animation: 'slideUp 0.15s ease' }}>
                 <button
