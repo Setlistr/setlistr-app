@@ -23,7 +23,6 @@ type Performance = {
   status: string
   started_at: string
   created_at: string
-  show_type?: string
 }
 
 // ─── Royalty estimate helper ──────────────────────────────────────────────────
@@ -82,9 +81,8 @@ export default function DashboardPage() {
     async function load() {
       const { data, error } = await supabase
         .from('performances')
-        .select('id, venue_name, artist_name, city, country, status, started_at, created_at, show_type')
+        .select('id, venue_name, artist_name, city, country, status, started_at, created_at')
         .order('created_at', { ascending: false })
-        .limit(20)
 
       if (error) console.error('Dashboard error:', error)
 
@@ -103,14 +101,8 @@ export default function DashboardPage() {
 
         if (songData) {
           setTotalSongs(songData.length)
-
-          // Map each song to its show_type via the performances we already loaded
-          const perfMap: Record<string, string> = {}
-          data.forEach((p: Performance) => { perfMap[p.id] = p.show_type || 'single' })
-
-          const rows = songData.map((s: { performance_id: string }) => ({
-            show_type: perfMap[s.performance_id] || 'single',
-          }))
+          // Default all to single for now — update when show_type is available
+          const rows = songData.map(() => ({ show_type: 'single' }))
           setSongRows(rows)
         }
       }
@@ -178,17 +170,12 @@ export default function DashboardPage() {
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           padding: '20px 0 28px', animation: 'fadeUp 0.3s ease',
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{
-              width: 32, height: 32, borderRadius: '50%',
-              background: C.goldDim, border: `1px solid ${C.borderGold}`,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              <Music4 size={14} color={C.gold} />
-            </div>
-            <span style={{ fontSize: 15, fontWeight: 800, color: C.text, letterSpacing: '-0.01em' }}>
-              Setlistr
-            </span>
+          <div style={{
+            width: 32, height: 32, borderRadius: '50%',
+            background: C.goldDim, border: `1px solid ${C.borderGold}`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <Music4 size={14} color={C.gold} />
           </div>
           <button
             onClick={() => router.push('/app/history')}
@@ -366,7 +353,7 @@ export default function DashboardPage() {
                   borderRadius: 8, padding: '8px 10px', textAlign: 'center',
                 }}>
                   <p style={{
-                    fontSize: 16, fontWeight: 800, color: stat.value > 0 ? C.text : C.muted,
+                    fontSize: 16, fontWeight: 800, color: stat.value > 0 ? C.gold : C.muted,
                     margin: 0, fontFamily: '"DM Mono", monospace',
                   }}>
                     {stat.value}
