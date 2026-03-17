@@ -133,7 +133,7 @@ async function transcribeAudio(
 
   try {
     const form = new FormData()
-   form.append('file', new Blob([audioBuffer.buffer.slice(audioBuffer.byteOffset, audioBuffer.byteOffset + audioBuffer.byteLength)], { type: mimeType }), 'audio.webm')
+  form.append('file', new Blob([new Uint8Array(audioBuffer)], { type: mimeType }), 'audio.webm')
     form.append('model', 'gpt-4o-mini-transcribe')
     form.append('response_format', 'text')
     if (artistName) form.append('prompt', `Live music performance by ${artistName}.`)
