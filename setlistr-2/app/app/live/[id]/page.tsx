@@ -173,7 +173,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
 
       // ── Send context to identify route ──────────────────────────────────
       if (performance?.artist_name) formData.append('artist_name', performance.artist_name)
-      if (performance?.show_type)   formData.append('show_type', (performance as any).show_type || '')
+      formData.append('show_type', (performance as any).show_type || 'single')
 
       // Previous confirmed songs — helps clue extraction
       const confirmedTitles = confirmedSongsRef.current.map(s => s.title)
