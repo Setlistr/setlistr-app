@@ -20,7 +20,7 @@ const ACR_WEAK         = 30   // score 30–79 → weak, goes through scoring
 const ACR_ACOUSTIC     = 60   // writers_round: fallback if ACR < this
 const FLAP_MIN_COUNT   = 2    // flips needed to be UNSTABLE
 const COMBINED_AUTO    = 0.35 // combined score ≥ 0.35 → auto
-const COMBINED_SUGGEST = 0.20 // combined score ≥ 0.20 → suggest
+const COMBINED_SUGGEST = 0.10 // combined score ≥ 0.10 → suggest
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -100,9 +100,9 @@ function classifyAcrState(
 function shouldRunFallback(acrState: AcrState, manualAssist: boolean): boolean {
   if (manualAssist) return true
   return acrState === 'failed'
+    || acrState === 'weak'
     || acrState === 'unstable'
     || acrState === 'acoustic'
-  // 'strong' and 'weak' do NOT trigger fallback by default
 }
 
 // ─── OpenAI transcription ─────────────────────────────────────────────────────
