@@ -403,7 +403,7 @@ export default function DashboardPage() {
         </div>
 
         {/* ── Recent Shows ── */}
-        <div style={{ animation: 'fadeUp 0.5s ease', paddingBottom: 48 }}>
+        <div style={{ animation: 'fadeUp 0.5s ease', paddingBottom: 8 }}>
           <div style={{
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
             marginBottom: 10,
@@ -546,7 +546,27 @@ export default function DashboardPage() {
           )}
         </div>
       </div>
-
+{/* ── Artist Profile ── */}
+        <div style={{ paddingBottom: 48, animation: 'fadeUp 0.55s ease' }}>
+          <button
+            onClick={() => router.push(`/app/artist/${performances[0]?.id || ''}`)}
+            style={{
+              width: '100%', padding: '13px 16px',
+              background: 'transparent',
+              border: `1px solid ${C.border}`,
+              borderRadius: 12, color: C.secondary,
+              fontSize: 12, fontWeight: 700,
+              letterSpacing: '0.1em', textTransform: 'uppercase',
+              cursor: 'pointer', transition: 'all 0.2s ease',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              fontFamily: 'inherit',
+            }}
+            onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.borderColor = C.borderGold; el.style.color = C.gold }}
+            onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.borderColor = C.border; el.style.color = C.secondary }}
+          >
+            ✦ View Artist Profile
+          </button>
+        </div>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500;700&display=swap');
         @keyframes fadeUp    { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
