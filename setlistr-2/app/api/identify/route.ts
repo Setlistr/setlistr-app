@@ -5,8 +5,8 @@ import { createClient } from '@supabase/supabase-js'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-const HOST         = 'identify-us-west-2.acrcloud.com'
-const ACCESS_KEY   = '81af58b16d932703e6a233f054666f3b'
+const HOST          = 'identify-us-west-2.acrcloud.com'
+const ACCESS_KEY    = '81af58b16d932703e6a233f054666f3b'
 const ACCESS_SECRET = 'vNLUzrw4OOaiKiaw4FTdPQlqTNTGj3VbCNmotS22'
 
 const supabase = createClient(
@@ -15,14 +15,12 @@ const supabase = createClient(
 )
 
 // ─── Thresholds ───────────────────────────────────────────────────────────────
-const ACR_AUTO          = 80
-const ACR_WEAK          = 30
-const ACR_ACOUSTIC      = 60
-const FLAP_MIN_COUNT    = 2
-const COMBINED_AUTO     = 0.35
-const COMBINED_SUGGEST  = 0.20
-// Below COMBINED_SUGGEST → manual_review (heard something, can't ID)
-// No candidates at all → no_result
+const ACR_AUTO         = 80   // score ≥ 80 → strong, fast path, no fallback
+const ACR_WEAK         = 30   // score 30–79 → weak, goes through scoring
+const ACR_ACOUSTIC     = 60   // writers_round: fallback if ACR < this
+const FLAP_MIN_COUNT   = 2    // flips needed to be UNSTABLE
+const COMBINED_AUTO    = 0.35 // combined score ≥ 0.35 → auto
+const COMBINED_SUGGEST = 0.20 // combined score ≥ 0.20 → suggest
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -49,12 +47,12 @@ interface SongCandidate {
   title: string
   artist: string
   source: DetectionSource
-  acrScore: number          // 0–100 from ACR, 0 if transcript-only
-  lyricMatch: number        // 0–1 how well transcript clues match this candidate
-  titleMatch: number        // 0–1 possible_title vs candidate title
-  repeatScore: number       // 0–1 based on how many times seen in history
-  stabilityScore: number    // 0–1 inverse of flap count
-  combinedScore: number     // weighted final
+  acrScore: number
+  lyricMatch: number
+  titleMatch: number
+  repeatScore: number
+  stabilityScore: number
+  combinedScore: number
 }
 
 interface EnrichedSongData {
@@ -63,22 +61,7 @@ interface EnrichedSongData {
   publisher: string
 }
 
-// ─── Flap detection ───────────────────────────────────────────────────────────
-// Returns number of times the top candidate changed in the history window.
-// One change is normal. ≥ 2 changes = unstable.
-
-function countCandidateFlips(history: CandidateHistoryEntry[]): number {
-  if (history.length < 2) return 0
-  let flips = 0
-  for (let i = 1; i < history.length; i++) {
-    const prev = history[i]
-    const curr = history[i - 1]
-    if (normalizeSongKey(prev.title) !== normalizeSongKey(curr.title)) {
-      flips++
-    }
-  }
-  return flips
-}
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function normalizeSongKey(title: string): string {
   return title.toLowerCase().trim()
@@ -91,7 +74,14 @@ function titlesMatch(a: string, b: string): boolean {
   return normalizeSongKey(a) === normalizeSongKey(b)
 }
 
-// ─── ACR state classifier ─────────────────────────────────────────────────────
+function countCandidateFlips(history: CandidateHistoryEntry[]): number {
+  if (history.length < 2) return 0
+  let flips = 0
+  for (let i = 1; i < history.length; i++) {
+    if (normalizeSongKey(history[i].title) !== normalizeSongKey(history[i - 1].title)) flips++
+  }
+  return flips
+}
 
 function classifyAcrState(
   detected: boolean,
@@ -104,21 +94,15 @@ function classifyAcrState(
   if (showType === 'writers_round' && score < ACR_ACOUSTIC) return 'acoustic'
   if (score >= ACR_AUTO) return 'strong'
   if (score >= ACR_WEAK) return 'weak'
-  return 'weak'  // detected but very low score
+  return 'weak'
 }
 
-// ─── Fallback trigger ─────────────────────────────────────────────────────────
-
-function shouldRunFallback(
-  acrState: AcrState,
-  manualAssist: boolean
-): boolean {
+function shouldRunFallback(acrState: AcrState, manualAssist: boolean): boolean {
   if (manualAssist) return true
-return acrState === 'failed'
+  return acrState === 'failed'
     || acrState === 'unstable'
     || acrState === 'acoustic'
-    || manualAssist
-  // 'strong' never triggers fallback
+  // 'strong' and 'weak' do NOT trigger fallback by default
 }
 
 // ─── OpenAI transcription ─────────────────────────────────────────────────────
@@ -133,7 +117,7 @@ async function transcribeAudio(
 
   try {
     const form = new FormData()
-  form.append('file', new Blob([new Uint8Array(audioBuffer)], { type: mimeType }), 'audio.webm')
+    form.append('file', new Blob([new Uint8Array(audioBuffer)], { type: mimeType }), 'audio.webm')
     form.append('model', 'gpt-4o-mini-transcribe')
     form.append('response_format', 'text')
     if (artistName) form.append('prompt', `Live music performance by ${artistName}.`)
@@ -153,9 +137,7 @@ async function transcribeAudio(
   }
 }
 
-// ─── Clue extraction ─────────────────────────────────────────────────────────
-// GPT extracts structured clues from the transcript.
-// Does NOT identify the song — that happens in candidate ranking.
+// ─── Clue extraction ──────────────────────────────────────────────────────────
 
 async function extractSongClues(
   transcript: string,
@@ -173,7 +155,7 @@ async function extractSongClues(
 
     const res = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
-      headers: { 'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
+      headers: { 'Authorization': `Bearer ${openaiKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: 'gpt-4o-mini',
         max_tokens: 250,
@@ -199,13 +181,10 @@ enough_signal is true only if there is enough lyric content to attempt matching.
     })
 
     if (!res.ok) { console.error('[ClueExtraction] Failed:', await res.text()); return null }
-
     const data = await res.json()
     const raw  = data.choices?.[0]?.message?.content?.trim()
     if (!raw) return null
-
-    const parsed: SongClues = JSON.parse(raw)
-    return parsed
+    return JSON.parse(raw) as SongClues
   } catch (err) {
     console.error('[ClueExtraction] Error:', err)
     return null
@@ -213,7 +192,6 @@ enough_signal is true only if there is enough lyric content to attempt matching.
 }
 
 // ─── Candidate scoring ────────────────────────────────────────────────────────
-// Scores candidates from multiple signals, returns ranked list.
 
 function scoreCandidates(
   acrCandidate: { title: string; artist: string; score: number } | null,
@@ -224,100 +202,49 @@ function scoreCandidates(
   const candidates: SongCandidate[] = []
 
   if (acrCandidate) {
-    // Normalized ACR score 0–1
-    const acrNorm = acrCandidate.score / 100
-
-    // Lyric match: do any lyric_hooks appear in the candidate title?
-    // (Simplified — in future, match against actual lyrics DB)
-    const lyricMatch = clues?.lyric_hooks?.some(hook =>
+    const acrNorm      = acrCandidate.score / 100
+    const lyricMatch   = clues?.lyric_hooks?.some(hook =>
       normalizeSongKey(acrCandidate.title).includes(normalizeSongKey(hook)) ||
       normalizeSongKey(hook).includes(normalizeSongKey(acrCandidate.title).split(' ')[0])
     ) ? 0.7 : 0
-
-    // Title match: does clue's possible_title match this candidate?
-    const titleMatch = clues?.possible_title
-      ? titlesMatch(clues.possible_title, acrCandidate.title) ? 1.0 : 0
-      : 0
-
-    // Repeat score: how many times has this title appeared in recent history?
-    const repeatCount = history.filter(h => titlesMatch(h.title, acrCandidate.title)).length
-    const repeatScore = Math.min(repeatCount / 3, 1.0)
-
-    // Stability: inverse of flap count
+    const titleMatch   = clues?.possible_title ? (titlesMatch(clues.possible_title, acrCandidate.title) ? 1.0 : 0) : 0
+    const repeatCount  = history.filter(h => titlesMatch(h.title, acrCandidate.title)).length
+    const repeatScore  = Math.min(repeatCount / 3, 1.0)
     const stabilityScore = Math.max(0, 1 - (flipCount * 0.3))
-
-    // Weighted combined score
-    const combinedScore =
-      acrNorm      * 0.45 +
-      lyricMatch   * 0.25 +
-      titleMatch   * 0.15 +
-      repeatScore  * 0.10 +
-      stabilityScore * 0.05
+    const combinedScore  = acrNorm * 0.45 + lyricMatch * 0.25 + titleMatch * 0.15 + repeatScore * 0.10 + stabilityScore * 0.05
 
     candidates.push({
-      title: acrCandidate.title,
-      artist: acrCandidate.artist,
-      source: 'fingerprint',
-      acrScore: acrCandidate.score,
-      lyricMatch,
-      titleMatch,
-      repeatScore,
-      stabilityScore,
-      combinedScore,
+      title: acrCandidate.title, artist: acrCandidate.artist,
+      source: 'fingerprint', acrScore: acrCandidate.score,
+      lyricMatch, titleMatch, repeatScore, stabilityScore, combinedScore,
     })
   }
 
-  // If clues have a possible_title not matching ACR, add as transcript-only candidate
   if (clues?.possible_title && clues.enough_signal) {
-    const alreadyInCandidates = candidates.some(c => titlesMatch(c.title, clues.possible_title))
-    if (!alreadyInCandidates) {
-      // Transcript-only candidate — no ACR backing
-      const titleMatch = 1.0  // it IS the possible_title
-      const lyricMatch = clues.lyric_hooks?.length ? 0.6 : 0.3
+    const alreadyIn = candidates.some(c => titlesMatch(c.title, clues.possible_title))
+    if (!alreadyIn) {
+      const lyricMatch  = clues.lyric_hooks?.length ? 0.6 : 0.3
       const repeatScore = history.filter(h => titlesMatch(h.title, clues.possible_title)).length > 0 ? 0.5 : 0
-      const combinedScore = 0 * 0.45 + lyricMatch * 0.25 + titleMatch * 0.15 + repeatScore * 0.10 + 0.5 * 0.05
-
+      const combinedScore = lyricMatch * 0.25 + 1.0 * 0.15 + repeatScore * 0.10 + 0.5 * 0.05
       candidates.push({
-        title: clues.possible_title,
-        artist: clues.mentioned_artist || '',
-        source: 'transcript',
-        acrScore: 0,
-        lyricMatch,
-        titleMatch,
-        repeatScore,
-        stabilityScore: 0.5,
-        combinedScore,
+        title: clues.possible_title, artist: clues.mentioned_artist || '',
+        source: 'transcript', acrScore: 0,
+        lyricMatch, titleMatch: 1.0, repeatScore, stabilityScore: 0.5, combinedScore,
       })
     } else {
-      // ACR + transcript agree on same title → boost combined score and mark as combined
       const existing = candidates.find(c => titlesMatch(c.title, clues.possible_title))
-      if (existing) {
-        existing.combinedScore = Math.min(existing.combinedScore + 0.12, 1.0)
-        existing.source = 'combined'
-      }
+      if (existing) { existing.combinedScore = Math.min(existing.combinedScore + 0.12, 1.0); existing.source = 'combined' }
     }
   }
 
-  // Sort by combined score descending
   return candidates.sort((a, b) => b.combinedScore - a.combinedScore)
 }
 
-// ─── Classify final confidence ────────────────────────────────────────────────
-
-function classifyConfidence(
-  candidates: SongCandidate[],
-  clues: SongClues | null
-): ConfidenceLevel {
-  if (candidates.length === 0) {
-    // Empty pool — did we at least hear something?
-    if (clues?.enough_signal) return 'manual_review'
-    return 'no_result'
-  }
-
+function classifyConfidence(candidates: SongCandidate[], clues: SongClues | null): ConfidenceLevel {
+  if (candidates.length === 0) return clues?.enough_signal ? 'manual_review' : 'no_result'
   const top = candidates[0].combinedScore
   if (top >= COMBINED_AUTO)    return 'auto'
   if (top >= COMBINED_SUGGEST) return 'suggest'
-  // Has candidates but low confidence — still heard something
   return 'manual_review'
 }
 
@@ -327,12 +254,10 @@ async function enrichFromMusicBrainz(title: string, artist: string, isrcFromACR:
   const result: EnrichedSongData = { isrc: isrcFromACR || '', composer: '', publisher: '' }
   try {
     let recordingId: string | null = null
-
     if (isrcFromACR) {
       const r = await fetch(`https://musicbrainz.org/ws/2/isrc/${isrcFromACR}?inc=recordings&fmt=json`, { headers: { 'User-Agent': 'Setlistr/1.0 (setlistr.app)' } })
       if (r.ok) recordingId = (await r.json())?.recordings?.[0]?.id || null
     }
-
     if (!recordingId) {
       const q = encodeURIComponent(`recording:"${title}" AND artist:"${artist}"`)
       const r = await fetch(`https://musicbrainz.org/ws/2/recording?query=${q}&limit=1&fmt=json`, { headers: { 'User-Agent': 'Setlistr/1.0 (setlistr.app)' } })
@@ -342,7 +267,6 @@ async function enrichFromMusicBrainz(title: string, artist: string, isrcFromACR:
         if (top) { recordingId = top.id; if (!result.isrc && top.isrcs?.length) result.isrc = top.isrcs[0] }
       }
     }
-
     if (recordingId) {
       const r = await fetch(`https://musicbrainz.org/ws/2/recording/${recordingId}?inc=artist-credits+work-rels+artists&fmt=json`, { headers: { 'User-Agent': 'Setlistr/1.0 (setlistr.app)' } })
       if (r.ok) {
@@ -368,7 +292,7 @@ async function enrichFromMusicBrainz(title: string, artist: string, isrcFromACR:
 }
 
 // ─── Detection event logger ───────────────────────────────────────────────────
-// TODO: Run this SQL to create the table, then uncomment the insert below:
+// TODO: create detection_events table then uncomment the insert:
 //
 // CREATE TABLE detection_events (
 //   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -377,12 +301,9 @@ async function enrichFromMusicBrainz(title: string, artist: string, isrcFromACR:
 //   audio_duration_seconds int,
 //   acr_title text, acr_artist text, acr_score float, acr_state text,
 //   fallback_triggered bool, flip_count int,
-//   transcript_text text,
-//   clues jsonb,
-//   final_title text, final_artist text,
-//   final_source text, confidence_level text,
-//   candidate_pool jsonb,
-//   auto_confirmed bool,
+//   transcript_text text, clues jsonb,
+//   final_title text, final_artist text, final_source text, confidence_level text,
+//   candidate_pool jsonb, auto_confirmed bool,
 //   venue_name text, artist_name text, show_type text, previous_song text,
 //   created_at timestamptz DEFAULT now()
 // );
@@ -405,18 +326,18 @@ export async function POST(req: NextRequest) {
   let artistId: string | null = null
 
   try {
-    const incoming = await req.formData()
-    const audio         = incoming.get('audio')
-    performanceId       = incoming.get('performance_id') as string | null
-    showId              = incoming.get('show_id') as string | null
-    setlistId           = incoming.get('setlist_id') as string | null
-    artistId            = incoming.get('artist_id') as string | null
-    const artistName    = incoming.get('artist_name') as string | null
-    const showType      = (incoming.get('show_type') as string | null) || 'single'
-    const manualAssist  = incoming.get('manual_assist') === 'true'
-    const prevRaw       = incoming.get('previous_songs') as string | null
-    const historyRaw    = incoming.get('candidate_history') as string | null
-    const previousSongs: string[]              = prevRaw    ? JSON.parse(prevRaw)    : []
+    const incoming     = await req.formData()
+    const audio        = incoming.get('audio')
+    performanceId      = incoming.get('performance_id') as string | null
+    showId             = incoming.get('show_id') as string | null
+    setlistId          = incoming.get('setlist_id') as string | null
+    artistId           = incoming.get('artist_id') as string | null
+    const artistName   = incoming.get('artist_name') as string | null
+    const showType     = (incoming.get('show_type') as string | null) || 'single'
+    const manualAssist = incoming.get('manual_assist') === 'true'
+    const prevRaw      = incoming.get('previous_songs') as string | null
+    const historyRaw   = incoming.get('candidate_history') as string | null
+    const previousSongs: string[]                   = prevRaw    ? JSON.parse(prevRaw)    : []
     const candidateHistory: CandidateHistoryEntry[] = historyRaw ? JSON.parse(historyRaw) : []
 
     if (!(audio instanceof File)) {
@@ -459,14 +380,16 @@ export async function POST(req: NextRequest) {
     const payload = await acrRes.json()
     const durationSeconds = Math.round((Date.now() - startTime) / 1000)
 
-    const humming    = payload?.metadata?.humming?.[0]
-    const music      = payload?.metadata?.music?.[0]
-    const acrMatch   = humming || music
-    const acrScore   = acrMatch?.score ? parseFloat(acrMatch.score) : 0
+    const humming     = payload?.metadata?.humming?.[0]
+    const music       = payload?.metadata?.music?.[0]
+    const acrMatch    = humming || music
+    const acrScore    = acrMatch?.score ? parseFloat(acrMatch.score) : 0
     const acrDetected = payload.status?.code === 0 && !!acrMatch
 
     // Update job
-    if (job) await supabase.from('recognition_jobs').update({ status: 'completed', completed_at: new Date().toISOString(), raw_response: payload }).eq('id', job.id)
+    if (job) await supabase.from('recognition_jobs').update({
+      status: 'completed', completed_at: new Date().toISOString(), raw_response: payload,
+    }).eq('id', job.id)
 
     // Store ACR results
     let topResultId: string | null = null
@@ -493,10 +416,79 @@ export async function POST(req: NextRequest) {
     // ── 4. Classify ACR state ─────────────────────────────────────────────────
     const flipCount = countCandidateFlips(candidateHistory)
     const acrState  = classifyAcrState(acrDetected, acrScore, flipCount, showType)
-
     console.debug(`[ACR] state=${acrState} score=${acrScore} flips=${flipCount}`)
 
-    // ── 5. Transcription fallback ─────────────────────────────────────────────
+    // ── 5. FAST PATH — strong ACR match, skip all scoring ────────────────────
+    // This is the primary path for known songs with high confidence.
+    // Bypasses transcription, candidate scoring, and all fallback logic.
+    if (acrState === 'strong' && acrMatch) {
+      const enriched = await enrichFromMusicBrainz(
+        acrMatch.title,
+        acrMatch.artists?.[0]?.name || '',
+        acrMatch.external_ids?.isrc || ''
+      )
+
+      // Write setlist item if we have a setlist
+      let setlistItemId: string | null = null
+      if (setlistId) {
+        const { data: existing } = await supabase.from('setlist_items').select('id')
+          .eq('setlist_id', setlistId).ilike('title', acrMatch.title).single()
+        if (!existing) {
+          const { data: lastItem } = await supabase.from('setlist_items').select('position')
+            .eq('setlist_id', setlistId).order('position', { ascending: false }).limit(1).single()
+          const { data: newItem } = await supabase.from('setlist_items').insert({
+            setlist_id: setlistId,
+            title: acrMatch.title,
+            artist_name: acrMatch.artists?.[0]?.name || '',
+            position: (lastItem?.position || 0) + 1,
+            source: humming ? 'humming' : 'fingerprint',
+            recognition_decision_id: null,
+          }).select().single()
+          if (newItem) setlistItemId = newItem.id
+        }
+      }
+
+      // Legacy log
+      await supabase.from('recognition_logs').insert({
+        performance_id: performanceId || null,
+        audio_bytes: audioBytes, duration_seconds: durationSeconds,
+        acr_status_code: payload.status?.code ?? null,
+        acr_message: payload.status?.msg ?? null,
+        detected: true, title: acrMatch.title,
+        artist: acrMatch.artists?.[0]?.name ?? null,
+        isrc: enriched.isrc || null, score: acrScore,
+        source: humming ? 'humming' : 'fingerprint',
+        raw_response: payload,
+        user_agent: req.headers.get('user-agent') ?? null,
+      })
+
+      await logDetectionEvent({
+        performance_id: performanceId,
+        acr_title: acrMatch.title, acr_score: acrScore, acr_state: 'strong',
+        fallback_triggered: false, flip_count: flipCount,
+        final_title: acrMatch.title, final_source: humming ? 'humming' : 'fingerprint',
+        confidence_level: 'auto', auto_confirmed: true,
+        artist_name: artistName, show_type: showType,
+      })
+
+      return NextResponse.json({
+        detected: true,
+        title: acrMatch.title,
+        artist: acrMatch.artists?.[0]?.name || '',
+        confidence_level: 'auto',
+        source: humming ? 'humming' : 'fingerprint',
+        isrc: enriched.isrc,
+        composer: enriched.composer,
+        publisher: enriched.publisher,
+        acr_title: acrMatch.title,
+        acr_artist: acrMatch.artists?.[0]?.name || '',
+        acr_score: acrScore,
+        setlist_item_id: setlistItemId,
+        job_id: job?.id,
+      })
+    }
+
+    // ── 6. Transcription fallback (weak / failed / unstable / acoustic) ───────
     let transcript: string | null = null
     let clues: SongClues | null   = null
     const fallbackTriggered = shouldRunFallback(acrState, manualAssist)
@@ -504,7 +496,6 @@ export async function POST(req: NextRequest) {
     if (fallbackTriggered) {
       console.debug('[Fallback] Running transcription...')
       transcript = await transcribeAudio(audioBuffer, mimeType, artistName || undefined)
-
       if (transcript) {
         clues = await extractSongClues(transcript, {
           artistName: artistName || undefined,
@@ -515,106 +506,85 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // ── 6. Score candidates ───────────────────────────────────────────────────
+    // ── 7. Score candidates ───────────────────────────────────────────────────
     const acrCandidateInput = acrDetected && acrMatch ? {
       title: acrMatch.title,
       artist: acrMatch.artists?.[0]?.name || '',
       score: acrScore,
     } : null
 
-    const candidates = scoreCandidates(acrCandidateInput, clues, candidateHistory, flipCount)
+    const candidates      = scoreCandidates(acrCandidateInput, clues, candidateHistory, flipCount)
     const confidenceLevel = classifyConfidence(candidates, clues)
-    const topCandidate = candidates[0] || null
+    const topCandidate    = candidates[0] || null
 
     console.debug(`[Confidence] level=${confidenceLevel} top=${topCandidate?.title} score=${topCandidate?.combinedScore}`)
 
-    // ── 7. MusicBrainz enrichment (skip on no_result / manual_review) ─────────
+    // ── 8. MusicBrainz enrichment ─────────────────────────────────────────────
     let enriched: EnrichedSongData = { isrc: acrMatch?.external_ids?.isrc || '', composer: '', publisher: '' }
     if (topCandidate && confidenceLevel !== 'no_result') {
       enriched = await enrichFromMusicBrainz(
-        topCandidate.title,
-        topCandidate.artist,
+        topCandidate.title, topCandidate.artist,
         acrMatch?.external_ids?.isrc || ''
       )
     }
 
-    // ── 8. Recognition decision ───────────────────────────────────────────────
+    // ── 9. Recognition decision ───────────────────────────────────────────────
     let decisionId: string | null = null
     if (job && topCandidate && confidenceLevel !== 'no_result') {
       const { data: decision } = await supabase.from('recognition_decisions').insert({
         job_id: job.id, chosen_result_id: topResultId,
         decision_type: confidenceLevel,
-        final_title: topCandidate.title,
-        final_artist: topCandidate.artist,
-        final_isrc: enriched.isrc,
-        decided_at: new Date().toISOString(),
+        final_title: topCandidate.title, final_artist: topCandidate.artist,
+        final_isrc: enriched.isrc, decided_at: new Date().toISOString(),
       }).select().single()
       if (decision) decisionId = decision.id
     }
 
-    // ── 9. Write setlist_item (auto-confirm only) ─────────────────────────────
+    // ── 10. Write setlist_item (auto only) ────────────────────────────────────
     let setlistItemId: string | null = null
     if (topCandidate && confidenceLevel === 'auto' && setlistId && decisionId) {
       const { data: existing } = await supabase.from('setlist_items').select('id')
         .eq('setlist_id', setlistId).ilike('title', topCandidate.title).single()
-
       if (!existing) {
         const { data: lastItem } = await supabase.from('setlist_items').select('position')
           .eq('setlist_id', setlistId).order('position', { ascending: false }).limit(1).single()
-
         const { data: newItem } = await supabase.from('setlist_items').insert({
-          setlist_id: setlistId, title: topCandidate.title,
-          artist_name: topCandidate.artist,
+          setlist_id: setlistId, title: topCandidate.title, artist_name: topCandidate.artist,
           position: (lastItem?.position || 0) + 1,
-          source: topCandidate.source,
-          recognition_decision_id: decisionId,
+          source: topCandidate.source, recognition_decision_id: decisionId,
         }).select().single()
-
         if (newItem) setlistItemId = newItem.id
       }
     }
 
-    // ── 10. Legacy recognition_log ────────────────────────────────────────────
+    // ── 11. Legacy log ────────────────────────────────────────────────────────
     await supabase.from('recognition_logs').insert({
       performance_id: performanceId || null,
       audio_bytes: audioBytes, duration_seconds: durationSeconds,
       acr_status_code: payload.status?.code ?? null,
       acr_message: payload.status?.msg ?? null,
       detected: !!topCandidate && confidenceLevel !== 'no_result',
-      title: topCandidate?.title ?? null,
-      artist: topCandidate?.artist ?? null,
-      isrc: enriched.isrc || null,
-      score: acrScore || null,
-      source: topCandidate?.source ?? null,
-      raw_response: payload,
+      title: topCandidate?.title ?? null, artist: topCandidate?.artist ?? null,
+      isrc: enriched.isrc || null, score: acrScore || null,
+      source: topCandidate?.source ?? null, raw_response: payload,
       user_agent: req.headers.get('user-agent') ?? null,
     })
 
-    // ── 11. Log detection event ───────────────────────────────────────────────
+    // ── 12. Detection event log ───────────────────────────────────────────────
     await logDetectionEvent({
-      performance_id: performanceId,
-      audio_duration_seconds: durationSeconds,
-      acr_title: acrMatch?.title ?? null,
-      acr_artist: acrMatch?.artists?.[0]?.name ?? null,
-      acr_score: acrScore,
-      acr_state: acrState,
-      fallback_triggered: fallbackTriggered,
-      flip_count: flipCount,
-      transcript_text: transcript,
-      clues,
-      final_title: topCandidate?.title ?? null,
-      final_artist: topCandidate?.artist ?? null,
-      final_source: topCandidate?.source ?? null,
-      confidence_level: confidenceLevel,
-      candidate_pool: candidates,
-      auto_confirmed: confidenceLevel === 'auto',
-      artist_name: artistName,
-      show_type: showType,
+      performance_id: performanceId, audio_duration_seconds: durationSeconds,
+      acr_title: acrMatch?.title ?? null, acr_artist: acrMatch?.artists?.[0]?.name ?? null,
+      acr_score: acrScore, acr_state: acrState,
+      fallback_triggered: fallbackTriggered, flip_count: flipCount,
+      transcript_text: transcript, clues,
+      final_title: topCandidate?.title ?? null, final_artist: topCandidate?.artist ?? null,
+      final_source: topCandidate?.source ?? null, confidence_level: confidenceLevel,
+      candidate_pool: candidates, auto_confirmed: confidenceLevel === 'auto',
+      artist_name: artistName, show_type: showType,
     })
 
-    // ── 12. Response ──────────────────────────────────────────────────────────
+    // ── 13. Response ──────────────────────────────────────────────────────────
 
-    // no_result — nothing to show
     if (confidenceLevel === 'no_result' || !topCandidate) {
       return NextResponse.json({
         detected: false,
@@ -623,7 +593,6 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    // manual_review — heard something but can't ID, surface clues to UI
     if (confidenceLevel === 'manual_review') {
       return NextResponse.json({
         detected: true,
@@ -636,7 +605,6 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    // auto or suggest — return full match
     return NextResponse.json({
       detected: true,
       title: topCandidate.title,
@@ -647,7 +615,6 @@ export async function POST(req: NextRequest) {
       composer: enriched.composer,
       publisher: enriched.publisher,
       clues,
-      // Pass back ACR title/score so live page can update candidate history
       acr_title: acrMatch?.title ?? null,
       acr_artist: acrMatch?.artists?.[0]?.name ?? null,
       acr_score: acrScore,
