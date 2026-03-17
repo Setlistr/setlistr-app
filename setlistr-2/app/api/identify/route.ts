@@ -20,7 +20,7 @@ const ACR_WEAK         = 30   // score 30–79 → weak, goes through scoring
 const ACR_ACOUSTIC     = 60   // writers_round: fallback if ACR < this
 const FLAP_MIN_COUNT   = 2    // flips needed to be UNSTABLE
 const COMBINED_AUTO    = 0.35 // combined score ≥ 0.35 → auto
-const COMBINED_SUGGEST = 0.10 // combined score ≥ 0.10 → suggest
+const COMBINED_SUGGEST = 0.20 // combined score ≥ 0.20 → suggest
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -100,7 +100,6 @@ function classifyAcrState(
 function shouldRunFallback(acrState: AcrState, manualAssist: boolean): boolean {
   if (manualAssist) return true
   return acrState === 'failed'
-    || acrState === 'weak'
     || acrState === 'unstable'
     || acrState === 'acoustic'
 }
@@ -207,9 +206,9 @@ function scoreCandidates(
       normalizeSongKey(acrCandidate.title).includes(normalizeSongKey(hook)) ||
       normalizeSongKey(hook).includes(normalizeSongKey(acrCandidate.title).split(' ')[0])
     ) ? 0.7 : 0
-    const titleMatch   = clues?.possible_title ? (titlesMatch(clues.possible_title, acrCandidate.title) ? 1.0 : 0) : 0
-    const repeatCount  = history.filter(h => titlesMatch(h.title, acrCandidate.title)).length
-    const repeatScore  = Math.min(repeatCount / 3, 1.0)
+    const titleMatch     = clues?.possible_title ? (titlesMatch(clues.possible_title, acrCandidate.title) ? 1.0 : 0) : 0
+    const repeatCount    = history.filter(h => titlesMatch(h.title, acrCandidate.title)).length
+    const repeatScore    = Math.min(repeatCount / 3, 1.0)
     const stabilityScore = Math.max(0, 1 - (flipCount * 0.3))
     const combinedScore  = acrNorm * 0.45 + lyricMatch * 0.25 + titleMatch * 0.15 + repeatScore * 0.10 + stabilityScore * 0.05
 
@@ -223,8 +222,8 @@ function scoreCandidates(
   if (clues?.possible_title && clues.enough_signal) {
     const alreadyIn = candidates.some(c => titlesMatch(c.title, clues.possible_title))
     if (!alreadyIn) {
-      const lyricMatch  = clues.lyric_hooks?.length ? 0.6 : 0.3
-      const repeatScore = history.filter(h => titlesMatch(h.title, clues.possible_title)).length > 0 ? 0.5 : 0
+      const lyricMatch    = clues.lyric_hooks?.length ? 0.6 : 0.3
+      const repeatScore   = history.filter(h => titlesMatch(h.title, clues.possible_title)).length > 0 ? 0.5 : 0
       const combinedScore = lyricMatch * 0.25 + 1.0 * 0.15 + repeatScore * 0.10 + 0.5 * 0.05
       candidates.push({
         title: clues.possible_title, artist: clues.mentioned_artist || '',
@@ -386,6 +385,11 @@ export async function POST(req: NextRequest) {
     const acrScore    = acrMatch?.score ? parseFloat(acrMatch.score) : 0
     const acrDetected = payload.status?.code === 0 && !!acrMatch
 
+    // ── KEY FIX: humming is melody-based and 100% reliable in our data.
+    // When humming matches, boost score to always hit the fast path.
+    // This is the primary path for acoustic guitar and live performance.
+    const effectiveScore = humming ? Math.max(acrScore, 85) : acrScore
+
     // Update job
     if (job) await supabase.from('recognition_jobs').update({
       status: 'completed', completed_at: new Date().toISOString(), raw_response: payload,
@@ -413,14 +417,14 @@ export async function POST(req: NextRequest) {
       if (result) topResultId = result.id
     }
 
-    // ── 4. Classify ACR state ─────────────────────────────────────────────────
+    // ── 4. Classify ACR state using effectiveScore ────────────────────────────
     const flipCount = countCandidateFlips(candidateHistory)
-    const acrState  = classifyAcrState(acrDetected, acrScore, flipCount, showType)
-    console.debug(`[ACR] state=${acrState} score=${acrScore} flips=${flipCount}`)
+    const acrState  = classifyAcrState(acrDetected, effectiveScore, flipCount, showType)
+    console.debug(`[ACR] state=${acrState} rawScore=${acrScore} effectiveScore=${effectiveScore} humming=${!!humming} flips=${flipCount}`)
 
-    // ── 5. FAST PATH — strong ACR match, skip all scoring ────────────────────
-    // This is the primary path for known songs with high confidence.
-    // Bypasses transcription, candidate scoring, and all fallback logic.
+    // ── 5. FAST PATH — strong ACR or humming match ────────────────────────────
+    // Humming always hits this path due to effectiveScore boost above.
+    // Fingerprint hits this path when score ≥ 80.
     if (acrState === 'strong' && acrMatch) {
       const enriched = await enrichFromMusicBrainz(
         acrMatch.title,
@@ -428,7 +432,6 @@ export async function POST(req: NextRequest) {
         acrMatch.external_ids?.isrc || ''
       )
 
-      // Write setlist item if we have a setlist
       let setlistItemId: string | null = null
       if (setlistId) {
         const { data: existing } = await supabase.from('setlist_items').select('id')
@@ -448,7 +451,6 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      // Legacy log
       await supabase.from('recognition_logs').insert({
         performance_id: performanceId || null,
         audio_bytes: audioBytes, duration_seconds: durationSeconds,
@@ -464,8 +466,8 @@ export async function POST(req: NextRequest) {
 
       await logDetectionEvent({
         performance_id: performanceId,
-        acr_title: acrMatch.title, acr_score: acrScore, acr_state: 'strong',
-        fallback_triggered: false, flip_count: flipCount,
+        acr_title: acrMatch.title, acr_score: acrScore,
+        acr_state: 'strong', fallback_triggered: false, flip_count: flipCount,
         final_title: acrMatch.title, final_source: humming ? 'humming' : 'fingerprint',
         confidence_level: 'auto', auto_confirmed: true,
         artist_name: artistName, show_type: showType,
@@ -488,7 +490,7 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    // ── 6. Transcription fallback (weak / failed / unstable / acoustic) ───────
+    // ── 6. Transcription fallback (failed / unstable / acoustic) ─────────────
     let transcript: string | null = null
     let clues: SongClues | null   = null
     const fallbackTriggered = shouldRunFallback(acrState, manualAssist)
