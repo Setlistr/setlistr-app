@@ -33,8 +33,8 @@ function calcRoyaltyRange(songs: { show_type?: string }[]): {
     const base = s.show_type === 'writers_round' ? 1.75 : 1.25
     return acc + base
   }, 0)
-  const low  = Math.round(total * 0.7)
-  const high = Math.round(total * 1.3)
+  const low     = Math.round(total * 0.7)
+  const high    = Math.round(total * 1.3)
   const perSong = Math.round((total / songs.length) * 100) / 100
   return { low, high, perSong }
 }
@@ -53,7 +53,7 @@ function timeAgo(d: string) {
   const days = Math.floor(diff / 86400000)
   if (days === 0) return 'Today'
   if (days === 1) return 'Yesterday'
-  if (days < 7) return `${days}d ago`
+  if (days < 7)  return `${days}d ago`
   if (days < 30) return `${Math.floor(days / 7)}w ago`
   return `${Math.floor(days / 30)}mo ago`
 }
@@ -67,11 +67,16 @@ export default function DashboardPage() {
   const [needsReview, setNeedsReview]   = useState(0)
   const [exported, setExported]         = useState(0)
   const [songRows, setSongRows]         = useState<{ show_type?: string }[]>([])
+  const [userId, setUserId]             = useState<string | null>(null)
 
   useEffect(() => {
     const supabase = createClient()
 
     async function load() {
+      // Get current user for artist profile link
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) setUserId(user.id)
+
       const { data, error } = await supabase
         .from('performances')
         .select('id, venue_name, artist_name, city, country, status, started_at, created_at')
@@ -214,7 +219,7 @@ export default function DashboardPage() {
             Start New Show
           </button>
 
-          {/* Reuse Previous Setlist — only shown when past shows exist */}
+          {/* Reuse Previous Setlist */}
           {performances.length > 0 && (
             <button
               onClick={() => router.push('/app/show/new?reuse=true')}
@@ -403,7 +408,7 @@ export default function DashboardPage() {
         </div>
 
         {/* ── Recent Shows ── */}
-        <div style={{ animation: 'fadeUp 0.5s ease', paddingBottom: 8 }}>
+        <div style={{ animation: 'fadeUp 0.5s ease', paddingBottom: 16 }}>
           <div style={{
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
             marginBottom: 10,
@@ -545,28 +550,41 @@ export default function DashboardPage() {
             </div>
           )}
         </div>
+
+        {/* ── Artist Profile Link ── */}
+        {userId && (
+          <div style={{ paddingBottom: 48, animation: 'fadeUp 0.55s ease' }}>
+            <button
+              onClick={() => router.push(`/app/artist/${userId}`)}
+              style={{
+                width: '100%', padding: '13px 16px',
+                background: 'transparent',
+                border: `1px solid ${C.border}`,
+                borderRadius: 12, color: C.secondary,
+                fontSize: 12, fontWeight: 700,
+                letterSpacing: '0.1em', textTransform: 'uppercase',
+                cursor: 'pointer', transition: 'all 0.2s ease',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                fontFamily: 'inherit',
+              }}
+              onMouseEnter={e => {
+                const el = e.currentTarget as HTMLElement
+                el.style.borderColor = C.borderGold
+                el.style.color = C.gold
+              }}
+              onMouseLeave={e => {
+                const el = e.currentTarget as HTMLElement
+                el.style.borderColor = C.border
+                el.style.color = C.secondary
+              }}
+            >
+              ✦ View Artist Profile
+            </button>
+          </div>
+        )}
+
       </div>
-{/* ── Artist Profile ── */}
-        <div style={{ paddingBottom: 48, animation: 'fadeUp 0.55s ease' }}>
-          <button
-            onClick={() => router.push(`/app/artist/${performances[0]?.id || ''}`)}
-            style={{
-              width: '100%', padding: '13px 16px',
-              background: 'transparent',
-              border: `1px solid ${C.border}`,
-              borderRadius: 12, color: C.secondary,
-              fontSize: 12, fontWeight: 700,
-              letterSpacing: '0.1em', textTransform: 'uppercase',
-              cursor: 'pointer', transition: 'all 0.2s ease',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-              fontFamily: 'inherit',
-            }}
-            onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.borderColor = C.borderGold; el.style.color = C.gold }}
-            onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.borderColor = C.border; el.style.color = C.secondary }}
-          >
-            ✦ View Artist Profile
-          </button>
-        </div>
+
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500;700&display=swap');
         @keyframes fadeUp    { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
