@@ -15,12 +15,12 @@ const supabase = createClient(
 )
 
 // ─── Thresholds ───────────────────────────────────────────────────────────────
-const ACR_AUTO          = 80    // ACR score ≥ 80 → strong
-const ACR_WEAK          = 50    // ACR score 50–79 → weak, may fallback
-const ACR_ACOUSTIC      = 60    // writers_round: trigger fallback if ACR < this
-const FLAP_MIN_COUNT    = 2     // candidate must flip ≥ 2 times to be UNSTABLE
-const COMBINED_AUTO     = 0.75  // combined score ≥ 0.75 → auto-confirm
-const COMBINED_SUGGEST  = 0.45  // combined score ≥ 0.45 → suggest
+const ACR_AUTO          = 80
+const ACR_WEAK          = 30
+const ACR_ACOUSTIC      = 60
+const FLAP_MIN_COUNT    = 2
+const COMBINED_AUTO     = 0.35
+const COMBINED_SUGGEST  = 0.20
 // Below COMBINED_SUGGEST → manual_review (heard something, can't ID)
 // No candidates at all → no_result
 
@@ -114,10 +114,10 @@ function shouldRunFallback(
   manualAssist: boolean
 ): boolean {
   if (manualAssist) return true
-  return acrState === 'failed'
-    || acrState === 'weak'
+return acrState === 'failed'
     || acrState === 'unstable'
     || acrState === 'acoustic'
+    || manualAssist
   // 'strong' never triggers fallback
 }
 
