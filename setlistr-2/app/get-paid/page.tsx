@@ -41,17 +41,6 @@ export default function GetPaidPage() {
         alignItems: 'center', textAlign: 'center',
       }}>
 
-        {/* Logo mark */}
-        <div style={{ marginBottom: 48, animation: 'fadeUp 0.4s ease' }}>
-          <p style={{
-            fontSize: 11, fontWeight: 700, letterSpacing: '0.25em',
-            textTransform: 'uppercase', color: 'rgba(201,168,76,0.6)',
-            margin: 0,
-          }}>
-            Setlistr
-          
-        </div>
-
         {/* Main headline */}
         <div style={{ marginBottom: 24, animation: 'fadeUp 0.5s ease' }}>
           <h1 style={{
@@ -106,7 +95,7 @@ export default function GetPaidPage() {
               letterSpacing: '0.06em',
               textTransform: 'uppercase',
               cursor: 'pointer',
-              transition: 'opacity 0.15s ease, transform 0.15s ease',
+              transition: 'opacity 0.15s ease',
               fontFamily: 'inherit',
               marginBottom: 14,
             }}
@@ -126,7 +115,7 @@ export default function GetPaidPage() {
           </p>
         </div>
 
-        {/* Social proof / trust */}
+        {/* PRO trust */}
         <div style={{
           marginTop: 64,
           display: 'flex',
@@ -135,9 +124,7 @@ export default function GetPaidPage() {
           gap: 10,
           animation: 'fadeUp 0.8s ease',
         }}>
-          <div style={{
-            display: 'flex', gap: 24, alignItems: 'center',
-          }}>
+          <div style={{ display: 'flex', gap: 24, alignItems: 'center' }}>
             {['SOCAN', 'ASCAP', 'BMI'].map(pro => (
               <span key={pro} style={{
                 fontSize: 10, fontWeight: 700, letterSpacing: '0.15em',
