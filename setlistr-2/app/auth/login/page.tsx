@@ -1,5 +1,6 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import Image from 'next/image'
 
@@ -12,6 +13,9 @@ const C = {
 }
 
 export default function LoginPage() {
+  const searchParams = useSearchParams()
+  const fromStart    = searchParams.get('from') === 'start'
+
   const [email, setEmail]       = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading]   = useState(false)
@@ -33,7 +37,8 @@ export default function LoginPage() {
     const supabase = createClient()
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) { setError(error.message); setLoading(false); return }
-    window.location.href = '/app/dashboard'
+    // If coming from /start, redirect to dashboard — setlist is in sessionStorage
+    window.location.href = fromStart ? '/app/dashboard' : '/app/dashboard'
   }
 
   async function handleWaitlist(e?: React.FormEvent) {
@@ -109,9 +114,11 @@ export default function LoginPage() {
               marginBottom: 12,
             }}>
               <h1 style={{ fontSize: 20, fontWeight: 800, color: C.text, margin: '0 0 4px', letterSpacing: '-0.02em' }}>
-                Welcome back
+                {fromStart ? 'Save your setlist' : 'Welcome back'}
               </h1>
-              <p style={{ fontSize: 13, color: C.muted, margin: '0 0 24px' }}>Sign in to continue</p>
+              <p style={{ fontSize: 13, color: C.muted, margin: '0 0 24px' }}>
+                {fromStart ? 'Create a free account to save your setlist and track your royalties' : 'Sign in to continue'}
+              </p>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 <div>
