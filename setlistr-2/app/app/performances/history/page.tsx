@@ -9,8 +9,8 @@ const C = {
   card: '#141210',
   border: 'rgba(255,255,255,0.07)',
   text: '#f0ece3',
-  secondary: '#a09070',
-  muted: '#6a6050',
+  secondary: '#b8a888',
+  muted: '#8a7a68',
   gold: '#c9a84c',
 }
 
