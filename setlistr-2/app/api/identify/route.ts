@@ -309,7 +309,7 @@ async function enrichFromMusicBrainz(title: string, artist: string, isrcFromACR:
 
 async function logDetectionEvent(event: Record<string, any>): Promise<void> {
   try {
-    // await supabase.from('detection_events').insert(event)
+    await supabase.from('detection_events').insert(event)
     console.debug('[DetectionEvent]', JSON.stringify(event))
   } catch (err) { console.error('[DetectionEvent] log failed:', err) }
 }
