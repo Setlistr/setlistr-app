@@ -7,8 +7,8 @@ const C = {
   card: '#141210',
   border: 'rgba(255,255,255,0.07)',
   text: '#f0ece3',
-  secondary: '#a09070',
-  muted: '#6a6050',
+  secondary: '#b8a888',
+  muted: '#8a7a68',
   gold: '#c9a84c',
 }
 
@@ -17,22 +17,26 @@ export default async function StatsPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/auth/login')
 
-  const [
-    { data: performances },
-    { data: allSongs },
-  ] = await Promise.all([
-    supabase.from('performances')
-      .select('id, venue_name, city, country, started_at, status, set_duration_minutes')
-      .eq('user_id', user.id)
-      .eq('status', 'completed')
-      .order('started_at', { ascending: false }),
-    supabase.from('performance_songs')
-      .select('title, artist, performances!inner(user_id)')
-      .eq('performances.user_id', user.id),
-  ])
+  // ── Fetch performances ────────────────────────────────────────────────────
+  const { data: performances } = await supabase
+    .from('performances')
+    .select('id, venue_name, city, country, started_at, status, set_duration_minutes')
+    .eq('user_id', user.id)
+    .in('status', ['completed', 'complete', 'exported', 'review'])
+    .order('started_at', { ascending: false })
 
-  const totalShows = performances?.length ?? 0
-  const totalSongs = allSongs?.length ?? 0
+  // ── Fetch songs via performance IDs ───────────────────────────────────────
+  const perfIds = performances?.map(p => p.id) ?? []
+
+  const { data: allSongs } = perfIds.length > 0
+    ? await supabase
+        .from('performance_songs')
+        .select('title, artist')
+        .in('performance_id', perfIds)
+    : { data: [] }
+
+  const totalShows  = performances?.length ?? 0
+  const totalSongs  = allSongs?.length ?? 0
 
   // Most played songs
   const songCounts: Record<string, { title: string; artist: string; count: number }> = {}
@@ -46,6 +50,7 @@ export default async function StatsPage() {
   // Top venues
   const venueCounts: Record<string, { name: string; city: string; count: number }> = {}
   performances?.forEach(p => {
+    if (!p.venue_name) return
     const key = p.venue_name.toLowerCase()
     if (!venueCounts[key]) venueCounts[key] = { name: p.venue_name, city: p.city, count: 0 }
     venueCounts[key].count++
@@ -53,12 +58,12 @@ export default async function StatsPage() {
   const topVenues = Object.values(venueCounts).sort((a, b) => b.count - a.count).slice(0, 5)
 
   // Cities played
-  const cities = new Set(performances?.map(p => p.city) ?? [])
+  const cities     = new Set(performances?.map(p => p.city).filter(Boolean) ?? [])
   const totalCities = cities.size
 
   // Total hours on stage
   const totalMinutes = performances?.reduce((sum, p) => sum + (p.set_duration_minutes ?? 0), 0) ?? 0
-  const totalHours = Math.round(totalMinutes / 60 * 10) / 10
+  const totalHours   = Math.round(totalMinutes / 60 * 10) / 10
 
   // Shows by month (last 6 months)
   const monthCounts: Record<string, number> = {}
@@ -93,10 +98,10 @@ export default async function StatsPage() {
           {/* Top stats grid */}
           <div className="grid grid-cols-2 gap-3">
             {[
-              { icon: Calendar, label: 'Shows Played', value: totalShows },
-              { icon: Music2, label: 'Songs Logged', value: totalSongs },
-              { icon: MapPin, label: 'Cities', value: totalCities },
-              { icon: TrendingUp, label: 'Hours on Stage', value: totalHours },
+              { icon: Calendar,    label: 'Shows Played',   value: totalShows },
+              { icon: Music2,      label: 'Songs Logged',   value: totalSongs },
+              { icon: MapPin,      label: 'Cities',         value: totalCities },
+              { icon: TrendingUp,  label: 'Hours on Stage', value: totalHours },
             ].map(({ icon: Icon, label, value }) => (
               <div key={label} className="rounded-2xl p-4"
                 style={{ background: C.card, border: `1px solid ${C.border}` }}>
@@ -112,7 +117,7 @@ export default async function StatsPage() {
             <p className="text-xs uppercase tracking-wider mb-4" style={{ color: C.secondary }}>Shows per Month</p>
             <div className="flex items-end gap-2 h-20">
               {last6Months.map(month => {
-                const count = monthCounts[month] ?? 0
+                const count  = monthCounts[month] ?? 0
                 const height = count === 0 ? 4 : Math.max(12, (count / maxMonthCount) * 80)
                 return (
                   <div key={month} className="flex-1 flex flex-col items-center gap-1.5">
@@ -157,7 +162,6 @@ export default async function StatsPage() {
                           {song.count}x
                         </span>
                       </div>
-                      {/* Play frequency bar */}
                       <div className="mt-1.5 h-0.5 rounded-full w-full" style={{ background: 'rgba(255,255,255,0.05)' }}>
                         <div className="h-full rounded-full" style={{
                           width: `${(song.count / topSongs[0].count) * 100}%`,
