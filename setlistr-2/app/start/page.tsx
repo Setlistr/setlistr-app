@@ -106,7 +106,7 @@ export default function StartPage() {
             margin: '0 0 20px',
           }}>
             Setlistr
-          </p>
+          
           <h1 style={{
             fontSize: 'clamp(28px, 8vw, 38px)',
             fontWeight: 800, color: '#f0ece3',
