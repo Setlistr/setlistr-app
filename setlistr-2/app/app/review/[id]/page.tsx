@@ -411,37 +411,66 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
   const dur = formatDuration()
 
   if (showComplete) {
+    const royaltyLow  = Math.round(songs.length * 1.25 * 0.7)
+    const royaltyHigh = Math.round(songs.length * 1.25 * 1.3)
+
     return (
       <div style={{
         minHeight: '100svh', background: C.bg, display: 'flex', flexDirection: 'column',
         alignItems: 'center', justifyContent: 'center', padding: '24px 20px',
         fontFamily: '"DM Sans", system-ui, sans-serif',
       }}>
-        <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '50vh', pointerEvents: 'none', background: 'radial-gradient(ellipse at 50% 0%, rgba(74,222,128,0.07) 0%, transparent 65%)' }} />
+        {/* Ambient glow — gold for value moment */}
+        <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '60vh', pointerEvents: 'none', background: 'radial-gradient(ellipse at 50% 0%, rgba(201,168,76,0.08) 0%, transparent 65%)' }} />
 
         <div style={{ width: '100%', maxWidth: 420, position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', animation: 'fadeUp 0.5s ease' }}>
-          <div style={{ width: 64, height: 64, borderRadius: '50%', marginBottom: 24, background: 'rgba(74,222,128,0.1)', border: '1px solid rgba(74,222,128,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Check size={26} color={C.green} strokeWidth={2.5} />
-          </div>
 
-          <h1 style={{ fontSize: 28, fontWeight: 800, color: C.text, margin: '0 0 6px', letterSpacing: '-0.03em' }}>Setlist Saved</h1>
-          <p style={{ fontSize: 14, color: C.secondary, margin: '0 0 4px' }}>{performance?.venue_name} · {performance?.city}</p>
-          <p style={{ fontSize: 12, color: C.muted, margin: '0 0 28px' }}>
-            {songs.length} songs · {autoCount > 0 ? `${autoCount} auto-detected` : 'all manual'}
+          {/* Headline */}
+          <h1 style={{ fontSize: 30, fontWeight: 800, color: C.text, margin: '0 0 10px', letterSpacing: '-0.03em', lineHeight: 1.15 }}>
+            You just tracked<br />a real setlist.
+          </h1>
+          <p style={{ fontSize: 13, color: C.secondary, margin: '0 0 28px' }}>
+            {performance?.venue_name}{performance?.city ? ` · ${performance.city}` : ''}
           </p>
 
-          <div style={{ width: '100%', background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '16px', marginBottom: 16, maxHeight: 240, overflowY: 'auto' }}>
-            <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.muted, margin: '0 0 12px' }}>Setlist</p>
+          {/* Royalty value card — the money moment */}
+          <div style={{
+            width: '100%', background: C.goldDim,
+            border: `1px solid ${C.borderGold}`,
+            borderRadius: 18, padding: '24px 20px',
+            marginBottom: 16, animation: 'fadeUp 0.5s 0.1s ease both',
+          }}>
+            <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.gold, margin: '0 0 8px' }}>
+              Estimated Royalties
+            </p>
+            <p style={{ fontSize: 42, fontWeight: 800, color: C.gold, margin: '0 0 4px', letterSpacing: '-0.03em', fontFamily: '"DM Mono", monospace' }}>
+              ${royaltyLow}–${royaltyHigh}
+            </p>
+            <p style={{ fontSize: 13, color: C.secondary, margin: '0 0 16px' }}>
+              {songs.length} songs · {autoCount > 0 ? `${autoCount} auto-detected` : 'all manual'}
+            </p>
+            <div style={{ borderTop: `1px solid rgba(201,168,76,0.2)`, paddingTop: 14 }}>
+              <p style={{ fontSize: 13, color: C.gold, margin: 0, fontWeight: 600, lineHeight: 1.5 }}>
+                Most artists never report this.
+              </p>
+              <p style={{ fontSize: 12, color: C.secondary, margin: '4px 0 0', lineHeight: 1.5 }}>
+                Export your setlist to claim what you've earned.
+              </p>
+            </div>
+          </div>
+
+          {/* Setlist preview */}
+          <div style={{ width: '100%', background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '16px', marginBottom: 16, maxHeight: 200, overflowY: 'auto', animation: 'fadeUp 0.5s 0.15s ease both' }}>
+            <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.muted, margin: '0 0 12px' }}>Tonight's Setlist</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {songs.map((s, i) => (
                 <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <span style={{ fontSize: 10, color: C.muted, minWidth: 16, textAlign: 'right', fontFamily: '"DM Mono", monospace', fontVariantNumeric: 'tabular-nums' }}>{i + 1}</span>
-                  <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ minWidth: 0, flex: 1, textAlign: 'left' }}>
                     <p style={{ fontSize: 13, color: C.text, margin: 0, fontWeight: 600 }}>{s.title}</p>
                     {s.artist && s.artist !== performance?.artist_name && (
                       <p style={{ fontSize: 11, color: C.muted, margin: '1px 0 0' }}>{s.artist}</p>
                     )}
-                    {s.isrc && <p style={{ fontSize: 9, color: C.muted, margin: '1px 0 0', fontFamily: '"DM Mono", monospace' }}>{s.isrc}</p>}
                   </div>
                   {(s.source === 'recognized' || s.source === 'detected') && (
                     <span style={{ fontSize: 9, color: C.gold, opacity: 0.5, flexShrink: 0 }}>⚡</span>
@@ -451,10 +480,11 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
             </div>
           </div>
 
-          <div style={{ width: '100%', background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '16px', marginBottom: 20 }}>
+          {/* PRO Export */}
+          <div style={{ width: '100%', background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '16px', marginBottom: 20, animation: 'fadeUp 0.5s 0.2s ease both' }}>
             <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.muted, margin: '0 0 12px', display: 'flex', alignItems: 'center', gap: 6 }}>
               <Download size={10} />
-              PRO Submission Export
+              Export for PRO Submission
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {(['SOCAN', 'ASCAP', 'BMI'] as PRO[]).map(pro => (
@@ -463,13 +493,13 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
                   onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.borderColor = C.gold + '60'; el.style.color = C.gold; el.style.background = C.goldDim }}
                   onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.borderColor = C.border; el.style.color = C.text; el.style.background = 'transparent' }}>
                   <span>{pro}</span>
-                  <span style={{ fontSize: 11, color: C.muted }}>{pro === 'SOCAN' ? 'Canada' : 'USA'} · CSV</span>
+                  <span style={{ fontSize: 11, color: C.muted }}>{pro === 'SOCAN' ? 'Canada' : 'USA'} · CSV ↓</span>
                 </button>
               ))}
             </div>
           </div>
 
-          <button onClick={() => router.push('/app/dashboard')} style={{ width: '100%', padding: '14px', background: C.gold, border: 'none', borderRadius: 12, color: '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', marginBottom: 12 }}>
+          <button onClick={() => router.push('/app/dashboard')} style={{ width: '100%', padding: '14px', background: C.gold, border: 'none', borderRadius: 12, color: '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', marginBottom: 12, animation: 'fadeUp 0.5s 0.25s ease both' }}>
             Back to Dashboard
           </button>
           <button onClick={() => setShowComplete(false)} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 12, cursor: 'pointer', letterSpacing: '0.04em' }}>
@@ -631,4 +661,3 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
     </div>
   )
 }
-
