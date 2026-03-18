@@ -208,7 +208,7 @@ export default function NewShowPage() {
             <label style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, display: 'flex', alignItems: 'center', gap: 5 }}>
               <Building2 size={10} />Show Name<span style={{ color: C.gold }}>*</span>
             </label>
-            <input autoFocus type="text" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Massey Hall, Jesse's House..." onKeyDown={e => e.key === 'Enter' && handleSubmit()}
+            <input autoFocus type="text" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. The Ryman, Bluebird Cafe..." onKeyDown={e => e.key === 'Enter' && handleSubmit()}
               style={{ background: C.input, border: `1px solid ${name.trim() ? C.borderGold : C.border}`, borderRadius: 10, padding: '13px 14px', color: C.text, fontSize: 15, fontFamily: 'inherit', width: '100%', transition: 'border-color 0.15s ease' }} />
           </div>
 
@@ -217,7 +217,7 @@ export default function NewShowPage() {
             <label style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, display: 'flex', alignItems: 'center', gap: 5 }}>
               <User size={10} />Artist Name
             </label>
-            <input type="text" value={artistName} onChange={e => setArtistName(e.target.value)} placeholder="e.g. Jesse Slack"
+            <input type="text" value={artistName} onChange={e => setArtistName(e.target.value)} placeholder="e.g. Your artist name"
               style={{ background: C.input, border: `1px solid ${artistName.trim() ? C.borderGold : C.border}`, borderRadius: 10, padding: '12px 14px', color: C.text, fontSize: 14, fontFamily: 'inherit', width: '100%', transition: 'border-color 0.15s ease' }} />
           </div>
 
