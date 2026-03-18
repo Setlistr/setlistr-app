@@ -49,7 +49,7 @@ export default function GetPaidPage() {
             margin: 0,
           }}>
             Setlistr
-          </p>
+          
         </div>
 
         {/* Main headline */}
