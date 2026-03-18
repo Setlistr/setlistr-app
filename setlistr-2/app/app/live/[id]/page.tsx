@@ -218,6 +218,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
       const confirmed = confirmedSongsRef.current
       const candidate = pendingCandidateRef.current
 
+      const alreadyConfirmed = confirmed.some(s => isSameSong(s, detected))
       if (alreadyConfirmed) {
         setDetectStatus('already logged')
         setTimeout(() => setDetectStatus(''), 3000)
