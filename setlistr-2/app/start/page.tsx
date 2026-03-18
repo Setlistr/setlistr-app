@@ -64,7 +64,7 @@ export default function StartPage() {
     try {
       sessionStorage.setItem('setlistr_pending_setlist', JSON.stringify(songs.map(s => s.title)))
     } catch {}
-    router.push('/login?from=start')
+    router.push('/auth/login?from=start')
   }
 
   const low  = Math.round(songs.length * ROYALTY_PER_SONG_LOW)
