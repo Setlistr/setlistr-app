@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { MapPin } from 'lucide-react'
+import { MapPin, Check, X, Pencil } from 'lucide-react'
 import type { Performance } from '@/types'
 
 const C = {
@@ -14,8 +14,6 @@ const C = {
 const MIN_SONG_GAP_SECONDS       = 75
 const REPEAT_MATCH_CONFIRM_COUNT = 2
 const CANDIDATE_WINDOW_SECONDS   = 60
-
-// ─── Types ────────────────────────────────────────────────────────────────────
 
 type DetectedSong = {
   title: string
@@ -35,10 +33,9 @@ type PendingCandidate = {
   matchCount: number
   source: DetectedSong['source']
   confidence_level?: 'auto' | 'suggest' | 'manual_review'
-  clues?: SongClues        // from transcript fallback
+  clues?: SongClues
 }
 
-// Clues extracted from transcript — shown in pending card
 type SongClues = {
   lyric_hooks: string[]
   possible_title: string
@@ -47,12 +44,11 @@ type SongClues = {
   enough_signal: boolean
 }
 
-// Rolling history entry for flap detection
 type CandidateHistoryEntry = {
   title: string
   artist: string
   score: number
-  timestamp: number   // Date.now()
+  timestamp: number
 }
 
 function normalizeSongKey(title: string, artist?: string): string {
@@ -68,8 +64,6 @@ function isSameSong(a: { title: string; artist?: string }, b: { title: string; a
   if (normalizeSongKey(a.title, a.artist) === normalizeSongKey(b.title, b.artist)) return true
   return normalizeSongKey(a.title) === normalizeSongKey(b.title)
 }
-
-// ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function LiveCapturePage({ params }: { params: { id: string } }) {
   const router = useRouter()
@@ -89,17 +83,19 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   const [lastCaught, setLastCaught]   = useState<string | null>(null)
   const [pendingCandidate, setPendingCandidate] = useState<PendingCandidate | null>(null)
 
-  const mediaRecorderRef      = useRef<MediaRecorder | null>(null)
-  const chunksRef             = useRef<Blob[]>([])
-  const listenIntervalRef     = useRef<NodeJS.Timeout | null>(null)
-  const streamRef             = useRef<MediaStream | null>(null)
-  const lastConfirmedAtRef    = useRef<number>(0)
-  const pendingCandidateRef   = useRef<PendingCandidate | null>(null)
-  const confirmedSongsRef     = useRef<DetectedSong[]>([])
+  // ── Tap-to-edit state ─────────────────────────────────────────────────────
+  const [editingIndex, setEditingIndex]   = useState<number | null>(null)
+  const [editTitle, setEditTitle]         = useState('')
+  const [editArtist, setEditArtist]       = useState('')
 
-  // ── NEW: Rolling candidate history for flap detection ──────────────────────
-  // Keeps last 3 ACR results. Route uses this to detect instability.
-  const candidateHistoryRef   = useRef<CandidateHistoryEntry[]>([])
+  const mediaRecorderRef    = useRef<MediaRecorder | null>(null)
+  const chunksRef           = useRef<Blob[]>([])
+  const listenIntervalRef   = useRef<NodeJS.Timeout | null>(null)
+  const streamRef           = useRef<MediaStream | null>(null)
+  const lastConfirmedAtRef  = useRef<number>(0)
+  const pendingCandidateRef = useRef<PendingCandidate | null>(null)
+  const confirmedSongsRef   = useRef<DetectedSong[]>([])
+  const candidateHistoryRef = useRef<CandidateHistoryEntry[]>([])
 
   useEffect(() => { pendingCandidateRef.current = pendingCandidate }, [pendingCandidate])
   useEffect(() => { confirmedSongsRef.current = songs }, [songs])
@@ -137,7 +133,28 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
 
   useEffect(() => { return () => stopListening() }, [])
 
-  // ── Confirm candidate into setlist ────────────────────────────────────────
+  // ── Tap-to-edit handlers ──────────────────────────────────────────────────
+  function startEdit(index: number) {
+    setEditingIndex(index)
+    setEditTitle(songs[index].title)
+    setEditArtist(songs[index].artist)
+  }
+
+  function saveEdit() {
+    if (editingIndex === null || !editTitle.trim()) return
+    setSongs(prev => prev.map((s, i) =>
+      i === editingIndex
+        ? { ...s, title: editTitle.trim(), artist: editArtist.trim() || s.artist }
+        : s
+    ))
+    setEditingIndex(null)
+  }
+
+  function cancelEdit() {
+    setEditingIndex(null)
+  }
+
+  // ── Confirm candidate ─────────────────────────────────────────────────────
   const confirmCandidate = useCallback((candidate: PendingCandidate, setlist_item_id?: string) => {
     const newSong: DetectedSong = {
       title: candidate.title,
@@ -170,41 +187,23 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
       if (showId)    formData.append('show_id', showId)
       if (setlistId) formData.append('setlist_id', setlistId)
       if (artistId)  formData.append('artist_id', artistId)
-
-      // ── Send context to identify route ──────────────────────────────────
       if (performance?.artist_name) formData.append('artist_name', performance.artist_name)
       formData.append('show_type', (performance as any).show_type || 'single')
-
-      // Previous confirmed songs — helps clue extraction
-      const confirmedTitles = confirmedSongsRef.current.map(s => s.title)
-      formData.append('previous_songs', JSON.stringify(confirmedTitles))
-
-      // Candidate history — powers flap detection in the route
+      formData.append('previous_songs', JSON.stringify(confirmedSongsRef.current.map(s => s.title)))
       formData.append('candidate_history', JSON.stringify(candidateHistoryRef.current))
 
       const res  = await fetch('/api/identify', { method: 'POST', body: formData })
       const data = await res.json()
 
-      // ── Update candidate history with this result ────────────────────────
       if (data.acr_title) {
         const entry: CandidateHistoryEntry = {
-          title: data.acr_title,
-          artist: data.acr_artist || '',
-          score: data.acr_score || 0,
-          timestamp: Date.now(),
+          title: data.acr_title, artist: data.acr_artist || '',
+          score: data.acr_score || 0, timestamp: Date.now(),
         }
-        // Keep rolling window of last 3
-        candidateHistoryRef.current = [
-          entry,
-          ...candidateHistoryRef.current,
-        ].slice(0, 3)
+        candidateHistoryRef.current = [entry, ...candidateHistoryRef.current].slice(0, 3)
       }
 
-      // ── No result at all ─────────────────────────────────────────────────
-      if (!data.detected) {
-        setDetectStatus('listening...')
-        return
-      }
+      if (!data.detected) { setDetectStatus('listening...'); return }
 
       const { title, artist, setlist_item_id, confidence_level, source, clues } = data
       const detected = { title, artist }
@@ -213,7 +212,6 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
       const confirmed = confirmedSongsRef.current
       const candidate = pendingCandidateRef.current
 
-      // Already in confirmed setlist
       const alreadyConfirmed = confirmed.some(s => isSameSong(s, detected))
       if (alreadyConfirmed) {
         setDetectStatus('already logged')
@@ -221,30 +219,22 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         return
       }
 
-      // ── Handle manual_review state — show clues, ask user ───────────────
       if (confidence_level === 'manual_review') {
         const clueText = clues?.lyric_hooks?.length
           ? `heard: "${clues.lyric_hooks[0]}"`
-          : clues?.possible_title
-          ? `maybe: "${clues.possible_title}"`
-          : 'unclear — add manually?'
+          : clues?.possible_title ? `maybe: "${clues.possible_title}"` : 'unclear — add manually?'
         setDetectStatus(clueText)
         setTimeout(() => setDetectStatus(''), 6000)
         return
       }
 
-      // Matches current pending candidate
       if (candidate && isSameSong(candidate, detected)) {
         const updatedCandidate: PendingCandidate = {
-          ...candidate,
-          lastDetectedAt: now,
-          matchCount: candidate.matchCount + 1,
-          confidence_level,
-          source,
+          ...candidate, lastDetectedAt: now,
+          matchCount: candidate.matchCount + 1, confidence_level, source,
         }
         const withinWindow  = (now - candidate.firstDetectedAt) / 1000 <= CANDIDATE_WINDOW_SECONDS
         const enoughMatches = updatedCandidate.matchCount >= REPEAT_MATCH_CONFIRM_COUNT
-
         if (withinWindow && enoughMatches) {
           confirmCandidate(updatedCandidate, setlist_item_id)
         } else {
@@ -254,36 +244,21 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         return
       }
 
-      // Brand new detection
       const cooldownPassed = secondsSinceLastConfirm >= MIN_SONG_GAP_SECONDS
       const isFirstSong    = confirmed.length === 0 && lastConfirmedAtRef.current === 0
 
       if (cooldownPassed || isFirstSong) {
         if (confidence_level === 'auto') {
-          const newCandidate: PendingCandidate = {
-            title, artist, source, confidence_level,
-            firstDetectedAt: now, lastDetectedAt: now, matchCount: 1,
-          }
-          confirmCandidate(newCandidate, setlist_item_id)
+          confirmCandidate({ title, artist, source, confidence_level, firstDetectedAt: now, lastDetectedAt: now, matchCount: 1 }, setlist_item_id)
         } else {
-          // 'suggest' — show pending card
-          const newCandidate: PendingCandidate = {
-            title, artist, source, confidence_level, clues,
-            firstDetectedAt: now, lastDetectedAt: now, matchCount: 1,
-          }
-          setPendingCandidate(newCandidate)
+          setPendingCandidate({ title, artist, source, confidence_level, clues, firstDetectedAt: now, lastDetectedAt: now, matchCount: 1 })
           setDetectStatus(`hearing "${title}"...`)
         }
       } else {
         const secondsRemaining = Math.round(MIN_SONG_GAP_SECONDS - secondsSinceLastConfirm)
         setDetectStatus(`hearing "${title}"... (${secondsRemaining}s)`)
-        const newCandidate: PendingCandidate = {
-          title, artist, source, confidence_level, clues,
-          firstDetectedAt: now, lastDetectedAt: now, matchCount: 1,
-        }
-        setPendingCandidate(newCandidate)
+        setPendingCandidate({ title, artist, source, confidence_level, clues, firstDetectedAt: now, lastDetectedAt: now, matchCount: 1 })
       }
-
     } catch {
       setDetectStatus('listening...')
     } finally {
@@ -317,10 +292,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         const recorder = new MediaRecorder(stream, { mimeType })
         mediaRecorderRef.current = recorder
         recorder.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data) }
-        recorder.onstop = () => {
-          const blob = new Blob(chunksRef.current, { type: mimeType })
-          detectSong(blob)
-        }
+        recorder.onstop = () => detectSong(new Blob(chunksRef.current, { type: mimeType }))
         recorder.start()
         setTimeout(() => { if (recorder.state === 'recording') recorder.stop() }, 12000)
       }
@@ -523,7 +495,6 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
               {pendingCandidate.artist}
               {pendingCandidate.matchCount > 1 && <span style={{ color: C.gold, marginLeft: 6 }}>· detected {pendingCandidate.matchCount}×</span>}
             </p>
-            {/* Show lyric clue if from transcript */}
             {pendingCandidate.clues?.lyric_hooks?.[0] && (
               <p style={{ fontSize: 11, color: C.muted, margin: '0 0 10px', fontStyle: 'italic' }}>
                 "{pendingCandidate.clues.lyric_hooks[0]}"
@@ -561,7 +532,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
           </div>
         )}
 
-        {/* Setlist */}
+        {/* ── Setlist with tap-to-edit ── */}
         {songs.length > 0 && (
           <div>
             <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.muted, margin: '4px 0 10px 2px' }}>
@@ -569,20 +540,82 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
               {songs.map((song, i) => (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: C.card, border: `1px solid ${song.source !== 'manual' ? C.gold + '20' : C.border}`, borderRadius: 10, animation: 'slideUp 0.25s ease' }}>
-                  <span style={{ fontSize: 10, fontWeight: 700, color: C.muted, minWidth: 16, textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontFamily: '"DM Mono", monospace' }}>{i + 1}</span>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ fontSize: 14, fontWeight: 600, color: C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{song.title}</p>
-                    {song.artist && song.artist !== performance.artist_name && (
-                      <p style={{ fontSize: 11, color: C.secondary, margin: '2px 0 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{song.artist}</p>
-                    )}
-                  </div>
-                  <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', flexShrink: 0, color: song.source !== 'manual' ? C.gold : C.muted, opacity: 0.6 }}>
-                    {song.source === 'manual' ? '✎ manual' : song.source === 'transcript' ? '✦ transcript' : '⚡ auto'}
-                  </span>
+                <div key={i} style={{
+                  background: C.card,
+                  border: `1px solid ${editingIndex === i ? C.gold + '60' : song.source !== 'manual' ? C.gold + '20' : C.border}`,
+                  borderRadius: 10,
+                  animation: 'slideUp 0.25s ease',
+                  overflow: 'hidden',
+                  transition: 'border-color 0.15s ease',
+                }}>
+                  {editingIndex === i ? (
+                    // ── Edit mode ──────────────────────────────────────────
+                    <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8, animation: 'slideUp 0.15s ease' }}>
+                      <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.gold, margin: 0 }}>
+                        Edit Song
+                      </p>
+                      <input
+                        autoFocus
+                        value={editTitle}
+                        onChange={e => setEditTitle(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') cancelEdit() }}
+                        placeholder="Song title"
+                        style={{ background: C.input, border: `1px solid ${C.gold}60`, borderRadius: 8, padding: '9px 12px', color: C.text, fontSize: 14, fontFamily: 'inherit', outline: 'none', width: '100%', boxSizing: 'border-box' }}
+                      />
+                      <input
+                        value={editArtist}
+                        onChange={e => setEditArtist(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') cancelEdit() }}
+                        placeholder="Artist"
+                        style={{ background: C.input, border: `1px solid ${C.border}`, borderRadius: 8, padding: '9px 12px', color: C.text, fontSize: 13, fontFamily: 'inherit', outline: 'none', width: '100%', boxSizing: 'border-box' }}
+                      />
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button
+                          onClick={saveEdit}
+                          style={{ flex: 1, padding: '9px', background: C.gold, border: 'none', borderRadius: 8, color: '#0a0908', fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}
+                        >
+                          <Check size={13} strokeWidth={2.5} />
+                          Save
+                        </button>
+                        <button
+                          onClick={cancelEdit}
+                          style={{ padding: '9px 16px', background: 'transparent', border: `1px solid ${C.border}`, borderRadius: 8, color: C.muted, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 5 }}
+                        >
+                          <X size={13} />
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    // ── View mode — tap anywhere to edit ──────────────────
+                    <div
+                      style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', cursor: 'pointer' }}
+                      onClick={() => startEdit(i)}
+                    >
+                      <span style={{ fontSize: 10, fontWeight: 700, color: C.muted, minWidth: 16, textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontFamily: '"DM Mono", monospace' }}>{i + 1}</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <p style={{ fontSize: 14, fontWeight: 600, color: C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{song.title}</p>
+                        {song.artist && song.artist !== performance.artist_name && (
+                          <p style={{ fontSize: 11, color: C.secondary, margin: '2px 0 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{song.artist}</p>
+                        )}
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                        <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: song.source !== 'manual' ? C.gold : C.muted, opacity: 0.6 }}>
+                          {song.source === 'manual' ? '✎ manual' : song.source === 'transcript' ? '✦ transcript' : '⚡ auto'}
+                        </span>
+                        <Pencil size={11} color={C.muted} opacity={0.4} />
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
+            {/* Hint on first song */}
+            {songs.length > 0 && editingIndex === null && (
+              <p style={{ fontSize: 10, color: C.muted, textAlign: 'center', margin: '8px 0 0', letterSpacing: '0.04em', opacity: 0.6 }}>
+                Tap any song to edit
+              </p>
+            )}
           </div>
         )}
 
@@ -610,7 +643,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         @keyframes breathe    { 0%,100%{transform:scale(1);opacity:.4} 50%{transform:scale(1.15);opacity:.9} }
         * { -webkit-tap-highlight-color: transparent; }
         input::placeholder { color: #6a6050; }
-        input:focus { border-color: rgba(201,168,76,0.4) !important; }
+        input:focus { border-color: rgba(201,168,76,0.4) !important; outline: none; }
       `}</style>
     </div>
   )
