@@ -9,14 +9,13 @@ type Song = { title: string; id: number }
 
 export default function StartPage() {
   const router  = useRouter()
-  const [songs, setSongs]         = useState<Song[]>([])
-  const [input, setInput]         = useState('')
-  const [showValue, setShowValue] = useState(false)
+  const [songs, setSongs]               = useState<Song[]>([])
+  const [input, setInput]               = useState('')
+  const [showValue, setShowValue]       = useState(false)
   const [animateValue, setAnimateValue] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const nextId   = useRef(1)
 
-  // Restore from sessionStorage on mount
   useEffect(() => {
     try {
       const saved = sessionStorage.getItem('setlistr_quick_songs')
@@ -31,7 +30,6 @@ export default function StartPage() {
     } catch {}
   }, [])
 
-  // Persist to sessionStorage on change
   useEffect(() => {
     try { sessionStorage.setItem('setlistr_quick_songs', JSON.stringify(songs)) } catch {}
   }, [songs])
@@ -43,8 +41,6 @@ export default function StartPage() {
     setSongs(newSongs)
     setInput('')
     inputRef.current?.focus()
-
-    // Trigger value moment after 2nd song
     if (newSongs.length === 2) {
       setTimeout(() => {
         setShowValue(true)
@@ -53,14 +49,13 @@ export default function StartPage() {
     }
   }
 
-  function removesSong(id: number) {
+  function removeSong(id: number) {
     const newSongs = songs.filter(s => s.id !== id)
     setSongs(newSongs)
     if (newSongs.length < 2) { setShowValue(false); setAnimateValue(false) }
   }
 
   function handleClaim() {
-    // Store setlist in sessionStorage for post-signup retrieval
     try {
       sessionStorage.setItem('setlistr_pending_setlist', JSON.stringify(songs.map(s => s.title)))
     } catch {}
@@ -80,7 +75,6 @@ export default function StartPage() {
       position: 'relative', overflow: 'hidden',
     }}>
 
-      {/* Ambient glow */}
       <div style={{
         position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)',
         width: '140vw', height: '50vh', pointerEvents: 'none', zIndex: 0,
@@ -100,13 +94,6 @@ export default function StartPage() {
 
         {/* Header */}
         <div style={{ paddingTop: 48, paddingBottom: 32, animation: 'fadeUp 0.4s ease' }}>
-          <p style={{
-            fontSize: 11, fontWeight: 700, letterSpacing: '0.2em',
-            textTransform: 'uppercase', color: 'rgba(201,168,76,0.5)',
-            margin: '0 0 20px',
-          }}>
-            Setlistr
-          
           <h1 style={{
             fontSize: 'clamp(28px, 8vw, 38px)',
             fontWeight: 800, color: '#f0ece3',
@@ -171,16 +158,13 @@ export default function StartPage() {
           <div style={{ marginBottom: 24, animation: 'fadeUp 0.3s ease' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {songs.map((song, i) => (
-                <div
-                  key={song.id}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 12,
-                    background: '#141210',
-                    border: '1px solid rgba(255,255,255,0.06)',
-                    borderRadius: 10, padding: '11px 14px',
-                    animation: 'slideUp 0.2s ease',
-                  }}
-                >
+                <div key={song.id} style={{
+                  display: 'flex', alignItems: 'center', gap: 12,
+                  background: '#141210',
+                  border: '1px solid rgba(255,255,255,0.06)',
+                  borderRadius: 10, padding: '11px 14px',
+                  animation: 'slideUp 0.2s ease',
+                }}>
                   <span style={{
                     fontSize: 11, fontWeight: 700, color: '#6a6050',
                     minWidth: 18, textAlign: 'right',
@@ -196,12 +180,11 @@ export default function StartPage() {
                     {song.title}
                   </p>
                   <button
-                    onClick={() => removesSong(song.id)}
+                    onClick={() => removeSong(song.id)}
                     style={{
                       background: 'none', border: 'none', cursor: 'pointer',
                       color: '#6a6050', padding: '2px 4px', fontSize: 16,
-                      lineHeight: 1, flexShrink: 0,
-                      transition: 'color 0.15s',
+                      lineHeight: 1, flexShrink: 0, transition: 'color 0.15s',
                     }}
                     onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = '#f87171'}
                     onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = '#6a6050'}
@@ -212,7 +195,6 @@ export default function StartPage() {
               ))}
             </div>
 
-            {/* Prompt before value moment */}
             {songs.length === 1 && (
               <p style={{
                 fontSize: 12, color: '#6a6050', textAlign: 'center',
@@ -225,7 +207,7 @@ export default function StartPage() {
           </div>
         )}
 
-        {/* ── VALUE MOMENT ── */}
+        {/* Value moment */}
         {showValue && songs.length >= 2 && (
           <div style={{
             background: 'rgba(201,168,76,0.06)',
@@ -244,10 +226,7 @@ export default function StartPage() {
               This is your setlist.
             </p>
 
-            <p style={{
-              fontSize: 14, color: '#a09070',
-              margin: '0 0 8px', lineHeight: 1.5,
-            }}>
+            <p style={{ fontSize: 14, color: '#a09070', margin: '0 0 8px', lineHeight: 1.5 }}>
               You likely missed out on
             </p>
 
@@ -259,21 +238,12 @@ export default function StartPage() {
               ${low}–${high}
             </p>
 
-            <p style={{
-              fontSize: 13, color: '#6a6050',
-              margin: '0 0 20px',
-            }}>
+            <p style={{ fontSize: 13, color: '#6a6050', margin: '0 0 20px' }}>
               from this set alone
             </p>
 
-            <div style={{
-              borderTop: '1px solid rgba(201,168,76,0.15)',
-              paddingTop: 16, marginBottom: 20,
-            }}>
-              <p style={{
-                fontSize: 13, color: '#a09070',
-                margin: 0, lineHeight: 1.6,
-              }}>
+            <div style={{ borderTop: '1px solid rgba(201,168,76,0.15)', paddingTop: 16, marginBottom: 20 }}>
+              <p style={{ fontSize: 13, color: '#a09070', margin: 0, lineHeight: 1.6 }}>
                 Every show you play without reporting is money left behind.
                 Most artists never know they're owed it.
               </p>
@@ -287,8 +257,7 @@ export default function StartPage() {
                 color: '#0a0908', fontSize: 14, fontWeight: 800,
                 letterSpacing: '0.06em', textTransform: 'uppercase',
                 cursor: 'pointer', fontFamily: 'inherit',
-                marginBottom: 10,
-                transition: 'opacity 0.15s ease',
+                marginBottom: 10, transition: 'opacity 0.15s ease',
               }}
               onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.88'}
               onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}
@@ -305,17 +274,14 @@ export default function StartPage() {
           </div>
         )}
 
-        {/* Empty state prompt */}
+        {/* Empty state */}
         {songs.length === 0 && (
           <div style={{
             flex: 1, display: 'flex', flexDirection: 'column',
             alignItems: 'center', justifyContent: 'center',
             padding: '40px 0', animation: 'fadeUp 0.6s ease',
           }}>
-            <div style={{
-              display: 'flex', flexDirection: 'column', gap: 8,
-              alignItems: 'center', opacity: 0.4,
-            }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center', opacity: 0.4 }}>
               {['Song 1', 'Song 2', 'Song 3'].map((s, i) => (
                 <div key={i} style={{
                   width: 200, height: 14, borderRadius: 7,
@@ -324,16 +290,13 @@ export default function StartPage() {
                 }} />
               ))}
             </div>
-            <p style={{
-              fontSize: 12, color: '#6a6050',
-              margin: '20px 0 0', textAlign: 'center', lineHeight: 1.5,
-            }}>
+            <p style={{ fontSize: 12, color: '#6a6050', margin: '20px 0 0', textAlign: 'center', lineHeight: 1.5 }}>
               Type a song you played tonight<br />and hit enter
             </p>
           </div>
         )}
 
-        {/* "This setlist isn't saved yet" urgency line */}
+        {/* Urgency */}
         {songs.length > 0 && !showValue && (
           <p style={{
             fontSize: 11, color: 'rgba(201,168,76,0.4)',
