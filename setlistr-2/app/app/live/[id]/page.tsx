@@ -23,6 +23,9 @@ type DetectedSong = {
   detected_title?: string
   detected_artist?: string
   confidence_level?: 'auto' | 'suggest' | 'manual_review'
+  isrc?: string
+  composer?: string
+  publisher?: string
 }
 
 type PendingCandidate = {
@@ -155,7 +158,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   }
 
   // ── Confirm candidate ─────────────────────────────────────────────────────
-  const confirmCandidate = useCallback((candidate: PendingCandidate, setlist_item_id?: string) => {
+  const confirmCandidate = useCallback((candidate: PendingCandidate, setlist_item_id?: string, enriched?: { isrc?: string; composer?: string; publisher?: string }) => {
     const newSong: DetectedSong = {
       title: candidate.title,
       artist: candidate.artist,
@@ -164,6 +167,9 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
       detected_title: candidate.title,
       detected_artist: candidate.artist,
       confidence_level: candidate.confidence_level,
+      isrc: enriched?.isrc || '',
+      composer: enriched?.composer || '',
+      publisher: enriched?.publisher || '',
     }
     setSongs(prev => [...prev, newSong])
     lastConfirmedAtRef.current = Date.now()
@@ -212,7 +218,6 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
       const confirmed = confirmedSongsRef.current
       const candidate = pendingCandidateRef.current
 
-      const alreadyConfirmed = confirmed.some(s => isSameSong(s, detected))
       if (alreadyConfirmed) {
         setDetectStatus('already logged')
         setTimeout(() => setDetectStatus(''), 3000)
@@ -236,7 +241,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         const withinWindow  = (now - candidate.firstDetectedAt) / 1000 <= CANDIDATE_WINDOW_SECONDS
         const enoughMatches = updatedCandidate.matchCount >= REPEAT_MATCH_CONFIRM_COUNT
         if (withinWindow && enoughMatches) {
-          confirmCandidate(updatedCandidate, setlist_item_id)
+          confirmCandidate(updatedCandidate, setlist_item_id, { isrc: data.isrc, composer: data.composer, publisher: data.publisher })
         } else {
           setPendingCandidate(updatedCandidate)
           setDetectStatus(`hearing "${title}"...`)
@@ -249,7 +254,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
 
       if (cooldownPassed || isFirstSong) {
         if (confidence_level === 'auto') {
-          confirmCandidate({ title, artist, source, confidence_level, firstDetectedAt: now, lastDetectedAt: now, matchCount: 1 }, setlist_item_id)
+          confirmCandidate({ title, artist, source, confidence_level, firstDetectedAt: now, lastDetectedAt: now, matchCount: 1 }, setlist_item_id, { isrc: data.isrc, composer: data.composer, publisher: data.publisher })
         } else {
           setPendingCandidate({ title, artist, source, confidence_level, clues, firstDetectedAt: now, lastDetectedAt: now, matchCount: 1 })
           setDetectStatus(`hearing "${title}"...`)
@@ -346,6 +351,9 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
           title: song.title,
           artist: song.artist || performance.artist_name,
           position: i + 1,
+          isrc: song.isrc || null,
+          composer: song.composer || null,
+          publisher: song.publisher || null,
         }))
       )
     }
