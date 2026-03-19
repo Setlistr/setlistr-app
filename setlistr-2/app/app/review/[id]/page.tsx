@@ -16,7 +16,7 @@ import { GripVertical, Trash2, Download, Check, Pencil, X, Music2, MapPin, Calen
 const C = {
   bg: '#0a0908', card: '#141210', cardHover: '#181614',
   border: 'rgba(255,255,255,0.07)', borderGold: 'rgba(201,168,76,0.3)',
-  input: '#0f0e0c', text: '#f0ece3', secondary: '#b8a888', muted: '#8a7a68',
+  input: '#0f0e0c', text: '#f0ece3', secondary: '#a09070', muted: '#6a6050',
   gold: '#c9a84c', goldDim: 'rgba(201,168,76,0.1)', green: '#4ade80', red: '#dc2626',
 }
 
@@ -499,7 +499,14 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
             </div>
           </div>
 
-          <button onClick={() => router.push('/app/dashboard')} style={{ width: '100%', padding: '14px', background: C.gold, border: 'none', borderRadius: 12, color: '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', marginBottom: 12, animation: 'fadeUp 0.5s 0.25s ease both' }}>
+          {/* Submit to Get Paid CTA */}
+          <button
+            onClick={() => router.push(`/app/submit/${params.id}`)}
+            style={{ width: '100%', padding: '15px', background: C.gold, border: 'none', borderRadius: 12, color: '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', marginBottom: 10, animation: 'fadeUp 0.5s 0.25s ease both', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit' }}>
+            💰 Submit to Get Paid
+          </button>
+
+          <button onClick={() => router.push('/app/dashboard')} style={{ width: '100%', padding: '13px', background: 'transparent', border: `1px solid ${C.border}`, borderRadius: 12, color: C.secondary, fontSize: 13, fontWeight: 600, cursor: 'pointer', marginBottom: 12, animation: 'fadeUp 0.5s 0.3s ease both', fontFamily: 'inherit' }}>
             Back to Dashboard
           </button>
           <button onClick={() => setShowComplete(false)} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 12, cursor: 'pointer', letterSpacing: '0.04em' }}>
