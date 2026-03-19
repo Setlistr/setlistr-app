@@ -129,12 +129,13 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
     load()
   }, [params.id])
 
-  async function markSubmitted() {
+async function markSubmitted() {
     setSubmitting(true)
     const supabase = createClient()
     await supabase.from('performances').update({
       submitted_to_pro: selectedPRO,
       submitted_at: new Date().toISOString(),
+      status: 'exported',
     }).eq('id', params.id)
     setSubmitted(true)
     setSubmitting(false)
