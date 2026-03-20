@@ -218,7 +218,27 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         candidateHistoryRef.current = [entry, ...candidateHistoryRef.current].slice(0, 3)
       }
 
-      if (!data.detected) { setDetectStatus('listening...'); return }
+      if (!data.detected) {
+  // If ACR heard something but confidence was too low, create a placeholder
+  if (data.debug?.acr_state !== 'failed' && confirmedSongsRef.current.length > 0) {
+    const timeSinceLast = (Date.now() - lastConfirmedAtRef.current) / 1000
+    if (timeSinceLast > MIN_SONG_GAP_SECONDS * 1.5) {
+      setSongs(prev => {
+        // Only add placeholder if we don't already have one at the end
+        const last = prev[prev.length - 1]
+        if (last?.source === 'unidentified') return prev
+        return [...prev, {
+          title: 'Unknown Song',
+          artist: '',
+          source: 'unidentified',
+        }]
+      })
+      lastConfirmedAtRef.current = Date.now()
+    }
+  }
+  setDetectStatus('listening...')
+  return
+}
 
       const { title, artist, setlist_item_id, confidence_level, source, clues, candidates, downgraded_reason } = data
       const detected = { title, artist }
