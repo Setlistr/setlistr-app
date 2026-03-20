@@ -17,7 +17,7 @@ const MIN_SONG_GAP_SECONDS            = 30
 const CANDIDATE_WINDOW_SECONDS        = 60
 const FINGERPRINT_AUTO_CONFIRM_SCORE  = 90  // fingerprint needs score ≥ 90 to single-confirm
 const HUMMING_AUTO_CONFIRM_SCORE      = 70  // humming is melody-based, lower bar is fine
-const PLACEHOLDER_GAP_SECONDS         = 50  // create placeholder if no confirm for this long
+const PLACEHOLDER_GAP_SECONDS         = 35  // create placeholder if no confirm for this long
 
 type AcrCandidate = { title: string; artist: string; score: number }
 
@@ -384,6 +384,17 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   const handleEnd = useCallback(async () => {
     if (ending || !performance) return
     setEnding(true)
+
+    // Create placeholder for any undetected trailing song
+    const timeSinceLast = (Date.now() - lastConfirmedAtRef.current) / 1000
+    const currentSongs  = confirmedSongsRef.current
+    if (currentSongs.length > 0 && timeSinceLast > PLACEHOLDER_GAP_SECONDS) {
+      const last = currentSongs[currentSongs.length - 1]
+      if (last?.source !== 'unidentified') {
+        setSongs(prev => [...prev, { title: 'Unknown Song', artist: '', source: 'unidentified' }])
+      }
+    }
+
     stopListening()
     const supabase = createClient()
 
