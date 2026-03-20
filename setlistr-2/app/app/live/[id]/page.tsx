@@ -13,7 +13,7 @@ const C = {
 }
 
 // ── Tuned constants ───────────────────────────────────────────────────────────
-const MIN_SONG_GAP_SECONDS       = 45  // reduced from 75 — less aggressive cooldown
+const MIN_SONG_GAP_SECONDS       = 30  // reduced from 45
 const REPEAT_MATCH_CONFIRM_COUNT = 1   // reduced from 2 — confirm on first humming match
 const CANDIDATE_WINDOW_SECONDS   = 60
 
@@ -243,7 +243,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         return
       }
 
-      if (candidate && isSameSong(candidate, detected)) {
+      if (candidate && normalizeSongKey(candidate.title) === normalizeSongKey(detected.title)) {
         const updatedCandidate: PendingCandidate = {
           ...candidate, lastDetectedAt: now,
           matchCount: candidate.matchCount + 1, confidence_level, source,
@@ -327,7 +327,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
       }
 
       recordAndDetect()
-      listenIntervalRef.current = setInterval(recordAndDetect, 30000)
+      listenIntervalRef.current = setInterval(recordAndDetect, 20000)
     } catch {
       setDetectStatus('mic access denied')
       setIsListening(false)
@@ -513,7 +513,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
             <div style={{ display: 'flex', alignItems: 'center', gap: 3, height: 14 }}>
               {[0,1,2].map(i => (<div key={i} style={{ width: 2, borderRadius: 1, background: C.gold + '60', animation: `wave-bar 1s ${i * 0.2}s ease-in-out infinite alternate`, height: 6 }} />))}
             </div>
-            <span style={{ fontSize: 10, color: C.muted, letterSpacing: '0.1em', textTransform: 'uppercase' }}>sampling every 30s</span>
+            <span style={{ fontSize: 10, color: C.muted, letterSpacing: '0.1em', textTransform: 'uppercase' }}>sampling every 20s</span>
           </div>
         )}
       </div>
