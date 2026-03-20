@@ -15,8 +15,8 @@ const C = {
 // ── Tuned constants ───────────────────────────────────────────────────────────
 const MIN_SONG_GAP_SECONDS            = 30
 const CANDIDATE_WINDOW_SECONDS        = 60
-const FINGERPRINT_AUTO_CONFIRM_SCORE  = 90  // fingerprint needs score ≥ 90 to single-confirm
-const HUMMING_AUTO_CONFIRM_SCORE      = 70  // humming is melody-based, lower bar is fine
+const FINGERPRINT_AUTO_CONFIRM_SCORE  = 0.75  // ACR returns 0-1 decimal scale
+const HUMMING_AUTO_CONFIRM_SCORE      = 0.60  // humming is melody-based, lower bar is fine
 const PLACEHOLDER_GAP_SECONDS         = 35  // create placeholder if no confirm for this long
 
 type AcrCandidate = { title: string; artist: string; score: number }
