@@ -13,9 +13,11 @@ const C = {
 }
 
 // ── Tuned constants ───────────────────────────────────────────────────────────
-const MIN_SONG_GAP_SECONDS       = 30  // reduced from 45
-const REPEAT_MATCH_CONFIRM_COUNT = 1   // reduced from 2 — confirm on first humming match
-const CANDIDATE_WINDOW_SECONDS   = 60
+const MIN_SONG_GAP_SECONDS            = 30
+const CANDIDATE_WINDOW_SECONDS        = 60
+const FINGERPRINT_AUTO_CONFIRM_SCORE  = 90  // fingerprint needs score ≥ 90 to single-confirm
+const HUMMING_AUTO_CONFIRM_SCORE      = 70  // humming is melody-based, lower bar is fine
+const PLACEHOLDER_GAP_SECONDS         = 50  // create placeholder if no confirm for this long
 
 type AcrCandidate = { title: string; artist: string; score: number }
 
@@ -219,26 +221,20 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
       }
 
       if (!data.detected) {
-  // If ACR heard something but confidence was too low, create a placeholder
-  if (data.debug?.acr_state !== 'failed' && confirmedSongsRef.current.length > 0) {
-    const timeSinceLast = (Date.now() - lastConfirmedAtRef.current) / 1000
-    if (timeSinceLast > MIN_SONG_GAP_SECONDS * 1.5) {
-      setSongs(prev => {
-        // Only add placeholder if we don't already have one at the end
-        const last = prev[prev.length - 1]
-        if (last?.source === 'unidentified') return prev
-        return [...prev, {
-          title: 'Unknown Song',
-          artist: '',
-          source: 'unidentified',
-        }]
-      })
-      lastConfirmedAtRef.current = Date.now()
-    }
-  }
-  setDetectStatus('listening...')
-  return
-}
+        // Create placeholder if mid-set and enough time has passed since last confirm
+        const timeSinceLast = (Date.now() - lastConfirmedAtRef.current) / 1000
+        const midSet = confirmedSongsRef.current.length > 0
+        if (midSet && timeSinceLast > PLACEHOLDER_GAP_SECONDS) {
+          setSongs(prev => {
+            const last = prev[prev.length - 1]
+            if (last?.source === 'unidentified') return prev
+            return [...prev, { title: 'Unknown Song', artist: '', source: 'unidentified' }]
+          })
+          lastConfirmedAtRef.current = Date.now()
+        }
+        setDetectStatus('listening...')
+        return
+      }
 
       const { title, artist, setlist_item_id, confidence_level, source, clues, candidates, downgraded_reason } = data
       const detected = { title, artist }
@@ -269,9 +265,17 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
           matchCount: candidate.matchCount + 1, confidence_level, source,
           candidates: candidates || candidate.candidates,
         }
-        const withinWindow  = (now - candidate.firstDetectedAt) / 1000 <= CANDIDATE_WINDOW_SECONDS
-        const enoughMatches = updatedCandidate.matchCount >= REPEAT_MATCH_CONFIRM_COUNT
-        if (withinWindow && enoughMatches) {
+        const withinWindow = (now - candidate.firstDetectedAt) / 1000 <= CANDIDATE_WINDOW_SECONDS
+        // Humming: confirm on first match if score is good
+        // Fingerprint: require either high score OR 2 matches
+        const acrScore = data.acr_score || 0
+        const isHumming = source === 'humming'
+        const scoreGood = isHumming
+          ? acrScore >= HUMMING_AUTO_CONFIRM_SCORE
+          : acrScore >= FINGERPRINT_AUTO_CONFIRM_SCORE
+        const enoughMatches = updatedCandidate.matchCount >= 2
+        const shouldConfirm = withinWindow && (scoreGood || enoughMatches)
+        if (shouldConfirm) {
           confirmCandidate(updatedCandidate, setlist_item_id, { isrc: data.isrc, composer: data.composer, publisher: data.publisher })
         } else {
           setPendingCandidate(updatedCandidate)
@@ -285,13 +289,28 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
 
       if (cooldownPassed || isFirstSong) {
         if (confidence_level === 'auto') {
-          confirmCandidate(
-            { title, artist, source, confidence_level, firstDetectedAt: now, lastDetectedAt: now, matchCount: 1, candidates },
-            setlist_item_id,
-            { isrc: data.isrc, composer: data.composer, publisher: data.publisher }
-          )
+          // Same score check for brand new detections
+          const acrScore = data.acr_score || 0
+          const isHumming = source === 'humming'
+          const scoreGood = isHumming
+            ? acrScore >= HUMMING_AUTO_CONFIRM_SCORE
+            : acrScore >= FINGERPRINT_AUTO_CONFIRM_SCORE
+          if (scoreGood) {
+            confirmCandidate(
+              { title, artist, source, confidence_level, firstDetectedAt: now, lastDetectedAt: now, matchCount: 1, candidates },
+              setlist_item_id,
+              { isrc: data.isrc, composer: data.composer, publisher: data.publisher }
+            )
+          } else {
+            // Score not high enough yet — put in pending for confirmation
+            setPendingCandidate({
+              title, artist, source, confidence_level, clues,
+              firstDetectedAt: now, lastDetectedAt: now, matchCount: 1,
+              candidates, downgraded_reason,
+            })
+            setDetectStatus(`hearing "${title}"...`)
+          }
         } else {
-          // suggest or downgraded — show pending card with top 3
           setPendingCandidate({
             title, artist, source, confidence_level, clues,
             firstDetectedAt: now, lastDetectedAt: now, matchCount: 1,
