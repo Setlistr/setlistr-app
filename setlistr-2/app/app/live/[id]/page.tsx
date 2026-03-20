@@ -9,16 +9,20 @@ const C = {
   bg: '#0a0908', card: '#141210', border: 'rgba(255,255,255,0.07)',
   input: '#0f0e0c', text: '#f0ece3', secondary: '#b8a888', muted: '#8a7a68',
   gold: '#c9a84c', goldDim: 'rgba(201,168,76,0.15)', red: '#dc2626',
+  amber: '#f59e0b', amberDim: 'rgba(245,158,11,0.12)',
 }
 
-const MIN_SONG_GAP_SECONDS       = 75
-const REPEAT_MATCH_CONFIRM_COUNT = 2
+// ── Tuned constants ───────────────────────────────────────────────────────────
+const MIN_SONG_GAP_SECONDS       = 45  // reduced from 75 — less aggressive cooldown
+const REPEAT_MATCH_CONFIRM_COUNT = 1   // reduced from 2 — confirm on first humming match
 const CANDIDATE_WINDOW_SECONDS   = 60
+
+type AcrCandidate = { title: string; artist: string; score: number }
 
 type DetectedSong = {
   title: string
   artist: string
-  source: 'fingerprint' | 'humming' | 'transcript' | 'combined' | 'manual' | 'cloned'
+  source: 'fingerprint' | 'humming' | 'transcript' | 'combined' | 'manual' | 'cloned' | 'unidentified'
   setlist_item_id?: string
   detected_title?: string
   detected_artist?: string
@@ -37,6 +41,8 @@ type PendingCandidate = {
   source: DetectedSong['source']
   confidence_level?: 'auto' | 'suggest' | 'manual_review'
   clues?: SongClues
+  candidates?: AcrCandidate[]       // top 3 from ACR
+  downgraded_reason?: string        // why fast path was downgraded
 }
 
 type SongClues = {
@@ -86,10 +92,9 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   const [lastCaught, setLastCaught]   = useState<string | null>(null)
   const [pendingCandidate, setPendingCandidate] = useState<PendingCandidate | null>(null)
 
-  // ── Tap-to-edit state ─────────────────────────────────────────────────────
-  const [editingIndex, setEditingIndex]   = useState<number | null>(null)
-  const [editTitle, setEditTitle]         = useState('')
-  const [editArtist, setEditArtist]       = useState('')
+  const [editingIndex, setEditingIndex] = useState<number | null>(null)
+  const [editTitle, setEditTitle]       = useState('')
+  const [editArtist, setEditArtist]     = useState('')
 
   const mediaRecorderRef    = useRef<MediaRecorder | null>(null)
   const chunksRef           = useRef<Blob[]>([])
@@ -136,7 +141,6 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
 
   useEffect(() => { return () => stopListening() }, [])
 
-  // ── Tap-to-edit handlers ──────────────────────────────────────────────────
   function startEdit(index: number) {
     setEditingIndex(index)
     setEditTitle(songs[index].title)
@@ -146,18 +150,13 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   function saveEdit() {
     if (editingIndex === null || !editTitle.trim()) return
     setSongs(prev => prev.map((s, i) =>
-      i === editingIndex
-        ? { ...s, title: editTitle.trim(), artist: editArtist.trim() || s.artist }
-        : s
+      i === editingIndex ? { ...s, title: editTitle.trim(), artist: editArtist.trim() || s.artist } : s
     ))
     setEditingIndex(null)
   }
 
-  function cancelEdit() {
-    setEditingIndex(null)
-  }
+  function cancelEdit() { setEditingIndex(null) }
 
-  // ── Confirm candidate ─────────────────────────────────────────────────────
   const confirmCandidate = useCallback((candidate: PendingCandidate, setlist_item_id?: string, enriched?: { isrc?: string; composer?: string; publisher?: string }) => {
     const newSong: DetectedSong = {
       title: candidate.title,
@@ -181,7 +180,17 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
     setDetectStatus('')
   }, [])
 
-  // ── Core detection ────────────────────────────────────────────────────────
+  // ── Select a specific candidate from top 3 ────────────────────────────────
+  const selectCandidate = useCallback((candidate: AcrCandidate) => {
+    if (!pendingCandidateRef.current) return
+    const updated: PendingCandidate = {
+      ...pendingCandidateRef.current,
+      title: candidate.title,
+      artist: candidate.artist,
+    }
+    confirmCandidate(updated)
+  }, [confirmCandidate])
+
   const detectSong = useCallback(async (audioBlob: Blob) => {
     setIsDetecting(true)
     setDetectStatus('listening...')
@@ -211,7 +220,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
 
       if (!data.detected) { setDetectStatus('listening...'); return }
 
-      const { title, artist, setlist_item_id, confidence_level, source, clues } = data
+      const { title, artist, setlist_item_id, confidence_level, source, clues, candidates, downgraded_reason } = data
       const detected = { title, artist }
       const now      = Date.now()
       const secondsSinceLastConfirm = (now - lastConfirmedAtRef.current) / 1000
@@ -238,6 +247,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         const updatedCandidate: PendingCandidate = {
           ...candidate, lastDetectedAt: now,
           matchCount: candidate.matchCount + 1, confidence_level, source,
+          candidates: candidates || candidate.candidates,
         }
         const withinWindow  = (now - candidate.firstDetectedAt) / 1000 <= CANDIDATE_WINDOW_SECONDS
         const enoughMatches = updatedCandidate.matchCount >= REPEAT_MATCH_CONFIRM_COUNT
@@ -255,15 +265,28 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
 
       if (cooldownPassed || isFirstSong) {
         if (confidence_level === 'auto') {
-          confirmCandidate({ title, artist, source, confidence_level, firstDetectedAt: now, lastDetectedAt: now, matchCount: 1 }, setlist_item_id, { isrc: data.isrc, composer: data.composer, publisher: data.publisher })
+          confirmCandidate(
+            { title, artist, source, confidence_level, firstDetectedAt: now, lastDetectedAt: now, matchCount: 1, candidates },
+            setlist_item_id,
+            { isrc: data.isrc, composer: data.composer, publisher: data.publisher }
+          )
         } else {
-          setPendingCandidate({ title, artist, source, confidence_level, clues, firstDetectedAt: now, lastDetectedAt: now, matchCount: 1 })
+          // suggest or downgraded — show pending card with top 3
+          setPendingCandidate({
+            title, artist, source, confidence_level, clues,
+            firstDetectedAt: now, lastDetectedAt: now, matchCount: 1,
+            candidates, downgraded_reason,
+          })
           setDetectStatus(`hearing "${title}"...`)
         }
       } else {
         const secondsRemaining = Math.round(MIN_SONG_GAP_SECONDS - secondsSinceLastConfirm)
         setDetectStatus(`hearing "${title}"... (${secondsRemaining}s)`)
-        setPendingCandidate({ title, artist, source, confidence_level, clues, firstDetectedAt: now, lastDetectedAt: now, matchCount: 1 })
+        setPendingCandidate({
+          title, artist, source, confidence_level, clues,
+          firstDetectedAt: now, lastDetectedAt: now, matchCount: 1,
+          candidates, downgraded_reason,
+        })
       }
     } catch {
       setDetectStatus('listening...')
@@ -345,9 +368,11 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
       await supabase.from('setlists').update({ status: 'review', updated_at: new Date().toISOString() }).eq('id', setlistId)
     }
 
-    if (songs.length > 0) {
+    // Filter out unidentified placeholders from DB write — they go to review as blanks
+    const songsToSave = songs.filter(s => s.source !== 'unidentified')
+    if (songsToSave.length > 0) {
       await supabase.from('performance_songs').insert(
-        songs.map((song, i) => ({
+        songsToSave.map((song, i) => ({
           performance_id: performance.id,
           title: song.title,
           artist: song.artist || performance.artist_name,
@@ -392,6 +417,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   const remaining    = Math.max(totalSeconds - elapsed, 0)
   const autoCloseAt  = totalSeconds + (performance.auto_close_buffer_minutes || 5) * 60
   const ringState    = catchFlash ? 'catch' : isDetecting ? 'detect' : isListening ? 'listen' : 'idle'
+  const unidentifiedCount = songs.filter(s => s.source === 'unidentified').length
 
   return (
     <div style={{ minHeight: '100svh', background: C.bg, display: 'flex', flexDirection: 'column', fontFamily: '"DM Sans", system-ui, sans-serif', overflowX: 'hidden' }}>
@@ -492,26 +518,70 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         )}
       </div>
 
-      {/* Pending Candidate Card */}
+      {/* ── Pending Candidate Card — now with top 3 ── */}
       {pendingCandidate && (
         <div style={{ position: 'relative', zIndex: 1, maxWidth: 480, width: '100%', margin: '0 auto', padding: '0 16px 12px', animation: 'slideUp 0.2s ease' }}>
           <div style={{ background: C.card, border: `1px solid ${C.gold}40`, borderRadius: 12, padding: '14px' }}>
-            <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.gold, margin: '0 0 8px' }}>
-              Hearing something...
-            </p>
+
+            {/* Header */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+              <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.gold, margin: 0 }}>
+                {pendingCandidate.downgraded_reason ? '⚠ Needs Confirmation' : 'Hearing something...'}
+              </p>
+              {pendingCandidate.matchCount > 1 && (
+                <span style={{ fontSize: 10, color: C.gold, opacity: 0.7 }}>detected {pendingCandidate.matchCount}×</span>
+              )}
+            </div>
+
+            {/* Downgrade reason hint */}
+            {pendingCandidate.downgraded_reason && (
+              <p style={{ fontSize: 10, color: C.amber, margin: '0 0 8px', lineHeight: 1.4, fontStyle: 'italic' }}>
+                {pendingCandidate.downgraded_reason.startsWith('famous_title_wrong_artist')
+                  ? 'Got a cover version — pick the right one below'
+                  : pendingCandidate.downgraded_reason.startsWith('competing_candidates')
+                  ? 'Multiple songs matched — which one is it?'
+                  : 'Tap the correct song below'}
+              </p>
+            )}
+
+            {/* Top candidate (primary) */}
             <p style={{ fontSize: 15, fontWeight: 700, color: C.text, margin: '0 0 2px' }}>{pendingCandidate.title}</p>
-            <p style={{ fontSize: 12, color: C.secondary, margin: '0 0 4px' }}>
-              {pendingCandidate.artist}
-              {pendingCandidate.matchCount > 1 && <span style={{ color: C.gold, marginLeft: 6 }}>· detected {pendingCandidate.matchCount}×</span>}
-            </p>
+            <p style={{ fontSize: 12, color: C.secondary, margin: '0 0 8px' }}>{pendingCandidate.artist}</p>
+
+            {/* Lyric hook */}
             {pendingCandidate.clues?.lyric_hooks?.[0] && (
               <p style={{ fontSize: 11, color: C.muted, margin: '0 0 10px', fontStyle: 'italic' }}>
                 "{pendingCandidate.clues.lyric_hooks[0]}"
               </p>
             )}
+
+            {/* Top 3 alternative candidates */}
+            {pendingCandidate.candidates && pendingCandidate.candidates.length > 1 && (
+              <div style={{ marginBottom: 10 }}>
+                <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, margin: '0 0 6px' }}>
+                  Other matches
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {pendingCandidate.candidates.slice(1, 3).map((c, i) => (
+                    <button key={i} onClick={() => selectCandidate(c)}
+                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px', background: 'rgba(255,255,255,0.04)', border: `1px solid ${C.border}`, borderRadius: 8, cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', transition: 'all 0.15s ease' }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = C.gold + '40'; (e.currentTarget as HTMLElement).style.background = C.goldDim }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = C.border; (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.04)' }}>
+                      <div>
+                        <p style={{ fontSize: 12, fontWeight: 600, color: C.text, margin: 0 }}>{c.title}</p>
+                        <p style={{ fontSize: 10, color: C.muted, margin: '1px 0 0' }}>{c.artist}</p>
+                      </div>
+                      <span style={{ fontSize: 10, color: C.muted, flexShrink: 0, marginLeft: 8 }}>Tap to select</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Actions */}
             <div style={{ display: 'flex', gap: 8 }}>
               <button onClick={confirmPending} style={{ flex: 1, padding: '9px', background: C.gold, border: 'none', borderRadius: 8, color: '#0a0908', fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'inherit' }}>
-                ✓ Add to Setlist
+                ✓ {pendingCandidate.title}
               </button>
               <button onClick={dismissPending} style={{ padding: '9px 14px', background: 'transparent', border: `1px solid ${C.border}`, borderRadius: 8, color: C.muted, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
                 Dismiss
@@ -523,6 +593,16 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
 
       {/* Lower section */}
       <div style={{ position: 'relative', zIndex: 1, flex: 1, display: 'flex', flexDirection: 'column', gap: 12, padding: '0 16px 40px', maxWidth: 480, width: '100%', margin: '0 auto', boxSizing: 'border-box' }}>
+
+        {/* Unidentified count banner */}
+        {unidentifiedCount > 0 && (
+          <div style={{ background: C.amberDim, border: `1px solid ${C.amber}40`, borderRadius: 10, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 8, animation: 'fadeIn 0.3s ease' }}>
+            <span style={{ fontSize: 13 }}>⚠</span>
+            <p style={{ fontSize: 12, color: C.amber, margin: 0, fontWeight: 600 }}>
+              {unidentifiedCount} song{unidentifiedCount > 1 ? 's' : ''} need{unidentifiedCount === 1 ? 's' : ''} review — tap to fill in
+            </p>
+          </div>
+        )}
 
         {/* Manual Add Toggle */}
         <button onClick={() => setShowManual(v => !v)} style={{ width: '100%', padding: '11px 16px', background: showManual ? 'rgba(201,168,76,0.06)' : 'transparent', border: `1px solid ${showManual ? C.gold + '40' : C.border}`, borderRadius: 10, color: showManual ? C.gold : C.muted, fontSize: 12, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', transition: 'all 0.2s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
@@ -541,7 +621,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
           </div>
         )}
 
-        {/* ── Setlist with tap-to-edit ── */}
+        {/* Setlist */}
         {songs.length > 0 && (
           <div>
             <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.muted, margin: '4px 0 10px 2px' }}>
@@ -551,66 +631,51 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
               {songs.map((song, i) => (
                 <div key={i} style={{
                   background: C.card,
-                  border: `1px solid ${editingIndex === i ? C.gold + '60' : song.source !== 'manual' ? C.gold + '20' : C.border}`,
+                  border: `1px solid ${
+                    editingIndex === i ? C.gold + '60'
+                    : song.source === 'unidentified' ? C.amber + '50'
+                    : song.source !== 'manual' ? C.gold + '20'
+                    : C.border
+                  }`,
                   borderRadius: 10,
                   animation: 'slideUp 0.25s ease',
                   overflow: 'hidden',
                   transition: 'border-color 0.15s ease',
                 }}>
                   {editingIndex === i ? (
-                    // ── Edit mode ──────────────────────────────────────────
                     <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8, animation: 'slideUp 0.15s ease' }}>
-                      <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.gold, margin: 0 }}>
-                        Edit Song
-                      </p>
-                      <input
-                        autoFocus
-                        value={editTitle}
-                        onChange={e => setEditTitle(e.target.value)}
+                      <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.gold, margin: 0 }}>Edit Song</p>
+                      <input autoFocus value={editTitle} onChange={e => setEditTitle(e.target.value)}
                         onKeyDown={e => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') cancelEdit() }}
                         placeholder="Song title"
-                        style={{ background: C.input, border: `1px solid ${C.gold}60`, borderRadius: 8, padding: '9px 12px', color: C.text, fontSize: 14, fontFamily: 'inherit', outline: 'none', width: '100%', boxSizing: 'border-box' }}
-                      />
-                      <input
-                        value={editArtist}
-                        onChange={e => setEditArtist(e.target.value)}
+                        style={{ background: C.input, border: `1px solid ${C.gold}60`, borderRadius: 8, padding: '9px 12px', color: C.text, fontSize: 14, fontFamily: 'inherit', outline: 'none', width: '100%', boxSizing: 'border-box' }} />
+                      <input value={editArtist} onChange={e => setEditArtist(e.target.value)}
                         onKeyDown={e => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') cancelEdit() }}
                         placeholder="Artist"
-                        style={{ background: C.input, border: `1px solid ${C.border}`, borderRadius: 8, padding: '9px 12px', color: C.text, fontSize: 13, fontFamily: 'inherit', outline: 'none', width: '100%', boxSizing: 'border-box' }}
-                      />
+                        style={{ background: C.input, border: `1px solid ${C.border}`, borderRadius: 8, padding: '9px 12px', color: C.text, fontSize: 13, fontFamily: 'inherit', outline: 'none', width: '100%', boxSizing: 'border-box' }} />
                       <div style={{ display: 'flex', gap: 8 }}>
-                        <button
-                          onClick={saveEdit}
-                          style={{ flex: 1, padding: '9px', background: C.gold, border: 'none', borderRadius: 8, color: '#0a0908', fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}
-                        >
-                          <Check size={13} strokeWidth={2.5} />
-                          Save
+                        <button onClick={saveEdit} style={{ flex: 1, padding: '9px', background: C.gold, border: 'none', borderRadius: 8, color: '#0a0908', fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
+                          <Check size={13} strokeWidth={2.5} />Save
                         </button>
-                        <button
-                          onClick={cancelEdit}
-                          style={{ padding: '9px 16px', background: 'transparent', border: `1px solid ${C.border}`, borderRadius: 8, color: C.muted, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 5 }}
-                        >
-                          <X size={13} />
-                          Cancel
+                        <button onClick={cancelEdit} style={{ padding: '9px 16px', background: 'transparent', border: `1px solid ${C.border}`, borderRadius: 8, color: C.muted, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 5 }}>
+                          <X size={13} />Cancel
                         </button>
                       </div>
                     </div>
                   ) : (
-                    // ── View mode — tap anywhere to edit ──────────────────
-                    <div
-                      style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', cursor: 'pointer' }}
-                      onClick={() => startEdit(i)}
-                    >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', cursor: 'pointer' }} onClick={() => startEdit(i)}>
                       <span style={{ fontSize: 10, fontWeight: 700, color: C.muted, minWidth: 16, textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontFamily: '"DM Mono", monospace' }}>{i + 1}</span>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <p style={{ fontSize: 14, fontWeight: 600, color: C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{song.title}</p>
-                        {song.artist && song.artist !== performance.artist_name && (
+                        <p style={{ fontSize: 14, fontWeight: 600, color: song.source === 'unidentified' ? C.amber : C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontStyle: song.source === 'unidentified' ? 'italic' : 'normal' }}>
+                          {song.source === 'unidentified' ? '? Unknown Song' : song.title}
+                        </p>
+                        {song.artist && song.artist !== performance.artist_name && song.source !== 'unidentified' && (
                           <p style={{ fontSize: 11, color: C.secondary, margin: '2px 0 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{song.artist}</p>
                         )}
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                        <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: song.source !== 'manual' ? C.gold : C.muted, opacity: 0.6 }}>
-                          {song.source === 'manual' ? '✎ manual' : song.source === 'transcript' ? '✦ transcript' : '⚡ auto'}
+                        <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: song.source === 'unidentified' ? C.amber : song.source !== 'manual' ? C.gold : C.muted, opacity: 0.7 }}>
+                          {song.source === 'unidentified' ? '? review' : song.source === 'manual' ? '✎ manual' : song.source === 'transcript' ? '✦ transcript' : '⚡ auto'}
                         </span>
                         <Pencil size={11} color={C.muted} opacity={0.4} />
                       </div>
@@ -619,7 +684,6 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
                 </div>
               ))}
             </div>
-            {/* Hint on first song */}
             {songs.length > 0 && editingIndex === null && (
               <p style={{ fontSize: 10, color: C.muted, textAlign: 'center', margin: '8px 0 0', letterSpacing: '0.04em', opacity: 0.6 }}>
                 Tap any song to edit
