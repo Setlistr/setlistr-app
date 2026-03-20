@@ -284,8 +284,32 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         return
       }
 
-      const cooldownPassed = secondsSinceLastConfirm >= MIN_SONG_GAP_SECONDS
+const cooldownPassed = secondsSinceLastConfirm >= MIN_SONG_GAP_SECONDS
       const isFirstSong    = confirmed.length === 0 && lastConfirmedAtRef.current === 0
+      // Title matches pending candidate — update it regardless of cooldown
+      const titleMatchesPending = candidate &&
+        normalizeSongKey(candidate.title) === normalizeSongKey(title)
+
+      if (titleMatchesPending) {
+        // Already handled above in the candidate accumulation block
+        // This handles the case where artist differs but title matches
+        const updatedCandidate: PendingCandidate = {
+          ...candidate, lastDetectedAt: now,
+          matchCount: candidate.matchCount + 1, confidence_level, source,
+          candidates: candidates || candidate.candidates,
+        }
+        const acrScore = data.acr_score || 0
+        const isHumming = source === 'humming'
+        const scoreGood = isHumming ? acrScore >= HUMMING_AUTO_CONFIRM_SCORE : acrScore >= FINGERPRINT_AUTO_CONFIRM_SCORE
+        const enoughMatches = updatedCandidate.matchCount >= 2
+        if (scoreGood || enoughMatches) {
+          confirmCandidate(updatedCandidate, setlist_item_id, { isrc: data.isrc, composer: data.composer, publisher: data.publisher })
+        } else {
+          setPendingCandidate(updatedCandidate)
+          setDetectStatus(`hearing "${title}"...`)
+        }
+        return
+      }
 
       if (cooldownPassed || isFirstSong) {
         if (confidence_level === 'auto') {
