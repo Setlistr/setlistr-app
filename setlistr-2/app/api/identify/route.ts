@@ -25,7 +25,7 @@ const COMBINED_SUGGEST = 0.40  // raised — only decent matches get suggest
 // ─── Hard score floor ─────────────────────────────────────────────────────────
 // ACRCloud returns scores 0-1 for some fields, 0-100 for others.
 // Fingerprint scores below 0.5 (50) are garbage — don't return them as detected.
-const MIN_FINGERPRINT_SCORE = 0.5
+const MIN_FINGERPRINT_SCORE = 60
 
 const CANONICAL_SONG_ARTISTS: Record<string, string[]> = {
   'carrying your love with me': ['george strait'],
