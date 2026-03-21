@@ -205,52 +205,40 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
       const data = await res.json()
 
       if (data.acr_title) {
-        const entry: CandidateHistoryEntry = {
-          title: data.acr_title, artist: data.acr_artist || '',
-          score: data.acr_score || 0, timestamp: Date.now(),
-        }
-        candidateHistoryRef.current = [entry, ...candidateHistoryRef.current].slice(0, 3)
+        candidateHistoryRef.current = [
+          { title: data.acr_title, artist: data.acr_artist || '', score: data.acr_score || 0, timestamp: Date.now() },
+          ...candidateHistoryRef.current,
+        ].slice(0, 3)
       }
 
+      const now       = Date.now()
+      const confirmed = confirmedSongsRef.current
+      const pending   = pendingCandidateRef.current
+
+      // ── No detection ──────────────────────────────────────────────────────
       if (!data.detected) {
-        // Create placeholder if mid-set and enough time has passed
-        const timeSinceLast = (Date.now() - lastConfirmedAtRef.current) / 1000
-        if (confirmedSongsRef.current.length > 0 && timeSinceLast > PLACEHOLDER_GAP_SECONDS) {
+        const timeSinceLast = (now - lastConfirmedAtRef.current) / 1000
+        if (confirmed.length > 0 && timeSinceLast > PLACEHOLDER_GAP_SECONDS) {
           setSongs(prev => {
-            const last = prev[prev.length - 1]
-            if (last?.source === 'unidentified') return prev
+            if (prev[prev.length - 1]?.source === 'unidentified') return prev
             return [...prev, { title: 'Unknown Song', artist: '', source: 'unidentified' }]
           })
-          lastConfirmedAtRef.current = Date.now()
+          lastConfirmedAtRef.current = now
         }
         setDetectStatus('listening...')
         return
       }
 
       const { title, artist, setlist_item_id, confidence_level, source, clues, candidates, downgraded_reason } = data
-      const acrScore = data.acr_score || 0
-      const detected = { title, artist }
-      const now      = Date.now()
-      const secondsSinceLastConfirm = (now - lastConfirmedAtRef.current) / 1000
-      const confirmed = confirmedSongsRef.current
-      const candidate = pendingCandidateRef.current
 
-      // ── Ignore garbage low-score detections ──────────────────────────────
-      // If we already have a pending candidate and this detection is low-score
-      // and a different title, ignore it completely — don't let it wipe pending
-      const isDifferentTitle = candidate && normalizeSongKey(candidate.title) !== normalizeSongKey(title)
-      if (isDifferentTitle && acrScore < 0.5 && acrScore > 0) {
-        setDetectStatus(`hearing "${candidate!.title}"...`)
-        return
-      }
-
-      const alreadyConfirmed = confirmed.some(s => isSameSong(s, detected))
-      if (alreadyConfirmed) {
+      // ── Already confirmed this song ───────────────────────────────────────
+      if (confirmed.some(s => isSameSong(s, { title, artist }))) {
         setDetectStatus('already logged')
         setTimeout(() => setDetectStatus(''), 3000)
         return
       }
 
+      // ── Manual review — just show clue, don't change pending ─────────────
       if (confidence_level === 'manual_review') {
         const clueText = clues?.lyric_hooks?.length
           ? `heard: "${clues.lyric_hooks[0]}"`
@@ -260,50 +248,44 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         return
       }
 
-      // ── FIRST: check if this matches the pending candidate (title-only) ───
-      // This MUST come before the cooldown check — otherwise the cooldown
-      // blocks accumulation and the same song never confirms
-      if (candidate && normalizeSongKey(candidate.title) === normalizeSongKey(title)) {
-        const updatedCandidate: PendingCandidate = {
-          ...candidate, lastDetectedAt: now,
-          matchCount: candidate.matchCount + 1, confidence_level, source,
-          candidates: candidates || candidate.candidates,
+      // ── Title matches current pending candidate → accumulate ──────────────
+      // Must be BEFORE cooldown check — title-only match, ignore artist
+      if (pending && normalizeSongKey(pending.title) === normalizeSongKey(title)) {
+        const updated: PendingCandidate = {
+          ...pending, lastDetectedAt: now,
+          matchCount: pending.matchCount + 1,
+          confidence_level, source,
+          candidates: candidates || pending.candidates,
         }
-        const withinWindow  = (now - candidate.firstDetectedAt) / 1000 <= CANDIDATE_WINDOW_SECONDS
-        const shouldConfirm = withinWindow && updatedCandidate.matchCount >= 2
-        if (shouldConfirm) {
-          confirmCandidate(updatedCandidate, setlist_item_id, { isrc: data.isrc, composer: data.composer, publisher: data.publisher })
+        const withinWindow = (now - pending.firstDetectedAt) / 1000 <= CANDIDATE_WINDOW_SECONDS
+        if (withinWindow && updated.matchCount >= 2) {
+          confirmCandidate(updated, setlist_item_id, { isrc: data.isrc, composer: data.composer, publisher: data.publisher })
         } else {
-          setPendingCandidate(updatedCandidate)
-          setDetectStatus(`hearing "${title}"... (${updatedCandidate.matchCount}×)`)
+          setPendingCandidate(updated)
+          setDetectStatus(`hearing "${title}"... (${updated.matchCount}×)`)
         }
         return
       }
 
-      // ── THEN: cooldown check for brand new songs ──────────────────────────
-      const cooldownPassed = secondsSinceLastConfirm >= MIN_SONG_GAP_SECONDS
-      const isFirstSong    = confirmed.length === 0 && lastConfirmedAtRef.current === 0
+      // ── Different title detected ──────────────────────────────────────────
+      const secondsSinceLast = (now - lastConfirmedAtRef.current) / 1000
+      const cooldownPassed   = secondsSinceLast >= MIN_SONG_GAP_SECONDS
+      const isFirstSong      = confirmed.length === 0 && lastConfirmedAtRef.current === 0
 
-      if (cooldownPassed || isFirstSong) {
-        // Always go to pending — require 2 detections before confirming anything
-        setPendingCandidate({
-          title, artist, source, confidence_level, clues,
-          firstDetectedAt: now, lastDetectedAt: now, matchCount: 1,
-          candidates, downgraded_reason,
-        })
-        setDetectStatus(`hearing "${title}"...`)
-      } else {
-        // Cooldown not passed — don't replace pending candidate with a different song
-        // Just update the status so the user knows something was detected
-        if (!candidate) {
-          setPendingCandidate({
-            title, artist, source, confidence_level, clues,
-            firstDetectedAt: now, lastDetectedAt: now, matchCount: 1,
-            candidates, downgraded_reason,
-          })
-        }
-        setDetectStatus(`hearing "${title}"...`)
+      // If pending exists and cooldown hasn't passed, protect it — don't replace
+      if (pending && !cooldownPassed && !isFirstSong) {
+        setDetectStatus(`hearing "${pending.title}"...`)
+        return
       }
+
+      // Cooldown passed or first song — set as new pending
+      setPendingCandidate({
+        title, artist, source, confidence_level, clues,
+        firstDetectedAt: now, lastDetectedAt: now, matchCount: 1,
+        candidates, downgraded_reason,
+      })
+      setDetectStatus(`hearing "${title}"...`)
+
     } catch {
       setDetectStatus('listening...')
     } finally {
