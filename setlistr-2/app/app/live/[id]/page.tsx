@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { MapPin, Check, X, Pencil } from 'lucide-react'
+import { Check, X } from 'lucide-react'
 import type { Performance } from '@/types'
 
 const C = {
@@ -423,39 +423,31 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
     <div style={{ minHeight: '100svh', background: C.bg, display: 'flex', flexDirection: 'column', fontFamily: '"DM Sans", system-ui, sans-serif', overflowX: 'hidden' }}>
       <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '55vh', background: isListening ? `radial-gradient(ellipse at 50% 0%, rgba(201,168,76,0.09) 0%, transparent 70%)` : `radial-gradient(ellipse at 50% 0%, rgba(201,168,76,0.04) 0%, transparent 60%)`, pointerEvents: 'none', transition: 'background 1.5s ease', zIndex: 0 }} />
 
-      <div style={{ position: 'relative', zIndex: 1, padding: '20px 24px 0', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(220,38,38,0.12)', border: '1px solid rgba(220,38,38,0.3)', borderRadius: 20, padding: '5px 10px' }}>
-          <div style={{ width: 6, height: 6, borderRadius: '50%', background: C.red, animation: 'pulse-dot 1.4s ease-in-out infinite' }} />
-          <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#f87171' }}>Live</span>
+      <div style={{ position: 'relative', zIndex: 1, padding: '16px 20px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        {/* LIVE badge - more prominent */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(220,38,38,0.15)', border: '1px solid rgba(220,38,38,0.4)', borderRadius: 20, padding: '5px 12px' }}>
+          <div style={{ width: 7, height: 7, borderRadius: '50%', background: C.red, animation: 'pulse-dot 1.4s ease-in-out infinite', boxShadow: '0 0 6px rgba(220,38,38,0.8)' }} />
+          <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#f87171' }}>Live</span>
         </div>
-        {songs.length > 0 && (
-          <div style={{ background: C.goldDim, border: `1px solid rgba(201,168,76,0.25)`, borderRadius: 20, padding: '5px 12px', animation: 'fadeIn 0.3s ease' }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: C.gold, letterSpacing: '0.08em' }}>{songs.length} {songs.length === 1 ? 'song' : 'songs'}</span>
-          </div>
-        )}
+
+        {/* Venue + song count in header */}
+        <div style={{ textAlign: 'right' }}>
+          <p style={{ fontSize: 13, fontWeight: 700, color: C.text, margin: 0, letterSpacing: '-0.01em' }}>{performance.venue_name}</p>
+          <p style={{ fontSize: 11, color: C.gold, margin: '2px 0 0', fontWeight: 600 }}>{performance.artist_name}</p>
+        </div>
       </div>
 
-      <div style={{ position: 'relative', zIndex: 1, textAlign: 'center', padding: '20px 24px 0' }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, color: C.text, margin: 0, letterSpacing: '-0.02em', lineHeight: 1.2 }}>{performance.venue_name}</h1>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, marginTop: 5 }}>
-          <MapPin size={11} color={C.muted} />
-          <span style={{ fontSize: 12, color: C.muted, letterSpacing: '0.04em' }}>{performance.city}, {performance.country}</span>
-        </div>
-        <p style={{ fontSize: 13, fontWeight: 600, color: C.gold, margin: '6px 0 0', letterSpacing: '0.06em' }}>{performance.artist_name}</p>
-      </div>
-
-      <div style={{ position: 'relative', zIndex: 1, textAlign: 'center', padding: '22px 24px 0' }}>
-        <div style={{ fontSize: 56, fontWeight: 800, color: C.text, fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.04em', lineHeight: 1, fontFamily: '"DM Mono", "Courier New", monospace' }}>{formatTime(elapsed)}</div>
-        <div style={{ fontSize: 12, color: C.muted, marginTop: 6, letterSpacing: '0.04em' }}>
+      <div style={{ position: 'relative', zIndex: 1, textAlign: 'center', padding: '16px 24px 0' }}>
+        <div style={{ fontSize: 52, fontWeight: 800, color: C.text, fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.04em', lineHeight: 1, fontFamily: '"DM Mono", "Courier New", monospace' }}>{formatTime(elapsed)}</div>
+        <div style={{ fontSize: 11, color: C.muted, marginTop: 4, letterSpacing: '0.04em' }}>
           {remaining > 0 ? `${formatTime(remaining)} remaining` : `${formatTime(elapsed - totalSeconds)} over set`}
         </div>
-        <div style={{ width: '100%', maxWidth: 280, margin: '14px auto 0', height: 2, background: 'rgba(255,255,255,0.06)', borderRadius: 2, overflow: 'hidden' }}>
+        <div style={{ width: '100%', maxWidth: 240, margin: '10px auto 0', height: 2, background: 'rgba(255,255,255,0.06)', borderRadius: 2, overflow: 'hidden' }}>
           <div style={{ height: '100%', borderRadius: 2, background: `linear-gradient(90deg, ${C.gold}99, ${C.gold})`, width: `${progress * 100}%`, transition: 'width 1s linear', boxShadow: `0 0 8px ${C.gold}66` }} />
         </div>
-        <div style={{ fontSize: 10, color: C.muted, marginTop: 6, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Auto-closes {formatTime(autoCloseAt)}</div>
       </div>
 
-      <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '36px 24px 28px' }}>
+      <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '24px 24px 20px' }}>
         {(isListening || catchFlash) && (
           <>
             {[{ size: ringState === 'catch' ? 220 : 200, delay: '0s' }, { size: ringState === 'catch' ? 260 : 240, delay: '0.1s' }, { size: ringState === 'catch' ? 300 : 280, delay: '0.2s' }].map(({ size, delay }, idx) => (
@@ -565,8 +557,29 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
               Setlist — {songs.length} {songs.length === 1 ? 'song' : 'songs'}
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-              {songs.map((song, i) => (
-                <div key={i} style={{ background: C.card, border: `1px solid ${editingIndex === i ? C.gold + '60' : song.source === 'unidentified' ? C.amber + '50' : song.source !== 'manual' ? C.gold + '20' : C.border}`, borderRadius: 10, animation: 'slideUp 0.25s ease', overflow: 'hidden' }}>
+              {songs.map((song, i) => {
+                const isUnidentified = song.source === 'unidentified'
+                const isSuggested    = song.confidence_level === 'suggest'
+                const isAuto         = !isUnidentified && !isSuggested
+
+                const borderColor = editingIndex === i
+                  ? C.gold + '80'
+                  : isUnidentified
+                  ? C.amber + '60'
+                  : isSuggested
+                  ? 'rgba(201,168,76,0.25)'
+                  : 'rgba(201,168,76,0.15)'
+
+                const indicator = isUnidentified
+                  ? { color: C.amber, label: '? unknown', bg: 'rgba(245,158,11,0.08)' }
+                  : isSuggested
+                  ? { color: C.gold, label: '~ suggested', bg: 'rgba(201,168,76,0.06)' }
+                  : song.source === 'manual'
+                  ? { color: C.muted, label: '✎ manual', bg: 'transparent' }
+                  : { color: C.gold, label: '⚡ auto', bg: 'rgba(201,168,76,0.06)' }
+
+                return (
+                <div key={i} style={{ background: indicator.bg || C.card, border: `1px solid ${borderColor}`, borderRadius: 10, animation: 'slideUp 0.25s ease', overflow: 'hidden', transition: 'border-color 0.15s ease' }}>
                   {editingIndex === i ? (
                     <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
                       <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.gold, margin: 0 }}>Edit Song</p>
@@ -581,23 +594,21 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', cursor: 'pointer' }} onClick={() => startEdit(i)}>
                       <span style={{ fontSize: 10, fontWeight: 700, color: C.muted, minWidth: 16, textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontFamily: '"DM Mono", monospace' }}>{i + 1}</span>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <p style={{ fontSize: 14, fontWeight: 600, color: song.source === 'unidentified' ? C.amber : C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontStyle: song.source === 'unidentified' ? 'italic' : 'normal' }}>
-                          {song.source === 'unidentified' ? '? Unknown Song' : song.title}
+                        <p style={{ fontSize: 14, fontWeight: 600, color: isUnidentified ? C.amber : C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontStyle: isUnidentified ? 'italic' : 'normal' }}>
+                          {isUnidentified ? '? Unknown Song' : song.title}
                         </p>
-                        {song.artist && song.artist !== performance.artist_name && song.source !== 'unidentified' && (
+                        {song.artist && song.artist !== performance.artist_name && !isUnidentified && (
                           <p style={{ fontSize: 11, color: C.secondary, margin: '2px 0 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{song.artist}</p>
                         )}
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                        <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: song.source === 'unidentified' ? C.amber : song.source !== 'manual' ? C.gold : C.muted, opacity: 0.7 }}>
-                          {song.source === 'unidentified' ? '? review' : song.source === 'manual' ? '✎ manual' : '⚡ auto'}
-                        </span>
-                        <Pencil size={11} color={C.muted} opacity={0.4} />
-                      </div>
+                      <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: indicator.color, opacity: 0.8, flexShrink: 0, whiteSpace: 'nowrap' }}>
+                        {indicator.label}
+                      </span>
                     </div>
                   )}
                 </div>
-              ))}
+                )
+              })}
             </div>
             {editingIndex === null && (
               <p style={{ fontSize: 10, color: C.muted, textAlign: 'center', margin: '8px 0 0', opacity: 0.6 }}>Tap any song to edit</p>
