@@ -15,12 +15,18 @@ const supabase = createClient(
 )
 
 // ─── Thresholds ───────────────────────────────────────────────────────────────
-const ACR_STRONG       = 80   // score >= 80 → strong match, run sanity check
-const ACR_SUGGEST      = 40   // score 40-79 → suggest (show pending card)
-                               // score < 40  → no_result (too weak, drop)
-const FLAP_MIN_COUNT   = 2
+const ACR_STRONG  = 80   // score >= 80 → strong, run sanity check
+const ACR_SUGGEST = 40   // score 40-79 → suggest
+                          // score < 40  → drop
+const FLAP_MIN_COUNT = 2
 
-// ─── Canonical artist map (sanity check only — failure = suggest, not drop) ──
+// ─── Repertoire boost ─────────────────────────────────────────────────────────
+// If a song has been confirmed before, add this to effective score
+// Small nudge only — not a decision-maker
+const REPERTOIRE_BOOST = 8
+
+// ─── Canonical artist map ─────────────────────────────────────────────────────
+// Sanity check only — failure = suggest, never drop
 const CANONICAL_SONG_ARTISTS: Record<string, string[]> = {
   'carrying your love with me': ['george strait'],
   'check yes or no': ['george strait'],
@@ -44,10 +50,18 @@ const CANONICAL_SONG_ARTISTS: Record<string, string[]> = {
   'ring of fire': ['johnny cash'],
   'folsom prison blues': ['johnny cash'],
   'hurt': ['nine inch nails', 'johnny cash'],
+  'imagine': ['john lennon', 'beatles'],
+  'let it be': ['beatles', 'the beatles'],
+  'yellow': ['coldplay'],
+  'whiskey and you': ['chris stapleton'],
+  'more of you': ['chris stapleton'],
+  'when the stars come out': ['chris stapleton'],
+  'born again': ['third day', 'newsboys'],
+  'she wont be lonely long': ['clay walker'],
 }
 
 type ConfidenceLevel = 'auto' | 'suggest' | 'no_result'
-type DetectionSource = 'fingerprint' | 'humming' | 'transcript' | 'combined' | 'manual' | 'cloned'
+type DetectionSource = 'fingerprint' | 'humming'
 
 interface CandidateHistoryEntry {
   title: string; artist: string; score: number; timestamp: number
@@ -70,28 +84,114 @@ function countCandidateFlips(history: CandidateHistoryEntry[]): number {
   return flips
 }
 
-// Sanity check — failure means SUGGEST, never drop
-function sanityCheck(title: string, artist: string, previousSongs: string[]): { pass: boolean; reason: string } {
-  const normalizedTitle  = normalizeSongKey(title)
-  const normalizedArtist = artist.toLowerCase().trim()
-
-  // Duplicate check
-  if (previousSongs.some(s => normalizeSongKey(s) === normalizedTitle)) {
-    return { pass: false, reason: `duplicate: already in setlist` }
+// ─── Repertoire boost ─────────────────────────────────────────────────────────
+// Looks up user_songs to see if this artist has played this song before
+// Returns a score boost if found, 0 if not found or on error
+async function getRepertoireBoost(title: string, userId: string | null): Promise<number> {
+  if (!userId) return 0
+  try {
+    const { data } = await supabase
+      .from('user_songs')
+      .select('confirmed_count')
+      .eq('user_id', userId)
+      .eq('song_title', title)
+      .single()
+    if (data && data.confirmed_count > 0) {
+      console.log(`[Repertoire] "${title}" found with ${data.confirmed_count} confirms → boost +${REPERTOIRE_BOOST}`)
+      return REPERTOIRE_BOOST
+    }
+  } catch {
+    // Not found or error — silent fallback, no boost
   }
+  return 0
+}
 
-  // Canonical artist check
-  const canonicalArtists = CANONICAL_SONG_ARTISTS[normalizedTitle]
-  if (canonicalArtists && canonicalArtists.length > 0) {
+// ─── Canonical resolution ─────────────────────────────────────────────────────
+// Tries to resolve to the canonical version of a song
+// If it fails for any reason, returns the original title/artist unchanged
+function resolveCanonical(title: string, artist: string): { title: string; artist: string; resolved: boolean } {
+  try {
+    const normalizedTitle = normalizeSongKey(title)
+    const canonicalArtists = CANONICAL_SONG_ARTISTS[normalizedTitle]
+
+    if (!canonicalArtists || canonicalArtists.length === 0) {
+      return { title, artist, resolved: false }
+    }
+
+    const normalizedArtist = artist.toLowerCase()
     const isCanonical = canonicalArtists.some(ca =>
       normalizedArtist.includes(ca) || ca.includes(normalizedArtist.split(' ')[0])
     )
+
+    if (isCanonical) {
+      return { title, artist, resolved: true }
+    }
+
+    // Artist doesn't match canonical — keep title, note it's non-canonical
+    // We do NOT change the artist — just flag it for the decision layer
+    return { title, artist, resolved: false }
+  } catch {
+    // Any error → return original unchanged
+    return { title, artist, resolved: false }
+  }
+}
+
+// ─── Sanity check ─────────────────────────────────────────────────────────────
+// Failure = suggest, never drop
+function sanityCheck(title: string, artist: string, previousSongs: string[]): { pass: boolean; reason: string } {
+  const normalizedTitle = normalizeSongKey(title)
+
+  if (previousSongs.some(s => normalizeSongKey(s) === normalizedTitle)) {
+    return { pass: false, reason: 'duplicate: already in setlist' }
+  }
+
+  const canonicalArtists = CANONICAL_SONG_ARTISTS[normalizedTitle]
+  if (canonicalArtists && canonicalArtists.length > 0) {
+    const isCanonical = canonicalArtists.some(ca =>
+      artist.toLowerCase().includes(ca) || ca.includes(artist.toLowerCase().split(' ')[0])
+    )
     if (!isCanonical) {
-      return { pass: false, reason: `wrong_artist: expected one of [${canonicalArtists.join(', ')}], got ${artist}` }
+      return { pass: false, reason: `wrong_artist: expected [${canonicalArtists.join(', ')}], got "${artist}"` }
     }
   }
 
   return { pass: true, reason: 'ok' }
+}
+
+// ─── Write to user_songs (background, non-blocking) ──────────────────────────
+async function writeToUserSongs(title: string, artist: string, userId: string | null): Promise<void> {
+  if (!userId) return
+  try {
+    const { data: existing } = await supabase
+      .from('user_songs')
+      .select('id, confirmed_count')
+      .eq('user_id', userId)
+      .eq('song_title', title)
+      .single()
+
+    if (existing) {
+      await supabase
+        .from('user_songs')
+        .update({
+          confirmed_count: existing.confirmed_count + 1,
+          canonical_artist: artist,
+          last_confirmed_at: new Date().toISOString(),
+        })
+        .eq('id', existing.id)
+    } else {
+      await supabase.from('user_songs').insert({
+        user_id: userId,
+        song_title: title,
+        canonical_artist: artist,
+        confirmed_count: 1,
+        last_confirmed_at: new Date().toISOString(),
+      })
+    }
+    console.log(`[UserSongs] wrote "${title}" for user ${userId}`)
+  } catch (err) {
+    // Non-blocking — log and continue
+    console.error('[UserSongs] write failed (non-blocking):', err)
+  }
 }
 
 async function enrichFromMusicBrainz(title: string, artist: string, isrcFromACR: string): Promise<EnrichedSongData> {
@@ -108,7 +208,10 @@ async function enrichFromMusicBrainz(title: string, artist: string, isrcFromACR:
       if (r.ok) {
         const d = await r.json()
         const top = d?.recordings?.[0]
-        if (top) { recordingId = top.id; if (!result.isrc && top.isrcs?.length) result.isrc = top.isrcs[0] }
+        if (top) {
+          recordingId = top.id
+          if (!result.isrc && top.isrcs?.length) result.isrc = top.isrcs[0]
+        }
       }
     }
     if (recordingId) {
@@ -136,14 +239,15 @@ async function enrichFromMusicBrainz(title: string, artist: string, isrcFromACR:
 async function logDetectionEvent(event: Record<string, any>): Promise<void> {
   try {
     await supabase.from('detection_events').insert(event)
-    // Always log to console for debugging
     console.log('[Detection]', JSON.stringify({
       title: event.final_title,
       score: event.acr_score,
+      effective_score: event.effective_score,
+      repertoire_boost: event.repertoire_boost,
       final_state: event.final_state,
       sanity_passed: event.sanity_passed,
+      canonical_resolved: event.canonical_resolved,
       failure_reason: event.failure_reason,
-      source: event.final_source,
     }))
   } catch (err) { console.error('[DetectionEvent] log failed:', err) }
 }
@@ -172,6 +276,14 @@ export async function POST(req: NextRequest) {
     const mimeType    = audio.type || 'audio/webm'
     const audioBuffer = Buffer.from(await audio.arrayBuffer())
     audioBytes        = audioBuffer.length
+
+    // Get current user for repertoire lookup
+    const authHeader = req.headers.get('authorization')
+    let userId: string | null = null
+    try {
+      const { data: { user } } = await supabase.auth.getUser(authHeader?.replace('Bearer ', '') || '')
+      userId = user?.id || null
+    } catch { /* non-blocking */ }
 
     // Store capture + job
     const { data: capture } = await supabase.from('audio_captures').insert({
@@ -216,51 +328,65 @@ export async function POST(req: NextRequest) {
     const acrDetected = payload.status?.code === 0 && !!acrMatch
     const source: DetectionSource = humming ? 'humming' : 'fingerprint'
 
-    // Humming boost — melody matching is reliable for acoustic
-    const effectiveScore = humming ? Math.max(acrScore, 85) : acrScore
+    // Humming boost — melody matching reliable for acoustic
+    const hummingBoost    = humming ? Math.max(0, 85 - acrScore) : 0
+    const scoreAfterHumming = humming ? Math.max(acrScore, 85) : acrScore
 
-    console.log(`[ACR] detected=${acrDetected} score=${acrScore} effectiveScore=${effectiveScore} humming=${!!humming} title="${acrMatch?.title}"`)
+    console.log(`[ACR] detected=${acrDetected} score=${acrScore} humming=${!!humming} title="${acrMatch?.title}"`)
 
-    // ── NO DETECTION ──────────────────────────────────────────────────────────
+    // No detection
     if (!acrDetected) {
       await logDetectionEvent({
-        performance_id: performanceId, acr_score: 0, final_state: 'no_result',
-        sanity_passed: false, failure_reason: 'acr_no_match',
-        artist_name: artistName, show_type: showType,
+        performance_id: performanceId, acr_score: 0,
+        final_state: 'no_result', sanity_passed: false,
+        failure_reason: 'acr_no_match', artist_name: artistName,
       })
       return NextResponse.json({ detected: false, job_id: job?.id })
     }
 
-    const title  = acrMatch.title
-    const artist = acrMatch.artists?.[0]?.name || ''
-    const isrc   = acrMatch.external_ids?.isrc || ''
+    const rawTitle  = acrMatch.title
+    const rawArtist = acrMatch.artists?.[0]?.name || ''
+    const isrc      = acrMatch.external_ids?.isrc || ''
 
     // Store result
     await supabase.from('recognition_results').insert({
-      job_id: job?.id || null, rank: 1, title, artist_name: artist, score: acrScore,
-      raw_data: acrMatch,
+      job_id: job?.id || null, rank: 1,
+      title: rawTitle, artist_name: rawArtist,
+      score: acrScore, raw_data: acrMatch,
     })
+
+    // ── CANONICAL RESOLUTION (non-blocking) ───────────────────────────────────
+    // Tries to resolve to canonical version — falls back to original if anything fails
+    const canonical = resolveCanonical(rawTitle, rawArtist)
+    const title  = canonical.title   // same as rawTitle (we keep title as-is)
+    const artist = rawArtist         // keep original artist from ACR
+
+    // ── REPERTOIRE BOOST (non-blocking) ───────────────────────────────────────
+    // Small nudge if this song is in the user's known repertoire
+    const repertoireBoost = await getRepertoireBoost(title, userId)
+    const effectiveScore  = scoreAfterHumming + repertoireBoost
 
     const flipCount = countCandidateFlips(candidateHistory)
 
+    console.log(`[Score] raw=${acrScore} hummingBoost=${hummingBoost} repertoireBoost=${repertoireBoost} effective=${effectiveScore}`)
+
     // ─── DECISION LOGIC ───────────────────────────────────────────────────────
-    // Rule: NOTHING is silently dropped. Every detection surfaces.
+    // GUARANTEE: nothing is silently dropped
     //
-    // score >= ACR_STRONG (80): run sanity check
-    //   → pass: auto_confirm
-    //   → fail: suggest (NOT dropped)
+    // effective >= ACR_STRONG (80): run sanity check
+    //   pass → auto_confirm
+    //   fail (duplicate) → no_result
+    //   fail (other) → suggest (not dropped)
     //
-    // score >= ACR_SUGGEST (40): suggest
-    //
-    // score < ACR_SUGGEST (40): no_result (too weak to be useful)
+    // effective >= ACR_SUGGEST (40): suggest
+    // effective < ACR_SUGGEST (40): no_result
     // ─────────────────────────────────────────────────────────────────────────
 
     let confidenceLevel: ConfidenceLevel
-    let sanityPassed = true
+    let sanityPassed  = true
     let failureReason = ''
 
     if (effectiveScore >= ACR_STRONG && flipCount < FLAP_MIN_COUNT) {
-      // Strong match — run sanity check, but failure = suggest not drop
       const sanity = sanityCheck(title, artist, previousSongs)
       sanityPassed  = sanity.pass
       failureReason = sanity.reason
@@ -268,10 +394,9 @@ export async function POST(req: NextRequest) {
       if (sanity.pass) {
         confidenceLevel = 'auto'
       } else if (sanity.reason.startsWith('duplicate')) {
-        // Duplicate — genuinely no_result
         confidenceLevel = 'no_result'
       } else {
-        // Wrong artist / other sanity fail → suggest so user can confirm
+        // Wrong artist or other — surface as suggest so user can confirm
         confidenceLevel = 'suggest'
       }
     } else if (effectiveScore >= ACR_SUGGEST) {
@@ -279,17 +404,19 @@ export async function POST(req: NextRequest) {
       sanityPassed    = false
       failureReason   = `score_below_strong: ${effectiveScore}`
     } else {
-      // Too weak — drop
       confidenceLevel = 'no_result'
       sanityPassed    = false
       failureReason   = `score_too_low: ${effectiveScore}`
     }
 
-    console.log(`[Decision] title="${title}" score=${effectiveScore} confidence=${confidenceLevel} sanity=${sanityPassed} reason="${failureReason}"`)
+    console.log(`[Decision] title="${title}" effective=${effectiveScore} confidence=${confidenceLevel} reason="${failureReason}"`)
 
     await logDetectionEvent({
       performance_id: performanceId,
       acr_title: title, acr_artist: artist, acr_score: acrScore,
+      effective_score: effectiveScore,
+      repertoire_boost: repertoireBoost,
+      canonical_resolved: canonical.resolved,
       final_title: title, final_artist: artist, final_source: source,
       confidence_level: confidenceLevel,
       final_state: confidenceLevel,
@@ -300,18 +427,20 @@ export async function POST(req: NextRequest) {
       artist_name: artistName, show_type: showType,
     })
 
-    // ── NO RESULT ─────────────────────────────────────────────────────────────
     if (confidenceLevel === 'no_result') {
-      return NextResponse.json({ detected: false, job_id: job?.id, debug: { score: effectiveScore, reason: failureReason } })
+      return NextResponse.json({
+        detected: false, job_id: job?.id,
+        debug: { score: effectiveScore, reason: failureReason },
+      })
     }
 
-    // ── ENRICH (auto only — don't slow down suggest with MB lookup) ───────────
+    // Enrich (auto only — don't slow suggest with MB lookup)
     let enriched: EnrichedSongData = { isrc, composer: '', publisher: '' }
     if (confidenceLevel === 'auto') {
       enriched = await enrichFromMusicBrainz(title, artist, isrc)
     }
 
-    // ── WRITE SETLIST ITEM (auto only) ────────────────────────────────────────
+    // Write setlist item (auto only)
     let setlistItemId: string | null = null
     if (confidenceLevel === 'auto' && setlistId) {
       const { data: existing } = await supabase.from('setlist_items').select('id')
@@ -327,7 +456,11 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // ── LOG ───────────────────────────────────────────────────────────────────
+    // Write to user_songs memory (auto confirms only, non-blocking)
+    if (confidenceLevel === 'auto') {
+      writeToUserSongs(title, artist, userId) // fire and forget
+    }
+
     await supabase.from('recognition_logs').insert({
       performance_id: performanceId || null,
       audio_bytes: audioBytes, duration_seconds: durationSeconds,
@@ -338,7 +471,6 @@ export async function POST(req: NextRequest) {
       user_agent: req.headers.get('user-agent') ?? null,
     })
 
-    // ── RESPONSE ──────────────────────────────────────────────────────────────
     return NextResponse.json({
       detected: true,
       title,
@@ -351,9 +483,10 @@ export async function POST(req: NextRequest) {
       publisher: enriched.publisher,
       setlist_item_id: setlistItemId,
       job_id: job?.id,
-      // Debug info always included
       debug: {
         effective_score: effectiveScore,
+        repertoire_boost: repertoireBoost,
+        canonical_resolved: canonical.resolved,
         sanity_passed: sanityPassed,
         failure_reason: failureReason,
         final_state: confidenceLevel,
