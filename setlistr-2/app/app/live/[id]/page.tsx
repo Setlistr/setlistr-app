@@ -250,9 +250,9 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         return
       }
 
-      // ── Title-only match against pending candidate ────────────────────────
-      // Uses title-only so "Landslide by Fleetwood Mac" and "Landslide by Kelsea Ballerini"
-      // both accumulate toward the same pending confirm
+      // ── FIRST: check if this matches the pending candidate (title-only) ───
+      // This MUST come before the cooldown check — otherwise the cooldown
+      // blocks accumulation and the same song never confirms
       if (candidate && normalizeSongKey(candidate.title) === normalizeSongKey(title)) {
         const updatedCandidate: PendingCandidate = {
           ...candidate, lastDetectedAt: now,
@@ -260,7 +260,6 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
           candidates: candidates || candidate.candidates,
         }
         const withinWindow  = (now - candidate.firstDetectedAt) / 1000 <= CANDIDATE_WINDOW_SECONDS
-        // Confirm on: 2+ matches, OR auto confidence, OR high-confidence humming
         const shouldConfirm = withinWindow && (
           updatedCandidate.matchCount >= 2 ||
           confidence_level === 'auto' ||
@@ -270,24 +269,23 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
           confirmCandidate(updatedCandidate, setlist_item_id, { isrc: data.isrc, composer: data.composer, publisher: data.publisher })
         } else {
           setPendingCandidate(updatedCandidate)
-          setDetectStatus(`hearing "${title}"...`)
+          setDetectStatus(`hearing "${title}"... (${updatedCandidate.matchCount}×)`)
         }
         return
       }
 
+      // ── THEN: cooldown check for brand new songs ──────────────────────────
       const cooldownPassed = secondsSinceLastConfirm >= MIN_SONG_GAP_SECONDS
       const isFirstSong    = confirmed.length === 0 && lastConfirmedAtRef.current === 0
 
       if (cooldownPassed || isFirstSong) {
         if (confidence_level === 'auto') {
-          // Auto-confirm immediately — the identify route already validated this
           confirmCandidate(
             { title, artist, source, confidence_level, firstDetectedAt: now, lastDetectedAt: now, matchCount: 1, candidates },
             setlist_item_id,
             { isrc: data.isrc, composer: data.composer, publisher: data.publisher }
           )
         } else {
-          // Suggest or downgraded — show pending card with top 3
           setPendingCandidate({
             title, artist, source, confidence_level, clues,
             firstDetectedAt: now, lastDetectedAt: now, matchCount: 1,
