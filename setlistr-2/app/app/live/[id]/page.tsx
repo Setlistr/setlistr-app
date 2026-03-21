@@ -23,8 +23,6 @@ type DetectedSong = {
   artist: string
   source: 'fingerprint' | 'humming' | 'transcript' | 'combined' | 'manual' | 'cloned' | 'unidentified'
   setlist_item_id?: string
-  detected_title?: string
-  detected_artist?: string
   confidence_level?: 'auto' | 'suggest' | 'manual_review'
   isrc?: string
   composer?: string
@@ -39,17 +37,8 @@ type PendingCandidate = {
   matchCount: number
   source: DetectedSong['source']
   confidence_level?: 'auto' | 'suggest' | 'manual_review'
-  clues?: SongClues
   candidates?: AcrCandidate[]
   downgraded_reason?: string
-}
-
-type SongClues = {
-  lyric_hooks: string[]
-  possible_title: string
-  mentioned_artist: string
-  transcript_quality: 'low' | 'medium' | 'high'
-  enough_signal: boolean
 }
 
 type CandidateHistoryEntry = {
@@ -63,10 +52,8 @@ function normalizeSongKey(title: string): string {
     .replace(/\s+/g, ' ').trim()
 }
 
-function isSameSong(a: { title: string; artist?: string }, b: { title: string; artist?: string }): boolean {
-  const aNorm = normalizeSongKey(a.title)
-  const bNorm = normalizeSongKey(b.title)
-  return aNorm === bNorm
+function isSameSong(a: { title: string }, b: { title: string }): boolean {
+  return normalizeSongKey(a.title) === normalizeSongKey(b.title)
 }
 
 export default function LiveCapturePage({ params }: { params: { id: string } }) {
@@ -160,8 +147,6 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
       artist: candidate.artist,
       source: candidate.source,
       setlist_item_id,
-      detected_title: candidate.title,
-      detected_artist: candidate.artist,
       confidence_level: candidate.confidence_level,
       isrc: enriched?.isrc || '',
       composer: enriched?.composer || '',
@@ -200,9 +185,9 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
       const res  = await fetch('/api/identify', { method: 'POST', body: formData })
       const data = await res.json()
 
-      if (data.acr_title) {
+      if (data.acr_score) {
         candidateHistoryRef.current = [
-          { title: data.acr_title, artist: data.acr_artist || '', score: data.acr_score || 0, timestamp: Date.now() },
+          { title: data.title || '', artist: data.artist || '', score: data.acr_score, timestamp: Date.now() },
           ...candidateHistoryRef.current,
         ].slice(0, 3)
       }
@@ -225,79 +210,73 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         return
       }
 
-      const { title, artist, setlist_item_id, confidence_level, source, clues, candidates, downgraded_reason } = data
-      const acrScore = data.acr_score || 0
+      const { title, artist, setlist_item_id, confidence_level, source } = data
 
-      // ── Already confirmed ─────────────────────────────────────────────────
+      // ── Already confirmed this title ──────────────────────────────────────
       if (confirmed.some(s => isSameSong(s, { title }))) {
         setDetectStatus('already logged')
         setTimeout(() => setDetectStatus(''), 3000)
         return
       }
 
-      // ── Manual review — don't touch pending ───────────────────────────────
-      if (confidence_level === 'manual_review') {
-        const clueText = clues?.lyric_hooks?.length
-          ? `heard: "${clues.lyric_hooks[0]}"`
-          : clues?.possible_title ? `maybe: "${clues.possible_title}"` : 'unclear — add manually?'
-        setDetectStatus(clueText)
-        setTimeout(() => setDetectStatus(''), 6000)
-        return
-      }
+      // ── AUTO: confirm immediately ─────────────────────────────────────────
+      // The identify route already validated this. Trust it.
+      if (confidence_level === 'auto') {
+        const secondsSinceLast = (now - lastConfirmedAtRef.current) / 1000
+        const isFirstSong      = confirmed.length === 0 && lastConfirmedAtRef.current === 0
+        const cooldownPassed   = secondsSinceLast >= MIN_SONG_GAP_SECONDS
 
-      // ── Title matches pending → accumulate ────────────────────────────────
-      // Title-only match so different artist versions still accumulate
-      if (pending && normalizeSongKey(pending.title) === normalizeSongKey(title)) {
-        const updated: PendingCandidate = {
-          ...pending,
-          lastDetectedAt: now,
-          matchCount: pending.matchCount + 1,
-          confidence_level, source,
-          candidates: candidates || pending.candidates,
-        }
-        const withinWindow = (now - pending.firstDetectedAt) / 1000 <= CANDIDATE_WINDOW_SECONDS
-        if (withinWindow && updated.matchCount >= 2) {
-          confirmCandidate(updated, setlist_item_id, { isrc: data.isrc, composer: data.composer, publisher: data.publisher })
+        if (isFirstSong || cooldownPassed) {
+          confirmCandidate(
+            { title, artist, source, confidence_level, firstDetectedAt: now, lastDetectedAt: now, matchCount: 1 },
+            setlist_item_id,
+            { isrc: data.isrc, composer: data.composer, publisher: data.publisher }
+          )
         } else {
-          setPendingCandidate(updated)
-          setDetectStatus(`hearing "${title}"... (${updated.matchCount}×)`)
+          // Within cooldown — put in pending so next match confirms it
+          if (pending && normalizeSongKey(pending.title) === normalizeSongKey(title)) {
+            // Same song already pending — just update
+            setPendingCandidate({ ...pending, lastDetectedAt: now, matchCount: pending.matchCount + 1 })
+          } else if (!pending) {
+            setPendingCandidate({ title, artist, source, confidence_level, firstDetectedAt: now, lastDetectedAt: now, matchCount: 1 })
+          }
+          setDetectStatus(`hearing "${title}"...`)
         }
         return
       }
 
-      // ── Different title ───────────────────────────────────────────────────
-      const secondsSinceLast = (now - lastConfirmedAtRef.current) / 1000
-      const cooldownPassed   = secondsSinceLast >= MIN_SONG_GAP_SECONDS
-      const isFirstSong      = confirmed.length === 0 && lastConfirmedAtRef.current === 0
-
-      // If there's a pending candidate, only replace it if:
-      // 1. Cooldown has passed AND
-      // 2. New score is strong (≥80) — prevents mid-quality junk from wiping a real pending song
-      if (pending) {
-        const newScoreStrong = acrScore >= 80
-        if (!(cooldownPassed && newScoreStrong)) {
-          // Keep the existing pending, just update status
-          setDetectStatus(`hearing "${pending.title}"...`)
+      // ── SUGGEST: needs 2 matches to confirm ──────────────────────────────
+      if (confidence_level === 'suggest') {
+        // Title matches pending → accumulate
+        if (pending && normalizeSongKey(pending.title) === normalizeSongKey(title)) {
+          const updated: PendingCandidate = {
+            ...pending, lastDetectedAt: now, matchCount: pending.matchCount + 1, source,
+          }
+          const withinWindow = (now - pending.firstDetectedAt) / 1000 <= CANDIDATE_WINDOW_SECONDS
+          if (withinWindow && updated.matchCount >= 2) {
+            confirmCandidate(updated, setlist_item_id, { isrc: data.isrc, composer: data.composer, publisher: data.publisher })
+          } else {
+            setPendingCandidate(updated)
+            setDetectStatus(`hearing "${title}"... (${updated.matchCount}×)`)
+          }
           return
         }
-      }
 
-      // No pending, or cooldown passed with strong new score — set new pending
-      if (cooldownPassed || isFirstSong) {
-        setPendingCandidate({
-          title, artist, source, confidence_level, clues,
-          firstDetectedAt: now, lastDetectedAt: now, matchCount: 1,
-          candidates, downgraded_reason,
-        })
-        setDetectStatus(`hearing "${title}"...`)
-      } else {
-        // Within cooldown, no pending exists — set it anyway so next match can confirm
-        setPendingCandidate({
-          title, artist, source, confidence_level, clues,
-          firstDetectedAt: now, lastDetectedAt: now, matchCount: 1,
-          candidates, downgraded_reason,
-        })
-        setDetectStatus(`hearing "${title}"...`)
+        // Different title — only replace pending if cooldown passed
+        const secondsSinceLast = (now - lastConfirmedAtRef.current) / 1000
+        const cooldownPassed   = secondsSinceLast >= MIN_SONG_GAP_SECONDS
+        const isFirstSong      = confirmed.length === 0 && lastConfirmedAtRef.current === 0
+
+        if (!pending || cooldownPassed || isFirstSong) {
+          setPendingCandidate({
+            title, artist, source, confidence_level,
+            firstDetectedAt: now, lastDetectedAt: now, matchCount: 1,
+          })
+          setDetectStatus(`hearing "${title}"...`)
+        } else {
+          // Protect existing pending
+          setDetectStatus(`hearing "${pending.title}"...`)
+        }
       }
 
     } catch {
@@ -442,7 +421,6 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
 
   return (
     <div style={{ minHeight: '100svh', background: C.bg, display: 'flex', flexDirection: 'column', fontFamily: '"DM Sans", system-ui, sans-serif', overflowX: 'hidden' }}>
-
       <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '55vh', background: isListening ? `radial-gradient(ellipse at 50% 0%, rgba(201,168,76,0.09) 0%, transparent 70%)` : `radial-gradient(ellipse at 50% 0%, rgba(201,168,76,0.04) 0%, transparent 60%)`, pointerEvents: 'none', transition: 'background 1.5s ease', zIndex: 0 }} />
 
       <div style={{ position: 'relative', zIndex: 1, padding: '20px 24px 0', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
@@ -467,9 +445,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
       </div>
 
       <div style={{ position: 'relative', zIndex: 1, textAlign: 'center', padding: '22px 24px 0' }}>
-        <div style={{ fontSize: 56, fontWeight: 800, color: C.text, fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.04em', lineHeight: 1, fontFamily: '"DM Mono", "Courier New", monospace' }}>
-          {formatTime(elapsed)}
-        </div>
+        <div style={{ fontSize: 56, fontWeight: 800, color: C.text, fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.04em', lineHeight: 1, fontFamily: '"DM Mono", "Courier New", monospace' }}>{formatTime(elapsed)}</div>
         <div style={{ fontSize: 12, color: C.muted, marginTop: 6, letterSpacing: '0.04em' }}>
           {remaining > 0 ? `${formatTime(remaining)} remaining` : `${formatTime(elapsed - totalSeconds)} over set`}
         </div>
@@ -537,46 +513,13 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         <div style={{ position: 'relative', zIndex: 1, maxWidth: 480, width: '100%', margin: '0 auto', padding: '0 16px 12px', animation: 'slideUp 0.2s ease' }}>
           <div style={{ background: C.card, border: `1px solid ${C.gold}40`, borderRadius: 12, padding: '14px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-              <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.gold, margin: 0 }}>
-                {pendingCandidate.downgraded_reason ? '⚠ Needs Confirmation' : 'Hearing something...'}
-              </p>
+              <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.gold, margin: 0 }}>Hearing something...</p>
               {pendingCandidate.matchCount > 1 && (
                 <span style={{ fontSize: 10, color: C.gold, opacity: 0.7 }}>detected {pendingCandidate.matchCount}×</span>
               )}
             </div>
-            {pendingCandidate.downgraded_reason && (
-              <p style={{ fontSize: 10, color: C.amber, margin: '0 0 8px', lineHeight: 1.4, fontStyle: 'italic' }}>
-                {pendingCandidate.downgraded_reason.startsWith('famous_title_wrong_artist')
-                  ? 'Got a cover version — pick the right one below'
-                  : pendingCandidate.downgraded_reason.startsWith('competing_candidates')
-                  ? 'Multiple songs matched — which one is it?'
-                  : 'Tap the correct song below'}
-              </p>
-            )}
             <p style={{ fontSize: 15, fontWeight: 700, color: C.text, margin: '0 0 2px' }}>{pendingCandidate.title}</p>
-            <p style={{ fontSize: 12, color: C.secondary, margin: '0 0 8px' }}>{pendingCandidate.artist}</p>
-            {pendingCandidate.clues?.lyric_hooks?.[0] && (
-              <p style={{ fontSize: 11, color: C.muted, margin: '0 0 10px', fontStyle: 'italic' }}>"{pendingCandidate.clues.lyric_hooks[0]}"</p>
-            )}
-            {pendingCandidate.candidates && pendingCandidate.candidates.length > 1 && (
-              <div style={{ marginBottom: 10 }}>
-                <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, margin: '0 0 6px' }}>Other matches</p>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  {pendingCandidate.candidates.slice(1, 3).map((c, i) => (
-                    <button key={i} onClick={() => selectCandidate(c)}
-                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px', background: 'rgba(255,255,255,0.04)', border: `1px solid ${C.border}`, borderRadius: 8, cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', transition: 'all 0.15s ease' }}
-                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = C.gold + '40'; (e.currentTarget as HTMLElement).style.background = C.goldDim }}
-                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = C.border; (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.04)' }}>
-                      <div>
-                        <p style={{ fontSize: 12, fontWeight: 600, color: C.text, margin: 0 }}>{c.title}</p>
-                        <p style={{ fontSize: 10, color: C.muted, margin: '1px 0 0' }}>{c.artist}</p>
-                      </div>
-                      <span style={{ fontSize: 10, color: C.muted, flexShrink: 0, marginLeft: 8 }}>Tap to select</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
+            <p style={{ fontSize: 12, color: C.secondary, margin: '0 0 12px' }}>{pendingCandidate.artist}</p>
             <div style={{ display: 'flex', gap: 8 }}>
               <button onClick={confirmPending} style={{ flex: 1, padding: '9px', background: C.gold, border: 'none', borderRadius: 8, color: '#0a0908', fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'inherit' }}>
                 ✓ {pendingCandidate.title}
@@ -592,7 +535,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
       <div style={{ position: 'relative', zIndex: 1, flex: 1, display: 'flex', flexDirection: 'column', gap: 12, padding: '0 16px 40px', maxWidth: 480, width: '100%', margin: '0 auto', boxSizing: 'border-box' }}>
 
         {unidentifiedCount > 0 && (
-          <div style={{ background: C.amberDim, border: `1px solid ${C.amber}40`, borderRadius: 10, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 8, animation: 'fadeIn 0.3s ease' }}>
+          <div style={{ background: C.amberDim, border: `1px solid ${C.amber}40`, borderRadius: 10, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ fontSize: 13 }}>⚠</span>
             <p style={{ fontSize: 12, color: C.amber, margin: 0, fontWeight: 600 }}>
               {unidentifiedCount} song{unidentifiedCount > 1 ? 's' : ''} need{unidentifiedCount === 1 ? 's' : ''} review — tap to fill in
@@ -610,7 +553,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
             <input value={songInput} onChange={e => setSongInput(e.target.value)} placeholder="Song title"
               style={{ background: C.input, border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 12px', color: C.text, fontSize: 14, outline: 'none', width: '100%', boxSizing: 'border-box', fontFamily: 'inherit' }}
               onKeyDown={e => { if (e.key === 'Enter' && songInput.trim()) addSong() }} />
-            <button onClick={addSong} disabled={!songInput.trim()} style={{ padding: '10px 16px', background: songInput.trim() ? C.gold : C.muted, border: 'none', borderRadius: 8, color: '#0a0908', fontSize: 12, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: songInput.trim() ? 'pointer' : 'not-allowed', opacity: songInput.trim() ? 1 : 0.4, transition: 'all 0.15s ease' }}>
+            <button onClick={addSong} disabled={!songInput.trim()} style={{ padding: '10px 16px', background: songInput.trim() ? C.gold : C.muted, border: 'none', borderRadius: 8, color: '#0a0908', fontSize: 12, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: songInput.trim() ? 'pointer' : 'not-allowed', opacity: songInput.trim() ? 1 : 0.4 }}>
               Add to Setlist
             </button>
           </div>
@@ -623,14 +566,14 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
               {songs.map((song, i) => (
-                <div key={i} style={{ background: C.card, border: `1px solid ${editingIndex === i ? C.gold + '60' : song.source === 'unidentified' ? C.amber + '50' : song.source !== 'manual' ? C.gold + '20' : C.border}`, borderRadius: 10, animation: 'slideUp 0.25s ease', overflow: 'hidden', transition: 'border-color 0.15s ease' }}>
+                <div key={i} style={{ background: C.card, border: `1px solid ${editingIndex === i ? C.gold + '60' : song.source === 'unidentified' ? C.amber + '50' : song.source !== 'manual' ? C.gold + '20' : C.border}`, borderRadius: 10, animation: 'slideUp 0.25s ease', overflow: 'hidden' }}>
                   {editingIndex === i ? (
-                    <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8, animation: 'slideUp 0.15s ease' }}>
+                    <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
                       <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.gold, margin: 0 }}>Edit Song</p>
                       <input autoFocus value={editTitle} onChange={e => setEditTitle(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') cancelEdit() }} placeholder="Song title" style={{ background: C.input, border: `1px solid ${C.gold}60`, borderRadius: 8, padding: '9px 12px', color: C.text, fontSize: 14, fontFamily: 'inherit', outline: 'none', width: '100%', boxSizing: 'border-box' }} />
                       <input value={editArtist} onChange={e => setEditArtist(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') cancelEdit() }} placeholder="Artist" style={{ background: C.input, border: `1px solid ${C.border}`, borderRadius: 8, padding: '9px 12px', color: C.text, fontSize: 13, fontFamily: 'inherit', outline: 'none', width: '100%', boxSizing: 'border-box' }} />
                       <div style={{ display: 'flex', gap: 8 }}>
-                        <button onClick={saveEdit} style={{ flex: 1, padding: '9px', background: C.gold, border: 'none', borderRadius: 8, color: '#0a0908', fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}><Check size={13} strokeWidth={2.5} />Save</button>
+                        <button onClick={saveEdit} style={{ flex: 1, padding: '9px', background: C.gold, border: 'none', borderRadius: 8, color: '#0a0908', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}><Check size={13} strokeWidth={2.5} />Save</button>
                         <button onClick={cancelEdit} style={{ padding: '9px 16px', background: 'transparent', border: `1px solid ${C.border}`, borderRadius: 8, color: C.muted, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 5 }}><X size={13} />Cancel</button>
                       </div>
                     </div>
@@ -647,7 +590,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
                         <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: song.source === 'unidentified' ? C.amber : song.source !== 'manual' ? C.gold : C.muted, opacity: 0.7 }}>
-                          {song.source === 'unidentified' ? '? review' : song.source === 'manual' ? '✎ manual' : song.source === 'transcript' ? '✦ transcript' : '⚡ auto'}
+                          {song.source === 'unidentified' ? '? review' : song.source === 'manual' ? '✎ manual' : '⚡ auto'}
                         </span>
                         <Pencil size={11} color={C.muted} opacity={0.4} />
                       </div>
@@ -657,7 +600,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
               ))}
             </div>
             {editingIndex === null && (
-              <p style={{ fontSize: 10, color: C.muted, textAlign: 'center', margin: '8px 0 0', letterSpacing: '0.04em', opacity: 0.6 }}>Tap any song to edit</p>
+              <p style={{ fontSize: 10, color: C.muted, textAlign: 'center', margin: '8px 0 0', opacity: 0.6 }}>Tap any song to edit</p>
             )}
           </div>
         )}
