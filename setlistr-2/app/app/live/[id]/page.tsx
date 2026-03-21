@@ -228,11 +228,21 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
       }
 
       const { title, artist, setlist_item_id, confidence_level, source, clues, candidates, downgraded_reason } = data
+      const acrScore = data.acr_score || 0
       const detected = { title, artist }
       const now      = Date.now()
       const secondsSinceLastConfirm = (now - lastConfirmedAtRef.current) / 1000
       const confirmed = confirmedSongsRef.current
       const candidate = pendingCandidateRef.current
+
+      // ── Ignore garbage low-score detections ──────────────────────────────
+      // If we already have a pending candidate and this detection is low-score
+      // and a different title, ignore it completely — don't let it wipe pending
+      const isDifferentTitle = candidate && normalizeSongKey(candidate.title) !== normalizeSongKey(title)
+      if (isDifferentTitle && acrScore < 0.5 && acrScore > 0) {
+        setDetectStatus(`hearing "${candidate!.title}"...`)
+        return
+      }
 
       const alreadyConfirmed = confirmed.some(s => isSameSong(s, detected))
       if (alreadyConfirmed) {
@@ -283,13 +293,16 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         })
         setDetectStatus(`hearing "${title}"...`)
       } else {
-        const secondsRemaining = Math.round(MIN_SONG_GAP_SECONDS - secondsSinceLastConfirm)
-        setDetectStatus(`hearing "${title}"... (${secondsRemaining}s)`)
-        setPendingCandidate({
-          title, artist, source, confidence_level, clues,
-          firstDetectedAt: now, lastDetectedAt: now, matchCount: 1,
-          candidates, downgraded_reason,
-        })
+        // Cooldown not passed — don't replace pending candidate with a different song
+        // Just update the status so the user knows something was detected
+        if (!candidate) {
+          setPendingCandidate({
+            title, artist, source, confidence_level, clues,
+            firstDetectedAt: now, lastDetectedAt: now, matchCount: 1,
+            candidates, downgraded_reason,
+          })
+        }
+        setDetectStatus(`hearing "${title}"...`)
       }
     } catch {
       setDetectStatus('listening...')
