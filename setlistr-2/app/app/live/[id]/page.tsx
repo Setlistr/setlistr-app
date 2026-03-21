@@ -271,9 +271,12 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
       const secondsSinceLast = (now - lastConfirmedAtRef.current) / 1000
       const cooldownPassed   = secondsSinceLast >= MIN_SONG_GAP_SECONDS
       const isFirstSong      = confirmed.length === 0 && lastConfirmedAtRef.current === 0
+      const newScore         = data.acr_score || 0
 
-      // If pending exists and cooldown hasn't passed, protect it — don't replace
-      if (pending && !cooldownPassed && !isFirstSong) {
+      // Protect pending candidate aggressively.
+      // Only replace it if cooldown passed AND new detection is very high confidence (≥80).
+      // This prevents mid-score garbage (0.44, 0.67) from wiping a real pending song.
+      if (pending && !(cooldownPassed && newScore >= 80)) {
         setDetectStatus(`hearing "${pending.title}"...`)
         return
       }
