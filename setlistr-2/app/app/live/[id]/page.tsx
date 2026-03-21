@@ -260,11 +260,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
           candidates: candidates || candidate.candidates,
         }
         const withinWindow  = (now - candidate.firstDetectedAt) / 1000 <= CANDIDATE_WINDOW_SECONDS
-        const shouldConfirm = withinWindow && (
-          updatedCandidate.matchCount >= 2 ||
-          confidence_level === 'auto' ||
-          (source === 'humming' && (data.acr_score || 0) >= 0.6)
-        )
+    const shouldConfirm = withinWindow && updatedCandidate.matchCount >= 2
         if (shouldConfirm) {
           confirmCandidate(updatedCandidate, setlist_item_id, { isrc: data.isrc, composer: data.composer, publisher: data.publisher })
         } else {
@@ -276,11 +272,17 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
 
       // ── THEN: cooldown check for brand new songs ──────────────────────────
       const cooldownPassed = secondsSinceLastConfirm >= MIN_SONG_GAP_SECONDS
-      const isFirstSong    = confirmed.length === 0 && lastConfirmedAtRef.current === 0
+const isFirstSong    = confirmed.length === 0 && lastConfirmedAtRef.current === 0
 
-      if (cooldownPassed || isFirstSong) {
-        if (confidence_level === 'auto') {
-          confirmCandidate(
+if (cooldownPassed || isFirstSong) {
+  // Always go to pending first — require 2 detections before confirming anything
+  setPendingCandidate({
+    title, artist, source, confidence_level, clues,
+    firstDetectedAt: now, lastDetectedAt: now, matchCount: 1,
+    candidates, downgraded_reason,
+  })
+  setDetectStatus(`hearing "${title}"...`)
+} else {
             { title, artist, source, confidence_level, firstDetectedAt: now, lastDetectedAt: now, matchCount: 1, candidates },
             setlist_item_id,
             { isrc: data.isrc, composer: data.composer, publisher: data.publisher }
