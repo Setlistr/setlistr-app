@@ -377,7 +377,7 @@ export async function POST(req: NextRequest) {
 
     // ── HARD FLOOR: reject garbage fingerprint detections immediately ─────────
     // Scores below 0.5 on fingerprint are noise — don't waste the pipeline on them
-    if (acrDetected && !humming && acrScore < MIN_FINGERPRINT_SCORE) {
+    if (acrDetected && acrScore < MIN_FINGERPRINT_SCORE) {
       if (job) await supabase.from('recognition_jobs').update({ status: 'completed', completed_at: new Date().toISOString(), raw_response: payload }).eq('id', job.id)
       return NextResponse.json({ detected: false, job_id: job?.id, debug: { acr_state: 'garbage', acr_score: acrScore } })
     }
