@@ -12,10 +12,9 @@ const C = {
   amber: '#f59e0b', amberDim: 'rgba(245,158,11,0.12)',
 }
 
-// ── Constants ─────────────────────────────────────────────────────────────────
-const MIN_SONG_GAP_SECONDS    = 30   // cooldown between confirms
-const CANDIDATE_WINDOW_SECONDS = 60  // window for repeat match accumulation
-const PLACEHOLDER_GAP_SECONDS  = 35  // create placeholder after this many seconds of silence
+const MIN_SONG_GAP_SECONDS     = 30
+const CANDIDATE_WINDOW_SECONDS = 60
+const PLACEHOLDER_GAP_SECONDS  = 35
 
 type AcrCandidate = { title: string; artist: string; score: number }
 
@@ -54,24 +53,20 @@ type SongClues = {
 }
 
 type CandidateHistoryEntry = {
-  title: string
-  artist: string
-  score: number
-  timestamp: number
+  title: string; artist: string; score: number; timestamp: number
 }
 
-function normalizeSongKey(title: string, artist?: string): string {
-  let key = title.toLowerCase().trim()
+function normalizeSongKey(title: string): string {
+  return title.toLowerCase().trim()
     .replace(/\(.*?\)/g, '').replace(/\[.*?\]/g, '')
     .replace(/[-–—]/g, ' ').replace(/[^a-z0-9 ]/g, '')
     .replace(/\s+/g, ' ').trim()
-  if (artist) key += '|' + artist.toLowerCase().trim().replace(/[^a-z0-9 ]/g, '').trim()
-  return key
 }
 
 function isSameSong(a: { title: string; artist?: string }, b: { title: string; artist?: string }): boolean {
-  if (normalizeSongKey(a.title, a.artist) === normalizeSongKey(b.title, b.artist)) return true
-  return normalizeSongKey(a.title) === normalizeSongKey(b.title)
+  const aNorm = normalizeSongKey(a.title)
+  const bNorm = normalizeSongKey(b.title)
+  return aNorm === bNorm
 }
 
 export default function LiveCapturePage({ params }: { params: { id: string } }) {
@@ -91,7 +86,6 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   const [catchFlash, setCatchFlash]   = useState(false)
   const [lastCaught, setLastCaught]   = useState<string | null>(null)
   const [pendingCandidate, setPendingCandidate] = useState<PendingCandidate | null>(null)
-
   const [editingIndex, setEditingIndex] = useState<number | null>(null)
   const [editTitle, setEditTitle]       = useState('')
   const [editArtist, setEditArtist]     = useState('')
@@ -112,8 +106,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
     const supabase = createClient()
     supabase.from('performances')
       .select('*, show_id, setlist_id, artist_id')
-      .eq('id', params.id)
-      .single()
+      .eq('id', params.id).single()
       .then(({ data }) => {
         if (data) {
           setPerformance(data)
@@ -157,8 +150,12 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
 
   function cancelEdit() { setEditingIndex(null) }
 
-  const confirmCandidate = useCallback((candidate: PendingCandidate, setlist_item_id?: string, enriched?: { isrc?: string; composer?: string; publisher?: string }) => {
-    const newSong: DetectedSong = {
+  const confirmCandidate = useCallback((
+    candidate: PendingCandidate,
+    setlist_item_id?: string,
+    enriched?: { isrc?: string; composer?: string; publisher?: string }
+  ) => {
+    setSongs(prev => [...prev, {
       title: candidate.title,
       artist: candidate.artist,
       source: candidate.source,
@@ -169,8 +166,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
       isrc: enriched?.isrc || '',
       composer: enriched?.composer || '',
       publisher: enriched?.publisher || '',
-    }
-    setSongs(prev => [...prev, newSong])
+    }])
     lastConfirmedAtRef.current = Date.now()
     setPendingCandidate(null)
     setCatchFlash(true)
@@ -230,15 +226,16 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
       }
 
       const { title, artist, setlist_item_id, confidence_level, source, clues, candidates, downgraded_reason } = data
+      const acrScore = data.acr_score || 0
 
-      // ── Already confirmed this song ───────────────────────────────────────
-      if (confirmed.some(s => isSameSong(s, { title, artist }))) {
+      // ── Already confirmed ─────────────────────────────────────────────────
+      if (confirmed.some(s => isSameSong(s, { title }))) {
         setDetectStatus('already logged')
         setTimeout(() => setDetectStatus(''), 3000)
         return
       }
 
-      // ── Manual review — just show clue, don't change pending ─────────────
+      // ── Manual review — don't touch pending ───────────────────────────────
       if (confidence_level === 'manual_review') {
         const clueText = clues?.lyric_hooks?.length
           ? `heard: "${clues.lyric_hooks[0]}"`
@@ -248,11 +245,12 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         return
       }
 
-      // ── Title matches current pending candidate → accumulate ──────────────
-      // Must be BEFORE cooldown check — title-only match, ignore artist
+      // ── Title matches pending → accumulate ────────────────────────────────
+      // Title-only match so different artist versions still accumulate
       if (pending && normalizeSongKey(pending.title) === normalizeSongKey(title)) {
         const updated: PendingCandidate = {
-          ...pending, lastDetectedAt: now,
+          ...pending,
+          lastDetectedAt: now,
           matchCount: pending.matchCount + 1,
           confidence_level, source,
           candidates: candidates || pending.candidates,
@@ -267,27 +265,40 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         return
       }
 
-      // ── Different title detected ──────────────────────────────────────────
+      // ── Different title ───────────────────────────────────────────────────
       const secondsSinceLast = (now - lastConfirmedAtRef.current) / 1000
       const cooldownPassed   = secondsSinceLast >= MIN_SONG_GAP_SECONDS
       const isFirstSong      = confirmed.length === 0 && lastConfirmedAtRef.current === 0
-      const newScore         = data.acr_score || 0
 
-      // Protect pending candidate aggressively.
-      // Only replace it if cooldown passed AND new detection is very high confidence (≥80).
-      // This prevents mid-score garbage (0.44, 0.67) from wiping a real pending song.
-      if (pending && !(cooldownPassed && newScore >= 80)) {
-        setDetectStatus(`hearing "${pending.title}"...`)
-        return
+      // If there's a pending candidate, only replace it if:
+      // 1. Cooldown has passed AND
+      // 2. New score is strong (≥80) — prevents mid-quality junk from wiping a real pending song
+      if (pending) {
+        const newScoreStrong = acrScore >= 80
+        if (!(cooldownPassed && newScoreStrong)) {
+          // Keep the existing pending, just update status
+          setDetectStatus(`hearing "${pending.title}"...`)
+          return
+        }
       }
 
-      // Cooldown passed or first song — set as new pending
-      setPendingCandidate({
-        title, artist, source, confidence_level, clues,
-        firstDetectedAt: now, lastDetectedAt: now, matchCount: 1,
-        candidates, downgraded_reason,
-      })
-      setDetectStatus(`hearing "${title}"...`)
+      // No pending, or cooldown passed with strong new score — set new pending
+      if (cooldownPassed || isFirstSong) {
+        setPendingCandidate({
+          title, artist, source, confidence_level, clues,
+          firstDetectedAt: now, lastDetectedAt: now, matchCount: 1,
+          candidates, downgraded_reason,
+        })
+        setDetectStatus(`hearing "${title}"...`)
+      } else {
+        // Within cooldown, no pending exists — set it anyway so next match can confirm
+        setPendingCandidate({
+          title, artist, source, confidence_level, clues,
+          firstDetectedAt: now, lastDetectedAt: now, matchCount: 1,
+          candidates, downgraded_reason,
+        })
+        setDetectStatus(`hearing "${title}"...`)
+      }
 
     } catch {
       setDetectStatus('listening...')
@@ -347,7 +358,6 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
     if (ending || !performance) return
     setEnding(true)
 
-    // Create placeholder for any undetected trailing song
     const timeSinceLast = (Date.now() - lastConfirmedAtRef.current) / 1000
     const currentSongs  = confirmedSongsRef.current
     if (currentSongs.length > 0 && timeSinceLast > PLACEHOLDER_GAP_SECONDS) {
@@ -435,7 +445,6 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
 
       <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '55vh', background: isListening ? `radial-gradient(ellipse at 50% 0%, rgba(201,168,76,0.09) 0%, transparent 70%)` : `radial-gradient(ellipse at 50% 0%, rgba(201,168,76,0.04) 0%, transparent 60%)`, pointerEvents: 'none', transition: 'background 1.5s ease', zIndex: 0 }} />
 
-      {/* Top strip */}
       <div style={{ position: 'relative', zIndex: 1, padding: '20px 24px 0', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(220,38,38,0.12)', border: '1px solid rgba(220,38,38,0.3)', borderRadius: 20, padding: '5px 10px' }}>
           <div style={{ width: 6, height: 6, borderRadius: '50%', background: C.red, animation: 'pulse-dot 1.4s ease-in-out infinite' }} />
@@ -448,7 +457,6 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         )}
       </div>
 
-      {/* Venue / Artist */}
       <div style={{ position: 'relative', zIndex: 1, textAlign: 'center', padding: '20px 24px 0' }}>
         <h1 style={{ fontSize: 22, fontWeight: 700, color: C.text, margin: 0, letterSpacing: '-0.02em', lineHeight: 1.2 }}>{performance.venue_name}</h1>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, marginTop: 5 }}>
@@ -458,7 +466,6 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         <p style={{ fontSize: 13, fontWeight: 600, color: C.gold, margin: '6px 0 0', letterSpacing: '0.06em' }}>{performance.artist_name}</p>
       </div>
 
-      {/* Timer */}
       <div style={{ position: 'relative', zIndex: 1, textAlign: 'center', padding: '22px 24px 0' }}>
         <div style={{ fontSize: 56, fontWeight: 800, color: C.text, fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.04em', lineHeight: 1, fontFamily: '"DM Mono", "Courier New", monospace' }}>
           {formatTime(elapsed)}
@@ -472,7 +479,6 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         <div style={{ fontSize: 10, color: C.muted, marginTop: 6, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Auto-closes {formatTime(autoCloseAt)}</div>
       </div>
 
-      {/* Pulse Button */}
       <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '36px 24px 28px' }}>
         {(isListening || catchFlash) && (
           <>
@@ -481,7 +487,6 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
             ))}
           </>
         )}
-
         <button
           onClick={isListening ? stopListening : startListening}
           disabled={isDetecting && !isListening}
@@ -506,7 +511,6 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
           </span>
         </button>
 
-        {/* Status line */}
         <div style={{ marginTop: 18, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           {lastCaught ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, animation: 'fadeIn 0.25s ease' }}>
@@ -529,7 +533,6 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         )}
       </div>
 
-      {/* Pending Candidate Card */}
       {pendingCandidate && (
         <div style={{ position: 'relative', zIndex: 1, maxWidth: 480, width: '100%', margin: '0 auto', padding: '0 16px 12px', animation: 'slideUp 0.2s ease' }}>
           <div style={{ background: C.card, border: `1px solid ${C.gold}40`, borderRadius: 12, padding: '14px' }}>
@@ -541,7 +544,6 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
                 <span style={{ fontSize: 10, color: C.gold, opacity: 0.7 }}>detected {pendingCandidate.matchCount}×</span>
               )}
             </div>
-
             {pendingCandidate.downgraded_reason && (
               <p style={{ fontSize: 10, color: C.amber, margin: '0 0 8px', lineHeight: 1.4, fontStyle: 'italic' }}>
                 {pendingCandidate.downgraded_reason.startsWith('famous_title_wrong_artist')
@@ -551,16 +553,11 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
                   : 'Tap the correct song below'}
               </p>
             )}
-
             <p style={{ fontSize: 15, fontWeight: 700, color: C.text, margin: '0 0 2px' }}>{pendingCandidate.title}</p>
             <p style={{ fontSize: 12, color: C.secondary, margin: '0 0 8px' }}>{pendingCandidate.artist}</p>
-
             {pendingCandidate.clues?.lyric_hooks?.[0] && (
-              <p style={{ fontSize: 11, color: C.muted, margin: '0 0 10px', fontStyle: 'italic' }}>
-                "{pendingCandidate.clues.lyric_hooks[0]}"
-              </p>
+              <p style={{ fontSize: 11, color: C.muted, margin: '0 0 10px', fontStyle: 'italic' }}>"{pendingCandidate.clues.lyric_hooks[0]}"</p>
             )}
-
             {pendingCandidate.candidates && pendingCandidate.candidates.length > 1 && (
               <div style={{ marginBottom: 10 }}>
                 <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, margin: '0 0 6px' }}>Other matches</p>
@@ -580,7 +577,6 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
                 </div>
               </div>
             )}
-
             <div style={{ display: 'flex', gap: 8 }}>
               <button onClick={confirmPending} style={{ flex: 1, padding: '9px', background: C.gold, border: 'none', borderRadius: 8, color: '#0a0908', fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'inherit' }}>
                 ✓ {pendingCandidate.title}
@@ -593,7 +589,6 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         </div>
       )}
 
-      {/* Lower section */}
       <div style={{ position: 'relative', zIndex: 1, flex: 1, display: 'flex', flexDirection: 'column', gap: 12, padding: '0 16px 40px', maxWidth: 480, width: '100%', margin: '0 auto', boxSizing: 'border-box' }}>
 
         {unidentifiedCount > 0 && (
