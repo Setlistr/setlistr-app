@@ -65,7 +65,7 @@ export function AppShell({ children, profile }: { children: React.ReactNode; pro
 
       {/* ── Header — 36px, logo left, avatar right ── */}
       <header style={{
-        height: 44,
+        height: 56,
         padding: '0 16px',
         display: 'flex',
         alignItems: 'center',
@@ -81,7 +81,7 @@ export function AppShell({ children, profile }: { children: React.ReactNode; pro
       }}>
         {/* Logo — tap goes to dashboard */}
         <Link href="/app/dashboard" style={{ display: 'flex', alignItems: 'center', textDecoration: 'none' }}>
-          <Image src="/logo-white.png" alt="Setlistr" width={100} height={26} priority style={{ objectFit: 'contain' }} />
+          <Image src="/logo-white.png" alt="Setlistr" width={120} height={32} priority style={{ objectFit: 'contain' }} />
         </Link>
 
         {/* Profile avatar button */}
