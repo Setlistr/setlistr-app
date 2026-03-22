@@ -506,9 +506,23 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
             💰 Submit to Get Paid
           </button>
 
-          <button onClick={() => router.push('/app/dashboard')} style={{ width: '100%', padding: '13px', background: 'transparent', border: `1px solid ${C.border}`, borderRadius: 12, color: C.secondary, fontSize: 13, fontWeight: 600, cursor: 'pointer', marginBottom: 12, animation: 'fadeUp 0.5s 0.3s ease both', fontFamily: 'inherit' }}>
-            Back to Dashboard
-          </button>
+          <button
+  onClick={async () => {
+    const text = `🎸 Just played ${songs.length} songs at ${performance?.venue_name}${performance?.city ? ` in ${performance.city}` : ''}\n\n${songs.map((s, i) => `${i + 1}. ${s.title}`).join('\n')}\n\nTracked with Setlistr · setlistr.ai`
+    if (navigator.share) {
+      try { await navigator.share({ title: 'My Setlist', text }) } catch {}
+    } else {
+      await navigator.clipboard.writeText(text)
+      const btn = document.getElementById('share-btn')
+      if (btn) { btn.textContent = '✓ Copied!'; setTimeout(() => { if (btn) btn.textContent = '↗ Share My Setlist' }, 2000) }
+    }
+  }}
+  id="share-btn"
+  style={{ width: '100%', padding: '13px', background: 'transparent', border: `1px solid rgba(201,168,76,0.25)`, borderRadius: 12, color: C.gold, fontSize: 13, fontWeight: 700, cursor: 'pointer', marginBottom: 10, animation: 'fadeUp 0.5s 0.28s ease both', fontFamily: 'inherit', transition: 'background 0.15s ease' }}
+  onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = C.goldDim }}
+  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}>
+  ↗ Share My Setlist
+</button>
           <button onClick={() => setShowComplete(false)} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 12, cursor: 'pointer', letterSpacing: '0.04em' }}>
             Back to Review
           </button>
