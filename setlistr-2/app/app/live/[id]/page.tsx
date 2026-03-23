@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { MapPin, Check, X, Pencil } from 'lucide-react'
+import { Check, X } from 'lucide-react'
 import type { Performance } from '@/types'
 
 const C = {
@@ -479,63 +479,93 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   const totalSeconds      = performance.set_duration_minutes * 60
   const progress          = Math.min(elapsed / totalSeconds, 1)
   const remaining         = Math.max(totalSeconds - elapsed, 0)
-  const autoCloseAt       = totalSeconds + (performance.auto_close_buffer_minutes || 5) * 60
   const ringState         = catchFlash ? 'catch' : isDetecting ? 'detect' : isListening ? 'listen' : 'idle'
   const unidentifiedCount = songs.filter(s => s.source === 'unidentified').length
 
   return (
     <div style={{ minHeight: '100svh', background: C.bg, display: 'flex', flexDirection: 'column', fontFamily: '"DM Sans", system-ui, sans-serif', overflowX: 'hidden' }}>
-      <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '55vh', background: isListening ? `radial-gradient(ellipse at 50% 0%, rgba(201,168,76,0.09) 0%, transparent 70%)` : `radial-gradient(ellipse at 50% 0%, rgba(201,168,76,0.04) 0%, transparent 60%)`, pointerEvents: 'none', transition: 'background 1.5s ease', zIndex: 0 }} />
 
-      <div style={{ position: 'relative', zIndex: 1, padding: '20px 24px 0', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(220,38,38,0.12)', border: '1px solid rgba(220,38,38,0.3)', borderRadius: 20, padding: '5px 10px' }}>
-          <div style={{ width: 6, height: 6, borderRadius: '50%', background: C.red, animation: 'pulse-dot 1.4s ease-in-out infinite' }} />
-          <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#f87171' }}>Live</span>
-        </div>
-        {songs.length > 0 && (
-          <div style={{ background: C.goldDim, border: `1px solid rgba(201,168,76,0.25)`, borderRadius: 20, padding: '5px 12px', animation: 'fadeIn 0.3s ease' }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: C.gold, letterSpacing: '0.08em' }}>{songs.length} {songs.length === 1 ? 'song' : 'songs'}</span>
+      {/* Ambient glow — centered, emits from middle of screen */}
+      <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '70vh', background: isListening ? `radial-gradient(ellipse at 50% 35%, rgba(201,168,76,0.08) 0%, transparent 65%)` : `radial-gradient(ellipse at 50% 35%, rgba(201,168,76,0.03) 0%, transparent 55%)`, pointerEvents: 'none', transition: 'background 1.8s ease', zIndex: 0 }} />
+
+      {/* ── Compact header strip ── */}
+      <div style={{ position: 'relative', zIndex: 10, height: 46, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 20px', borderBottom: '1px solid rgba(255,255,255,0.05)', flexShrink: 0 }}>
+        {/* Left: venue name */}
+        <p style={{ fontSize: 14, fontWeight: 700, color: C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1, letterSpacing: '-0.01em' }}>
+          {performance.venue_name}
+        </p>
+        {/* Right: LIVE dot + timer */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0, marginLeft: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+            <div style={{ width: 6, height: 6, borderRadius: '50%', background: C.red, animation: 'pulse-dot 1.4s ease-in-out infinite', boxShadow: '0 0 5px rgba(220,38,38,0.6)' }} />
+            <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#f87171' }}>Live</span>
           </div>
-        )}
+          <span style={{ fontFamily: '"DM Mono", monospace', fontSize: 18, fontWeight: 700, color: C.text, letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums' }}>{formatTime(elapsed)}</span>
+        </div>
       </div>
 
-      <div style={{ position: 'relative', zIndex: 1, textAlign: 'center', padding: '20px 24px 0' }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, color: C.text, margin: 0, letterSpacing: '-0.02em', lineHeight: 1.2 }}>{performance.venue_name}</h1>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, marginTop: 5 }}>
-          <MapPin size={11} color={C.muted} />
-          <span style={{ fontSize: 12, color: C.muted, letterSpacing: '0.04em' }}>{performance.city}, {performance.country}</span>
-        </div>
-        <p style={{ fontSize: 13, fontWeight: 600, color: C.gold, margin: '6px 0 0', letterSpacing: '0.06em' }}>{performance.artist_name}</p>
+      {/* Progress bar — flush, 2px */}
+      <div style={{ height: 2, background: 'rgba(255,255,255,0.04)', flexShrink: 0, position: 'relative', zIndex: 10 }}>
+        <div style={{ height: '100%', background: C.gold, width: `${progress * 100}%`, transition: 'width 1s linear', opacity: 0.4 }} />
       </div>
 
-      <div style={{ position: 'relative', zIndex: 1, textAlign: 'center', padding: '22px 24px 0' }}>
-        <div style={{ fontSize: 56, fontWeight: 800, color: C.text, fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.04em', lineHeight: 1, fontFamily: '"DM Mono", "Courier New", monospace' }}>{formatTime(elapsed)}</div>
-        <div style={{ fontSize: 12, color: C.muted, marginTop: 6, letterSpacing: '0.04em' }}>
-          {remaining > 0 ? `${formatTime(remaining)} remaining` : `${formatTime(elapsed - totalSeconds)} over set`}
-        </div>
-        <div style={{ width: '100%', maxWidth: 280, margin: '14px auto 0', height: 2, background: 'rgba(255,255,255,0.06)', borderRadius: 2, overflow: 'hidden' }}>
-          <div style={{ height: '100%', borderRadius: 2, background: `linear-gradient(90deg, ${C.gold}99, ${C.gold})`, width: `${progress * 100}%`, transition: 'width 1s linear', boxShadow: `0 0 8px ${C.gold}66` }} />
-        </div>
-        <div style={{ fontSize: 10, color: C.muted, marginTop: 6, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Auto-closes {formatTime(autoCloseAt)}</div>
-      </div>
+      {/* ── Hero zone: centered button ── */}
+      <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '40px 24px 28px', flexShrink: 0 }}>
 
-      <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '36px 24px 28px' }}>
+        {/* Pulse rings */}
         {(isListening || catchFlash) && (
           <>
-            {[{ size: ringState === 'catch' ? 220 : 200, delay: '0s' }, { size: ringState === 'catch' ? 260 : 240, delay: '0.1s' }, { size: ringState === 'catch' ? 300 : 280, delay: '0.2s' }].map(({ size, delay }, idx) => (
-              <div key={idx} style={{ position: 'absolute', width: size, height: size, borderRadius: '50%', border: `1px solid ${ringState === 'catch' ? C.gold + (idx === 0 ? '' : idx === 1 ? '60' : '30') : C.gold + (idx === 0 ? '30' : idx === 1 ? '18' : '0c')}`, animation: ringState === 'catch' ? `ring-catch 0.8s ${delay} ease-out forwards` : `ring-pulse 2.5s ${delay} ease-out infinite`, top: '50%', left: '50%', transform: 'translate(-50%, -50%)', pointerEvents: 'none' }} />
+            {[
+              { size: ringState === 'catch' ? 220 : 200, delay: '0s' },
+              { size: ringState === 'catch' ? 262 : 242, delay: '0.1s' },
+              { size: ringState === 'catch' ? 304 : 284, delay: '0.2s' },
+            ].map(({ size, delay }, idx) => (
+              <div key={idx} style={{
+                position: 'absolute',
+                width: size, height: size, borderRadius: '50%',
+                border: `1px solid ${ringState === 'catch'
+                  ? C.gold + (idx === 0 ? 'cc' : idx === 1 ? '60' : '28')
+                  : C.gold + (idx === 0 ? '28' : idx === 1 ? '14' : '08')}`,
+                animation: ringState === 'catch'
+                  ? `ring-catch 0.85s ${delay} ease-out forwards`
+                  : `ring-pulse 2.6s ${delay} ease-out infinite`,
+                top: 40, left: '50%', transform: 'translateX(-50%)',
+                pointerEvents: 'none',
+              }} />
             ))}
           </>
         )}
+
+        {/* Main button */}
         <button
           onClick={isListening ? stopListening : startListening}
           disabled={isDetecting && !isListening}
-          style={{ width: 160, height: 160, borderRadius: '50%', border: 'none', cursor: isDetecting && !isListening ? 'wait' : 'pointer', position: 'relative', zIndex: 2, background: catchFlash ? `radial-gradient(circle at 40% 35%, #e8c76a, ${C.gold} 55%, #a07828)` : isListening ? `radial-gradient(circle at 40% 35%, ${C.gold}cc, ${C.gold} 55%, #8a6520)` : `radial-gradient(circle at 40% 35%, #2a2520, #1a1610 55%, #0f0e0c)`, boxShadow: catchFlash ? `0 0 60px ${C.gold}80, 0 0 120px ${C.gold}30, inset 0 1px 0 rgba(255,255,255,0.25)` : isListening ? `0 0 40px ${C.gold}40, 0 0 80px ${C.gold}18, inset 0 1px 0 rgba(255,255,255,0.12)` : `0 8px 40px rgba(0,0,0,0.6), 0 2px 8px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06)`, transform: catchFlash ? 'scale(1.06)' : 'scale(1)', transition: 'background 0.4s ease, box-shadow 0.4s ease, transform 0.25s ease', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+          style={{
+            width: 160, height: 160, borderRadius: '50%', border: 'none',
+            cursor: isDetecting && !isListening ? 'wait' : 'pointer',
+            position: 'relative', zIndex: 2,
+            background: catchFlash
+              ? `radial-gradient(circle at 40% 35%, #e8c76a, ${C.gold} 55%, #a07828)`
+              : isListening
+              ? `radial-gradient(circle at 40% 35%, ${C.gold}cc, ${C.gold} 55%, #8a6520)`
+              : `radial-gradient(circle at 40% 35%, #2a2520, #1a1610 55%, #0f0e0c)`,
+            boxShadow: catchFlash
+              ? `0 0 60px ${C.gold}80, 0 0 120px ${C.gold}30, inset 0 1px 0 rgba(255,255,255,0.25)`
+              : isListening
+              ? `0 0 40px ${C.gold}40, 0 0 80px ${C.gold}18, inset 0 1px 0 rgba(255,255,255,0.12)`
+              : `0 8px 40px rgba(0,0,0,0.6), 0 2px 8px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06)`,
+            transform: catchFlash ? 'scale(1.05)' : 'scale(1)',
+            transition: 'background 0.4s ease, box-shadow 0.4s ease, transform 0.2s ease',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6,
+            WebkitTapHighlightColor: 'transparent', outline: 'none',
+          }}
         >
           <div style={{ width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             {isDetecting ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: 3, height: 28 }}>
-                {[0,1,2,3,4].map(i => (<div key={i} style={{ width: 3, borderRadius: 2, background: isListening ? '#0a0908' : C.gold, animation: `wave-bar 0.8s ${i * 0.12}s ease-in-out infinite alternate`, height: 10 }} />))}
+                {[0,1,2,3,4].map(i => (
+                  <div key={i} style={{ width: 3, borderRadius: 2, background: isListening ? '#0a0908' : C.gold, animation: `wave-bar 0.8s ${i * 0.12}s ease-in-out infinite alternate`, height: 10 }} />
+                ))}
               </div>
             ) : (
               <svg width="28" height="32" viewBox="0 0 28 32" fill="none">
@@ -551,148 +581,179 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
           </span>
         </button>
 
+        {/* Status line */}
         <div style={{ marginTop: 18, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           {lastCaught ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, animation: 'fadeIn 0.25s ease' }}>
               <span style={{ fontSize: 13, color: C.gold }}>✦</span>
               <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{lastCaught}</span>
-              <span style={{ fontSize: 11, color: C.gold, opacity: 0.7 }}>caught</span>
+              <span style={{ fontSize: 11, color: C.muted }}>added</span>
             </div>
-          ) : detectStatus ? (
-            <span style={{ fontSize: 12, color: C.muted, letterSpacing: '0.06em', animation: 'fadeIn 0.2s ease' }}>{detectStatus}</span>
+          ) : detectStatus && detectStatus !== 'listening...' ? (
+            <span style={{ fontSize: 12, color: C.muted, animation: 'fadeIn 0.2s ease' }}>{detectStatus}</span>
+          ) : isListening && !isDetecting && !pendingCandidate ? (
+            <span style={{ fontSize: 11, color: C.muted + '60' }}>listening</span>
           ) : null}
         </div>
-
-        {isListening && !isDetecting && !pendingCandidate && (
-          <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 3, height: 14 }}>
-              {[0,1,2].map(i => (<div key={i} style={{ width: 2, borderRadius: 1, background: C.gold + '60', animation: `wave-bar 1s ${i * 0.2}s ease-in-out infinite alternate`, height: 6 }} />))}
-            </div>
-            <span style={{ fontSize: 10, color: C.muted, letterSpacing: '0.1em', textTransform: 'uppercase' }}>sampling every 20s</span>
-          </div>
-        )}
       </div>
 
+      {/* ── Pending card ── */}
       {pendingCandidate && (
         <div style={{ position: 'relative', zIndex: 1, maxWidth: 480, width: '100%', margin: '0 auto', padding: '0 16px 12px', animation: 'slideUp 0.2s ease' }}>
-          <div style={{ background: C.card, border: `1px solid ${C.gold}40`, borderRadius: 12, padding: '14px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-              <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.gold, margin: 0 }}>Hearing something...</p>
-              {pendingCandidate.matchCount > 1 && (
-                <span style={{ fontSize: 10, color: C.gold, opacity: 0.7 }}>detected {pendingCandidate.matchCount}×</span>
-              )}
-            </div>
-            <p style={{ fontSize: 15, fontWeight: 700, color: C.text, margin: '0 0 2px' }}>{pendingCandidate.title}</p>
+          <div style={{ background: '#161310', border: `1px solid rgba(201,168,76,0.22)`, borderRadius: 14, padding: '14px 16px' }}>
+            <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: C.muted, margin: '0 0 8px' }}>
+              Hearing something{pendingCandidate.matchCount > 1 ? ` · ${pendingCandidate.matchCount}×` : ''}
+            </p>
+            <p style={{ fontSize: 15, fontWeight: 700, color: C.text, margin: '0 0 2px', letterSpacing: '-0.01em' }}>{pendingCandidate.title}</p>
             <p style={{ fontSize: 12, color: C.secondary, margin: '0 0 12px' }}>{pendingCandidate.artist}</p>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={confirmPending} style={{ flex: 1, padding: '9px', background: C.gold, border: 'none', borderRadius: 8, color: '#0a0908', fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'inherit' }}>
+              <button
+                onClick={confirmPending}
+                onTouchStart={e => (e.currentTarget.style.opacity = '0.85')}
+                onTouchEnd={e => (e.currentTarget.style.opacity = '1')}
+                style={{ flex: 1, padding: '10px', background: C.gold, border: 'none', borderRadius: 10, color: '#0a0908', fontSize: 12, fontWeight: 800, letterSpacing: '0.05em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent' }}>
                 ✓ {pendingCandidate.title}
               </button>
-              <button onClick={dismissPending} style={{ padding: '9px 14px', background: 'transparent', border: `1px solid ${C.border}`, borderRadius: 8, color: C.muted, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
-                Dismiss
+              <button
+                onClick={dismissPending}
+                style={{ padding: '10px 15px', background: 'rgba(255,255,255,0.04)', border: `1px solid ${C.border}`, borderRadius: 10, color: C.muted, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent' }}>
+                ✕
               </button>
             </div>
           </div>
         </div>
       )}
 
-      <div style={{ position: 'relative', zIndex: 1, flex: 1, display: 'flex', flexDirection: 'column', gap: 12, padding: '0 16px 40px', maxWidth: 480, width: '100%', margin: '0 auto', boxSizing: 'border-box' }}>
+      {/* ── Lower section: setlist + controls ── */}
+      <div style={{ position: 'relative', zIndex: 1, flex: 1, display: 'flex', flexDirection: 'column', gap: 8, padding: '0 16px 40px', maxWidth: 480, width: '100%', margin: '0 auto', boxSizing: 'border-box' }}>
 
+        {/* Unidentified banner */}
         {unidentifiedCount > 0 && (
-          <div style={{ background: C.amberDim, border: `1px solid ${C.amber}40`, borderRadius: 10, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 13 }}>⚠</span>
+          <div style={{ background: 'rgba(245,158,11,0.06)', border: `1px solid rgba(245,158,11,0.18)`, borderRadius: 10, padding: '9px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
             <p style={{ fontSize: 12, color: C.amber, margin: 0, fontWeight: 600 }}>
-              {unidentifiedCount} song{unidentifiedCount > 1 ? 's' : ''} need{unidentifiedCount === 1 ? 's' : ''} review — tap to fill in
+              {unidentifiedCount} {unidentifiedCount === 1 ? 'song needs' : 'songs need'} review
             </p>
           </div>
         )}
 
-        <button onClick={() => setShowManual(v => !v)} style={{ width: '100%', padding: '11px 16px', background: showManual ? 'rgba(201,168,76,0.06)' : 'transparent', border: `1px solid ${showManual ? C.gold + '40' : C.border}`, borderRadius: 10, color: showManual ? C.gold : C.muted, fontSize: 12, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', transition: 'all 0.2s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-          <span style={{ fontSize: 16, lineHeight: 1, display: 'inline-block', transform: showManual ? 'rotate(45deg)' : 'rotate(0)', transition: 'transform 0.2s ease' }}>+</span>
-          {showManual ? 'Cancel' : 'Add Manually'}
+        {/* Song list */}
+        {songs.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {songs.map((song, i) => {
+              const isUnidentified = song.source === 'unidentified'
+              const isSuggested    = song.confidence_level === 'suggest'
+
+              return (
+                <div key={i} style={{
+                  background: isUnidentified ? 'rgba(245,158,11,0.04)' : C.card,
+                  border: `1px solid ${
+                    editingIndex === i ? 'rgba(201,168,76,0.45)'
+                    : isUnidentified ? 'rgba(245,158,11,0.18)'
+                    : 'rgba(255,255,255,0.05)'
+                  }`,
+                  borderRadius: 10, overflow: 'hidden',
+                  animation: 'slideUp 0.22s ease',
+                }}>
+                  {editingIndex === i ? (
+                    <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      <input autoFocus value={editTitle}
+                        onChange={e => setEditTitle(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') cancelEdit() }}
+                        placeholder="Song title"
+                        style={{ background: C.input, border: `1px solid rgba(201,168,76,0.35)`, borderRadius: 8, padding: '9px 12px', color: C.text, fontSize: 14, fontFamily: 'inherit', outline: 'none', width: '100%', boxSizing: 'border-box' }} />
+                      <input value={editArtist}
+                        onChange={e => setEditArtist(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') cancelEdit() }}
+                        placeholder="Artist"
+                        style={{ background: C.input, border: `1px solid ${C.border}`, borderRadius: 8, padding: '9px 12px', color: C.text, fontSize: 13, fontFamily: 'inherit', outline: 'none', width: '100%', boxSizing: 'border-box' }} />
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button onClick={saveEdit} style={{ flex: 1, padding: '8px', background: C.gold, border: 'none', borderRadius: 8, color: '#0a0908', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+                          <Check size={12} strokeWidth={2.5} /> Save
+                        </button>
+                        <button onClick={cancelEdit} style={{ padding: '8px 14px', background: 'transparent', border: `1px solid ${C.border}`, borderRadius: 8, color: C.muted, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <X size={12} />
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div
+                      style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 14px', cursor: 'pointer', WebkitTapHighlightColor: 'transparent' }}
+                      onClick={() => startEdit(i)}>
+                      <span style={{ fontSize: 11, color: C.muted, minWidth: 16, textAlign: 'right', fontFamily: '"DM Mono", monospace', opacity: 0.45 }}>{i + 1}</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <p style={{
+                          fontSize: 14, fontWeight: 600, margin: 0,
+                          color: isUnidentified ? C.amber : C.text,
+                          opacity: isSuggested ? 0.75 : 1,
+                          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                          fontStyle: isUnidentified ? 'italic' : 'normal',
+                        }}>
+                          {isUnidentified ? 'Unknown song' : song.title}
+                        </p>
+                        {!isUnidentified && song.artist && song.artist !== performance.artist_name && (
+                          <p style={{ fontSize: 11, color: C.muted, margin: '2px 0 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{song.artist}</p>
+                        )}
+                      </div>
+                      {isUnidentified
+                        ? <span style={{ fontSize: 10, color: C.amber, opacity: 0.6, flexShrink: 0 }}>tap to fill</span>
+                        : <span style={{ width: 5, height: 5, borderRadius: '50%', background: C.gold, opacity: isSuggested ? 0.3 : 0.65, flexShrink: 0, display: 'inline-block' }} />
+                      }
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        {/* Add manually — ghost, low weight */}
+        <button
+          onClick={() => setShowManual(v => !v)}
+          style={{ width: '100%', padding: '10px', background: 'transparent', border: `1px solid rgba(255,255,255,0.05)`, borderRadius: 10, color: C.muted, fontSize: 11, fontWeight: 600, letterSpacing: '0.07em', cursor: 'pointer', fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent', transition: 'border-color 0.15s ease' }}
+          onMouseEnter={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)')}
+          onMouseLeave={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.05)')}>
+          {showManual ? '✕ cancel' : '+ add manually'}
         </button>
 
         {showManual && (
-          <div style={{ padding: '14px', background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, display: 'flex', flexDirection: 'column', gap: 10, animation: 'slideUp 0.2s ease' }}>
-            <input value={songInput} onChange={e => setSongInput(e.target.value)} placeholder="Song title"
+          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: '12px', display: 'flex', flexDirection: 'column', gap: 8, animation: 'slideUp 0.15s ease' }}>
+            <input value={songInput} onChange={e => setSongInput(e.target.value)}
+              placeholder="Song title" autoFocus
               style={{ background: C.input, border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 12px', color: C.text, fontSize: 14, outline: 'none', width: '100%', boxSizing: 'border-box', fontFamily: 'inherit' }}
               onKeyDown={e => { if (e.key === 'Enter' && songInput.trim()) addSong() }} />
-            <button onClick={addSong} disabled={!songInput.trim()} style={{ padding: '10px 16px', background: songInput.trim() ? C.gold : C.muted, border: 'none', borderRadius: 8, color: '#0a0908', fontSize: 12, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: songInput.trim() ? 'pointer' : 'not-allowed', opacity: songInput.trim() ? 1 : 0.4 }}>
-              Add to Setlist
+            <button onClick={addSong} disabled={!songInput.trim()}
+              style={{ padding: '10px', background: songInput.trim() ? C.gold : 'rgba(255,255,255,0.04)', border: 'none', borderRadius: 8, color: songInput.trim() ? '#0a0908' : C.muted, fontSize: 12, fontWeight: 700, cursor: songInput.trim() ? 'pointer' : 'not-allowed', fontFamily: 'inherit' }}>
+              Add
             </button>
           </div>
         )}
 
-        {songs.length > 0 && (
-          <div>
-            <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.muted, margin: '4px 0 10px 2px' }}>
-              Setlist — {songs.length} {songs.length === 1 ? 'song' : 'songs'}
-            </p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-              {songs.map((song, i) => (
-                <div key={i} style={{ background: C.card, border: `1px solid ${editingIndex === i ? C.gold + '60' : song.source === 'unidentified' ? C.amber + '50' : song.source !== 'manual' ? C.gold + '20' : C.border}`, borderRadius: 10, animation: 'slideUp 0.25s ease', overflow: 'hidden' }}>
-                  {editingIndex === i ? (
-                    <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.gold, margin: 0 }}>Edit Song</p>
-                      <input autoFocus value={editTitle} onChange={e => setEditTitle(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') cancelEdit() }} placeholder="Song title" style={{ background: C.input, border: `1px solid ${C.gold}60`, borderRadius: 8, padding: '9px 12px', color: C.text, fontSize: 14, fontFamily: 'inherit', outline: 'none', width: '100%', boxSizing: 'border-box' }} />
-                      <input value={editArtist} onChange={e => setEditArtist(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') cancelEdit() }} placeholder="Artist" style={{ background: C.input, border: `1px solid ${C.border}`, borderRadius: 8, padding: '9px 12px', color: C.text, fontSize: 13, fontFamily: 'inherit', outline: 'none', width: '100%', boxSizing: 'border-box' }} />
-                      <div style={{ display: 'flex', gap: 8 }}>
-                        <button onClick={saveEdit} style={{ flex: 1, padding: '9px', background: C.gold, border: 'none', borderRadius: 8, color: '#0a0908', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}><Check size={13} strokeWidth={2.5} />Save</button>
-                        <button onClick={cancelEdit} style={{ padding: '9px 16px', background: 'transparent', border: `1px solid ${C.border}`, borderRadius: 8, color: C.muted, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 5 }}><X size={13} />Cancel</button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', cursor: 'pointer' }} onClick={() => startEdit(i)}>
-                      <span style={{ fontSize: 10, fontWeight: 700, color: C.muted, minWidth: 16, textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontFamily: '"DM Mono", monospace' }}>{i + 1}</span>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <p style={{ fontSize: 14, fontWeight: 600, color: song.source === 'unidentified' ? C.amber : C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontStyle: song.source === 'unidentified' ? 'italic' : 'normal' }}>
-                          {song.source === 'unidentified' ? '? Unknown Song' : song.title}
-                        </p>
-                        {song.artist && song.artist !== performance.artist_name && song.source !== 'unidentified' && (
-                          <p style={{ fontSize: 11, color: C.secondary, margin: '2px 0 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{song.artist}</p>
-                        )}
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                        <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: song.source === 'unidentified' ? C.amber : song.source !== 'manual' ? C.gold : C.muted, opacity: 0.7 }}>
-                          {song.source === 'unidentified' ? '? review' : song.source === 'manual' ? '✎ manual' : '⚡ auto'}
-                        </span>
-                        <Pencil size={11} color={C.muted} opacity={0.4} />
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-            {editingIndex === null && (
-              <p style={{ fontSize: 10, color: C.muted, textAlign: 'center', margin: '8px 0 0', opacity: 0.6 }}>Tap any song to edit</p>
-            )}
-          </div>
-        )}
-
-        <div style={{ marginTop: songs.length > 0 ? 8 : 0 }}>
-          <button onClick={handleEnd} disabled={ending}
-            style={{ width: '100%', padding: '13px 16px', background: 'transparent', border: `1px solid rgba(220,38,38,0.35)`, borderRadius: 10, color: '#f87171', fontSize: 12, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: ending ? 'not-allowed' : 'pointer', opacity: ending ? 0.5 : 1, transition: 'all 0.2s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
-            onMouseEnter={e => { if (!ending) { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(220,38,38,0.1)'; (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(220,38,38,0.6)' } }}
-            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(220,38,38,0.35)' }}>
-            <span style={{ display: 'inline-block', width: 8, height: 8, background: ending ? '#6a6050' : C.red, borderRadius: 1, flexShrink: 0 }} />
-            {ending ? 'Ending performance...' : 'End Performance'}
-          </button>
-        </div>
+        {/* End Performance */}
+        <button onClick={handleEnd} disabled={ending}
+          style={{ width: '100%', padding: '13px', background: 'rgba(220,38,38,0.07)', border: `1px solid rgba(220,38,38,0.22)`, borderRadius: 10, color: ending ? C.muted : '#f87171', fontSize: 12, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: ending ? 'not-allowed' : 'pointer', opacity: ending ? 0.4 : 1, transition: 'all 0.15s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent' }}
+          onMouseEnter={e => { if (!ending) (e.currentTarget as HTMLButtonElement).style.background = 'rgba(220,38,38,0.13)' }}
+          onMouseLeave={e => { if (!ending) (e.currentTarget as HTMLButtonElement).style.background = 'rgba(220,38,38,0.07)' }}
+          onTouchStart={e => { if (!ending) e.currentTarget.style.background = 'rgba(220,38,38,0.13)' }}
+          onTouchEnd={e => { if (!ending) e.currentTarget.style.background = 'rgba(220,38,38,0.07)' }}>
+          <span style={{ width: 6, height: 6, background: ending ? C.muted : C.red, borderRadius: 1, display: 'inline-block', flexShrink: 0 }} />
+          {ending ? 'Ending...' : 'End Performance'}
+        </button>
       </div>
 
-      <style>{`
+      <style>{\`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500;700&display=swap');
-        @keyframes pulse-dot  { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(.85)} }
-        @keyframes ring-pulse { 0%{opacity:.7;transform:translate(-50%,-50%) scale(.95)} 100%{opacity:0;transform:translate(-50%,-50%) scale(1.25)} }
-        @keyframes ring-catch { 0%{opacity:1;transform:translate(-50%,-50%) scale(.9)} 100%{opacity:0;transform:translate(-50%,-50%) scale(1.5)} }
+        @keyframes pulse-dot  { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(.8)} }
+        @keyframes ring-pulse { 0%{opacity:.5;transform:translateX(-50%) scale(.97)} 100%{opacity:0;transform:translateX(-50%) scale(1.2)} }
+        @keyframes ring-catch { 0%{opacity:.9;transform:translateX(-50%) scale(.93)} 100%{opacity:0;transform:translateX(-50%) scale(1.42)} }
         @keyframes wave-bar   { from{height:4px} to{height:22px} }
-        @keyframes slideUp    { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes slideUp    { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
         @keyframes fadeIn     { from{opacity:0} to{opacity:1} }
         @keyframes breathe    { 0%,100%{transform:scale(1);opacity:.4} 50%{transform:scale(1.15);opacity:.9} }
-        * { -webkit-tap-highlight-color: transparent; }
-        input::placeholder { color: #6a6050; }
-        input:focus { border-color: rgba(201,168,76,0.4) !important; outline: none; }
-      `}</style>
+        * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
+        input::placeholder { color: #5a5040; }
+        input:focus { border-color: rgba(201,168,76,0.3) !important; outline: none; }
+        ::-webkit-scrollbar { display: none; }
+      \`}</style>
     </div>
   )
 }
