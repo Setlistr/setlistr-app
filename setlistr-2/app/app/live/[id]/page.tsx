@@ -740,7 +740,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         </button>
       </div>
 
-      <style>{\`
+      <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500;700&display=swap');
         @keyframes pulse-dot  { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(.8)} }
         @keyframes ring-pulse { 0%{opacity:.5;transform:translateX(-50%) scale(.97)} 100%{opacity:0;transform:translateX(-50%) scale(1.2)} }
@@ -753,7 +753,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         input::placeholder { color: #5a5040; }
         input:focus { border-color: rgba(201,168,76,0.3) !important; outline: none; }
         ::-webkit-scrollbar { display: none; }
-      \`}</style>
+      `}</style>
     </div>
   )
 }
