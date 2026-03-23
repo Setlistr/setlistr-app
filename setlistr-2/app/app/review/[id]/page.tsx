@@ -48,6 +48,63 @@ type Performance = {
 
 type PRO = 'SOCAN' | 'ASCAP' | 'BMI'
 
+// ─── user_songs write helper (review save path) ──────────────────────────────
+// Non-blocking. Uses dedup guard — if identify route already wrote this
+// song for this performance, the guard insert fails silently and we skip.
+async function writeUserSongFromReview(
+  supabase: ReturnType<typeof import('@/lib/supabase/client').createClient>,
+  title: string,
+  artist: string,
+  userId: string,
+  performanceId: string
+): Promise<void> {
+  try {
+    const normalizedTitle = title.toLowerCase().trim()
+      .replace(/\(.*?\)/g, '').replace(/\[.*?\]/g, '')
+      .replace(/[-–—]/g, ' ').replace(/[^a-z0-9 ]/g, '')
+      .replace(/\s+/g, ' ').trim()
+
+    if (!normalizedTitle) return
+
+    // Per-performance dedup guard
+    const { error: guardError } = await supabase
+      .from('user_song_performances')
+      .insert({ user_id: userId, performance_id: performanceId, normalized_title: normalizedTitle })
+
+    if (guardError) {
+      if (guardError.code === '23505') return  // already counted, skip
+      console.error('[UserSongs] guard error:', guardError.message)
+      return
+    }
+
+    // Upsert user_songs
+    const { data: existing } = await supabase
+      .from('user_songs')
+      .select('id, confirmed_count')
+      .eq('user_id', userId)
+      .eq('song_title', title)
+      .single()
+
+    if (existing) {
+      await supabase.from('user_songs').update({
+        confirmed_count: existing.confirmed_count + 1,
+        canonical_artist: artist || null,
+        last_confirmed_at: new Date().toISOString(),
+      }).eq('id', existing.id)
+    } else {
+      await supabase.from('user_songs').insert({
+        user_id: userId,
+        song_title: title,
+        canonical_artist: artist || null,
+        confirmed_count: 1,
+        last_confirmed_at: new Date().toISOString(),
+      })
+    }
+  } catch (err) {
+    console.error('[UserSongs] review write failed:', err)
+  }
+}
+
 // ─── Sortable Song Row ────────────────────────────────────────────────────────
 
 function SortableRow({ song, index, onDelete, onEdit, artistName }: {
@@ -344,6 +401,26 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
       await supabase.from('shows').update({ status: 'completed' }).eq('id', performance.show_id)
     }
 
+    // ── Write to user_songs (review save — authoritative final path) ──────────
+    // This is the most important write path. It captures:
+    //   - auto-confirmed songs (dedup guard skips if already written)
+    //   - manually corrected songs (new title written fresh)
+    //   - manual adds that survived to final review
+    // Runs after all DB writes are complete.
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const normalizedPerfId = performance.id
+        for (const song of songs) {
+          if (!song.title?.trim()) continue
+          // Non-blocking per-song — dont let one failure block the rest
+          writeUserSongFromReview(supabase, song.title, song.artist || '', user.id, normalizedPerfId)
+        }
+      }
+    } catch (err) {
+      console.error('[ReviewSave] user_songs write failed:', err)
+    }
+
     setSaving(false); setSaved(true); setShowComplete(true)
   }, [performance, songs, setlistId])
 
@@ -506,23 +583,9 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
             💰 Submit to Get Paid
           </button>
 
-          <button
-  onClick={async () => {
-    const text = `🎸 Just played ${songs.length} songs at ${performance?.venue_name}${performance?.city ? ` in ${performance.city}` : ''}\n\n${songs.map((s, i) => `${i + 1}. ${s.title}`).join('\n')}\n\nTracked with Setlistr · setlistr.ai`
-    if (navigator.share) {
-      try { await navigator.share({ title: 'My Setlist', text }) } catch {}
-    } else {
-      await navigator.clipboard.writeText(text)
-      const btn = document.getElementById('share-btn')
-      if (btn) { btn.textContent = '✓ Copied!'; setTimeout(() => { if (btn) btn.textContent = '↗ Share My Setlist' }, 2000) }
-    }
-  }}
-  id="share-btn"
-  style={{ width: '100%', padding: '13px', background: 'transparent', border: `1px solid rgba(201,168,76,0.25)`, borderRadius: 12, color: C.gold, fontSize: 13, fontWeight: 700, cursor: 'pointer', marginBottom: 10, animation: 'fadeUp 0.5s 0.28s ease both', fontFamily: 'inherit', transition: 'background 0.15s ease' }}
-  onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = C.goldDim }}
-  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}>
-  ↗ Share My Setlist
-</button>
+          <button onClick={() => router.push('/app/dashboard')} style={{ width: '100%', padding: '13px', background: 'transparent', border: `1px solid ${C.border}`, borderRadius: 12, color: C.secondary, fontSize: 13, fontWeight: 600, cursor: 'pointer', marginBottom: 12, animation: 'fadeUp 0.5s 0.3s ease both', fontFamily: 'inherit' }}>
+            Back to Dashboard
+          </button>
           <button onClick={() => setShowComplete(false)} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 12, cursor: 'pointer', letterSpacing: '0.04em' }}>
             Back to Review
           </button>
