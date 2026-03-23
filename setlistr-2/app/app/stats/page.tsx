@@ -1,211 +1,340 @@
-import { createServerSupabaseClient } from '@/lib/supabase/server'
-import { redirect } from 'next/navigation'
+'use client'
+import { useEffect, useState } from 'react'
+import { createClient } from '@/lib/supabase/client'
 import { Music2, MapPin, Calendar, TrendingUp, Mic2 } from 'lucide-react'
 
 const C = {
-  bg: '#0a0908',
-  card: '#141210',
-  border: 'rgba(255,255,255,0.07)',
-  text: '#f0ece3',
-  secondary: '#b8a888',
-  muted: '#8a7a68',
-  gold: '#c9a84c',
+  bg: '#0a0908', card: '#141210',
+  border: 'rgba(255,255,255,0.07)', borderGold: 'rgba(201,168,76,0.25)',
+  text: '#f0ece3', secondary: '#b8a888', muted: '#8a7a68',
+  gold: '#c9a84c', goldDim: 'rgba(201,168,76,0.1)',
 }
 
-export default async function StatsPage() {
-  const supabase = await createServerSupabaseClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/auth/login')
+type Song       = { title: string; artist: string }
+type UserSong   = { id: string; song_title: string; canonical_artist: string; confirmed_count: number; last_confirmed_at: string }
+type Performance = { id: string; venue_name: string; city: string; country: string; started_at: string; set_duration_minutes: number }
 
-  // ── Fetch performances ────────────────────────────────────────────────────
-  const { data: performances } = await supabase
-    .from('performances')
-    .select('id, venue_name, city, country, started_at, status, set_duration_minutes')
-    .eq('user_id', user.id)
-    .in('status', ['completed', 'complete', 'exported', 'review'])
-    .order('started_at', { ascending: false })
+function cleanTitle(title: string): string {
+  return title
+    .replace(/\s*\(made popular by[^)]*\)/gi, '')
+    .replace(/\s*\[vocal version\]/gi, '')
+    .replace(/\s*\[karaoke\]/gi, '')
+    .replace(/\s*\(karaoke[^)]*\)/gi, '')
+    .replace(/\s*\(originally performed by[^)]*\)/gi, '')
+    .replace(/\s*\(as made famous by[^)]*\)/gi, '')
+    .trim()
+}
 
-  // ── Fetch songs via performance IDs ───────────────────────────────────────
-  const perfIds = performances?.map(p => p.id) ?? []
+function formatRelative(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime()
+  const days = Math.floor(diff / 86400000)
+  if (days === 0) return 'Today'
+  if (days === 1) return 'Yesterday'
+  if (days < 7) return `${days}d ago`
+  if (days < 30) return `${Math.floor(days / 7)}w ago`
+  if (days < 365) return `${Math.floor(days / 30)}mo ago`
+  return `${Math.floor(days / 365)}y ago`
+}
 
-  const { data: allSongs } = perfIds.length > 0
-    ? await supabase
-        .from('performance_songs')
-        .select('title, artist')
-        .in('performance_id', perfIds)
-    : { data: [] }
+export default function StatsPage() {
+  const [tab, setTab]                   = useState<'stats' | 'songs'>('stats')
+  const [performances, setPerformances] = useState<Performance[]>([])
+  const [allSongs, setAllSongs]         = useState<Song[]>([])
+  const [userSongs, setUserSongs]       = useState<UserSong[]>([])
+  const [loading, setLoading]           = useState(true)
+  const [songSearch, setSongSearch]     = useState('')
 
-  const totalShows  = performances?.length ?? 0
-  const totalSongs  = allSongs?.length ?? 0
+  useEffect(() => {
+    const supabase = createClient()
+    async function load() {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
 
-  // Most played songs
+      const [{ data: perfs }, { data: uSongs }] = await Promise.all([
+        supabase.from('performances').select('id, venue_name, city, country, started_at, set_duration_minutes')
+          .eq('user_id', user.id)
+          .in('status', ['completed', 'complete', 'exported', 'review'])
+          .order('started_at', { ascending: false }),
+        supabase.from('user_songs').select('id, song_title, canonical_artist, confirmed_count, last_confirmed_at')
+          .eq('user_id', user.id)
+          .order('confirmed_count', { ascending: false }),
+      ])
+
+      const perfList = perfs || []
+      setPerformances(perfList)
+      setUserSongs(uSongs || [])
+
+      if (perfList.length > 0) {
+        const perfIds = perfList.map(p => p.id)
+        const { data: songs } = await supabase.from('performance_songs')
+          .select('title, artist').in('performance_id', perfIds)
+        setAllSongs(songs || [])
+      }
+
+      setLoading(false)
+    }
+    load()
+  }, [])
+
+  // ── Stats calculations ────────────────────────────────────────────────────
+  const totalShows   = performances.length
+  const totalSongs   = allSongs.length
+  const totalCities  = new Set(performances.map(p => p.city).filter(Boolean)).size
+  const totalMinutes = performances.reduce((s, p) => s + (p.set_duration_minutes ?? 0), 0)
+  const totalHours   = Math.round(totalMinutes / 60 * 10) / 10
+
   const songCounts: Record<string, { title: string; artist: string; count: number }> = {}
-  allSongs?.forEach(s => {
+  allSongs.forEach(s => {
     const key = s.title.toLowerCase()
     if (!songCounts[key]) songCounts[key] = { title: s.title, artist: s.artist, count: 0 }
     songCounts[key].count++
   })
   const topSongs = Object.values(songCounts).sort((a, b) => b.count - a.count).slice(0, 10)
 
-  // Top venues
   const venueCounts: Record<string, { name: string; city: string; count: number }> = {}
-  performances?.forEach(p => {
-    if (!p.venue_name) return
-    const key = p.venue_name.toLowerCase()
-    if (!venueCounts[key]) venueCounts[key] = { name: p.venue_name, city: p.city, count: 0 }
+  performances.forEach(p => {
+    const v = p.venue_name?.trim()
+    if (!v || !v.includes(' ')) return
+    const key = v.toLowerCase()
+    if (!venueCounts[key]) venueCounts[key] = { name: v, city: p.city, count: 0 }
     venueCounts[key].count++
   })
   const topVenues = Object.values(venueCounts).sort((a, b) => b.count - a.count).slice(0, 5)
 
-  // Cities played
-  const cities     = new Set(performances?.map(p => p.city).filter(Boolean) ?? [])
-  const totalCities = cities.size
-
-  // Total hours on stage
-  const totalMinutes = performances?.reduce((sum, p) => sum + (p.set_duration_minutes ?? 0), 0) ?? 0
-  const totalHours   = Math.round(totalMinutes / 60 * 10) / 10
-
-  // Shows by month (last 6 months)
   const monthCounts: Record<string, number> = {}
-  performances?.forEach(p => {
+  performances.forEach(p => {
     if (!p.started_at) return
     const key = new Date(p.started_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
     monthCounts[key] = (monthCounts[key] ?? 0) + 1
   })
   const last6Months = Array.from({ length: 6 }, (_, i) => {
-    const d = new Date()
-    d.setMonth(d.getMonth() - (5 - i))
+    const d = new Date(); d.setMonth(d.getMonth() - (5 - i))
     return d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
   })
   const maxMonthCount = Math.max(...last6Months.map(m => monthCounts[m] ?? 0), 1)
 
+  // ── My Songs calculations ─────────────────────────────────────────────────
+  const filteredSongs = userSongs
+    .map(s => ({ ...s, song_title: cleanTitle(s.song_title) }))
+    .filter(s => {
+      if (!songSearch.trim()) return true
+      const q = songSearch.toLowerCase()
+      return s.song_title.toLowerCase().includes(q) || s.canonical_artist?.toLowerCase().includes(q)
+    })
+
+  const totalUniqueSongs = userSongs.length
+  const mostPlayedSong   = userSongs[0]
+  const totalPlays       = userSongs.reduce((s, u) => s + (u.confirmed_count || 0), 0)
+
+  if (loading) {
+    return (
+      <div style={{ minHeight: '100svh', background: C.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ width: 28, height: 28, borderRadius: '50%', border: `1.5px solid ${C.gold}40`, borderTopColor: C.gold, animation: 'spin 1s linear infinite' }} />
+        <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+      </div>
+    )
+  }
+
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: C.bg }}>
-      <div className="px-4 pt-8 pb-4 max-w-lg mx-auto w-full">
-        <p className="text-[11px] uppercase tracking-[0.3em] mb-1" style={{ color: C.gold + '99' }}>Your Career</p>
-        <h1 className="font-display text-3xl" style={{ color: C.text }}>Stats</h1>
+    <div style={{ minHeight: '100svh', background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif' }}>
+
+      {/* Header */}
+      <div style={{ padding: '32px 20px 0', maxWidth: 520, margin: '0 auto' }}>
+        <p style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.28em', color: C.gold + '90', margin: '0 0 4px', fontWeight: 600 }}>Your Career</p>
+        <h1 style={{ fontSize: 28, fontWeight: 800, color: C.text, margin: '0 0 20px', letterSpacing: '-0.02em' }}>Stats</h1>
+
+        {/* Tab switcher */}
+        <div style={{ display: 'flex', gap: 4, background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: 4, marginBottom: 20 }}>
+          {([['stats', 'Overview'], ['songs', 'My Songs']] as const).map(([key, label]) => (
+            <button key={key} onClick={() => setTab(key)}
+              style={{ flex: 1, padding: '9px', border: 'none', borderRadius: 9, background: tab === key ? C.goldDim : 'transparent', color: tab === key ? C.gold : C.muted, fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', cursor: 'pointer', transition: 'all 0.15s ease', fontFamily: 'inherit' }}>
+              {label}
+              {key === 'songs' && totalUniqueSongs > 0 && (
+                <span style={{ marginLeft: 6, fontSize: 10, opacity: 0.7 }}>{totalUniqueSongs}</span>
+              )}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {totalShows === 0 ? (
-        <div className="flex-1 flex flex-col items-center justify-center px-4 pb-20">
-          <Music2 size={40} className="mb-4 opacity-20" style={{ color: C.secondary }} />
-          <p className="text-sm" style={{ color: C.secondary }}>No completed shows yet</p>
-          <p className="text-xs mt-1" style={{ color: C.muted }}>Complete a show to see your stats</p>
-        </div>
-      ) : (
-        <div className="px-4 max-w-lg mx-auto w-full flex flex-col gap-5 pb-12">
-
-          {/* Top stats grid */}
-          <div className="grid grid-cols-2 gap-3">
-            {[
-              { icon: Calendar,    label: 'Shows Played',   value: totalShows },
-              { icon: Music2,      label: 'Songs Logged',   value: totalSongs },
-              { icon: MapPin,      label: 'Cities',         value: totalCities },
-              { icon: TrendingUp,  label: 'Hours on Stage', value: totalHours },
-            ].map(({ icon: Icon, label, value }) => (
-              <div key={label} className="rounded-2xl p-4"
-                style={{ background: C.card, border: `1px solid ${C.border}` }}>
-                <div className="mb-2" style={{ color: C.gold }}><Icon size={18} /></div>
-                <div className="text-3xl font-bold" style={{ color: C.text }}>{value}</div>
-                <div className="text-[11px] uppercase tracking-wider mt-0.5" style={{ color: C.muted }}>{label}</div>
-              </div>
-            ))}
-          </div>
-
-          {/* Shows per month */}
-          <div className="rounded-2xl p-4" style={{ background: C.card, border: `1px solid ${C.border}` }}>
-            <p className="text-xs uppercase tracking-wider mb-4" style={{ color: C.secondary }}>Shows per Month</p>
-            <div className="flex items-end gap-2 h-20">
-              {last6Months.map(month => {
-                const count  = monthCounts[month] ?? 0
-                const height = count === 0 ? 4 : Math.max(12, (count / maxMonthCount) * 80)
-                return (
-                  <div key={month} className="flex-1 flex flex-col items-center gap-1.5">
-                    <span className="text-[10px]" style={{ color: count > 0 ? C.text : C.muted }}>{count || ''}</span>
-                    <div className="w-full rounded-t-md transition-all"
-                      style={{
-                        height: `${height}px`,
-                        background: count > 0 ? C.gold : 'rgba(255,255,255,0.05)',
-                      }} />
-                    <span className="text-[9px] uppercase tracking-wide" style={{ color: C.muted }}>
-                      {month.split(' ')[0]}
-                    </span>
-                  </div>
-                )
-              })}
+      {/* ── Tab: Overview ── */}
+      {tab === 'stats' && (
+        <div style={{ padding: '0 20px 40px', maxWidth: 520, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {totalShows === 0 ? (
+            <div style={{ textAlign: 'center', padding: '60px 0' }}>
+              <Music2 size={36} color={C.muted} style={{ opacity: 0.2, marginBottom: 16 }} />
+              <p style={{ fontSize: 14, color: C.secondary, margin: 0 }}>No completed shows yet</p>
             </div>
-          </div>
-
-          {/* Top songs */}
-          {topSongs.length > 0 && (
-            <div className="rounded-2xl p-4" style={{ background: C.card, border: `1px solid ${C.border}` }}>
-              <div className="flex items-center gap-2 mb-4">
-                <Mic2 size={15} style={{ color: C.gold }} />
-                <p className="text-xs uppercase tracking-wider" style={{ color: C.secondary }}>Most Played Songs</p>
+          ) : (
+            <>
+              {/* Stats grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                {[
+                  { icon: Calendar,   label: 'Shows Played',   value: totalShows },
+                  { icon: Music2,     label: 'Songs Logged',   value: totalSongs },
+                  { icon: MapPin,     label: 'Cities',         value: totalCities },
+                  { icon: TrendingUp, label: 'Hours on Stage', value: totalHours },
+                ].map(({ icon: Icon, label, value }) => (
+                  <div key={label} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '14px' }}>
+                    <Icon size={16} color={C.gold} style={{ marginBottom: 8 }} />
+                    <p style={{ fontSize: 26, fontWeight: 800, color: C.text, margin: 0, letterSpacing: '-0.02em' }}>{value}</p>
+                    <p style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.1em', color: C.muted, margin: '3px 0 0' }}>{label}</p>
+                  </div>
+                ))}
               </div>
-              <div className="flex flex-col gap-3">
-                {topSongs.map((song, i) => (
-                  <div key={song.title} className="flex items-center gap-3">
-                    <span className="font-mono text-xs w-4 shrink-0 text-right" style={{ color: C.gold }}>
-                      {i + 1}
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="text-sm truncate" style={{ color: C.text }}>{song.title}</p>
-                          {song.artist && (
-                            <p className="text-xs truncate" style={{ color: C.secondary }}>{song.artist}</p>
-                          )}
+
+              {/* Shows per month */}
+              <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '16px' }}>
+                <p style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.12em', color: C.secondary, margin: '0 0 16px', fontWeight: 600 }}>Shows per Month</p>
+                <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, height: 80 }}>
+                  {last6Months.map(month => {
+                    const count  = monthCounts[month] ?? 0
+                    const height = count === 0 ? 4 : Math.max(12, (count / maxMonthCount) * 80)
+                    return (
+                      <div key={month} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+                        <span style={{ fontSize: 10, color: count > 0 ? C.text : C.muted }}>{count || ''}</span>
+                        <div style={{ width: '100%', borderRadius: '3px 3px 0 0', height: `${height}px`, background: count > 0 ? C.gold : 'rgba(255,255,255,0.05)', transition: 'height 0.3s ease' }} />
+                        <span style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.06em', color: C.muted }}>{month.split(' ')[0]}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Top songs */}
+              {topSongs.length > 0 && (
+                <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '16px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+                    <Mic2 size={14} color={C.gold} />
+                    <p style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.12em', color: C.secondary, margin: 0, fontWeight: 600 }}>Most Played Songs</p>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    {topSongs.map((song, i) => (
+                      <div key={song.title} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: C.gold, minWidth: 16, textAlign: 'right', fontFamily: '"DM Mono", monospace' }}>{i + 1}</span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                            <div style={{ minWidth: 0 }}>
+                              <p style={{ fontSize: 13, color: C.text, margin: 0, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{song.title}</p>
+                              {song.artist && <p style={{ fontSize: 11, color: C.secondary, margin: '1px 0 0' }}>{song.artist}</p>}
+                            </div>
+                            <span style={{ fontSize: 11, color: C.gold, background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 20, padding: '2px 8px', flexShrink: 0, fontFamily: '"DM Mono", monospace' }}>{song.count}×</span>
+                          </div>
+                          <div style={{ marginTop: 6, height: 2, borderRadius: 1, background: 'rgba(255,255,255,0.05)' }}>
+                            <div style={{ height: '100%', borderRadius: 1, width: `${(song.count / topSongs[0].count) * 100}%`, background: i === 0 ? C.gold : 'rgba(201,168,76,0.4)' }} />
+                          </div>
                         </div>
-                        <span className="text-xs shrink-0 px-2 py-0.5 rounded-full"
-                          style={{ color: C.gold, background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.2)' }}>
-                          {song.count}x
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Top venues */}
+              {topVenues.length > 0 && (
+                <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '16px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+                    <MapPin size={14} color={C.gold} />
+                    <p style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.12em', color: C.secondary, margin: 0, fontWeight: 600 }}>Top Venues</p>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    {topVenues.map((venue, i) => (
+                      <div key={venue.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: C.gold, minWidth: 16, textAlign: 'right', fontFamily: '"DM Mono", monospace' }}>{i + 1}</span>
+                          <div style={{ minWidth: 0 }}>
+                            <p style={{ fontSize: 13, color: C.text, margin: 0, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{venue.name}</p>
+                            {venue.city && <p style={{ fontSize: 11, color: C.secondary, margin: '1px 0 0' }}>{venue.city}</p>}
+                          </div>
+                        </div>
+                        <span style={{ fontSize: 11, color: C.gold, background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 20, padding: '2px 8px', flexShrink: 0 }}>
+                          {venue.count} {venue.count === 1 ? 'show' : 'shows'}
                         </span>
                       </div>
-                      <div className="mt-1.5 h-0.5 rounded-full w-full" style={{ background: 'rgba(255,255,255,0.05)' }}>
-                        <div className="h-full rounded-full" style={{
-                          width: `${(song.count / topSongs[0].count) * 100}%`,
-                          background: i === 0 ? C.gold : 'rgba(201,168,76,0.4)',
-                        }} />
-                      </div>
-                    </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            </div>
+                </div>
+              )}
+            </>
           )}
-
-          {/* Top venues */}
-          {topVenues.length > 0 && (
-            <div className="rounded-2xl p-4" style={{ background: C.card, border: `1px solid ${C.border}` }}>
-              <div className="flex items-center gap-2 mb-4">
-                <MapPin size={15} style={{ color: C.gold }} />
-                <p className="text-xs uppercase tracking-wider" style={{ color: C.secondary }}>Top Venues</p>
-              </div>
-              <div className="flex flex-col gap-3">
-                {topVenues.map((venue, i) => (
-                  <div key={venue.name} className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <span className="font-mono text-xs w-4 shrink-0 text-right" style={{ color: C.gold }}>
-                        {i + 1}
-                      </span>
-                      <div className="min-w-0">
-                        <p className="text-sm truncate" style={{ color: C.text }}>{venue.name}</p>
-                        <p className="text-xs" style={{ color: C.secondary }}>{venue.city}</p>
-                      </div>
-                    </div>
-                    <span className="text-xs shrink-0 px-2 py-0.5 rounded-full"
-                      style={{ color: C.gold, background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.2)' }}>
-                      {venue.count} show{venue.count !== 1 ? 's' : ''}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
         </div>
       )}
+
+      {/* ── Tab: My Songs ── */}
+      {tab === 'songs' && (
+        <div style={{ padding: '0 20px 40px', maxWidth: 520, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+          {userSongs.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '60px 0' }}>
+              <Music2 size={36} color={C.muted} style={{ opacity: 0.2, marginBottom: 16 }} />
+              <p style={{ fontSize: 14, color: C.secondary, margin: '0 0 4px' }}>No songs tracked yet</p>
+              <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>Songs appear here as you perform them</p>
+            </div>
+          ) : (
+            <>
+              {/* Summary strip */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+                {[
+                  { label: 'Unique Songs', value: totalUniqueSongs },
+                  { label: 'Total Plays',  value: totalPlays },
+                  { label: 'Top Song',     value: mostPlayedSong ? `${mostPlayedSong.confirmed_count}×` : '—' },
+                ].map(stat => (
+                  <div key={stat.label} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: '12px', textAlign: 'center' }}>
+                    <p style={{ fontSize: 20, fontWeight: 800, color: C.gold, margin: 0, fontFamily: '"DM Mono", monospace', fontVariantNumeric: 'tabular-nums' }}>{stat.value}</p>
+                    <p style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.08em', color: C.muted, margin: '3px 0 0' }}>{stat.label}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Search */}
+              <input
+                value={songSearch}
+                onChange={e => setSongSearch(e.target.value)}
+                placeholder="Search your songs..."
+                style={{ width: '100%', background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: '11px 14px', color: C.text, fontSize: 14, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', transition: 'border-color 0.15s ease' }}
+                onFocus={e => (e.target.style.borderColor = 'rgba(201,168,76,0.35)')}
+                onBlur={e => (e.target.style.borderColor = C.border)}
+              />
+
+              {/* Song list */}
+              {filteredSongs.length === 0 ? (
+                <p style={{ textAlign: 'center', color: C.muted, fontSize: 13, padding: '24px 0' }}>No matches for "{songSearch}"</p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {filteredSongs.map((song, i) => (
+                    <div key={song.id} style={{ display: 'flex', alignItems: 'center', gap: 12, background: C.card, border: `1px solid ${i === 0 && !songSearch ? C.borderGold : C.border}`, borderRadius: 12, padding: '12px 14px' }}>
+                      {/* Rank / play count indicator */}
+                      <div style={{ width: 36, height: 36, borderRadius: '50%', background: i === 0 && !songSearch ? C.goldDim : 'rgba(255,255,255,0.03)', border: `1px solid ${i === 0 && !songSearch ? C.borderGold : 'rgba(255,255,255,0.05)'}`, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <span style={{ fontSize: 12, fontWeight: 800, color: i === 0 && !songSearch ? C.gold : C.muted, fontFamily: '"DM Mono", monospace', lineHeight: 1 }}>{song.confirmed_count}</span>
+                        <span style={{ fontSize: 7, color: C.muted, letterSpacing: '0.04em', lineHeight: 1, marginTop: 1 }}>plays</span>
+                      </div>
+
+                      {/* Song info */}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <p style={{ fontSize: 14, fontWeight: 600, color: C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{song.song_title}</p>
+                        {song.canonical_artist && (
+                          <p style={{ fontSize: 11, color: C.muted, margin: '2px 0 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{song.canonical_artist}</p>
+                        )}
+                      </div>
+
+                      {/* Last played */}
+                      <span style={{ fontSize: 10, color: C.muted, flexShrink: 0, textAlign: 'right' }}>
+                        {formatRelative(song.last_confirmed_at)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500;700&display=swap');
+        input::placeholder { color: #5a5040; }
+        * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
+      `}</style>
     </div>
   )
 }
