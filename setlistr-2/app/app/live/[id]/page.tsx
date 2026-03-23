@@ -45,6 +45,8 @@ type CandidateHistoryEntry = {
   title: string; artist: string; score: number; timestamp: number
 }
 
+type RecentSong = { id: string; title: string; artist: string; play_count: number }
+
 function normalizeSongKey(title: string): string {
   return title.toLowerCase().trim()
     .replace(/\(.*?\)/g, '').replace(/\[.*?\]/g, '')
