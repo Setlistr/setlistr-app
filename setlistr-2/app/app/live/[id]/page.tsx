@@ -2,14 +2,14 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { Check, X } from 'lucide-react'
+import { MapPin, Check, X, Pencil } from 'lucide-react'
 import type { Performance } from '@/types'
 
 const C = {
-  bg: '#0a0908', card: '#141210', border: 'rgba(255,255,255,0.06)',
-  input: '#0f0e0c', text: '#f0ece3', secondary: '#b8a888', muted: '#6a6050',
-  gold: '#c9a84c', goldDim: 'rgba(201,168,76,0.12)', red: '#dc2626',
-  amber: '#f59e0b',
+  bg: '#0a0908', card: '#141210', border: 'rgba(255,255,255,0.07)',
+  input: '#0f0e0c', text: '#f0ece3', secondary: '#b8a888', muted: '#8a7a68',
+  gold: '#c9a84c', goldDim: 'rgba(201,168,76,0.15)', red: '#dc2626',
+  amber: '#f59e0b', amberDim: 'rgba(245,158,11,0.12)',
 }
 
 const MIN_SONG_GAP_SECONDS     = 30
@@ -24,19 +24,26 @@ type DetectedSong = {
   source: 'fingerprint' | 'humming' | 'transcript' | 'combined' | 'manual' | 'cloned' | 'unidentified'
   setlist_item_id?: string
   confidence_level?: 'auto' | 'suggest' | 'manual_review'
-  isrc?: string; composer?: string; publisher?: string
+  isrc?: string
+  composer?: string
+  publisher?: string
 }
 
 type PendingCandidate = {
-  title: string; artist: string
-  firstDetectedAt: number; lastDetectedAt: number; matchCount: number
+  title: string
+  artist: string
+  firstDetectedAt: number
+  lastDetectedAt: number
+  matchCount: number
   source: DetectedSong['source']
   confidence_level?: 'auto' | 'suggest' | 'manual_review'
   candidates?: AcrCandidate[]
   downgraded_reason?: string
 }
 
-type CandidateHistoryEntry = { title: string; artist: string; score: number; timestamp: number }
+type CandidateHistoryEntry = {
+  title: string; artist: string; score: number; timestamp: number
+}
 
 function normalizeSongKey(title: string): string {
   return title.toLowerCase().trim()
@@ -47,6 +54,58 @@ function normalizeSongKey(title: string): string {
 
 function isSameSong(a: { title: string }, b: { title: string }): boolean {
   return normalizeSongKey(a.title) === normalizeSongKey(b.title)
+}
+
+// ── user_songs write helper ───────────────────────────────────────────────────
+// Non-blocking. Uses dedup guard to prevent overcounting across paths.
+async function writeUserSong(
+  supabase: ReturnType<typeof createClient>,
+  title: string,
+  artist: string,
+  userId: string,
+  performanceId: string
+): Promise<void> {
+  try {
+    const normalizedTitle = normalizeSongKey(title)
+
+    // Per-performance dedup guard
+    const { error: guardError } = await supabase
+      .from('user_song_performances')
+      .insert({ user_id: userId, performance_id: performanceId, normalized_title: normalizedTitle })
+
+    if (guardError) {
+      // 23505 = unique violation = already counted this song for this performance
+      if (guardError.code === '23505') return
+      console.error('[UserSongs] guard error:', guardError.message)
+      return
+    }
+
+    // Upsert into user_songs
+    const { data: existing } = await supabase
+      .from('user_songs')
+      .select('id, confirmed_count')
+      .eq('user_id', userId)
+      .eq('song_title', title)
+      .single()
+
+    if (existing) {
+      await supabase.from('user_songs').update({
+        confirmed_count: existing.confirmed_count + 1,
+        canonical_artist: artist || null,
+        last_confirmed_at: new Date().toISOString(),
+      }).eq('id', existing.id)
+    } else {
+      await supabase.from('user_songs').insert({
+        user_id: userId,
+        song_title: title,
+        canonical_artist: artist || null,
+        confirmed_count: 1,
+        last_confirmed_at: new Date().toISOString(),
+      })
+    }
+  } catch (err) {
+    console.error('[UserSongs] write failed:', err)
+  }
 }
 
 export default function LiveCapturePage({ params }: { params: { id: string } }) {
@@ -69,7 +128,6 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   const [editingIndex, setEditingIndex] = useState<number | null>(null)
   const [editTitle, setEditTitle]       = useState('')
   const [editArtist, setEditArtist]     = useState('')
-  const [btnPressed, setBtnPressed]     = useState(false)
 
   const mediaRecorderRef    = useRef<MediaRecorder | null>(null)
   const chunksRef           = useRef<Blob[]>([])
@@ -137,25 +195,41 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
     enriched?: { isrc?: string; composer?: string; publisher?: string }
   ) => {
     setSongs(prev => [...prev, {
-      title: candidate.title, artist: candidate.artist, source: candidate.source,
-      setlist_item_id, confidence_level: candidate.confidence_level,
-      isrc: enriched?.isrc || '', composer: enriched?.composer || '', publisher: enriched?.publisher || '',
+      title: candidate.title,
+      artist: candidate.artist,
+      source: candidate.source,
+      setlist_item_id,
+      confidence_level: candidate.confidence_level,
+      isrc: enriched?.isrc || '',
+      composer: enriched?.composer || '',
+      publisher: enriched?.publisher || '',
     }])
     lastConfirmedAtRef.current = Date.now()
     setPendingCandidate(null)
     setCatchFlash(true)
     setLastCaught(candidate.title)
-    setTimeout(() => setCatchFlash(false), 1000)
-    setTimeout(() => setLastCaught(null), 3000)
+    setTimeout(() => setCatchFlash(false), 1200)
+    setTimeout(() => setLastCaught(null), 3500)
     setDetectStatus('')
-  }, [])
+
+    // Write to user_songs (manual confirm path)
+    // Only for suggest/manual — auto-confirmed written by identify route.
+    // Dedup guard prevents double-counting.
+    if (candidate.confidence_level === 'suggest' || candidate.source === 'manual') {
+      const supabase = createClient()
+      supabase.auth.getUser().then(({ data: { user } }) => {
+        if (user && params.id) {
+          writeUserSong(supabase, candidate.title, candidate.artist || '', user.id, params.id)
+        }
+      })
+    }
+  }, [params.id])
 
   const selectCandidate = useCallback((candidate: AcrCandidate) => {
     if (!pendingCandidateRef.current) return
     confirmCandidate({ ...pendingCandidateRef.current, title: candidate.title, artist: candidate.artist })
   }, [confirmCandidate])
 
-  // ── Detection logic — identical to stable ────────────────────────────────
   const detectSong = useCallback(async (audioBlob: Blob) => {
     setIsDetecting(true)
     setDetectStatus('listening...')
@@ -186,6 +260,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
       const confirmed = confirmedSongsRef.current
       const pending   = pendingCandidateRef.current
 
+      // ── No detection ──────────────────────────────────────────────────────
       if (!data.detected) {
         const timeSinceLast = (now - lastConfirmedAtRef.current) / 1000
         if (confirmed.length > 0 && timeSinceLast > PLACEHOLDER_GAP_SECONDS) {
@@ -201,12 +276,15 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
 
       const { title, artist, setlist_item_id, confidence_level, source } = data
 
+      // ── Already confirmed this title ──────────────────────────────────────
       if (confirmed.some(s => isSameSong(s, { title }))) {
         setDetectStatus('already logged')
-        setTimeout(() => setDetectStatus(''), 2000)
+        setTimeout(() => setDetectStatus(''), 3000)
         return
       }
 
+      // ── AUTO: confirm immediately ─────────────────────────────────────────
+      // The identify route already validated this. Trust it.
       if (confidence_level === 'auto') {
         const secondsSinceLast = (now - lastConfirmedAtRef.current) / 1000
         const isFirstSong      = confirmed.length === 0 && lastConfirmedAtRef.current === 0
@@ -219,7 +297,9 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
             { isrc: data.isrc, composer: data.composer, publisher: data.publisher }
           )
         } else {
+          // Within cooldown — put in pending so next match confirms it
           if (pending && normalizeSongKey(pending.title) === normalizeSongKey(title)) {
+            // Same song already pending — just update
             setPendingCandidate({ ...pending, lastDetectedAt: now, matchCount: pending.matchCount + 1 })
           } else if (!pending) {
             setPendingCandidate({ title, artist, source, confidence_level, firstDetectedAt: now, lastDetectedAt: now, matchCount: 1 })
@@ -229,30 +309,40 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         return
       }
 
+      // ── SUGGEST: needs 2 matches to confirm ──────────────────────────────
       if (confidence_level === 'suggest') {
+        // Title matches pending → accumulate
         if (pending && normalizeSongKey(pending.title) === normalizeSongKey(title)) {
-          const updated: PendingCandidate = { ...pending, lastDetectedAt: now, matchCount: pending.matchCount + 1, source }
+          const updated: PendingCandidate = {
+            ...pending, lastDetectedAt: now, matchCount: pending.matchCount + 1, source,
+          }
           const withinWindow = (now - pending.firstDetectedAt) / 1000 <= CANDIDATE_WINDOW_SECONDS
           if (withinWindow && updated.matchCount >= 2) {
             confirmCandidate(updated, setlist_item_id, { isrc: data.isrc, composer: data.composer, publisher: data.publisher })
           } else {
             setPendingCandidate(updated)
-            setDetectStatus(`hearing "${title}"...`)
+            setDetectStatus(`hearing "${title}"... (${updated.matchCount}×)`)
           }
           return
         }
 
+        // Different title — only replace pending if cooldown passed
         const secondsSinceLast = (now - lastConfirmedAtRef.current) / 1000
         const cooldownPassed   = secondsSinceLast >= MIN_SONG_GAP_SECONDS
         const isFirstSong      = confirmed.length === 0 && lastConfirmedAtRef.current === 0
 
         if (!pending || cooldownPassed || isFirstSong) {
-          setPendingCandidate({ title, artist, source, confidence_level, firstDetectedAt: now, lastDetectedAt: now, matchCount: 1 })
+          setPendingCandidate({
+            title, artist, source, confidence_level,
+            firstDetectedAt: now, lastDetectedAt: now, matchCount: 1,
+          })
           setDetectStatus(`hearing "${title}"...`)
         } else {
+          // Protect existing pending
           setDetectStatus(`hearing "${pending.title}"...`)
         }
       }
+
     } catch {
       setDetectStatus('listening...')
     } finally {
@@ -267,7 +357,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
 
   const dismissPending = useCallback(() => {
     setPendingCandidate(null)
-    setDetectStatus('')
+    setDetectStatus('listening...')
   }, [])
 
   const startListening = useCallback(async () => {
@@ -294,6 +384,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
       recordAndDetect()
       listenIntervalRef.current = setInterval(recordAndDetect, 20000)
     } catch {
+      setDetectStatus('mic access denied')
       setIsListening(false)
     }
   }, [detectSong, isDetecting])
@@ -321,6 +412,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
 
     stopListening()
     const supabase = createClient()
+
     await supabase.from('performances').update({ status: 'review', ended_at: new Date().toISOString() }).eq('id', performance.id)
     if (showId) await supabase.from('shows').update({ status: 'completed', ended_at: new Date().toISOString() }).eq('id', showId)
     await supabase.from('capture_sessions').update({ ended_at: new Date().toISOString(), status: 'ended' }).eq('performance_id', performance.id)
@@ -346,9 +438,12 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
       await supabase.from('performance_songs').insert(
         songsToSave.map((song, i) => ({
           performance_id: performance.id,
-          title: song.title, artist: song.artist || performance.artist_name,
-          position: i + 1, isrc: song.isrc || null,
-          composer: song.composer || null, publisher: song.publisher || null,
+          title: song.title,
+          artist: song.artist || performance.artist_name,
+          position: i + 1,
+          isrc: song.isrc || null,
+          composer: song.composer || null,
+          publisher: song.publisher || null,
         }))
       )
     }
@@ -361,7 +456,6 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
     if (!trimmed) return
     setSongs(s => [...s, { title: trimmed, artist: performance?.artist_name || '', source: 'manual' }])
     setSongInput('')
-    setShowManual(false)
   }
 
   function formatTime(s: number) {
@@ -370,346 +464,234 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
     return `${m}:${sec.toString().padStart(2, '0')}`
   }
 
-  function handleBtnPress() {
-    setBtnPressed(true)
-    setTimeout(() => setBtnPressed(false), 150)
-    if (isListening) stopListening()
-    else startListening()
-  }
-
   if (!performance) {
     return (
       <div style={{ minHeight: '100svh', background: C.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ width: 28, height: 28, borderRadius: '50%', border: `1.5px solid ${C.gold}`, animation: 'spin 1.2s linear infinite', opacity: 0.5 }} />
-        <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+          <div style={{ width: 48, height: 48, borderRadius: '50%', border: `2px solid ${C.gold}`, animation: 'breathe 1.8s ease-in-out infinite', opacity: 0.6 }} />
+          <span style={{ color: C.muted, fontSize: 12, letterSpacing: '0.15em', textTransform: 'uppercase' }}>Loading</span>
+        </div>
+        <style>{`@keyframes breathe { 0%,100%{transform:scale(1);opacity:.4} 50%{transform:scale(1.15);opacity:.9} }`}</style>
       </div>
     )
   }
 
   const totalSeconds      = performance.set_duration_minutes * 60
   const progress          = Math.min(elapsed / totalSeconds, 1)
+  const remaining         = Math.max(totalSeconds - elapsed, 0)
+  const autoCloseAt       = totalSeconds + (performance.auto_close_buffer_minutes || 5) * 60
+  const ringState         = catchFlash ? 'catch' : isDetecting ? 'detect' : isListening ? 'listen' : 'idle'
   const unidentifiedCount = songs.filter(s => s.source === 'unidentified').length
-  const isActive          = isListening || catchFlash
 
   return (
-    <div style={{
-      minHeight: '100svh', background: C.bg,
-      display: 'flex', flexDirection: 'column',
-      fontFamily: '"DM Sans", system-ui, sans-serif',
-      overflowX: 'hidden', position: 'relative',
-    }}>
-      {/* ── Ambient background glow ── */}
-      <div style={{
-        position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 0,
-        background: isActive
-          ? `radial-gradient(ellipse 80% 50% at 50% 100%, rgba(201,168,76,0.08) 0%, transparent 70%)`
-          : `radial-gradient(ellipse 60% 40% at 50% 100%, rgba(201,168,76,0.03) 0%, transparent 60%)`,
-        transition: 'background 2s ease',
-      }} />
+    <div style={{ minHeight: '100svh', background: C.bg, display: 'flex', flexDirection: 'column', fontFamily: '"DM Sans", system-ui, sans-serif', overflowX: 'hidden' }}>
+      <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '55vh', background: isListening ? `radial-gradient(ellipse at 50% 0%, rgba(201,168,76,0.09) 0%, transparent 70%)` : `radial-gradient(ellipse at 50% 0%, rgba(201,168,76,0.04) 0%, transparent 60%)`, pointerEvents: 'none', transition: 'background 1.5s ease', zIndex: 0 }} />
 
-      {/* ── Top strip: venue + LIVE + timer — 44px total ── */}
-      <div style={{
-        position: 'relative', zIndex: 10,
-        height: 44, display: 'flex', alignItems: 'center',
-        justifyContent: 'space-between', padding: '0 16px',
-        borderBottom: `1px solid rgba(255,255,255,0.04)`,
-        flexShrink: 0,
-      }}>
-        <div style={{ minWidth: 0, flex: 1 }}>
-          <p style={{
-            fontSize: 13, fontWeight: 700, color: C.text, margin: 0,
-            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-            letterSpacing: '-0.01em',
-          }}>{performance.venue_name}</p>
+      <div style={{ position: 'relative', zIndex: 1, padding: '20px 24px 0', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(220,38,38,0.12)', border: '1px solid rgba(220,38,38,0.3)', borderRadius: 20, padding: '5px 10px' }}>
+          <div style={{ width: 6, height: 6, borderRadius: '50%', background: C.red, animation: 'pulse-dot 1.4s ease-in-out infinite' }} />
+          <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#f87171' }}>Live</span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, marginLeft: 12 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <div style={{
-              width: 5, height: 5, borderRadius: '50%', background: C.red,
-              animation: 'pulse-dot 1.4s ease-in-out infinite',
-              boxShadow: '0 0 4px rgba(220,38,38,0.6)',
-            }} />
-            <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#f87171' }}>Live</span>
-          </div>
-          <span style={{
-            fontFamily: '"DM Mono", monospace', fontSize: 16, fontWeight: 700,
-            color: C.text, letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums',
-          }}>{formatTime(elapsed)}</span>
-        </div>
-      </div>
-
-      {/* Progress bar — 2px, flush */}
-      <div style={{ height: 2, background: 'rgba(255,255,255,0.04)', flexShrink: 0, position: 'relative', zIndex: 10 }}>
-        <div style={{ height: '100%', background: C.gold, width: `${progress * 100}%`, transition: 'width 1s linear', opacity: 0.4 }} />
-      </div>
-
-      {/* ── Scrollable middle: setlist ── */}
-      <div style={{ flex: 1, overflowY: 'auto', position: 'relative', zIndex: 1, padding: '8px 16px 0' }}>
-
-        {/* Unidentified banner */}
-        {unidentifiedCount > 0 && (
-          <div style={{
-            background: 'rgba(245,158,11,0.06)', border: `1px solid rgba(245,158,11,0.18)`,
-            borderRadius: 10, padding: '8px 12px', marginBottom: 8,
-            display: 'flex', alignItems: 'center', gap: 8,
-            animation: 'fadeUp 0.2s ease',
-          }}>
-            <span style={{ fontSize: 10, color: C.amber }}>○</span>
-            <p style={{ fontSize: 12, color: C.amber, margin: 0, fontWeight: 600 }}>
-              {unidentifiedCount} {unidentifiedCount === 1 ? 'song' : 'songs'} need review
-            </p>
+        {songs.length > 0 && (
+          <div style={{ background: C.goldDim, border: `1px solid rgba(201,168,76,0.25)`, borderRadius: 20, padding: '5px 12px', animation: 'fadeIn 0.3s ease' }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: C.gold, letterSpacing: '0.08em' }}>{songs.length} {songs.length === 1 ? 'song' : 'songs'}</span>
           </div>
         )}
-
-        {/* Song list */}
-        {songs.length > 0 ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-            {songs.map((song, i) => {
-              const isUnidentified = song.source === 'unidentified'
-              const isSuggested    = song.confidence_level === 'suggest'
-              return (
-                <div key={i} style={{
-                  background: isUnidentified ? 'rgba(245,158,11,0.04)' : C.card,
-                  border: `1px solid ${
-                    editingIndex === i ? `rgba(201,168,76,0.4)`
-                    : isUnidentified ? 'rgba(245,158,11,0.15)'
-                    : 'rgba(255,255,255,0.04)'
-                  }`,
-                  borderRadius: 10, overflow: 'hidden',
-                  animation: 'fadeUp 0.22s ease',
-                  transition: 'border-color 0.15s ease',
-                }}>
-                  {editingIndex === i ? (
-                    <div style={{ padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 7 }}>
-                      <input autoFocus value={editTitle}
-                        onChange={e => setEditTitle(e.target.value)}
-                        onKeyDown={e => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') cancelEdit() }}
-                        placeholder="Song title"
-                        style={{ background: C.input, border: `1px solid rgba(201,168,76,0.3)`, borderRadius: 7, padding: '8px 10px', color: C.text, fontSize: 14, fontFamily: 'inherit', outline: 'none', width: '100%', boxSizing: 'border-box' }} />
-                      <input value={editArtist}
-                        onChange={e => setEditArtist(e.target.value)}
-                        onKeyDown={e => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') cancelEdit() }}
-                        placeholder="Artist"
-                        style={{ background: C.input, border: `1px solid ${C.border}`, borderRadius: 7, padding: '8px 10px', color: C.text, fontSize: 13, fontFamily: 'inherit', outline: 'none', width: '100%', boxSizing: 'border-box' }} />
-                      <div style={{ display: 'flex', gap: 6 }}>
-                        <button onClick={saveEdit} style={{ flex: 1, padding: '8px', background: C.gold, border: 'none', borderRadius: 7, color: '#0a0908', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
-                          <Check size={12} strokeWidth={2.5} /> Save
-                        </button>
-                        <button onClick={cancelEdit} style={{ padding: '8px 12px', background: 'transparent', border: `1px solid ${C.border}`, borderRadius: 7, color: C.muted, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          <X size={12} />
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', cursor: 'pointer', WebkitTapHighlightColor: 'transparent' }}
-                      onClick={() => startEdit(i)}>
-                      <span style={{ fontSize: 10, color: C.muted, minWidth: 14, textAlign: 'right', fontFamily: '"DM Mono", monospace', opacity: 0.5 }}>{i + 1}</span>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <p style={{
-                          fontSize: 14, fontWeight: 600, margin: 0,
-                          color: isUnidentified ? C.amber : C.text,
-                          opacity: isSuggested ? 0.75 : 1,
-                          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                          fontStyle: isUnidentified ? 'italic' : 'normal',
-                        }}>
-                          {isUnidentified ? 'Unknown song' : song.title}
-                        </p>
-                        {!isUnidentified && song.artist && song.artist !== performance.artist_name && (
-                          <p style={{ fontSize: 11, color: C.muted, margin: '1px 0 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{song.artist}</p>
-                        )}
-                      </div>
-                      {/* State indicator */}
-                      {isUnidentified
-                        ? <span style={{ fontSize: 10, color: C.amber, opacity: 0.6, flexShrink: 0 }}>tap</span>
-                        : <span style={{ width: 5, height: 5, borderRadius: '50%', background: C.gold, opacity: isSuggested ? 0.3 : 0.7, flexShrink: 0, display: 'inline-block' }} />
-                      }
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        ) : (
-          <div style={{ textAlign: 'center', padding: '32px 0 16px' }}>
-            <p style={{ fontSize: 12, color: C.muted, margin: 0, letterSpacing: '0.04em' }}>
-              {isListening ? 'Songs will appear here' : 'Tap the button to start'}
-            </p>
-          </div>
-        )}
-
-        {/* Add manually */}
-        <div style={{ marginTop: 8, paddingBottom: 8 }}>
-          <button
-            onClick={() => setShowManual(v => !v)}
-            style={{
-              width: '100%', padding: '9px', background: 'transparent',
-              border: `1px solid rgba(255,255,255,0.05)`, borderRadius: 10,
-              color: C.muted, fontSize: 11, fontWeight: 600, letterSpacing: '0.06em',
-              cursor: 'pointer', fontFamily: 'inherit',
-              transition: 'all 0.15s ease', WebkitTapHighlightColor: 'transparent',
-            }}>
-            {showManual ? '✕ cancel' : '+ add manually'}
-          </button>
-
-          {showManual && (
-            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px', marginTop: 6, display: 'flex', flexDirection: 'column', gap: 6, animation: 'fadeUp 0.15s ease' }}>
-              <input value={songInput} onChange={e => setSongInput(e.target.value)}
-                placeholder="Song title" autoFocus
-                style={{ background: C.input, border: `1px solid ${C.border}`, borderRadius: 7, padding: '9px 10px', color: C.text, fontSize: 14, outline: 'none', width: '100%', boxSizing: 'border-box', fontFamily: 'inherit' }}
-                onKeyDown={e => { if (e.key === 'Enter' && songInput.trim()) addSong() }} />
-              <button onClick={addSong} disabled={!songInput.trim()}
-                style={{ padding: '9px', background: songInput.trim() ? C.gold : 'rgba(255,255,255,0.04)', border: 'none', borderRadius: 7, color: songInput.trim() ? '#0a0908' : C.muted, fontSize: 12, fontWeight: 700, cursor: songInput.trim() ? 'pointer' : 'not-allowed', fontFamily: 'inherit' }}>
-                Add
-              </button>
-            </div>
-          )}
-        </div>
       </div>
 
-      {/* ── Fixed bottom zone: pending card + button + end ── */}
-      <div style={{
-        position: 'relative', zIndex: 10, flexShrink: 0,
-        padding: '0 16px 24px', display: 'flex', flexDirection: 'column', gap: 10,
-        background: `linear-gradient(to bottom, transparent, ${C.bg} 20%)`,
-        paddingTop: 16,
-      }}>
+      <div style={{ position: 'relative', zIndex: 1, textAlign: 'center', padding: '20px 24px 0' }}>
+        <h1 style={{ fontSize: 22, fontWeight: 700, color: C.text, margin: 0, letterSpacing: '-0.02em', lineHeight: 1.2 }}>{performance.venue_name}</h1>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, marginTop: 5 }}>
+          <MapPin size={11} color={C.muted} />
+          <span style={{ fontSize: 12, color: C.muted, letterSpacing: '0.04em' }}>{performance.city}, {performance.country}</span>
+        </div>
+        <p style={{ fontSize: 13, fontWeight: 600, color: C.gold, margin: '6px 0 0', letterSpacing: '0.06em' }}>{performance.artist_name}</p>
+      </div>
 
-        {/* Pending candidate card */}
-        {pendingCandidate && (
-          <div style={{
-            background: '#161310', border: `1px solid rgba(201,168,76,0.22)`,
-            borderRadius: 14, padding: '12px 14px',
-            animation: 'slideUp 0.18s ease',
-          }}>
-            <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.muted, margin: '0 0 6px' }}>
-              Hearing something{pendingCandidate.matchCount > 1 ? ` · ${pendingCandidate.matchCount}×` : ''}
-            </p>
-            <p style={{ fontSize: 15, fontWeight: 700, color: C.text, margin: '0 0 1px', letterSpacing: '-0.01em' }}>{pendingCandidate.title}</p>
-            <p style={{ fontSize: 12, color: C.secondary, margin: '0 0 10px' }}>{pendingCandidate.artist}</p>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button
-                onClick={confirmPending}
-                style={{ flex: 1, padding: '11px', background: C.gold, border: 'none', borderRadius: 10, color: '#0a0908', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', letterSpacing: '0.02em', WebkitTapHighlightColor: 'transparent', transition: 'transform 0.1s ease, opacity 0.1s ease' }}
-                onTouchStart={e => (e.currentTarget.style.transform = 'scale(0.97)')}
-                onTouchEnd={e => (e.currentTarget.style.transform = 'scale(1)')}>
-                ✓ {pendingCandidate.title}
-              </button>
-              <button
-                onClick={dismissPending}
-                style={{ padding: '11px 14px', background: 'rgba(255,255,255,0.04)', border: `1px solid ${C.border}`, borderRadius: 10, color: C.muted, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent' }}>
-                ✕
-              </button>
-            </div>
-          </div>
+      <div style={{ position: 'relative', zIndex: 1, textAlign: 'center', padding: '22px 24px 0' }}>
+        <div style={{ fontSize: 56, fontWeight: 800, color: C.text, fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.04em', lineHeight: 1, fontFamily: '"DM Mono", "Courier New", monospace' }}>{formatTime(elapsed)}</div>
+        <div style={{ fontSize: 12, color: C.muted, marginTop: 6, letterSpacing: '0.04em' }}>
+          {remaining > 0 ? `${formatTime(remaining)} remaining` : `${formatTime(elapsed - totalSeconds)} over set`}
+        </div>
+        <div style={{ width: '100%', maxWidth: 280, margin: '14px auto 0', height: 2, background: 'rgba(255,255,255,0.06)', borderRadius: 2, overflow: 'hidden' }}>
+          <div style={{ height: '100%', borderRadius: 2, background: `linear-gradient(90deg, ${C.gold}99, ${C.gold})`, width: `${progress * 100}%`, transition: 'width 1s linear', boxShadow: `0 0 8px ${C.gold}66` }} />
+        </div>
+        <div style={{ fontSize: 10, color: C.muted, marginTop: 6, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Auto-closes {formatTime(autoCloseAt)}</div>
+      </div>
+
+      <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '36px 24px 28px' }}>
+        {(isListening || catchFlash) && (
+          <>
+            {[{ size: ringState === 'catch' ? 220 : 200, delay: '0s' }, { size: ringState === 'catch' ? 260 : 240, delay: '0.1s' }, { size: ringState === 'catch' ? 300 : 280, delay: '0.2s' }].map(({ size, delay }, idx) => (
+              <div key={idx} style={{ position: 'absolute', width: size, height: size, borderRadius: '50%', border: `1px solid ${ringState === 'catch' ? C.gold + (idx === 0 ? '' : idx === 1 ? '60' : '30') : C.gold + (idx === 0 ? '30' : idx === 1 ? '18' : '0c')}`, animation: ringState === 'catch' ? `ring-catch 0.8s ${delay} ease-out forwards` : `ring-pulse 2.5s ${delay} ease-out infinite`, top: '50%', left: '50%', transform: 'translate(-50%, -50%)', pointerEvents: 'none' }} />
+            ))}
+          </>
         )}
+        <button
+          onClick={isListening ? stopListening : startListening}
+          disabled={isDetecting && !isListening}
+          style={{ width: 160, height: 160, borderRadius: '50%', border: 'none', cursor: isDetecting && !isListening ? 'wait' : 'pointer', position: 'relative', zIndex: 2, background: catchFlash ? `radial-gradient(circle at 40% 35%, #e8c76a, ${C.gold} 55%, #a07828)` : isListening ? `radial-gradient(circle at 40% 35%, ${C.gold}cc, ${C.gold} 55%, #8a6520)` : `radial-gradient(circle at 40% 35%, #2a2520, #1a1610 55%, #0f0e0c)`, boxShadow: catchFlash ? `0 0 60px ${C.gold}80, 0 0 120px ${C.gold}30, inset 0 1px 0 rgba(255,255,255,0.25)` : isListening ? `0 0 40px ${C.gold}40, 0 0 80px ${C.gold}18, inset 0 1px 0 rgba(255,255,255,0.12)` : `0 8px 40px rgba(0,0,0,0.6), 0 2px 8px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06)`, transform: catchFlash ? 'scale(1.06)' : 'scale(1)', transition: 'background 0.4s ease, box-shadow 0.4s ease, transform 0.25s ease', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+        >
+          <div style={{ width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            {isDetecting ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 3, height: 28 }}>
+                {[0,1,2,3,4].map(i => (<div key={i} style={{ width: 3, borderRadius: 2, background: isListening ? '#0a0908' : C.gold, animation: `wave-bar 0.8s ${i * 0.12}s ease-in-out infinite alternate`, height: 10 }} />))}
+              </div>
+            ) : (
+              <svg width="28" height="32" viewBox="0 0 28 32" fill="none">
+                <rect x="8" y="0" width="12" height="20" rx="6" fill={isListening ? '#0a0908' : C.gold} opacity={isListening ? 1 : 0.9} />
+                <path d="M4 16c0 5.523 4.477 10 10 10s10-4.477 10-10" stroke={isListening ? '#0a0908' : C.gold} strokeWidth="2" strokeLinecap="round" fill="none" />
+                <line x1="14" y1="26" x2="14" y2="31" stroke={isListening ? '#0a0908' : C.gold} strokeWidth="2" strokeLinecap="round" />
+                <line x1="10" y1="31" x2="18" y2="31" stroke={isListening ? '#0a0908' : C.gold} strokeWidth="2" strokeLinecap="round" />
+              </svg>
+            )}
+          </div>
+          <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: isListening ? '#0a0908' : C.gold }}>
+            {isDetecting ? 'catching' : isListening ? 'tap to stop' : 'tap to listen'}
+          </span>
+        </button>
 
-        {/* Status line above button */}
-        <div style={{ height: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ marginTop: 18, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           {lastCaught ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 5, animation: 'fadeUp 0.2s ease' }}>
-              <span style={{ fontSize: 11, color: C.gold }}>✦</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, animation: 'fadeIn 0.25s ease' }}>
+              <span style={{ fontSize: 13, color: C.gold }}>✦</span>
               <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{lastCaught}</span>
-              <span style={{ fontSize: 11, color: C.muted }}>added</span>
+              <span style={{ fontSize: 11, color: C.gold, opacity: 0.7 }}>caught</span>
             </div>
-          ) : detectStatus && detectStatus !== 'listening...' ? (
-            <span style={{ fontSize: 11, color: C.muted }}>{detectStatus}</span>
+          ) : detectStatus ? (
+            <span style={{ fontSize: 12, color: C.muted, letterSpacing: '0.06em', animation: 'fadeIn 0.2s ease' }}>{detectStatus}</span>
           ) : null}
         </div>
 
-        {/* Main action button — thumb zone, full width feel */}
-        <div style={{ position: 'relative', display: 'flex', justifyContent: 'center' }}>
-          {/* Rings */}
-          {isActive && [
-            { size: isListening ? 176 : 160, delay: '0s' },
-            { size: isListening ? 212 : 196, delay: '0.15s' },
-          ].map(({ size, delay }, idx) => (
-            <div key={idx} style={{
-              position: 'absolute', width: size, height: size, borderRadius: '50%',
-              border: `1px solid ${catchFlash
-                ? C.gold + (idx === 0 ? '90' : '40')
-                : C.gold + (idx === 0 ? '20' : '0e')}`,
-              animation: catchFlash
-                ? `ring-catch 0.8s ${delay} ease-out forwards`
-                : `ring-pulse 3s ${delay} ease-out infinite`,
-              top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
-              pointerEvents: 'none',
-            }} />
-          ))}
+        {isListening && !isDetecting && !pendingCandidate && (
+          <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 3, height: 14 }}>
+              {[0,1,2].map(i => (<div key={i} style={{ width: 2, borderRadius: 1, background: C.gold + '60', animation: `wave-bar 1s ${i * 0.2}s ease-in-out infinite alternate`, height: 6 }} />))}
+            </div>
+            <span style={{ fontSize: 10, color: C.muted, letterSpacing: '0.1em', textTransform: 'uppercase' }}>sampling every 20s</span>
+          </div>
+        )}
+      </div>
 
-          <button
-            onPointerDown={handleBtnPress}
-            style={{
-              width: 136, height: 136, borderRadius: '50%', border: 'none',
-              cursor: 'pointer', position: 'relative', zIndex: 2,
-              background: catchFlash
-                ? `radial-gradient(circle at 40% 35%, #e8c76a, ${C.gold} 55%, #a07828)`
-                : isListening
-                ? `radial-gradient(circle at 40% 35%, ${C.gold}cc, ${C.gold} 55%, #8a6520)`
-                : `radial-gradient(circle at 40% 35%, #201c16, #141108 55%, #0a0908)`,
-              boxShadow: catchFlash
-                ? `0 0 48px ${C.gold}55, 0 0 80px ${C.gold}18, inset 0 1px 0 rgba(255,255,255,0.2)`
-                : isListening
-                ? `0 0 32px ${C.gold}28, inset 0 1px 0 rgba(255,255,255,0.08)`
-                : `0 4px 24px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04)`,
-              transform: btnPressed ? 'scale(0.95)' : catchFlash ? 'scale(1.04)' : 'scale(1)',
-              transition: 'transform 0.12s ease, box-shadow 0.3s ease, background 0.3s ease',
-              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 7,
-              WebkitTapHighlightColor: 'transparent', outline: 'none',
-            }}>
-            <div style={{ width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              {isDetecting ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 3, height: 20 }}>
-                  {[0,1,2,3,4].map(i => (
-                    <div key={i} style={{ width: 3, borderRadius: 2, background: isListening ? '#0a0908' : C.gold, animation: `wave-bar 0.7s ${i * 0.1}s ease-in-out infinite alternate`, height: 7 }} />
-                  ))}
-                </div>
-              ) : (
-                <svg width="22" height="26" viewBox="0 0 28 32" fill="none">
-                  <rect x="8" y="0" width="12" height="20" rx="6" fill={isListening ? '#0a0908' : C.gold} opacity={0.9} />
-                  <path d="M4 16c0 5.523 4.477 10 10 10s10-4.477 10-10" stroke={isListening ? '#0a0908' : C.gold} strokeWidth="2" strokeLinecap="round" fill="none" />
-                  <line x1="14" y1="26" x2="14" y2="31" stroke={isListening ? '#0a0908' : C.gold} strokeWidth="2" strokeLinecap="round" />
-                  <line x1="10" y1="31" x2="18" y2="31" stroke={isListening ? '#0a0908' : C.gold} strokeWidth="2" strokeLinecap="round" />
-                </svg>
+      {pendingCandidate && (
+        <div style={{ position: 'relative', zIndex: 1, maxWidth: 480, width: '100%', margin: '0 auto', padding: '0 16px 12px', animation: 'slideUp 0.2s ease' }}>
+          <div style={{ background: C.card, border: `1px solid ${C.gold}40`, borderRadius: 12, padding: '14px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+              <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.gold, margin: 0 }}>Hearing something...</p>
+              {pendingCandidate.matchCount > 1 && (
+                <span style={{ fontSize: 10, color: C.gold, opacity: 0.7 }}>detected {pendingCandidate.matchCount}×</span>
               )}
             </div>
-            <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: isListening ? '#0a090870' : C.gold + '70' }}>
-              {isDetecting ? 'catching' : isListening ? 'listening' : 'tap to start'}
-            </span>
+            <p style={{ fontSize: 15, fontWeight: 700, color: C.text, margin: '0 0 2px' }}>{pendingCandidate.title}</p>
+            <p style={{ fontSize: 12, color: C.secondary, margin: '0 0 12px' }}>{pendingCandidate.artist}</p>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={confirmPending} style={{ flex: 1, padding: '9px', background: C.gold, border: 'none', borderRadius: 8, color: '#0a0908', fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'inherit' }}>
+                ✓ {pendingCandidate.title}
+              </button>
+              <button onClick={dismissPending} style={{ padding: '9px 14px', background: 'transparent', border: `1px solid ${C.border}`, borderRadius: 8, color: C.muted, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
+                Dismiss
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div style={{ position: 'relative', zIndex: 1, flex: 1, display: 'flex', flexDirection: 'column', gap: 12, padding: '0 16px 40px', maxWidth: 480, width: '100%', margin: '0 auto', boxSizing: 'border-box' }}>
+
+        {unidentifiedCount > 0 && (
+          <div style={{ background: C.amberDim, border: `1px solid ${C.amber}40`, borderRadius: 10, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 13 }}>⚠</span>
+            <p style={{ fontSize: 12, color: C.amber, margin: 0, fontWeight: 600 }}>
+              {unidentifiedCount} song{unidentifiedCount > 1 ? 's' : ''} need{unidentifiedCount === 1 ? 's' : ''} review — tap to fill in
+            </p>
+          </div>
+        )}
+
+        <button onClick={() => setShowManual(v => !v)} style={{ width: '100%', padding: '11px 16px', background: showManual ? 'rgba(201,168,76,0.06)' : 'transparent', border: `1px solid ${showManual ? C.gold + '40' : C.border}`, borderRadius: 10, color: showManual ? C.gold : C.muted, fontSize: 12, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', transition: 'all 0.2s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+          <span style={{ fontSize: 16, lineHeight: 1, display: 'inline-block', transform: showManual ? 'rotate(45deg)' : 'rotate(0)', transition: 'transform 0.2s ease' }}>+</span>
+          {showManual ? 'Cancel' : 'Add Manually'}
+        </button>
+
+        {showManual && (
+          <div style={{ padding: '14px', background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, display: 'flex', flexDirection: 'column', gap: 10, animation: 'slideUp 0.2s ease' }}>
+            <input value={songInput} onChange={e => setSongInput(e.target.value)} placeholder="Song title"
+              style={{ background: C.input, border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 12px', color: C.text, fontSize: 14, outline: 'none', width: '100%', boxSizing: 'border-box', fontFamily: 'inherit' }}
+              onKeyDown={e => { if (e.key === 'Enter' && songInput.trim()) addSong() }} />
+            <button onClick={addSong} disabled={!songInput.trim()} style={{ padding: '10px 16px', background: songInput.trim() ? C.gold : C.muted, border: 'none', borderRadius: 8, color: '#0a0908', fontSize: 12, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: songInput.trim() ? 'pointer' : 'not-allowed', opacity: songInput.trim() ? 1 : 0.4 }}>
+              Add to Setlist
+            </button>
+          </div>
+        )}
+
+        {songs.length > 0 && (
+          <div>
+            <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.muted, margin: '4px 0 10px 2px' }}>
+              Setlist — {songs.length} {songs.length === 1 ? 'song' : 'songs'}
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+              {songs.map((song, i) => (
+                <div key={i} style={{ background: C.card, border: `1px solid ${editingIndex === i ? C.gold + '60' : song.source === 'unidentified' ? C.amber + '50' : song.source !== 'manual' ? C.gold + '20' : C.border}`, borderRadius: 10, animation: 'slideUp 0.25s ease', overflow: 'hidden' }}>
+                  {editingIndex === i ? (
+                    <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.gold, margin: 0 }}>Edit Song</p>
+                      <input autoFocus value={editTitle} onChange={e => setEditTitle(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') cancelEdit() }} placeholder="Song title" style={{ background: C.input, border: `1px solid ${C.gold}60`, borderRadius: 8, padding: '9px 12px', color: C.text, fontSize: 14, fontFamily: 'inherit', outline: 'none', width: '100%', boxSizing: 'border-box' }} />
+                      <input value={editArtist} onChange={e => setEditArtist(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') cancelEdit() }} placeholder="Artist" style={{ background: C.input, border: `1px solid ${C.border}`, borderRadius: 8, padding: '9px 12px', color: C.text, fontSize: 13, fontFamily: 'inherit', outline: 'none', width: '100%', boxSizing: 'border-box' }} />
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button onClick={saveEdit} style={{ flex: 1, padding: '9px', background: C.gold, border: 'none', borderRadius: 8, color: '#0a0908', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}><Check size={13} strokeWidth={2.5} />Save</button>
+                        <button onClick={cancelEdit} style={{ padding: '9px 16px', background: 'transparent', border: `1px solid ${C.border}`, borderRadius: 8, color: C.muted, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 5 }}><X size={13} />Cancel</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', cursor: 'pointer' }} onClick={() => startEdit(i)}>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: C.muted, minWidth: 16, textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontFamily: '"DM Mono", monospace' }}>{i + 1}</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <p style={{ fontSize: 14, fontWeight: 600, color: song.source === 'unidentified' ? C.amber : C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontStyle: song.source === 'unidentified' ? 'italic' : 'normal' }}>
+                          {song.source === 'unidentified' ? '? Unknown Song' : song.title}
+                        </p>
+                        {song.artist && song.artist !== performance.artist_name && song.source !== 'unidentified' && (
+                          <p style={{ fontSize: 11, color: C.secondary, margin: '2px 0 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{song.artist}</p>
+                        )}
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                        <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: song.source === 'unidentified' ? C.amber : song.source !== 'manual' ? C.gold : C.muted, opacity: 0.7 }}>
+                          {song.source === 'unidentified' ? '? review' : song.source === 'manual' ? '✎ manual' : '⚡ auto'}
+                        </span>
+                        <Pencil size={11} color={C.muted} opacity={0.4} />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+            {editingIndex === null && (
+              <p style={{ fontSize: 10, color: C.muted, textAlign: 'center', margin: '8px 0 0', opacity: 0.6 }}>Tap any song to edit</p>
+            )}
+          </div>
+        )}
+
+        <div style={{ marginTop: songs.length > 0 ? 8 : 0 }}>
+          <button onClick={handleEnd} disabled={ending}
+            style={{ width: '100%', padding: '13px 16px', background: 'transparent', border: `1px solid rgba(220,38,38,0.35)`, borderRadius: 10, color: '#f87171', fontSize: 12, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: ending ? 'not-allowed' : 'pointer', opacity: ending ? 0.5 : 1, transition: 'all 0.2s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+            onMouseEnter={e => { if (!ending) { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(220,38,38,0.1)'; (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(220,38,38,0.6)' } }}
+            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(220,38,38,0.35)' }}>
+            <span style={{ display: 'inline-block', width: 8, height: 8, background: ending ? '#6a6050' : C.red, borderRadius: 1, flexShrink: 0 }} />
+            {ending ? 'Ending performance...' : 'End Performance'}
           </button>
         </div>
-
-        {/* End Performance */}
-        <button
-          onClick={handleEnd}
-          disabled={ending}
-          style={{
-            width: '100%', padding: '12px', background: 'rgba(220,38,38,0.07)',
-            border: `1px solid rgba(220,38,38,0.22)`, borderRadius: 10,
-            color: ending ? C.muted : '#f87171', fontSize: 12, fontWeight: 700,
-            letterSpacing: '0.1em', textTransform: 'uppercase',
-            cursor: ending ? 'not-allowed' : 'pointer', opacity: ending ? 0.4 : 1,
-            transition: 'all 0.15s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
-            fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent',
-          }}
-          onTouchStart={e => { if (!ending) (e.currentTarget.style.background = 'rgba(220,38,38,0.14)') }}
-          onTouchEnd={e => { if (!ending) (e.currentTarget.style.background = 'rgba(220,38,38,0.07)') }}>
-          <span style={{ width: 6, height: 6, background: ending ? C.muted : C.red, borderRadius: 1, display: 'inline-block', flexShrink: 0 }} />
-          {ending ? 'Ending...' : 'End Performance'}
-        </button>
       </div>
 
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500;700&display=swap');
-        @keyframes pulse-dot  { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.35;transform:scale(.75)} }
-        @keyframes ring-pulse { 0%{opacity:.45;transform:translate(-50%,-50%) scale(.97)} 100%{opacity:0;transform:translate(-50%,-50%) scale(1.18)} }
-        @keyframes ring-catch { 0%{opacity:.85;transform:translate(-50%,-50%) scale(.94)} 100%{opacity:0;transform:translate(-50%,-50%) scale(1.4)} }
-        @keyframes wave-bar   { from{height:3px} to{height:16px} }
-        @keyframes fadeUp     { from{opacity:0;transform:translateY(5px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes pulse-dot  { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(.85)} }
+        @keyframes ring-pulse { 0%{opacity:.7;transform:translate(-50%,-50%) scale(.95)} 100%{opacity:0;transform:translate(-50%,-50%) scale(1.25)} }
+        @keyframes ring-catch { 0%{opacity:1;transform:translate(-50%,-50%) scale(.9)} 100%{opacity:0;transform:translate(-50%,-50%) scale(1.5)} }
+        @keyframes wave-bar   { from{height:4px} to{height:22px} }
         @keyframes slideUp    { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
-        * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
-        input::placeholder { color: #4a4035; }
-        input:focus { border-color: rgba(201,168,76,0.3) !important; outline: none; }
-        ::-webkit-scrollbar { display: none; }
+        @keyframes fadeIn     { from{opacity:0} to{opacity:1} }
+        @keyframes breathe    { 0%,100%{transform:scale(1);opacity:.4} 50%{transform:scale(1.15);opacity:.9} }
+        * { -webkit-tap-highlight-color: transparent; }
+        input::placeholder { color: #6a6050; }
+        input:focus { border-color: rgba(201,168,76,0.4) !important; outline: none; }
       `}</style>
     </div>
   )
