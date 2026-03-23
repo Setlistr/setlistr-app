@@ -183,7 +183,7 @@ function SortableRow({ song, index, onDelete, onEdit, onAssign, artistName }: {
             <button onClick={() => setMode('view')} style={{ color: C.muted, flexShrink: 0 }}><X size={15} /></button>
           </div>
         ) : (
-          <div style={{ flex: 1, minWidth: 0 }} onClick={song.source === 'unidentified' ? () => onAssign(song.id, index) : undefined}>
+          <div style={{ flex: 1, minWidth: 0 }}>
             <p style={{ fontSize: 14, fontWeight: 600, color: song.source === 'unidentified' ? '#f59e0b' : C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontStyle: song.source === 'unidentified' ? 'italic' : 'normal' }}>
               {song.source === 'unidentified' ? '? Unknown song — tap to assign' : song.title}
             </p>
@@ -204,7 +204,7 @@ function SortableRow({ song, index, onDelete, onEdit, onAssign, artistName }: {
         {mode === 'view' && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
             {isAuto && <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', color: C.gold, opacity: 0.55, marginRight: 4, textTransform: 'uppercase' }}>⚡</span>}
-            <button onClick={() => setMode('swap')} title="Wrong song?"
+            <button onClick={() => onAssign(song.id, index)} title="Replace song"
               style={{ color: C.muted, padding: '5px', borderRadius: 6, display: 'flex', alignItems: 'center', transition: 'color 0.15s' }}
               onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = C.secondary}
               onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = C.muted}>
@@ -226,25 +226,7 @@ function SortableRow({ song, index, onDelete, onEdit, onAssign, artistName }: {
         )}
       </div>
 
-      {mode === 'swap' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.gold, margin: 0 }}>
-            Replace "{song.title}" with:
-          </p>
-          <input autoFocus value={swapQuery} onChange={e => setSwapQuery(e.target.value)} onKeyDown={e => e.key === 'Enter' && saveSwap()} placeholder="Correct song title"
-            style={{ background: C.input, border: `1px solid ${C.gold}`, borderRadius: 8, padding: '9px 12px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit' }} />
-          <input value={swapArtist} onChange={e => setSwapArtist(e.target.value)} onKeyDown={e => e.key === 'Enter' && saveSwap()} placeholder="Artist (optional)"
-            style={{ background: C.input, border: `1px solid ${C.border}`, borderRadius: 8, padding: '9px 12px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit' }} />
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={saveSwap} style={{ flex: 1, background: C.gold, border: 'none', borderRadius: 8, padding: '9px', color: '#0a0908', fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}>
-              Swap
-            </button>
-            <button onClick={() => setMode('view')} style={{ padding: '9px 16px', background: 'rgba(255,255,255,0.04)', border: `1px solid ${C.border}`, borderRadius: 8, color: C.secondary, fontSize: 12, cursor: 'pointer' }}>
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
+
     </div>
   )
 }
@@ -265,7 +247,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
   const [showAdd, setShowAdd]         = useState(false)
   const [selectedPRO, setSelectedPRO] = useState<PRO>('SOCAN')
   const [showExport, setShowExport]   = useState(false)
-  const [assignSheet, setAssignSheet] = useState<{ songId: string; index: number } | null>(null)
+  const [assignSheet, setAssignSheet] = useState<{ songId: string; index: number; currentTitle: string } | null>(null)
   const [recentSongs, setRecentSongs] = useState<RecentSong[]>([])
   const [recentLoading, setRecentLoading] = useState(false)
   const [assignSearch, setAssignSearch] = useState('')
@@ -286,7 +268,8 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
   }, [])
 
   function openAssignSheet(songId: string, index: number) {
-    setAssignSheet({ songId, index })
+    const song = songs.find(s => s.id === songId)
+    setAssignSheet({ songId, index, currentTitle: song?.title || '' })
     setAssignSearch('')
   }
 
@@ -784,11 +767,15 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
           >
             {/* Handle */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px 12px' }}>
-              <div>
-                <p style={{ fontSize: 13, fontWeight: 700, color: '#f0ece3', margin: 0 }}>Assign song</p>
-                <p style={{ fontSize: 11, color: '#6a6050', margin: '2px 0 0' }}>Tap a recent song or search below</p>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <p style={{ fontSize: 13, fontWeight: 700, color: '#f0ece3', margin: 0 }}>Replace song</p>
+                {assignSheet?.currentTitle && assignSheet.currentTitle !== 'Unknown song' && (
+                  <p style={{ fontSize: 11, color: '#6a6050', margin: '2px 0 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    replacing: {assignSheet.currentTitle}
+                  </p>
+                )}
               </div>
-              <button onClick={closeAssignSheet} style={{ background: 'transparent', border: 'none', color: '#6a6050', cursor: 'pointer', padding: 4 }}>
+              <button onClick={closeAssignSheet} style={{ background: 'transparent', border: 'none', color: '#6a6050', cursor: 'pointer', padding: 4, flexShrink: 0, marginLeft: 8 }}>
                 <X size={16} />
               </button>
             </div>
@@ -799,7 +786,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
                 autoFocus
                 value={assignSearch}
                 onChange={e => setAssignSearch(e.target.value)}
-                placeholder="Search your songs..."
+                placeholder="Type to search, or tap below..."
                 style={{ width: '100%', background: '#0f0e0c', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, padding: '10px 14px', color: '#f0ece3', fontSize: 14, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
               />
             </div>
@@ -817,8 +804,24 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
                       )
                     : recentSongs
                   if (filtered.length === 0) return (
-                    <div style={{ textAlign: 'center', padding: '32px 0', color: '#6a6050', fontSize: 13 }}>
-                      {assignSearch ? 'No matches' : 'No recent songs yet'}
+                    <div style={{ padding: '16px 0' }}>
+                      {assignSearch ? (
+                        <button
+                          onClick={() => {
+                            if (!assignSheet) return
+                            setSongs(prev => prev.map(s =>
+                              s.id === assignSheet.songId
+                                ? { ...s, title: assignSearch.trim(), source: 'manual' }
+                                : s
+                            ))
+                            closeAssignSheet()
+                          }}
+                          style={{ width: '100%', padding: '12px 14px', background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.25)', borderRadius: 10, color: '#c9a84c', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}>
+                          Add "{assignSearch.trim()}"
+                        </button>
+                      ) : (
+                        <p style={{ textAlign: 'center', color: '#6a6050', fontSize: 13, margin: 0 }}>No recent songs yet</p>
+                      )}
                     </div>
                   )
                   return (
@@ -845,6 +848,21 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
                           </div>
                         </button>
                       ))}
+                      {assignSearch.trim() && !filtered.some(s => s.title.toLowerCase() === assignSearch.toLowerCase()) && (
+                        <button
+                          onClick={() => {
+                            if (!assignSheet) return
+                            setSongs(prev => prev.map(s =>
+                              s.id === assignSheet.songId
+                                ? { ...s, title: assignSearch.trim(), source: 'manual' }
+                                : s
+                            ))
+                            closeAssignSheet()
+                          }}
+                          style={{ display: 'flex', alignItems: 'center', padding: '11px 14px', background: 'rgba(201,168,76,0.07)', border: '1px solid rgba(201,168,76,0.2)', borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit', width: '100%', marginTop: 4 }}>
+                          <p style={{ fontSize: 13, fontWeight: 600, color: '#c9a84c', margin: 0 }}>Add "{assignSearch.trim()}"</p>
+                        </button>
+                      )}
                     </div>
                   )
                 })()
