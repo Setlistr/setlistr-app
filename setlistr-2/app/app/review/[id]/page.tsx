@@ -48,6 +48,14 @@ type Performance = {
 
 type PRO = 'SOCAN' | 'ASCAP' | 'BMI'
 
+type RecentSong = {
+  id: string
+  title: string
+  artist: string
+  play_count: number
+  last_played: string
+}
+
 // ─── user_songs write helper (review save path) ──────────────────────────────
 // Non-blocking. Uses dedup guard — if identify route already wrote this
 // song for this performance, the guard insert fails silently and we skip.
@@ -107,11 +115,12 @@ async function writeUserSongFromReview(
 
 // ─── Sortable Song Row ────────────────────────────────────────────────────────
 
-function SortableRow({ song, index, onDelete, onEdit, artistName }: {
+function SortableRow({ song, index, onDelete, onEdit, onAssign, artistName }: {
   song: Song
   index: number
   onDelete: (id: string) => void
   onEdit: (id: string, title: string, artist: string) => void
+  onAssign: (id: string, index: number) => void
   artistName: string
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
@@ -174,11 +183,11 @@ function SortableRow({ song, index, onDelete, onEdit, artistName }: {
             <button onClick={() => setMode('view')} style={{ color: C.muted, flexShrink: 0 }}><X size={15} /></button>
           </div>
         ) : (
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <p style={{ fontSize: 14, fontWeight: 600, color: C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {song.title}
+          <div style={{ flex: 1, minWidth: 0 }} onClick={song.source === 'unidentified' ? () => onAssign(song.id, index) : undefined}>
+            <p style={{ fontSize: 14, fontWeight: 600, color: song.source === 'unidentified' ? '#f59e0b' : C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontStyle: song.source === 'unidentified' ? 'italic' : 'normal' }}>
+              {song.source === 'unidentified' ? '? Unknown song — tap to assign' : song.title}
             </p>
-            {song.artist && song.artist !== artistName && (
+            {song.source !== 'unidentified' && song.artist && song.artist !== artistName && (
               <p style={{ fontSize: 11, color: C.secondary, margin: '2px 0 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {song.artist}
               </p>
@@ -256,11 +265,45 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
   const [showAdd, setShowAdd]         = useState(false)
   const [selectedPRO, setSelectedPRO] = useState<PRO>('SOCAN')
   const [showExport, setShowExport]   = useState(false)
+  const [assignSheet, setAssignSheet] = useState<{ songId: string; index: number } | null>(null)
+  const [recentSongs, setRecentSongs] = useState<RecentSong[]>([])
+  const [recentLoading, setRecentLoading] = useState(false)
+  const [assignSearch, setAssignSearch] = useState('')
 
   const sensors = useSensors(
     useSensor(PointerSensor),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   )
+
+  // Fetch recent songs once on mount
+  useEffect(() => {
+    setRecentLoading(true)
+    fetch('/api/recent-songs')
+      .then(r => r.json())
+      .then(data => { if (data.songs) setRecentSongs(data.songs) })
+      .catch(err => console.error('[RecentSongs] fetch failed:', err))
+      .finally(() => setRecentLoading(false))
+  }, [])
+
+  function openAssignSheet(songId: string, index: number) {
+    setAssignSheet({ songId, index })
+    setAssignSearch('')
+  }
+
+  function closeAssignSheet() {
+    setAssignSheet(null)
+    setAssignSearch('')
+  }
+
+  function assignSong(recent: RecentSong) {
+    if (!assignSheet) return
+    setSongs(prev => prev.map(s =>
+      s.id === assignSheet.songId
+        ? { ...s, title: recent.title, artist: recent.artist, source: 'manual' }
+        : s
+    ))
+    closeAssignSheet()
+  }
 
   useEffect(() => {
     const supabase = createClient()
@@ -679,7 +722,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
               <SortableContext items={songs.map(s => s.id)} strategy={verticalListSortingStrategy}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {songs.map((song, index) => (
-                    <SortableRow key={song.id} song={song} index={index} onDelete={handleDelete} onEdit={handleEdit} artistName={performance?.artist_name || ''} />
+                    <SortableRow key={song.id} song={song} index={index} onDelete={handleDelete} onEdit={handleEdit} onAssign={openAssignSheet} artistName={performance?.artist_name || ''} />
                   ))}
                 </div>
               </SortableContext>
@@ -729,10 +772,94 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
         </div>
       </div>
 
+      {/* ── Assign sheet — bottom sheet with recent songs ── */}
+      {assignSheet && (
+        <div
+          style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', animation: 'fadeIn 0.15s ease' }}
+          onClick={closeAssignSheet}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{ width: '100%', maxWidth: 520, background: '#141210', borderRadius: '20px 20px 0 0', border: '1px solid rgba(255,255,255,0.07)', borderBottom: 'none', padding: '0 0 32px', maxHeight: '80vh', display: 'flex', flexDirection: 'column', animation: 'sheetUp 0.22s ease', fontFamily: '"DM Sans", system-ui, sans-serif' }}
+          >
+            {/* Handle */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px 12px' }}>
+              <div>
+                <p style={{ fontSize: 13, fontWeight: 700, color: '#f0ece3', margin: 0 }}>Assign song</p>
+                <p style={{ fontSize: 11, color: '#6a6050', margin: '2px 0 0' }}>Tap a recent song or search below</p>
+              </div>
+              <button onClick={closeAssignSheet} style={{ background: 'transparent', border: 'none', color: '#6a6050', cursor: 'pointer', padding: 4 }}>
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Search */}
+            <div style={{ padding: '0 16px 12px' }}>
+              <input
+                autoFocus
+                value={assignSearch}
+                onChange={e => setAssignSearch(e.target.value)}
+                placeholder="Search your songs..."
+                style={{ width: '100%', background: '#0f0e0c', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, padding: '10px 14px', color: '#f0ece3', fontSize: 14, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
+              />
+            </div>
+
+            {/* Recent songs list */}
+            <div style={{ overflowY: 'auto', flex: 1, padding: '0 16px' }}>
+              {recentLoading ? (
+                <div style={{ textAlign: 'center', padding: '32px 0', color: '#6a6050', fontSize: 13 }}>Loading...</div>
+              ) : (
+                (() => {
+                  const filtered = assignSearch.trim()
+                    ? recentSongs.filter(s =>
+                        s.title.toLowerCase().includes(assignSearch.toLowerCase()) ||
+                        s.artist.toLowerCase().includes(assignSearch.toLowerCase())
+                      )
+                    : recentSongs
+                  if (filtered.length === 0) return (
+                    <div style={{ textAlign: 'center', padding: '32px 0', color: '#6a6050', fontSize: 13 }}>
+                      {assignSearch ? 'No matches' : 'No recent songs yet'}
+                    </div>
+                  )
+                  return (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      {filtered.map(song => (
+                        <button
+                          key={song.id}
+                          onClick={() => assignSong(song)}
+                          style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 14px', background: 'transparent', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 10, cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', width: '100%', transition: 'background 0.12s ease', WebkitTapHighlightColor: 'transparent' }}
+                          onTouchStart={e => (e.currentTarget.style.background = 'rgba(201,168,76,0.08)')}
+                          onTouchEnd={e => (e.currentTarget.style.background = 'transparent')}
+                          onMouseEnter={e => (e.currentTarget.style.background = 'rgba(201,168,76,0.06)')}
+                          onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                        >
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <p style={{ fontSize: 14, fontWeight: 600, color: '#f0ece3', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{song.title}</p>
+                            {song.artist && <p style={{ fontSize: 11, color: '#8a7a68', margin: '2px 0 0' }}>{song.artist}</p>}
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                            {song.play_count > 1 && (
+                              <span style={{ fontSize: 10, color: '#c9a84c', opacity: 0.6, fontFamily: '"DM Mono", monospace' }}>×{song.play_count}</span>
+                            )}
+                            <span style={{ fontSize: 12, color: '#6a6050' }}>→</span>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )
+                })()
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500;700&display=swap');
         @keyframes fadeUp  { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes fadeIn  { from{opacity:0} to{opacity:1} }
         @keyframes slideUp { from{opacity:0;transform:translateY(6px)}  to{opacity:1;transform:translateY(0)} }
+        @keyframes sheetUp { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
         @keyframes rowIn   { from{opacity:0;transform:translateY(4px)}  to{opacity:1;transform:translateY(0)} }
         @keyframes spin    { to{transform:rotate(360deg)} }
         * { -webkit-tap-highlight-color: transparent; }
