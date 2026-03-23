@@ -122,6 +122,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   const [isDetecting, setIsDetecting] = useState(false)
   const [detectStatus, setDetectStatus] = useState<string>('')
   const [showManual, setShowManual]   = useState(false)
+  const [recentSongs, setRecentSongs] = useState<RecentSong[]>([])
   const [catchFlash, setCatchFlash]   = useState(false)
   const [lastCaught, setLastCaught]   = useState<string | null>(null)
   const [pendingCandidate, setPendingCandidate] = useState<PendingCandidate | null>(null)
@@ -172,6 +173,14 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   }, [elapsed, performance, ending])
 
   useEffect(() => { return () => stopListening() }, [])
+
+  // Fetch recent songs on mount for quick-add chips
+  useEffect(() => {
+    fetch('/api/recent-songs')
+      .then(r => r.json())
+      .then(data => { if (data.songs) setRecentSongs(data.songs.slice(0, 8)) })
+      .catch(() => {})
+  }, [])
 
   function startEdit(index: number) {
     setEditingIndex(index)
@@ -716,15 +725,53 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         </button>
 
         {showManual && (
-          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: '12px', display: 'flex', flexDirection: 'column', gap: 8, animation: 'slideUp 0.15s ease' }}>
+          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: '12px', display: 'flex', flexDirection: 'column', gap: 10, animation: 'slideUp 0.15s ease' }}>
+
+            {/* Recent song chips — primary path */}
+            {recentSongs.length > 0 && !songInput && (
+              <div>
+                <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, margin: '0 0 8px' }}>Recent songs</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                  {recentSongs.map(s => (
+                    <button
+                      key={s.id}
+                      onClick={() => {
+                        setSongs(prev => [...prev, { title: s.title, artist: s.artist || performance?.artist_name || '', source: 'manual' }])
+                        setShowManual(false)
+                      }}
+                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '9px 12px', background: 'rgba(255,255,255,0.03)', border: `1px solid ${C.border}`, borderRadius: 8, cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', width: '100%', WebkitTapHighlightColor: 'transparent', transition: 'background 0.1s ease' }}
+                      onTouchStart={e => (e.currentTarget.style.background = 'rgba(201,168,76,0.1)')}
+                      onTouchEnd={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.03)')}
+                      onMouseEnter={e => (e.currentTarget.style.background = 'rgba(201,168,76,0.07)')}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.03)')}
+                    >
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <p style={{ fontSize: 13, fontWeight: 600, color: C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.title}</p>
+                        {s.artist && <p style={{ fontSize: 11, color: C.muted, margin: '1px 0 0' }}>{s.artist}</p>}
+                      </div>
+                      {s.play_count > 1 && (
+                        <span style={{ fontSize: 10, color: C.gold, opacity: 0.5, flexShrink: 0, marginLeft: 8, fontFamily: '"DM Mono", monospace' }}>×{s.play_count}</span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+                <div style={{ height: 1, background: 'rgba(255,255,255,0.05)', margin: '10px 0 4px' }} />
+                <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, margin: '0 0 8px' }}>Or type a song</p>
+              </div>
+            )}
+
+            {/* Search/type fallback */}
             <input value={songInput} onChange={e => setSongInput(e.target.value)}
-              placeholder="Song title" autoFocus
+              placeholder={recentSongs.length > 0 ? "Search or type a title..." : "Song title"}
+              autoFocus={recentSongs.length === 0}
               style={{ background: C.input, border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 12px', color: C.text, fontSize: 14, outline: 'none', width: '100%', boxSizing: 'border-box', fontFamily: 'inherit' }}
               onKeyDown={e => { if (e.key === 'Enter' && songInput.trim()) addSong() }} />
-            <button onClick={addSong} disabled={!songInput.trim()}
-              style={{ padding: '10px', background: songInput.trim() ? C.gold : 'rgba(255,255,255,0.04)', border: 'none', borderRadius: 8, color: songInput.trim() ? '#0a0908' : C.muted, fontSize: 12, fontWeight: 700, cursor: songInput.trim() ? 'pointer' : 'not-allowed', fontFamily: 'inherit' }}>
-              Add
-            </button>
+            {songInput.trim() && (
+              <button onClick={addSong}
+                style={{ padding: '10px', background: C.gold, border: 'none', borderRadius: 8, color: '#0a0908', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                Add "{songInput.trim()}"
+              </button>
+            )}
           </div>
         )}
 
