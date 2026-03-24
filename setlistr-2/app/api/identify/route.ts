@@ -60,6 +60,64 @@ function normalizeSongKey(title: string): string {
     .replace(/\s+/g, ' ').trim()
 }
 
+// ─── Memory bias check ───────────────────────────────────────────────────────
+// When ACR returns a suggest-level score (40-79), check if the title matches
+// a known user_songs entry with meaningful play count.
+// If it does, upgrade confidence to 'auto' — the artist has played this before
+// and the system should trust the match.
+//
+// Title similarity: normalized key match (exact) OR substring match if long enough.
+// Play count threshold: >= 2 plays (not a one-off) to avoid false boosts.
+// Non-blocking — if this fails, we fall back to original confidence level.
+async function checkMemoryBias(
+  title: string,
+  userId: string | null
+): Promise<{ biased: boolean; confirmedCount: number }> {
+  if (!userId) return { biased: false, confirmedCount: 0 }
+  try {
+    const normalizedTitle = normalizeSongKey(title)
+    if (!normalizedTitle || normalizedTitle.length < 3) return { biased: false, confirmedCount: 0 }
+
+    // Fetch user's songs with meaningful play counts
+    const { data } = await supabase
+      .from('user_songs')
+      .select('song_title, confirmed_count')
+      .eq('user_id', userId)
+      .gte('confirmed_count', 2)
+      .limit(100)
+
+    if (!data || data.length === 0) return { biased: false, confirmedCount: 0 }
+
+    // Check for normalized title match
+    for (const row of data) {
+      const rowKey = normalizeSongKey(row.song_title)
+      if (!rowKey) continue
+
+      // Exact normalized match
+      if (rowKey === normalizedTitle) {
+        console.log(`[MemoryBias] exact match "${title}" count=${row.confirmed_count}`)
+        return { biased: true, confirmedCount: row.confirmed_count }
+      }
+
+      // Substring match for longer titles (handles slight ACR variations)
+      // Only if both are 4+ words to avoid false positives on short titles
+      const titleWords = normalizedTitle.split(' ').length
+      const rowWords   = rowKey.split(' ').length
+      if (titleWords >= 4 && rowWords >= 4) {
+        if (normalizedTitle.includes(rowKey) || rowKey.includes(normalizedTitle)) {
+          console.log(`[MemoryBias] substring match "${title}" ≈ "${row.song_title}" count=${row.confirmed_count}`)
+          return { biased: true, confirmedCount: row.confirmed_count }
+        }
+      }
+    }
+
+    return { biased: false, confirmedCount: 0 }
+  } catch (err) {
+    console.error('[MemoryBias] check failed (non-blocking):', err)
+    return { biased: false, confirmedCount: 0 }
+  }
+}
+
 function countCandidateFlips(history: CandidateHistoryEntry[]): number {
   if (history.length < 2) return 0
   let flips = 0
@@ -324,9 +382,28 @@ export async function POST(req: NextRequest) {
         confidenceLevel = 'suggest'
       }
     } else if (effectiveScore >= ACR_SUGGEST) {
-      confidenceLevel = 'suggest'
-      sanityPassed    = false
-      failureReason   = `score_below_strong: ${effectiveScore}`
+      // Before assigning suggest, check memory bias.
+      // If this artist has played this song before (confirmed_count >= 2),
+      // upgrade to auto — we trust the match.
+      // Duplicate check still applies to prevent double-logging.
+      const isDuplicate = previousSongs.some(s => normalizeSongKey(s) === normalizeSongKey(title))
+      if (isDuplicate) {
+        confidenceLevel = 'no_result'
+        sanityPassed    = false
+        failureReason   = 'duplicate: already in setlist'
+      } else {
+        const bias = await checkMemoryBias(title, userId)
+        if (bias.biased) {
+          confidenceLevel = 'auto'
+          sanityPassed    = true
+          failureReason   = `memory_bias_upgrade: count=${bias.confirmedCount}`
+          console.log(`[MemoryBias] upgraded "${title}" suggest→auto (count=${bias.confirmedCount})`)
+        } else {
+          confidenceLevel = 'suggest'
+          sanityPassed    = false
+          failureReason   = `score_below_strong: ${effectiveScore}`
+        }
+      }
     } else {
       confidenceLevel = 'no_result'
       sanityPassed    = false
