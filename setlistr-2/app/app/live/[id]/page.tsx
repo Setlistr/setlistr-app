@@ -176,13 +176,21 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
 
   useEffect(() => { return () => stopListening() }, [])
 
-  // Fetch recent songs on mount for quick-add chips
-  useEffect(() => {
-    fetch('/api/recent-songs')
+  // Fetch recent songs — re-fetches as songs are confirmed to keep list fresh
+  const fetchRecentSongs = useCallback(() => {
+    const confirmed = confirmedSongsRef.current
+    const exclude   = confirmed
+      .filter(s => s.source !== 'unidentified')
+      .map(s => encodeURIComponent(s.title))
+      .join(',')
+    const url = exclude ? `/api/recent-songs?exclude=${exclude}` : '/api/recent-songs'
+    fetch(url)
       .then(r => r.json())
       .then(data => { if (data.songs) setRecentSongs(data.songs.slice(0, 8)) })
       .catch(() => {})
   }, [])
+
+  useEffect(() => { fetchRecentSongs() }, [fetchRecentSongs])
 
   function startEdit(index: number) {
     setEditingIndex(index)
