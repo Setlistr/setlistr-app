@@ -44,17 +44,19 @@ export async function POST(req: NextRequest) {
 
     const token = await getSpotifyToken()
 
-    // Fetch top tracks (up to 50 via several endpoints)
-    // Try CA market first (Canadian artist), fallback to US, then GB
-    let topRes = await fetch(`https://api.spotify.com/v1/artists/${artistId}/top-tracks?market=CA`, {
-      headers: { 'Authorization': `Bearer ${token}` }
-    })
-    if (topRes.ok) {
-      const check = await topRes.clone().json()
-      if (!check.tracks?.length) {
-        topRes = await fetch(`https://api.spotify.com/v1/artists/${artistId}/top-tracks?market=US`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        })
+    // Fetch top tracks — try multiple markets to maximize results
+    let topTracks: any[] = []
+    for (const market of ['US', 'CA', 'GB']) {
+      const res = await fetch(
+        `https://api.spotify.com/v1/artists/${artistId}/top-tracks?market=${market}`,
+        { headers: { 'Authorization': `Bearer ${token}` } }
+      )
+      if (res.ok) {
+        const data = await res.json()
+        if (data.tracks?.length) {
+          topTracks = data.tracks
+          break
+        }
       }
     }
 
@@ -62,42 +64,37 @@ export async function POST(req: NextRequest) {
       `https://api.spotify.com/v1/artists/${artistId}/albums?include_groups=album,single&limit=20`,
       { headers: { 'Authorization': `Bearer ${token}` } }
     )
-
-    const topData    = topRes.ok    ? await topRes.json()    : { tracks: [] }
     const albumsData = albumsRes.ok ? await albumsRes.json() : { items: [] }
 
-    // Get tracks from top tracks endpoint
+    // Deduplicate tracks by normalized title
     const tracks: { title: string; spotifyId: string }[] = []
     const seen = new Set<string>()
 
-    for (const track of topData.tracks || []) {
-      const title = track.name
-      const key   = normalizeSongKey(title)
+    for (const track of topTracks) {
+      const key = normalizeSongKey(track.name)
       if (key && !seen.has(key)) {
         seen.add(key)
-        tracks.push({ title, spotifyId: track.id })
+        tracks.push({ title: track.name, spotifyId: track.id })
       }
     }
 
-    // Get additional tracks from albums if we have fewer than 30
+    // Supplement from albums if under 30 tracks
     if (tracks.length < 30 && albumsData.items?.length > 0) {
       const albumIds = albumsData.items.slice(0, 8).map((a: any) => a.id).join(',')
       const tracksRes = await fetch(
-        `https://api.spotify.com/v1/albums?ids=${albumIds}&market=CA`,
+        `https://api.spotify.com/v1/albums?ids=${albumIds}&market=US`,
         { headers: { 'Authorization': `Bearer ${token}` } }
       )
       if (tracksRes.ok) {
         const tracksData = await tracksRes.json()
         for (const album of tracksData.albums || []) {
           for (const track of album.tracks?.items || []) {
-            // Only include tracks where the target artist is the primary artist
             const isPrimary = track.artists?.[0]?.id === artistId
             if (!isPrimary) continue
-            const title = track.name
-            const key   = normalizeSongKey(title)
+            const key = normalizeSongKey(track.name)
             if (key && !seen.has(key)) {
               seen.add(key)
-              tracks.push({ title, spotifyId: track.id })
+              tracks.push({ title: track.name, spotifyId: track.id })
               if (tracks.length >= 50) break
             }
           }
@@ -107,10 +104,10 @@ export async function POST(req: NextRequest) {
     }
 
     if (tracks.length === 0) {
-      return NextResponse.json({ imported: 0, message: 'No tracks found' })
+      return NextResponse.json({ imported: 0, total: 0, message: 'No tracks found on Spotify' })
     }
 
-    // Check existing user_songs to avoid overwriting real show data
+    // Load existing user_songs to protect real show data
     const { data: existing } = await supabase
       .from('user_songs')
       .select('song_title, confirmed_count, source')
@@ -124,33 +121,35 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    // Insert or skip — never overwrite real show data
     let imported = 0
     for (const track of tracks) {
-      const key      = normalizeSongKey(track.title)
-      const existing = existingMap.get(key)
+      const key     = normalizeSongKey(track.title)
+      const current = existingMap.get(key)
 
-      if (existing) {
-        // Already exists from a show — don't overwrite, real data wins
-        if (existing.source !== 'spotify_import') continue
-        // Already imported from Spotify — skip duplicate
-        continue
-      }
+      // Never touch songs that came from real show activity
+      if (current && current.source !== 'spotify_import') continue
 
-      // New song — insert as spotify_import with count=1
-      const { error } = await supabase.from('user_songs').insert({
-        user_id:           user.id,
-        song_title:        track.title,
-        canonical_artist:  artistName,
-        confirmed_count:   1,
-        source:            'spotify_import',
-        last_confirmed_at: new Date().toISOString(),
-      })
+      // Upsert: insert new or overwrite a previous spotify_import
+      // (handles the case where user re-imports after a prior run)
+      const { error } = await supabase.from('user_songs').upsert(
+        {
+          user_id:           user.id,
+          song_title:        track.title,
+          canonical_artist:  artistName,
+          confirmed_count:   1,
+          source:            'spotify_import',
+          last_confirmed_at: new Date().toISOString(),
+        },
+        {
+          onConflict:        'user_id,song_title',
+          ignoreDuplicates:  false,
+        }
+      )
 
       if (!error) imported++
     }
 
-    console.log(`[SpotifyImport] user=${user.id} artist=${artistName} imported=${imported}/${tracks.length}`)
+    console.log(`[SpotifyImport] user=${user.id} artist=${artistName} tracks_found=${tracks.length} imported=${imported}`)
     return NextResponse.json({ imported, total: tracks.length })
 
   } catch (err: any) {
