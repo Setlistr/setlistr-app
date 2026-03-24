@@ -337,10 +337,21 @@ export async function POST(req: NextRequest) {
     const humming     = payload?.metadata?.humming?.[0]
     const music       = payload?.metadata?.music?.[0]
     const acrMatch    = humming || music
-    const acrScore    = acrMatch?.score ? parseFloat(acrMatch.score) : 0
     const acrDetected = payload.status?.code === 0 && !!acrMatch
     const source: DetectionSource = humming ? 'humming' : 'fingerprint'
-    const effectiveScore = humming ? Math.max(acrScore, 85) : acrScore
+
+    // ACR humming scores are 0-1 floats. Fingerprint scores are 0-100 integers.
+    // Normalize humming to 0-100 so thresholds work consistently.
+    const rawScore = acrMatch?.score ? parseFloat(acrMatch.score) : 0
+    const acrScore = humming ? rawScore * 100 : rawScore
+
+    // Humming boost: only apply if ACR has genuine confidence (normalized >= 45).
+    // A raw score of 0.25 (normalized 25) means ACR is guessing - don't boost.
+    // This was the root cause: Math.max(0.25, 85) = 85, auto-confirming garbage.
+    const HUMMING_BOOST_MIN = 45
+    const effectiveScore = (humming && acrScore >= HUMMING_BOOST_MIN)
+      ? Math.max(acrScore, 85)
+      : acrScore
 
     const flipCount = countCandidateFlips(candidateHistory)
 
