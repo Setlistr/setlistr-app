@@ -404,15 +404,21 @@ export async function POST(req: NextRequest) {
         failureReason   = 'duplicate: already in setlist'
       } else {
         const bias = await checkMemoryBias(title, userId)
-        if (bias.biased) {
+        if (bias.biased && acrScore >= 60) {
+          // Known song (confirmed 2+ times) + score >= 60 = auto-confirm
+          // Score guard prevents bad humming matches on familiar titles
           confidenceLevel = 'auto'
           sanityPassed    = true
-          failureReason   = `memory_bias_upgrade: count=${bias.confirmedCount}`
-          console.log(`[MemoryBias] upgraded "${title}" suggest→auto (count=${bias.confirmedCount})`)
+          failureReason   = `memory_bias_upgrade: score=${acrScore} count=${bias.confirmedCount}`
+          console.log(`[MemoryBias] upgraded "${title}" suggest→auto (score=${acrScore} count=${bias.confirmedCount})`)
         } else {
+          // Unknown song OR low score — always suggest, never auto-confirm
+          // User must confirm songs the system hasn't seen before
           confidenceLevel = 'suggest'
           sanityPassed    = false
-          failureReason   = `score_below_strong: ${effectiveScore}`
+          failureReason   = bias.biased
+            ? `memory_bias_score_too_low: ${acrScore}`
+            : `unknown_song_suggest: ${effectiveScore}`
         }
       }
     } else {
