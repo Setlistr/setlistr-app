@@ -1,0 +1,54 @@
+import { NextRequest, NextResponse } from 'next/server'
+
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+
+async function getSpotifyToken(): Promise<string> {
+  const clientId     = process.env.SPOTIFY_CLIENT_ID!
+  const clientSecret = process.env.SPOTIFY_CLIENT_SECRET!
+  const credentials  = Buffer.from(`${clientId}:${clientSecret}`).toString('base64')
+
+  const res = await fetch('https://accounts.spotify.com/api/token', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Basic ${credentials}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: 'grant_type=client_credentials',
+  })
+
+  if (!res.ok) throw new Error('Failed to get Spotify token')
+  const data = await res.json()
+  return data.access_token
+}
+
+export async function GET(req: NextRequest) {
+  try {
+    const q = new URL(req.url).searchParams.get('q')
+    if (!q) return NextResponse.json({ error: 'Missing query' }, { status: 400 })
+
+    const token = await getSpotifyToken()
+
+    const res = await fetch(
+      `https://api.spotify.com/v1/search?q=${encodeURIComponent(q)}&type=artist&limit=5`,
+      { headers: { 'Authorization': `Bearer ${token}` } }
+    )
+
+    if (!res.ok) throw new Error('Spotify search failed')
+    const data = await res.json()
+
+    const artists = (data.artists?.items || []).map((a: any) => ({
+      id:        a.id,
+      name:      a.name,
+      followers: a.followers?.total || 0,
+      image:     a.images?.[0]?.url || null,
+      genres:    a.genres?.slice(0, 3) || [],
+    }))
+
+    return NextResponse.json({ artists })
+
+  } catch (err: any) {
+    console.error('[SpotifySearch] Error:', err)
+    return NextResponse.json({ error: err.message }, { status: 500 })
+  }
+}
