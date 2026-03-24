@@ -45,14 +45,23 @@ export async function POST(req: NextRequest) {
     const token = await getSpotifyToken()
 
     // Fetch top tracks (up to 50 via several endpoints)
-    const [topRes, albumsRes] = await Promise.all([
-      fetch(`https://api.spotify.com/v1/artists/${artistId}/top-tracks?market=US`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      }),
-      fetch(`https://api.spotify.com/v1/artists/${artistId}/albums?include_groups=album,single&limit=20&market=US`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      }),
-    ])
+    // Try CA market first (Canadian artist), fallback to US, then GB
+    let topRes = await fetch(`https://api.spotify.com/v1/artists/${artistId}/top-tracks?market=CA`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    if (topRes.ok) {
+      const check = await topRes.clone().json()
+      if (!check.tracks?.length) {
+        topRes = await fetch(`https://api.spotify.com/v1/artists/${artistId}/top-tracks?market=US`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+      }
+    }
+
+    const albumsRes = await fetch(
+      `https://api.spotify.com/v1/artists/${artistId}/albums?include_groups=album,single&limit=20`,
+      { headers: { 'Authorization': `Bearer ${token}` } }
+    )
 
     const topData    = topRes.ok    ? await topRes.json()    : { tracks: [] }
     const albumsData = albumsRes.ok ? await albumsRes.json() : { items: [] }
@@ -74,7 +83,7 @@ export async function POST(req: NextRequest) {
     if (tracks.length < 30 && albumsData.items?.length > 0) {
       const albumIds = albumsData.items.slice(0, 8).map((a: any) => a.id).join(',')
       const tracksRes = await fetch(
-        `https://api.spotify.com/v1/albums?ids=${albumIds}`,
+        `https://api.spotify.com/v1/albums?ids=${albumIds}&market=CA`,
         { headers: { 'Authorization': `Bearer ${token}` } }
       )
       if (tracksRes.ok) {
