@@ -121,33 +121,49 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    let imported = 0
-    for (const track of tracks) {
-      const key     = normalizeSongKey(track.title)
-      const current = existingMap.get(key)
+    // Filter out tracks that already exist from real show activity (keep those untouched)
+    const toImport = tracks.filter(track => {
+      const current = existingMap.get(normalizeSongKey(track.title))
+      return !current || current.source === 'spotify_import'
+    })
 
-      // Never touch songs that came from real show activity
-      if (current && current.source !== 'spotify_import') continue
-
-      // Upsert: insert new or overwrite a previous spotify_import
-      // (handles the case where user re-imports after a prior run)
-      const { error } = await supabase.from('user_songs').upsert(
-        {
-          user_id:           user.id,
-          song_title:        track.title,
-          canonical_artist:  artistName,
-          confirmed_count:   1,
-          source:            'spotify_import',
-          last_confirmed_at: new Date().toISOString(),
-        },
-        {
-          onConflict:        'user_id,song_title',
-          ignoreDuplicates:  false,
-        }
-      )
-
-      if (!error) imported++
+    if (toImport.length === 0) {
+      return NextResponse.json({ imported: 0, total: tracks.length })
     }
+
+    const now = new Date().toISOString()
+
+    // Delete any existing spotify_import rows for these titles, then re-insert clean.
+    // This avoids upsert conflict issues entirely.
+    const titlesToImport = toImport.map(t => t.title)
+    await supabase
+      .from('user_songs')
+      .delete()
+      .eq('user_id', user.id)
+      .eq('source', 'spotify_import')
+      .in('song_title', titlesToImport)
+
+    // Batch insert
+    const rows = toImport.map(track => ({
+      user_id:           user.id,
+      song_title:        track.title,
+      canonical_artist:  artistName,
+      confirmed_count:   1,
+      source:            'spotify_import',
+      last_confirmed_at: now,
+    }))
+
+    const { data: inserted, error: insertError } = await supabase
+      .from('user_songs')
+      .insert(rows)
+      .select('id')
+
+    if (insertError) {
+      console.error('[SpotifyImport] Insert error:', insertError)
+      return NextResponse.json({ error: insertError.message }, { status: 500 })
+    }
+
+    const imported = inserted?.length ?? 0
 
     console.log(`[SpotifyImport] user=${user.id} artist=${artistName} tracks_found=${tracks.length} imported=${imported}`)
     return NextResponse.json({ imported, total: tracks.length })
