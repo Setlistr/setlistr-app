@@ -257,20 +257,29 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   )
 
-  // Fetch recent songs once on mount
-  useEffect(() => {
+  // Fetch recent songs — re-fetches when assign sheet opens to exclude current set
+  const fetchRecentSongs = useCallback((currentSongs: Song[]) => {
     setRecentLoading(true)
-    fetch('/api/recent-songs')
+    const exclude = currentSongs
+      .filter(s => s.source !== 'unidentified' && s.title !== 'Unknown song')
+      .map(s => encodeURIComponent(s.title))
+      .join(',')
+    const url = exclude ? `/api/recent-songs?exclude=${exclude}` : '/api/recent-songs'
+    fetch(url)
       .then(r => r.json())
       .then(data => { if (data.songs) setRecentSongs(data.songs) })
       .catch(err => console.error('[RecentSongs] fetch failed:', err))
       .finally(() => setRecentLoading(false))
   }, [])
 
+  useEffect(() => { fetchRecentSongs([]) }, [fetchRecentSongs])
+
   function openAssignSheet(songId: string, index: number) {
     const song = songs.find(s => s.id === songId)
     setAssignSheet({ songId, index, currentTitle: song?.title || '' })
     setAssignSearch('')
+    // Re-fetch excluding current set songs (no repeats by default)
+    fetchRecentSongs(songs.filter(s => s.id !== songId))
   }
 
   function closeAssignSheet() {
