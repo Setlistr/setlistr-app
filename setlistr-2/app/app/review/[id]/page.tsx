@@ -119,6 +119,7 @@ function SortableRow({ song, onDelete, onEdit, onTap, index }: {
 
   const [swipeX, setSwipeX]     = useState(0)
   const [swiping, setSwiping]   = useState(false)
+  const [hovered, setHovered]   = useState(false)
   const touchStart               = useRef<{ x: number; y: number } | null>(null)
   const ACTION_W                 = 140 // total width of action buttons revealed
   const COMMIT_THRESHOLD         = 60  // px to commit open
@@ -205,6 +206,8 @@ function SortableRow({ song, onDelete, onEdit, onTap, index }: {
         onTouchStart={onTouchStart}
         onTouchMove={onTouchMove}
         onTouchEnd={onTouchEnd}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
         onClick={() => { if (swipeX < -10) { closeSwipe(); return } onTap(song.id) }}
         style={{
           transform: `translateX(${swipeX}px)`,
@@ -275,12 +278,144 @@ function SortableRow({ song, onDelete, onEdit, onTap, index }: {
           )}
         </div>
 
-        {/* State indicator */}
-        <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center' }}>
-          {needsReview ? (
+        {/* State indicator — becomes delete button on desktop hover */}
+        <div
+          onClick={hovered ? (e) => { e.stopPropagation(); onDelete(song.id) } : undefined}
+          style={{
+            flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            width: 28, height: 28, borderRadius: 6,
+            background: hovered ? 'rgba(239,68,68,0.12)' : 'transparent',
+            border: hovered ? '1px solid rgba(239,68,68,0.25)' : '1px solid transparent',
+            transition: 'all 0.15s ease',
+            cursor: hovered ? 'pointer' : 'default',
+          }}
+        >
+          {hovered ? (
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={C.red} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/>
+            </svg>
+          ) : needsReview ? (
             <span style={{ fontSize: 10, color: C.gold, opacity: 0.7, fontWeight: 700 }}>!</span>
           ) : (
             <Check size={13} color={C.green} strokeWidth={2.5} style={{ opacity: 0.5 }} />
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Hook: tracks keyboard height via visualViewport ─────────────────────────
+// Returns the pixel offset to add as marginBottom to bottom sheets so they
+// always sit above the software keyboard on mobile.
+function useKeyboardOffset() {
+  const [offset, setOffset] = useState(0)
+  useEffect(() => {
+    const vv = window.visualViewport
+    if (!vv) return
+    function update() {
+      setOffset(Math.max(0, window.innerHeight - vv!.height - vv!.offsetTop))
+    }
+    vv.addEventListener('resize', update)
+    vv.addEventListener('scroll', update)
+    update()
+    return () => { vv.removeEventListener('resize', update); vv.removeEventListener('scroll', update) }
+  }, [])
+  return offset
+}
+
+// ─── Assign sheet (bottom sheet) ─────────────────────────────────────────────
+function AssignSheet({ assignSheet, recentSongs, recentLoading, assignSearch, setAssignSearch, onAssign, onClose, onTypeAdd }: {
+  assignSheet: { songId: string; currentTitle: string }
+  recentSongs: RecentSong[]
+  recentLoading: boolean
+  assignSearch: string
+  setAssignSearch: (v: string) => void
+  onAssign: (s: RecentSong) => void
+  onClose: () => void
+  onTypeAdd: (title: string) => void
+}) {
+  const bottomOffset = useKeyboardOffset()
+
+  const filtered = assignSearch.trim()
+    ? recentSongs.filter(s =>
+        s.title.toLowerCase().includes(assignSearch.toLowerCase()) ||
+        s.artist.toLowerCase().includes(assignSearch.toLowerCase())
+      )
+    : recentSongs
+
+  return (
+    <div
+      style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', animation: 'fadeIn 0.15s ease' }}
+      onClick={onClose}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{ width: '100%', maxWidth: 520, background: '#141210', borderRadius: '20px 20px 0 0', border: '1px solid rgba(255,255,255,0.07)', borderBottom: 'none', padding: '0 0 32px', maxHeight: '80vh', display: 'flex', flexDirection: 'column', animation: 'sheetUp 0.22s ease', fontFamily: '"DM Sans", system-ui, sans-serif', marginBottom: bottomOffset, transition: 'margin-bottom 0.15s ease' }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px 12px' }}>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <p style={{ fontSize: 13, fontWeight: 700, color: '#f0ece3', margin: 0 }}>What song was this?</p>
+            {assignSheet.currentTitle && assignSheet.currentTitle !== 'Unknown song' && (
+              <p style={{ fontSize: 11, color: '#6a6050', margin: '2px 0 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>replacing: {assignSheet.currentTitle}</p>
+            )}
+          </div>
+          <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: '#6a6050', cursor: 'pointer', padding: 4, flexShrink: 0, marginLeft: 8 }}>
+            <X size={16} />
+          </button>
+        </div>
+
+        <div style={{ padding: '0 16px 12px' }}>
+          <input
+            autoFocus
+            value={assignSearch}
+            onChange={e => setAssignSearch(e.target.value)}
+            placeholder="Type to search or add..."
+            style={{ width: '100%', background: '#0f0e0c', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, padding: '10px 14px', color: '#f0ece3', fontSize: 14, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
+          />
+        </div>
+
+        <div style={{ overflowY: 'auto', flex: 1, padding: '0 16px' }}>
+          {recentLoading ? (
+            <div style={{ textAlign: 'center', padding: '32px 0', color: '#6a6050', fontSize: 13 }}>Loading...</div>
+          ) : filtered.length === 0 ? (
+            <div style={{ padding: '16px 0' }}>
+              {assignSearch ? (
+                <button onClick={() => onTypeAdd(assignSearch.trim())}
+                  style={{ width: '100%', padding: '12px 14px', background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.25)', borderRadius: 10, color: '#c9a84c', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}>
+                  Add "{assignSearch.trim()}"
+                </button>
+              ) : (
+                <p style={{ textAlign: 'center', color: '#6a6050', fontSize: 13, margin: 0 }}>No recent songs yet</p>
+              )}
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {filtered.map(song => (
+                <button key={song.id} onClick={() => onAssign(song)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '13px 14px', background: 'transparent', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 10, cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', width: '100%', WebkitTapHighlightColor: 'transparent' }}
+                  onTouchStart={e => (e.currentTarget.style.background = 'rgba(201,168,76,0.08)')}
+                  onTouchEnd={e => (e.currentTarget.style.background = 'transparent')}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'rgba(201,168,76,0.06)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                >
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontSize: 14, fontWeight: 600, color: '#f0ece3', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{song.title}</p>
+                    {song.artist && <p style={{ fontSize: 11, color: '#8a7a68', margin: '2px 0 0' }}>{song.artist}</p>}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                    {song.play_count > 1 && <span style={{ fontSize: 10, color: '#c9a84c', opacity: 0.6, fontFamily: '"DM Mono", monospace' }}>×{song.play_count}</span>}
+                    <span style={{ fontSize: 12, color: '#6a6050' }}>→</span>
+                  </div>
+                </button>
+              ))}
+              {assignSearch.trim() && !filtered.some(s => s.title.toLowerCase() === assignSearch.toLowerCase()) && (
+                <button onClick={() => onTypeAdd(assignSearch.trim())}
+                  style={{ display: 'flex', alignItems: 'center', padding: '11px 14px', background: 'rgba(201,168,76,0.07)', border: '1px solid rgba(201,168,76,0.2)', borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit', width: '100%', marginTop: 4 }}>
+                  <p style={{ fontSize: 13, fontWeight: 600, color: '#c9a84c', margin: 0 }}>Add "{assignSearch.trim()}"</p>
+                </button>
+              )}
+            </div>
           )}
         </div>
       </div>
@@ -296,6 +431,7 @@ function EditSheet({ song, onSave, onClose }: {
 }) {
   const [title, setTitle]   = useState(song.title === 'Unknown song' ? '' : song.title)
   const [artist, setArtist] = useState(song.artist)
+  const bottomOffset        = useKeyboardOffset()
 
   return (
     <div
@@ -304,7 +440,7 @@ function EditSheet({ song, onSave, onClose }: {
     >
       <div
         onClick={e => e.stopPropagation()}
-        style={{ width: '100%', maxWidth: 520, background: '#141210', borderRadius: '20px 20px 0 0', border: '1px solid rgba(255,255,255,0.07)', borderBottom: 'none', padding: '20px 20px 40px', display: 'flex', flexDirection: 'column', gap: 12, animation: 'sheetUp 0.22s ease', fontFamily: '"DM Sans", system-ui, sans-serif' }}
+        style={{ width: '100%', maxWidth: 520, background: '#141210', borderRadius: '20px 20px 0 0', border: '1px solid rgba(255,255,255,0.07)', borderBottom: 'none', padding: '20px 20px 40px', display: 'flex', flexDirection: 'column', gap: 12, animation: 'sheetUp 0.22s ease', fontFamily: '"DM Sans", system-ui, sans-serif', marginBottom: bottomOffset, transition: 'margin-bottom 0.15s ease' }}
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
           <p style={{ fontSize: 13, fontWeight: 700, color: C.text, margin: 0 }}>Edit song</p>
@@ -859,103 +995,20 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
 
       {/* Assign sheet */}
       {assignSheet && (
-        <div
-          style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', animation: 'fadeIn 0.15s ease' }}
-          onClick={closeAssignSheet}
-        >
-          <div
-            onClick={e => e.stopPropagation()}
-            style={{ width: '100%', maxWidth: 520, background: '#141210', borderRadius: '20px 20px 0 0', border: '1px solid rgba(255,255,255,0.07)', borderBottom: 'none', padding: '0 0 32px', maxHeight: '80vh', display: 'flex', flexDirection: 'column', animation: 'sheetUp 0.22s ease', fontFamily: '"DM Sans", system-ui, sans-serif' }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px 12px' }}>
-              <div style={{ minWidth: 0, flex: 1 }}>
-                <p style={{ fontSize: 13, fontWeight: 700, color: '#f0ece3', margin: 0 }}>What song was this?</p>
-                {assignSheet.currentTitle && assignSheet.currentTitle !== 'Unknown song' && (
-                  <p style={{ fontSize: 11, color: '#6a6050', margin: '2px 0 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>replacing: {assignSheet.currentTitle}</p>
-                )}
-              </div>
-              <button onClick={closeAssignSheet} style={{ background: 'transparent', border: 'none', color: '#6a6050', cursor: 'pointer', padding: 4, flexShrink: 0, marginLeft: 8 }}>
-                <X size={16} />
-              </button>
-            </div>
-
-            <div style={{ padding: '0 16px 12px' }}>
-              <input
-                autoFocus
-                value={assignSearch}
-                onChange={e => setAssignSearch(e.target.value)}
-                placeholder="Type to search or add..."
-                style={{ width: '100%', background: '#0f0e0c', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, padding: '10px 14px', color: '#f0ece3', fontSize: 14, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
-              />
-            </div>
-
-            <div style={{ overflowY: 'auto', flex: 1, padding: '0 16px' }}>
-              {recentLoading ? (
-                <div style={{ textAlign: 'center', padding: '32px 0', color: '#6a6050', fontSize: 13 }}>Loading...</div>
-              ) : (() => {
-                const filtered = assignSearch.trim()
-                  ? recentSongs.filter(s =>
-                      s.title.toLowerCase().includes(assignSearch.toLowerCase()) ||
-                      s.artist.toLowerCase().includes(assignSearch.toLowerCase())
-                    )
-                  : recentSongs
-
-                if (filtered.length === 0) return (
-                  <div style={{ padding: '16px 0' }}>
-                    {assignSearch ? (
-                      <button
-                        onClick={() => {
-                          if (!assignSheet) return
-                          setSongs(prev => prev.map(s => s.id === assignSheet.songId ? { ...s, title: assignSearch.trim(), source: 'manual', reviewState: 'clean' } : s))
-                          closeAssignSheet()
-                        }}
-                        style={{ width: '100%', padding: '12px 14px', background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.25)', borderRadius: 10, color: '#c9a84c', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}>
-                        Add "{assignSearch.trim()}"
-                      </button>
-                    ) : (
-                      <p style={{ textAlign: 'center', color: '#6a6050', fontSize: 13, margin: 0 }}>No recent songs yet</p>
-                    )}
-                  </div>
-                )
-
-                return (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    {filtered.map(song => (
-                      <button key={song.id} onClick={() => assignSong(song)}
-                        style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '13px 14px', background: 'transparent', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 10, cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', width: '100%', WebkitTapHighlightColor: 'transparent' }}
-                        onTouchStart={e => (e.currentTarget.style.background = 'rgba(201,168,76,0.08)')}
-                        onTouchEnd={e => (e.currentTarget.style.background = 'transparent')}
-                        onMouseEnter={e => (e.currentTarget.style.background = 'rgba(201,168,76,0.06)')}
-                        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                      >
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <p style={{ fontSize: 14, fontWeight: 600, color: '#f0ece3', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{song.title}</p>
-                          {song.artist && <p style={{ fontSize: 11, color: '#8a7a68', margin: '2px 0 0' }}>{song.artist}</p>}
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                          {song.play_count > 1 && <span style={{ fontSize: 10, color: '#c9a84c', opacity: 0.6, fontFamily: '"DM Mono", monospace' }}>×{song.play_count}</span>}
-                          <span style={{ fontSize: 12, color: '#6a6050' }}>→</span>
-                        </div>
-                      </button>
-                    ))}
-                    {assignSearch.trim() && !filtered.some(s => s.title.toLowerCase() === assignSearch.toLowerCase()) && (
-                      <button
-                        onClick={() => {
-                          if (!assignSheet) return
-                          setSongs(prev => prev.map(s => s.id === assignSheet.songId ? { ...s, title: assignSearch.trim(), source: 'manual', reviewState: 'clean' } : s))
-                          closeAssignSheet()
-                        }}
-                        style={{ display: 'flex', alignItems: 'center', padding: '11px 14px', background: 'rgba(201,168,76,0.07)', border: '1px solid rgba(201,168,76,0.2)', borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit', width: '100%', marginTop: 4 }}>
-                        <p style={{ fontSize: 13, fontWeight: 600, color: '#c9a84c', margin: 0 }}>Add "{assignSearch.trim()}"</p>
-                      </button>
-                    )}
-                  </div>
-                )
-              })()}
-            </div>
-          </div>
-        </div>
-      )}
+        <AssignSheet
+          assignSheet={assignSheet}
+          recentSongs={recentSongs}
+          recentLoading={recentLoading}
+          assignSearch={assignSearch}
+          setAssignSearch={setAssignSearch}
+          onAssign={assignSong}
+          onClose={closeAssignSheet}
+          onTypeAdd={(title) => {
+            if (!assignSheet) return
+            setSongs(prev => prev.map(s => s.id === assignSheet.songId ? { ...s, title, source: 'manual', reviewState: 'clean' } : s))
+            closeAssignSheet()
+          }}
+        />
 
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500;700&display=swap');
