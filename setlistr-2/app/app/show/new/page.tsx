@@ -96,12 +96,40 @@ export default function NewShowPage() {
     setPastLoading(true)
     const supabase = createClient()
     async function loadPast() {
-      const { data: perfs } = await supabase.from('performances').select('id, venue_name, artist_name, started_at').in('status', ['review', 'complete', 'completed', 'exported']).order('started_at', { ascending: false }).limit(10)
+      // FIX 1: scope to current user only — don't show other artists' shows
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { setPastLoading(false); return }
+
+      const { data: perfs } = await supabase
+        .from('performances')
+        .select('id, venue_name, artist_name, started_at')
+        .eq('user_id', user.id)
+        .in('status', ['review', 'complete', 'completed', 'exported'])
+        .order('started_at', { ascending: false })
+        .limit(20)
+
       if (!perfs) { setPastLoading(false); return }
-      const { data: songs } = await supabase.from('performance_songs').select('performance_id').in('performance_id', perfs.map(p => p.id))
+
+      const { data: songs } = await supabase
+        .from('performance_songs')
+        .select('performance_id')
+        .in('performance_id', perfs.map(p => p.id))
+
       const countMap: Record<string, number> = {}
       songs?.forEach(s => { countMap[s.performance_id] = (countMap[s.performance_id] || 0) + 1 })
-      setPastPerfs(perfs.map(p => ({ id: p.id, venue_name: p.venue_name, artist_name: p.artist_name, started_at: p.started_at, song_count: countMap[p.id] || 0 })).filter(p => p.song_count > 0))
+
+      setPastPerfs(
+        perfs
+          .map(p => ({
+            id: p.id,
+            venue_name: p.venue_name,
+            artist_name: p.artist_name,
+            started_at: p.started_at,
+            song_count: countMap[p.id] || 0,
+          }))
+          // FIX 2: filter out placeholder "." venue and shows with no songs
+          .filter(p => p.song_count > 0 && p.venue_name && p.venue_name.trim() !== '.')
+      )
       setPastLoading(false)
     }
     loadPast()
@@ -119,7 +147,10 @@ export default function NewShowPage() {
         if (nv) resolvedVenueId = nv.id
       }
       const scheduledIso = showSchedule && scheduledAt ? new Date(scheduledAt).toISOString() : null
-      const { data: show, error: showError } = await supabase.from('shows').insert({ name: name.trim(), show_type: showType, scheduled_at: scheduledIso, started_at: new Date().toISOString(), status: 'live', created_by: user?.id || null }).select().single()
+      const { data: show, error: showError } = await supabase.from('shows').insert({
+        name: name.trim(), show_type: showType, scheduled_at: scheduledIso,
+        started_at: new Date().toISOString(), status: 'live', created_by: user?.id || null,
+      }).select().single()
       if (showError) throw showError
       const { data: performance, error: perfError } = await supabase.from('performances').insert({
         show_id: show.id, performance_date: scheduledIso || new Date().toISOString(),
@@ -150,7 +181,10 @@ export default function NewShowPage() {
         if (nv) resolvedVenueId = nv.id
       }
       const scheduledIso = showSchedule && scheduledAt ? new Date(scheduledAt).toISOString() : null
-      const { data: show, error: showError } = await supabase.from('shows').insert({ name: name.trim(), show_type: showType, scheduled_at: scheduledIso, started_at: new Date().toISOString(), status: 'completed', created_by: user?.id || null }).select().single()
+      const { data: show, error: showError } = await supabase.from('shows').insert({
+        name: name.trim(), show_type: showType, scheduled_at: scheduledIso,
+        started_at: new Date().toISOString(), status: 'completed', created_by: user?.id || null,
+      }).select().single()
       if (showError) throw showError
       const { data: performance, error: perfError } = await supabase.from('performances').insert({
         show_id: show.id, performance_date: scheduledIso || new Date().toISOString(),
@@ -163,10 +197,14 @@ export default function NewShowPage() {
         user_id: user?.id || null,
       }).select().single()
       if (perfError) throw perfError
-      const { data: sourceSongs, error: songsError } = await supabase.from('performance_songs').select('title, artist, position').eq('performance_id', selectedPast.id).order('position', { ascending: true })
+      const { data: sourceSongs, error: songsError } = await supabase
+        .from('performance_songs').select('title, artist, position')
+        .eq('performance_id', selectedPast.id).order('position', { ascending: true })
       if (songsError) throw songsError
       if (sourceSongs && sourceSongs.length > 0) {
-        const { error: insertError } = await supabase.from('performance_songs').insert(sourceSongs.map((s, i) => ({ performance_id: performance.id, title: s.title, artist: s.artist, position: s.position || i + 1 })))
+        const { error: insertError } = await supabase.from('performance_songs').insert(
+          sourceSongs.map((s, i) => ({ performance_id: performance.id, title: s.title, artist: s.artist, position: s.position || i + 1 }))
+        )
         if (insertError) throw insertError
       }
       router.push(`/app/review/${performance.id}`)
@@ -230,13 +268,16 @@ export default function NewShowPage() {
               <input type="text" value={venueQuery} onChange={e => handleVenueInput(e.target.value)} onFocus={() => { if (venueResults.length > 0) setShowDropdown(true) }} placeholder="Search or type venue name..."
                 style={{ background: C.input, border: `1px solid ${venueSelected ? C.borderGold : venueQuery.trim() ? C.borderGold : C.border}`, borderRadius: 10, padding: '12px 40px 12px 14px', color: C.text, fontSize: 14, fontFamily: 'inherit', width: '100%', boxSizing: 'border-box', transition: 'border-color 0.15s ease' }} />
               <div style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}>
-                {venueSearching ? <div style={{ width: 13, height: 13, borderRadius: '50%', border: `2px solid ${C.muted}`, borderTopColor: C.gold, animation: 'spin 0.7s linear infinite' }} />
-                  : venueSelected ? <span style={{ fontSize: 13, color: C.gold }}>✓</span>
-                  : <Search size={13} color={C.muted} />}
+                {venueSearching
+                  ? <div style={{ width: 13, height: 13, borderRadius: '50%', border: `2px solid ${C.muted}`, borderTopColor: C.gold, animation: 'spin 0.7s linear infinite' }} />
+                  : venueSelected
+                    ? <span style={{ fontSize: 13, color: C.gold }}>✓</span>
+                    : <Search size={13} color={C.muted} />
+                }
               </div>
             </div>
 
-            {showDropdown && venueResults.length > 0 && (
+            {showDropdown && venueResults.length > 0 ? (
               <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#1a1816', border: `1px solid ${C.borderGold}`, borderRadius: 10, marginTop: 4, zIndex: 50, overflow: 'hidden', animation: 'fadeIn 0.15s ease', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
                 {venueResults.map((v, i) => (
                   <button key={v.id} onMouseDown={() => selectVenue(v)}
@@ -244,7 +285,7 @@ export default function NewShowPage() {
                     onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = C.cardHover}
                     onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}>
                     <span style={{ fontSize: 14, fontWeight: 600, color: C.text }}>{v.name}</span>
-                    {(v.city || v.country) && <span style={{ fontSize: 11, color: C.muted, display: 'flex', alignItems: 'center', gap: 3 }}><MapPin size={9} />{[v.city, v.country].filter(Boolean).join(', ')}</span>}
+                    {(v.city || v.country) ? <span style={{ fontSize: 11, color: C.muted, display: 'flex', alignItems: 'center', gap: 3 }}><MapPin size={9} />{[v.city, v.country].filter(Boolean).join(', ')}</span> : null}
                   </button>
                 ))}
                 <button onMouseDown={() => { setVenueSelected(false); setShowDropdown(false) }}
@@ -252,13 +293,13 @@ export default function NewShowPage() {
                   <span style={{ fontSize: 12, color: C.gold, fontWeight: 600 }}>+ Add "{venueQuery}" as new venue</span>
                 </button>
               </div>
-            )}
+            ) : null}
 
-            {showDropdown && venueResults.length === 0 && venueQuery.trim().length >= 2 && !venueSearching && (
+            {showDropdown && venueResults.length === 0 && venueQuery.trim().length >= 2 && !venueSearching ? (
               <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#1a1816', border: `1px solid ${C.border}`, borderRadius: 10, marginTop: 4, zIndex: 50, padding: '12px 14px', animation: 'fadeIn 0.15s ease' }}>
                 <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>No venues found — will be saved as new.</p>
               </div>
-            )}
+            ) : null}
           </div>
 
           {/* Show Type */}
@@ -277,7 +318,7 @@ export default function NewShowPage() {
           </div>
 
           {/* Schedule */}
-          {showSchedule && (
+          {showSchedule ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, animation: 'slideUp 0.2s ease' }}>
               <label style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, display: 'flex', alignItems: 'center', gap: 5 }}>
                 <Calendar size={10} />Scheduled Time
@@ -285,28 +326,31 @@ export default function NewShowPage() {
               <input type="datetime-local" value={scheduledAt} onChange={e => setScheduledAt(e.target.value)}
                 style={{ background: C.input, border: `1px solid ${scheduledAt ? C.borderGold : C.border}`, borderRadius: 10, padding: '12px 14px', color: C.text, fontSize: 14, fontFamily: 'inherit', width: '100%', colorScheme: 'dark' }} />
             </div>
-          )}
+          ) : null}
         </div>
 
-        {error && (
+        {error ? (
           <div style={{ background: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.2)', borderRadius: 10, padding: '12px 14px', marginBottom: 14, animation: 'fadeIn 0.2s ease' }}>
             <p style={{ fontSize: 13, color: '#f87171', margin: 0 }}>{error}</p>
           </div>
-        )}
+        ) : null}
 
-        {!showReuse && (
+        {!showReuse ? (
           <button onClick={handleSubmit} disabled={!isValid || loading}
             style={{ width: '100%', padding: '15px', background: isValid ? C.gold : C.muted, border: 'none', borderRadius: 12, color: '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: isValid && !loading ? 'pointer' : 'not-allowed', opacity: loading ? 0.7 : 1, transition: 'background 0.2s ease, opacity 0.2s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit' }}>
-            {loading ? (<><div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid #0a090840', borderTopColor: '#0a0908', animation: 'spin 0.7s linear infinite' }} />Starting...</>) : (<>Start Now<ArrowRight size={15} strokeWidth={2.5} /></>)}
+            {loading
+              ? <><div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid #0a090840', borderTopColor: '#0a0908', animation: 'spin 0.7s linear infinite' }} />Starting...</>
+              : <>Start Now<ArrowRight size={15} strokeWidth={2.5} /></>
+            }
           </button>
-        )}
+        ) : null}
 
         <button onClick={() => { setShowReuse(v => !v); setSelectedPast(null) }}
           style={{ width: '100%', padding: '11px 16px', background: showReuse ? C.goldDim : 'transparent', border: `1px solid ${showReuse ? C.borderGold : C.border}`, borderRadius: 10, color: showReuse ? C.gold : C.muted, fontSize: 12, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer', transition: 'all 0.2s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit', marginTop: showReuse ? 0 : 10 }}>
           <RefreshCw size={12} />{showReuse ? 'Cancel' : 'Reuse a Previous Setlist'}
         </button>
 
-        {showReuse && (
+        {showReuse ? (
           <div style={{ animation: 'slideUp 0.2s ease', marginTop: 10 }}>
             {pastLoading ? (
               <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -327,30 +371,36 @@ export default function NewShowPage() {
                       onMouseEnter={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = C.cardHover }}
                       onMouseLeave={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = C.card }}>
                       <div style={{ width: 20, height: 20, borderRadius: '50%', flexShrink: 0, background: isSelected ? C.gold : 'transparent', border: `1px solid ${isSelected ? C.gold : C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s ease' }}>
-                        {isSelected && <Check size={11} color="#0a0908" strokeWidth={3} />}
+                        {isSelected ? <Check size={11} color="#0a0908" strokeWidth={3} /> : null}
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <p style={{ fontSize: 13, fontWeight: 600, color: isSelected ? C.gold : C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{perf.venue_name}</p>
                         <p style={{ fontSize: 11, color: C.secondary, margin: '2px 0 0' }}>{perf.artist_name} · {formatDate(perf.started_at)}</p>
                       </div>
-                      <span style={{ fontSize: 11, fontWeight: 700, color: isSelected ? C.gold : C.muted, flexShrink: 0 }}>{perf.song_count} songs</span>
+                      {/* FIX 3: correct grammar for song count */}
+                      <span style={{ fontSize: 11, fontWeight: 700, color: isSelected ? C.gold : C.muted, flexShrink: 0 }}>
+                        {perf.song_count} {perf.song_count === 1 ? 'song' : 'songs'}
+                      </span>
                     </button>
                   )
                 })}
               </div>
             )}
 
-            {selectedPast && (
+            {selectedPast ? (
               <div style={{ marginTop: 12, animation: 'slideUp 0.15s ease' }}>
                 <button onClick={handleClone} disabled={!isValid || cloning}
                   style={{ width: '100%', padding: '15px', background: isValid ? C.gold : C.muted, border: 'none', borderRadius: 12, color: '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: isValid && !cloning ? 'pointer' : 'not-allowed', opacity: cloning ? 0.7 : 1, transition: 'all 0.2s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit' }}>
-                  {cloning ? (<><div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid #0a090840', borderTopColor: '#0a0908', animation: 'spin 0.7s linear infinite' }} />Cloning Setlist...</>) : (<><RefreshCw size={14} />Clone {selectedPast.song_count} Songs → Review</>)}
+                  {cloning
+                    ? <><div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid #0a090840', borderTopColor: '#0a0908', animation: 'spin 0.7s linear infinite' }} />Cloning Setlist...</>
+                    : <><RefreshCw size={14} />Clone {selectedPast.song_count} {selectedPast.song_count === 1 ? 'Song' : 'Songs'} → Review</>
+                  }
                 </button>
-                {!isValid && <p style={{ fontSize: 11, color: C.muted, textAlign: 'center', margin: '8px 0 0' }}>Enter a show name above first</p>}
+                {!isValid ? <p style={{ fontSize: 11, color: C.muted, textAlign: 'center', margin: '8px 0 0' }}>Enter a show name above first</p> : null}
               </div>
-            )}
+            ) : null}
           </div>
-        )}
+        ) : null}
 
         <button onClick={() => setShowSchedule(v => !v)}
           style={{ background: 'none', border: 'none', color: showSchedule ? C.gold : C.muted, fontSize: 12, cursor: 'pointer', letterSpacing: '0.04em', fontFamily: 'inherit', padding: '12px', width: '100%', marginTop: 4, transition: 'color 0.15s ease' }}>
