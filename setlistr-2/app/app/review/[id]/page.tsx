@@ -812,11 +812,12 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
             Back to Review
           </button>
         </div>
+      </div>
         <style>{`
           @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500;700&display=swap');
           @keyframes fadeUp { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
         `}</style>
-      </div>
+    </div>
     )
   }
 
@@ -1009,6 +1010,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
             closeAssignSheet()
           }}
         />
+      )}
 
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500;700&display=swap');
