@@ -12,20 +12,9 @@ const C = {
   green: '#4ade80',
 }
 
-type Venue = {
-  id: string
-  name: string
-  city: string
-  country: string
-}
-
-type PastPerformance = {
-  id: string
-  venue_name: string
-  artist_name: string
-  started_at: string
-  song_count: number
-}
+type Venue = { id: string; name: string; city: string; country: string }
+type PastPerformance = { id: string; venue_name: string; artist_name: string; started_at: string; song_count: number }
+type VenueMemory = { lastDate: string; songCount: number; showCount: number }
 
 export default function NewShowPage() {
   const router       = useRouter()
@@ -39,7 +28,6 @@ export default function NewShowPage() {
   const [loading, setLoading]           = useState(false)
   const [error, setError]               = useState('')
 
-  // Venue autocomplete
   const [venueQuery, setVenueQuery]         = useState('')
   const [venueId, setVenueId]               = useState<string | null>(null)
   const [venueCity, setVenueCity]           = useState('')
@@ -48,10 +36,10 @@ export default function NewShowPage() {
   const [venueResults, setVenueResults]     = useState<Venue[]>([])
   const [venueSearching, setVenueSearching] = useState(false)
   const [showDropdown, setShowDropdown]     = useState(false)
+  const [venueMemory, setVenueMemory]       = useState<VenueMemory | null>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const searchTimer = useRef<NodeJS.Timeout | null>(null)
 
-  // Reuse setlist
   const [showReuse, setShowReuse]       = useState(searchParams.get('reuse') === 'true')
   const [pastPerfs, setPastPerfs]       = useState<PastPerformance[]>([])
   const [pastLoading, setPastLoading]   = useState(false)
@@ -78,8 +66,37 @@ export default function NewShowPage() {
     setVenueSearching(false)
   }, [])
 
+  async function fetchVenueMemory(selectedVenueId: string) {
+    setVenueMemory(null)
+    try {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      const { data: perfs } = await supabase
+        .from('performances')
+        .select('id, started_at')
+        .eq('venue_id', selectedVenueId)
+        .eq('user_id', user.id)
+        .in('status', ['review', 'complete', 'completed', 'exported'])
+        .order('started_at', { ascending: false })
+        .limit(10)
+      if (!perfs || perfs.length === 0) return
+      const { data: songs } = await supabase
+        .from('performance_songs')
+        .select('performance_id')
+        .in('performance_id', perfs.map(p => p.id))
+      const countMap: Record<string, number> = {}
+      songs?.forEach(s => { countMap[s.performance_id] = (countMap[s.performance_id] || 0) + 1 })
+      setVenueMemory({
+        lastDate:  perfs[0].started_at,
+        songCount: countMap[perfs[0].id] || 0,
+        showCount: perfs.length,
+      })
+    } catch { /* non-blocking */ }
+  }
+
   function handleVenueInput(val: string) {
-    setVenueQuery(val); setVenueId(null); setVenueSelected(false)
+    setVenueQuery(val); setVenueId(null); setVenueSelected(false); setVenueMemory(null)
     if (searchTimer.current) clearTimeout(searchTimer.current)
     searchTimer.current = setTimeout(() => searchVenues(val), 280)
   }
@@ -89,6 +106,11 @@ export default function NewShowPage() {
     setVenueCity(v.city || ''); setVenueCountry(v.country || '')
     setVenueSelected(true); setShowDropdown(false); setVenueResults([])
     if (!name.trim()) setName(v.name)
+    fetchVenueMemory(v.id)
+  }
+
+  function formatDate(d: string) {
+    return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
   }
 
   useEffect(() => {
@@ -96,40 +118,17 @@ export default function NewShowPage() {
     setPastLoading(true)
     const supabase = createClient()
     async function loadPast() {
-      // FIX 1: scope to current user only — don't show other artists' shows
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { setPastLoading(false); return }
-
       const { data: perfs } = await supabase
-        .from('performances')
-        .select('id, venue_name, artist_name, started_at')
-        .eq('user_id', user.id)
-        .in('status', ['review', 'complete', 'completed', 'exported'])
-        .order('started_at', { ascending: false })
-        .limit(20)
-
+        .from('performances').select('id, venue_name, artist_name, started_at')
+        .eq('user_id', user.id).in('status', ['review', 'complete', 'completed', 'exported'])
+        .order('started_at', { ascending: false }).limit(20)
       if (!perfs) { setPastLoading(false); return }
-
-      const { data: songs } = await supabase
-        .from('performance_songs')
-        .select('performance_id')
-        .in('performance_id', perfs.map(p => p.id))
-
+      const { data: songs } = await supabase.from('performance_songs').select('performance_id').in('performance_id', perfs.map(p => p.id))
       const countMap: Record<string, number> = {}
       songs?.forEach(s => { countMap[s.performance_id] = (countMap[s.performance_id] || 0) + 1 })
-
-      setPastPerfs(
-        perfs
-          .map(p => ({
-            id: p.id,
-            venue_name: p.venue_name,
-            artist_name: p.artist_name,
-            started_at: p.started_at,
-            song_count: countMap[p.id] || 0,
-          }))
-          // FIX 2: filter out placeholder "." venue and shows with no songs
-          .filter(p => p.song_count > 0 && p.venue_name && p.venue_name.trim() !== '.')
-      )
+      setPastPerfs(perfs.map(p => ({ id: p.id, venue_name: p.venue_name, artist_name: p.artist_name, started_at: p.started_at, song_count: countMap[p.id] || 0 })).filter(p => p.song_count > 0 && p.venue_name && p.venue_name.trim() !== '.'))
       setPastLoading(false)
     }
     loadPast()
@@ -147,20 +146,9 @@ export default function NewShowPage() {
         if (nv) resolvedVenueId = nv.id
       }
       const scheduledIso = showSchedule && scheduledAt ? new Date(scheduledAt).toISOString() : null
-      const { data: show, error: showError } = await supabase.from('shows').insert({
-        name: name.trim(), show_type: showType, scheduled_at: scheduledIso,
-        started_at: new Date().toISOString(), status: 'live', created_by: user?.id || null,
-      }).select().single()
+      const { data: show, error: showError } = await supabase.from('shows').insert({ name: name.trim(), show_type: showType, scheduled_at: scheduledIso, started_at: new Date().toISOString(), status: 'live', created_by: user?.id || null }).select().single()
       if (showError) throw showError
-      const { data: performance, error: perfError } = await supabase.from('performances').insert({
-        show_id: show.id, performance_date: scheduledIso || new Date().toISOString(),
-        artist_name: artistName.trim() || name.trim(),
-        venue_name: venueQuery.trim() || name.trim(),
-        venue_id: resolvedVenueId || null,
-        city: venueCity.trim() || '', country: venueCountry.trim() || '',
-        status: 'live', set_duration_minutes: 60, auto_close_buffer_minutes: 5,
-        started_at: new Date().toISOString(), user_id: user?.id || null,
-      }).select().single()
+      const { data: performance, error: perfError } = await supabase.from('performances').insert({ show_id: show.id, performance_date: scheduledIso || new Date().toISOString(), artist_name: artistName.trim() || name.trim(), venue_name: venueQuery.trim() || name.trim(), venue_id: resolvedVenueId || null, city: venueCity.trim() || '', country: venueCountry.trim() || '', status: 'live', set_duration_minutes: 60, auto_close_buffer_minutes: 5, started_at: new Date().toISOString(), user_id: user?.id || null }).select().single()
       if (perfError) throw perfError
       router.push(`/app/live/${performance.id}`)
     } catch (err: any) {
@@ -181,30 +169,14 @@ export default function NewShowPage() {
         if (nv) resolvedVenueId = nv.id
       }
       const scheduledIso = showSchedule && scheduledAt ? new Date(scheduledAt).toISOString() : null
-      const { data: show, error: showError } = await supabase.from('shows').insert({
-        name: name.trim(), show_type: showType, scheduled_at: scheduledIso,
-        started_at: new Date().toISOString(), status: 'completed', created_by: user?.id || null,
-      }).select().single()
+      const { data: show, error: showError } = await supabase.from('shows').insert({ name: name.trim(), show_type: showType, scheduled_at: scheduledIso, started_at: new Date().toISOString(), status: 'completed', created_by: user?.id || null }).select().single()
       if (showError) throw showError
-      const { data: performance, error: perfError } = await supabase.from('performances').insert({
-        show_id: show.id, performance_date: scheduledIso || new Date().toISOString(),
-        artist_name: artistName.trim() || name.trim(),
-        venue_name: venueQuery.trim() || name.trim(),
-        venue_id: resolvedVenueId || null,
-        city: venueCity.trim() || '', country: venueCountry.trim() || '',
-        status: 'review', set_duration_minutes: 60, auto_close_buffer_minutes: 5,
-        started_at: new Date().toISOString(), ended_at: new Date().toISOString(),
-        user_id: user?.id || null,
-      }).select().single()
+      const { data: performance, error: perfError } = await supabase.from('performances').insert({ show_id: show.id, performance_date: scheduledIso || new Date().toISOString(), artist_name: artistName.trim() || name.trim(), venue_name: venueQuery.trim() || name.trim(), venue_id: resolvedVenueId || null, city: venueCity.trim() || '', country: venueCountry.trim() || '', status: 'review', set_duration_minutes: 60, auto_close_buffer_minutes: 5, started_at: new Date().toISOString(), ended_at: new Date().toISOString(), user_id: user?.id || null }).select().single()
       if (perfError) throw perfError
-      const { data: sourceSongs, error: songsError } = await supabase
-        .from('performance_songs').select('title, artist, position')
-        .eq('performance_id', selectedPast.id).order('position', { ascending: true })
+      const { data: sourceSongs, error: songsError } = await supabase.from('performance_songs').select('title, artist, position').eq('performance_id', selectedPast.id).order('position', { ascending: true })
       if (songsError) throw songsError
       if (sourceSongs && sourceSongs.length > 0) {
-        const { error: insertError } = await supabase.from('performance_songs').insert(
-          sourceSongs.map((s, i) => ({ performance_id: performance.id, title: s.title, artist: s.artist, position: s.position || i + 1 }))
-        )
+        const { error: insertError } = await supabase.from('performance_songs').insert(sourceSongs.map((s, i) => ({ performance_id: performance.id, title: s.title, artist: s.artist, position: s.position || i + 1 })))
         if (insertError) throw insertError
       }
       router.push(`/app/review/${performance.id}`)
@@ -214,17 +186,12 @@ export default function NewShowPage() {
     }
   }
 
-  function formatDate(d: string) {
-    return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-  }
-
   return (
     <div style={{ minHeight: '100svh', background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px 20px' }}>
       <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '50vh', pointerEvents: 'none', zIndex: 0, background: 'radial-gradient(ellipse at 50% 0%, rgba(201,168,76,0.07) 0%, transparent 65%)' }} />
 
       <div style={{ width: '100%', maxWidth: 440, position: 'relative', zIndex: 1, animation: 'fadeUp 0.4s ease' }}>
 
-        {/* Logo */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 32 }}>
           <div style={{ width: 36, height: 36, borderRadius: '50%', background: C.goldDim, border: `1px solid ${C.borderGold}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <Music4 size={16} color={C.gold} />
@@ -238,10 +205,8 @@ export default function NewShowPage() {
         <h1 style={{ fontSize: 28, fontWeight: 800, color: C.text, margin: '0 0 6px', letterSpacing: '-0.025em' }}>Set up your show</h1>
         <p style={{ fontSize: 14, color: C.secondary, margin: '0 0 28px' }}>Fill in the details below to begin live capture.</p>
 
-        {/* Form card */}
         <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '24px', display: 'flex', flexDirection: 'column', gap: 20, marginBottom: 16 }}>
 
-          {/* Show Name */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <label style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, display: 'flex', alignItems: 'center', gap: 5 }}>
               <Building2 size={10} />Show Name<span style={{ color: C.gold }}>*</span>
@@ -250,7 +215,6 @@ export default function NewShowPage() {
               style={{ background: C.input, border: `1px solid ${name.trim() ? C.borderGold : C.border}`, borderRadius: 10, padding: '13px 14px', color: C.text, fontSize: 15, fontFamily: 'inherit', width: '100%', transition: 'border-color 0.15s ease' }} />
           </div>
 
-          {/* Artist Name */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <label style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, display: 'flex', alignItems: 'center', gap: 5 }}>
               <User size={10} />Artist Name
@@ -270,12 +234,25 @@ export default function NewShowPage() {
               <div style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}>
                 {venueSearching
                   ? <div style={{ width: 13, height: 13, borderRadius: '50%', border: `2px solid ${C.muted}`, borderTopColor: C.gold, animation: 'spin 0.7s linear infinite' }} />
-                  : venueSelected
-                    ? <span style={{ fontSize: 13, color: C.gold }}>✓</span>
-                    : <Search size={13} color={C.muted} />
-                }
+                  : venueSelected ? <span style={{ fontSize: 13, color: C.gold }}>✓</span>
+                  : <Search size={13} color={C.muted} />}
               </div>
             </div>
+
+            {/* Venue memory pill — shown after selecting a known venue */}
+            {venueMemory ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 8, animation: 'fadeIn 0.2s ease' }}>
+                <span style={{ fontSize: 13 }}>📍</span>
+                <p style={{ fontSize: 12, color: C.gold, margin: 0, lineHeight: 1.4 }}>
+                  Last time here:{' '}
+                  <strong>{venueMemory.songCount} {venueMemory.songCount === 1 ? 'song' : 'songs'}</strong>
+                  {' '}on {formatDate(venueMemory.lastDate)}
+                  {venueMemory.showCount > 1
+                    ? <span style={{ color: C.secondary, fontWeight: 400 }}> · {venueMemory.showCount} shows total</span>
+                    : null}
+                </p>
+              </div>
+            ) : null}
 
             {showDropdown && venueResults.length > 0 ? (
               <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#1a1816', border: `1px solid ${C.borderGold}`, borderRadius: 10, marginTop: 4, zIndex: 50, overflow: 'hidden', animation: 'fadeIn 0.15s ease', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
@@ -302,7 +279,6 @@ export default function NewShowPage() {
             ) : null}
           </div>
 
-          {/* Show Type */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <label style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, display: 'flex', alignItems: 'center', gap: 5 }}>
               <Music2 size={10} />Show Type
@@ -317,7 +293,6 @@ export default function NewShowPage() {
             </div>
           </div>
 
-          {/* Schedule */}
           {showSchedule ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, animation: 'slideUp 0.2s ease' }}>
               <label style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, display: 'flex', alignItems: 'center', gap: 5 }}>
@@ -340,8 +315,7 @@ export default function NewShowPage() {
             style={{ width: '100%', padding: '15px', background: isValid ? C.gold : C.muted, border: 'none', borderRadius: 12, color: '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: isValid && !loading ? 'pointer' : 'not-allowed', opacity: loading ? 0.7 : 1, transition: 'background 0.2s ease, opacity 0.2s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit' }}>
             {loading
               ? <><div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid #0a090840', borderTopColor: '#0a0908', animation: 'spin 0.7s linear infinite' }} />Starting...</>
-              : <>Start Now<ArrowRight size={15} strokeWidth={2.5} /></>
-            }
+              : <>Start Now<ArrowRight size={15} strokeWidth={2.5} /></>}
           </button>
         ) : null}
 
@@ -377,7 +351,6 @@ export default function NewShowPage() {
                         <p style={{ fontSize: 13, fontWeight: 600, color: isSelected ? C.gold : C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{perf.venue_name}</p>
                         <p style={{ fontSize: 11, color: C.secondary, margin: '2px 0 0' }}>{perf.artist_name} · {formatDate(perf.started_at)}</p>
                       </div>
-                      {/* FIX 3: correct grammar for song count */}
                       <span style={{ fontSize: 11, fontWeight: 700, color: isSelected ? C.gold : C.muted, flexShrink: 0 }}>
                         {perf.song_count} {perf.song_count === 1 ? 'song' : 'songs'}
                       </span>
@@ -386,15 +359,13 @@ export default function NewShowPage() {
                 })}
               </div>
             )}
-
             {selectedPast ? (
               <div style={{ marginTop: 12, animation: 'slideUp 0.15s ease' }}>
                 <button onClick={handleClone} disabled={!isValid || cloning}
                   style={{ width: '100%', padding: '15px', background: isValid ? C.gold : C.muted, border: 'none', borderRadius: 12, color: '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: isValid && !cloning ? 'pointer' : 'not-allowed', opacity: cloning ? 0.7 : 1, transition: 'all 0.2s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit' }}>
                   {cloning
                     ? <><div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid #0a090840', borderTopColor: '#0a0908', animation: 'spin 0.7s linear infinite' }} />Cloning Setlist...</>
-                    : <><RefreshCw size={14} />Clone {selectedPast.song_count} {selectedPast.song_count === 1 ? 'Song' : 'Songs'} → Review</>
-                  }
+                    : <><RefreshCw size={14} />Clone {selectedPast.song_count} {selectedPast.song_count === 1 ? 'Song' : 'Songs'} → Review</>}
                 </button>
                 {!isValid ? <p style={{ fontSize: 11, color: C.muted, textAlign: 'center', margin: '8px 0 0' }}>Enter a show name above first</p> : null}
               </div>
