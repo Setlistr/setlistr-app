@@ -42,15 +42,46 @@ type Profile = {
   artist_name: string | null
 }
 
-// PRO submission deep links
+// PRO portal links and navigation instructions
+// None of these PROs support public deep links to submission forms —
+// they all require login first. We link to the member portal login page
+// and give exact navigation steps to reach the submission form.
 const PRO_LINKS: Record<string, { url: string; label: string; instructions: string }> = {
-  SOCAN:  { url: 'https://members.socan.ca/submitPerformance',  label: 'Open SOCAN',  instructions: 'Log in → Concert/Tour → Paste setlist' },
-  ASCAP:  { url: 'https://www.ascap.com/playback',             label: 'Open ASCAP',  instructions: 'Log in → Submit Concert → Paste setlist' },
-  BMI:    { url: 'https://repertoire.bmi.com',                 label: 'Open BMI',    instructions: 'Log in → Live Performance → Paste setlist' },
-  SESAC:  { url: 'https://www.sesac.com',                      label: 'Open SESAC',  instructions: 'Contact your SESAC rep to submit' },
-  GMR:    { url: 'https://www.globalmusicrights.com',          label: 'Open GMR',    instructions: 'Contact GMR directly to submit' },
-  APRA:   { url: 'https://www.apraamcos.com.au',               label: 'Open APRA',   instructions: 'Log in → Live Performance → Submit' },
-  PRS:    { url: 'https://www.prsformusic.com',                label: 'Open PRS',    instructions: 'Log in → Live Music → Submit setlist' },
+  SOCAN: {
+    url:          'https://www.socan.com/member-portal',
+    label:        'Open SOCAN Portal',
+    instructions: 'Log in → Performances & Repertoire → Live Performances → Submit NLMP form',
+  },
+  ASCAP: {
+    url:          'https://www.ascap.com/member',
+    label:        'Open ASCAP Portal',
+    instructions: 'Log in → My Account → Concerts & Live Performances → Submit setlist',
+  },
+  BMI: {
+    url:          'https://www.bmi.com/members',
+    label:        'Open BMI Portal',
+    instructions: 'Log in → My Account → Live Performance Royalties → Submit setlist',
+  },
+  SESAC: {
+    url:          'https://www.sesac.com/members',
+    label:        'Open SESAC Portal',
+    instructions: 'Log in or contact your SESAC rep to submit live performance data',
+  },
+  GMR: {
+    url:          'https://www.globalmusicrights.com',
+    label:        'Open GMR',
+    instructions: 'Contact your GMR representative directly to submit setlists',
+  },
+  APRA: {
+    url:          'https://www.apraamcos.com.au/members',
+    label:        'Open APRA Portal',
+    instructions: 'Log in → Live Performance → Submit a setlist',
+  },
+  PRS: {
+    url:          'https://www.prsformusic.com/my-prs',
+    label:        'Open PRS Portal',
+    instructions: 'Log in → My Account → Live Music → Submit setlist',
+  },
 }
 
 function deriveRegistrationStatus(song: { isrc?: string; composer?: string }): 'registered' | 'likely' | 'unknown' {
