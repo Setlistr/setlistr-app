@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { Plus, TrendingUp, Mic, Music4, RefreshCw, AlertCircle } from 'lucide-react'
+import { Plus, TrendingUp, Mic, Music4, RefreshCw, AlertCircle, Check } from 'lucide-react'
 import {
   estimateRoyalties, aggregateUnclaimedEarnings,
   capacityToBand, type ShowEstimateInput,
@@ -25,19 +25,27 @@ type Performance = {
   city: string
   country: string
   status: string
+  submission_status: string | null
   started_at: string
   created_at: string
   show_type?: string
   venue_capacity?: number | null
 }
 
-const STATUS_LABEL: Record<string, { label: string; color: string; bg: string }> = {
-  live:      { label: 'Live',         color: C.red,   bg: C.redDim },
-  pending:   { label: 'Live',         color: C.red,   bg: C.redDim },
-  review:    { label: 'Needs Review', color: C.blue,  bg: C.blueDim },
-  complete:  { label: 'Completed',    color: C.green, bg: C.greenDim },
-  completed: { label: 'Completed',    color: C.green, bg: C.greenDim },
-  exported:  { label: 'Exported',     color: C.green, bg: C.greenDim },
+// submission_status = 'submitted' takes visual priority over performance status
+function getDisplayStatus(p: Performance): { label: string; color: string; bg: string } {
+  if (p.submission_status === 'submitted') {
+    return { label: 'Submitted', color: C.green, bg: C.greenDim }
+  }
+  const map: Record<string, { label: string; color: string; bg: string }> = {
+    live:      { label: 'Live',         color: C.red,   bg: C.redDim },
+    pending:   { label: 'Live',         color: C.red,   bg: C.redDim },
+    review:    { label: 'Needs Review', color: C.blue,  bg: C.blueDim },
+    complete:  { label: 'Completed',    color: C.green, bg: C.greenDim },
+    completed: { label: 'Completed',    color: C.green, bg: C.greenDim },
+    exported:  { label: 'Exported',     color: C.green, bg: C.greenDim },
+  }
+  return map[p.status] || { label: 'Needs Review', color: C.blue, bg: C.blueDim }
 }
 
 function timeAgo(d: string) {
@@ -59,6 +67,7 @@ export default function DashboardPage() {
   const [needsReview, setNeedsReview]   = useState(0)
   const [userId, setUserId]             = useState<string | null>(null)
   const [showEstimates, setShowEstimates] = useState<ShowEstimateInput[]>([])
+  const [songCountMap, setSongCountMap] = useState<Record<string, number>>({})
 
   useEffect(() => {
     const supabase = createClient()
@@ -67,12 +76,11 @@ export default function DashboardPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (user) setUserId(user.id)
 
-      // Fetch performances with show type — join to shows table for show_type
       const { data, error } = await supabase
         .from('performances')
         .select(`
           id, venue_name, artist_name, city, country,
-          status, started_at, created_at,
+          status, submission_status, started_at, created_at,
           shows ( show_type ),
           venues ( capacity )
         `)
@@ -82,50 +90,60 @@ export default function DashboardPage() {
 
       if (data) {
         const perfs: Performance[] = data.map((p: any) => ({
-          id:             p.id,
-          venue_name:     p.venue_name,
-          artist_name:    p.artist_name,
-          city:           p.city,
-          country:        p.country,
-          status:         p.status,
-          started_at:     p.started_at,
-          created_at:     p.created_at,
-          show_type:      p.shows?.show_type || 'single',
-          venue_capacity: p.venues?.capacity || null,
+          id:                p.id,
+          venue_name:        p.venue_name,
+          artist_name:       p.artist_name,
+          city:              p.city,
+          country:           p.country,
+          status:            p.status,
+          submission_status: p.submission_status || null,
+          started_at:        p.started_at,
+          created_at:        p.created_at,
+          show_type:         p.shows?.show_type || 'single',
+          venue_capacity:    p.venues?.capacity || null,
         }))
 
         setPerformances(perfs)
-        setNeedsReview(perfs.filter(p => p.status === 'review').length)
+
+        // Needs review = status is 'review' AND not yet submitted
+        setNeedsReview(
+          perfs.filter(p => p.status === 'review' && p.submission_status !== 'submitted').length
+        )
 
         const live = perfs.find(p => p.status === 'live' || p.status === 'pending')
         setLivePerf(live || null)
 
-        // Fetch song counts per performance for estimate engine
+        // Song counts
         const { data: songData } = await supabase
           .from('performance_songs')
           .select('performance_id')
           .in('performance_id', perfs.map(p => p.id))
 
-        const songCountMap: Record<string, number> = {}
+        const countMap: Record<string, number> = {}
         songData?.forEach((s: any) => {
-          songCountMap[s.performance_id] = (songCountMap[s.performance_id] || 0) + 1
+          countMap[s.performance_id] = (countMap[s.performance_id] || 0) + 1
         })
 
-        const total = Object.values(songCountMap).reduce((a, b) => a + b, 0)
+        setSongCountMap(countMap)
+        const total = Object.values(countMap).reduce((a, b) => a + b, 0)
         setTotalSongs(total)
 
-        // Build per-show estimate inputs
+        // Only include shows that are completed AND not yet submitted in unclaimed calc
         const estimates: ShowEstimateInput[] = perfs
-          .filter(p => p.status !== 'live' && p.status !== 'pending')
+          .filter(p =>
+            p.status !== 'live' &&
+            p.status !== 'pending' &&
+            p.submission_status !== 'submitted'   // ← exclude submitted shows
+          )
           .map(p => ({
             performanceId:     p.id,
             status:            p.status,
-            songCount:         songCountMap[p.id] || 0,
+            songCount:         countMap[p.id] || 0,
             venueCapacityBand: capacityToBand(p.venue_capacity),
             showType:          (p.show_type as any) || 'single',
             territory:         p.country === 'CA' || p.country === 'Canada' ? 'CA' : 'US',
           }))
-          .filter(e => e.songCount > 0)
+          .filter(e => e.songCount > 0)           // ← no songs = no estimate
 
         setShowEstimates(estimates)
       }
@@ -138,11 +156,14 @@ export default function DashboardPage() {
 
   const aggregate   = aggregateUnclaimedEarnings(showEstimates)
   const totalShows  = performances.filter(p => p.status !== 'live' && p.status !== 'pending').length
+  const submittedCount = performances.filter(p => p.submission_status === 'submitted').length
   const recentPerfs = performances.slice(0, 5)
 
   function navigateToPerformance(p: Performance) {
     if (p.status === 'live' || p.status === 'pending') {
       router.push(`/app/live/${p.id}`)
+    } else if (p.submission_status === 'submitted') {
+      router.push(`/app/submit/${p.id}`)
     } else {
       router.push(`/app/review/${p.id}`)
     }
@@ -162,7 +183,6 @@ export default function DashboardPage() {
 
   return (
     <div style={{ minHeight: '100svh', background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif' }}>
-
       <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '45vh', pointerEvents: 'none', zIndex: 0, background: 'radial-gradient(ellipse at 50% 0%, rgba(201,168,76,0.06) 0%, transparent 65%)' }} />
 
       <div style={{ maxWidth: 520, margin: '0 auto', padding: '0 16px', position: 'relative', zIndex: 1 }}>
@@ -172,9 +192,19 @@ export default function DashboardPage() {
           <div style={{ width: 32, height: 32, borderRadius: '50%', background: C.goldDim, border: `1px solid ${C.borderGold}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <Music4 size={14} color={C.gold} />
           </div>
-          <button onClick={() => router.push('/app/history')} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 12, cursor: 'pointer', letterSpacing: '0.06em', fontFamily: 'inherit' }}>
-            History →
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            {submittedCount > 0 ? (
+              <span style={{ fontSize: 11, color: C.green, background: C.greenDim, border: '1px solid rgba(74,222,128,0.2)', borderRadius: 20, padding: '3px 10px', display: 'flex', alignItems: 'center', gap: 4 }}>
+                <Check size={10} strokeWidth={2.5} />{submittedCount} submitted
+              </span>
+            ) : null}
+            <button onClick={() => router.push('/app/settings')} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 12, cursor: 'pointer', letterSpacing: '0.06em', fontFamily: 'inherit' }}>
+              Settings
+            </button>
+            <button onClick={() => router.push('/app/history')} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 12, cursor: 'pointer', letterSpacing: '0.06em', fontFamily: 'inherit' }}>
+              History →
+            </button>
+          </div>
         </div>
 
         {/* Hero CTA */}
@@ -229,7 +259,7 @@ export default function DashboardPage() {
           </div>
         ) : null}
 
-        {/* ── Unclaimed earnings banner ── */}
+        {/* Unclaimed earnings banner — only shows if there are unclaimed shows with songs */}
         {aggregate.unclaimedCount > 0 ? (
           <div style={{ marginBottom: 20, animation: 'fadeUp 0.42s ease' }}>
             <button
@@ -254,7 +284,7 @@ export default function DashboardPage() {
           </div>
         ) : null}
 
-        {/* ── Royalty Estimator ── */}
+        {/* Royalty Estimator */}
         <div style={{ marginBottom: 20, animation: 'fadeUp 0.45s ease' }}>
           <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '20px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
@@ -281,18 +311,19 @@ export default function DashboardPage() {
                 </p>
                 <p style={{ fontSize: 12, color: C.secondary, margin: '0 0 16px' }}>
                   Across {totalShows} show{totalShows !== 1 ? 's' : ''} · {totalSongs} songs
+                  {submittedCount > 0 ? ` · ${submittedCount} submitted` : ''}
                 </p>
               </div>
             )}
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 14 }}>
               {[
-                { label: 'Shows',       value: totalShows },
-                { label: 'Songs',       value: totalSongs },
-                { label: 'Needs Review', value: needsReview },
+                { label: 'Shows',        value: totalShows,      color: totalShows > 0 ? C.gold : C.muted },
+                { label: 'Songs',        value: totalSongs,      color: totalSongs > 0 ? C.gold : C.muted },
+                { label: 'Needs Review', value: needsReview,     color: needsReview > 0 ? C.blue : C.muted },
               ].map(stat => (
                 <div key={stat.label} style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid ${C.border}`, borderRadius: 8, padding: '8px 10px', textAlign: 'center' }}>
-                  <p style={{ fontSize: 16, fontWeight: 800, color: stat.value > 0 ? C.gold : C.muted, margin: 0, fontFamily: '"DM Mono", monospace' }}>{stat.value}</p>
+                  <p style={{ fontSize: 16, fontWeight: 800, color: stat.color, margin: 0, fontFamily: '"DM Mono", monospace' }}>{stat.value}</p>
                   <p style={{ fontSize: 9, color: C.muted, margin: '2px 0 0', letterSpacing: '0.08em', textTransform: 'uppercase' }}>{stat.label}</p>
                 </div>
               ))}
@@ -300,9 +331,12 @@ export default function DashboardPage() {
 
             <p style={{ fontSize: 10, color: C.muted, margin: 0, lineHeight: 1.5, borderTop: `1px solid ${C.border}`, paddingTop: 12 }}>
               Weighted by venue size and show type.
-              {needsReview > 0 ? (
-                <span style={{ color: C.gold }}> {needsReview} show{needsReview !== 1 ? 's' : ''} still need review — complete them to maximize your claim.</span>
-              ) : null}
+              {needsReview > 0
+                ? <span style={{ color: C.gold }}> {needsReview} show{needsReview !== 1 ? 's' : ''} still need review — complete them to maximize your claim.</span>
+                : submittedCount > 0
+                  ? <span style={{ color: C.green }}> {submittedCount} show{submittedCount !== 1 ? 's' : ''} submitted to your PRO.</span>
+                  : null
+              }
             </p>
           </div>
         </div>
@@ -330,15 +364,17 @@ export default function DashboardPage() {
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {recentPerfs.map((perf, i) => {
-                const status  = STATUS_LABEL[perf.status] || STATUS_LABEL.review
-                const dateStr = perf.started_at || perf.created_at
-                // Per-show estimate for the row
-                const perfEst = perf.status !== 'live' && perf.status !== 'pending'
+                const displayStatus = getDisplayStatus(perf)
+                const dateStr       = perf.started_at || perf.created_at
+                const songCount     = songCountMap[perf.id] || 0
+                const isFinished    = perf.status !== 'live' && perf.status !== 'pending'
+                // Only show estimate if show is done AND has songs
+                const perfEst = isFinished && songCount > 0
                   ? estimateRoyalties({
-                      songCount: showEstimates.find(e => e.performanceId === perf.id)?.songCount || 0,
+                      songCount,
                       venueCapacityBand: capacityToBand(perf.venue_capacity),
-                      showType: (perf.show_type as any) || 'single',
-                      territory: perf.country === 'CA' || perf.country === 'Canada' ? 'CA' : 'US',
+                      showType:          (perf.show_type as any) || 'single',
+                      territory:         perf.country === 'CA' || perf.country === 'Canada' ? 'CA' : 'US',
                     })
                   : null
 
@@ -350,6 +386,7 @@ export default function DashboardPage() {
                     onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.background = C.cardHover; el.style.borderColor = 'rgba(255,255,255,0.12)' }}
                     onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.background = C.card; el.style.borderColor = C.border }}
                   >
+                    {/* Date */}
                     <div style={{ minWidth: 36, textAlign: 'center', flexShrink: 0 }}>
                       <p style={{ fontSize: 17, fontWeight: 800, color: C.text, margin: 0, fontFamily: '"DM Mono", monospace', lineHeight: 1 }}>
                         {new Date(dateStr).getDate()}
@@ -370,9 +407,10 @@ export default function DashboardPage() {
                       </p>
                     </div>
 
+                    {/* Status + estimate */}
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, flexShrink: 0 }}>
-                      <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: status.color, background: status.bg, border: `1px solid ${status.color}40`, borderRadius: 20, padding: '3px 8px' }}>
-                        {status.label}
+                      <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: displayStatus.color, background: displayStatus.bg, border: `1px solid ${displayStatus.color}40`, borderRadius: 20, padding: '3px 8px' }}>
+                        {displayStatus.label}
                       </span>
                       {perfEst && perfEst.expected > 0 ? (
                         <span style={{ fontSize: 10, color: C.muted, fontFamily: '"DM Mono", monospace' }}>
