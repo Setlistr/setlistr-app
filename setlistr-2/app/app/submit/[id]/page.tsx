@@ -28,21 +28,22 @@ const PRO_CONFIG: Record<string, {
   submitUrl:    string  // most direct URL after login
 }> = {
   SOCAN: {
-    portal:       'https://www.socan.com/member-portal',
-    portalLabel:  'Open SOCAN Portal',
-    program:      'NLMP (Notification of Live Music Performance)',
+    portal:       'https://memp.socan.com',
+    portalLabel:  'Open SOCAN New Portal',
+    program:      'Live Performances & Set List Submissions',
     steps: [
-      'Log in at socan.com/member-portal',
-      'Click "SOCAN Forms" in the top navigation',
-      'Select "Notification of Live Music Performance"',
-      'Enter venue name, city, date and ticket price',
-      'Add each song title from your setlist',
-      'Attach proof of performance (ticket stub, poster, or contract)',
-      'Submit — you have up to 1 year from show date',
+      'Log in at memp.socan.com (new portal — create new login if first time)',
+      'Step 1: Create your Set List — navigate to Live Performances → Set Lists → Create',
+      'Add each song from your setlist (search by title, artist, or work number)',
+      'Save and Register your set list (registration is instant if all songs are in SOCAN catalog)',
+      'Step 2: Input Live Performance — go to Live Performances → Concerts → Add',
+      'Search venue name — address auto-populates',
+      'Attach the registered set list you just created → Submit',
+      'Track status: Pending → Accepted (then in queue for payment)',
     ],
     deadline:     '1 year from show date',
     deadlineDays: (now: Date) => 365,
-    submitUrl:    'https://www.socan.com/member-portal',
+    submitUrl:    'https://memp.socan.com',
   },
   ASCAP: {
     portal:       'https://www.ascap.com/members',
