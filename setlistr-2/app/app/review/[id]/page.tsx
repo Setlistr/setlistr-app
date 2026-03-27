@@ -12,6 +12,8 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { GripVertical, Download, Check, X, Music2, MapPin, Calendar } from 'lucide-react'
+// CHANGE 1: import estimator
+import { estimateRoyalties, capacityToBand } from '@/lib/royalty-estimate'
 
 const C = {
   bg: '#0a0908', card: '#141210', cardHover: '#181614',
@@ -33,6 +35,7 @@ type Song = {
   reviewState?: 'clean' | 'needs_review'
 }
 
+// CHANGE 2: added show_type and venue_capacity to Performance type
 type Performance = {
   id: string
   artist_name: string
@@ -44,6 +47,8 @@ type Performance = {
   set_duration_minutes: number
   setlist_id?: string | null
   show_id?: string | null
+  show_type?: string | null
+  venue_capacity?: number | null
 }
 
 type PRO = 'SOCAN' | 'ASCAP' | 'BMI'
@@ -482,12 +487,17 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
     }
   }
 
+  // CHANGE 3: join shows(show_type) and venues(capacity)
   useEffect(() => {
     const supabase = createClient()
-    supabase.from('performances').select('*').eq('id', params.id).single()
+    supabase.from('performances').select('*, shows(show_type), venues(capacity)').eq('id', params.id).single()
       .then(async ({ data: perf }) => {
         if (!perf) { setLoading(false); return }
-        setPerformance(perf)
+        setPerformance({
+          ...perf,
+          show_type: perf.shows?.show_type || null,
+          venue_capacity: perf.venues?.capacity || null,
+        })
         const resolvedSetlistId = perf.setlist_id || null
         setSetlistId(resolvedSetlistId)
         if (resolvedSetlistId) {
@@ -663,29 +673,49 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
   const dur              = formatDuration()
 
   if (showComplete) {
-    const royaltyLow  = Math.round(songs.length * 1.25 * 0.7)
-    const royaltyHigh = Math.round(songs.length * 1.25 * 1.3)
+    // CHANGE 4: weighted estimate replaces flat model
+    const territory = performance?.country === 'CA' || performance?.country === 'Canada' ? 'CA' : 'US'
+    const estimate  = estimateRoyalties({
+      songCount:         songs.length,
+      venueCapacityBand: capacityToBand(performance?.venue_capacity),
+      showType:          (performance?.show_type as any) || 'single',
+      territory,
+    })
+
     return (
       <div style={{ minHeight: '100svh', background: C.bg, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px 20px', fontFamily: '"DM Sans", system-ui, sans-serif' }}>
         <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '60vh', pointerEvents: 'none', background: 'radial-gradient(ellipse at 50% 0%, rgba(201,168,76,0.08) 0%, transparent 65%)' }} />
         <div style={{ width: '100%', maxWidth: 420, position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', animation: 'fadeUp 0.5s ease' }}>
-          <h1 style={{ fontSize: 30, fontWeight: 800, color: C.text, margin: '0 0 10px', letterSpacing: '-0.03em', lineHeight: 1.15 }}>
-            You just tracked<br />a real setlist.
-          </h1>
-          <p style={{ fontSize: 13, color: C.secondary, margin: '0 0 28px' }}>
+
+          {/* Money first */}
+          <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.gold, margin: '0 0 10px', opacity: 0.8 }}>
             {performance?.venue_name}{performance?.city ? ` · ${performance.city}` : ''}
           </p>
-          <div style={{ width: '100%', background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 18, padding: '24px 20px', marginBottom: 16, animation: 'fadeUp 0.5s 0.1s ease both' }}>
-            <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.gold, margin: '0 0 8px' }}>Estimated Royalties</p>
-            <p style={{ fontSize: 42, fontWeight: 800, color: C.gold, margin: '0 0 4px', letterSpacing: '-0.03em', fontFamily: '"DM Mono", monospace' }}>${royaltyLow}–${royaltyHigh}</p>
-            <p style={{ fontSize: 13, color: C.secondary, margin: '0 0 16px' }}>{songs.length} songs · {autoCount > 0 ? `${autoCount} auto-detected` : 'all manual'}</p>
-            <div style={{ borderTop: `1px solid rgba(201,168,76,0.2)`, paddingTop: 14 }}>
-              <p style={{ fontSize: 13, color: C.gold, margin: 0, fontWeight: 600, lineHeight: 1.5 }}>Most artists never report this.</p>
-              <p style={{ fontSize: 12, color: C.secondary, margin: '4px 0 0', lineHeight: 1.5 }}>Export your setlist to claim what you've earned.</p>
+          <h1 style={{ fontSize: 38, fontWeight: 800, color: C.gold, margin: '0 0 4px', letterSpacing: '-0.03em', lineHeight: 1.05, fontFamily: '"DM Mono", monospace' }}>
+            ${estimate.low}–${estimate.high}
+          </h1>
+          <p style={{ fontSize: 14, color: C.secondary, margin: '0 0 4px' }}>estimated royalties from this show</p>
+          <p style={{ fontSize: 12, color: C.muted, margin: '0 0 24px' }}>
+            expected ~${estimate.expected} · {songs.length} song{songs.length !== 1 ? 's' : ''}{autoCount > 0 ? ` · ${autoCount} auto-detected` : ''}
+          </p>
+
+          {/* Estimate drivers */}
+          {estimate.explanations.length > 0 ? (
+            <div style={{ width: '100%', background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 14, padding: '14px 16px', marginBottom: 16, animation: 'fadeUp 0.5s 0.08s ease both' }}>
+              {estimate.explanations.map((line, i) => (
+                <p key={i} style={{ fontSize: 12, color: C.secondary, margin: i === 0 ? 0 : '6px 0 0', display: 'flex', alignItems: 'center', gap: 6, textAlign: 'left' }}>
+                  <span style={{ color: C.gold, opacity: 0.6, flexShrink: 0 }}>·</span>{line}
+                </p>
+              ))}
+              <p style={{ fontSize: 10, color: C.muted, margin: '10px 0 0', paddingTop: 10, borderTop: `1px solid rgba(201,168,76,0.15)`, textAlign: 'left' }}>
+                {estimate.confidenceNote}
+              </p>
             </div>
-          </div>
-          <div style={{ width: '100%', background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '16px', marginBottom: 16, maxHeight: 200, overflowY: 'auto', animation: 'fadeUp 0.5s 0.15s ease both' }}>
-            <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.muted, margin: '0 0 12px' }}>Tonight's Setlist</p>
+          ) : null}
+
+          {/* Setlist */}
+          <div style={{ width: '100%', background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '16px', marginBottom: 16, maxHeight: 200, overflowY: 'auto', animation: 'fadeUp 0.5s 0.12s ease both' }}>
+            <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.muted, margin: '0 0 12px', textAlign: 'left' }}>Tonight's Setlist</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {songs.map((s, i) => (
                 <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -695,7 +725,9 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
               ))}
             </div>
           </div>
-          <div style={{ width: '100%', background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '16px', marginBottom: 20, animation: 'fadeUp 0.5s 0.2s ease both' }}>
+
+          {/* PRO Export */}
+          <div style={{ width: '100%', background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '16px', marginBottom: 20, animation: 'fadeUp 0.5s 0.16s ease both' }}>
             <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.muted, margin: '0 0 12px', display: 'flex', alignItems: 'center', gap: 6 }}>
               <Download size={10} />Export for PRO Submission
             </p>
@@ -712,12 +744,14 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
               ))}
             </div>
           </div>
+
+          {/* CHANGE 4b: CTA reframed */}
           <button onClick={() => router.push(`/app/submit/${params.id}`)}
-            style={{ width: '100%', padding: '15px', background: C.gold, border: 'none', borderRadius: 12, color: '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', marginBottom: 10, animation: 'fadeUp 0.5s 0.25s ease both', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit' }}>
-            💰 Submit to Get Paid
+            style={{ width: '100%', padding: '15px', background: C.gold, border: 'none', borderRadius: 12, color: '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', marginBottom: 10, animation: 'fadeUp 0.5s 0.2s ease both', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit' }}>
+            💰 Claim Your Royalties
           </button>
           <button onClick={() => router.push('/app/dashboard')}
-            style={{ width: '100%', padding: '13px', background: 'transparent', border: `1px solid ${C.border}`, borderRadius: 12, color: C.secondary, fontSize: 13, fontWeight: 600, cursor: 'pointer', marginBottom: 12, animation: 'fadeUp 0.5s 0.3s ease both', fontFamily: 'inherit' }}>
+            style={{ width: '100%', padding: '13px', background: 'transparent', border: `1px solid ${C.border}`, borderRadius: 12, color: C.secondary, fontSize: 13, fontWeight: 600, cursor: 'pointer', marginBottom: 12, animation: 'fadeUp 0.5s 0.25s ease both', fontFamily: 'inherit' }}>
             Back to Dashboard
           </button>
           <button onClick={() => setShowComplete(false)} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 12, cursor: 'pointer', letterSpacing: '0.04em' }}>
