@@ -105,9 +105,12 @@ export default function DashboardPage() {
 
         setPerformances(perfs)
 
-        // Needs review = status is 'review' AND not yet submitted
+        // "Needs review" = unsubmitted shows backlog (not a per-song error count)
         setNeedsReview(
-          perfs.filter(p => p.status === 'review' && p.submission_status !== 'submitted').length
+          perfs.filter(p =>
+            (p.status === 'review' || p.status === 'complete' || p.status === 'completed') &&
+            p.submission_status !== 'submitted'
+          ).length
         )
 
         const live = perfs.find(p => p.status === 'live' || p.status === 'pending')
@@ -276,7 +279,7 @@ export default function DashboardPage() {
                   You're owed ~${aggregate.unclaimedExpected.toLocaleString()}
                 </p>
                 <p style={{ fontSize: 11, color: C.secondary, margin: 0 }}>
-                  {aggregate.unclaimedCount} unclaimed show{aggregate.unclaimedCount !== 1 ? 's' : ''} · claim your royalties
+                  {aggregate.unclaimedCount} unsubmitted show{aggregate.unclaimedCount !== 1 ? 's' : ''} · {totalSongs} songs tracked
                 </p>
               </div>
               <span style={{ fontSize: 12, color: C.gold, flexShrink: 0 }}>Claim →</span>
@@ -320,7 +323,7 @@ export default function DashboardPage() {
               {[
                 { label: 'Shows',        value: totalShows,      color: totalShows > 0 ? C.gold : C.muted },
                 { label: 'Songs',        value: totalSongs,      color: totalSongs > 0 ? C.gold : C.muted },
-                { label: 'Needs Review', value: needsReview,     color: needsReview > 0 ? C.blue : C.muted },
+                { label: 'Unsubmitted', value: needsReview,      color: needsReview > 0 ? C.gold : C.muted },
               ].map(stat => (
                 <div key={stat.label} style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid ${C.border}`, borderRadius: 8, padding: '8px 10px', textAlign: 'center' }}>
                   <p style={{ fontSize: 16, fontWeight: 800, color: stat.color, margin: 0, fontFamily: '"DM Mono", monospace' }}>{stat.value}</p>
@@ -332,9 +335,9 @@ export default function DashboardPage() {
             <p style={{ fontSize: 10, color: C.muted, margin: 0, lineHeight: 1.5, borderTop: `1px solid ${C.border}`, paddingTop: 12 }}>
               Weighted by venue size and show type.
               {needsReview > 0
-                ? <span style={{ color: C.gold }}> {needsReview} show{needsReview !== 1 ? 's' : ''} still need review — complete them to maximize your claim.</span>
+                ? <span style={{ color: C.gold }}> {needsReview} unsubmitted show{needsReview !== 1 ? 's' : ''} — claim your royalties.</span>
                 : submittedCount > 0
-                  ? <span style={{ color: C.green }}> {submittedCount} show{submittedCount !== 1 ? 's' : ''} submitted to your PRO.</span>
+                  ? <span style={{ color: C.green }}> All shows submitted. Nice work.</span>
                   : null
               }
             </p>
