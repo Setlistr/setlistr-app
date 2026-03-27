@@ -774,7 +774,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
         <div style={{ paddingTop: 28, paddingBottom: 20, animation: 'fadeUp 0.4s ease' }}>
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 20, padding: '4px 10px', marginBottom: 14 }}>
             <div style={{ width: 5, height: 5, borderRadius: '50%', background: C.gold }} />
-            <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.gold }}>Review Setlist</span>
+            <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.gold }}>Tonight's Setlist</span>
           </div>
           <h1 style={{ fontSize: 26, fontWeight: 800, color: C.text, margin: '0 0 8px', letterSpacing: '-0.025em', lineHeight: 1.15 }}>{performance?.venue_name}</h1>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
@@ -783,7 +783,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
             {dur ? <span style={{ fontSize: 12, color: C.secondary }}>· {dur}</span> : null}
           </div>
           <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
-            {[{ label: 'Songs', value: songs.length }, { label: 'Detected', value: autoCount }, { label: 'Manual', value: songs.length - autoCount }].map(stat => (
+            {[{ label: 'This Show', value: songs.length }, { label: 'Auto', value: autoCount }, { label: 'Need Fix', value: needsReviewCount }].map(stat => (
               <div key={stat.label} style={{ flex: 1, padding: '10px 12px', background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, textAlign: 'center' }}>
                 <p style={{ fontSize: 20, fontWeight: 800, color: C.gold, margin: 0, fontFamily: '"DM Mono", monospace', fontVariantNumeric: 'tabular-nums' }}>{stat.value}</p>
                 <p style={{ fontSize: 9, color: C.muted, margin: '2px 0 0', letterSpacing: '0.08em', textTransform: 'uppercase' }}>{stat.label}</p>
@@ -863,7 +863,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: allClean ? 'rgba(74,222,128,0.07)' : C.goldDim, border: `1px solid ${allClean ? 'rgba(74,222,128,0.2)' : C.borderGold}`, borderRadius: 10 }}>
               {allClean ? <Check size={13} color={C.green} strokeWidth={2.5} /> : <span style={{ fontSize: 12 }}>!</span>}
               <span style={{ fontSize: 12, fontWeight: 600, color: allClean ? C.green : C.gold }}>
-                {allClean ? 'All songs confirmed' : `${needsReviewCount} song${needsReviewCount === 1 ? '' : 's'} need${needsReviewCount === 1 ? 's' : ''} review`}
+                {allClean ? 'All songs confirmed — this show is ready' : `${needsReviewCount} song${needsReviewCount === 1 ? '' : 's'} in this show need${needsReviewCount === 1 ? 's' : ''} attention`}
               </span>
             </div>
           ) : null}
