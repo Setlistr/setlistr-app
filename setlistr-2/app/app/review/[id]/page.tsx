@@ -14,6 +14,8 @@ import { CSS } from '@dnd-kit/utilities'
 import { GripVertical, Download, Check, X, Music2, MapPin, Calendar } from 'lucide-react'
 // CHANGE 1: import estimator
 import { estimateRoyalties, capacityToBand } from '@/lib/royalty-estimate'
+import { normalizeSong } from '@/lib/song-utils'
+import CatalogSearch, { type CatalogSong } from '@/components/CatalogSearch'
 
 const C = {
   bg: '#0a0908', card: '#141210', cardHover: '#181614',
@@ -51,15 +53,10 @@ type Performance = {
   venue_capacity?: number | null
 }
 
-type PRO = 'SOCAN' | 'ASCAP' | 'BMI'
+type PRO = 'SOCAN' | 'ASCAP' | 'BMI' // kept for CSV export
 
-type RecentSong = {
-  id: string
-  title: string
-  artist: string
-  play_count: number
-  last_played: string
-}
+// RecentSong replaced by CatalogSong from CatalogSearch component
+type RecentSong = { id: string; title: string; artist: string; play_count: number; last_played: string }
 
 async function writeUserSongFromReview(
   supabase: ReturnType<typeof import('@/lib/supabase/client').createClient>,
@@ -319,105 +316,52 @@ function EditSheet({ song, onSave, onClose }: {
   )
 }
 
-function AssignSheet({ assignSheet, recentSongs, recentLoading, assignSearch, setAssignSearch, onAssign, onClose, onTypeAdd }: {
-  assignSheet: { songId: string; currentTitle: string }
-  recentSongs: RecentSong[]
-  recentLoading: boolean
-  assignSearch: string
-  setAssignSearch: (v: string) => void
-  onAssign: (s: RecentSong) => void
-  onClose: () => void
-  onTypeAdd: (title: string) => void
+function AssignSheet({ assignSheet, onAssign, onClose, onCatalogSelect, userId, currentSongs }: {
+  assignSheet:     { songId: string; currentTitle: string }
+  onAssign:        (s: RecentSong) => void
+  onClose:         () => void
+  onCatalogSelect: (song: CatalogSong, songId: string) => void
+  userId:          string | null
+  currentSongs:    string[]
 }) {
   const bottomOffset = useKeyboardOffset()
-  const filtered = assignSearch.trim()
-    ? recentSongs.filter(s =>
-        s.title.toLowerCase().includes(assignSearch.toLowerCase()) ||
-        s.artist.toLowerCase().includes(assignSearch.toLowerCase())
-      )
-    : recentSongs
   return (
     <div
-      style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', animation: 'fadeIn 0.15s ease' }}
+      style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', animation: 'fadeIn 0.15s ease' }}
       onClick={onClose}
     >
       <div
         onClick={e => e.stopPropagation()}
-        style={{ width: '100%', maxWidth: 520, background: '#141210', borderRadius: '20px 20px 0 0', border: '1px solid rgba(255,255,255,0.07)', borderBottom: 'none', padding: '0 0 32px', maxHeight: '80vh', display: 'flex', flexDirection: 'column', animation: 'sheetUp 0.22s ease', fontFamily: '"DM Sans", system-ui, sans-serif', marginBottom: bottomOffset, transition: 'margin-bottom 0.15s ease' }}
+        style={{ width: '100%', maxWidth: 520, background: '#141210', borderRadius: '20px 20px 0 0', border: '1px solid rgba(255,255,255,0.07)', borderBottom: 'none', padding: '20px 20px 40px', display: 'flex', flexDirection: 'column', gap: 12, animation: 'sheetUp 0.22s ease', fontFamily: '"DM Sans", system-ui, sans-serif', marginBottom: bottomOffset, transition: 'margin-bottom 0.15s ease' }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px 12px' }}>
-          <div style={{ minWidth: 0, flex: 1 }}>
-            <p style={{ fontSize: 13, fontWeight: 700, color: '#f0ece3', margin: 0 }}>What song was this?</p>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+          <div>
+            <p style={{ fontSize: 14, fontWeight: 700, color: C.text, margin: 0 }}>What song was this?</p>
             {assignSheet.currentTitle && assignSheet.currentTitle !== 'Unknown song' ? (
-              <p style={{ fontSize: 11, color: '#6a6050', margin: '2px 0 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>replacing: {assignSheet.currentTitle}</p>
+              <p style={{ fontSize: 11, color: C.muted, margin: '2px 0 0' }}>replacing: {assignSheet.currentTitle}</p>
             ) : null}
           </div>
-          <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: '#6a6050', cursor: 'pointer', padding: 4, flexShrink: 0, marginLeft: 8 }}>
-            <X size={16} />
-          </button>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: C.muted, cursor: 'pointer', padding: 4 }}><X size={16} /></button>
         </div>
-        <div style={{ padding: '0 16px 12px' }}>
-          <input
-            autoFocus
-            value={assignSearch}
-            onChange={e => setAssignSearch(e.target.value)}
-            placeholder="Type to search or add..."
-            style={{ width: '100%', background: '#0f0e0c', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, padding: '10px 14px', color: '#f0ece3', fontSize: 14, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
-          />
-        </div>
-        <div style={{ overflowY: 'auto', flex: 1, padding: '0 16px' }}>
-          {recentLoading ? (
-            <div style={{ textAlign: 'center', padding: '32px 0', color: '#6a6050', fontSize: 13 }}>Loading...</div>
-          ) : filtered.length === 0 ? (
-            <div style={{ padding: '16px 0' }}>
-              {assignSearch.trim() ? (
-                <button
-                  onClick={() => onTypeAdd(assignSearch.trim())}
-                  style={{ width: '100%', padding: '12px 14px', background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.25)', borderRadius: 10, color: '#c9a84c', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}
-                >
-                  Add "{assignSearch.trim()}"
-                </button>
-              ) : (
-                <p style={{ textAlign: 'center', color: '#6a6050', fontSize: 13, margin: 0 }}>No recent songs yet</p>
-              )}
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              {filtered.map(s => (
-                <button
-                  key={s.id}
-                  onClick={() => onAssign(s)}
-                  style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '13px 14px', background: 'transparent', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 10, cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', width: '100%', WebkitTapHighlightColor: 'transparent' }}
-                  onTouchStart={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(201,168,76,0.08)' }}
-                  onTouchEnd={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(201,168,76,0.06)' }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
-                >
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ fontSize: 14, fontWeight: 600, color: '#f0ece3', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.title}</p>
-                    {s.artist ? <p style={{ fontSize: 11, color: '#8a7a68', margin: '2px 0 0' }}>{s.artist}</p> : null}
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                    {s.play_count > 1 ? <span style={{ fontSize: 10, color: '#c9a84c', opacity: 0.6, fontFamily: '"DM Mono", monospace' }}>×{s.play_count}</span> : null}
-                    <span style={{ fontSize: 12, color: '#6a6050' }}>→</span>
-                  </div>
-                </button>
-              ))}
-              {assignSearch.trim() && !filtered.some(s => s.title.toLowerCase() === assignSearch.toLowerCase()) ? (
-                <button
-                  onClick={() => onTypeAdd(assignSearch.trim())}
-                  style={{ display: 'flex', alignItems: 'center', padding: '11px 14px', background: 'rgba(201,168,76,0.07)', border: '1px solid rgba(201,168,76,0.2)', borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit', width: '100%', marginTop: 4 }}
-                >
-                  <p style={{ fontSize: 13, fontWeight: 600, color: '#c9a84c', margin: 0 }}>Add "{assignSearch.trim()}"</p>
-                </button>
-              ) : null}
-            </div>
-          )}
-        </div>
+
+        {/* CatalogSearch — 1-tap fix with ISRC auto-fill */}
+        <CatalogSearch
+          userId={userId}
+          placeholder="Search your songs..."
+          autoFocus
+          showEmpty
+          currentSongs={currentSongs}
+          onSelect={(song) => onCatalogSelect(song, assignSheet.songId)}
+        />
+
+        <p style={{ fontSize: 11, color: C.muted, margin: '4px 0 0', lineHeight: 1.5, textAlign: 'center' }}>
+          Select a song to auto-fill title, artist, and ISRC · or type to add new
+        </p>
       </div>
     </div>
   )
 }
+
 
 export default function ReviewPage({ params }: { params: { id: string } }) {
   const router = useRouter()
@@ -435,43 +379,44 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
   const [selectedPRO, setSelectedPRO] = useState<PRO>('SOCAN')
   const [editSheet, setEditSheet]     = useState<Song | null>(null)
   const [assignSheet, setAssignSheet] = useState<{ songId: string; currentTitle: string } | null>(null)
-  const [recentSongs, setRecentSongs] = useState<RecentSong[]>([])
-  const [recentLoading, setRecentLoading] = useState(false)
-  const [assignSearch, setAssignSearch] = useState('')
+  // recentSongs/assignSearch handled internally by CatalogSearch component
+  const [userId, setUserId]             = useState<string | null>(null)
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   )
 
-  const fetchRecentSongs = useCallback((currentSongs: Song[]) => {
-    setRecentLoading(true)
-    const exclude = currentSongs
-      .filter(s => s.source !== 'unidentified' && s.title !== 'Unknown song')
-      .map(s => encodeURIComponent(s.title)).join(',')
-    const url = exclude ? `/api/recent-songs?exclude=${exclude}` : '/api/recent-songs'
-    fetch(url)
-      .then(r => r.json())
-      .then(data => { if (data.songs) setRecentSongs(data.songs) })
-      .catch(err => console.error('[RecentSongs]', err))
-      .finally(() => setRecentLoading(false))
-  }, [])
-
-  useEffect(() => { fetchRecentSongs([]) }, [fetchRecentSongs])
-
   function openAssignSheet(songId: string) {
     const song = songs.find(s => s.id === songId)
     setAssignSheet({ songId, currentTitle: song?.title || '' })
-    setAssignSearch('')
-    fetchRecentSongs(songs.filter(s => s.id !== songId))
   }
-  function closeAssignSheet() { setAssignSheet(null); setAssignSearch('') }
+  function closeAssignSheet() { setAssignSheet(null) }
 
   function assignSong(recent: RecentSong) {
     if (!assignSheet) return
     setSongs(prev => prev.map(s =>
       s.id === assignSheet.songId
         ? { ...s, title: recent.title, artist: recent.artist, source: 'manual', reviewState: 'clean' }
+        : s
+    ))
+    closeAssignSheet()
+  }
+
+  // Called when user selects from CatalogSearch — auto-fills ISRC and all metadata
+  function assignFromCatalog(catalogSong: CatalogSong, songId: string) {
+    setSongs(prev => prev.map(s =>
+      s.id === songId
+        ? {
+            ...s,
+            title:      catalogSong.title,
+            artist:     catalogSong.artist || s.artist,
+            isrc:       catalogSong.isrc   || '',
+            composer:   catalogSong.composer  || '',
+            publisher:  catalogSong.publisher || '',
+            source:     'manual',
+            reviewState: 'clean',
+          }
         : s
     ))
     closeAssignSheet()
@@ -490,6 +435,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
   // CHANGE 3: join shows(show_type) and venues(capacity)
   useEffect(() => {
     const supabase = createClient()
+    supabase.auth.getUser().then(({ data: { user } }) => { if (user) setUserId(user.id) })
     supabase.from('performances').select('*, shows(show_type), venues(capacity)').eq('id', params.id).single()
       .then(async ({ data: perf }) => {
         if (!perf) { setLoading(false); return }
@@ -505,13 +451,16 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
             .from('setlist_items').select('*')
             .eq('setlist_id', resolvedSetlistId).order('position')
           if (items && items.length > 0) {
-            setSongs(items.map(s => ({
-              id: s.id, title: s.title, artist: s.artist_name || '',
-              position: s.position, source: s.source,
-              recognition_decision_id: s.recognition_decision_id,
-              isrc: s.isrc || '', composer: s.composer || '', publisher: s.publisher || '',
-              reviewState: (s.source === 'unidentified' ? 'needs_review' : 'clean') as 'clean' | 'needs_review',
-            })))
+            setSongs(items.map(s => {
+              const n = normalizeSong({ title: s.title, artist: s.artist_name || '' })
+              return {
+                id: s.id, title: n.title, artist: n.artist,
+                position: s.position, source: s.source,
+                recognition_decision_id: s.recognition_decision_id,
+                isrc: s.isrc || '', composer: s.composer || '', publisher: s.publisher || '',
+                reviewState: (s.source === 'unidentified' ? 'needs_review' : 'clean') as 'clean' | 'needs_review',
+              }
+            }))
             setLoading(false)
             return
           }
@@ -520,14 +469,17 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
           .from('performance_songs').select('*')
           .eq('performance_id', params.id).order('position')
         if (songData) {
-          setSongs(songData.map(s => ({
-            id: s.id || String(s.position),
-            title: s.title, artist: s.artist || '',
-            position: s.position, source: s.source || 'recognized',
-            recognition_decision_id: null,
-            isrc: s.isrc || '', composer: s.composer || '', publisher: s.publisher || '',
-            reviewState: (s.source === 'unidentified' ? 'needs_review' : 'clean') as 'clean' | 'needs_review',
-          })))
+          setSongs(songData.map(s => {
+            const n = normalizeSong({ title: s.title, artist: s.artist || '' })
+            return {
+              id: s.id || String(s.position),
+              title: n.title, artist: n.artist,
+              position: s.position, source: s.source || 'recognized',
+              recognition_decision_id: null,
+              isrc: s.isrc || '', composer: s.composer || '', publisher: s.publisher || '',
+              reviewState: (s.source === 'unidentified' ? 'needs_review' : 'clean') as 'clean' | 'needs_review',
+            }
+          }))
         }
         setLoading(false)
       })
@@ -551,10 +503,14 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
   }
   function handleAdd() {
     if (!newTitle.trim()) return
+    const normalized = normalizeSong({
+      title:  newTitle.trim(),
+      artist: newArtist.trim() || (performance?.artist_name || ''),
+    })
     setSongs(prev => [...prev, {
       id: `manual-${Date.now()}`,
-      title: newTitle.trim(),
-      artist: newArtist.trim() || (performance?.artist_name || ''),
+      title:  normalized.title,
+      artist: normalized.artist,
       position: songs.length + 1,
       source: 'manual', recognition_decision_id: null,
       isrc: '', composer: '', publisher: '', reviewState: 'clean',
@@ -569,11 +525,14 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
     if (setlistId) {
       await supabase.from('setlist_items').delete().eq('setlist_id', setlistId)
       await supabase.from('setlist_items').insert(
-        songs.map((s, i) => ({
-          setlist_id: setlistId, title: s.title, artist_name: s.artist,
-          position: i + 1, source: s.source || 'manual',
-          recognition_decision_id: s.recognition_decision_id || null,
-        }))
+        songs.map((s, i) => {
+          const n = normalizeSong({ title: s.title, artist: s.artist })
+          return {
+            setlist_id: setlistId, title: n.title, artist_name: n.artist,
+            position: i + 1, source: s.source || 'manual',
+            recognition_decision_id: s.recognition_decision_id || null,
+          }
+        })
       )
       for (const song of songs) {
         if (song.recognition_decision_id) {
@@ -600,10 +559,13 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
     }
     await supabase.from('performance_songs').delete().eq('performance_id', performance.id)
     await supabase.from('performance_songs').insert(
-      songs.map((s, i) => ({
-        performance_id: performance.id, title: s.title, artist: s.artist,
-        position: i + 1, isrc: s.isrc || null, composer: s.composer || null, publisher: s.publisher || null,
-      }))
+      songs.map((s, i) => {
+        const n = normalizeSong({ title: s.title, artist: s.artist })
+        return {
+          performance_id: performance.id, title: n.title, artist: n.artist,
+          position: i + 1, isrc: s.isrc || null, composer: s.composer || null, publisher: s.publisher || null,
+        }
+      })
     )
     await supabase.from('performances').update({ status: 'completed' }).eq('id', performance.id)
     if (performance.show_id) {
@@ -768,7 +730,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
 
           {/* ── Setlist preview — compact ── */}
           <div style={{ width: '100%', background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '14px 16px', marginBottom: 20, maxHeight: 160, overflowY: 'auto', animation: 'fadeUp 0.4s 0.1s ease both' }}>
-            <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, margin: '0 0 10px', textAlign: 'left' }}>Tonight's setlist</p>
+            <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, margin: '0 0 10px', textAlign: 'left' }}>Setlist</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {songs.map((s, i) => {
                 const hasISRC     = !!(s as any).isrc
@@ -789,7 +751,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
           <button
             onClick={() => router.push('/app/dashboard')}
             style={{ width: '100%', padding: '16px', background: C.gold, border: 'none', borderRadius: 12, color: '#0a0908', fontSize: 14, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', marginBottom: 10, animation: 'fadeUp 0.4s 0.14s ease both', fontFamily: 'inherit' }}>
-            Done for Tonight
+            Show Complete
           </button>
 
           {/* ── Secondary CTAs: low pressure ── */}
@@ -808,7 +770,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
 
           {/* ── Reminder nudge — low pressure ── */}
           <p style={{ fontSize: 11, color: C.muted, margin: 0, lineHeight: 1.5, animation: 'fadeUp 0.4s 0.2s ease both' }}>
-            ~${estimate.expected} is waiting whenever you're ready.{' '}
+            ~${estimate.expected} is tracked and ready to claim.{' '}
             <span style={{ color: C.secondary }}>We'll remind you on the dashboard.</span>
           </p>
         </div>
@@ -857,13 +819,33 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
         {songs.length > 0 ? <p style={{ fontSize: 11, color: C.muted, margin: '0 0 10px', opacity: 0.7 }}>Tap to edit · Swipe left to delete</p> : null}
 
         {showAdd ? (
-          <div style={{ background: C.card, border: `1px solid ${C.borderGold}`, borderRadius: 12, padding: 14, marginBottom: 10, display: 'flex', flexDirection: 'column', gap: 8, animation: 'slideUp 0.2s ease' }}>
-            <input autoFocus value={newTitle} onChange={e => setNewTitle(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAdd()} placeholder="Song title" style={{ background: C.input, border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 12px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' }} />
-            <input value={newArtist} onChange={e => setNewArtist(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAdd()} placeholder={`Artist (default: ${performance?.artist_name})`} style={{ background: C.input, border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 12px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' }} />
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={handleAdd} disabled={!newTitle.trim()} style={{ flex: 1, background: newTitle.trim() ? C.gold : C.muted, border: 'none', borderRadius: 8, padding: '10px', color: '#0a0908', fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: newTitle.trim() ? 'pointer' : 'not-allowed', opacity: newTitle.trim() ? 1 : 0.4, fontFamily: 'inherit' }}>Add</button>
-              <button onClick={() => setShowAdd(false)} style={{ padding: '10px 16px', background: 'rgba(255,255,255,0.04)', border: `1px solid ${C.border}`, borderRadius: 8, color: C.secondary, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
-            </div>
+          <div style={{ background: C.card, border: `1px solid ${C.borderGold}`, borderRadius: 12, padding: 14, marginBottom: 10, animation: 'slideUp 0.2s ease' }}>
+            <CatalogSearch
+              userId={userId}
+              placeholder="Search or add a song..."
+              autoFocus
+              showEmpty
+              currentSongs={songs.map(s => s.title)}
+              onSelect={(catalogSong) => {
+                const normalized = normalizeSong({ title: catalogSong.title, artist: catalogSong.artist || performance?.artist_name || '' })
+                setSongs(prev => [...prev, {
+                  id:        `manual-${Date.now()}`,
+                  title:     normalized.title,
+                  artist:    normalized.artist,
+                  position:  songs.length + 1,
+                  source:    'manual',
+                  recognition_decision_id: null,
+                  isrc:      catalogSong.isrc      || '',
+                  composer:  catalogSong.composer  || '',
+                  publisher: catalogSong.publisher || '',
+                  reviewState: 'clean',
+                }])
+                setShowAdd(false)
+              }}
+            />
+            <button onClick={() => setShowAdd(false)} style={{ width: '100%', marginTop: 8, padding: '8px', background: 'transparent', border: 'none', color: C.muted, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
+              Cancel
+            </button>
           </div>
         ) : null}
 
@@ -936,17 +918,11 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
       {assignSheet ? (
         <AssignSheet
           assignSheet={assignSheet}
-          recentSongs={recentSongs}
-          recentLoading={recentLoading}
-          assignSearch={assignSearch}
-          setAssignSearch={setAssignSearch}
           onAssign={assignSong}
           onClose={closeAssignSheet}
-          onTypeAdd={(title) => {
-            if (!assignSheet) return
-            setSongs(prev => prev.map(s => s.id === assignSheet.songId ? { ...s, title, source: 'manual', reviewState: 'clean' } : s))
-            closeAssignSheet()
-          }}
+          onCatalogSelect={assignFromCatalog}
+          userId={userId}
+          currentSongs={songs.filter(s => s.id !== assignSheet.songId).map(s => s.title)}
         />
       ) : null}
 
