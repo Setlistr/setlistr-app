@@ -9,10 +9,19 @@ const HOST          = 'identify-us-west-2.acrcloud.com'
 const ACCESS_KEY    = '81af58b16d932703e6a233f054666f3b'
 const ACCESS_SECRET = 'vNLUzrw4OOaiKiaw4FTdPQlqTNTGj3VbCNmotS22'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+// ─── FIX: Use service role key for server-side writes ────────────────────────
+// The anon key client was causing ALL detection_events inserts to silently fail
+// because RLS requires an authenticated session, which the singleton anon client
+// never has in a serverless context. The service role key bypasses RLS entirely,
+// which is correct for a trusted server-side route.
+//
+// User auth (for user_songs writes) is still read from the Authorization header.
+function getSupabase() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!   // ← was NEXT_PUBLIC_SUPABASE_ANON_KEY
+  )
+}
 
 // ─── Thresholds ───────────────────────────────────────────────────────────────
 const ACR_STRONG     = 80
@@ -45,13 +54,14 @@ const CANONICAL_SONG_ARTISTS: Record<string, string[]> = {
   'hurt': ['nine inch nails', 'johnny cash'],
 }
 
-type ConfidenceLevel = 'auto' | 'suggest' | 'no_result'
-type DetectionSource = 'fingerprint' | 'humming'
+// ─── Title normalization ──────────────────────────────────────────────────────
+// Strip common version suffixes ACRCloud adds that pollute song titles.
+// Applied before writing to performance_songs AND before displaying to users.
+const VERSION_SUFFIX_RE = /\s*[\(\[](alternate|alternative|live|edit|radio edit|album version|acoustic|acoustic version|remaster|remastered|instrumental|original mix|extended|extended mix|deluxe|explicit|clean|single|mono|stereo|demo|bonus track)[^\)\]]*[\)\]]/gi
 
-interface CandidateHistoryEntry {
-  title: string; artist: string; score: number; timestamp: number
+function cleanTitle(raw: string): string {
+  return raw.replace(VERSION_SUFFIX_RE, '').replace(/\s+/g, ' ').trim()
 }
-interface EnrichedSongData { isrc: string; composer: string; publisher: string }
 
 function normalizeSongKey(title: string): string {
   return title.toLowerCase().trim()
@@ -60,25 +70,25 @@ function normalizeSongKey(title: string): string {
     .replace(/\s+/g, ' ').trim()
 }
 
-// ─── Memory bias check ───────────────────────────────────────────────────────
-// When ACR returns a suggest-level score (40-79), check if the title matches
-// a known user_songs entry with meaningful play count.
-// If it does, upgrade confidence to 'auto' — the artist has played this before
-// and the system should trust the match.
-//
-// Title similarity: normalized key match (exact) OR substring match if long enough.
-// Play count threshold: >= 2 plays (not a one-off) to avoid false boosts.
-// Non-blocking — if this fails, we fall back to original confidence level.
+type ConfidenceLevel = 'auto' | 'suggest' | 'no_result'
+type DetectionSource = 'fingerprint' | 'humming'
+
+interface CandidateHistoryEntry {
+  title: string; artist: string; score: number; timestamp: number
+}
+interface EnrichedSongData { isrc: string; composer: string; publisher: string }
+
+// ─── Memory bias check ────────────────────────────────────────────────────────
 async function checkMemoryBias(
   title: string,
   userId: string | null
 ): Promise<{ biased: boolean; confirmedCount: number }> {
   if (!userId) return { biased: false, confirmedCount: 0 }
   try {
+    const supabase = getSupabase()
     const normalizedTitle = normalizeSongKey(title)
     if (!normalizedTitle || normalizedTitle.length < 3) return { biased: false, confirmedCount: 0 }
 
-    // Fetch user's songs with meaningful play counts
     const { data } = await supabase
       .from('user_songs')
       .select('song_title, confirmed_count')
@@ -88,29 +98,20 @@ async function checkMemoryBias(
 
     if (!data || data.length === 0) return { biased: false, confirmedCount: 0 }
 
-    // Check for normalized title match
     for (const row of data) {
       const rowKey = normalizeSongKey(row.song_title)
       if (!rowKey) continue
-
-      // Exact normalized match
       if (rowKey === normalizedTitle) {
-        console.log(`[MemoryBias] exact match "${title}" count=${row.confirmed_count}`)
         return { biased: true, confirmedCount: row.confirmed_count }
       }
-
-      // Substring match for longer titles (handles slight ACR variations)
-      // Only if both are 4+ words to avoid false positives on short titles
       const titleWords = normalizedTitle.split(' ').length
       const rowWords   = rowKey.split(' ').length
       if (titleWords >= 4 && rowWords >= 4) {
         if (normalizedTitle.includes(rowKey) || rowKey.includes(normalizedTitle)) {
-          console.log(`[MemoryBias] substring match "${title}" ≈ "${row.song_title}" count=${row.confirmed_count}`)
           return { biased: true, confirmedCount: row.confirmed_count }
         }
       }
     }
-
     return { biased: false, confirmedCount: 0 }
   } catch (err) {
     console.error('[MemoryBias] check failed (non-blocking):', err)
@@ -149,9 +150,6 @@ function sanityCheck(title: string, artist: string, previousSongs: string[]): { 
 }
 
 // ─── user_songs write ─────────────────────────────────────────────────────────
-// Writes a confirmed song to the memory table.
-// Uses per-performance dedup guard to prevent overcounting across paths.
-// Non-blocking — errors are logged and swallowed.
 async function writeToUserSongs(
   title: string,
   artist: string,
@@ -160,29 +158,19 @@ async function writeToUserSongs(
   source: 'auto' | 'manual_confirm' | 'review_save'
 ): Promise<void> {
   try {
+    const supabase        = getSupabase()
     const normalizedTitle = normalizeSongKey(title)
 
-    // ── Per-performance dedup guard ───────────────────────────────────────────
-    // If this song has already been counted for this performance from any path,
-    // skip the write. Prevents triple-counting across detect → confirm → review.
     const { error: guardError } = await supabase
       .from('user_song_performances')
       .insert({ user_id: userId, performance_id: performanceId, normalized_title: normalizedTitle })
 
     if (guardError) {
-      // Unique constraint violation = already counted for this performance. Skip.
-      if (guardError.code === '23505') {
-        console.log(`[UserSongs] already counted "${title}" for perf ${performanceId} — skip`)
-        return
-      }
-      // Any other error — log and continue (don't block the main flow)
+      if (guardError.code === '23505') return
       console.error('[UserSongs] guard insert error:', guardError.message)
       return
     }
 
-    // ── Upsert into user_songs ────────────────────────────────────────────────
-    // Use (user_id, song_title) as the unique key — normalized title comparison
-    // ensures "Whiskey and You" and "whiskey and you" are the same entry.
     const { data: existing } = await supabase
       .from('user_songs')
       .select('id, confirmed_count')
@@ -191,15 +179,11 @@ async function writeToUserSongs(
       .single()
 
     if (existing) {
-      await supabase
-        .from('user_songs')
-        .update({
-          confirmed_count: existing.confirmed_count + 1,
-          canonical_artist: artist || null,
-          last_confirmed_at: new Date().toISOString(),
-        })
-        .eq('id', existing.id)
-      console.log(`[UserSongs] incremented "${title}" → count ${existing.confirmed_count + 1} (${source})`)
+      await supabase.from('user_songs').update({
+        confirmed_count: existing.confirmed_count + 1,
+        canonical_artist: artist || null,
+        last_confirmed_at: new Date().toISOString(),
+      }).eq('id', existing.id)
     } else {
       await supabase.from('user_songs').insert({
         user_id: userId,
@@ -208,10 +192,8 @@ async function writeToUserSongs(
         confirmed_count: 1,
         last_confirmed_at: new Date().toISOString(),
       })
-      console.log(`[UserSongs] new entry "${title}" (${source})`)
     }
   } catch (err) {
-    // Non-blocking — never crash the main pipeline
     console.error('[UserSongs] write failed (non-blocking):', err)
   }
 }
@@ -257,16 +239,24 @@ async function enrichFromMusicBrainz(title: string, artist: string, isrcFromACR:
 
 async function logDetectionEvent(event: Record<string, any>): Promise<void> {
   try {
-    await supabase.from('detection_events').insert(event)
-    console.log('[Detection]', JSON.stringify({
-      title: event.final_title, score: event.acr_score,
-      final_state: event.final_state, sanity_passed: event.sanity_passed,
-      failure_reason: event.failure_reason, source: event.final_source,
-    }))
-  } catch (err) { console.error('[DetectionEvent] log failed:', err) }
+    const supabase = getSupabase()
+    const { error } = await supabase.from('detection_events').insert(event)
+    if (error) {
+      // Now we'll actually see errors instead of silently swallowing them
+      console.error('[DetectionEvent] insert failed:', error.message, error.code)
+    } else {
+      console.log('[Detection]', JSON.stringify({
+        title: event.final_title, score: event.acr_score,
+        confidence: event.confidence_level, auto: event.auto_confirmed,
+      }))
+    }
+  } catch (err) {
+    console.error('[DetectionEvent] log failed:', err)
+  }
 }
 
 export async function POST(req: NextRequest) {
+  const supabase  = getSupabase()
   const startTime = Date.now()
   let audioBytes  = 0
   let performanceId: string | null = null
@@ -279,6 +269,7 @@ export async function POST(req: NextRequest) {
     const setlistId    = incoming.get('setlist_id') as string | null
     const artistId     = incoming.get('artist_id') as string | null
     const artistName   = incoming.get('artist_name') as string | null
+    const venueName    = incoming.get('venue_name') as string | null
     const showType     = (incoming.get('show_type') as string | null) || 'single'
     const prevRaw      = incoming.get('previous_songs') as string | null
     const historyRaw   = incoming.get('candidate_history') as string | null
@@ -296,7 +287,12 @@ export async function POST(req: NextRequest) {
     try {
       const authHeader = req.headers.get('authorization')
       if (authHeader) {
-        const { data: { user } } = await supabase.auth.getUser(authHeader.replace('Bearer ', ''))
+        // Use anon client for auth verification (correct pattern)
+        const anonClient = createClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+        )
+        const { data: { user } } = await anonClient.auth.getUser(authHeader.replace('Bearer ', ''))
         userId = user?.id || null
       }
     } catch { /* non-blocking */ }
@@ -340,14 +336,8 @@ export async function POST(req: NextRequest) {
     const acrDetected = payload.status?.code === 0 && !!acrMatch
     const source: DetectionSource = humming ? 'humming' : 'fingerprint'
 
-    // ACR humming scores are 0-1 floats. Fingerprint scores are 0-100 integers.
-    // Normalize humming to 0-100 so thresholds work consistently.
-    const rawScore = acrMatch?.score ? parseFloat(acrMatch.score) : 0
-    const acrScore = humming ? rawScore * 100 : rawScore
-
-    // Humming boost: only apply if ACR has genuine confidence (normalized >= 45).
-    // A raw score of 0.25 (normalized 25) means ACR is guessing - don't boost.
-    // This was the root cause: Math.max(0.25, 85) = 85, auto-confirming garbage.
+    const rawScore    = acrMatch?.score ? parseFloat(acrMatch.score) : 0
+    const acrScore    = humming ? rawScore * 100 : rawScore
     const HUMMING_BOOST_MIN = 45
     const effectiveScore = (humming && acrScore >= HUMMING_BOOST_MIN)
       ? Math.max(acrScore, 85)
@@ -355,20 +345,26 @@ export async function POST(req: NextRequest) {
 
     const flipCount = countCandidateFlips(candidateHistory)
 
-    console.log(`[ACR] detected=${acrDetected} score=${acrScore} effective=${effectiveScore} humming=${!!humming} title="${acrMatch?.title}"`)
-
     if (!acrDetected) {
       await logDetectionEvent({
-        performance_id: performanceId, acr_score: 0,
-        final_state: 'no_result', sanity_passed: false,
-        failure_reason: 'acr_no_match', artist_name: artistName,
+        performance_id: performanceId,
+        acr_score: 0, acr_state: 'failed',
+        confidence_level: 'no_result',
+        auto_confirmed: false,
+        fallback_triggered: false, flip_count: 0,
+        artist_name: artistName, venue_name: venueName, show_type: showType,
+        audio_duration_seconds: durationSeconds,
+        detected_at: new Date().toISOString(),
       })
       return NextResponse.json({ detected: false, job_id: job?.id })
     }
 
-    const title  = acrMatch.title
-    const artist = acrMatch.artists?.[0]?.name || ''
-    const isrc   = acrMatch.external_ids?.isrc || ''
+    // ── Clean title before any processing ────────────────────────────────────
+    // Strip "(Alternate Version)", "(Live)", "(Edit)" etc from ACRCloud results
+    const rawTitle = acrMatch.title
+    const title    = cleanTitle(rawTitle)
+    const artist   = acrMatch.artists?.[0]?.name || ''
+    const isrc     = acrMatch.external_ids?.isrc || ''
 
     await supabase.from('recognition_results').insert({
       job_id: job?.id || null, rank: 1, title, artist_name: artist,
@@ -384,7 +380,6 @@ export async function POST(req: NextRequest) {
       const sanity = sanityCheck(title, artist, previousSongs)
       sanityPassed  = sanity.pass
       failureReason = sanity.reason
-
       if (sanity.pass) {
         confidenceLevel = 'auto'
       } else if (sanity.reason.startsWith('duplicate')) {
@@ -393,10 +388,6 @@ export async function POST(req: NextRequest) {
         confidenceLevel = 'suggest'
       }
     } else if (effectiveScore >= ACR_SUGGEST) {
-      // Before assigning suggest, check memory bias.
-      // If this artist has played this song before (confirmed_count >= 2),
-      // upgrade to auto — we trust the match.
-      // Duplicate check still applies to prevent double-logging.
       const isDuplicate = previousSongs.some(s => normalizeSongKey(s) === normalizeSongKey(title))
       if (isDuplicate) {
         confidenceLevel = 'no_result'
@@ -405,15 +396,10 @@ export async function POST(req: NextRequest) {
       } else {
         const bias = await checkMemoryBias(title, userId)
         if (bias.biased && acrScore >= 60) {
-          // Known song (confirmed 2+ times) + score >= 60 = auto-confirm
-          // Score guard prevents bad humming matches on familiar titles
           confidenceLevel = 'auto'
           sanityPassed    = true
           failureReason   = `memory_bias_upgrade: score=${acrScore} count=${bias.confirmedCount}`
-          console.log(`[MemoryBias] upgraded "${title}" suggest→auto (score=${acrScore} count=${bias.confirmedCount})`)
         } else {
-          // Unknown song OR low score — always suggest, never auto-confirm
-          // User must confirm songs the system hasn't seen before
           confidenceLevel = 'suggest'
           sanityPassed    = false
           failureReason   = bias.biased
@@ -427,20 +413,34 @@ export async function POST(req: NextRequest) {
       failureReason   = `score_too_low: ${effectiveScore}`
     }
 
-    console.log(`[Decision] title="${title}" effective=${effectiveScore} confidence=${confidenceLevel} reason="${failureReason}"`)
-
+    // ── Log detection event (now with venue_name and cleaned title) ───────────
     await logDetectionEvent({
-      performance_id: performanceId,
-      acr_title: title, acr_artist: artist, acr_score: acrScore,
-      final_title: title, final_artist: artist, final_source: source,
-      confidence_level: confidenceLevel, final_state: confidenceLevel,
-      sanity_passed: sanityPassed, failure_reason: failureReason,
-      flip_count: flipCount, auto_confirmed: confidenceLevel === 'auto',
-      artist_name: artistName, show_type: showType,
+      performance_id:        performanceId,
+      acr_title:             rawTitle,      // raw from ACR for debugging
+      acr_artist:            artist,
+      acr_score:             acrScore,
+      acr_state:             effectiveScore >= ACR_STRONG ? 'stable' : 'unstable',
+      final_title:           title,         // cleaned title
+      final_artist:          artist,
+      final_source:          source,
+      confidence_level:      confidenceLevel,
+      auto_confirmed:        confidenceLevel === 'auto',
+      fallback_triggered:    false,
+      flip_count:            flipCount,
+      artist_name:           artistName,
+      venue_name:            venueName,     // ← was always null before
+      show_type:             showType,
+      audio_duration_seconds: durationSeconds,
+      previous_song:         previousSongs[previousSongs.length - 1] || null,
+      detected_at:           new Date().toISOString(),
+      candidate_pool:        [{ title, artist, source, acrScore, effectiveScore }],
     })
 
     if (confidenceLevel === 'no_result') {
-      return NextResponse.json({ detected: false, job_id: job?.id, debug: { score: effectiveScore, reason: failureReason } })
+      return NextResponse.json({
+        detected: false, job_id: job?.id,
+        debug: { score: effectiveScore, reason: failureReason }
+      })
     }
 
     let enriched: EnrichedSongData = { isrc, composer: '', publisher: '' }
@@ -463,9 +463,6 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // ── Write to user_songs memory (auto confirm path) ────────────────────────
-    // Fire-and-forget. Dedup guard in writeToUserSongs prevents overcounting
-    // if the same song is later confirmed manually or saved in review.
     if (confidenceLevel === 'auto' && userId && performanceId) {
       writeToUserSongs(title, artist, userId, performanceId, 'auto')
     }
@@ -486,12 +483,19 @@ export async function POST(req: NextRequest) {
       acr_score: acrScore,
       isrc: enriched.isrc, composer: enriched.composer, publisher: enriched.publisher,
       setlist_item_id: setlistItemId, job_id: job?.id,
-      debug: { effective_score: effectiveScore, sanity_passed: sanityPassed, failure_reason: failureReason, final_state: confidenceLevel }
+      debug: {
+        raw_title: rawTitle,
+        cleaned_title: title,
+        effective_score: effectiveScore,
+        sanity_passed: sanityPassed,
+        failure_reason: failureReason,
+        final_state: confidenceLevel,
+      }
     })
 
   } catch (err: any) {
     console.error('[IdentifyRoute] Error:', err)
-    await supabase.from('recognition_logs').insert({
+    await getSupabase().from('recognition_logs').insert({
       performance_id: performanceId || null, audio_bytes: audioBytes, detected: false,
       acr_message: err.message, raw_response: { error: err.message },
     })
