@@ -125,8 +125,16 @@ export async function GET(req: NextRequest) {
     // ── Partition into in_set vs suggestions ──────────────────────────────────
     // in_set: songs currently in this show's setlist (only returned when allow_repeats=true)
     // suggestions: everything else, sorted by score descending
-    const inSetEntries    = allEntries.filter(([key]) => excludedKeys.includes(key))
-    const outsideEntries  = allEntries.filter(([key]) => !excludedKeys.includes(key))
+    //
+    // Spotify-imported songs are always included in suggestions even if their
+    // normalized title matches an excluded key — they haven't been confirmed live
+    // and should always be available in the assign sheet for quick-add.
+    const inSetEntries   = allEntries.filter(([key, s]) =>
+      excludedKeys.includes(key) && s.source !== 'spotify_import'
+    )
+    const outsideEntries = allEntries.filter(([key, s]) =>
+      !excludedKeys.includes(key) || s.source === 'spotify_import'
+    )
 
     const toSongShape = ([, s]: [string, typeof deduped extends Map<string, infer V> ? V : never]) => ({
       id:          s.id,
