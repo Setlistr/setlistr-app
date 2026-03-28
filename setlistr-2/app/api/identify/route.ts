@@ -25,7 +25,7 @@ function getSupabase() {
 
 // ─── Thresholds ───────────────────────────────────────────────────────────────
 const ACR_STRONG     = 80
-const ACR_SUGGEST    = 40
+const ACR_SUGGEST    = 55  // raised from 40 — prevents low-confidence wrong detections
 const FLAP_MIN_COUNT = 2
 
 // ─── Canonical artist map ─────────────────────────────────────────────────────
@@ -283,17 +283,29 @@ export async function POST(req: NextRequest) {
     audioBytes        = audioBuffer.length
 
     // Get current user for user_songs writes
+    // Primary: Authorization header (when sent)
+    // Fallback: look up user_id from the performance record using service role key
+    // This ensures memory writes work even when the live capture page doesn't send auth headers
     let userId: string | null = null
     try {
       const authHeader = req.headers.get('authorization')
       if (authHeader) {
-        // Use anon client for auth verification (correct pattern)
         const anonClient = createClient(
           process.env.NEXT_PUBLIC_SUPABASE_URL!,
           process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
         )
         const { data: { user } } = await anonClient.auth.getUser(authHeader.replace('Bearer ', ''))
         userId = user?.id || null
+      }
+      // Fallback: read user_id directly from performances table
+      if (!userId && performanceId) {
+        const { data: perfRow } = await supabase
+          .from('performances')
+          .select('user_id')
+          .eq('id', performanceId)
+          .single()
+        userId = perfRow?.user_id || null
+        if (userId) console.log('[Auth] userId resolved from performance record:', userId)
       }
     } catch { /* non-blocking */ }
 
