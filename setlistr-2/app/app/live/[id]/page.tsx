@@ -58,8 +58,6 @@ function isSameSong(a: { title: string }, b: { title: string }): boolean {
   return normalizeSongKey(a.title) === normalizeSongKey(b.title)
 }
 
-// ── user_songs write helper ───────────────────────────────────────────────────
-// Non-blocking. Uses dedup guard to prevent overcounting across paths.
 async function writeUserSong(
   supabase: ReturnType<typeof createClient>,
   title: string,
@@ -69,27 +67,20 @@ async function writeUserSong(
 ): Promise<void> {
   try {
     const normalizedTitle = normalizeSongKey(title)
-
-    // Per-performance dedup guard
     const { error: guardError } = await supabase
       .from('user_song_performances')
       .insert({ user_id: userId, performance_id: performanceId, normalized_title: normalizedTitle })
-
     if (guardError) {
-      // 23505 = unique violation = already counted this song for this performance
       if (guardError.code === '23505') return
       console.error('[UserSongs] guard error:', guardError.message)
       return
     }
-
-    // Upsert into user_songs
     const { data: existing } = await supabase
       .from('user_songs')
       .select('id, confirmed_count')
       .eq('user_id', userId)
       .eq('song_title', title)
       .single()
-
     if (existing) {
       await supabase.from('user_songs').update({
         confirmed_count: existing.confirmed_count + 1,
@@ -132,6 +123,12 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   const [editTitle, setEditTitle]       = useState('')
   const [editArtist, setEditArtist]     = useState('')
 
+  // ── Duration control ─────────────────────────────────────────────────────────
+  // localDuration overrides performance.set_duration_minutes when user taps timer.
+  // null = use the default from DB. Picker closes on selection.
+  const [localDuration, setLocalDuration]           = useState<number | null>(null)
+  const [showDurationPicker, setShowDurationPicker] = useState(false)
+
   const mediaRecorderRef    = useRef<MediaRecorder | null>(null)
   const chunksRef           = useRef<Blob[]>([])
   const listenIntervalRef   = useRef<NodeJS.Timeout | null>(null)
@@ -170,13 +167,14 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
 
   useEffect(() => {
     if (!performance) return
-    const totalSeconds = (performance.set_duration_minutes + (performance.auto_close_buffer_minutes || 5)) * 60
+    // Use localDuration if set, otherwise fall back to DB value
+    const activeDuration = localDuration ?? performance.set_duration_minutes ?? 60
+    const totalSeconds   = (activeDuration + (performance.auto_close_buffer_minutes || 5)) * 60
     if (elapsed >= totalSeconds && !ending) handleEnd()
-  }, [elapsed, performance, ending])
+  }, [elapsed, performance, ending, localDuration])
 
   useEffect(() => { return () => stopListening() }, [])
 
-  // Fetch recent songs — re-fetches as songs are confirmed to keep list fresh
   const fetchRecentSongs = useCallback(() => {
     const confirmed = confirmedSongsRef.current
     const exclude   = confirmed
@@ -231,9 +229,6 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
     setTimeout(() => setLastCaught(null), 3500)
     setDetectStatus('')
 
-    // Write to user_songs (manual confirm path)
-    // Only for suggest/manual — auto-confirmed written by identify route.
-    // Dedup guard prevents double-counting.
     if (candidate.confidence_level === 'suggest' || candidate.source === 'manual') {
       const supabase = createClient()
       supabase.auth.getUser().then(({ data: { user } }) => {
@@ -261,6 +256,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
       if (setlistId) formData.append('setlist_id', setlistId)
       if (artistId)  formData.append('artist_id', artistId)
       if (performance?.artist_name) formData.append('artist_name', performance.artist_name)
+      if (performance?.venue_name)  formData.append('venue_name', performance.venue_name)
       formData.append('show_type', (performance as any).show_type || 'single')
       formData.append('previous_songs', JSON.stringify(confirmedSongsRef.current.map(s => s.title)))
       formData.append('candidate_history', JSON.stringify(candidateHistoryRef.current))
@@ -279,7 +275,6 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
       const confirmed = confirmedSongsRef.current
       const pending   = pendingCandidateRef.current
 
-      // ── No detection ──────────────────────────────────────────────────────
       if (!data.detected) {
         const timeSinceLast = (now - lastConfirmedAtRef.current) / 1000
         if (confirmed.length > 0 && timeSinceLast > PLACEHOLDER_GAP_SECONDS) {
@@ -295,15 +290,12 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
 
       const { title, artist, setlist_item_id, confidence_level, source } = data
 
-      // ── Already confirmed this title ──────────────────────────────────────
       if (confirmed.some(s => isSameSong(s, { title }))) {
         setDetectStatus('already logged')
         setTimeout(() => setDetectStatus(''), 3000)
         return
       }
 
-      // ── AUTO: confirm immediately ─────────────────────────────────────────
-      // The identify route already validated this. Trust it.
       if (confidence_level === 'auto') {
         const secondsSinceLast = (now - lastConfirmedAtRef.current) / 1000
         const isFirstSong      = confirmed.length === 0 && lastConfirmedAtRef.current === 0
@@ -316,9 +308,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
             { isrc: data.isrc, composer: data.composer, publisher: data.publisher }
           )
         } else {
-          // Within cooldown — put in pending so next match confirms it
           if (pending && normalizeSongKey(pending.title) === normalizeSongKey(title)) {
-            // Same song already pending — just update
             setPendingCandidate({ ...pending, lastDetectedAt: now, matchCount: pending.matchCount + 1 })
           } else if (!pending) {
             setPendingCandidate({ title, artist, source, confidence_level, firstDetectedAt: now, lastDetectedAt: now, matchCount: 1 })
@@ -328,9 +318,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         return
       }
 
-      // ── SUGGEST: needs 2 matches to confirm ──────────────────────────────
       if (confidence_level === 'suggest') {
-        // Title matches pending → accumulate
         if (pending && normalizeSongKey(pending.title) === normalizeSongKey(title)) {
           const updated: PendingCandidate = {
             ...pending, lastDetectedAt: now, matchCount: pending.matchCount + 1, source,
@@ -345,7 +333,6 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
           return
         }
 
-        // Different title — only replace pending if cooldown passed
         const secondsSinceLast = (now - lastConfirmedAtRef.current) / 1000
         const cooldownPassed   = secondsSinceLast >= MIN_SONG_GAP_SECONDS
         const isFirstSong      = confirmed.length === 0 && lastConfirmedAtRef.current === 0
@@ -357,7 +344,6 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
           })
           setDetectStatus(`hearing "${title}"...`)
         } else {
-          // Protect existing pending
           setDetectStatus(`hearing "${pending.title}"...`)
         }
       }
@@ -483,6 +469,16 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
     return `${m}:${sec.toString().padStart(2, '0')}`
   }
 
+  function formatDuration(min: number): string {
+    if (min < 60) return `${min}m`
+    if (min === 60) return '1h'
+    if (min === 90) return '1.5h'
+    if (min === 120) return '2h'
+    if (min === 180) return '3h'
+    if (min === 240) return '4h'
+    return `${min}m`
+  }
+
   if (!performance) {
     return (
       <div style={{ minHeight: '100svh', background: C.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -495,43 +491,72 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
     )
   }
 
-  const totalSeconds      = performance.set_duration_minutes * 60
+  // Use localDuration if set, otherwise fall back to DB value
+  const activeDuration    = localDuration ?? performance.set_duration_minutes ?? 60
+  const totalSeconds      = activeDuration * 60
   const progress          = Math.min(elapsed / totalSeconds, 1)
-  const remaining         = Math.max(totalSeconds - elapsed, 0)
   const ringState         = catchFlash ? 'catch' : isDetecting ? 'detect' : isListening ? 'listen' : 'idle'
   const unidentifiedCount = songs.filter(s => s.source === 'unidentified').length
 
   return (
     <div style={{ minHeight: '100svh', background: C.bg, display: 'flex', flexDirection: 'column', fontFamily: '"DM Sans", system-ui, sans-serif', overflowX: 'hidden' }}>
 
-      {/* Ambient glow — centered, emits from middle of screen */}
       <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '70vh', background: isListening ? `radial-gradient(ellipse at 50% 35%, rgba(201,168,76,0.08) 0%, transparent 65%)` : `radial-gradient(ellipse at 50% 35%, rgba(201,168,76,0.03) 0%, transparent 55%)`, pointerEvents: 'none', transition: 'background 1.8s ease', zIndex: 0 }} />
 
-      {/* ── Compact header strip ── */}
+      {/* ── Header ── */}
       <div style={{ position: 'relative', zIndex: 10, height: 46, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 20px', borderBottom: '1px solid rgba(255,255,255,0.05)', flexShrink: 0 }}>
-        {/* Left: venue name */}
         <p style={{ fontSize: 14, fontWeight: 700, color: C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1, letterSpacing: '-0.01em' }}>
           {performance.venue_name}
         </p>
-        {/* Right: LIVE dot + timer */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0, marginLeft: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
             <div style={{ width: 6, height: 6, borderRadius: '50%', background: C.red, animation: 'pulse-dot 1.4s ease-in-out infinite', boxShadow: '0 0 5px rgba(220,38,38,0.6)' }} />
             <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#f87171' }}>Live</span>
           </div>
-          <span style={{ fontFamily: '"DM Mono", monospace', fontSize: 18, fontWeight: 700, color: C.text, letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums' }}>{formatTime(elapsed)}</span>
+          {/* ── Tappable timer — tap to open duration picker ── */}
+          <button
+            onClick={() => setShowDurationPicker(v => !v)}
+            style={{ fontFamily: '"DM Mono", monospace', fontSize: 18, fontWeight: 700, color: showDurationPicker ? C.gold : C.text, letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px', borderRadius: 6, WebkitTapHighlightColor: 'transparent', transition: 'color 0.15s ease' }}
+          >
+            {formatTime(elapsed)}
+          </button>
         </div>
       </div>
 
-      {/* Progress bar — flush, 2px */}
+      {/* Progress bar */}
       <div style={{ height: 2, background: 'rgba(255,255,255,0.04)', flexShrink: 0, position: 'relative', zIndex: 10 }}>
         <div style={{ height: '100%', background: C.gold, width: `${progress * 100}%`, transition: 'width 1s linear', opacity: 0.4 }} />
       </div>
 
-      {/* ── Hero zone: centered button ── */}
+      {/* ── Duration picker — slides down below header ── */}
+      {showDurationPicker ? (
+        <div style={{ position: 'relative', zIndex: 10, background: '#0f0e0c', borderBottom: '1px solid rgba(255,255,255,0.06)', padding: '10px 20px', display: 'flex', alignItems: 'center', gap: 10, animation: 'slideDown 0.15s ease', flexShrink: 0 }}>
+          <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, flexShrink: 0 }}>Set length</span>
+          <div style={{ display: 'flex', gap: 6, flex: 1, flexWrap: 'wrap' }}>
+            {[45, 60, 75, 90, 120, 180, 240].map(min => {
+              const active = activeDuration === min
+              return (
+                <button
+                  key={min}
+                  onClick={() => { setLocalDuration(min); setShowDurationPicker(false) }}
+                  style={{ padding: '6px 12px', background: active ? C.goldDim : 'transparent', border: `1px solid ${active ? 'rgba(201,168,76,0.4)' : 'rgba(255,255,255,0.08)'}`, borderRadius: 8, color: active ? C.gold : C.muted, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.12s ease', WebkitTapHighlightColor: 'transparent' }}
+                >
+                  {formatDuration(min)}
+                </button>
+              )
+            })}
+          </div>
+          <button
+            onClick={() => setShowDurationPicker(false)}
+            style={{ background: 'none', border: 'none', color: C.muted, cursor: 'pointer', padding: '4px', flexShrink: 0, fontSize: 14 }}>
+            ✕
+          </button>
+        </div>
+      ) : null}
+
+      {/* ── Hero zone ── */}
       <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '40px 24px 28px', flexShrink: 0 }}>
 
-        {/* Pulse rings */}
         {(isListening || catchFlash) && (
           <>
             {[
@@ -555,7 +580,6 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
           </>
         )}
 
-        {/* Main button */}
         <button
           onClick={isListening ? stopListening : startListening}
           disabled={isDetecting && !isListening}
@@ -600,7 +624,6 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
           </span>
         </button>
 
-        {/* Status line */}
         <div style={{ marginTop: 18, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           {lastCaught ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, animation: 'fadeIn 0.25s ease' }}>
@@ -643,10 +666,9 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         </div>
       )}
 
-      {/* ── Lower section: setlist + controls ── */}
+      {/* ── Lower section ── */}
       <div style={{ position: 'relative', zIndex: 1, flex: 1, display: 'flex', flexDirection: 'column', gap: 8, padding: '0 16px 40px', maxWidth: 480, width: '100%', margin: '0 auto', boxSizing: 'border-box' }}>
 
-        {/* Unidentified banner */}
         {unidentifiedCount > 0 && (
           <div style={{ background: 'rgba(245,158,11,0.06)', border: `1px solid rgba(245,158,11,0.18)`, borderRadius: 10, padding: '9px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
             <p style={{ fontSize: 12, color: C.amber, margin: 0, fontWeight: 600 }}>
@@ -655,7 +677,6 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
           </div>
         )}
 
-        {/* Song list */}
         {songs.length > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             {songs.map((song, i) => {
@@ -725,7 +746,6 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
           </div>
         )}
 
-        {/* Add manually — ghost, low weight */}
         <button
           onClick={() => setShowManual(v => !v)}
           style={{ width: '100%', padding: '10px', background: 'transparent', border: `1px solid rgba(255,255,255,0.05)`, borderRadius: 10, color: C.muted, fontSize: 11, fontWeight: 600, letterSpacing: '0.07em', cursor: 'pointer', fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent', transition: 'border-color 0.15s ease' }}
@@ -736,8 +756,6 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
 
         {showManual && (
           <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: '12px', display: 'flex', flexDirection: 'column', gap: 10, animation: 'slideUp 0.15s ease' }}>
-
-            {/* Recent song chips — primary path */}
             {recentSongs.length > 0 && !songInput && (
               <div>
                 <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, margin: '0 0 8px' }}>Recent songs</p>
@@ -769,8 +787,6 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
                 <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, margin: '0 0 8px' }}>Or type a song</p>
               </div>
             )}
-
-            {/* Search/type fallback */}
             <input value={songInput} onChange={e => setSongInput(e.target.value)}
               placeholder={recentSongs.length > 0 ? "Search or type a title..." : "Song title"}
               autoFocus={recentSongs.length === 0}
@@ -785,7 +801,6 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
           </div>
         )}
 
-        {/* End Performance */}
         <button onClick={handleEnd} disabled={ending}
           style={{ width: '100%', padding: '13px', background: 'rgba(220,38,38,0.07)', border: `1px solid rgba(220,38,38,0.22)`, borderRadius: 10, color: ending ? C.muted : '#f87171', fontSize: 12, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: ending ? 'not-allowed' : 'pointer', opacity: ending ? 0.4 : 1, transition: 'all 0.15s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent' }}
           onMouseEnter={e => { if (!ending) (e.currentTarget as HTMLButtonElement).style.background = 'rgba(220,38,38,0.13)' }}
@@ -804,6 +819,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         @keyframes ring-catch { 0%{opacity:.9;transform:translateX(-50%) scale(.93)} 100%{opacity:0;transform:translateX(-50%) scale(1.42)} }
         @keyframes wave-bar   { from{height:4px} to{height:22px} }
         @keyframes slideUp    { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes slideDown  { from{opacity:0;transform:translateY(-6px)} to{opacity:1;transform:translateY(0)} }
         @keyframes fadeIn     { from{opacity:0} to{opacity:1} }
         @keyframes breathe    { 0%,100%{transform:scale(1);opacity:.4} 50%{transform:scale(1.15);opacity:.9} }
         * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
