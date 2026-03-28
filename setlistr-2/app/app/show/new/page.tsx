@@ -37,6 +37,7 @@ export default function NewShowPage() {
   const [venueSearching, setVenueSearching] = useState(false)
   const [showDropdown, setShowDropdown]     = useState(false)
   const [venueMemory, setVenueMemory]       = useState<VenueMemory | null>(null)
+  const [venueCapacity, setVenueCapacity]   = useState<string>('')  // 'small'|'medium'|'large'|'festival'
   const dropdownRef = useRef<HTMLDivElement>(null)
   const searchTimer = useRef<NodeJS.Timeout | null>(null)
 
@@ -96,7 +97,7 @@ export default function NewShowPage() {
   }
 
   function handleVenueInput(val: string) {
-    setVenueQuery(val); setVenueId(null); setVenueSelected(false); setVenueMemory(null)
+    setVenueQuery(val); setVenueId(null); setVenueSelected(false); setVenueMemory(null); setVenueCapacity('')
     if (searchTimer.current) clearTimeout(searchTimer.current)
     searchTimer.current = setTimeout(() => searchVenues(val), 280)
   }
@@ -142,7 +143,8 @@ export default function NewShowPage() {
       const { data: { user } } = await supabase.auth.getUser()
       let resolvedVenueId = venueId
       if (!resolvedVenueId && venueQuery.trim()) {
-        const { data: nv } = await supabase.from('venues').insert({ name: venueQuery.trim(), city: venueCity.trim() || null, country: venueCountry.trim() || null }).select().single()
+        const capacityMap: Record<string,number> = { small: 150, medium: 500, large: 2000, festival: 10000 }
+        const { data: nv } = await supabase.from('venues').insert({ name: venueQuery.trim(), city: venueCity.trim() || null, country: venueCountry.trim() || null, capacity: venueCapacity ? capacityMap[venueCapacity] : null }).select().single()
         if (nv) resolvedVenueId = nv.id
       }
       const scheduledIso = showSchedule && scheduledAt ? new Date(scheduledAt).toISOString() : null
@@ -165,7 +167,8 @@ export default function NewShowPage() {
       const { data: { user } } = await supabase.auth.getUser()
       let resolvedVenueId = venueId
       if (!resolvedVenueId && venueQuery.trim()) {
-        const { data: nv } = await supabase.from('venues').insert({ name: venueQuery.trim(), city: venueCity.trim() || null, country: venueCountry.trim() || null }).select().single()
+        const capacityMap: Record<string,number> = { small: 150, medium: 500, large: 2000, festival: 10000 }
+        const { data: nv } = await supabase.from('venues').insert({ name: venueQuery.trim(), city: venueCity.trim() || null, country: venueCountry.trim() || null, capacity: venueCapacity ? capacityMap[venueCapacity] : null }).select().single()
         if (nv) resolvedVenueId = nv.id
       }
       const scheduledIso = showSchedule && scheduledAt ? new Date(scheduledAt).toISOString() : null
@@ -275,6 +278,30 @@ export default function NewShowPage() {
             {showDropdown && venueResults.length === 0 && venueQuery.trim().length >= 2 && !venueSearching ? (
               <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#1a1816', border: `1px solid ${C.border}`, borderRadius: 10, marginTop: 4, zIndex: 50, padding: '12px 14px', animation: 'fadeIn 0.15s ease' }}>
                 <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>No venues found — will be saved as new.</p>
+              </div>
+            ) : null}
+
+            {/* Capacity picker — shown when typing a new venue not in system */}
+            {venueQuery.trim().length >= 2 && !venueSelected && !venueSearching ? (
+              <div style={{ marginTop: 8, animation: 'fadeIn 0.2s ease' }}>
+                <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.muted, margin: '0 0 6px' }}>Venue size</p>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {([
+                    { key: 'small',    label: 'Small',    sub: '<300' },
+                    { key: 'medium',   label: 'Medium',   sub: '300–2k' },
+                    { key: 'large',    label: 'Large',    sub: '2k–10k' },
+                    { key: 'festival', label: 'Festival', sub: '10k+' },
+                  ] as const).map(opt => (
+                    <button
+                      key={opt.key}
+                      type="button"
+                      onClick={() => setVenueCapacity(venueCapacity === opt.key ? '' : opt.key)}
+                      style={{ flex: 1, padding: '8px 4px', background: venueCapacity === opt.key ? C.goldDim : 'transparent', border: `1px solid ${venueCapacity === opt.key ? C.borderGold : C.border}`, borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s ease', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: venueCapacity === opt.key ? C.gold : C.secondary }}>{opt.label}</span>
+                      <span style={{ fontSize: 9, color: C.muted }}>{opt.sub}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
             ) : null}
           </div>
