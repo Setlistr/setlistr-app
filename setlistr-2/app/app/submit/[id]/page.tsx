@@ -454,14 +454,14 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
         <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '16px 18px', marginBottom: 12, animation: 'fadeUp 0.4s 0.05s ease both' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
             <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, margin: 0 }}>Song Readiness</p>
-            <span style={{ fontSize: 12, fontWeight: 700, color: readyCount === songs.length ? C.green : C.gold }}>
-              {readyCount}/{songs.length} ready
+            <span style={{ fontSize: 12, fontWeight: 700, color: strongCount === songs.length ? C.green : C.gold }}>
+              {strongCount}/{songs.length} matched
             </span>
           </div>
 
           {/* Progress bar */}
           <div style={{ height: 4, background: 'rgba(255,255,255,0.06)', borderRadius: 2, marginBottom: 14, overflow: 'hidden' }}>
-            <div style={{ height: '100%', width: `${(readyCount / Math.max(songs.length, 1)) * 100}%`, background: readyCount === songs.length ? C.green : C.gold, borderRadius: 2, transition: 'width 0.4s ease' }} />
+            <div style={{ height: '100%', width: `${(strongCount / Math.max(songs.length, 1)) * 100}%`, background: strongCount === songs.length ? C.green : C.gold, borderRadius: 2, transition: 'width 0.4s ease' }} />
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -501,7 +501,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
             ) : null}
           </div>
 
-          {unknownCount > 0 ? (
+          {unverifiedCount > 0 ? (
             <p style={{ fontSize: 11, color: C.muted, margin: '12px 0 0', paddingTop: 10, borderTop: `1px solid ${C.border}`, lineHeight: 1.5 }}>
               Unverified songs have limited metadata. Register them with your PRO to ensure they're eligible for royalties.
             </p>
