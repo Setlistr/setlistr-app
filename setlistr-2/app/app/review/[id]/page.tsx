@@ -726,12 +726,12 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
             <div style={{ borderTop: `1px solid rgba(201,168,76,0.2)`, paddingTop: 14 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                 <span style={{ fontSize: 11, color: C.secondary }}>Song readiness</span>
-                <span style={{ fontSize: 11, fontWeight: 700, color: readyCount === songs.length ? C.green : C.gold }}>
-                  {readyCount}/{songs.length} ready
+                <span style={{ fontSize: 11, fontWeight: 700, color: strongCount === assessedCount && assessedCount > 0 ? C.green : C.gold }}>
+                  {strongCount}/{assessedCount > 0 ? assessedCount : songs.length} matched
                 </span>
               </div>
               <div style={{ height: 4, background: 'rgba(255,255,255,0.08)', borderRadius: 2, overflow: 'hidden', marginBottom: 10 }}>
-                <div style={{ height: '100%', borderRadius: 2, background: readyCount === songs.length ? C.green : C.gold, width: `${Math.round((strongCount / Math.max(assessedCount || songs.length, 1)) * 100)}%`, transition: 'width 0.6s ease' }} />
+                <div style={{ height: '100%', borderRadius: 2, background: strongCount === assessedCount && assessedCount > 0 ? C.green : C.gold, width: `${Math.round((strongCount / Math.max(assessedCount || songs.length, 1)) * 100)}%`, transition: 'width 0.6s ease' }} />
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                 {matchedSongs.length > 0 ? (
