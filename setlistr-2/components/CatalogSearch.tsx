@@ -8,14 +8,10 @@
  * Pulls from user_songs catalog with ISRC/composer/publisher auto-fill.
  * Falls back to free-text "Add [query]" if no match found.
  *
- * Usage:
- *   <CatalogSearch
- *     userId={userId}
- *     placeholder="Search your songs..."
- *     onSelect={(song) => handleSongSelected(song)}
- *     onAddNew={(title) => handleAddNew(title)}
- *     autoFocus
- *   />
+ * Fixes:
+ *   1. userId timing — reloads catalog when userId becomes available
+ *   2. Mobile tap — uses onTouchStart + selecting state to prevent
+ *      dropdown closing before tap registers
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react'
@@ -42,12 +38,12 @@ export type CatalogSong = {
 }
 
 type Props = {
-  userId:       string | null
-  placeholder?: string
-  onSelect:     (song: CatalogSong) => void
-  autoFocus?:   boolean
-  currentSongs?: string[]   // titles already in the setlist — shown dimmed
-  showEmpty?:   boolean     // show catalog immediately on focus (no typing needed)
+  userId:        string | null
+  placeholder?:  string
+  onSelect:      (song: CatalogSong) => void
+  autoFocus?:    boolean
+  currentSongs?: string[]  // titles already in the setlist — shown dimmed
+  showEmpty?:    boolean   // show catalog immediately on focus (no typing needed)
 }
 
 export default function CatalogSearch({
@@ -58,17 +54,13 @@ export default function CatalogSearch({
   currentSongs = [],
   showEmpty = true,
 }: Props) {
-  const [query, setQuery]         = useState('')
-  const [results, setResults]     = useState<CatalogSong[]>([])
-  const [loading, setLoading]     = useState(false)
-  const [focused, setFocused]     = useState(false)
-  const inputRef                  = useRef<HTMLInputElement>(null)
-  const debounceRef               = useRef<NodeJS.Timeout | null>(null)
-
-  // Load catalog on mount if showEmpty — so suggestions appear immediately
-  useEffect(() => {
-    if (showEmpty && userId) loadCatalog('')
-  }, [userId, showEmpty])
+  const [query, setQuery]       = useState('')
+  const [results, setResults]   = useState<CatalogSong[]>([])
+  const [loading, setLoading]   = useState(false)
+  const [focused, setFocused]   = useState(false)
+  const [selecting, setSelecting] = useState(false) // prevents blur closing dropdown on mobile tap
+  const inputRef                = useRef<HTMLInputElement>(null)
+  const debounceRef             = useRef<NodeJS.Timeout | null>(null)
 
   const loadCatalog = useCallback(async (q: string) => {
     if (!userId) return
@@ -80,7 +72,7 @@ export default function CatalogSearch({
       .select('id, song_title, canonical_artist, isrc, composer, publisher, confirmed_count')
       .eq('user_id', userId)
       .order('confirmed_count', { ascending: false })
-      .limit(20)
+      .limit(50) // bumped from 20 so more songs are searchable
 
     if (q.trim()) {
       queryBuilder = queryBuilder.ilike('song_title', `%${q.trim()}%`)
@@ -103,6 +95,11 @@ export default function CatalogSearch({
     setLoading(false)
   }, [userId])
 
+  // FIX 1: re-run when userId becomes available (async auth timing)
+  useEffect(() => {
+    if (showEmpty && userId) loadCatalog('')
+  }, [userId, showEmpty, loadCatalog])
+
   function handleChange(val: string) {
     setQuery(val)
     if (debounceRef.current) clearTimeout(debounceRef.current)
@@ -113,6 +110,8 @@ export default function CatalogSearch({
     onSelect(song)
     setQuery('')
     setResults([])
+    setFocused(false)
+    setSelecting(false)
   }
 
   function handleAddNew() {
@@ -125,9 +124,24 @@ export default function CatalogSearch({
     })
     setQuery('')
     setResults([])
+    setFocused(false)
+    setSelecting(false)
   }
 
-  const showResults = focused && (results.length > 0 || query.trim().length > 0)
+  // FIX 2: track when user is touching a result so blur doesn't close dropdown
+  function handleResultTouchStart() {
+    setSelecting(true)
+  }
+
+  function handleBlur() {
+    // If user is mid-tap on a result, don't close — the touch handler will clean up
+    if (selecting) return
+    setTimeout(() => {
+      if (!selecting) setFocused(false)
+    }, 200)
+  }
+
+  const showResults = (focused || selecting) && (results.length > 0 || query.trim().length > 0)
   const showAddNew  = query.trim().length > 0 &&
     !results.some(r => r.title.toLowerCase() === normalizeSongTitle(query.trim()).toLowerCase())
 
@@ -141,7 +155,7 @@ export default function CatalogSearch({
           value={query}
           onChange={e => handleChange(e.target.value)}
           onFocus={() => setFocused(true)}
-          onBlur={() => setTimeout(() => setFocused(false), 150)}
+          onBlur={handleBlur}
           onKeyDown={e => {
             if (e.key === 'Enter') {
               if (results.length > 0) handleSelect(results[0])
@@ -194,7 +208,9 @@ export default function CatalogSearch({
             return (
               <button
                 key={song.id}
-                onMouseDown={() => handleSelect(song)}
+                onTouchStart={handleResultTouchStart}
+                onMouseDown={() => setSelecting(true)}
+                onClick={() => handleSelect(song)}
                 style={{
                   width: '100%', padding: '11px 14px',
                   background: 'transparent',
@@ -232,7 +248,7 @@ export default function CatalogSearch({
                   ) : null}
                 </div>
 
-                {/* Registration dot */}
+                {/* Match dot */}
                 <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 4 }}>
                   {song.isrc ? (
                     <span style={{ width: 6, height: 6, borderRadius: '50%', background: C.green, display: 'block' }} title="ISRC confirmed" />
@@ -246,7 +262,9 @@ export default function CatalogSearch({
           {/* Add new option */}
           {showAddNew ? (
             <button
-              onMouseDown={handleAddNew}
+              onTouchStart={handleResultTouchStart}
+              onMouseDown={() => setSelecting(true)}
+              onClick={handleAddNew}
               style={{
                 width: '100%', padding: '11px 14px',
                 background: C.goldDim,
