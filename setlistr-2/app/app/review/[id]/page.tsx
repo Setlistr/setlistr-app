@@ -15,6 +15,7 @@ import { GripVertical, Download, Check, X, Music2, MapPin, Calendar } from 'luci
 // CHANGE 1: import estimator
 import { estimateRoyalties, capacityToBand } from '@/lib/royalty-estimate'
 import CatalogSearch, { type CatalogSong } from '@/components/CatalogSearch'
+import { normalizeSong } from '@/lib/song-utils'
 
 const C = {
   bg: '#0a0908', card: '#141210', cardHover: '#181614',
