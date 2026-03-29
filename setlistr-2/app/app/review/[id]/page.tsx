@@ -14,6 +14,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { GripVertical, Download, Check, X, Music2, MapPin, Calendar } from 'lucide-react'
 // CHANGE 1: import estimator
 import { estimateRoyalties, capacityToBand } from '@/lib/royalty-estimate'
+import CatalogSearch, { type CatalogSong } from '@/components/CatalogSearch'
 
 const C = {
   bg: '#0a0908', card: '#141210', cardHover: '#181614',
