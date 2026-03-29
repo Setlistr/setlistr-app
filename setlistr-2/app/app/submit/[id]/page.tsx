@@ -162,7 +162,7 @@ type Song = {
   isrc?: string
   composer?: string
   publisher?: string
-  registrationStatus: 'registered' | 'likely' | 'unknown'
+  matchConfidence: 'matched' | 'partial' | 'unverified' | 'none'
 }
 
 type Performance = {
@@ -185,10 +185,16 @@ type Profile = {
   artist_name: string | null
 }
 
-function deriveStatus(song: { isrc?: string; composer?: string }): 'registered' | 'likely' | 'unknown' {
-  if (song.isrc) return 'registered'
-  if (song.composer) return 'likely'
-  return 'unknown'
+// Match confidence — NOT registration status.
+// Only meaningful for auto-detected songs — manual adds return 'none'.
+// Source field isn't available from performance_songs, so we use metadata
+// presence as the signal: both = matched, one = partial, neither = unverified.
+// Songs submitted via the submit page went through detection — we treat
+// absence of source info conservatively as unverified rather than none.
+function deriveConfidence(song: { isrc?: string; composer?: string }): 'matched' | 'partial' | 'unverified' | 'none' {
+  if (song.isrc && song.composer) return 'matched'
+  if (song.isrc || song.composer) return 'partial'
+  return 'unverified'
 }
 
 function buildCopyText(songs: Song[], perf: Performance, profile: Profile, pro: string): string {
@@ -284,7 +290,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
         const mapped = songData.map(s => ({
           title: s.title, artist: s.artist || '',
           isrc: s.isrc || '', composer: s.composer || '', publisher: s.publisher || '',
-          registrationStatus: deriveStatus(s),
+          matchConfidence: deriveConfidence(s),
         }))
         setSongs(mapped)
         // Init step completion state based on PRO step count
@@ -356,10 +362,10 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
     territory,
   })
 
-  const registeredCount = songs.filter(s => s.registrationStatus === 'registered').length
-  const likelyCount     = songs.filter(s => s.registrationStatus === 'likely').length
-  const unknownCount    = songs.filter(s => s.registrationStatus === 'unknown').length
-  const readyCount      = registeredCount + likelyCount
+  const matchedCount    = songs.filter(s => s.matchConfidence === 'matched').length
+  const partialCount    = songs.filter(s => s.matchConfidence === 'partial').length
+  const unverifiedCount = songs.filter(s => s.matchConfidence === 'unverified').length
+  const strongCount     = matchedCount + partialCount
 
   const daysLeft    = proConfig ? proConfig.deadlineDays(new Date()) : 365
   const showDate    = new Date(performance.started_at)
@@ -383,7 +389,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
           <div style={{ width: '100%', background: C.greenDim, border: '1px solid rgba(74,222,128,0.2)', borderRadius: 16, padding: '20px', marginBottom: 20 }}>
             <p style={{ fontSize: 13, color: C.green, margin: '0 0 4px', fontWeight: 600 }}>~${estimate.expected} claimed</p>
             <p style={{ fontSize: 12, color: C.secondary, margin: 0 }}>
-              {readyCount} of {songs.length} songs submitted · expect payment in 6–9 months
+              {songs.length} songs submitted · expect payment in 6–9 months
             </p>
           </div>
           <button onClick={() => router.push('/app/dashboard')}
@@ -459,36 +465,37 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {registeredCount > 0 ? (
+            {matchedCount > 0 ? (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <div style={{ width: 7, height: 7, borderRadius: '50%', background: C.green, flexShrink: 0 }} />
-                  <span style={{ fontSize: 13, color: C.text }}>Registered</span>
-                  <span style={{ fontSize: 11, color: C.muted }}>ISRC confirmed</span>
+                  <span style={{ fontSize: 13, color: C.text }}>Matched</span>
+                  <span style={{ fontSize: 11, color: C.muted }}>strong metadata</span>
                 </div>
-                <span style={{ fontSize: 13, fontWeight: 700, color: C.green, fontFamily: '"DM Mono", monospace' }}>{registeredCount}</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: C.green, fontFamily: '"DM Mono", monospace' }}>{matchedCount}</span>
               </div>
             ) : null}
-            {likelyCount > 0 ? (
+            {partialCount > 0 ? (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <div style={{ width: 7, height: 7, borderRadius: '50%', background: C.gold, flexShrink: 0 }} />
-                  <span style={{ fontSize: 13, color: C.text }}>Likely registered</span>
-                  <span style={{ fontSize: 11, color: C.muted }}>composer known</span>
+                  <span style={{ fontSize: 13, color: C.text }}>Partial match</span>
+                  <span style={{ fontSize: 11, color: C.muted }}>partial metadata</span>
                 </div>
-                <span style={{ fontSize: 13, fontWeight: 700, color: C.gold, fontFamily: '"DM Mono", monospace' }}>{likelyCount}</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: C.gold, fontFamily: '"DM Mono", monospace' }}>{partialCount}</span>
               </div>
             ) : null}
-            {unknownCount > 0 ? (
+            {unverifiedCount > 0 ? (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <div style={{ width: 7, height: 7, borderRadius: '50%', background: C.muted, flexShrink: 0 }} />
-                  <span style={{ fontSize: 13, color: C.secondary }}>{unknownCount} unregistered</span>
+                  <span style={{ fontSize: 13, color: C.secondary }}>Unverified</span>
+                  <span style={{ fontSize: 11, color: C.muted }}>no metadata found</span>
                 </div>
                 <button
                   onClick={() => pro && window.open(proConfig?.portal, '_blank')}
                   style={{ fontSize: 11, color: C.blue, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>
-                  Register on {pro} →
+                  Register with your PRO →
                 </button>
               </div>
             ) : null}
@@ -496,7 +503,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
 
           {unknownCount > 0 ? (
             <p style={{ fontSize: 11, color: C.muted, margin: '12px 0 0', paddingTop: 10, borderTop: `1px solid ${C.border}`, lineHeight: 1.5 }}>
-              Register unregistered songs with {pro || 'your PRO'} before submitting to unlock their royalties.
+              Unverified songs have limited metadata. Register them with your PRO to ensure they're eligible for royalties.
             </p>
           ) : null}
         </div>
@@ -618,8 +625,8 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             {songs.map((song, i) => {
-              const sc = song.registrationStatus === 'registered' ? C.green : song.registrationStatus === 'likely' ? C.gold : C.muted
-              const sl = song.registrationStatus === 'registered' ? 'Reg' : song.registrationStatus === 'likely' ? 'Likely' : '?'
+              const sc = song.matchConfidence === 'matched' ? C.green : song.matchConfidence === 'partial' ? C.gold : song.matchConfidence === 'unverified' ? C.muted : 'transparent'
+              const sl = song.matchConfidence === 'matched' ? 'Matched' : song.matchConfidence === 'partial' ? 'Partial' : song.matchConfidence === 'unverified' ? 'Unverified' : ''
               return (
                 <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: C.card, border: `1px solid ${C.border}`, borderRadius: 10 }}>
                   <span style={{ fontSize: 11, color: C.muted, minWidth: 16, textAlign: 'right', fontFamily: '"DM Mono", monospace', flexShrink: 0 }}>{i + 1}</span>
