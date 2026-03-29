@@ -14,14 +14,42 @@ import { CSS } from '@dnd-kit/utilities'
 import { GripVertical, Download, Check, X, Music2, MapPin, Calendar } from 'lucide-react'
 // CHANGE 1: import estimator
 import { estimateRoyalties, capacityToBand } from '@/lib/royalty-estimate'
-import { normalizeSong } from '@/lib/song-utils'
-import CatalogSearch, { type CatalogSong } from '@/components/CatalogSearch'
 
 const C = {
   bg: '#0a0908', card: '#141210', cardHover: '#181614',
   border: 'rgba(255,255,255,0.07)', borderGold: 'rgba(201,168,76,0.3)',
   input: '#0f0e0c', text: '#f0ece3', secondary: '#a09070', muted: '#6a6050',
   gold: '#c9a84c', goldDim: 'rgba(201,168,76,0.1)', green: '#4ade80', red: '#ef4444',
+}
+
+// ── Match confidence signal ──────────────────────────────────────────────────
+// Only applies to auto-detected songs. Manual adds get no signal — silence
+// is more honest than a false negative on an artist's own registered song.
+//
+// Tiers:
+//   matched        = auto-detected + ISRC + composer (strong metadata)
+//   partial        = auto-detected + ISRC OR composer (partial metadata)
+//   unverified     = auto-detected + no metadata (detected but unenriched)
+//   none           = manual / assigned / corrected — no signal shown
+//
+// This is match confidence, NOT registration status.
+// PRO registration can only be confirmed via direct PRO API queries.
+function getMatchConfidence(song: {
+  source?: string
+  isrc?: string
+  composer?: string
+  reviewState?: string
+}): 'matched' | 'partial' | 'unverified' | 'none' {
+  const isAutoDetected = (
+    song.source === 'recognized' ||
+    song.source === 'detected'   ||
+    song.source === 'fingerprint'||
+    song.source === 'humming'
+  )
+  if (!isAutoDetected) return 'none'  // manual, cloned, assigned — no signal
+  if (song.isrc && song.composer) return 'matched'
+  if (song.isrc || song.composer) return 'partial'
+  return 'unverified'
 }
 
 type Song = {
@@ -259,9 +287,13 @@ function SortableRow({ song, index, onDelete, onTap }: {
             </svg>
           ) : needsReview ? (
             <span style={{ fontSize: 10, color: C.gold, opacity: 0.7, fontWeight: 700 }}>!</span>
-          ) : (
-            <Check size={13} color={C.green} strokeWidth={2.5} style={{ opacity: 0.5 }} />
-          )}
+          ) : (() => {
+            const conf = getMatchConfidence(song)
+            if (conf === 'matched')    return <span style={{ width: 7, height: 7, borderRadius: '50%', background: C.green, display: 'inline-block', opacity: 0.8 }} />
+            if (conf === 'partial')    return <span style={{ width: 7, height: 7, borderRadius: '50%', background: C.gold, display: 'inline-block', opacity: 0.6 }} />
+            if (conf === 'unverified') return <span style={{ width: 7, height: 7, borderRadius: '50%', background: C.muted, display: 'inline-block', opacity: 0.5 }} />
+            return <Check size={13} color={C.green} strokeWidth={2.5} style={{ opacity: 0.3 }} />
+          })()}
         </div>
       </div>
     </div>
@@ -645,10 +677,13 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
     })
 
     // Derive registration readiness from song data
-    const registeredSongs = songs.filter(s => s.isrc)
-    const likelySongs     = songs.filter(s => !s.isrc && s.composer)
-    const unknownSongs    = songs.filter(s => !s.isrc && !s.composer)
-    const readyCount      = registeredSongs.length + likelySongs.length
+    // Match confidence — auto-detected songs only, no signal for manual adds
+    const matchedSongs    = songs.filter(s => getMatchConfidence(s) === 'matched')
+    const partialSongs    = songs.filter(s => getMatchConfidence(s) === 'partial')
+    const unverifiedSongs = songs.filter(s => getMatchConfidence(s) === 'unverified')
+    const noSignalSongs   = songs.filter(s => getMatchConfidence(s) === 'none')
+    const assessedCount   = matchedSongs.length + partialSongs.length + unverifiedSongs.length
+    const strongCount     = matchedSongs.length + partialSongs.length
 
     // Contextual insight — one line that makes the app feel smart
     const newSongs = songs.filter(s => s.reviewState === 'clean' && s.source === 'manual')
@@ -694,34 +729,43 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
                 </span>
               </div>
               <div style={{ height: 4, background: 'rgba(255,255,255,0.08)', borderRadius: 2, overflow: 'hidden', marginBottom: 10 }}>
-                <div style={{ height: '100%', borderRadius: 2, background: readyCount === songs.length ? C.green : C.gold, width: `${Math.round((readyCount / Math.max(songs.length, 1)) * 100)}%`, transition: 'width 0.6s ease' }} />
+                <div style={{ height: '100%', borderRadius: 2, background: readyCount === songs.length ? C.green : C.gold, width: `${Math.round((strongCount / Math.max(assessedCount || songs.length, 1)) * 100)}%`, transition: 'width 0.6s ease' }} />
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                {registeredSongs.length > 0 ? (
+                {matchedSongs.length > 0 ? (
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: C.secondary }}>
                       <span style={{ width: 6, height: 6, borderRadius: '50%', background: C.green, display: 'inline-block', flexShrink: 0 }} />
-                      Registered
+                      Matched
                     </span>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: C.green, fontFamily: '"DM Mono", monospace' }}>{registeredSongs.length}</span>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: C.green, fontFamily: '"DM Mono", monospace' }}>{matchedSongs.length}</span>
                   </div>
                 ) : null}
-                {likelySongs.length > 0 ? (
+                {partialSongs.length > 0 ? (
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: C.secondary }}>
                       <span style={{ width: 6, height: 6, borderRadius: '50%', background: C.gold, display: 'inline-block', flexShrink: 0 }} />
-                      Likely registered
+                      Partial match
                     </span>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: C.gold, fontFamily: '"DM Mono", monospace' }}>{likelySongs.length}</span>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: C.gold, fontFamily: '"DM Mono", monospace' }}>{partialSongs.length}</span>
                   </div>
                 ) : null}
-                {unknownSongs.length > 0 ? (
+                {unverifiedSongs.length > 0 ? (
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: C.muted }}>
                       <span style={{ width: 6, height: 6, borderRadius: '50%', background: C.muted, display: 'inline-block', flexShrink: 0 }} />
-                      Unknown
+                      Unverified
                     </span>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: C.muted, fontFamily: '"DM Mono", monospace' }}>{unknownSongs.length}</span>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: C.muted, fontFamily: '"DM Mono", monospace' }}>{unverifiedSongs.length}</span>
+                  </div>
+                ) : null}
+                {noSignalSongs.length > 0 ? (
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: C.muted }}>
+                      <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'rgba(255,255,255,0.1)', display: 'inline-block', flexShrink: 0 }} />
+                      Manually added
+                    </span>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: C.muted, fontFamily: '"DM Mono", monospace' }}>{noSignalSongs.length}</span>
                   </div>
                 ) : null}
               </div>
@@ -770,7 +814,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
 
           {/* ── Reminder nudge — low pressure ── */}
           <p style={{ fontSize: 11, color: C.muted, margin: 0, lineHeight: 1.5, animation: 'fadeUp 0.4s 0.2s ease both' }}>
-            ~${estimate.expected} is tracked and ready to claim.{' '}
+            ~${estimate.expected} estimated · {assessedCount > 0 ? `${strongCount} of ${assessedCount} detected songs matched` : 'submit to your PRO to claim'}.{' '}
             <span style={{ color: C.secondary }}>We'll remind you on the dashboard.</span>
           </p>
         </div>
