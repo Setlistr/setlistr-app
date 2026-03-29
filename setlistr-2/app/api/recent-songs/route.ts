@@ -22,18 +22,6 @@ function normalizeSongKey(title: string): string {
     .replace(/\s+/g, ' ').trim()
 }
 
-// ─── Ranking score ────────────────────────────────────────────────────────────
-// score = confirmed_count × recency_decay
-//
-// Decay uses a 90-day half-life so high play-count songs stay relevant longer.
-// A song played 10× six months ago still outranks a song played 1× last week.
-// Floor of 0.35 means nothing fully disappears from suggestions.
-//
-//   today    → decay ≈ 1.00
-//   30 days  → decay ≈ 0.79
-//   90 days  → decay ≈ 0.57  (half-life)
-//   180 days → decay ≈ 0.44
-//   very old → decay → 0.35  (floor)
 function rankingScore(confirmedCount: number, lastConfirmedAt: string, venueBoost = 1): number {
   const daysSince = (Date.now() - new Date(lastConfirmedAt).getTime()) / 86400000
   const decay     = 0.35 + 0.65 * Math.pow(0.5, daysSince / 90)
@@ -49,16 +37,13 @@ export async function GET(req: NextRequest) {
     const url          = new URL(req.url)
     const allowRepeats = url.searchParams.get('allow_repeats') === '1'
     const venueId      = url.searchParams.get('venue_id') || ''
+    const searchQuery  = url.searchParams.get('q') || ''  // ← NEW: search filter
 
-    // Songs already in the current set — passed as comma-separated encoded titles
     const excludeRaw   = url.searchParams.get('exclude') || ''
     const excludedKeys = excludeRaw
       ? excludeRaw.split(',').map(t => normalizeSongKey(decodeURIComponent(t)))
       : []
 
-    // ── Optional: same-venue boost ────────────────────────────────────────────
-    // If venue_id is provided, fetch song titles played at this venue before.
-    // One join — if it fails we just skip the boost, never block the response.
     const venuePlayedKeys = new Set<string>()
     if (venueId) {
       try {
@@ -78,18 +63,25 @@ export async function GET(req: NextRequest) {
     }
 
     // ── Fetch user's song catalog ─────────────────────────────────────────────
-    const { data, error } = await supabase
+    // If a search query is provided, filter by it server-side.
+    // Otherwise return full catalog (up to 200) for client-side scoring.
+    let queryBuilder = supabase
       .from('user_songs')
       .select('id, song_title, canonical_artist, confirmed_count, last_confirmed_at, source')
       .eq('user_id', user.id)
       .limit(200)
+
+    if (searchQuery.trim()) {
+      queryBuilder = queryBuilder.ilike('song_title', `%${searchQuery.trim()}%`)
+    }
+
+    const { data, error } = await queryBuilder
 
     if (error) {
       console.error('[RecentSongs] DB error:', error.message)
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    // ── Score, deduplicate, partition ─────────────────────────────────────────
     const deduped = new Map<string, {
       id: string; title: string; raw_title: string; artist: string
       play_count: number; last_played: string; source: string; score: number
@@ -122,13 +114,6 @@ export async function GET(req: NextRequest) {
 
     const allEntries = Array.from(deduped.entries())
 
-    // ── Partition into in_set vs suggestions ──────────────────────────────────
-    // in_set: songs currently in this show's setlist (only returned when allow_repeats=true)
-    // suggestions: everything else, sorted by score descending
-    //
-    // Spotify-imported songs are always included in suggestions even if their
-    // normalized title matches an excluded key — they haven't been confirmed live
-    // and should always be available in the assign sheet for quick-add.
     const inSetEntries   = allEntries.filter(([key, s]) =>
       excludedKeys.includes(key) && s.source !== 'spotify_import'
     )
@@ -151,7 +136,6 @@ export async function GET(req: NextRequest) {
       .slice(0, 50)
       .map(toSongShape)
 
-    // in_set only sent when allow_repeats is on — otherwise it just clutters
     const in_set = allowRepeats
       ? inSetEntries.sort((a, b) => b[1].score - a[1].score).map(toSongShape)
       : []
