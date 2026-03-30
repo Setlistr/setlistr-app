@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Music2, MapPin, Calendar, TrendingUp, Mic2 } from 'lucide-react'
+import MySongsTab from '@/components/MySongsTab'
 
 const C = {
   bg: '#0a0908', card: '#141210',
@@ -10,27 +11,16 @@ const C = {
   gold: '#c9a84c', goldDim: 'rgba(201,168,76,0.1)',
 }
 
-type Song       = { title: string; artist: string }
-type UserSong   = { id: string; song_title: string; canonical_artist: string; confirmed_count: number; last_confirmed_at: string }
+type Song        = { title: string; artist: string }
 type Performance = { id: string; venue_name: string; city: string; country: string; started_at: string; set_duration_minutes: number }
-
-function cleanTitle(title: string): string {
-  return title
-    .replace(/\s*\(made popular by[^)]*\)/gi, '')
-    .replace(/\s*\[vocal version\]/gi, '')
-    .replace(/\s*\[karaoke\]/gi, '')
-    .replace(/\s*\(karaoke[^)]*\)/gi, '')
-    .replace(/\s*\(originally performed by[^)]*\)/gi, '')
-    .replace(/\s*\(as made famous by[^)]*\)/gi, '')
-    .trim()
-}
+type UserSong    = { id: string; song_title: string; canonical_artist: string; confirmed_count: number; last_confirmed_at: string }
 
 function formatRelative(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime()
   const days = Math.floor(diff / 86400000)
   if (days === 0) return 'Today'
   if (days === 1) return 'Yesterday'
-  if (days < 7) return `${days}d ago`
+  if (days < 7)  return `${days}d ago`
   if (days < 30) return `${Math.floor(days / 7)}w ago`
   if (days < 365) return `${Math.floor(days / 30)}mo ago`
   return `${Math.floor(days / 365)}y ago`
@@ -41,21 +31,24 @@ export default function StatsPage() {
   const [performances, setPerformances] = useState<Performance[]>([])
   const [allSongs, setAllSongs]         = useState<Song[]>([])
   const [userSongs, setUserSongs]       = useState<UserSong[]>([])
+  const [userId, setUserId]             = useState<string | null>(null)
   const [loading, setLoading]           = useState(true)
-  const [songSearch, setSongSearch]     = useState('')
 
   useEffect(() => {
     const supabase = createClient()
     async function load() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
+      setUserId(user.id)
 
       const [{ data: perfs }, { data: uSongs }] = await Promise.all([
-        supabase.from('performances').select('id, venue_name, city, country, started_at, set_duration_minutes')
+        supabase.from('performances')
+          .select('id, venue_name, city, country, started_at, set_duration_minutes')
           .eq('user_id', user.id)
           .in('status', ['completed', 'complete', 'exported', 'review'])
           .order('started_at', { ascending: false }),
-        supabase.from('user_songs').select('id, song_title, canonical_artist, confirmed_count, last_confirmed_at')
+        supabase.from('user_songs')
+          .select('id, song_title, canonical_artist, confirmed_count, last_confirmed_at')
           .eq('user_id', user.id)
           .order('confirmed_count', { ascending: false }),
       ])
@@ -65,18 +58,16 @@ export default function StatsPage() {
       setUserSongs(uSongs || [])
 
       if (perfList.length > 0) {
-        const perfIds = perfList.map(p => p.id)
         const { data: songs } = await supabase.from('performance_songs')
-          .select('title, artist').in('performance_id', perfIds)
+          .select('title, artist').in('performance_id', perfList.map(p => p.id))
         setAllSongs(songs || [])
       }
-
       setLoading(false)
     }
     load()
   }, [])
 
-  // ── Stats calculations ────────────────────────────────────────────────────
+  // ── Stats ─────────────────────────────────────────────────────────────────
   const totalShows   = performances.length
   const totalSongs   = allSongs.length
   const totalCities  = new Set(performances.map(p => p.city).filter(Boolean)).size
@@ -113,18 +104,7 @@ export default function StatsPage() {
   })
   const maxMonthCount = Math.max(...last6Months.map(m => monthCounts[m] ?? 0), 1)
 
-  // ── My Songs calculations ─────────────────────────────────────────────────
-  const filteredSongs = userSongs
-    .map(s => ({ ...s, song_title: cleanTitle(s.song_title) }))
-    .filter(s => {
-      if (!songSearch.trim()) return true
-      const q = songSearch.toLowerCase()
-      return s.song_title.toLowerCase().includes(q) || s.canonical_artist?.toLowerCase().includes(q)
-    })
-
   const totalUniqueSongs = userSongs.length
-  const mostPlayedSong   = userSongs[0]
-  const totalPlays       = userSongs.reduce((s, u) => s + (u.confirmed_count || 0), 0)
 
   if (loading) {
     return (
@@ -157,7 +137,7 @@ export default function StatsPage() {
         </div>
       </div>
 
-      {/* ── Tab: Overview ── */}
+      {/* ── Overview tab ── */}
       {tab === 'stats' && (
         <div style={{ padding: '0 20px 40px', maxWidth: 520, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
           {totalShows === 0 ? (
@@ -167,7 +147,6 @@ export default function StatsPage() {
             </div>
           ) : (
             <>
-              {/* Stats grid */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                 {[
                   { icon: Calendar,   label: 'Shows Played',   value: totalShows },
@@ -183,7 +162,6 @@ export default function StatsPage() {
                 ))}
               </div>
 
-              {/* Shows per month */}
               <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '16px' }}>
                 <p style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.12em', color: C.secondary, margin: '0 0 16px', fontWeight: 600 }}>Shows per Month</p>
                 <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, height: 80 }}>
@@ -193,7 +171,7 @@ export default function StatsPage() {
                     return (
                       <div key={month} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
                         <span style={{ fontSize: 10, color: count > 0 ? C.text : C.muted }}>{count || ''}</span>
-                        <div style={{ width: '100%', borderRadius: '3px 3px 0 0', height: `${height}px`, background: count > 0 ? C.gold : 'rgba(255,255,255,0.05)', transition: 'height 0.3s ease' }} />
+                        <div style={{ width: '100%', borderRadius: '3px 3px 0 0', height: `${height}px`, background: count > 0 ? C.gold : 'rgba(255,255,255,0.05)' }} />
                         <span style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.06em', color: C.muted }}>{month.split(' ')[0]}</span>
                       </div>
                     )
@@ -201,7 +179,6 @@ export default function StatsPage() {
                 </div>
               </div>
 
-              {/* Top songs */}
               {topSongs.length > 0 && (
                 <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '16px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
@@ -230,7 +207,6 @@ export default function StatsPage() {
                 </div>
               )}
 
-              {/* Top venues */}
               {topVenues.length > 0 && (
                 <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '16px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
@@ -260,73 +236,10 @@ export default function StatsPage() {
         </div>
       )}
 
-      {/* ── Tab: My Songs ── */}
-      {tab === 'songs' && (
-        <div style={{ padding: '0 20px 40px', maxWidth: 520, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 14 }}>
-
-          {userSongs.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '60px 0' }}>
-              <Music2 size={36} color={C.muted} style={{ opacity: 0.2, marginBottom: 16 }} />
-              <p style={{ fontSize: 14, color: C.secondary, margin: '0 0 4px' }}>No songs tracked yet</p>
-              <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>Songs appear here as you perform them</p>
-            </div>
-          ) : (
-            <>
-              {/* Summary strip */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
-                {[
-                  { label: 'Unique Songs', value: totalUniqueSongs },
-                  { label: 'Total Plays',  value: totalPlays },
-                  { label: 'Top Song',     value: mostPlayedSong ? `${mostPlayedSong.confirmed_count}×` : '—' },
-                ].map(stat => (
-                  <div key={stat.label} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: '12px', textAlign: 'center' }}>
-                    <p style={{ fontSize: 20, fontWeight: 800, color: C.gold, margin: 0, fontFamily: '"DM Mono", monospace', fontVariantNumeric: 'tabular-nums' }}>{stat.value}</p>
-                    <p style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.08em', color: C.muted, margin: '3px 0 0' }}>{stat.label}</p>
-                  </div>
-                ))}
-              </div>
-
-              {/* Search */}
-              <input
-                value={songSearch}
-                onChange={e => setSongSearch(e.target.value)}
-                placeholder="Search your songs..."
-                style={{ width: '100%', background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: '11px 14px', color: C.text, fontSize: 14, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', transition: 'border-color 0.15s ease' }}
-                onFocus={e => (e.target.style.borderColor = 'rgba(201,168,76,0.35)')}
-                onBlur={e => (e.target.style.borderColor = C.border)}
-              />
-
-              {/* Song list */}
-              {filteredSongs.length === 0 ? (
-                <p style={{ textAlign: 'center', color: C.muted, fontSize: 13, padding: '24px 0' }}>No matches for "{songSearch}"</p>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  {filteredSongs.map((song, i) => (
-                    <div key={song.id} style={{ display: 'flex', alignItems: 'center', gap: 12, background: C.card, border: `1px solid ${i === 0 && !songSearch ? C.borderGold : C.border}`, borderRadius: 12, padding: '12px 14px' }}>
-                      {/* Rank / play count indicator */}
-                      <div style={{ width: 36, height: 36, borderRadius: '50%', background: i === 0 && !songSearch ? C.goldDim : 'rgba(255,255,255,0.03)', border: `1px solid ${i === 0 && !songSearch ? C.borderGold : 'rgba(255,255,255,0.05)'}`, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        <span style={{ fontSize: 12, fontWeight: 800, color: i === 0 && !songSearch ? C.gold : C.muted, fontFamily: '"DM Mono", monospace', lineHeight: 1 }}>{song.confirmed_count}</span>
-                        <span style={{ fontSize: 7, color: C.muted, letterSpacing: '0.04em', lineHeight: 1, marginTop: 1 }}>plays</span>
-                      </div>
-
-                      {/* Song info */}
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <p style={{ fontSize: 14, fontWeight: 600, color: C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{song.song_title}</p>
-                        {song.canonical_artist && (
-                          <p style={{ fontSize: 11, color: C.muted, margin: '2px 0 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{song.canonical_artist}</p>
-                        )}
-                      </div>
-
-                      {/* Last played */}
-                      <span style={{ fontSize: 10, color: C.muted, flexShrink: 0, textAlign: 'right' }}>
-                        {formatRelative(song.last_confirmed_at)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </>
-          )}
+      {/* ── My Songs tab — full catalog management ── */}
+      {tab === 'songs' && userId && (
+        <div style={{ padding: '0 20px 40px', maxWidth: 520, margin: '0 auto' }}>
+          <MySongsTab userId={userId} />
         </div>
       )}
 
