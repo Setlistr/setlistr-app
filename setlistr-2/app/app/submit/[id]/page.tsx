@@ -8,7 +8,7 @@ import { estimateRoyalties, capacityToBand } from '@/lib/royalty-estimate'
 const C = {
   bg: '#0a0908', card: '#141210', cardHover: '#181614',
   border: 'rgba(255,255,255,0.07)', borderGold: 'rgba(201,168,76,0.3)',
-  text: '#f0ece3', secondary: '#a09070', muted: '#6a6050',
+  text: '#f0ece3', secondary: '#b8a888', muted: '#8a7a68',
   gold: '#c9a84c', goldDim: 'rgba(201,168,76,0.1)',
   green: '#4ade80', greenDim: 'rgba(74,222,128,0.08)',
   red: '#f87171', redDim: 'rgba(248,113,113,0.08)',
@@ -472,7 +472,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <div style={{ width: 7, height: 7, borderRadius: '50%', background: C.green, flexShrink: 0 }} />
-                  <span style={{ fontSize: 13, color: C.text }}>Matched</span>
+                  <span style={{ fontSize: 14, fontWeight: 600, color: C.text }}>Matched</span>
                   <span style={{ fontSize: 11, color: C.muted }}>strong metadata</span>
                 </div>
                 <span style={{ fontSize: 13, fontWeight: 700, color: C.green, fontFamily: '"DM Mono", monospace' }}>{matchedCount}</span>
@@ -482,7 +482,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <div style={{ width: 7, height: 7, borderRadius: '50%', background: C.gold, flexShrink: 0 }} />
-                  <span style={{ fontSize: 13, color: C.text }}>Partial match</span>
+                  <span style={{ fontSize: 14, fontWeight: 600, color: C.text }}>Partial match</span>
                   <span style={{ fontSize: 11, color: C.muted }}>partial metadata</span>
                 </div>
                 <span style={{ fontSize: 13, fontWeight: 700, color: C.gold, fontFamily: '"DM Mono", monospace' }}>{partialCount}</span>
@@ -492,7 +492,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <div style={{ width: 7, height: 7, borderRadius: '50%', background: C.muted, flexShrink: 0 }} />
-                  <span style={{ fontSize: 13, color: C.secondary }}>Unverified</span>
+                  <span style={{ fontSize: 14, fontWeight: 600, color: C.secondary }}>Unverified</span>
                   <span style={{ fontSize: 11, color: C.muted }}>no metadata found</span>
                 </div>
                 <button
@@ -634,7 +634,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
                 <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: C.card, border: `1px solid ${C.border}`, borderRadius: 10 }}>
                   <span style={{ fontSize: 11, color: C.muted, minWidth: 16, textAlign: 'right', fontFamily: '"DM Mono", monospace', flexShrink: 0 }}>{i + 1}</span>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ fontSize: 13, fontWeight: 600, color: C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{song.title}</p>
+                    <p style={{ fontSize: 14, fontWeight: 600, color: C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{song.title}</p>
                     {song.isrc ? <p style={{ fontSize: 10, color: C.muted, margin: '1px 0 0', fontFamily: '"DM Mono", monospace' }}>{song.isrc}</p> : null}
                   </div>
                   <div style={{ width: 7, height: 7, borderRadius: '50%', background: sc, flexShrink: 0 }} />
