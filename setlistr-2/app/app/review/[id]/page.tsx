@@ -12,6 +12,7 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { GripVertical, Download, Check, X, Music2, MapPin, Calendar } from 'lucide-react'
+// CHANGE 1: import estimator
 import { estimateRoyalties, capacityToBand } from '@/lib/royalty-estimate'
 import CatalogSearch, { type CatalogSong } from '@/components/CatalogSearch'
 import { normalizeSong } from '@/lib/song-utils'
@@ -23,6 +24,18 @@ const C = {
   gold: '#c9a84c', goldDim: 'rgba(201,168,76,0.1)', green: '#4ade80', red: '#ef4444',
 }
 
+// ── Match confidence signal ──────────────────────────────────────────────────
+// Only applies to auto-detected songs. Manual adds get no signal — silence
+// is more honest than a false negative on an artist's own registered song.
+//
+// Tiers:
+//   matched        = auto-detected + ISRC + composer (strong metadata)
+//   partial        = auto-detected + ISRC OR composer (partial metadata)
+//   unverified     = auto-detected + no metadata (detected but unenriched)
+//   none           = manual / assigned / corrected — no signal shown
+//
+// This is match confidence, NOT registration status.
+// PRO registration can only be confirmed via direct PRO API queries.
 function getMatchConfidence(song: {
   source?: string
   isrc?: string
@@ -35,7 +48,7 @@ function getMatchConfidence(song: {
     song.source === 'fingerprint'||
     song.source === 'humming'
   )
-  if (!isAutoDetected) return 'none'
+  if (!isAutoDetected) return 'none'  // manual, cloned, assigned — no signal
   if (song.isrc && song.composer) return 'matched'
   if (song.isrc || song.composer) return 'partial'
   return 'unverified'
@@ -54,6 +67,7 @@ type Song = {
   reviewState?: 'clean' | 'needs_review'
 }
 
+// CHANGE 2: added show_type and venue_capacity to Performance type
 type Performance = {
   id: string
   artist_name: string
@@ -69,8 +83,9 @@ type Performance = {
   venue_capacity?: number | null
 }
 
-type PRO = 'SOCAN' | 'ASCAP' | 'BMI'
+type PRO = 'SOCAN' | 'ASCAP' | 'BMI' // kept for CSV export
 
+// RecentSong replaced by CatalogSong from CatalogSearch component
 type RecentSong = { id: string; title: string; artist: string; play_count: number; last_played: string }
 
 async function writeUserSongFromReview(
@@ -362,6 +377,8 @@ function AssignSheet({ assignSheet, onAssign, onClose, onCatalogSelect, userId, 
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: C.muted, cursor: 'pointer', padding: 4 }}><X size={16} /></button>
         </div>
+
+        {/* CatalogSearch — 1-tap fix with ISRC auto-fill */}
         <CatalogSearch
           userId={userId}
           placeholder="Search your songs..."
@@ -370,6 +387,7 @@ function AssignSheet({ assignSheet, onAssign, onClose, onCatalogSelect, userId, 
           currentSongs={currentSongs}
           onSelect={(song) => onCatalogSelect(song, assignSheet.songId)}
         />
+
         <p style={{ fontSize: 11, color: C.muted, margin: '4px 0 0', lineHeight: 1.5, textAlign: 'center' }}>
           Select a song to auto-fill title, artist, and ISRC · or type to add new
         </p>
@@ -395,7 +413,8 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
   const [selectedPRO, setSelectedPRO] = useState<PRO>('SOCAN')
   const [editSheet, setEditSheet]     = useState<Song | null>(null)
   const [assignSheet, setAssignSheet] = useState<{ songId: string; currentTitle: string } | null>(null)
-  const [userId, setUserId]           = useState<string | null>(null)
+  // recentSongs/assignSearch handled internally by CatalogSearch component
+  const [userId, setUserId]             = useState<string | null>(null)
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -418,6 +437,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
     closeAssignSheet()
   }
 
+  // Called when user selects from CatalogSearch — auto-fills ISRC and all metadata
   function assignFromCatalog(catalogSong: CatalogSong, songId: string) {
     setSongs(prev => prev.map(s =>
       s.id === songId
@@ -446,74 +466,57 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
     }
   }
 
-  // ── FIX: auth awaited first so userId is set before any CatalogSearch mounts ──
+  // CHANGE 3: join shows(show_type) and venues(capacity)
   useEffect(() => {
     const supabase = createClient()
-
-    async function load() {
-      // 1. Auth first — userId must be ready before CatalogSearch can mount
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { setLoading(false); return }
-      setUserId(user.id)
-
-      // 2. Then load performance data
-      const { data: perf } = await supabase
-        .from('performances')
-        .select('*, shows(show_type), venues(capacity)')
-        .eq('id', params.id)
-        .single()
-
-      if (!perf) { setLoading(false); return }
-
-      setPerformance({
-        ...perf,
-        show_type:      perf.shows?.show_type   || null,
-        venue_capacity: perf.venues?.capacity   || null,
-      })
-
-      const resolvedSetlistId = perf.setlist_id || null
-      setSetlistId(resolvedSetlistId)
-
-      if (resolvedSetlistId) {
-        const { data: items } = await supabase
-          .from('setlist_items').select('*')
-          .eq('setlist_id', resolvedSetlistId).order('position')
-        if (items && items.length > 0) {
-          setSongs(items.map(s => {
-            const n = normalizeSong({ title: s.title, artist: s.artist_name || '' })
+    supabase.auth.getUser().then(({ data: { user } }) => { if (user) setUserId(user.id) })
+    supabase.from('performances').select('*, shows(show_type), venues(capacity)').eq('id', params.id).single()
+      .then(async ({ data: perf }) => {
+        if (!perf) { setLoading(false); return }
+        setPerformance({
+          ...perf,
+          show_type: perf.shows?.show_type || null,
+          venue_capacity: perf.venues?.capacity || null,
+        })
+        const resolvedSetlistId = perf.setlist_id || null
+        setSetlistId(resolvedSetlistId)
+        if (resolvedSetlistId) {
+          const { data: items } = await supabase
+            .from('setlist_items').select('*')
+            .eq('setlist_id', resolvedSetlistId).order('position')
+          if (items && items.length > 0) {
+            setSongs(items.map(s => {
+              const n = normalizeSong({ title: s.title, artist: s.artist_name || '' })
+              return {
+                id: s.id, title: n.title, artist: n.artist,
+                position: s.position, source: s.source,
+                recognition_decision_id: s.recognition_decision_id,
+                isrc: s.isrc || '', composer: s.composer || '', publisher: s.publisher || '',
+                reviewState: (s.source === 'unidentified' ? 'needs_review' : 'clean') as 'clean' | 'needs_review',
+              }
+            }))
+            setLoading(false)
+            return
+          }
+        }
+        const { data: songData } = await supabase
+          .from('performance_songs').select('*')
+          .eq('performance_id', params.id).order('position')
+        if (songData) {
+          setSongs(songData.map(s => {
+            const n = normalizeSong({ title: s.title, artist: s.artist || '' })
             return {
-              id: s.id, title: n.title, artist: n.artist,
-              position: s.position, source: s.source,
-              recognition_decision_id: s.recognition_decision_id,
+              id: s.id || String(s.position),
+              title: n.title, artist: n.artist,
+              position: s.position, source: s.source || 'recognized',
+              recognition_decision_id: null,
               isrc: s.isrc || '', composer: s.composer || '', publisher: s.publisher || '',
               reviewState: (s.source === 'unidentified' ? 'needs_review' : 'clean') as 'clean' | 'needs_review',
             }
           }))
-          setLoading(false)
-          return
         }
-      }
-
-      const { data: songData } = await supabase
-        .from('performance_songs').select('*')
-        .eq('performance_id', params.id).order('position')
-      if (songData) {
-        setSongs(songData.map(s => {
-          const n = normalizeSong({ title: s.title, artist: s.artist || '' })
-          return {
-            id: s.id || String(s.position),
-            title: n.title, artist: n.artist,
-            position: s.position, source: s.source || 'recognized',
-            recognition_decision_id: null,
-            isrc: s.isrc || '', composer: s.composer || '', publisher: s.publisher || '',
-            reviewState: (s.source === 'unidentified' ? 'needs_review' : 'clean') as 'clean' | 'needs_review',
-          }
-        }))
-      }
-      setLoading(false)
-    }
-
-    load()
+        setLoading(false)
+      })
   }, [params.id])
 
   function handleDragEnd(event: DragEndEvent) {
@@ -666,6 +669,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
   const dur              = formatDuration()
 
   if (showComplete) {
+    // CHANGE 4: weighted estimate replaces flat model
     const territory = performance?.country === 'CA' || performance?.country === 'Canada' ? 'CA' : 'US'
     const estimate  = estimateRoyalties({
       songCount:         songs.length,
@@ -674,6 +678,8 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
       territory,
     })
 
+    // Derive registration readiness from song data
+    // Match confidence — auto-detected songs only, no signal for manual adds
     const matchedSongs    = songs.filter(s => getMatchConfidence(s) === 'matched')
     const partialSongs    = songs.filter(s => getMatchConfidence(s) === 'partial')
     const unverifiedSongs = songs.filter(s => getMatchConfidence(s) === 'unverified')
@@ -681,11 +687,15 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
     const assessedCount   = matchedSongs.length + partialSongs.length + unverifiedSongs.length
     const strongCount     = matchedSongs.length + partialSongs.length
 
+    // Contextual insight — one line that makes the app feel smart
+    const newSongs = songs.filter(s => s.reviewState === 'clean' && s.source === 'manual')
+
     return (
       <div style={{ minHeight: '100svh', background: C.bg, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px 20px', fontFamily: '"DM Sans", system-ui, sans-serif' }}>
         <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '60vh', pointerEvents: 'none', background: 'radial-gradient(ellipse at 50% 0%, rgba(201,168,76,0.08) 0%, transparent 65%)' }} />
         <div style={{ width: '100%', maxWidth: 400, position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', animation: 'fadeUp 0.4s ease' }}>
 
+          {/* ── Phase 1: Captured confirmation ── */}
           <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'rgba(74,222,128,0.1)', border: '1px solid rgba(74,222,128,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
             <Check size={24} color={C.green} strokeWidth={2.5} />
           </div>
@@ -700,6 +710,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
             {songs.length} song{songs.length !== 1 ? 's' : ''} · {performance?.city || ''}
           </p>
 
+          {/* ── Money card — simple, not pressured ── */}
           <div style={{ width: '100%', background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 16, padding: '20px', marginBottom: 10, animation: 'fadeUp 0.4s 0.06s ease both' }}>
             <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.gold, margin: '0 0 8px', opacity: 0.8 }}>
               Estimated royalties
@@ -711,6 +722,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
               ${estimate.low}–${estimate.high} range · {estimate.confidenceNote}
             </p>
 
+            {/* Readiness bar */}
             <div style={{ borderTop: `1px solid rgba(201,168,76,0.2)`, paddingTop: 14 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                 <span style={{ fontSize: 11, color: C.secondary }}>Song readiness</span>
@@ -762,6 +774,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
             </div>
           </div>
 
+          {/* ── Setlist preview — compact ── */}
           <div style={{ width: '100%', background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '14px 16px', marginBottom: 20, maxHeight: 160, overflowY: 'auto', animation: 'fadeUp 0.4s 0.1s ease both' }}>
             <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, margin: '0 0 10px', textAlign: 'left' }}>Setlist</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -780,12 +793,14 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
             </div>
           </div>
 
+          {/* ── Primary CTA: Done for tonight — no pressure ── */}
           <button
             onClick={() => router.push('/app/dashboard')}
             style={{ width: '100%', padding: '16px', background: C.gold, border: 'none', borderRadius: 12, color: '#0a0908', fontSize: 14, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', marginBottom: 10, animation: 'fadeUp 0.4s 0.14s ease both', fontFamily: 'inherit' }}>
             Show Complete
           </button>
 
+          {/* ── Secondary CTAs: low pressure ── */}
           <div style={{ width: '100%', display: 'flex', gap: 8, marginBottom: 16, animation: 'fadeUp 0.4s 0.18s ease both' }}>
             <button
               onClick={() => router.push(`/app/submit/${params.id}`)}
@@ -799,6 +814,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
             </button>
           </div>
 
+          {/* ── Reminder nudge — low pressure ── */}
           <p style={{ fontSize: 11, color: C.muted, margin: 0, lineHeight: 1.5, animation: 'fadeUp 0.4s 0.2s ease both' }}>
             ~${estimate.expected} estimated · {assessedCount > 0 ? `${strongCount} of ${assessedCount} detected songs matched` : 'submit to your PRO to claim'}.{' '}
             <span style={{ color: C.secondary }}>We'll remind you on the dashboard.</span>
@@ -839,14 +855,28 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, animation: 'fadeUp 0.4s 0.05s ease both' }}>
-          <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.muted }}>Setlist</span>
-          <button onClick={() => setShowAdd(!showAdd)} style={{ display: 'flex', alignItems: 'center', gap: 5, background: showAdd ? C.goldDim : 'transparent', border: `1px solid ${showAdd ? C.borderGold : C.border}`, borderRadius: 20, padding: '5px 10px', color: showAdd ? C.gold : C.muted, fontSize: 11, fontWeight: 700, cursor: 'pointer', letterSpacing: '0.06em', transition: 'all 0.15s ease', fontFamily: 'inherit' }}>
-            <span style={{ display: 'inline-block', transform: showAdd ? 'rotate(45deg)' : 'rotate(0)', transition: 'transform 0.2s ease', fontSize: 14, lineHeight: 1 }}>+</span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.muted }}>Setlist</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              {([
+                { color: C.green, label: 'Matched' },
+                { color: C.gold,  label: 'Partial' },
+                { color: C.muted, label: 'Unverified' },
+              ] as const).map(({ color, label }) => (
+                <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: color, display: 'inline-block', flexShrink: 0, opacity: 0.8 }} />
+                  <span style={{ fontSize: 10, color: C.muted, opacity: 0.7 }}>{label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <button onClick={() => setShowAdd(!showAdd)} style={{ display: 'flex', alignItems: 'center', gap: 6, background: showAdd ? 'transparent' : C.goldDim, border: `1px solid ${showAdd ? C.border : C.borderGold}`, borderRadius: 10, padding: '9px 16px', color: showAdd ? C.muted : C.gold, fontSize: 13, fontWeight: 700, cursor: 'pointer', letterSpacing: '0.04em', transition: 'all 0.15s ease', fontFamily: 'inherit', minHeight: 40, WebkitTapHighlightColor: 'transparent' }}>
+            <span style={{ display: 'inline-block', transform: showAdd ? 'rotate(45deg)' : 'rotate(0)', transition: 'transform 0.2s ease', fontSize: 16, lineHeight: 1, fontWeight: 400 }}>+</span>
             Add Song
           </button>
         </div>
 
-        {songs.length > 0 ? <p style={{ fontSize: 11, color: C.muted, margin: '0 0 10px', opacity: 0.7 }}>Tap to edit · Swipe left to delete</p> : null}
+        {songs.length > 0 ? <p style={{ fontSize: 11, color: C.muted, margin: '0 0 10px', opacity: 0.7 }}>Tap any song to edit or remove</p> : null}
 
         {showAdd ? (
           <div style={{ background: C.card, border: `1px solid ${C.borderGold}`, borderRadius: 12, padding: 14, marginBottom: 10, animation: 'slideUp 0.2s ease' }}>
