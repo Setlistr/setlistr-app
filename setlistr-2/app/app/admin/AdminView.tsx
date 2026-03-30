@@ -293,28 +293,22 @@ export default function AdminDashboard({
 
     if (type === 'shows') {
       filename = 'setlistr-shows.csv'
-      csv = 'Date,Venue,City,Artist,Status,Submitted,Songs
-'
+      csv = 'Date,Venue,City,Artist,Status,Submitted,Songs\n'
       performances.forEach(p => {
         const songCount = performanceSongs.filter(s => s.performance_id === p.id).length
-        csv += `"${new Date(p.started_at).toLocaleDateString()}","${p.venue_name || ''}","${p.city || ''}","${p.artist_name || ''}","${p.status}","${p.submission_status || 'no'}","${songCount}"
-`
+        csv += `"${new Date(p.started_at).toLocaleDateString()}","${p.venue_name || ''}","${p.city || ''}","${p.artist_name || ''}","${p.status}","${p.submission_status || 'no'}","${songCount}"\n`
       })
     } else if (type === 'songs') {
       filename = 'setlistr-songs.csv'
-      csv = 'Title,Artist,ISRC,Composer,Performance ID
-'
+      csv = 'Title,Artist,ISRC,Composer,Performance ID\n'
       performanceSongs.forEach(s => {
-        csv += `"${s.title}","${s.artist}","${s.isrc || ''}","${s.composer || ''}","${s.performance_id}"
-`
+        csv += `"${s.title}","${s.artist}","${s.isrc || ''}","${s.composer || ''}","${s.performance_id}"\n`
       })
     } else {
       filename = 'setlistr-detection.csv'
-      csv = 'Date,Title,Artist,Score,Confidence,Venue,Source
-'
+      csv = 'Date,Title,Artist,Score,Confidence,Venue,Source\n'
       detectionEvents.forEach(e => {
-        csv += `"${new Date(e.created_at).toLocaleString()}","${e.final_title || e.acr_title || ''}","${e.acr_artist || ''}","${e.acr_score}","${e.confidence_level || ''}","${e.venue_name || ''}","${e.final_source || ''}"
-`
+        csv += `"${new Date(e.created_at).toLocaleString()}","${e.final_title || e.acr_title || ''}","${e.acr_artist || ''}","${e.acr_score}","${e.confidence_level || ''}","${e.venue_name || ''}","${e.final_source || ''}"\n`
       })
     }
 
