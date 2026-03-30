@@ -401,8 +401,8 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // ── Standard decision logic (only if not already resolved by catalog boost)
-    if (confidenceLevel! === undefined) {
+    // ── Standard decision logic (only runs if catalog boost didn't resolve it)
+    if (!confidenceLevel) {
     if (effectiveScore >= ACR_STRONG && flipCount < FLAP_MIN_COUNT) {
       const sanity = sanityCheck(title, artist, previousSongs)
       sanityPassed  = sanity.pass
@@ -438,6 +438,13 @@ export async function POST(req: NextRequest) {
       confidenceLevel = 'no_result'
       sanityPassed    = false
       failureReason   = `score_too_low: ${effectiveScore}`
+    }
+    } // end standard decision block
+
+    // Safety fallback — should never reach here but TypeScript needs it
+    if (!confidenceLevel) {
+      confidenceLevel = 'no_result'
+      failureReason   = 'unresolved_confidence'
     }
 
     // ── Log detection event (now with venue_name and cleaned title) ───────────
