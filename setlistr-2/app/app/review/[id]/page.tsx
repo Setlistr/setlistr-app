@@ -857,15 +857,15 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, animation: 'fadeUp 0.4s 0.05s ease both' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.muted }}>Setlist</span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
               {([
                 { color: C.green, label: 'Matched' },
                 { color: C.gold,  label: 'Partial' },
-                { color: C.muted, label: 'Unverified' },
+                { color: '#6a6050', label: 'Unverified' },
               ] as const).map(({ color, label }) => (
-                <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: color, display: 'inline-block', flexShrink: 0, opacity: 0.8 }} />
-                  <span style={{ fontSize: 10, color: C.muted, opacity: 0.7 }}>{label}</span>
+                <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: color, display: 'inline-block', flexShrink: 0 }} />
+                  <span style={{ fontSize: 11, color: C.secondary, fontWeight: 500 }}>{label}</span>
                 </div>
               ))}
             </div>
@@ -876,7 +876,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
           </button>
         </div>
 
-        {songs.length > 0 ? <p style={{ fontSize: 11, color: C.muted, margin: '0 0 10px', opacity: 0.7 }}>Tap any song to edit or remove</p> : null}
+        {songs.length > 0 ? <p style={{ fontSize: 12, color: C.secondary, margin: '0 0 10px' }}>Tap any song to edit or remove</p> : null}
 
         {showAdd ? (
           <div style={{ background: C.card, border: `1px solid ${C.borderGold}`, borderRadius: 12, padding: 14, marginBottom: 10, animation: 'slideUp 0.2s ease' }}>
