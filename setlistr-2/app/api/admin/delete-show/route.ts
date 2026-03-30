@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
 
 const ADMIN_EMAILS = [
   'jesse.slack.music@gmail.com',
@@ -15,12 +17,19 @@ function getSupabase() {
 
 export async function DELETE(req: NextRequest) {
   try {
-    // Auth check — verify caller is admin via cookie session
-    const anonClient = createClient(
+    // Auth check using cookie-based session (same pattern as server components)
+    const cookieStore = cookies()
+    const authClient = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() { return cookieStore.getAll() },
+          setAll() {},
+        },
+      }
     )
-    const { data: { user } } = await anonClient.auth.getUser()
+    const { data: { user } } = await authClient.auth.getUser()
     if (!user || !ADMIN_EMAILS.includes(user.email ?? '')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
     }
@@ -32,7 +41,7 @@ export async function DELETE(req: NextRequest) {
 
     const supabase = getSupabase()
 
-    // Look up setlist ID first — separate step, no nested await
+    // Look up setlist ID separately
     const { data: setlist } = await supabase
       .from('setlists')
       .select('id')
