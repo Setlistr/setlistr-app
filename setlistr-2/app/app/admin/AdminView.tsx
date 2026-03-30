@@ -80,7 +80,7 @@ type BetaInvite = {
   accepted_at: string | null
 }
 
-type Tab = 'overview' | 'detection' | 'artists' | 'songs' | 'venues' | 'beta'
+type Tab = 'overview' | 'detection' | 'artists' | 'songs' | 'venues' | 'shows' | 'beta'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 function timeAgo(d: string) {
@@ -285,6 +285,7 @@ export default function AdminDashboard({
     { id: 'artists',   label: 'Artists'   },
     { id: 'songs',     label: 'Songs'     },
     { id: 'venues',    label: 'Venues'    },
+    { id: 'shows',     label: 'Shows'     },
     { id: 'beta',      label: 'Beta Users' },
   ]
 
@@ -304,6 +305,23 @@ export default function AdminDashboard({
     } catch {
       alert('Network error — try again')
     }
+  }
+
+  async function deleteShow(perfId: string) {
+    if (!confirm('Delete this show and all its data? This cannot be undone.')) return
+    try {
+      // Delete in order: performance_songs → detection_events → performances
+      const res = await fetch('/api/admin/delete-show', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ performance_id: perfId }),
+      })
+      if (res.ok) {
+        setLocalPerfs(prev => prev.filter(p => p.id !== perfId))
+      } else {
+        alert('Failed to delete show')
+      }
+    } catch { alert('Network error') }
   }
 
   function exportCSV(type: 'shows' | 'songs' | 'detection') {
@@ -796,6 +814,66 @@ export default function AdminDashboard({
           </div>
         )}
       </div>
+
+        {/* ════════════════════════════ SHOWS ═════════════════════════════ */}
+        {tab === 'shows' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
+              <Stat label="Total Shows"    value={localPerfs.length} />
+              <Stat label="With Songs"     value={localPerfs.filter(p => {
+                const count = performanceSongs.filter(s => s.performance_id === p.id).length
+                return count > 0
+              }).length} color={C.green} sub="non-empty shows" />
+            </div>
+
+            {/* Filter hint */}
+            <div style={{ background: 'rgba(248,113,113,0.06)', border: '1px solid rgba(248,113,113,0.15)', borderRadius: 10, padding: '10px 14px' }}>
+              <p style={{ fontSize: 12, color: '#f87171', margin: 0 }}>
+                🔒 Admin only — delete removes show, songs, and detection events permanently. Use for test data cleanup only.
+              </p>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {localPerfs.map(p => {
+                const songCount = performanceSongs.filter(s => s.performance_id === p.id).length
+                const isEmpty   = songCount === 0
+                return (
+                  <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', background: isEmpty ? 'rgba(248,113,113,0.04)' : C.card, border: `1px solid ${isEmpty ? 'rgba(248,113,113,0.15)' : C.border}`, borderRadius: 10 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontSize: 13, fontWeight: 600, color: isEmpty ? '#f87171' : C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {p.venue_name || 'Unknown venue'}
+                        {isEmpty && <span style={{ fontSize: 10, marginLeft: 8, opacity: 0.7 }}>empty</span>}
+                      </p>
+                      <p style={{ fontSize: 11, color: C.muted, margin: '2px 0 0' }}>
+                        {p.artist_name} · {p.city} · {timeAgo(p.started_at)} · {songCount} song{songCount !== 1 ? 's' : ''}
+                      </p>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                      <span style={{
+                        fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
+                        padding: '2px 7px', borderRadius: 4,
+                        background: p.submission_status === 'submitted' ? 'rgba(74,222,128,0.1)' : p.status === 'live' ? 'rgba(201,168,76,0.1)' : 'rgba(255,255,255,0.05)',
+                        color: p.submission_status === 'submitted' ? C.green : p.status === 'live' ? C.gold : C.muted,
+                      }}>
+                        {p.submission_status === 'submitted' ? 'Submitted' : p.status}
+                      </span>
+                      <button
+                        onClick={() => deleteShow(p.id)}
+                        style={{ background: 'none', border: `1px solid rgba(248,113,113,0.2)`, borderRadius: 6, color: '#f87171', fontSize: 11, cursor: 'pointer', padding: '4px 10px', fontFamily: 'inherit', opacity: 0.6, transition: 'opacity 0.15s ease', flexShrink: 0 }}
+                        onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '1'}
+                        onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '0.6'}>
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+              {localPerfs.length === 0 && (
+                <p style={{ textAlign: 'center', color: C.muted, padding: '40px 0' }}>No shows yet</p>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* ════════════════════════════ BETA USERS ══════════════════════════ */}
         {tab === 'beta' && (
