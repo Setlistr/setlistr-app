@@ -26,7 +26,7 @@ function getSupabase() {
 // ─── Thresholds ───────────────────────────────────────────────────────────────
 const ACR_STRONG     = 80
 const ACR_SUGGEST    = 55  // raised from 40 — prevents low-confidence wrong detections
-const FLAP_MIN_COUNT = 2
+const FLAP_MIN_COUNT = 3  // raised from 2 — live shows have natural candidate noise between songs
 
 // ─── Canonical artist map ─────────────────────────────────────────────────────
 const CANONICAL_SONG_ARTISTS: Record<string, string[]> = {
@@ -57,7 +57,7 @@ const CANONICAL_SONG_ARTISTS: Record<string, string[]> = {
 // ─── Title normalization ──────────────────────────────────────────────────────
 // Strip common version suffixes ACRCloud adds that pollute song titles.
 // Applied before writing to performance_songs AND before displaying to users.
-const VERSION_SUFFIX_RE = /\s*[\(\[](alternate|alternative|live|edit|radio edit|album version|acoustic|acoustic version|remaster|remastered|instrumental|original mix|extended|extended mix|deluxe|explicit|clean|single|mono|stereo|demo|bonus track)[^\)\]]*[\)\]]/gi
+const VERSION_SUFFIX_RE = /\s*[\(\[](alternate|alternative|live|edit|radio edit|radio|album version|acoustic|acoustic version|remaster|remastered|instrumental|original mix|original|extended|extended mix|deluxe|explicit|clean|single|mono|stereo|demo|bonus track|remix|mixed|mix|re-mix|part \d+|teil \d+|vol\.?\s*\d+|version|ver\.?)[^\)\]]*[\)\]]/gi
 
 function cleanTitle(raw: string): string {
   return raw.replace(VERSION_SUFFIX_RE, '').replace(/\s+/g, ' ').trim()
@@ -388,6 +388,21 @@ export async function POST(req: NextRequest) {
     let sanityPassed  = true
     let failureReason = ''
 
+    // ── Catalog-first check: if song is in user's catalog with score >= 60, auto-confirm
+    // This runs BEFORE flip/strong checks so catalog songs aren't penalized by noise
+    const isDuplicateFirst = previousSongs.some(s => normalizeSongKey(s) === normalizeSongKey(title))
+    if (!isDuplicateFirst && effectiveScore >= 60) {
+      const bias = await checkMemoryBias(title, userId)
+      if (bias.biased) {
+        confidenceLevel = 'auto'
+        sanityPassed    = true
+        failureReason   = `catalog_boost: score=${acrScore} count=${bias.confirmedCount}`
+        console.log(`[CatalogBoost] "${title}" auto-confirmed via catalog, score=${acrScore}`)
+      }
+    }
+
+    // ── Standard decision logic (only if not already resolved by catalog boost)
+    if (confidenceLevel! === undefined) {
     if (effectiveScore >= ACR_STRONG && flipCount < FLAP_MIN_COUNT) {
       const sanity = sanityCheck(title, artist, previousSongs)
       sanityPassed  = sanity.pass
