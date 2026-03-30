@@ -7,7 +7,7 @@ import { createServerClient } from '@supabase/ssr'
 const ADMIN_EMAILS = [
   'jesse.slack.music@gmail.com',
   'darylscottsongs@gmail.com',
-  'koderoberts@gmail.com',
+  'kode.roberts@gmail.com',  // hardcoded bypass — also in beta_invites
 ]
 
 export async function middleware(request: NextRequest) {
