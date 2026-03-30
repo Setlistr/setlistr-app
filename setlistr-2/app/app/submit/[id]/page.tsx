@@ -126,11 +126,11 @@ const PRO_CONFIG: Record<string, {
     submitUrl:    'https://globalmusicrights.com',
   },
   PRS: {
-    portal:       'https://www.prsformusic.com/my-prs',
+    portal:       'https://www.prsformusic.com/login',
     portalLabel:  'Open PRS Portal',
     program:      'PRS for Music — Live Music Reporting',
     steps: [
-      'Log in at prsformusic.com/my-prs',
+      'Log in at prsformusic.com/login',
       'Go to "Live Music" in your dashboard',
       'Click "Submit a setlist"',
       'Enter venue name, postcode, date and ticket price',
@@ -139,7 +139,7 @@ const PRO_CONFIG: Record<string, {
     ],
     deadline:     'Submit within 1 year of performance',
     deadlineDays: (now: Date) => 365,
-    submitUrl:    'https://www.prsformusic.com/my-prs',
+    submitUrl:    'https://www.prsformusic.com/login',
   },
   APRA: {
     portal:       'https://www.apraamcos.com.au/members',
