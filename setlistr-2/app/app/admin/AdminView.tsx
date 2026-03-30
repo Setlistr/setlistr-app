@@ -128,7 +128,7 @@ function Dot({ color }: { color: string }) {
 
 // ── Main component ───────────────────────────────────────────────────────────
 export default function AdminDashboard({
-  detectionEvents, performances, performanceSongs, profiles, userSongs,
+  detectionEvents, performances, performanceSongs, profiles, userSongs, betaInvites,
 }: {
   detectionEvents: DetectionEvent[]
   performances:    Performance[]
