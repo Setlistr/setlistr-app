@@ -358,10 +358,10 @@ export default function DashboardPage() {
               <div style={{ width: 52, height: 52, borderRadius: '50%', background: C.goldDim, border: `1px solid ${C.borderGold}`, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px' }}>
                 <Mic size={20} color={C.gold} />
               </div>
-              <p style={{ fontSize: 15, fontWeight: 600, color: C.text, margin: '0 0 6px' }}>No shows recorded yet</p>
-              <p style={{ fontSize: 13, color: C.muted, margin: '0 0 18px' }}>Start your first live capture</p>
-              <button onClick={() => router.push('/app/show/new')} style={{ background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 10, padding: '10px 20px', color: C.gold, fontSize: 12, fontWeight: 700, cursor: 'pointer', letterSpacing: '0.06em', textTransform: 'uppercase', fontFamily: 'inherit' }}>
-                Start Now
+              <p style={{ fontSize: 15, fontWeight: 700, color: C.text, margin: '0 0 6px' }}>Play a show tonight?</p>
+              <p style={{ fontSize: 13, color: C.muted, margin: '0 0 20px', lineHeight: 1.5 }}>Setlistr listens while you play and builds your setlist automatically. Just tap Listen and go.</p>
+              <button onClick={() => router.push('/app/show/new')} style={{ background: C.gold, border: 'none', borderRadius: 10, padding: '12px 24px', color: '#0a0908', fontSize: 13, fontWeight: 800, cursor: 'pointer', letterSpacing: '0.06em', textTransform: 'uppercase', fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent' }}>
+                Start a Show
               </button>
             </div>
           ) : (
