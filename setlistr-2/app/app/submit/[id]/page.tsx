@@ -207,7 +207,7 @@ function buildCopyText(songs: Song[], perf: Performance, profile: Profile, pro: 
     `=`.repeat(40),
     `Artist:    ${profile.artist_name || perf.artist_name}`,
     profile.legal_name  ? `Legal Name: ${profile.legal_name}`  : null,
-    profile.ipi_number  ? `IPI/CAE:    ${profile.ipi_number}`  : null,
+    `IPI/CAE:    ${profile.ipi_number || '[Add IPI number in Settings]'}`,
     profile.publisher_name ? `Publisher:  ${profile.publisher_name}` : null,
     ``,
     `Venue:     ${perf.venue_name}${perf.city ? `, ${perf.city}` : ''}`,
@@ -390,7 +390,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
             {showDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
           </p>
           <div style={{ width: '100%', background: C.greenDim, border: '1px solid rgba(74,222,128,0.2)', borderRadius: 16, padding: '20px', marginBottom: 20 }}>
-            <p style={{ fontSize: 13, color: C.green, margin: '0 0 4px', fontWeight: 600 }}>~${estimate.expected} claimed</p>
+            <p style={{ fontSize: 13, color: C.green, margin: '0 0 4px', fontWeight: 600 }}>~${estimate.expected} in progress</p>
             <p style={{ fontSize: 12, color: C.secondary, margin: 0 }}>
               {songs.length} songs submitted · expect payment in 6–9 months
             </p>
@@ -438,7 +438,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
           <div style={{ background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 14, padding: '16px' }}>
             <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.gold, margin: '0 0 6px' }}>You're owed</p>
             <p style={{ fontSize: 28, fontWeight: 800, color: C.gold, margin: 0, fontFamily: '"DM Mono", monospace', letterSpacing: '-0.02em' }}>~${estimate.expected}</p>
-            <p style={{ fontSize: 11, color: C.secondary, margin: '2px 0 0' }}>${estimate.low}–${estimate.high} range</p>
+            <p style={{ fontSize: 11, color: C.secondary, margin: '2px 0 0' }}>est. ${estimate.low}–${estimate.high} · actual varies by PRO</p>
           </div>
           <div style={{ background: daysLeft <= 30 ? C.redDim : daysLeft <= 60 ? C.goldDim : C.greenDim, border: `1px solid ${daysLeft <= 30 ? 'rgba(248,113,113,0.25)' : daysLeft <= 60 ? C.borderGold : 'rgba(74,222,128,0.25)'}`, borderRadius: 14, padding: '16px' }}>
             <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: daysLeft <= 30 ? C.red : daysLeft <= 60 ? C.gold : C.green, margin: '0 0 6px' }}>
