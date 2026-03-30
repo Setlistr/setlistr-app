@@ -384,7 +384,7 @@ export async function POST(req: NextRequest) {
     })
 
     // ─── Decision logic ───────────────────────────────────────────────────────
-    let confidenceLevel: ConfidenceLevel
+    let confidenceLevel: ConfidenceLevel | undefined = undefined
     let sanityPassed  = true
     let failureReason = ''
 
@@ -441,11 +441,12 @@ export async function POST(req: NextRequest) {
     }
     } // end standard decision block
 
-    // Safety fallback — should never reach here but TypeScript needs it
+    // Safety fallback — should never reach here but satisfies TypeScript strict assignment
     if (!confidenceLevel) {
       confidenceLevel = 'no_result'
       failureReason   = 'unresolved_confidence'
     }
+    const resolvedLevel = confidenceLevel as ConfidenceLevel
 
     // ── Log detection event (now with venue_name and cleaned title) ───────────
     await logDetectionEvent({
@@ -457,8 +458,8 @@ export async function POST(req: NextRequest) {
       final_title:           title,         // cleaned title
       final_artist:          artist,
       final_source:          source,
-      confidence_level:      confidenceLevel,
-      auto_confirmed:        confidenceLevel === 'auto',
+      confidence_level:      resolvedLevel,
+      auto_confirmed:        resolvedLevel === 'auto',
       fallback_triggered:    false,
       flip_count:            flipCount,
       artist_name:           artistName,
@@ -470,7 +471,7 @@ export async function POST(req: NextRequest) {
       candidate_pool:        [{ title, artist, source, acrScore, effectiveScore }],
     })
 
-    if (confidenceLevel === 'no_result') {
+    if (resolvedLevel === 'no_result') {
       return NextResponse.json({
         detected: false, job_id: job?.id,
         debug: { score: effectiveScore, reason: failureReason }
@@ -478,12 +479,12 @@ export async function POST(req: NextRequest) {
     }
 
     let enriched: EnrichedSongData = { isrc, composer: '', publisher: '' }
-    if (confidenceLevel === 'auto') {
+    if (resolvedLevel === 'auto') {
       enriched = await enrichFromMusicBrainz(title, artist, isrc)
     }
 
     let setlistItemId: string | null = null
-    if (confidenceLevel === 'auto' && setlistId) {
+    if (resolvedLevel === 'auto' && setlistId) {
       const { data: existing } = await supabase.from('setlist_items').select('id')
         .eq('setlist_id', setlistId).ilike('title', title).single()
       if (!existing) {
@@ -497,7 +498,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    if (confidenceLevel === 'auto' && userId && performanceId) {
+    if (resolvedLevel === 'auto' && userId && performanceId) {
       writeToUserSongs(title, artist, userId, performanceId, 'auto')
     }
 
@@ -513,7 +514,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       detected: true, title, artist,
-      confidence_level: confidenceLevel, source,
+      confidence_level: resolvedLevel, source,
       acr_score: acrScore,
       isrc: enriched.isrc, composer: enriched.composer, publisher: enriched.publisher,
       setlist_item_id: setlistItemId, job_id: job?.id,
@@ -523,7 +524,7 @@ export async function POST(req: NextRequest) {
         effective_score: effectiveScore,
         sanity_passed: sanityPassed,
         failure_reason: failureReason,
-        final_state: confidenceLevel,
+        final_state: resolvedLevel,
       }
     })
 
