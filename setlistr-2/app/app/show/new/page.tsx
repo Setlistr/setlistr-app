@@ -284,7 +284,7 @@ export default function NewShowPage() {
             {/* Capacity picker — shown when typing a new venue not in system */}
             {venueQuery.trim().length >= 2 && !venueSelected && !venueSearching ? (
               <div style={{ marginTop: 8, animation: 'fadeIn 0.2s ease' }}>
-                <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.muted, margin: '0 0 6px' }}>Venue size</p>
+                <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.muted, margin: '0 0 6px' }}>Rough venue size? <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(helps estimate royalties)</span></p>
                 <div style={{ display: 'flex', gap: 6 }}>
                   {([
                     { key: 'small',    label: 'Small',    sub: '<300' },
@@ -342,7 +342,7 @@ export default function NewShowPage() {
             style={{ width: '100%', padding: '15px', background: isValid ? C.gold : C.muted, border: 'none', borderRadius: 12, color: '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: isValid && !loading ? 'pointer' : 'not-allowed', opacity: loading ? 0.7 : 1, transition: 'background 0.2s ease, opacity 0.2s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit' }}>
             {loading
               ? <><div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid #0a090840', borderTopColor: '#0a0908', animation: 'spin 0.7s linear infinite' }} />Starting...</>
-              : <>Start Now<ArrowRight size={15} strokeWidth={2.5} /></>}
+              : <>Start Listening<ArrowRight size={15} strokeWidth={2.5} /></>}
           </button>
         ) : null}
 
