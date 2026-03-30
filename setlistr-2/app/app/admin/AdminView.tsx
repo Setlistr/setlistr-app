@@ -71,7 +71,16 @@ type UserSong = {
   last_confirmed_at: string
 }
 
-type Tab = 'overview' | 'detection' | 'artists' | 'songs' | 'venues'
+type BetaInvite = {
+  id: string
+  email: string
+  name: string | null
+  added_by: string | null
+  created_at: string
+  accepted_at: string | null
+}
+
+type Tab = 'overview' | 'detection' | 'artists' | 'songs' | 'venues' | 'beta'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 function timeAgo(d: string) {
@@ -126,11 +135,18 @@ export default function AdminDashboard({
   performanceSongs: PerformanceSong[]
   profiles:        Profile[]
   userSongs:       UserSong[]
+  betaInvites:     BetaInvite[]
 }) {
   const [tab, setTab]             = useState<Tab>('overview')
   const [detFilter, setDetFilter] = useState<'all' | 'detected' | 'missed'>('all')
   const [expandedId, setExpandedId] = useState<string | null>(null)
-  const [songSearch, setSongSearch] = useState('')
+  const [songSearch, setSongSearch]   = useState('')
+  const [newEmail, setNewEmail]       = useState('')
+  const [newName, setNewName]         = useState('')
+  const [addingUser, setAddingUser]   = useState(false)
+  const [addError, setAddError]       = useState('')
+  const [addSuccess, setAddSuccess]   = useState('')
+  const [invites, setInvites]         = useState<BetaInvite[]>(betaInvites)
 
   // ── Detection stats ────────────────────────────────────────────────────────
   const det = useMemo(() => {
@@ -268,7 +284,49 @@ export default function AdminDashboard({
     { id: 'artists',   label: 'Artists'   },
     { id: 'songs',     label: 'Songs'     },
     { id: 'venues',    label: 'Venues'    },
+    { id: 'beta',      label: 'Beta Users' },
   ]
+
+  async function addBetaUser() {
+    if (!newEmail.trim()) return
+    setAddingUser(true)
+    setAddError('')
+    setAddSuccess('')
+    try {
+      const res = await fetch('/api/admin/beta-invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: newEmail.trim().toLowerCase(), name: newName.trim() || null }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setAddError(data.error || 'Failed to add user')
+      } else {
+        setInvites(prev => [data.invite, ...prev])
+        setNewEmail('')
+        setNewName('')
+        setAddSuccess(`${data.invite.email} added successfully`)
+        setTimeout(() => setAddSuccess(''), 4000)
+      }
+    } catch {
+      setAddError('Network error — try again')
+    }
+    setAddingUser(false)
+  }
+
+  async function removeBetaUser(id: string, email: string) {
+    if (!confirm(`Remove access for ${email}?`)) return
+    try {
+      const res = await fetch('/api/admin/beta-invite', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      })
+      if (res.ok) {
+        setInvites(prev => prev.filter(i => i.id !== id))
+      }
+    } catch {}
+  }
 
   return (
     <div style={{ minHeight: '100svh', background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif', color: C.text }}>
@@ -653,6 +711,80 @@ export default function AdminDashboard({
           </div>
         )}
       </div>
+
+        {/* ════════════════════════════ BETA USERS ══════════════════════════ */}
+        {tab === 'beta' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+            {/* Stats */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
+              <Stat label="Total Invited"  value={invites.length} />
+              <Stat label="Accepted"       value={invites.filter(i => i.accepted_at).length} color={C.green} sub="signed in at least once" />
+            </div>
+
+            {/* Add user form */}
+            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: '18px 20px' }}>
+              <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, margin: '0 0 14px' }}>Add Beta User</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <input
+                  value={newEmail}
+                  onChange={e => setNewEmail(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && addBetaUser()}
+                  placeholder="email@example.com"
+                  type="email"
+                  style={{ background: '#0f0e0c', border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 12px', color: C.text, fontSize: 14, outline: 'none', fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' as const }}
+                />
+                <input
+                  value={newName}
+                  onChange={e => setNewName(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && addBetaUser()}
+                  placeholder="Name (optional)"
+                  style={{ background: '#0f0e0c', border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 12px', color: C.text, fontSize: 14, outline: 'none', fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' as const }}
+                />
+                {addError && <p style={{ fontSize: 12, color: C.red, margin: 0 }}>{addError}</p>}
+                {addSuccess && <p style={{ fontSize: 12, color: C.green, margin: 0 }}>{addSuccess}</p>}
+                <button
+                  onClick={addBetaUser}
+                  disabled={addingUser || !newEmail.trim()}
+                  style={{ padding: '11px', background: newEmail.trim() ? C.gold : C.muted, border: 'none', borderRadius: 8, color: '#0a0908', fontSize: 12, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: addingUser || !newEmail.trim() ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: addingUser ? 0.7 : 1 }}>
+                  {addingUser ? 'Adding...' : 'Grant Access'}
+                </button>
+              </div>
+            </div>
+
+            {/* Invite list */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {invites.map(invite => (
+                <div key={invite.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', background: C.card, border: `1px solid ${C.border}`, borderRadius: 10 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+                      <p style={{ fontSize: 13, fontWeight: 600, color: C.text, margin: 0 }}>{invite.email}</p>
+                      {invite.accepted_at ? (
+                        <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.green, background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.2)', borderRadius: 4, padding: '2px 6px' }}>Active</span>
+                      ) : (
+                        <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.muted, background: 'rgba(255,255,255,0.04)', border: `1px solid ${C.border}`, borderRadius: 4, padding: '2px 6px' }}>Pending</span>
+                      )}
+                    </div>
+                    <p style={{ fontSize: 11, color: C.muted, margin: 0 }}>
+                      {invite.name || 'No name'} · Added {timeAgo(invite.created_at)}
+                      {invite.accepted_at ? ` · Joined ${timeAgo(invite.accepted_at)}` : ''}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => removeBetaUser(invite.id, invite.email)}
+                    style={{ background: 'none', border: `1px solid rgba(248,113,113,0.2)`, borderRadius: 6, color: C.red, fontSize: 11, cursor: 'pointer', padding: '4px 10px', fontFamily: 'inherit', opacity: 0.6, transition: 'opacity 0.15s ease', flexShrink: 0 }}
+                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '1'}
+                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '0.6'}>
+                    Remove
+                  </button>
+                </div>
+              ))}
+              {invites.length === 0 && (
+                <p style={{ textAlign: 'center', color: C.muted, padding: '40px 0' }}>No beta users yet</p>
+              )}
+            </div>
+          </div>
+        )}
 
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500;700&display=swap');
