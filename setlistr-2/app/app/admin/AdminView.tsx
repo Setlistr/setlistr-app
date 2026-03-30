@@ -287,6 +287,44 @@ export default function AdminDashboard({
     { id: 'beta',      label: 'Beta Users' },
   ]
 
+  function exportCSV(type: 'shows' | 'songs' | 'detection') {
+    let csv = ''
+    let filename = ''
+
+    if (type === 'shows') {
+      filename = 'setlistr-shows.csv'
+      csv = 'Date,Venue,City,Artist,Status,Submitted,Songs
+'
+      performances.forEach(p => {
+        const songCount = performanceSongs.filter(s => s.performance_id === p.id).length
+        csv += `"${new Date(p.started_at).toLocaleDateString()}","${p.venue_name || ''}","${p.city || ''}","${p.artist_name || ''}","${p.status}","${p.submission_status || 'no'}","${songCount}"
+`
+      })
+    } else if (type === 'songs') {
+      filename = 'setlistr-songs.csv'
+      csv = 'Title,Artist,ISRC,Composer,Performance ID
+'
+      performanceSongs.forEach(s => {
+        csv += `"${s.title}","${s.artist}","${s.isrc || ''}","${s.composer || ''}","${s.performance_id}"
+`
+      })
+    } else {
+      filename = 'setlistr-detection.csv'
+      csv = 'Date,Title,Artist,Score,Confidence,Venue,Source
+'
+      detectionEvents.forEach(e => {
+        csv += `"${new Date(e.created_at).toLocaleString()}","${e.final_title || e.acr_title || ''}","${e.acr_artist || ''}","${e.acr_score}","${e.confidence_level || ''}","${e.venue_name || ''}","${e.final_source || ''}"
+`
+      })
+    }
+
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url  = URL.createObjectURL(blob)
+    const a    = document.createElement('a')
+    a.href = url; a.download = filename; a.click()
+    URL.revokeObjectURL(url)
+  }
+
   async function addBetaUser() {
     if (!newEmail.trim()) return
     setAddingUser(true)
@@ -447,6 +485,23 @@ export default function AdminDashboard({
                       </div>
                     ))
                 })()}
+              </div>
+            </div>
+
+            {/* Export */}
+            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: '18px 20px' }}>
+              <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, margin: '0 0 14px' }}>Export Data</p>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {([
+                  { type: 'shows' as const,     label: 'All Shows CSV'     },
+                  { type: 'songs' as const,     label: 'All Songs CSV'     },
+                  { type: 'detection' as const, label: 'Detection Log CSV' },
+                ]).map(btn => (
+                  <button key={btn.type} onClick={() => exportCSV(btn.type)}
+                    style={{ padding: '8px 14px', background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 8, color: C.gold, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', letterSpacing: '0.04em' }}>
+                    ↓ {btn.label}
+                  </button>
+                ))}
               </div>
             </div>
 
