@@ -77,62 +77,65 @@ const PRO_CONFIG: Record<string, {
     submitUrl:    'https://www.ascap.com/members',
   },
   BMI: {
-    portal:       'https://www.bmi.com/members',
-    portalLabel:  'Open BMI Live',
+    portal:       'https://www.bmi.com',
+    portalLabel:  'Open BMI.com',
     program:      'BMI Live',
     steps: [
-      'Log in at bmi.com → click "Online Services" at top',
-      'Click the "BMI Live" link in your dashboard',
-      'Enter venue name, address, phone number and date',
+      'Log in at bmi.com → click your name at top right',
+      'Select "Online Services" from the dropdown',
+      'Click "BMI Live" in the applications panel (top left)',
+      'Click "Add a Performance" in the top right corner',
+      'Enter venue name, address, phone number, date and time',
       'Search for each song by title in the BMI database',
-      'Add performed songs to your setlist',
-      'Submit for quarterly royalty payment',
+      'Submit — must be enrolled in direct deposit to receive payment',
     ],
-    deadline:     'Quarterly — submit within the same quarter as your show',
-    deadlineDays: (now: Date) => {
-      const month = now.getMonth()
-      const year  = now.getFullYear()
-      const quarterEnds = [
-        new Date(year, 5, 30),
-        new Date(year, 8, 30),
-        new Date(year, 11, 31),
-        new Date(year + 1, 2, 31),
-      ]
-      for (const end of quarterEnds) {
-        const days = Math.ceil((end.getTime() - now.getTime()) / 86400000)
-        if (days > 0) return days
-      }
-      return 90
-    },
-    submitUrl:    'https://www.bmi.com/members',
+    deadline:     'Up to 9 months after the performance date',
+    deadlineDays: (now: Date) => 270,  // 9 months
+    submitUrl:    'https://www.bmi.com',
   },
   SESAC: {
-    portal:       'https://www.sesac.com/members',
-    portalLabel:  'Open SESAC Portal',
-    program:      'SESAC Live Performance',
+    portal:       'https://affiliates.sesac.com',
+    portalLabel:  'Open SESAC Affiliate Portal',
+    program:      'SESAC Affiliate Services — Live Performance',
     steps: [
-      'Log in at sesac.com/members → Affiliate Services',
-      'Navigate to Live Performances section',
-      'Create a recurring setlist for your tour or show',
-      'Enter venue address, capacity, date, and music fees',
-      'Add song titles to your setlist',
-      'Submit — you can copy setlists across multiple show dates',
+      'Log in at affiliates.sesac.com',
+      'Navigate to "Affiliate Services" in your dashboard',
+      'Go to Live Performances section',
+      'Create a setlist — you can copy it across multiple show dates',
+      'Enter venue address, capacity, date and music fees',
+      'Add song titles and submit',
+      'Contact your SESAC rep if you need help — SESAC is relationship-driven',
     ],
-    deadline:     'Contact your SESAC rep for specific deadlines',
+    deadline:     'Contact your SESAC rep for deadlines — varies by agreement',
     deadlineDays: (now: Date) => 180,
-    submitUrl:    'https://www.sesac.com/members',
+    submitUrl:    'https://affiliates.sesac.com',
+  },
+  GMR: {
+    portal:       'https://globalmusicrights.com',
+    portalLabel:  'Open GMR Website',
+    program:      'GMR — Contact Your Representative',
+    steps: [
+      'GMR does not have a self-serve online submission portal',
+      'Contact your GMR representative directly to submit live performance data',
+      'Provide: venue name, date, setlist, and audience size',
+      'Your rep will handle submission and royalty tracking on your behalf',
+      'GMR is boutique and relationship-driven — your rep is your point of contact',
+    ],
+    deadline:     'Contact your GMR rep for specific deadlines',
+    deadlineDays: (now: Date) => 180,
+    submitUrl:    'https://globalmusicrights.com',
   },
   PRS: {
     portal:       'https://www.prsformusic.com/my-prs',
     portalLabel:  'Open PRS Portal',
-    program:      'PRS Live Music',
+    program:      'PRS for Music — Live Music Reporting',
     steps: [
       'Log in at prsformusic.com/my-prs',
       'Go to "Live Music" in your dashboard',
       'Click "Submit a setlist"',
       'Enter venue name, postcode, date and ticket price',
-      'Add song titles, your share, and co-writer details',
-      'Submit — PRS pays £10/gig minimum for pub/café shows',
+      'Add song titles, your writer share, and any co-writer details',
+      'Submit — PRS pays a minimum per-gig rate for smaller venues',
     ],
     deadline:     'Submit within 1 year of performance',
     deadlineDays: (now: Date) => 365,
@@ -141,7 +144,7 @@ const PRO_CONFIG: Record<string, {
   APRA: {
     portal:       'https://www.apraamcos.com.au/members',
     portalLabel:  'Open APRA Portal',
-    program:      'APRA Live Performance',
+    program:      'APRA AMCOS — Live Performance',
     steps: [
       'Log in at apraamcos.com.au/members',
       'Navigate to Live Performance section',
