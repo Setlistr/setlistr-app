@@ -147,6 +147,7 @@ export default function AdminDashboard({
   const [addError, setAddError]       = useState('')
   const [addSuccess, setAddSuccess]   = useState('')
   const [invites, setInvites]         = useState<BetaInvite[]>(betaInvites)
+  const [localPerfs, setLocalPerfs]   = useState<Performance[]>(performances)
 
   // ── Detection stats ────────────────────────────────────────────────────────
   const det = useMemo(() => {
@@ -286,6 +287,24 @@ export default function AdminDashboard({
     { id: 'venues',    label: 'Venues'    },
     { id: 'beta',      label: 'Beta Users' },
   ]
+
+  async function deletePerformance(id: string, venueName: string) {
+    if (!confirm(`Delete "${venueName || 'this show'}"? This cannot be undone.`)) return
+    try {
+      const res = await fetch(`/api/admin/delete-performance`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      })
+      if (res.ok) {
+        setLocalPerfs(prev => prev.filter(p => p.id !== id))
+      } else {
+        alert('Failed to delete — try again')
+      }
+    } catch {
+      alert('Network error — try again')
+    }
+  }
 
   function exportCSV(type: 'shows' | 'songs' | 'detection') {
     let csv = ''
@@ -503,27 +522,44 @@ export default function AdminDashboard({
             <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: '18px 20px' }}>
               <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, margin: '0 0 14px' }}>Recent Shows</p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                {performances.slice(0, 8).map(p => (
-                  <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '9px 0', borderBottom: `1px solid ${C.border}` }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <p style={{ fontSize: 13, fontWeight: 600, color: C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {p.venue_name || '—'}
-                      </p>
-                      <p style={{ fontSize: 11, color: C.muted, margin: '1px 0 0' }}>{p.artist_name} · {p.city}</p>
+                {localPerfs.slice(0, 20).map(p => {
+                  const songCount = performanceSongs.filter(s => s.performance_id === p.id).length
+                  return (
+                    <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '9px 0', borderBottom: `1px solid ${C.border}` }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <p style={{ fontSize: 13, fontWeight: 600, color: songCount === 0 ? C.muted : C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontStyle: songCount === 0 ? 'italic' : 'normal' }}>
+                            {p.venue_name || '—'}
+                          </p>
+                          {songCount === 0 && (
+                            <span style={{ fontSize: 9, color: C.muted, flexShrink: 0 }}>empty</span>
+                          )}
+                        </div>
+                        <p style={{ fontSize: 11, color: C.muted, margin: '1px 0 0' }}>
+                          {p.artist_name} · {p.city} · {songCount} song{songCount !== 1 ? 's' : ''}
+                        </p>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                        <span style={{
+                          fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
+                          padding: '2px 7px', borderRadius: 4,
+                          background: p.submission_status === 'submitted' ? 'rgba(74,222,128,0.1)' : p.status === 'live' ? 'rgba(201,168,76,0.1)' : 'rgba(255,255,255,0.05)',
+                          color: p.submission_status === 'submitted' ? C.green : p.status === 'live' ? C.gold : C.muted,
+                        }}>
+                          {p.submission_status === 'submitted' ? 'Submitted' : p.status === 'live' ? 'Live' : p.status}
+                        </span>
+                        <span style={{ fontSize: 11, color: C.muted }}>{timeAgo(p.started_at)}</span>
+                        <button
+                          onClick={() => deletePerformance(p.id, p.venue_name)}
+                          style={{ background: 'none', border: `1px solid rgba(248,113,113,0.2)`, borderRadius: 5, color: C.red, fontSize: 11, cursor: 'pointer', padding: '2px 8px', fontFamily: 'inherit', opacity: 0.5, transition: 'opacity 0.15s ease', flexShrink: 0 }}
+                          onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '1'}
+                          onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '0.5'}>
+                          del
+                        </button>
+                      </div>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                      <span style={{
-                        fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
-                        padding: '2px 7px', borderRadius: 4,
-                        background: p.submission_status === 'submitted' ? 'rgba(74,222,128,0.1)' : p.status === 'live' ? 'rgba(201,168,76,0.1)' : 'rgba(255,255,255,0.05)',
-                        color: p.submission_status === 'submitted' ? C.green : p.status === 'live' ? C.gold : C.muted,
-                      }}>
-                        {p.submission_status === 'submitted' ? 'Submitted' : p.status === 'live' ? 'Live' : p.status}
-                      </span>
-                      <span style={{ fontSize: 11, color: C.muted }}>{timeAgo(p.started_at)}</span>
-                    </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             </div>
           </div>
