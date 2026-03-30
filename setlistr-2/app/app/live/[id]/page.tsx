@@ -206,6 +206,10 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
 
   function cancelEdit() { setEditingIndex(null) }
 
+  function deleteSong(index: number) {
+    setSongs(prev => prev.filter((_, i) => i !== index))
+  }
+
   const confirmCandidate = useCallback((
     candidate: PendingCandidate,
     setlist_item_id?: string,
@@ -516,10 +520,9 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
           {/* ── Tappable timer — tap to open duration picker ── */}
           <button
             onClick={() => setShowDurationPicker(v => !v)}
-            style={{ fontFamily: '"DM Mono", monospace', fontSize: 18, fontWeight: 700, color: showDurationPicker ? C.gold : C.text, letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums', background: showDurationPicker ? 'rgba(201,168,76,0.1)' : 'transparent', border: `1px solid ${showDurationPicker ? 'rgba(201,168,76,0.3)' : 'transparent'}`, cursor: 'pointer', padding: '2px 8px', borderRadius: 6, WebkitTapHighlightColor: 'transparent', transition: 'all 0.15s ease', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}
+            style={{ fontFamily: '"DM Mono", monospace', fontSize: 18, fontWeight: 700, color: showDurationPicker ? C.gold : C.text, letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums', background: showDurationPicker ? 'rgba(201,168,76,0.1)' : 'transparent', border: `1px solid ${showDurationPicker ? 'rgba(201,168,76,0.3)' : 'transparent'}`, cursor: 'pointer', padding: '4px 8px', borderRadius: 6, WebkitTapHighlightColor: 'transparent', transition: 'all 0.15s ease' }}
           >
             {formatTime(elapsed)}
-            <span style={{ fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, fontFamily: '"DM Sans", sans-serif', fontWeight: 600, opacity: 0.6 }}>set length</span>
           </button>
         </div>
       </div>
@@ -735,10 +738,19 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
                           <p style={{ fontSize: 11, color: C.muted, margin: '2px 0 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{song.artist}</p>
                         )}
                       </div>
-                      {isUnidentified
-                        ? <span style={{ fontSize: 10, color: C.amber, opacity: 0.6, flexShrink: 0 }}>tap to fill</span>
-                        : <span style={{ width: 5, height: 5, borderRadius: '50%', background: C.gold, opacity: isSuggested ? 0.3 : 0.65, flexShrink: 0, display: 'inline-block' }} />
-                      }
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                        {isUnidentified
+                          ? <span style={{ fontSize: 10, color: C.amber, opacity: 0.6 }}>tap to fill</span>
+                          : <span style={{ width: 5, height: 5, borderRadius: '50%', background: C.gold, opacity: isSuggested ? 0.3 : 0.65, display: 'inline-block' }} />
+                        }
+                        <button
+                          onClick={e => { e.stopPropagation(); deleteSong(i) }}
+                          style={{ background: 'none', border: 'none', color: C.muted, cursor: 'pointer', padding: '4px 6px', borderRadius: 6, fontSize: 14, lineHeight: 1, opacity: 0.5, WebkitTapHighlightColor: 'transparent', flexShrink: 0 }}
+                          onTouchStart={e => (e.currentTarget.style.opacity = '1')}
+                          onTouchEnd={e => (e.currentTarget.style.opacity = '0.5')}>
+                          ✕
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
