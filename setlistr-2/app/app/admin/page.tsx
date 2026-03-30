@@ -21,6 +21,7 @@ export default async function AdminPage() {
     { data: performanceSongs },
     { data: profiles },
     { data: userSongs },
+    { data: betaInvites },
   ] = await Promise.all([
     supabase
       .from('detection_events')
@@ -45,6 +46,11 @@ export default async function AdminPage() {
       .from('user_songs')
       .select('user_id, song_title, confirmed_count, last_confirmed_at')
       .order('confirmed_count', { ascending: false }),
+
+    supabase
+      .from('beta_invites')
+      .select('id, email, name, added_by, created_at, accepted_at')
+      .order('created_at', { ascending: false }),
   ])
 
   return (
@@ -54,6 +60,7 @@ export default async function AdminPage() {
       performanceSongs={performanceSongs ?? []}
       profiles={profiles ?? []}
       userSongs={userSongs ?? []}
+      betaInvites={betaInvites ?? []}
     />
   )
 }
