@@ -516,9 +516,10 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
           {/* ── Tappable timer — tap to open duration picker ── */}
           <button
             onClick={() => setShowDurationPicker(v => !v)}
-            style={{ fontFamily: '"DM Mono", monospace', fontSize: 18, fontWeight: 700, color: showDurationPicker ? C.gold : C.text, letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px', borderRadius: 6, WebkitTapHighlightColor: 'transparent', transition: 'color 0.15s ease' }}
+            style={{ fontFamily: '"DM Mono", monospace', fontSize: 18, fontWeight: 700, color: showDurationPicker ? C.gold : C.text, letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums', background: showDurationPicker ? 'rgba(201,168,76,0.1)' : 'transparent', border: `1px solid ${showDurationPicker ? 'rgba(201,168,76,0.3)' : 'transparent'}`, cursor: 'pointer', padding: '2px 8px', borderRadius: 6, WebkitTapHighlightColor: 'transparent', transition: 'all 0.15s ease', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}
           >
             {formatTime(elapsed)}
+            <span style={{ fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, fontFamily: '"DM Sans", sans-serif', fontWeight: 600, opacity: 0.6 }}>set length</span>
           </button>
         </div>
       </div>
@@ -717,7 +718,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
                     </div>
                   ) : (
                     <div
-                      style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 14px', cursor: 'pointer', WebkitTapHighlightColor: 'transparent' }}
+                      style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 14px', cursor: 'pointer', WebkitTapHighlightColor: 'transparent', minHeight: 52 }}
                       onClick={() => startEdit(i)}>
                       <span style={{ fontSize: 11, color: C.muted, minWidth: 16, textAlign: 'right', fontFamily: '"DM Mono", monospace', opacity: 0.45 }}>{i + 1}</span>
                       <div style={{ flex: 1, minWidth: 0 }}>
@@ -748,10 +749,11 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
 
         <button
           onClick={() => setShowManual(v => !v)}
-          style={{ width: '100%', padding: '10px', background: 'transparent', border: `1px solid rgba(255,255,255,0.05)`, borderRadius: 10, color: C.muted, fontSize: 11, fontWeight: 600, letterSpacing: '0.07em', cursor: 'pointer', fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent', transition: 'border-color 0.15s ease' }}
-          onMouseEnter={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)')}
-          onMouseLeave={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.05)')}>
-          {showManual ? '✕ cancel' : '+ add manually'}
+          style={{ width: '100%', padding: '13px', background: showManual ? 'transparent' : 'rgba(201,168,76,0.08)', border: `1px solid ${showManual ? C.border : 'rgba(201,168,76,0.25)'}`, borderRadius: 10, color: showManual ? C.muted : C.gold, fontSize: 13, fontWeight: 700, letterSpacing: '0.06em', cursor: 'pointer', fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent', transition: 'all 0.15s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+          onTouchStart={e => (e.currentTarget.style.background = 'rgba(201,168,76,0.14)')}
+          onTouchEnd={e => (e.currentTarget.style.background = showManual ? 'transparent' : 'rgba(201,168,76,0.08)')}>
+          <span style={{ fontSize: 16, lineHeight: 1, fontWeight: 400 }}>{showManual ? '✕' : '+'}</span>
+          {showManual ? 'cancel' : 'Add a Song'}
         </button>
 
         {showManual && (
@@ -801,14 +803,21 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
           </div>
         )}
 
-        <button onClick={handleEnd} disabled={ending}
-          style={{ width: '100%', padding: '13px', background: 'rgba(220,38,38,0.07)', border: `1px solid rgba(220,38,38,0.22)`, borderRadius: 10, color: ending ? C.muted : '#f87171', fontSize: 12, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: ending ? 'not-allowed' : 'pointer', opacity: ending ? 0.4 : 1, transition: 'all 0.15s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent' }}
+        <button
+          onClick={() => {
+            if (unidentifiedCount > 0) {
+              if (!confirm(`You have ${unidentifiedCount} unknown song${unidentifiedCount > 1 ? 's' : ''}. End show anyway?`)) return
+            }
+            handleEnd()
+          }}
+          disabled={ending}
+          style={{ width: '100%', padding: '14px', background: 'rgba(220,38,38,0.07)', border: `1px solid rgba(220,38,38,0.22)`, borderRadius: 10, color: ending ? C.muted : '#f87171', fontSize: 12, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: ending ? 'not-allowed' : 'pointer', opacity: ending ? 0.4 : 1, transition: 'all 0.15s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent' }}
           onMouseEnter={e => { if (!ending) (e.currentTarget as HTMLButtonElement).style.background = 'rgba(220,38,38,0.13)' }}
           onMouseLeave={e => { if (!ending) (e.currentTarget as HTMLButtonElement).style.background = 'rgba(220,38,38,0.07)' }}
           onTouchStart={e => { if (!ending) e.currentTarget.style.background = 'rgba(220,38,38,0.13)' }}
           onTouchEnd={e => { if (!ending) e.currentTarget.style.background = 'rgba(220,38,38,0.07)' }}>
           <span style={{ width: 6, height: 6, background: ending ? C.muted : C.red, borderRadius: 1, display: 'inline-block', flexShrink: 0 }} />
-          {ending ? 'Ending...' : 'End Performance'}
+          {ending ? 'Ending...' : 'End Show'}
         </button>
       </div>
 
