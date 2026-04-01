@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { Building2, Calendar, ArrowRight, Music4, Music2, RefreshCw, Check, MapPin, Search, User } from 'lucide-react'
+import { Building2, Calendar, ArrowRight, Music4, Music2, RefreshCw, Check, MapPin, Search } from 'lucide-react'
 
 const C = {
   bg: '#0a0908', card: '#141210', cardHover: '#181614',
@@ -220,9 +220,7 @@ export default function NewShowPage() {
           <div style={{ width: 36, height: 36, borderRadius: '50%', background: C.goldDim, border: `1px solid ${C.borderGold}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <Music4 size={16} color={C.gold} />
           </div>
-          <div>
-            <p style={{ fontSize: 14, fontWeight: 700, color: C.text, margin: 0 }}>New Show</p>
-          </div>
+          <p style={{ fontSize: 14, fontWeight: 700, color: C.text, margin: 0 }}>New Show</p>
         </div>
 
         <h1 style={{ fontSize: 28, fontWeight: 800, color: C.text, margin: '0 0 6px', letterSpacing: '-0.025em' }}>Where are you playing?</h1>
@@ -240,9 +238,7 @@ export default function NewShowPage() {
               placeholder="Your artist name"
               style={{ background: C.input, border: `1px solid ${artistName.trim() ? C.borderGold : C.border}`, borderRadius: 10, padding: '13px 14px', color: C.text, fontSize: 15, fontFamily: 'inherit', width: '100%', transition: 'border-color 0.15s ease' }}
             />
-            {artistName.trim() && (
-              <p style={{ fontSize: 11, color: C.muted, margin: 0 }}>✓ From your profile — tap to edit</p>
-            )}
+
           </div>
 
           {/* Venue autocomplete */}
