@@ -533,14 +533,15 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
           .eq('performance_id', params.id).order('position')
         if (songData) {
           setSongs(songData.map(s => {
-            const n = normalizeSong({ title: s.title, artist: s.artist || '' })
+            const isUnidentified = s.source === 'unidentified' || !s.title
+            const n = normalizeSong({ title: s.title || 'Unknown Song', artist: s.artist || '' })
             return {
               id: s.id || String(s.position),
               title: n.title, artist: n.artist,
-              position: s.position, source: s.source || 'recognized',
+              position: s.position, source: isUnidentified ? 'unidentified' : (s.source || 'recognized'),
               recognition_decision_id: null,
               isrc: s.isrc || '', composer: s.composer || '', publisher: s.publisher || '',
-              reviewState: (s.source === 'unidentified' ? 'needs_review' : 'clean') as 'clean' | 'needs_review',
+              reviewState: (isUnidentified ? 'needs_review' : 'clean') as 'clean' | 'needs_review',
             }
           }))
         }
