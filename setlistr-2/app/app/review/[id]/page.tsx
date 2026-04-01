@@ -440,6 +440,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
   // Called when user selects from CatalogSearch — auto-fills ISRC and all metadata
   function assignFromCatalog(catalogSong: CatalogSong, songId: string) {
     if (!catalogSong.title?.trim()) return  // guard empty titles
+    const isNewSong = catalogSong.source === 'new' || catalogSong.id?.startsWith('new-')
     setSongs(prev => prev.map(s =>
       s.id === songId
         ? {
@@ -455,6 +456,33 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
         : s
     ))
     closeAssignSheet()
+
+    // If user typed a new song title (not from catalog), try to enrich it async
+    // This is the "holy shit" moment — type "Hurricane", get ISRC + writers auto-filled
+    if (isNewSong && catalogSong.title.trim()) {
+      fetch('/api/enrich-song', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: catalogSong.title.trim(), artist: catalogSong.artist || '' }),
+      })
+        .then(r => r.json())
+        .then(data => {
+          if (data.found) {
+            setSongs(prev => prev.map(s =>
+              s.id === songId
+                ? {
+                    ...s,
+                    isrc:      data.isrc      || s.isrc,
+                    composer:  data.composer  || s.composer,
+                    publisher: data.publisher || s.publisher,
+                    artist:    s.artist || data.canonical_artist || '',
+                  }
+                : s
+            ))
+          }
+        })
+        .catch(() => {}) // non-blocking, silent fail
+    }
   }
 
   function handleRowTap(songId: string) {
