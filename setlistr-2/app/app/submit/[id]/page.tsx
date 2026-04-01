@@ -240,7 +240,7 @@ function DeadlineBadge({ daysLeft, deadline }: { daysLeft: number; deadline: str
         <p style={{ fontSize: 12, fontWeight: 700, color, margin: 0 }}>
           {urgent ? `⚠️ ${daysLeft} days left to submit` : warning ? `${daysLeft} days left to submit` : `Deadline: ${deadline}`}
         </p>
-        {urgent && <p style={{ fontSize: 11, color: C.secondary, margin: '2px 0 0' }}>Submit now to avoid losing this claim</p>}
+        {urgent && <p style={{ fontSize: 11, color: C.secondary, margin: '2px 0 0' }}>Submit before the deadline to report this performance</p>}
       </div>
     </div>
   )
@@ -456,7 +456,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
         {/* ── Readiness ── */}
         <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '16px 18px', marginBottom: 12, animation: 'fadeUp 0.4s 0.05s ease both' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-            <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, margin: 0 }}>Song Readiness</p>
+            <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, margin: 0 }}>Song Metadata</p>
             <span style={{ fontSize: 12, fontWeight: 700, color: strongCount === songs.length ? C.green : C.gold }}>
               {strongCount}/{songs.length} matched
             </span>
@@ -472,7 +472,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <div style={{ width: 7, height: 7, borderRadius: '50%', background: C.green, flexShrink: 0 }} />
-                  <span style={{ fontSize: 14, fontWeight: 600, color: C.text }}>Matched</span>
+                  <span style={{ fontSize: 14, fontWeight: 600, color: C.text }}>Metadata found</span>
                   <span style={{ fontSize: 11, color: C.muted }}>strong metadata</span>
                 </div>
                 <span style={{ fontSize: 13, fontWeight: 700, color: C.green, fontFamily: '"DM Mono", monospace' }}>{matchedCount}</span>
@@ -492,13 +492,13 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <div style={{ width: 7, height: 7, borderRadius: '50%', background: C.muted, flexShrink: 0 }} />
-                  <span style={{ fontSize: 14, fontWeight: 600, color: C.secondary }}>Unverified</span>
+                  <span style={{ fontSize: 14, fontWeight: 600, color: C.secondary }}>No metadata</span>
                   <span style={{ fontSize: 11, color: C.muted }}>no metadata found</span>
                 </div>
                 <button
                   onClick={() => pro && window.open(proConfig?.portal, '_blank')}
                   style={{ fontSize: 11, color: C.blue, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>
-                  Register with your PRO →
+                  Add to your PRO catalog →
                 </button>
               </div>
             ) : null}
@@ -506,7 +506,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
 
           {unverifiedCount > 0 ? (
             <p style={{ fontSize: 11, color: C.muted, margin: '12px 0 0', paddingTop: 10, borderTop: `1px solid ${C.border}`, lineHeight: 1.5 }}>
-              Unverified songs have limited metadata. Register them with your PRO to ensure they're eligible for royalties.
+              Songs without metadata may affect royalty collection. Add ISRC and writer info in My Songs, or register with your PRO.
             </p>
           ) : null}
         </div>
@@ -629,7 +629,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             {songs.map((song, i) => {
               const sc = song.matchConfidence === 'matched' ? C.green : song.matchConfidence === 'partial' ? C.gold : song.matchConfidence === 'unverified' ? C.muted : 'transparent'
-              const sl = song.matchConfidence === 'matched' ? 'Matched' : song.matchConfidence === 'partial' ? 'Partial' : song.matchConfidence === 'unverified' ? 'Unverified' : ''
+              const sl = song.matchConfidence === 'matched' ? 'Metadata found' : song.matchConfidence === 'partial' ? 'Partial metadata' : song.matchConfidence === 'unverified' ? 'No metadata' : ''
               return (
                 <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: C.card, border: `1px solid ${C.border}`, borderRadius: 10 }}>
                   <span style={{ fontSize: 11, color: C.muted, minWidth: 16, textAlign: 'right', fontFamily: '"DM Mono", monospace', flexShrink: 0 }}>{i + 1}</span>
