@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
+ import { createClient } from '@/lib/supabase/client'
 import { Building2, Calendar, ArrowRight, Music4, Music2, RefreshCw, Check, MapPin, Search, User } from 'lucide-react'
 
 const C = {
