@@ -219,7 +219,7 @@ export default function NewShowPage() {
               type="text"
               value={artistName}
               onChange={e => setArtistName(e.target.value)}
-              placeholder={profileLoaded ? 'Your artist name' : 'Loading...'}
+              placeholder="Your artist name"
               style={{ background: C.input, border: `1px solid ${artistName.trim() ? C.borderGold : C.border}`, borderRadius: 10, padding: '13px 14px', color: C.text, fontSize: 15, fontFamily: 'inherit', width: '100%', transition: 'border-color 0.15s ease' }}
             />
             {artistName.trim() && (
