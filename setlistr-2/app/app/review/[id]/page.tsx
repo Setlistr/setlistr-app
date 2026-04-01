@@ -378,10 +378,10 @@ function AssignSheet({ assignSheet, onAssign, onClose, onCatalogSelect, userId, 
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: C.muted, cursor: 'pointer', padding: 4 }}><X size={16} /></button>
         </div>
 
-        {/* CatalogSearch — 1-tap fix with ISRC auto-fill */}
+        {/* CatalogSearch — search catalog or type any song title */}
         <CatalogSearch
           userId={userId}
-          placeholder="Search your songs..."
+          placeholder="Search or type any song title..."
           autoFocus
           showEmpty
           currentSongs={currentSongs}
@@ -389,7 +389,7 @@ function AssignSheet({ assignSheet, onAssign, onClose, onCatalogSelect, userId, 
         />
 
         <p style={{ fontSize: 11, color: C.muted, margin: '4px 0 0', lineHeight: 1.5, textAlign: 'center' }}>
-          Select a song to auto-fill title, artist, and ISRC · or type to add new
+          Search your catalog or type any title to add it
         </p>
       </div>
     </div>
@@ -439,16 +439,17 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
 
   // Called when user selects from CatalogSearch — auto-fills ISRC and all metadata
   function assignFromCatalog(catalogSong: CatalogSong, songId: string) {
+    if (!catalogSong.title?.trim()) return  // guard empty titles
     setSongs(prev => prev.map(s =>
       s.id === songId
         ? {
             ...s,
-            title:      catalogSong.title,
-            artist:     catalogSong.artist || s.artist,
-            isrc:       catalogSong.isrc   || '',
-            composer:   catalogSong.composer  || '',
-            publisher:  catalogSong.publisher || '',
-            source:     'manual',
+            title:       catalogSong.title.trim(),
+            artist:      catalogSong.artist || s.artist,
+            isrc:        catalogSong.isrc   || '',
+            composer:    catalogSong.composer  || '',
+            publisher:   catalogSong.publisher || '',
+            source:      'manual',
             reviewState: 'clean',
           }
         : s
