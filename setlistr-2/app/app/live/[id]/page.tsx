@@ -1,867 +1,425 @@
 'use client'
-import { useEffect, useState, useCallback, useRef } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { Check, X } from 'lucide-react'
-import type { Performance } from '@/types'
+import { Building2, Calendar, ArrowRight, Music4, Music2, RefreshCw, Check, MapPin, Search, User } from 'lucide-react'
 
 const C = {
-  bg: '#0a0908', card: '#141210', border: 'rgba(255,255,255,0.07)',
+  bg: '#0a0908', card: '#141210', cardHover: '#181614',
+  border: 'rgba(255,255,255,0.07)', borderGold: 'rgba(201,168,76,0.3)',
   input: '#0f0e0c', text: '#f0ece3', secondary: '#b8a888', muted: '#8a7a68',
-  gold: '#c9a84c', goldDim: 'rgba(201,168,76,0.15)', red: '#dc2626',
-  amber: '#f59e0b', amberDim: 'rgba(245,158,11,0.12)',
+  gold: '#c9a84c', goldDim: 'rgba(201,168,76,0.1)', red: '#dc2626',
+  green: '#4ade80',
 }
 
-const MIN_SONG_GAP_SECONDS     = 30
-const CANDIDATE_WINDOW_SECONDS = 60
-const PLACEHOLDER_GAP_SECONDS  = 35
+type Venue = { id: string; name: string; city: string; country: string }
+type PastPerformance = { id: string; venue_name: string; artist_name: string; started_at: string; song_count: number }
+type VenueMemory = { lastDate: string; songCount: number; showCount: number }
 
-type AcrCandidate = { title: string; artist: string; score: number }
+export default function NewShowPage() {
+  const router       = useRouter()
+  const searchParams = useSearchParams()
 
-type DetectedSong = {
-  title: string
-  artist: string
-  source: 'fingerprint' | 'humming' | 'transcript' | 'combined' | 'manual' | 'cloned' | 'unidentified'
-  setlist_item_id?: string
-  confidence_level?: 'auto' | 'suggest' | 'manual_review'
-  isrc?: string
-  composer?: string
-  publisher?: string
-}
+  const [name, setName]                 = useState('')
+  const [artistName, setArtistName]     = useState('')
+  const [showType, setShowType]         = useState<'single' | 'writers_round'>('single')
+  const [showSchedule, setShowSchedule] = useState(false)
+  const [scheduledAt, setScheduledAt]   = useState(new Date().toISOString().slice(0, 16))
+  const [loading, setLoading]           = useState(false)
+  const [error, setError]               = useState('')
 
-type PendingCandidate = {
-  title: string
-  artist: string
-  firstDetectedAt: number
-  lastDetectedAt: number
-  matchCount: number
-  source: DetectedSong['source']
-  confidence_level?: 'auto' | 'suggest' | 'manual_review'
-  candidates?: AcrCandidate[]
-  downgraded_reason?: string
-}
+  const [venueQuery, setVenueQuery]         = useState('')
+  const [venueId, setVenueId]               = useState<string | null>(null)
+  const [venueCity, setVenueCity]           = useState('')
+  const [venueCountry, setVenueCountry]     = useState('')
+  const [venueSelected, setVenueSelected]   = useState(false)
+  const [venueResults, setVenueResults]     = useState<Venue[]>([])
+  const [venueSearching, setVenueSearching] = useState(false)
+  const [showDropdown, setShowDropdown]     = useState(false)
+  const [venueMemory, setVenueMemory]       = useState<VenueMemory | null>(null)
+  const [venueCapacity, setVenueCapacity]   = useState<string>('')  // 'small'|'medium'|'large'|'festival'
+  const dropdownRef = useRef<HTMLDivElement>(null)
+  const searchTimer = useRef<NodeJS.Timeout | null>(null)
 
-type CandidateHistoryEntry = {
-  title: string; artist: string; score: number; timestamp: number
-}
+  const [showReuse, setShowReuse]       = useState(searchParams.get('reuse') === 'true')
+  const [pastPerfs, setPastPerfs]       = useState<PastPerformance[]>([])
+  const [pastLoading, setPastLoading]   = useState(false)
+  const [selectedPast, setSelectedPast] = useState<PastPerformance | null>(null)
+  const [cloning, setCloning]           = useState(false)
 
-type RecentSong = { id: string; title: string; artist: string; play_count: number }
+  // Show name defaults to venue name — artist doesn't need to type it separately
+  const effectiveName = name.trim() || venueQuery.trim() || 'Show'
+  const isValid = venueQuery.trim().length > 0 || name.trim().length > 0
 
-function normalizeSongKey(title: string): string {
-  return title.toLowerCase().trim()
-    .replace(/\(.*?\)/g, '').replace(/\[.*?\]/g, '')
-    .replace(/[-–—]/g, ' ').replace(/[^a-z0-9 ]/g, '')
-    .replace(/\s+/g, ' ').trim()
-}
-
-function isSameSong(a: { title: string }, b: { title: string }): boolean {
-  return normalizeSongKey(a.title) === normalizeSongKey(b.title)
-}
-
-async function writeUserSong(
-  supabase: ReturnType<typeof createClient>,
-  title: string,
-  artist: string,
-  userId: string,
-  performanceId: string
-): Promise<void> {
-  try {
-    const normalizedTitle = normalizeSongKey(title)
-    const { error: guardError } = await supabase
-      .from('user_song_performances')
-      .insert({ user_id: userId, performance_id: performanceId, normalized_title: normalizedTitle })
-    if (guardError) {
-      if (guardError.code === '23505') return
-      console.error('[UserSongs] guard error:', guardError.message)
-      return
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) setShowDropdown(false)
     }
-    const { data: existing } = await supabase
-      .from('user_songs')
-      .select('id, confirmed_count')
-      .eq('user_id', userId)
-      .eq('song_title', title)
-      .single()
-    if (existing) {
-      await supabase.from('user_songs').update({
-        confirmed_count: existing.confirmed_count + 1,
-        canonical_artist: artist || null,
-        last_confirmed_at: new Date().toISOString(),
-      }).eq('id', existing.id)
-    } else {
-      await supabase.from('user_songs').insert({
-        user_id: userId,
-        song_title: title,
-        canonical_artist: artist || null,
-        confirmed_count: 1,
-        last_confirmed_at: new Date().toISOString(),
-      })
-    }
-  } catch (err) {
-    console.error('[UserSongs] write failed:', err)
-  }
-}
-
-export default function LiveCapturePage({ params }: { params: { id: string } }) {
-  const router = useRouter()
-  const [performance, setPerformance] = useState<Performance | null>(null)
-  const [showId, setShowId]           = useState<string | null>(null)
-  const [setlistId, setSetlistId]     = useState<string | null>(null)
-  const [artistId, setArtistId]       = useState<string | null>(null)
-  const [elapsed, setElapsed]         = useState(0)
-  const [ending, setEnding]           = useState(false)
-  const [songInput, setSongInput]     = useState('')
-  const [songs, setSongs]             = useState<DetectedSong[]>([])
-  const [isListening, setIsListening] = useState(false)
-  const [isDetecting, setIsDetecting] = useState(false)
-  const [detectStatus, setDetectStatus] = useState<string>('')
-  const [showManual, setShowManual]   = useState(false)
-  const [recentSongs, setRecentSongs] = useState<RecentSong[]>([])
-  const [catchFlash, setCatchFlash]   = useState(false)
-  const [lastCaught, setLastCaught]   = useState<string | null>(null)
-  const [pendingCandidate, setPendingCandidate] = useState<PendingCandidate | null>(null)
-  const [editingIndex, setEditingIndex] = useState<number | null>(null)
-  const [editTitle, setEditTitle]       = useState('')
-  const [editArtist, setEditArtist]     = useState('')
-
-  // ── Duration control ─────────────────────────────────────────────────────────
-  // localDuration overrides performance.set_duration_minutes when user taps timer.
-  // null = use the default from DB. Picker closes on selection.
-  const [localDuration, setLocalDuration]           = useState<number | null>(null)
-  const [showDurationPicker, setShowDurationPicker] = useState(false)
-
-  const mediaRecorderRef    = useRef<MediaRecorder | null>(null)
-  const chunksRef           = useRef<Blob[]>([])
-  const listenIntervalRef   = useRef<NodeJS.Timeout | null>(null)
-  const streamRef           = useRef<MediaStream | null>(null)
-  const lastConfirmedAtRef  = useRef<number>(0)
-  const pendingCandidateRef = useRef<PendingCandidate | null>(null)
-  const confirmedSongsRef   = useRef<DetectedSong[]>([])
-  const candidateHistoryRef = useRef<CandidateHistoryEntry[]>([])
-
-  useEffect(() => { pendingCandidateRef.current = pendingCandidate }, [pendingCandidate])
-  useEffect(() => { confirmedSongsRef.current = songs }, [songs])
-
-  useEffect(() => {
-    const supabase = createClient()
-    supabase.from('performances')
-      .select('*, show_id, setlist_id, artist_id')
-      .eq('id', params.id).single()
-      .then(({ data }) => {
-        if (data) {
-          setPerformance(data)
-          setShowId(data.show_id || null)
-          setSetlistId(data.setlist_id || null)
-          setArtistId(data.artist_id || null)
-        }
-      })
-  }, [params.id])
-
-  useEffect(() => {
-    if (!performance?.started_at) return
-    const start = new Date(performance.started_at).getTime()
-    const tick = () => setElapsed(Math.floor((Date.now() - start) / 1000))
-    tick()
-    const interval = setInterval(tick, 1000)
-    return () => clearInterval(interval)
-  }, [performance?.started_at])
-
-  useEffect(() => {
-    if (!performance) return
-    // Use localDuration if set, otherwise fall back to DB value
-    const activeDuration = localDuration ?? performance.set_duration_minutes ?? 60
-    const totalSeconds   = (activeDuration + (performance.auto_close_buffer_minutes || 5)) * 60
-    if (elapsed >= totalSeconds && !ending) handleEnd()
-  }, [elapsed, performance, ending, localDuration])
-
-  useEffect(() => { return () => stopListening() }, [])
-
-  const fetchRecentSongs = useCallback(() => {
-    const confirmed = confirmedSongsRef.current
-    const exclude   = confirmed
-      .filter(s => s.source !== 'unidentified')
-      .map(s => encodeURIComponent(s.title))
-      .join(',')
-    const url = exclude ? `/api/recent-songs?exclude=${exclude}` : '/api/recent-songs'
-    fetch(url)
-      .then(r => r.json())
-      .then(data => { if (data.songs) setRecentSongs(data.songs.slice(0, 8)) })
-      .catch(() => {})
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
   }, [])
 
-  useEffect(() => { fetchRecentSongs() }, [fetchRecentSongs])
+  const searchVenues = useCallback(async (query: string) => {
+    if (query.trim().length < 2) { setVenueResults([]); setShowDropdown(false); return }
+    setVenueSearching(true)
+    const supabase = createClient()
+    const { data } = await supabase.from('venues').select('id, name, city, country').ilike('name', `%${query}%`).limit(6)
+    setVenueResults(data || [])
+    setShowDropdown(true)
+    setVenueSearching(false)
+  }, [])
 
-  function startEdit(index: number) {
-    setEditingIndex(index)
-    setEditTitle(songs[index].title)
-    setEditArtist(songs[index].artist)
-  }
-
-  function saveEdit() {
-    if (editingIndex === null || !editTitle.trim()) return
-    setSongs(prev => prev.map((s, i) =>
-      i === editingIndex
-        ? {
-            ...s,
-            title:  editTitle.trim(),
-            artist: editArtist.trim() || s.artist,
-            // Upgrade source: if they edited an unknown song, it's now manual
-            source: s.source === 'unidentified' ? 'manual' : s.source,
-          }
-        : s
-    ))
-    setEditingIndex(null)
-  }
-
-  function cancelEdit() { setEditingIndex(null) }
-
-  function deleteSong(index: number) {
-    setSongs(prev => prev.filter((_, i) => i !== index))
-  }
-
-  const confirmCandidate = useCallback((
-    candidate: PendingCandidate,
-    setlist_item_id?: string,
-    enriched?: { isrc?: string; composer?: string; publisher?: string }
-  ) => {
-    setSongs(prev => [...prev, {
-      title: candidate.title,
-      artist: candidate.artist,
-      source: candidate.source,
-      setlist_item_id,
-      confidence_level: candidate.confidence_level,
-      isrc: enriched?.isrc || '',
-      composer: enriched?.composer || '',
-      publisher: enriched?.publisher || '',
-    }])
-    lastConfirmedAtRef.current = Date.now()
-    setPendingCandidate(null)
-    setCatchFlash(true)
-    setLastCaught(candidate.title)
-    setTimeout(() => setCatchFlash(false), 1200)
-    setTimeout(() => setLastCaught(null), 3500)
-    setDetectStatus('')
-
-    if (candidate.confidence_level === 'suggest' || candidate.source === 'manual') {
+  async function fetchVenueMemory(selectedVenueId: string) {
+    setVenueMemory(null)
+    try {
       const supabase = createClient()
-      supabase.auth.getUser().then(({ data: { user } }) => {
-        if (user && params.id) {
-          writeUserSong(supabase, candidate.title, candidate.artist || '', user.id, params.id)
-        }
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      const { data: perfs } = await supabase
+        .from('performances')
+        .select('id, started_at')
+        .eq('venue_id', selectedVenueId)
+        .eq('user_id', user.id)
+        .in('status', ['review', 'complete', 'completed', 'exported'])
+        .order('started_at', { ascending: false })
+        .limit(10)
+      if (!perfs || perfs.length === 0) return
+      const { data: songs } = await supabase
+        .from('performance_songs')
+        .select('performance_id')
+        .in('performance_id', perfs.map(p => p.id))
+      const countMap: Record<string, number> = {}
+      songs?.forEach(s => { countMap[s.performance_id] = (countMap[s.performance_id] || 0) + 1 })
+      setVenueMemory({
+        lastDate:  perfs[0].started_at,
+        songCount: countMap[perfs[0].id] || 0,
+        showCount: perfs.length,
       })
-    }
-  }, [params.id])
+    } catch { /* non-blocking */ }
+  }
 
-  const selectCandidate = useCallback((candidate: AcrCandidate) => {
-    if (!pendingCandidateRef.current) return
-    confirmCandidate({ ...pendingCandidateRef.current, title: candidate.title, artist: candidate.artist })
-  }, [confirmCandidate])
+  function handleVenueInput(val: string) {
+    setVenueQuery(val); setVenueId(null); setVenueSelected(false); setVenueMemory(null); setVenueCapacity('')
+    if (searchTimer.current) clearTimeout(searchTimer.current)
+    searchTimer.current = setTimeout(() => searchVenues(val), 280)
+  }
 
-  const detectSong = useCallback(async (audioBlob: Blob) => {
-    setIsDetecting(true)
-    setDetectStatus('listening...')
+  function selectVenue(v: Venue) {
+    setVenueQuery(v.name); setVenueId(v.id)
+    setVenueCity(v.city || ''); setVenueCountry(v.country || '')
+    setVenueSelected(true); setShowDropdown(false); setVenueResults([])
+    if (!name.trim()) setName(v.name)
+    fetchVenueMemory(v.id)
+  }
 
-    try {
-      const formData = new FormData()
-      formData.append('audio', audioBlob, 'audio.webm')
-      formData.append('performance_id', params.id)
-      if (showId)    formData.append('show_id', showId)
-      if (setlistId) formData.append('setlist_id', setlistId)
-      if (artistId)  formData.append('artist_id', artistId)
-      if (performance?.artist_name) formData.append('artist_name', performance.artist_name)
-      if (performance?.venue_name)  formData.append('venue_name', performance.venue_name)
-      formData.append('show_type', (performance as any).show_type || 'single')
-      formData.append('previous_songs', JSON.stringify(confirmedSongsRef.current.map(s => s.title)))
-      formData.append('candidate_history', JSON.stringify(candidateHistoryRef.current))
+  function formatDate(d: string) {
+    return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  }
 
-      const res  = await fetch('/api/identify', { method: 'POST', body: formData })
-      const data = await res.json()
-
-      if (data.acr_score) {
-        candidateHistoryRef.current = [
-          { title: data.title || '', artist: data.artist || '', score: data.acr_score, timestamp: Date.now() },
-          ...candidateHistoryRef.current,
-        ].slice(0, 3)
-      }
-
-      const now       = Date.now()
-      const confirmed = confirmedSongsRef.current
-      const pending   = pendingCandidateRef.current
-
-      if (!data.detected) {
-        const timeSinceLast = (now - lastConfirmedAtRef.current) / 1000
-        if (confirmed.length > 0 && timeSinceLast > PLACEHOLDER_GAP_SECONDS) {
-          setSongs(prev => {
-            if (prev[prev.length - 1]?.source === 'unidentified') return prev
-            return [...prev, { title: 'Unknown Song', artist: '', source: 'unidentified' }]
-          })
-          lastConfirmedAtRef.current = now
-        }
-        setDetectStatus('listening...')
-        return
-      }
-
-      const { title, artist, setlist_item_id, confidence_level, source } = data
-
-      if (confirmed.some(s => isSameSong(s, { title }))) {
-        setDetectStatus('already logged')
-        setTimeout(() => setDetectStatus(''), 3000)
-        return
-      }
-
-      if (confidence_level === 'auto') {
-        const secondsSinceLast = (now - lastConfirmedAtRef.current) / 1000
-        const isFirstSong      = confirmed.length === 0 && lastConfirmedAtRef.current === 0
-        const cooldownPassed   = secondsSinceLast >= MIN_SONG_GAP_SECONDS
-
-        if (isFirstSong || cooldownPassed) {
-          confirmCandidate(
-            { title, artist, source, confidence_level, firstDetectedAt: now, lastDetectedAt: now, matchCount: 1 },
-            setlist_item_id,
-            { isrc: data.isrc, composer: data.composer, publisher: data.publisher }
-          )
-        } else {
-          if (pending && normalizeSongKey(pending.title) === normalizeSongKey(title)) {
-            setPendingCandidate({ ...pending, lastDetectedAt: now, matchCount: pending.matchCount + 1 })
-          } else if (!pending) {
-            setPendingCandidate({ title, artist, source, confidence_level, firstDetectedAt: now, lastDetectedAt: now, matchCount: 1 })
-          }
-          setDetectStatus(`hearing "${title}"...`)
-        }
-        return
-      }
-
-      if (confidence_level === 'suggest') {
-        if (pending && normalizeSongKey(pending.title) === normalizeSongKey(title)) {
-          const updated: PendingCandidate = {
-            ...pending, lastDetectedAt: now, matchCount: pending.matchCount + 1, source,
-          }
-          const withinWindow = (now - pending.firstDetectedAt) / 1000 <= CANDIDATE_WINDOW_SECONDS
-          if (withinWindow && updated.matchCount >= 2) {
-            confirmCandidate(updated, setlist_item_id, { isrc: data.isrc, composer: data.composer, publisher: data.publisher })
-          } else {
-            setPendingCandidate(updated)
-            setDetectStatus(`hearing "${title}"... (${updated.matchCount}×)`)
-          }
-          return
-        }
-
-        const secondsSinceLast = (now - lastConfirmedAtRef.current) / 1000
-        const cooldownPassed   = secondsSinceLast >= MIN_SONG_GAP_SECONDS
-        const isFirstSong      = confirmed.length === 0 && lastConfirmedAtRef.current === 0
-
-        if (!pending || cooldownPassed || isFirstSong) {
-          setPendingCandidate({
-            title, artist, source, confidence_level,
-            firstDetectedAt: now, lastDetectedAt: now, matchCount: 1,
-          })
-          setDetectStatus(`hearing "${title}"...`)
-        } else {
-          setDetectStatus(`hearing "${pending.title}"...`)
-        }
-      }
-
-    } catch {
-      setDetectStatus('listening...')
-    } finally {
-      setIsDetecting(false)
-    }
-  }, [params.id, showId, setlistId, artistId, confirmCandidate, performance])
-
-  const confirmPending = useCallback(() => {
-    if (!pendingCandidateRef.current) return
-    confirmCandidate(pendingCandidateRef.current)
-  }, [confirmCandidate])
-
-  const dismissPending = useCallback(() => {
-    setPendingCandidate(null)
-    setDetectStatus('listening...')
-  }, [])
-
-  const startListening = useCallback(async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      streamRef.current = stream
-      setIsListening(true)
-      setDetectStatus('listening...')
-
-      const recordAndDetect = () => {
-        if (isDetecting) return
-        chunksRef.current = []
-        const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-          ? 'audio/webm;codecs=opus'
-          : MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4'
-        const recorder = new MediaRecorder(stream, { mimeType })
-        mediaRecorderRef.current = recorder
-        recorder.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data) }
-        recorder.onstop = () => detectSong(new Blob(chunksRef.current, { type: mimeType }))
-        recorder.start()
-        setTimeout(() => { if (recorder.state === 'recording') recorder.stop() }, 12000)
-      }
-
-      recordAndDetect()
-      listenIntervalRef.current = setInterval(recordAndDetect, 20000)
-    } catch {
-      setDetectStatus('mic access denied')
-      setIsListening(false)
-    }
-  }, [detectSong, isDetecting])
-
-  const stopListening = useCallback(() => {
-    if (listenIntervalRef.current) { clearInterval(listenIntervalRef.current); listenIntervalRef.current = null }
-    if (mediaRecorderRef.current?.state === 'recording') mediaRecorderRef.current.stop()
-    if (streamRef.current) { streamRef.current.getTracks().forEach(t => t.stop()); streamRef.current = null }
-    setIsListening(false)
-    setDetectStatus('')
-  }, [])
-
-  const handleEnd = useCallback(async () => {
-    if (ending || !performance) return
-    setEnding(true)
-
-    const timeSinceLast = (Date.now() - lastConfirmedAtRef.current) / 1000
-    const currentSongs  = confirmedSongsRef.current
-    if (currentSongs.length > 0 && timeSinceLast > PLACEHOLDER_GAP_SECONDS) {
-      const last = currentSongs[currentSongs.length - 1]
-      if (last?.source !== 'unidentified') {
-        setSongs(prev => [...prev, { title: 'Unknown Song', artist: '', source: 'unidentified' }])
-      }
-    }
-
-    stopListening()
+  useEffect(() => {
+    if (!showReuse || pastPerfs.length > 0) return
+    setPastLoading(true)
     const supabase = createClient()
+    async function loadPast() {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { setPastLoading(false); return }
+      const { data: perfs } = await supabase
+        .from('performances').select('id, venue_name, artist_name, started_at')
+        .eq('user_id', user.id).in('status', ['review', 'complete', 'completed', 'exported'])
+        .order('started_at', { ascending: false }).limit(20)
+      if (!perfs) { setPastLoading(false); return }
+      const { data: songs } = await supabase.from('performance_songs').select('performance_id').in('performance_id', perfs.map(p => p.id))
+      const countMap: Record<string, number> = {}
+      songs?.forEach(s => { countMap[s.performance_id] = (countMap[s.performance_id] || 0) + 1 })
+      setPastPerfs(perfs.map(p => ({ id: p.id, venue_name: p.venue_name, artist_name: p.artist_name, started_at: p.started_at, song_count: countMap[p.id] || 0 })).filter(p => p.song_count > 0 && p.venue_name && p.venue_name.trim() !== '.'))
+      setPastLoading(false)
+    }
+    loadPast()
+  }, [showReuse])
 
-    await supabase.from('performances').update({ status: 'review', ended_at: new Date().toISOString() }).eq('id', performance.id)
-    if (showId) await supabase.from('shows').update({ status: 'completed', ended_at: new Date().toISOString() }).eq('id', showId)
-    await supabase.from('capture_sessions').update({ ended_at: new Date().toISOString(), status: 'ended' }).eq('performance_id', performance.id)
-
-    if (setlistId) {
-      const manualSongs = songs.filter(s => s.source === 'manual')
-      if (manualSongs.length > 0) {
-        const { data: existingItems } = await supabase.from('setlist_items').select('position').eq('setlist_id', setlistId).order('position', { ascending: false }).limit(1)
-        const startPosition = (existingItems?.[0]?.position || 0) + 1
-        await supabase.from('setlist_items').insert(
-          manualSongs.map((song, i) => ({
-            setlist_id: setlistId, title: song.title,
-            artist_name: song.artist || performance.artist_name,
-            position: startPosition + i, source: 'manual',
-          }))
-        )
+  async function handleSubmit() {
+    if (!isValid || loading) return
+    setLoading(true); setError('')
+    try {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      let resolvedVenueId = venueId
+      if (!resolvedVenueId && venueQuery.trim()) {
+        const capacityMap: Record<string,number> = { small: 150, medium: 500, large: 2000, festival: 10000 }
+        const { data: nv } = await supabase.from('venues').insert({ name: venueQuery.trim(), city: venueCity.trim() || null, country: venueCountry.trim() || null, capacity: venueCapacity ? capacityMap[venueCapacity] : null }).select().single()
+        if (nv) resolvedVenueId = nv.id
       }
-      await supabase.from('setlists').update({ status: 'review', updated_at: new Date().toISOString() }).eq('id', setlistId)
+      const scheduledIso = showSchedule && scheduledAt ? new Date(scheduledAt).toISOString() : null
+      const { data: show, error: showError } = await supabase.from('shows').insert({ name: effectiveName, show_type: showType, scheduled_at: scheduledIso, started_at: new Date().toISOString(), status: 'live', created_by: user?.id || null }).select().single()
+      if (showError) throw showError
+      const { data: performance, error: perfError } = await supabase.from('performances').insert({ show_id: show.id, performance_date: scheduledIso || new Date().toISOString(), artist_name: artistName.trim() || name.trim(), venue_name: venueQuery.trim() || name.trim(), venue_id: resolvedVenueId || null, city: venueCity.trim() || '', country: venueCountry.trim() || '', status: 'live', set_duration_minutes: 60, auto_close_buffer_minutes: 5, started_at: new Date().toISOString(), user_id: user?.id || null }).select().single()
+      if (perfError) throw perfError
+      router.push(`/app/live/${performance.id}`)
+    } catch (err: any) {
+      setError(err?.message || 'Something went wrong. Please try again.')
+      setLoading(false)
     }
+  }
 
-    // Save ALL songs including unidentified — they appear on review page as "needs attention"
-    // Unidentified = detection fired but no match, or user edited title but left as unidentified
-    // Source 'unidentified' songs show as needs_review on the review page
-    const songsToSave = songs  // save everything, let review page sort it out
-    if (songsToSave.length > 0) {
-      await supabase.from('performance_songs').insert(
-        songsToSave.map((song, i) => ({
-          performance_id: performance.id,
-          title: song.source === 'unidentified' ? (song.title === 'Unknown Song' ? null : song.title) : song.title,
-          artist: song.artist || performance.artist_name || null,
-          position: i + 1,
-          isrc: song.isrc || null,
-          composer: song.composer || null,
-          publisher: song.publisher || null,
-          source: song.source || 'manual',
-        }))
-      )
+  async function handleClone() {
+    if (!selectedPast || !isValid || cloning) return
+    setCloning(true); setError('')
+    try {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      let resolvedVenueId = venueId
+      if (!resolvedVenueId && venueQuery.trim()) {
+        const capacityMap: Record<string,number> = { small: 150, medium: 500, large: 2000, festival: 10000 }
+        const { data: nv } = await supabase.from('venues').insert({ name: venueQuery.trim(), city: venueCity.trim() || null, country: venueCountry.trim() || null, capacity: venueCapacity ? capacityMap[venueCapacity] : null }).select().single()
+        if (nv) resolvedVenueId = nv.id
+      }
+      const scheduledIso = showSchedule && scheduledAt ? new Date(scheduledAt).toISOString() : null
+      const { data: show, error: showError } = await supabase.from('shows').insert({ name: effectiveName, show_type: showType, scheduled_at: scheduledIso, started_at: new Date().toISOString(), status: 'completed', created_by: user?.id || null }).select().single()
+      if (showError) throw showError
+      const { data: performance, error: perfError } = await supabase.from('performances').insert({ show_id: show.id, performance_date: scheduledIso || new Date().toISOString(), artist_name: artistName.trim() || name.trim(), venue_name: venueQuery.trim() || name.trim(), venue_id: resolvedVenueId || null, city: venueCity.trim() || '', country: venueCountry.trim() || '', status: 'review', set_duration_minutes: 60, auto_close_buffer_minutes: 5, started_at: new Date().toISOString(), ended_at: new Date().toISOString(), user_id: user?.id || null }).select().single()
+      if (perfError) throw perfError
+      const { data: sourceSongs, error: songsError } = await supabase.from('performance_songs').select('title, artist, position').eq('performance_id', selectedPast.id).order('position', { ascending: true })
+      if (songsError) throw songsError
+      if (sourceSongs && sourceSongs.length > 0) {
+        const { error: insertError } = await supabase.from('performance_songs').insert(sourceSongs.map((s, i) => ({ performance_id: performance.id, title: s.title, artist: s.artist, position: s.position || i + 1 })))
+        if (insertError) throw insertError
+      }
+      router.push(`/app/review/${performance.id}`)
+    } catch (err: any) {
+      setError(err?.message || 'Something went wrong. Please try again.')
+      setCloning(false)
     }
-
-    router.push(`/app/review/${performance.id}`)
-  }, [ending, performance, songs, router, stopListening, showId, setlistId])
-
-  async function addSong() {
-    const trimmed = songInput.trim()
-    if (!trimmed) return
-    setSongs(s => [...s, { title: trimmed, artist: performance?.artist_name || '', source: 'manual' }])
-    setSongInput('')
   }
-
-  function formatTime(s: number) {
-    const m = Math.floor(s / 60)
-    const sec = s % 60
-    return `${m}:${sec.toString().padStart(2, '0')}`
-  }
-
-  function formatDuration(min: number): string {
-    if (min < 60) return `${min}m`
-    if (min === 60) return '1h'
-    if (min === 90) return '1.5h'
-    if (min === 120) return '2h'
-    if (min === 180) return '3h'
-    if (min === 240) return '4h'
-    return `${min}m`
-  }
-
-  if (!performance) {
-    return (
-      <div style={{ minHeight: '100svh', background: C.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
-          <div style={{ width: 48, height: 48, borderRadius: '50%', border: `2px solid ${C.gold}`, animation: 'breathe 1.8s ease-in-out infinite', opacity: 0.6 }} />
-          <span style={{ color: C.muted, fontSize: 12, letterSpacing: '0.15em', textTransform: 'uppercase' }}>Loading</span>
-        </div>
-        <style>{`@keyframes breathe { 0%,100%{transform:scale(1);opacity:.4} 50%{transform:scale(1.15);opacity:.9} }`}</style>
-      </div>
-    )
-  }
-
-  // Use localDuration if set, otherwise fall back to DB value
-  const activeDuration    = localDuration ?? performance.set_duration_minutes ?? 60
-  const totalSeconds      = activeDuration * 60
-  const progress          = Math.min(elapsed / totalSeconds, 1)
-  const ringState         = catchFlash ? 'catch' : isDetecting ? 'detect' : isListening ? 'listen' : 'idle'
-  const unidentifiedCount = songs.filter(s => s.source === 'unidentified').length
 
   return (
-    <div style={{ minHeight: '100svh', background: C.bg, display: 'flex', flexDirection: 'column', fontFamily: '"DM Sans", system-ui, sans-serif', overflowX: 'hidden' }}>
+    <div style={{ minHeight: '100svh', background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px 20px' }}>
+      <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '50vh', pointerEvents: 'none', zIndex: 0, background: 'radial-gradient(ellipse at 50% 0%, rgba(201,168,76,0.07) 0%, transparent 65%)' }} />
 
-      <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '70vh', background: isListening ? `radial-gradient(ellipse at 50% 35%, rgba(201,168,76,0.08) 0%, transparent 65%)` : `radial-gradient(ellipse at 50% 35%, rgba(201,168,76,0.03) 0%, transparent 55%)`, pointerEvents: 'none', transition: 'background 1.8s ease', zIndex: 0 }} />
+      <div style={{ width: '100%', maxWidth: 440, position: 'relative', zIndex: 1, animation: 'fadeUp 0.4s ease' }}>
 
-      {/* ── Header ── */}
-      <div style={{ position: 'relative', zIndex: 10, height: 46, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 20px', borderBottom: '1px solid rgba(255,255,255,0.05)', flexShrink: 0 }}>
-        <p style={{ fontSize: 14, fontWeight: 700, color: C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1, letterSpacing: '-0.01em' }}>
-          {performance.venue_name}
-        </p>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0, marginLeft: 16 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-            <div style={{ width: 6, height: 6, borderRadius: '50%', background: C.red, animation: 'pulse-dot 1.4s ease-in-out infinite', boxShadow: '0 0 5px rgba(220,38,38,0.6)' }} />
-            <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#f87171' }}>Live</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 32 }}>
+          <div style={{ width: 36, height: 36, borderRadius: '50%', background: C.goldDim, border: `1px solid ${C.borderGold}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Music4 size={16} color={C.gold} />
           </div>
-          {/* ── Tappable timer — tap to open duration picker ── */}
-          <button
-            onClick={() => setShowDurationPicker(v => !v)}
-            style={{ fontFamily: '"DM Mono", monospace', fontSize: 18, fontWeight: 700, color: showDurationPicker ? C.gold : C.text, letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums', background: showDurationPicker ? 'rgba(201,168,76,0.1)' : 'transparent', border: `1px solid ${showDurationPicker ? 'rgba(201,168,76,0.3)' : 'transparent'}`, cursor: 'pointer', padding: '4px 8px', borderRadius: 6, WebkitTapHighlightColor: 'transparent', transition: 'all 0.15s ease' }}
-          >
-            {formatTime(elapsed)}
-          </button>
-        </div>
-      </div>
-
-      {/* Progress bar */}
-      <div style={{ height: 2, background: 'rgba(255,255,255,0.04)', flexShrink: 0, position: 'relative', zIndex: 10 }}>
-        <div style={{ height: '100%', background: C.gold, width: `${progress * 100}%`, transition: 'width 1s linear', opacity: 0.4 }} />
-      </div>
-
-      {/* ── Duration picker — slides down below header ── */}
-      {showDurationPicker ? (
-        <div style={{ position: 'relative', zIndex: 10, background: '#0f0e0c', borderBottom: '1px solid rgba(255,255,255,0.06)', padding: '10px 20px', display: 'flex', alignItems: 'center', gap: 10, animation: 'slideDown 0.15s ease', flexShrink: 0 }}>
-          <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, flexShrink: 0 }}>Set length</span>
-          <div style={{ display: 'flex', gap: 6, flex: 1, flexWrap: 'wrap' }}>
-            {[45, 60, 75, 90, 120, 180, 240].map(min => {
-              const active = activeDuration === min
-              return (
-                <button
-                  key={min}
-                  onClick={() => { setLocalDuration(min); setShowDurationPicker(false) }}
-                  style={{ padding: '6px 12px', background: active ? C.goldDim : 'transparent', border: `1px solid ${active ? 'rgba(201,168,76,0.4)' : 'rgba(255,255,255,0.08)'}`, borderRadius: 8, color: active ? C.gold : C.muted, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.12s ease', WebkitTapHighlightColor: 'transparent' }}
-                >
-                  {formatDuration(min)}
-                </button>
-              )
-            })}
+          <div>
+            <p style={{ fontSize: 11, fontWeight: 700, color: C.gold, margin: 0, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Setlistr</p>
+            <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>New Show</p>
           </div>
-          <button
-            onClick={() => setShowDurationPicker(false)}
-            style={{ background: 'none', border: 'none', color: C.muted, cursor: 'pointer', padding: '4px', flexShrink: 0, fontSize: 14 }}>
-            ✕
-          </button>
         </div>
-      ) : null}
 
-      {/* ── Hero zone ── */}
-      <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '40px 24px 28px', flexShrink: 0 }}>
+        <h1 style={{ fontSize: 28, fontWeight: 800, color: C.text, margin: '0 0 6px', letterSpacing: '-0.025em' }}>Where are you playing?</h1>
+        <p style={{ fontSize: 14, color: C.secondary, margin: '0 0 28px' }}>Type your venue and tap Start. That's it.</p>
 
-        {(isListening || catchFlash) && (
-          <>
-            {[
-              { size: ringState === 'catch' ? 220 : 200, delay: '0s' },
-              { size: ringState === 'catch' ? 262 : 242, delay: '0.1s' },
-              { size: ringState === 'catch' ? 304 : 284, delay: '0.2s' },
-            ].map(({ size, delay }, idx) => (
-              <div key={idx} style={{
-                position: 'absolute',
-                width: size, height: size, borderRadius: '50%',
-                border: `1px solid ${ringState === 'catch'
-                  ? C.gold + (idx === 0 ? 'cc' : idx === 1 ? '60' : '28')
-                  : C.gold + (idx === 0 ? '28' : idx === 1 ? '14' : '08')}`,
-                animation: ringState === 'catch'
-                  ? `ring-catch 0.85s ${delay} ease-out forwards`
-                  : `ring-pulse 2.6s ${delay} ease-out infinite`,
-                top: 40, left: '50%', transform: 'translateX(-50%)',
-                pointerEvents: 'none',
-              }} />
-            ))}
-          </>
-        )}
+        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '24px', display: 'flex', flexDirection: 'column', gap: 20, marginBottom: 16 }}>
 
-        <button
-          onClick={isListening ? stopListening : startListening}
-          disabled={isDetecting && !isListening}
-          style={{
-            width: 160, height: 160, borderRadius: '50%', border: 'none',
-            cursor: isDetecting && !isListening ? 'wait' : 'pointer',
-            position: 'relative', zIndex: 2,
-            background: catchFlash
-              ? `radial-gradient(circle at 40% 35%, #e8c76a, ${C.gold} 55%, #a07828)`
-              : isListening
-              ? `radial-gradient(circle at 40% 35%, ${C.gold}cc, ${C.gold} 55%, #8a6520)`
-              : `radial-gradient(circle at 40% 35%, #2a2520, #1a1610 55%, #0f0e0c)`,
-            boxShadow: catchFlash
-              ? `0 0 60px ${C.gold}80, 0 0 120px ${C.gold}30, inset 0 1px 0 rgba(255,255,255,0.25)`
-              : isListening
-              ? `0 0 40px ${C.gold}40, 0 0 80px ${C.gold}18, inset 0 1px 0 rgba(255,255,255,0.12)`
-              : `0 8px 40px rgba(0,0,0,0.6), 0 2px 8px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06)`,
-            transform: catchFlash ? 'scale(1.05)' : 'scale(1)',
-            transition: 'background 0.4s ease, box-shadow 0.4s ease, transform 0.2s ease',
-            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6,
-            WebkitTapHighlightColor: 'transparent', outline: 'none',
-          }}
-        >
-          <div style={{ width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            {isDetecting ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 3, height: 28 }}>
-                {[0,1,2,3,4].map(i => (
-                  <div key={i} style={{ width: 3, borderRadius: 2, background: isListening ? '#0a0908' : C.gold, animation: `wave-bar 0.8s ${i * 0.12}s ease-in-out infinite alternate`, height: 10 }} />
-                ))}
+          {/* Artist name — input always visible, pre-filled from profile */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <label style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted }}>Your Artist Name</label>
+            <input
+              type="text"
+              value={artistName}
+              onChange={e => setArtistName(e.target.value)}
+              placeholder="Your artist name"
+              style={{ background: C.input, border: `1px solid ${artistName.trim() ? C.borderGold : C.border}`, borderRadius: 10, padding: '13px 14px', color: C.text, fontSize: 15, fontFamily: 'inherit', width: '100%', transition: 'border-color 0.15s ease' }}
+            />
+            {artistName.trim() && (
+              <p style={{ fontSize: 11, color: C.muted, margin: 0 }}>✓ From your profile — tap to edit</p>
+            )}
+          </div>
+
+          {/* Venue autocomplete */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, position: 'relative' }} ref={dropdownRef}>
+            <label style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, display: 'flex', alignItems: 'center', gap: 5 }}>
+              <MapPin size={10} />Venue
+            </label>
+            <div style={{ position: 'relative' }}>
+              <input type="text" value={venueQuery} onChange={e => handleVenueInput(e.target.value)} onFocus={() => { if (venueResults.length > 0) setShowDropdown(true) }} placeholder="Search or type venue name..."
+                style={{ background: C.input, border: `1px solid ${venueSelected ? C.borderGold : venueQuery.trim() ? C.borderGold : C.border}`, borderRadius: 10, padding: '12px 40px 12px 14px', color: C.text, fontSize: 14, fontFamily: 'inherit', width: '100%', boxSizing: 'border-box', transition: 'border-color 0.15s ease' }} />
+              <div style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}>
+                {venueSearching
+                  ? <div style={{ width: 13, height: 13, borderRadius: '50%', border: `2px solid ${C.muted}`, borderTopColor: C.gold, animation: 'spin 0.7s linear infinite' }} />
+                  : venueSelected ? <span style={{ fontSize: 13, color: C.gold }}>✓</span>
+                  : <Search size={13} color={C.muted} />}
               </div>
-            ) : (
-              <svg width="28" height="32" viewBox="0 0 28 32" fill="none">
-                <rect x="8" y="0" width="12" height="20" rx="6" fill={isListening ? '#0a0908' : C.gold} opacity={isListening ? 1 : 0.9} />
-                <path d="M4 16c0 5.523 4.477 10 10 10s10-4.477 10-10" stroke={isListening ? '#0a0908' : C.gold} strokeWidth="2" strokeLinecap="round" fill="none" />
-                <line x1="14" y1="26" x2="14" y2="31" stroke={isListening ? '#0a0908' : C.gold} strokeWidth="2" strokeLinecap="round" />
-                <line x1="10" y1="31" x2="18" y2="31" stroke={isListening ? '#0a0908' : C.gold} strokeWidth="2" strokeLinecap="round" />
-              </svg>
-            )}
-          </div>
-          <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: isListening ? '#0a0908' : C.gold }}>
-            {isDetecting ? 'catching' : isListening ? 'tap to stop' : 'tap to listen'}
-          </span>
-        </button>
-
-        <div style={{ marginTop: 18, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          {lastCaught ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, animation: 'fadeIn 0.25s ease' }}>
-              <span style={{ fontSize: 13, color: C.gold }}>✦</span>
-              <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{lastCaught}</span>
-              <span style={{ fontSize: 11, color: C.muted }}>added</span>
             </div>
-          ) : detectStatus && detectStatus !== 'listening...' ? (
-            <span style={{ fontSize: 12, color: C.muted, animation: 'fadeIn 0.2s ease' }}>{detectStatus}</span>
-          ) : isListening && !isDetecting && !pendingCandidate ? (
-            <span style={{ fontSize: 11, color: C.muted + '60' }}>listening</span>
-          ) : null}
-        </div>
-      </div>
 
-      {/* ── Pending card ── */}
-      {pendingCandidate && (
-        <div style={{ position: 'relative', zIndex: 1, maxWidth: 480, width: '100%', margin: '0 auto', padding: '0 16px 12px', animation: 'slideUp 0.2s ease' }}>
-          <div style={{ background: '#161310', border: `1px solid rgba(201,168,76,0.22)`, borderRadius: 14, padding: '14px 16px' }}>
-            <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: C.muted, margin: '0 0 8px' }}>
-              Hearing something{pendingCandidate.matchCount > 1 ? ` · ${pendingCandidate.matchCount}×` : ''}
-            </p>
-            <p style={{ fontSize: 15, fontWeight: 700, color: C.text, margin: '0 0 2px', letterSpacing: '-0.01em' }}>{pendingCandidate.title}</p>
-            <p style={{ fontSize: 12, color: C.secondary, margin: '0 0 12px' }}>{pendingCandidate.artist}</p>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button
-                onClick={confirmPending}
-                onTouchStart={e => (e.currentTarget.style.opacity = '0.85')}
-                onTouchEnd={e => (e.currentTarget.style.opacity = '1')}
-                style={{ flex: 1, padding: '10px', background: C.gold, border: 'none', borderRadius: 10, color: '#0a0908', fontSize: 12, fontWeight: 800, letterSpacing: '0.05em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent' }}>
-                ✓ {pendingCandidate.title}
-              </button>
-              <button
-                onClick={dismissPending}
-                style={{ padding: '10px 15px', background: 'rgba(255,255,255,0.04)', border: `1px solid ${C.border}`, borderRadius: 10, color: C.muted, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent' }}>
-                ✕
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+            {/* Venue memory pill — shown after selecting a known venue */}
+            {venueMemory ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 8, animation: 'fadeIn 0.2s ease' }}>
+                <span style={{ fontSize: 13 }}>📍</span>
+                <p style={{ fontSize: 12, color: C.gold, margin: 0, lineHeight: 1.4 }}>
+                  Last time here:{' '}
+                  <strong>{venueMemory.songCount} {venueMemory.songCount === 1 ? 'song' : 'songs'}</strong>
+                  {' '}on {formatDate(venueMemory.lastDate)}
+                  {venueMemory.showCount > 1
+                    ? <span style={{ color: C.secondary, fontWeight: 400 }}> · {venueMemory.showCount} shows total</span>
+                    : null}
+                </p>
+              </div>
+            ) : null}
 
-      {/* ── Lower section ── */}
-      <div style={{ position: 'relative', zIndex: 1, flex: 1, display: 'flex', flexDirection: 'column', gap: 8, padding: '0 16px 40px', maxWidth: 480, width: '100%', margin: '0 auto', boxSizing: 'border-box' }}>
+            {showDropdown && venueResults.length > 0 ? (
+              <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#1a1816', border: `1px solid ${C.borderGold}`, borderRadius: 10, marginTop: 4, zIndex: 50, overflow: 'hidden', animation: 'fadeIn 0.15s ease', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
+                {venueResults.map((v, i) => (
+                  <button key={v.id} onMouseDown={() => selectVenue(v)}
+                    style={{ width: '100%', padding: '11px 14px', background: 'transparent', border: 'none', borderBottom: i < venueResults.length - 1 ? `1px solid ${C.border}` : 'none', cursor: 'pointer', textAlign: 'left', display: 'flex', flexDirection: 'column', gap: 2, fontFamily: 'inherit' }}
+                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = C.cardHover}
+                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}>
+                    <span style={{ fontSize: 14, fontWeight: 600, color: C.text }}>{v.name}</span>
+                    {(v.city || v.country) ? <span style={{ fontSize: 11, color: C.muted, display: 'flex', alignItems: 'center', gap: 3 }}><MapPin size={9} />{[v.city, v.country].filter(Boolean).join(', ')}</span> : null}
+                  </button>
+                ))}
+                <button onMouseDown={() => { setVenueSelected(false); setShowDropdown(false) }}
+                  style={{ width: '100%', padding: '10px 14px', background: C.goldDim, border: 'none', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit' }}>
+                  <span style={{ fontSize: 12, color: C.gold, fontWeight: 600 }}>+ Add "{venueQuery}" as new venue</span>
+                </button>
+              </div>
+            ) : null}
 
-        {unidentifiedCount > 0 && (
-          <div style={{ background: 'rgba(245,158,11,0.06)', border: `1px solid rgba(245,158,11,0.18)`, borderRadius: 10, padding: '9px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <p style={{ fontSize: 12, color: C.amber, margin: 0, fontWeight: 600 }}>
-              {unidentifiedCount} {unidentifiedCount === 1 ? 'song needs' : 'songs need'} review
-            </p>
-          </div>
-        )}
+            {showDropdown && venueResults.length === 0 && venueQuery.trim().length >= 2 && !venueSearching ? (
+              <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#1a1816', border: `1px solid ${C.border}`, borderRadius: 10, marginTop: 4, zIndex: 50, padding: '12px 14px', animation: 'fadeIn 0.15s ease' }}>
+                <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>No venues found — will be saved as new.</p>
+              </div>
+            ) : null}
 
-        {songs.length > 0 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            {songs.map((song, i) => {
-              const isUnidentified = song.source === 'unidentified'
-              const isSuggested    = song.confidence_level === 'suggest'
-
-              return (
-                <div key={i} style={{
-                  background: isUnidentified ? 'rgba(245,158,11,0.04)' : C.card,
-                  border: `1px solid ${
-                    editingIndex === i ? 'rgba(201,168,76,0.45)'
-                    : isUnidentified ? 'rgba(245,158,11,0.18)'
-                    : 'rgba(255,255,255,0.05)'
-                  }`,
-                  borderRadius: 10, overflow: 'hidden',
-                  animation: 'slideUp 0.22s ease',
-                }}>
-                  {editingIndex === i ? (
-                    <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      <input autoFocus value={editTitle}
-                        onChange={e => setEditTitle(e.target.value)}
-                        onKeyDown={e => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') cancelEdit() }}
-                        placeholder="Song title"
-                        style={{ background: C.input, border: `1px solid rgba(201,168,76,0.35)`, borderRadius: 8, padding: '9px 12px', color: C.text, fontSize: 14, fontFamily: 'inherit', outline: 'none', width: '100%', boxSizing: 'border-box' }} />
-                      <input value={editArtist}
-                        onChange={e => setEditArtist(e.target.value)}
-                        onKeyDown={e => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') cancelEdit() }}
-                        placeholder="Artist"
-                        style={{ background: C.input, border: `1px solid ${C.border}`, borderRadius: 8, padding: '9px 12px', color: C.text, fontSize: 13, fontFamily: 'inherit', outline: 'none', width: '100%', boxSizing: 'border-box' }} />
-                      <div style={{ display: 'flex', gap: 8 }}>
-                        <button onClick={saveEdit} style={{ flex: 1, padding: '8px', background: C.gold, border: 'none', borderRadius: 8, color: '#0a0908', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
-                          <Check size={12} strokeWidth={2.5} /> Save
-                        </button>
-                        <button onClick={cancelEdit} style={{ padding: '8px 14px', background: 'transparent', border: `1px solid ${C.border}`, borderRadius: 8, color: C.muted, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          <X size={12} />
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div
-                      style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 14px', cursor: 'pointer', WebkitTapHighlightColor: 'transparent', minHeight: 52 }}
-                      onClick={() => startEdit(i)}>
-                      <span style={{ fontSize: 11, color: C.muted, minWidth: 16, textAlign: 'right', fontFamily: '"DM Mono", monospace', opacity: 0.45 }}>{i + 1}</span>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <p style={{
-                          fontSize: 14, fontWeight: 600, margin: 0,
-                          color: isUnidentified ? C.amber : C.text,
-                          opacity: isSuggested ? 0.75 : 1,
-                          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                          fontStyle: isUnidentified ? 'italic' : 'normal',
-                        }}>
-                          {isUnidentified ? 'Unknown song' : song.title}
-                        </p>
-                        {!isUnidentified && song.artist && song.artist !== performance.artist_name && (
-                          <p style={{ fontSize: 11, color: C.muted, margin: '2px 0 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{song.artist}</p>
-                        )}
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                        {isUnidentified
-                          ? <span style={{ fontSize: 10, color: C.amber, opacity: 0.6 }}>tap to fill</span>
-                          : <span style={{ width: 5, height: 5, borderRadius: '50%', background: C.gold, opacity: isSuggested ? 0.3 : 0.65, display: 'inline-block' }} />
-                        }
-                        <button
-                          onClick={e => { e.stopPropagation(); deleteSong(i) }}
-                          style={{ background: 'none', border: 'none', color: C.muted, cursor: 'pointer', padding: '4px 6px', borderRadius: 6, fontSize: 14, lineHeight: 1, opacity: 0.5, WebkitTapHighlightColor: 'transparent', flexShrink: 0 }}
-                          onTouchStart={e => (e.currentTarget.style.opacity = '1')}
-                          onTouchEnd={e => (e.currentTarget.style.opacity = '0.5')}>
-                          ✕
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        )}
-
-        <button
-          onClick={() => setShowManual(v => !v)}
-          style={{ width: '100%', padding: '13px', background: showManual ? 'transparent' : 'rgba(201,168,76,0.08)', border: `1px solid ${showManual ? C.border : 'rgba(201,168,76,0.25)'}`, borderRadius: 10, color: showManual ? C.muted : C.gold, fontSize: 13, fontWeight: 700, letterSpacing: '0.06em', cursor: 'pointer', fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent', transition: 'all 0.15s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
-          onTouchStart={e => (e.currentTarget.style.background = 'rgba(201,168,76,0.14)')}
-          onTouchEnd={e => (e.currentTarget.style.background = showManual ? 'transparent' : 'rgba(201,168,76,0.08)')}>
-          <span style={{ fontSize: 16, lineHeight: 1, fontWeight: 400 }}>{showManual ? '✕' : '+'}</span>
-          {showManual ? 'cancel' : 'Add a Song'}
-        </button>
-
-        {showManual && (
-          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: '12px', display: 'flex', flexDirection: 'column', gap: 10, animation: 'slideUp 0.15s ease' }}>
-            {/* Search input FIRST — autofocused so keyboard opens immediately */}
-            <input value={songInput} onChange={e => setSongInput(e.target.value)}
-              placeholder="Search or type a song title..."
-              autoFocus
-              style={{ background: C.input, border: `1px solid rgba(201,168,76,0.3)`, borderRadius: 8, padding: '12px 14px', color: C.text, fontSize: 15, outline: 'none', width: '100%', boxSizing: 'border-box', fontFamily: 'inherit' }}
-              onKeyDown={e => { if (e.key === 'Enter' && songInput.trim()) addSong() }} />
-
-            {/* Add button when typing */}
-            {songInput.trim() && (
-              <button onClick={addSong}
-                style={{ padding: '11px', background: C.gold, border: 'none', borderRadius: 8, color: '#0a0908', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent' }}>
-                Add "{songInput.trim()}"
-              </button>
-            )}
-
-            {/* Recent songs — only shown when not searching */}
-            {recentSongs.length > 0 && !songInput.trim() && (
-              <div>
-                <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, margin: '0 0 8px' }}>Recent songs</p>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                  {recentSongs.map(s => (
+            {/* Capacity picker — shown when typing a new venue not in system */}
+            {venueQuery.trim().length >= 2 && !venueSelected && !venueSearching ? (
+              <div style={{ marginTop: 8, animation: 'fadeIn 0.2s ease' }}>
+                <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.muted, margin: '0 0 6px' }}>Rough venue size? <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(helps estimate royalties)</span></p>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {([
+                    { key: 'small',    label: 'Small',    sub: '<300' },
+                    { key: 'medium',   label: 'Medium',   sub: '300–2k' },
+                    { key: 'large',    label: 'Large',    sub: '2k–10k' },
+                    { key: 'festival', label: 'Festival', sub: '10k+' },
+                  ] as const).map(opt => (
                     <button
-                      key={s.id}
-                      onClick={() => {
-                        setSongs(prev => [...prev, { title: s.title, artist: s.artist || performance?.artist_name || '', source: 'manual' }])
-                        setShowManual(false)
-                      }}
-                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '11px 12px', background: 'rgba(255,255,255,0.03)', border: `1px solid ${C.border}`, borderRadius: 8, cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', width: '100%', WebkitTapHighlightColor: 'transparent', minHeight: 48 }}
-                      onTouchStart={e => (e.currentTarget.style.background = 'rgba(201,168,76,0.1)')}
-                      onTouchEnd={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.03)')}
-                      onMouseEnter={e => (e.currentTarget.style.background = 'rgba(201,168,76,0.07)')}
-                      onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.03)')}
-                    >
-                      <div style={{ minWidth: 0, flex: 1 }}>
-                        <p style={{ fontSize: 14, fontWeight: 600, color: C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.title}</p>
-                        {s.artist && <p style={{ fontSize: 12, color: C.muted, margin: '2px 0 0' }}>{s.artist}</p>}
-                      </div>
-                      {s.play_count > 1 && (
-                        <span style={{ fontSize: 11, color: C.gold, opacity: 0.6, flexShrink: 0, marginLeft: 8, fontFamily: '"DM Mono", monospace' }}>×{s.play_count}</span>
-                      )}
+                      key={opt.key}
+                      type="button"
+                      onClick={() => setVenueCapacity(venueCapacity === opt.key ? '' : opt.key)}
+                      style={{ flex: 1, padding: '8px 4px', background: venueCapacity === opt.key ? C.goldDim : 'transparent', border: `1px solid ${venueCapacity === opt.key ? C.borderGold : C.border}`, borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s ease', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: venueCapacity === opt.key ? C.gold : C.secondary }}>{opt.label}</span>
+                      <span style={{ fontSize: 9, color: C.muted }}>{opt.sub}</span>
                     </button>
                   ))}
                 </div>
               </div>
-            )}
+            ) : null}
           </div>
-        )}
 
-        <button
-          onClick={() => {
-            if (unidentifiedCount > 0) {
-              if (!confirm(`You have ${unidentifiedCount} unknown song${unidentifiedCount > 1 ? 's' : ''}. End show anyway?`)) return
-            }
-            handleEnd()
-          }}
-          disabled={ending}
-          style={{ width: '100%', padding: '14px', background: 'rgba(220,38,38,0.07)', border: `1px solid rgba(220,38,38,0.22)`, borderRadius: 10, color: ending ? C.muted : '#f87171', fontSize: 12, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: ending ? 'not-allowed' : 'pointer', opacity: ending ? 0.4 : 1, transition: 'all 0.15s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent' }}
-          onMouseEnter={e => { if (!ending) (e.currentTarget as HTMLButtonElement).style.background = 'rgba(220,38,38,0.13)' }}
-          onMouseLeave={e => { if (!ending) (e.currentTarget as HTMLButtonElement).style.background = 'rgba(220,38,38,0.07)' }}
-          onTouchStart={e => { if (!ending) e.currentTarget.style.background = 'rgba(220,38,38,0.13)' }}
-          onTouchEnd={e => { if (!ending) e.currentTarget.style.background = 'rgba(220,38,38,0.07)' }}>
-          <span style={{ width: 6, height: 6, background: ending ? C.muted : C.red, borderRadius: 1, display: 'inline-block', flexShrink: 0 }} />
-          {ending ? 'Ending...' : 'End Show'}
+          {/* Show type — hidden by default, only for writer's rounds */}
+          <button
+            type="button"
+            onClick={() => setShowType(showType === 'single' ? 'writers_round' : 'single')}
+            style={{ display: 'flex', alignItems: 'center', gap: 8, background: showType === 'writers_round' ? C.goldDim : 'transparent', border: `1px solid ${showType === 'writers_round' ? C.borderGold : 'rgba(255,255,255,0.06)'}`, borderRadius: 10, padding: '10px 14px', cursor: 'pointer', fontFamily: 'inherit', width: '100%', transition: 'all 0.15s ease' }}>
+            <span style={{ fontSize: 14 }}>{showType === 'writers_round' ? '✓' : '○'}</span>
+            <div>
+              <p style={{ fontSize: 13, fontWeight: 600, color: showType === 'writers_round' ? C.gold : C.secondary, margin: 0 }}>Writer's Round</p>
+              <p style={{ fontSize: 11, color: C.muted, margin: '1px 0 0' }}>Multiple songwriters sharing the stage</p>
+            </div>
+          </button>
+
+          {showSchedule ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, animation: 'slideUp 0.2s ease' }}>
+              <label style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, display: 'flex', alignItems: 'center', gap: 5 }}>
+                <Calendar size={10} />Scheduled Time
+              </label>
+              <input type="datetime-local" value={scheduledAt} onChange={e => setScheduledAt(e.target.value)}
+                style={{ background: C.input, border: `1px solid ${scheduledAt ? C.borderGold : C.border}`, borderRadius: 10, padding: '12px 14px', color: C.text, fontSize: 14, fontFamily: 'inherit', width: '100%', colorScheme: 'dark' }} />
+            </div>
+          ) : null}
+        </div>
+
+        {error ? (
+          <div style={{ background: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.2)', borderRadius: 10, padding: '12px 14px', marginBottom: 14, animation: 'fadeIn 0.2s ease' }}>
+            <p style={{ fontSize: 13, color: '#f87171', margin: 0 }}>{error}</p>
+          </div>
+        ) : null}
+
+        {!showReuse ? (
+          <button onClick={handleSubmit} disabled={!isValid || loading}
+            style={{ width: '100%', padding: '15px', background: isValid ? C.gold : C.muted, border: 'none', borderRadius: 12, color: '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: isValid && !loading ? 'pointer' : 'not-allowed', opacity: loading ? 0.7 : 1, transition: 'background 0.2s ease, opacity 0.2s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit' }}>
+            {loading
+              ? <><div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid #0a090840', borderTopColor: '#0a0908', animation: 'spin 0.7s linear infinite' }} />Starting...</>
+              : <>Start Listening<ArrowRight size={15} strokeWidth={2.5} /></>}
+          </button>
+        ) : null}
+
+        <button onClick={() => { setShowReuse(v => !v); setSelectedPast(null) }}
+          style={{ width: '100%', padding: '11px 16px', background: showReuse ? C.goldDim : 'transparent', border: `1px solid ${showReuse ? C.borderGold : C.border}`, borderRadius: 10, color: showReuse ? C.gold : C.muted, fontSize: 12, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer', transition: 'all 0.2s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit', marginTop: showReuse ? 0 : 10 }}>
+          <RefreshCw size={12} />{showReuse ? 'Cancel' : 'Reuse a Previous Setlist'}
+        </button>
+
+        {showReuse ? (
+          <div style={{ animation: 'slideUp 0.2s ease', marginTop: 10 }}>
+            {pastLoading ? (
+              <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div style={{ width: 20, height: 20, borderRadius: '50%', border: `2px solid ${C.border}`, borderTopColor: C.gold, animation: 'spin 0.7s linear infinite' }} />
+              </div>
+            ) : pastPerfs.length === 0 ? (
+              <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: '20px', textAlign: 'center' }}>
+                <p style={{ fontSize: 13, color: C.muted, margin: 0 }}>No past performances with songs yet.</p>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, margin: '0 0 4px' }}>Select a set to reuse</p>
+                {pastPerfs.map(perf => {
+                  const isSelected = selectedPast?.id === perf.id
+                  return (
+                    <button key={perf.id} onClick={() => setSelectedPast(isSelected ? null : perf)}
+                      style={{ background: isSelected ? C.goldDim : C.card, border: `1px solid ${isSelected ? C.borderGold : C.border}`, borderRadius: 10, padding: '12px 14px', cursor: 'pointer', textAlign: 'left', transition: 'all 0.15s ease', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 12 }}
+                      onMouseEnter={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = C.cardHover }}
+                      onMouseLeave={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = C.card }}>
+                      <div style={{ width: 20, height: 20, borderRadius: '50%', flexShrink: 0, background: isSelected ? C.gold : 'transparent', border: `1px solid ${isSelected ? C.gold : C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s ease' }}>
+                        {isSelected ? <Check size={11} color="#0a0908" strokeWidth={3} /> : null}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <p style={{ fontSize: 13, fontWeight: 600, color: isSelected ? C.gold : C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{perf.venue_name}</p>
+                        <p style={{ fontSize: 11, color: C.secondary, margin: '2px 0 0' }}>{perf.artist_name} · {formatDate(perf.started_at)}</p>
+                      </div>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: isSelected ? C.gold : C.muted, flexShrink: 0 }}>
+                        {perf.song_count} {perf.song_count === 1 ? 'song' : 'songs'}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+            {selectedPast ? (
+              <div style={{ marginTop: 12, animation: 'slideUp 0.15s ease' }}>
+                <button onClick={handleClone} disabled={!isValid || cloning}
+                  style={{ width: '100%', padding: '15px', background: isValid ? C.gold : C.muted, border: 'none', borderRadius: 12, color: '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: isValid && !cloning ? 'pointer' : 'not-allowed', opacity: cloning ? 0.7 : 1, transition: 'all 0.2s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit' }}>
+                  {cloning
+                    ? <><div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid #0a090840', borderTopColor: '#0a0908', animation: 'spin 0.7s linear infinite' }} />Cloning Setlist...</>
+                    : <><RefreshCw size={14} />Clone {selectedPast.song_count} {selectedPast.song_count === 1 ? 'Song' : 'Songs'} → Review</>}
+                </button>
+                {!isValid ? <p style={{ fontSize: 11, color: C.muted, textAlign: 'center', margin: '8px 0 0' }}>Enter a show name above first</p> : null}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
+        <button onClick={() => setShowSchedule(v => !v)}
+          style={{ background: 'none', border: 'none', color: showSchedule ? C.gold : C.muted, fontSize: 12, cursor: 'pointer', letterSpacing: '0.04em', fontFamily: 'inherit', padding: '12px', width: '100%', marginTop: 4, transition: 'color 0.15s ease' }}>
+          {showSchedule ? '× Cancel scheduling' : '+ Schedule for later'}
+        </button>
+
+        <button onClick={() => router.push('/app/dashboard')}
+          style={{ background: 'none', border: 'none', color: C.muted, fontSize: 12, cursor: 'pointer', letterSpacing: '0.04em', fontFamily: 'inherit', padding: '4px', width: '100%' }}>
+          ← Back to Dashboard
         </button>
       </div>
 
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500;700&display=swap');
-        @keyframes pulse-dot  { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(.8)} }
-        @keyframes ring-pulse { 0%{opacity:.5;transform:translateX(-50%) scale(.97)} 100%{opacity:0;transform:translateX(-50%) scale(1.2)} }
-        @keyframes ring-catch { 0%{opacity:.9;transform:translateX(-50%) scale(.93)} 100%{opacity:0;transform:translateX(-50%) scale(1.42)} }
-        @keyframes wave-bar   { from{height:4px} to{height:22px} }
-        @keyframes slideUp    { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
-        @keyframes slideDown  { from{opacity:0;transform:translateY(-6px)} to{opacity:1;transform:translateY(0)} }
-        @keyframes fadeIn     { from{opacity:0} to{opacity:1} }
-        @keyframes breathe    { 0%,100%{transform:scale(1);opacity:.4} 50%{transform:scale(1.15);opacity:.9} }
+        @keyframes fadeUp  { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes fadeIn  { from{opacity:0} to{opacity:1} }
+        @keyframes slideUp { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes spin    { to{transform:rotate(360deg)} }
         * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
-        input::placeholder { color: #5a5040; }
-        input:focus { border-color: rgba(201,168,76,0.3) !important; outline: none; }
-        ::-webkit-scrollbar { display: none; }
+        input::placeholder { color: #6a6050; }
+        input:focus { border-color: rgba(201,168,76,0.4) !important; outline: none; }
+        input[type="datetime-local"]::-webkit-calendar-picker-indicator { filter: invert(0.5); cursor: pointer; }
       `}</style>
     </div>
   )
