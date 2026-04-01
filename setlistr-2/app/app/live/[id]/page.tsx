@@ -453,7 +453,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
     // Save ALL songs including unidentified — they appear on review page as "needs attention"
     // Unidentified = detection fired but no match, or user edited title but left as unidentified
     // Source 'unidentified' songs show as needs_review on the review page
-    const songsToSave = songs  // save everything, let review page sort it out
+    const songsToSave = confirmedSongsRef.current  // use ref not stale closure
     if (songsToSave.length > 0) {
       await supabase.from('performance_songs').insert(
         songsToSave.map((song, i) => ({
