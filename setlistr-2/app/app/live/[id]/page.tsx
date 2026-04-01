@@ -228,18 +228,17 @@ export default function NewShowPage() {
 
         <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '24px', display: 'flex', flexDirection: 'column', gap: 20, marginBottom: 16 }}>
 
-          {/* Artist name — input always visible, pre-filled from profile */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <label style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted }}>Your Artist Name</label>
-            <input
-              type="text"
-              value={artistName}
-              onChange={e => setArtistName(e.target.value)}
-              placeholder="Your artist name"
-              style={{ background: C.input, border: `1px solid ${artistName.trim() ? C.borderGold : C.border}`, borderRadius: 10, padding: '13px 14px', color: C.text, fontSize: 15, fontFamily: 'inherit', width: '100%', transition: 'border-color 0.15s ease' }}
-            />
-
-          </div>
+{/* Artist name — input always visible, pre-filled from profile */}
+<div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+  <label style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted }}>Your Artist Name</label>
+  <input
+    type="text"
+    value={artistName}
+    onChange={e => setArtistName(e.target.value)}
+    placeholder="Your artist name"
+    style={{ background: C.input, border: `1px solid ${artistName.trim() ? C.borderGold : C.border}`, borderRadius: 10, padding: '13px 14px', color: C.text, fontSize: 15, fontFamily: 'inherit', width: '100%', transition: 'border-color 0.15s ease' }}
+  />
+</div>
 
           {/* Venue autocomplete */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, position: 'relative' }} ref={dropdownRef}>
