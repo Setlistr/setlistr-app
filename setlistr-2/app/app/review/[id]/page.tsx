@@ -29,7 +29,7 @@ const C = {
 // is more honest than a false negative on an artist's own registered song.
 //
 // Tiers:
-//   matched        = auto-detected + ISRC + composer (strong metadata)
+//   with metadata        = auto-detected + ISRC + composer (strong metadata)
 //   partial        = auto-detected + ISRC OR composer (partial metadata)
 //   unverified     = auto-detected + no metadata (detected but unenriched)
 //   none           = manual / assigned / corrected — no signal shown
@@ -725,7 +725,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
             {/* Readiness bar */}
             <div style={{ borderTop: `1px solid rgba(201,168,76,0.2)`, paddingTop: 14 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                <span style={{ fontSize: 11, color: C.secondary }}>Song readiness</span>
+                <span style={{ fontSize: 11, color: C.secondary }}>Song metadata</span>
                 <span style={{ fontSize: 11, fontWeight: 700, color: strongCount === assessedCount && assessedCount > 0 ? C.green : C.gold }}>
                   {strongCount}/{assessedCount > 0 ? assessedCount : songs.length} matched
                 </span>
@@ -738,7 +738,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: C.secondary }}>
                       <span style={{ width: 6, height: 6, borderRadius: '50%', background: C.green, display: 'inline-block', flexShrink: 0 }} />
-                      Matched
+                      Metadata found
                     </span>
                     <span style={{ fontSize: 12, fontWeight: 700, color: C.green, fontFamily: '"DM Mono", monospace' }}>{matchedSongs.length}</span>
                   </div>
@@ -747,7 +747,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: C.secondary }}>
                       <span style={{ width: 6, height: 6, borderRadius: '50%', background: C.gold, display: 'inline-block', flexShrink: 0 }} />
-                      Partial match
+                      Partial metadata
                     </span>
                     <span style={{ fontSize: 12, fontWeight: 700, color: C.gold, fontFamily: '"DM Mono", monospace' }}>{partialSongs.length}</span>
                   </div>
@@ -756,7 +756,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: C.muted }}>
                       <span style={{ width: 6, height: 6, borderRadius: '50%', background: C.muted, display: 'inline-block', flexShrink: 0 }} />
-                      Unverified
+                      No metadata
                     </span>
                     <span style={{ fontSize: 12, fontWeight: 700, color: C.muted, fontFamily: '"DM Mono", monospace' }}>{unverifiedSongs.length}</span>
                   </div>
@@ -816,7 +816,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
 
           {/* ── Reminder nudge — low pressure ── */}
           <p style={{ fontSize: 11, color: C.muted, margin: 0, lineHeight: 1.5, animation: 'fadeUp 0.4s 0.2s ease both' }}>
-            ~${estimate.expected} estimated · {assessedCount > 0 ? `${strongCount} of ${assessedCount} detected songs matched` : 'submit to your PRO to claim'}.{' '}
+            ~${estimate.expected} estimated · {assessedCount > 0 ? `${strongCount} of ${assessedCount} detected songs have metadata` : 'submit to your PRO to claim'}.{' '}
             <span style={{ color: C.secondary }}>We'll remind you on the dashboard.</span>
           </p>
         </div>
@@ -859,9 +859,9 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
             <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.muted }}>Setlist</span>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
               {([
-                { color: C.green, label: 'Matched' },
-                { color: C.gold,  label: 'Partial' },
-                { color: '#6a6050', label: 'Unverified' },
+                { color: C.green, label: 'Metadata found' },
+                { color: C.gold,  label: 'Partial metadata' },
+                { color: '#6a6050', label: 'No metadata' },
               ] as const).map(({ color, label }) => (
                 <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                   <span style={{ width: 7, height: 7, borderRadius: '50%', background: color, display: 'inline-block', flexShrink: 0 }} />
