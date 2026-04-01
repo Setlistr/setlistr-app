@@ -205,8 +205,8 @@ export default function NewShowPage() {
           </div>
         </div>
 
-        <h1 style={{ fontSize: 28, fontWeight: 800, color: C.text, margin: '0 0 6px', letterSpacing: '-0.025em' }}>Set up your show</h1>
-        <p style={{ fontSize: 14, color: C.secondary, margin: '0 0 28px' }}>Fill in the details below to begin live capture.</p>
+        <h1 style={{ fontSize: 28, fontWeight: 800, color: C.text, margin: '0 0 6px', letterSpacing: '-0.025em' }}>Where are you playing?</h1>
+        <p style={{ fontSize: 14, color: C.secondary, margin: '0 0 28px' }}>That's all we need to get started.</p>
 
         <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '24px', display: 'flex', flexDirection: 'column', gap: 20, marginBottom: 16 }}>
 
@@ -306,19 +306,17 @@ export default function NewShowPage() {
             ) : null}
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <label style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, display: 'flex', alignItems: 'center', gap: 5 }}>
-              <Music2 size={10} />Show Type
-            </label>
-            <div style={{ display: 'flex', gap: 8 }}>
-              {(['single', 'writers_round'] as const).map(type => (
-                <button key={type} onClick={() => setShowType(type)} type="button"
-                  style={{ flex: 1, padding: '10px', background: showType === type ? C.goldDim : 'transparent', border: `1px solid ${showType === type ? C.borderGold : C.border}`, borderRadius: 10, color: showType === type ? C.gold : C.secondary, fontSize: 12, fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s ease', fontFamily: 'inherit' }}>
-                  {type === 'single' ? 'Single Artist' : "Writer's Round"}
-                </button>
-              ))}
+          {/* Show type — hidden by default, only for writer's rounds */}
+          <button
+            type="button"
+            onClick={() => setShowType(showType === 'single' ? 'writers_round' : 'single')}
+            style={{ display: 'flex', alignItems: 'center', gap: 8, background: showType === 'writers_round' ? C.goldDim : 'transparent', border: `1px solid ${showType === 'writers_round' ? C.borderGold : 'rgba(255,255,255,0.06)'}`, borderRadius: 10, padding: '10px 14px', cursor: 'pointer', fontFamily: 'inherit', width: '100%', transition: 'all 0.15s ease' }}>
+            <span style={{ fontSize: 14 }}>{showType === 'writers_round' ? '✓' : '○'}</span>
+            <div>
+              <p style={{ fontSize: 13, fontWeight: 600, color: showType === 'writers_round' ? C.gold : C.secondary, margin: 0 }}>Writer's Round</p>
+              <p style={{ fontSize: 11, color: C.muted, margin: '1px 0 0' }}>Multiple songwriters sharing the stage</p>
             </div>
-          </div>
+          </button>
 
           {showSchedule ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, animation: 'slideUp 0.2s ease' }}>
