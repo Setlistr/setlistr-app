@@ -47,7 +47,9 @@ export default function NewShowPage() {
   const [selectedPast, setSelectedPast] = useState<PastPerformance | null>(null)
   const [cloning, setCloning]           = useState(false)
 
-  const isValid = name.trim().length > 0
+  // Show name defaults to venue name — artist doesn't need to type it separately
+  const effectiveName = name.trim() || venueQuery.trim() || 'Show'
+  const isValid = venueQuery.trim().length > 0 || name.trim().length > 0
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -148,7 +150,7 @@ export default function NewShowPage() {
         if (nv) resolvedVenueId = nv.id
       }
       const scheduledIso = showSchedule && scheduledAt ? new Date(scheduledAt).toISOString() : null
-      const { data: show, error: showError } = await supabase.from('shows').insert({ name: name.trim(), show_type: showType, scheduled_at: scheduledIso, started_at: new Date().toISOString(), status: 'live', created_by: user?.id || null }).select().single()
+      const { data: show, error: showError } = await supabase.from('shows').insert({ name: effectiveName, show_type: showType, scheduled_at: scheduledIso, started_at: new Date().toISOString(), status: 'live', created_by: user?.id || null }).select().single()
       if (showError) throw showError
       const { data: performance, error: perfError } = await supabase.from('performances').insert({ show_id: show.id, performance_date: scheduledIso || new Date().toISOString(), artist_name: artistName.trim() || name.trim(), venue_name: venueQuery.trim() || name.trim(), venue_id: resolvedVenueId || null, city: venueCity.trim() || '', country: venueCountry.trim() || '', status: 'live', set_duration_minutes: 60, auto_close_buffer_minutes: 5, started_at: new Date().toISOString(), user_id: user?.id || null }).select().single()
       if (perfError) throw perfError
@@ -172,7 +174,7 @@ export default function NewShowPage() {
         if (nv) resolvedVenueId = nv.id
       }
       const scheduledIso = showSchedule && scheduledAt ? new Date(scheduledAt).toISOString() : null
-      const { data: show, error: showError } = await supabase.from('shows').insert({ name: name.trim(), show_type: showType, scheduled_at: scheduledIso, started_at: new Date().toISOString(), status: 'completed', created_by: user?.id || null }).select().single()
+      const { data: show, error: showError } = await supabase.from('shows').insert({ name: effectiveName, show_type: showType, scheduled_at: scheduledIso, started_at: new Date().toISOString(), status: 'completed', created_by: user?.id || null }).select().single()
       if (showError) throw showError
       const { data: performance, error: perfError } = await supabase.from('performances').insert({ show_id: show.id, performance_date: scheduledIso || new Date().toISOString(), artist_name: artistName.trim() || name.trim(), venue_name: venueQuery.trim() || name.trim(), venue_id: resolvedVenueId || null, city: venueCity.trim() || '', country: venueCountry.trim() || '', status: 'review', set_duration_minutes: 60, auto_close_buffer_minutes: 5, started_at: new Date().toISOString(), ended_at: new Date().toISOString(), user_id: user?.id || null }).select().single()
       if (perfError) throw perfError
@@ -206,25 +208,24 @@ export default function NewShowPage() {
         </div>
 
         <h1 style={{ fontSize: 28, fontWeight: 800, color: C.text, margin: '0 0 6px', letterSpacing: '-0.025em' }}>Where are you playing?</h1>
-        <p style={{ fontSize: 14, color: C.secondary, margin: '0 0 28px' }}>That's all we need to get started.</p>
+        <p style={{ fontSize: 14, color: C.secondary, margin: '0 0 28px' }}>Type your venue and tap Start. That's it.</p>
 
         <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '24px', display: 'flex', flexDirection: 'column', gap: 20, marginBottom: 16 }}>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <label style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, display: 'flex', alignItems: 'center', gap: 5 }}>
-              <Building2 size={10} />Show Name<span style={{ color: C.gold }}>*</span>
-            </label>
-            <input autoFocus type="text" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. The Ryman, Bluebird Cafe..." onKeyDown={e => e.key === 'Enter' && handleSubmit()}
-              style={{ background: C.input, border: `1px solid ${name.trim() ? C.borderGold : C.border}`, borderRadius: 10, padding: '13px 14px', color: C.text, fontSize: 15, fontFamily: 'inherit', width: '100%', transition: 'border-color 0.15s ease' }} />
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <label style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, display: 'flex', alignItems: 'center', gap: 5 }}>
-              <User size={10} />Artist Name
-            </label>
-            <input type="text" value={artistName} onChange={e => setArtistName(e.target.value)} placeholder="e.g. Your artist name"
-              style={{ background: C.input, border: `1px solid ${artistName.trim() ? C.borderGold : C.border}`, borderRadius: 10, padding: '12px 14px', color: C.text, fontSize: 14, fontFamily: 'inherit', width: '100%', transition: 'border-color 0.15s ease' }} />
-          </div>
+          {/* Artist name auto-populated from profile — shown as read-only pill if set */}
+          {artistName.trim() ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 10 }}>
+              <span style={{ fontSize: 12, color: C.gold }}>🎤</span>
+              <span style={{ fontSize: 13, color: C.gold, fontWeight: 600 }}>{artistName}</span>
+              <button onClick={() => setArtistName('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: C.muted, cursor: 'pointer', fontSize: 12, padding: 2 }}>edit</button>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <label style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted }}>Your Artist Name</label>
+              <input autoFocus type="text" value={artistName} onChange={e => setArtistName(e.target.value)} placeholder="e.g. Jesse Slack"
+                style={{ background: C.input, border: `1px solid ${artistName.trim() ? C.borderGold : C.border}`, borderRadius: 10, padding: '13px 14px', color: C.text, fontSize: 15, fontFamily: 'inherit', width: '100%', transition: 'border-color 0.15s ease' }} />
+            </div>
+          )}
 
           {/* Venue autocomplete */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, position: 'relative' }} ref={dropdownRef}>
