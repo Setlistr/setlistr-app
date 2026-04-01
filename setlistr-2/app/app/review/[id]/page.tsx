@@ -706,8 +706,11 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
           <h1 style={{ fontSize: 26, fontWeight: 800, color: C.text, margin: '0 0 4px', letterSpacing: '-0.025em', lineHeight: 1.15 }}>
             {performance?.venue_name}
           </h1>
-          <p style={{ fontSize: 13, color: C.secondary, margin: '0 0 24px' }}>
-            {songs.length} song{songs.length !== 1 ? 's' : ''} · {performance?.city || ''}
+          <p style={{ fontSize: 14, color: C.secondary, margin: '0 0 6px' }}>
+            You played {songs.filter(s => s.source !== 'unidentified').length} songs{performance?.city ? ` in ${performance.city}` : ''}.
+          </p>
+          <p style={{ fontSize: 12, color: C.muted, margin: '0 0 24px' }}>
+            Here's what you captured tonight.
           </p>
 
           {/* ── Money card — simple, not pressured ── */}
@@ -727,7 +730,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                 <span style={{ fontSize: 11, color: C.secondary }}>Song metadata</span>
                 <span style={{ fontSize: 11, fontWeight: 700, color: strongCount === assessedCount && assessedCount > 0 ? C.green : C.gold }}>
-                  {strongCount}/{assessedCount > 0 ? assessedCount : songs.length} matched
+                  {strongCount}/{assessedCount > 0 ? assessedCount : songs.length} with metadata
                 </span>
               </div>
               <div style={{ height: 4, background: 'rgba(255,255,255,0.08)', borderRadius: 2, overflow: 'hidden', marginBottom: 10 }}>
@@ -836,7 +839,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
         <div style={{ paddingTop: 28, paddingBottom: 20, animation: 'fadeUp 0.4s ease' }}>
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 20, padding: '4px 10px', marginBottom: 14 }}>
             <div style={{ width: 5, height: 5, borderRadius: '50%', background: C.gold }} />
-            <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.gold }}>Tonight's Setlist</span>
+            <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.gold }}>This Show</span>
           </div>
           <h1 style={{ fontSize: 26, fontWeight: 800, color: C.text, margin: '0 0 8px', letterSpacing: '-0.025em', lineHeight: 1.15 }}>{performance?.venue_name}</h1>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
@@ -959,7 +962,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: allClean ? 'rgba(74,222,128,0.07)' : C.goldDim, border: `1px solid ${allClean ? 'rgba(74,222,128,0.2)' : C.borderGold}`, borderRadius: 10 }}>
               {allClean ? <Check size={13} color={C.green} strokeWidth={2.5} /> : <span style={{ fontSize: 12 }}>!</span>}
               <span style={{ fontSize: 12, fontWeight: 600, color: allClean ? C.green : C.gold }}>
-                {allClean ? 'All songs confirmed — this show is ready' : `${needsReviewCount} song${needsReviewCount === 1 ? '' : 's'} in this show need${needsReviewCount === 1 ? 's' : ''} attention`}
+                {allClean ? 'All songs added — ready to report' : `${needsReviewCount} song${needsReviewCount === 1 ? '' : 's'} in this show need${needsReviewCount === 1 ? 's' : ''} attention`}
               </span>
             </div>
           ) : null}
