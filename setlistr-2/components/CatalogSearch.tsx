@@ -5,11 +5,21 @@
  * Smart song input component. Replaces bare text entry anywhere
  * a user needs to identify or add a song.
  *
- * Uses /api/recent-songs (server-side auth) instead of direct Supabase
- * client queries — fixes mobile Safari auth session issues with RLS.
+ * Pulls from user_songs catalog with ISRC/composer/publisher auto-fill.
+ * Falls back to free-text "Add [query]" if no match found.
+ *
+ * Usage:
+ *   <CatalogSearch
+ *     userId={userId}
+ *     placeholder="Search your songs..."
+ *     onSelect={(song) => handleSongSelected(song)}
+ *     onAddNew={(title) => handleAddNew(title)}
+ *     autoFocus
+ *   />
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { createClient } from '@/lib/supabase/client'
 import { normalizeSongTitle, normalizeArtistName } from '@/lib/song-utils'
 import { Search, Music2 } from 'lucide-react'
 
@@ -32,12 +42,12 @@ export type CatalogSong = {
 }
 
 type Props = {
-  userId:        string | null
-  placeholder?:  string
-  onSelect:      (song: CatalogSong) => void
-  autoFocus?:    boolean
-  currentSongs?: string[]
-  showEmpty?:    boolean
+  userId:       string | null
+  placeholder?: string
+  onSelect:     (song: CatalogSong) => void
+  autoFocus?:   boolean
+  currentSongs?: string[]   // titles already in the setlist — shown dimmed
+  showEmpty?:   boolean     // show catalog immediately on focus (no typing needed)
 }
 
 export default function CatalogSearch({
@@ -52,41 +62,46 @@ export default function CatalogSearch({
   const [results, setResults]     = useState<CatalogSong[]>([])
   const [loading, setLoading]     = useState(false)
   const [focused, setFocused]     = useState(false)
-  const [selecting, setSelecting] = useState(false)
   const inputRef                  = useRef<HTMLInputElement>(null)
   const debounceRef               = useRef<NodeJS.Timeout | null>(null)
 
-  // ── Core loader — hits /api/recent-songs which uses server-side auth ──
-  // This bypasses the mobile Safari cookie/RLS issue entirely.
+  // Load catalog on mount if showEmpty — so suggestions appear immediately
+  useEffect(() => {
+    if (showEmpty && userId) loadCatalog('')
+  }, [userId, showEmpty])
+
   const loadCatalog = useCallback(async (q: string) => {
+    if (!userId) return
     setLoading(true)
-    try {
-      const params = new URLSearchParams()
-      if (q.trim()) params.set('q', q.trim())
-      const res  = await fetch(`/api/recent-songs?${params.toString()}`)
-      const json = await res.json()
-      if (json.songs) {
-        setResults(json.songs.map((s: any) => ({
-          id:        s.id,
-          title:     normalizeSongTitle(s.title),
-          artist:    normalizeArtistName(s.artist || ''),
-          isrc:      s.isrc      || null,
-          composer:  s.composer  || null,
-          publisher: s.publisher || null,
-          playCount: s.play_count || 0,
-          source:    'catalog' as const,
-        })))
-      }
-    } catch (err) {
-      console.error('[CatalogSearch] fetch error:', err)
+    const supabase = createClient()
+
+    let queryBuilder = supabase
+      .from('user_songs')
+      .select('id, song_title, canonical_artist, isrc, composer, publisher, confirmed_count')
+      .eq('user_id', userId)
+      .order('confirmed_count', { ascending: false })
+      .limit(20)
+
+    if (q.trim()) {
+      queryBuilder = queryBuilder.ilike('song_title', `%${q.trim()}%`)
+    }
+
+    const { data } = await queryBuilder
+
+    if (data) {
+      setResults(data.map(s => ({
+        id:        s.id,
+        title:     normalizeSongTitle(s.song_title),
+        artist:    normalizeArtistName(s.canonical_artist || ''),
+        isrc:      s.isrc || null,
+        composer:  s.composer || null,
+        publisher: s.publisher || null,
+        playCount: s.confirmed_count || 0,
+        source:    'catalog' as const,
+      })))
     }
     setLoading(false)
-  }, [])
-
-  // Load on mount — no userId dependency needed since auth is server-side
-  useEffect(() => {
-    if (showEmpty) loadCatalog('')
-  }, [showEmpty, loadCatalog])
+  }, [userId])
 
   function handleChange(val: string) {
     setQuery(val)
@@ -98,8 +113,6 @@ export default function CatalogSearch({
     onSelect(song)
     setQuery('')
     setResults([])
-    setFocused(false)
-    setSelecting(false)
   }
 
   function handleAddNew() {
@@ -112,23 +125,15 @@ export default function CatalogSearch({
     })
     setQuery('')
     setResults([])
-    setFocused(false)
-    setSelecting(false)
   }
 
-  function handleResultTouchStart() { setSelecting(true) }
-
-  function handleBlur() {
-    if (selecting) return
-    setTimeout(() => { if (!selecting) setFocused(false) }, 200)
-  }
-
-  const showResults = (focused || selecting) && (results.length > 0 || query.trim().length > 0)
+  const showResults = focused && (results.length > 0 || query.trim().length > 0)
   const showAddNew  = query.trim().length > 0 &&
     !results.some(r => r.title.toLowerCase() === normalizeSongTitle(query.trim()).toLowerCase())
 
   return (
     <div style={{ position: 'relative', width: '100%' }}>
+      {/* Input */}
       <div style={{ position: 'relative' }}>
         <input
           ref={inputRef}
@@ -136,7 +141,7 @@ export default function CatalogSearch({
           value={query}
           onChange={e => handleChange(e.target.value)}
           onFocus={() => setFocused(true)}
-          onBlur={handleBlur}
+          onBlur={() => setTimeout(() => setFocused(false), 300)}
           onKeyDown={e => {
             if (e.key === 'Enter') {
               if (results.length > 0) handleSelect(results[0])
@@ -162,6 +167,7 @@ export default function CatalogSearch({
         </div>
       </div>
 
+      {/* Results dropdown */}
       {showResults ? (
         <div style={{
           position: 'absolute', top: '100%', left: 0, right: 0,
@@ -188,9 +194,7 @@ export default function CatalogSearch({
             return (
               <button
                 key={song.id}
-                onTouchStart={handleResultTouchStart}
-                onMouseDown={() => setSelecting(true)}
-                onClick={() => handleSelect(song)}
+                onMouseDown={() => handleSelect(song)}
                 style={{
                   width: '100%', padding: '11px 14px',
                   background: 'transparent',
@@ -205,6 +209,7 @@ export default function CatalogSearch({
                 onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = C.cardHover}
                 onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
               >
+                {/* Play count indicator */}
                 <div style={{
                   width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
                   background: song.isrc ? 'rgba(74,222,128,0.1)' : C.goldDim,
@@ -227,6 +232,7 @@ export default function CatalogSearch({
                   ) : null}
                 </div>
 
+                {/* Registration dot */}
                 <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 4 }}>
                   {song.isrc ? (
                     <span style={{ width: 6, height: 6, borderRadius: '50%', background: C.green, display: 'block' }} title="ISRC confirmed" />
@@ -237,11 +243,10 @@ export default function CatalogSearch({
             )
           })}
 
+          {/* Add new option */}
           {showAddNew ? (
             <button
-              onTouchStart={handleResultTouchStart}
-              onMouseDown={() => setSelecting(true)}
-              onClick={handleAddNew}
+              onMouseDown={handleAddNew}
               style={{
                 width: '100%', padding: '11px 14px',
                 background: C.goldDim,
