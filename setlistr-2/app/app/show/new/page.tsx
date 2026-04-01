@@ -8,8 +8,7 @@ const C = {
   bg: '#0a0908', card: '#141210', cardHover: '#181614',
   border: 'rgba(255,255,255,0.07)', borderGold: 'rgba(201,168,76,0.3)',
   input: '#0f0e0c', text: '#f0ece3', secondary: '#b8a888', muted: '#8a7a68',
-  gold: '#c9a84c', goldDim: 'rgba(201,168,76,0.1)', red: '#dc2626',
-  green: '#4ade80',
+  gold: '#c9a84c', goldDim: 'rgba(201,168,76,0.1)',
 }
 
 type Venue = { id: string; name: string; city: string; country: string }
@@ -20,7 +19,6 @@ export default function NewShowPage() {
   const router       = useRouter()
   const searchParams = useSearchParams()
 
-  const [name, setName]                 = useState('')
   const [artistName, setArtistName]     = useState('')
   const [showType, setShowType]         = useState<'single' | 'writers_round'>('single')
   const [showSchedule, setShowSchedule] = useState(false)
@@ -47,18 +45,15 @@ export default function NewShowPage() {
   const [selectedPast, setSelectedPast] = useState<PastPerformance | null>(null)
   const [cloning, setCloning]           = useState(false)
 
-  const effectiveName = name.trim() || venueQuery.trim() || 'Show'
-  const isValid = venueQuery.trim().length > 0 || name.trim().length > 0
+  const effectiveName = venueQuery.trim() || 'Show'
+  const isValid = venueQuery.trim().length > 0
 
-  // Pre-fill artist name from profile — only sets if field is still empty
+  // Pre-fill artist name from profile
   useEffect(() => {
     const supabase = createClient()
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return
-      supabase.from('profiles')
-        .select('artist_name, full_name')
-        .eq('id', user.id)
-        .single()
+      supabase.from('profiles').select('artist_name, full_name').eq('id', user.id).single()
         .then(({ data }) => {
           const n = data?.artist_name || data?.full_name || ''
           if (n) setArtistName(prev => prev === '' ? n : prev)
@@ -90,8 +85,7 @@ export default function NewShowPage() {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
-      const { data: perfs } = await supabase
-        .from('performances').select('id, started_at')
+      const { data: perfs } = await supabase.from('performances').select('id, started_at')
         .eq('venue_id', selectedVenueId).eq('user_id', user.id)
         .in('status', ['review', 'complete', 'completed', 'exported'])
         .order('started_at', { ascending: false }).limit(10)
@@ -114,7 +108,6 @@ export default function NewShowPage() {
     setVenueQuery(v.name); setVenueId(v.id)
     setVenueCity(v.city || ''); setVenueCountry(v.country || '')
     setVenueSelected(true); setShowDropdown(false); setVenueResults([])
-    if (!name.trim()) setName(v.name)
     fetchVenueMemory(v.id)
   }
 
@@ -152,34 +145,53 @@ export default function NewShowPage() {
     setLoading(true); setError('')
     try {
       const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
+      const { data: { user }, error: userError } = await supabase.auth.getUser()
+      if (userError || !user) throw new Error('Not authenticated: ' + userError?.message)
+
       let resolvedVenueId = venueId
       if (!resolvedVenueId && venueQuery.trim()) {
         const capacityMap: Record<string,number> = { small: 150, medium: 500, large: 2000, festival: 10000 }
-        const { data: nv } = await supabase.from('venues').insert({
-          name: venueQuery.trim(), city: venueCity.trim() || null,
+        const { data: nv, error: venueError } = await supabase.from('venues').insert({
+          name: venueQuery.trim(),
+          city: venueCity.trim() || null,
           country: venueCountry.trim() || null,
           capacity: venueCapacity ? capacityMap[venueCapacity] : null
         }).select().single()
+        if (venueError) throw new Error('Venue insert failed: ' + venueError.message)
         if (nv) resolvedVenueId = nv.id
       }
+
       const scheduledIso = showSchedule && scheduledAt ? new Date(scheduledAt).toISOString() : null
+
       const { data: show, error: showError } = await supabase.from('shows').insert({
-        name: effectiveName, show_type: showType, scheduled_at: scheduledIso,
-        started_at: new Date().toISOString(), status: 'live', created_by: user?.id || null
+        name: effectiveName,
+        show_type: showType,
+        scheduled_at: scheduledIso,
+        started_at: new Date().toISOString(),
+        status: 'live',
+        created_by: user.id,
       }).select().single()
-      if (showError) throw showError
+      if (showError) throw new Error('Show insert failed: ' + showError.message + ' code: ' + showError.code)
+
       const { data: performance, error: perfError } = await supabase.from('performances').insert({
-        show_id: show.id, performance_date: scheduledIso || new Date().toISOString(),
-        artist_name: artistName.trim() || name.trim(),
-        venue_name: venueQuery.trim() || name.trim(), venue_id: resolvedVenueId || null,
-        city: venueCity.trim() || '', country: venueCountry.trim() || '',
-        status: 'live', set_duration_minutes: 60, auto_close_buffer_minutes: 5,
-        started_at: new Date().toISOString(), user_id: user?.id || null
+        show_id: show.id,
+        performance_date: scheduledIso || new Date().toISOString(),
+        artist_name: artistName.trim() || venueQuery.trim(),
+        venue_name: venueQuery.trim(),
+        venue_id: resolvedVenueId || null,
+        city: venueCity.trim() || null,
+        country: venueCountry.trim() || null,
+        status: 'live',
+        set_duration_minutes: 60,
+        auto_close_buffer_minutes: 5,
+        started_at: new Date().toISOString(),
+        user_id: user.id,
       }).select().single()
-      if (perfError) throw perfError
+      if (perfError) throw new Error('Performance insert failed: ' + perfError.message + ' code: ' + perfError.code)
+
       router.push(`/app/live/${performance.id}`)
     } catch (err: any) {
+      alert('DEBUG: ' + err?.message)
       setError(err?.message || 'Something went wrong. Please try again.')
       setLoading(false)
     }
@@ -190,7 +202,9 @@ export default function NewShowPage() {
     setCloning(true); setError('')
     try {
       const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
+      const { data: { user }, error: userError } = await supabase.auth.getUser()
+      if (userError || !user) throw new Error('Not authenticated')
+
       let resolvedVenueId = venueId
       if (!resolvedVenueId && venueQuery.trim()) {
         const capacityMap: Record<string,number> = { small: 150, medium: 500, large: 2000, festival: 10000 }
@@ -204,19 +218,19 @@ export default function NewShowPage() {
       const scheduledIso = showSchedule && scheduledAt ? new Date(scheduledAt).toISOString() : null
       const { data: show, error: showError } = await supabase.from('shows').insert({
         name: effectiveName, show_type: showType, scheduled_at: scheduledIso,
-        started_at: new Date().toISOString(), status: 'completed', created_by: user?.id || null
+        started_at: new Date().toISOString(), status: 'completed', created_by: user.id
       }).select().single()
-      if (showError) throw showError
+      if (showError) throw new Error('Show insert failed: ' + showError.message)
       const { data: performance, error: perfError } = await supabase.from('performances').insert({
         show_id: show.id, performance_date: scheduledIso || new Date().toISOString(),
-        artist_name: artistName.trim() || name.trim(),
-        venue_name: venueQuery.trim() || name.trim(), venue_id: resolvedVenueId || null,
-        city: venueCity.trim() || '', country: venueCountry.trim() || '',
+        artist_name: artistName.trim() || venueQuery.trim(),
+        venue_name: venueQuery.trim(), venue_id: resolvedVenueId || null,
+        city: venueCity.trim() || null, country: venueCountry.trim() || null,
         status: 'review', set_duration_minutes: 60, auto_close_buffer_minutes: 5,
         started_at: new Date().toISOString(), ended_at: new Date().toISOString(),
-        user_id: user?.id || null
+        user_id: user.id
       }).select().single()
-      if (perfError) throw perfError
+      if (perfError) throw new Error('Performance insert failed: ' + perfError.message)
       const { data: sourceSongs } = await supabase.from('performance_songs')
         .select('title, artist, position').eq('performance_id', selectedPast.id)
         .order('position', { ascending: true })
@@ -250,19 +264,12 @@ export default function NewShowPage() {
 
         <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '24px', display: 'flex', flexDirection: 'column', gap: 20, marginBottom: 16 }}>
 
-          {/* Artist name — plain input, pre-filled from profile */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <label style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' as const, color: C.muted }}>Your Artist Name</label>
-            <input
-              type="text"
-              value={artistName}
-              onChange={e => setArtistName(e.target.value)}
-              placeholder="Your artist name"
-              style={{ background: C.input, border: `1px solid ${artistName.trim() ? C.borderGold : C.border}`, borderRadius: 10, padding: '13px 14px', color: C.text, fontSize: 15, fontFamily: 'inherit', width: '100%', outline: 'none', transition: 'border-color 0.15s ease' }}
-            />
+            <input type="text" value={artistName} onChange={e => setArtistName(e.target.value)} placeholder="Your artist name"
+              style={{ background: C.input, border: `1px solid ${artistName.trim() ? C.borderGold : C.border}`, borderRadius: 10, padding: '13px 14px', color: C.text, fontSize: 15, fontFamily: 'inherit', width: '100%', outline: 'none', transition: 'border-color 0.15s ease' }} />
           </div>
 
-          {/* Venue */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, position: 'relative' }} ref={dropdownRef}>
             <label style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' as const, color: C.muted, display: 'flex', alignItems: 'center', gap: 5 }}>
               <MapPin size={10} />Venue
@@ -337,7 +344,6 @@ export default function NewShowPage() {
             )}
           </div>
 
-          {/* Writer's Round toggle */}
           <button type="button"
             onClick={() => setShowType(showType === 'single' ? 'writers_round' : 'single')}
             style={{ display: 'flex', alignItems: 'center', gap: 8, background: showType === 'writers_round' ? C.goldDim : 'transparent', border: `1px solid ${showType === 'writers_round' ? C.borderGold : 'rgba(255,255,255,0.06)'}`, borderRadius: 10, padding: '10px 14px', cursor: 'pointer', fontFamily: 'inherit', width: '100%' }}>
