@@ -9,38 +9,62 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 async function searchMusicBrainz(title: string, artist: string) {
-  const query = artist
-    ? `recording:"${title}" AND artist:"${artist}"`
-    : `recording:"${title}"`
+  // Strategy: try with artist first, fall back to title only
+  // Use broader query — let MusicBrainz score handle relevance
+  const queries = artist
+    ? [
+        `recording:"${title}" AND artistname:"${artist}"`,
+        `recording:"${title}"`,  // fallback without artist
+      ]
+    : [`recording:"${title}"`]
 
-  const url = `https://musicbrainz.org/ws/2/recording/?query=${encodeURIComponent(query)}&limit=1&fmt=json`
+  let recording: any = null
 
-  const res = await fetch(url, {
-    headers: {
-      'User-Agent': 'Setlistr/1.0 (setlistr.ai)',
-      'Accept': 'application/json',
-    },
-  })
+  for (const query of queries) {
+    const url = `https://musicbrainz.org/ws/2/recording/?query=${encodeURIComponent(query)}&limit=3&fmt=json&inc=isrcs+artist-credits+releases+recording-rels`
+    try {
+      const res = await fetch(url, {
+        headers: {
+          'User-Agent': 'Setlistr/1.0 (setlistr.ai)',
+          'Accept': 'application/json',
+        },
+      })
+      if (!res.ok) continue
+      const data = await res.json()
+      // Take the highest-scoring result
+      const candidates = data?.recordings || []
+      const best = candidates.sort((a: any, b: any) => (b.score || 0) - (a.score || 0))[0]
+      if (best && (best.score || 0) >= 60) {
+        recording = best
+        break
+      }
+    } catch { continue }
+  }
 
-  if (!res.ok) return null
-  const data = await res.json()
-  const recording = data?.recordings?.[0]
   if (!recording) return null
 
-  // Extract ISRC
+  // Extract ISRC — check both recording.isrcs and individual releases
   const isrc = recording.isrcs?.[0] || ''
 
-  // Extract composer from relations
-  const composer = recording.relations
-    ?.filter((r: any) => r.type === 'composer' || r.type === 'lyricist' || r.type === 'writer')
-    ?.map((r: any) => r.artist?.name)
-    ?.filter(Boolean)
-    ?.join(', ') || ''
+  // Extract artist credits as composer proxy (for original songs)
+  // Also check relations for explicit composer/lyricist credits
+  const artistCredits = recording['artist-credit']
+    ?.map((ac: any) => ac.artist?.name)
+    ?.filter(Boolean) || []
 
-  // Extract artist name (canonical)
+  const relationComposers = recording.relations
+    ?.filter((r: any) => ['composer', 'lyricist', 'writer', 'co-composer'].includes(r.type))
+    ?.map((r: any) => r.artist?.name)
+    ?.filter(Boolean) || []
+
+  const composer = relationComposers.length > 0
+    ? relationComposers.join(', ')
+    : artistCredits.join(', ')  // fall back to artist credits
+
+  // Extract canonical artist
   const canonicalArtist = recording['artist-credit']?.[0]?.artist?.name || artist
 
-  // Extract release label as publisher proxy
+  // Extract label as publisher proxy
   const publisher = recording.releases?.[0]?.['label-info']?.[0]?.label?.name || ''
 
   return {
@@ -62,7 +86,7 @@ export async function POST(req: NextRequest) {
 
     const enriched = await searchMusicBrainz(title.trim(), artist?.trim() || '')
 
-    if (!enriched || enriched.score < 70) {
+    if (!enriched || enriched.score < 60) {
       return NextResponse.json({ found: false })
     }
 
