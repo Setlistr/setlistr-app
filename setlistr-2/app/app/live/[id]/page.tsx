@@ -199,7 +199,15 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   function saveEdit() {
     if (editingIndex === null || !editTitle.trim()) return
     setSongs(prev => prev.map((s, i) =>
-      i === editingIndex ? { ...s, title: editTitle.trim(), artist: editArtist.trim() || s.artist } : s
+      i === editingIndex
+        ? {
+            ...s,
+            title:  editTitle.trim(),
+            artist: editArtist.trim() || s.artist,
+            // Upgrade source: if they edited an unknown song, it's now manual
+            source: s.source === 'unidentified' ? 'manual' : s.source,
+          }
+        : s
     ))
     setEditingIndex(null)
   }
@@ -442,17 +450,21 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
       await supabase.from('setlists').update({ status: 'review', updated_at: new Date().toISOString() }).eq('id', setlistId)
     }
 
-    const songsToSave = songs.filter(s => s.source !== 'unidentified')
+    // Save ALL songs including unidentified — they appear on review page as "needs attention"
+    // Unidentified = detection fired but no match, or user edited title but left as unidentified
+    // Source 'unidentified' songs show as needs_review on the review page
+    const songsToSave = songs  // save everything, let review page sort it out
     if (songsToSave.length > 0) {
       await supabase.from('performance_songs').insert(
         songsToSave.map((song, i) => ({
           performance_id: performance.id,
-          title: song.title,
-          artist: song.artist || performance.artist_name,
+          title: song.source === 'unidentified' ? (song.title === 'Unknown Song' ? null : song.title) : song.title,
+          artist: song.artist || performance.artist_name || null,
           position: i + 1,
           isrc: song.isrc || null,
           composer: song.composer || null,
           publisher: song.publisher || null,
+          source: song.source || 'manual',
         }))
       )
     }
