@@ -51,6 +51,25 @@ export default function NewShowPage() {
   const effectiveName = name.trim() || venueQuery.trim() || 'Show'
   const isValid = venueQuery.trim().length > 0 || name.trim().length > 0
 
+  // Load profile ONCE on mount — only pre-fills if user hasn't typed yet
+  useEffect(() => {
+    const supabase = createClient()
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return
+      supabase.from('profiles')
+        .select('artist_name, full_name')
+        .eq('id', user.id)
+        .single()
+        .then(({ data }) => {
+          const name = data?.artist_name || data?.full_name || ''
+          if (name) {
+            // Only set if user hasn't started typing — check via ref pattern
+            setArtistName(prev => prev === '' ? name : prev)
+          }
+        })
+    })
+  }, []) // runs once only
+
   useEffect(() => {
     function handleClick(e: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) setShowDropdown(false)
@@ -202,8 +221,7 @@ export default function NewShowPage() {
             <Music4 size={16} color={C.gold} />
           </div>
           <div>
-            <p style={{ fontSize: 11, fontWeight: 700, color: C.gold, margin: 0, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Setlistr</p>
-            <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>New Show</p>
+            <p style={{ fontSize: 14, fontWeight: 700, color: C.text, margin: 0 }}>New Show</p>
           </div>
         </div>
 
@@ -219,7 +237,7 @@ export default function NewShowPage() {
               type="text"
               value={artistName}
               onChange={e => setArtistName(e.target.value)}
-              placeholder='Your artist name'
+              placeholder="Your artist name"
               style={{ background: C.input, border: `1px solid ${artistName.trim() ? C.borderGold : C.border}`, borderRadius: 10, padding: '13px 14px', color: C.text, fontSize: 15, fontFamily: 'inherit', width: '100%', transition: 'border-color 0.15s ease' }}
             />
             {artistName.trim() && (
