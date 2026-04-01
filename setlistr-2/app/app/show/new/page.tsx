@@ -212,20 +212,11 @@ export default function NewShowPage() {
 
         <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '24px', display: 'flex', flexDirection: 'column', gap: 20, marginBottom: 16 }}>
 
-          {/* Artist name auto-populated from profile — shown as read-only pill if set */}
-          {artistName.trim() ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 10 }}>
-              <span style={{ fontSize: 12, color: C.gold }}>🎤</span>
-              <span style={{ fontSize: 13, color: C.gold, fontWeight: 600 }}>{artistName}</span>
-              <button onClick={() => setArtistName('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: C.muted, cursor: 'pointer', fontSize: 12, padding: 2 }}>edit</button>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <label style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted }}>Your Artist Name</label>
-              <input autoFocus type="text" value={artistName} onChange={e => setArtistName(e.target.value)} placeholder="e.g. Jesse Slack"
-                style={{ background: C.input, border: `1px solid ${artistName.trim() ? C.borderGold : C.border}`, borderRadius: 10, padding: '13px 14px', color: C.text, fontSize: 15, fontFamily: 'inherit', width: '100%', transition: 'border-color 0.15s ease' }} />
-            </div>
-          )}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <label style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted }}>Your Artist Name</label>
+            <input type="text" value={artistName} onChange={e => setArtistName(e.target.value)} placeholder="Your artist name"
+              style={{ background: C.input, border: `1px solid ${artistName.trim() ? C.borderGold : C.border}`, borderRadius: 10, padding: '13px 14px', color: C.text, fontSize: 15, fontFamily: 'inherit', width: '100%', transition: 'border-color 0.15s ease' }} />
+          </div>
 
           {/* Venue autocomplete */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, position: 'relative' }} ref={dropdownRef}>
