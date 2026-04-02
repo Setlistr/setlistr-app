@@ -216,16 +216,21 @@ export default function AdminDashboard({
       const userSongList = songMap.get(profile.id) || []
       const submitted    = userPerfs.filter(p => p.submission_status === 'submitted').length
       const lastPerf     = userPerfs[0]?.started_at || null
+      const hasName      = !!(profile.artist_name || profile.full_name)
+      const displayName  = profile.artist_name || profile.full_name || 'Unknown Artist'
       return {
         id:          profile.id,
-        name:        profile.artist_name || profile.full_name || 'Unknown Artist',
+        name:        displayName,
+        hasName,
         pro:         profile.pro_affiliation || '—',
         showCount:   userPerfs.length,
         songCount:   userSongList.length,
         submitted,
         lastPerf,
       }
-    }).sort((a, b) => b.showCount - a.showCount)
+    })
+    .filter(u => u.showCount > 0 || u.hasName)
+    .sort((a, b) => b.showCount - a.showCount)
   }, [profiles, performances, userSongs])
 
   // ── Top songs ─────────────────────────────────────────────────────────────
@@ -310,7 +315,6 @@ export default function AdminDashboard({
   async function deleteShow(perfId: string) {
     if (!confirm('Delete this show and all its data? This cannot be undone.')) return
     try {
-      // Delete in order: performance_songs → detection_events → performances
       const res = await fetch('/api/admin/delete-show', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
@@ -319,7 +323,24 @@ export default function AdminDashboard({
       if (res.ok) {
         setLocalPerfs(prev => prev.filter(p => p.id !== perfId))
       } else {
-        alert('Failed to delete show')
+        const err = await res.json().catch(() => ({}))
+        alert('Failed to delete: ' + (err.error || res.status))
+      }
+    } catch (e: any) { alert('Network error: ' + e.message) }
+  }
+
+  async function forceEndShow(perfId: string) {
+    if (!confirm('Force-end this live show?')) return
+    try {
+      const res = await fetch('/api/admin/delete-show', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ performance_id: perfId }),
+      })
+      if (res.ok) {
+        setLocalPerfs(prev => prev.map(p => p.id === perfId ? { ...p, status: 'review' } : p))
+      } else {
+        alert('Failed to force-end show')
       }
     } catch { alert('Network error') }
   }
@@ -848,7 +869,7 @@ export default function AdminDashboard({
                         {p.artist_name} · {p.city} · {timeAgo(p.started_at)} · {songCount} song{songCount !== 1 ? 's' : ''}
                       </p>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
                       <span style={{
                         fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
                         padding: '2px 7px', borderRadius: 4,
@@ -857,6 +878,13 @@ export default function AdminDashboard({
                       }}>
                         {p.submission_status === 'submitted' ? 'Submitted' : p.status}
                       </span>
+                      {p.status === 'live' && (
+                        <button
+                          onClick={() => forceEndShow(p.id)}
+                          style={{ background: 'rgba(201,168,76,0.1)', border: `1px solid rgba(201,168,76,0.3)`, borderRadius: 6, color: C.gold, fontSize: 10, cursor: 'pointer', padding: '3px 8px', fontFamily: 'inherit', flexShrink: 0 }}>
+                          End
+                        </button>
+                      )}
                       <button
                         onClick={() => deleteShow(p.id)}
                         style={{ background: 'none', border: `1px solid rgba(248,113,113,0.2)`, borderRadius: 6, color: '#f87171', fontSize: 11, cursor: 'pointer', padding: '4px 10px', fontFamily: 'inherit', opacity: 0.6, transition: 'opacity 0.15s ease', flexShrink: 0 }}
