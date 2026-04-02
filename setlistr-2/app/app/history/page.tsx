@@ -12,7 +12,6 @@ const C = {
   green: '#4ade80', greenDim: 'rgba(74,222,128,0.08)',
   red: '#f87171', redDim: 'rgba(248,113,113,0.08)',
   blue: '#60a5fa', blueDim: 'rgba(96,165,250,0.1)',
-  purple: '#a78bfa',
 }
 
 type Performance = {
@@ -29,7 +28,7 @@ type Performance = {
 
 // Derive the display status — submission_status takes priority once set
 function getDisplayStatus(p: Performance): { label: string; color: string } {
-  if (p.submission_status === 'submitted') return { label: 'Submitted',    color: C.purple }
+  if (p.submission_status === 'submitted') return { label: 'Submitted',    color: C.green }
   switch (p.status) {
     case 'live':
     case 'pending':    return { label: 'Live',         color: C.red }
@@ -191,7 +190,7 @@ export default function HistoryPage() {
               { key: 'all',       label: 'All',       color: C.muted,   count: counts.all },
               { key: 'review',    label: 'To Review',  color: C.blue,    count: counts.review },
               { key: 'complete',  label: 'Complete',   color: C.green,   count: counts.complete },
-              { key: 'submitted', label: 'Submitted',  color: C.purple,  count: counts.submitted },
+              { key: 'submitted', label: 'Submitted',  color: C.green,   count: counts.submitted },
             ] as const).map(tab => {
               const active = statusFilter === tab.key
               return (
