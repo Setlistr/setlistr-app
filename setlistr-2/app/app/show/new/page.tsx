@@ -48,7 +48,6 @@ export default function NewShowPage() {
   const effectiveName = venueQuery.trim() || 'Show'
   const isValid = venueQuery.trim().length > 0
 
-  // Pre-fill artist name from profile
   useEffect(() => {
     const supabase = createClient()
     supabase.auth.getUser().then(({ data: { user } }) => {
@@ -270,12 +269,15 @@ export default function NewShowPage() {
               style={{ background: C.input, border: `1px solid ${artistName.trim() ? C.borderGold : C.border}`, borderRadius: 10, padding: '13px 14px', color: C.text, fontSize: 15, fontFamily: 'inherit', width: '100%', outline: 'none', transition: 'border-color 0.15s ease' }} />
           </div>
 
+          {/* ── Venue field ── */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, position: 'relative' }} ref={dropdownRef}>
             <label style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' as const, color: C.muted, display: 'flex', alignItems: 'center', gap: 5 }}>
               <MapPin size={10} />Venue
             </label>
             <div style={{ position: 'relative' }}>
-              <input type="text" value={venueQuery}
+              <input
+                type="text"
+                value={venueQuery}
                 onChange={e => handleVenueInput(e.target.value)}
                 onFocus={() => { if (venueResults.length > 0) setShowDropdown(true) }}
                 placeholder="Search or type venue name..."
@@ -289,6 +291,7 @@ export default function NewShowPage() {
               </div>
             </div>
 
+            {/* Venue memory badge */}
             {venueMemory && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 8 }}>
                 <p style={{ fontSize: 12, color: C.gold, margin: 0, lineHeight: 1.4 }}>
@@ -298,8 +301,12 @@ export default function NewShowPage() {
               </div>
             )}
 
+            {/* ── FIX 1: onMouseDown preventDefault stops blur closing dropdown before click fires ── */}
             {showDropdown && venueResults.length > 0 && (
-              <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#1a1816', border: `1px solid ${C.borderGold}`, borderRadius: 10, marginTop: 4, zIndex: 50, overflow: 'hidden', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
+              <div
+                onMouseDown={e => e.preventDefault()}
+                style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#1a1816', border: `1px solid ${C.borderGold}`, borderRadius: 10, marginTop: 4, zIndex: 50, overflow: 'hidden', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}
+              >
                 {venueResults.map((v, i) => (
                   <button key={v.id} onMouseDown={() => selectVenue(v)}
                     style={{ width: '100%', padding: '11px 14px', background: 'transparent', border: 'none', borderBottom: i < venueResults.length - 1 ? `1px solid ${C.border}` : 'none', cursor: 'pointer', textAlign: 'left', display: 'flex', flexDirection: 'column', gap: 2, fontFamily: 'inherit' }}
@@ -322,7 +329,8 @@ export default function NewShowPage() {
               </div>
             )}
 
-            {venueQuery.trim().length >= 2 && !venueSelected && !venueSearching && (
+            {/* ── FIX 2: capacity picker only shows after dropdown is gone ── */}
+            {venueQuery.trim().length >= 2 && !venueSelected && !venueSearching && !showDropdown && (
               <div style={{ marginTop: 8 }}>
                 <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, color: C.muted, margin: '0 0 6px' }}>Venue size <span style={{ fontWeight: 400, textTransform: 'none' as const, letterSpacing: 0 }}>(helps estimate royalties)</span></p>
                 <div style={{ display: 'flex', gap: 6 }}>
