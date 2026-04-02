@@ -12,32 +12,41 @@ const C = {
   green: '#4ade80', greenDim: 'rgba(74,222,128,0.08)',
   red: '#f87171', redDim: 'rgba(248,113,113,0.08)',
   blue: '#60a5fa', blueDim: 'rgba(96,165,250,0.1)',
+  purple: '#a78bfa',
 }
 
 type Performance = {
-  id: string
-  venue_name: string
-  artist_name: string
-  city: string
-  country: string
-  status: string
-  started_at: string
-  created_at: string
+  id:                string
+  venue_name:        string
+  artist_name:       string
+  city:              string
+  country:           string
+  status:            string
+  submission_status: string | null
+  started_at:        string
+  created_at:        string
 }
 
-const STATUS_LABEL: Record<string, { label: string; color: string }> = {
-  live:      { label: 'Live',         color: C.red },
-  pending:   { label: 'Live',         color: C.red },
-  review:    { label: 'Needs Review', color: C.blue },
-  complete:  { label: 'Completed',    color: C.green },
-  completed: { label: 'Completed',    color: C.green },
-  exported:  { label: 'Exported',     color: C.green },
+// Derive the display status — submission_status takes priority once set
+function getDisplayStatus(p: Performance): { label: string; color: string } {
+  if (p.submission_status === 'submitted') return { label: 'Submitted',    color: C.purple }
+  switch (p.status) {
+    case 'live':
+    case 'pending':    return { label: 'Live',         color: C.red }
+    case 'review':     return { label: 'Needs Review', color: C.blue }
+    case 'complete':
+    case 'completed':  return { label: 'Complete',     color: C.green }
+    case 'exported':   return { label: 'Exported',     color: C.green }
+    default:           return { label: 'Needs Review', color: C.blue }
+  }
 }
 
-function formatDate(d: string) {
-  return new Date(d).toLocaleDateString('en-US', {
-    month: 'short', day: 'numeric', year: 'numeric',
-  })
+// Filter out dot/empty venues — these are test artefacts
+function isRealVenue(name: string | null): boolean {
+  if (!name) return false
+  const trimmed = name.trim()
+  if (trimmed === '' || trimmed === '.' || trimmed === '..') return false
+  return true
 }
 
 export default function HistoryPage() {
@@ -49,21 +58,33 @@ export default function HistoryPage() {
   const [dateFrom, setDateFrom]         = useState('')
   const [dateTo, setDateTo]             = useState('')
   const [showFilters, setShowFilters]   = useState(false)
+  const [statusFilter, setStatusFilter] = useState<string>('all')
 
   useEffect(() => {
     const supabase = createClient()
-    supabase
-      .from('performances')
-      .select('id, venue_name, artist_name, city, country, status, started_at, created_at')
-      .order('created_at', { ascending: false })
-      .then(({ data, error }) => {
-        if (error) console.error('History error:', error)
-        if (data) {
-          setPerformances(data)
-          setFiltered(data)
-        }
-        setLoading(false)
-      })
+    async function load() {
+      // ── FIX 1: scope to current user only ──────────────────────────────
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { router.push('/auth/login'); return }
+
+      const { data, error } = await supabase
+        .from('performances')
+        .select('id, venue_name, artist_name, city, country, status, submission_status, started_at, created_at')
+        .eq('user_id', user.id)                          // ← only this user's shows
+        .not('status', 'in', '("live","pending")')       // ← exclude active sessions
+        .order('started_at', { ascending: false })
+
+      if (error) console.error('History error:', error)
+
+      if (data) {
+        // ── FIX 2: filter dot venues server-side response ─────────────────
+        const clean = data.filter(p => isRealVenue(p.venue_name))
+        setPerformances(clean)
+        setFiltered(clean)
+      }
+      setLoading(false)
+    }
+    load()
   }, [])
 
   // ── Filter logic ─────────────────────────────────────────────────────────
@@ -79,187 +100,140 @@ export default function HistoryPage() {
       )
     }
 
-    if (dateFrom) {
-      result = result.filter(p => (p.started_at || p.created_at) >= dateFrom)
-    }
-    if (dateTo) {
-      result = result.filter(p => (p.started_at || p.created_at) <= dateTo + 'T23:59:59')
+    // ── FIX 3: status tab filter including submitted ───────────────────────
+    if (statusFilter !== 'all') {
+      result = result.filter(p => {
+        if (statusFilter === 'submitted') return p.submission_status === 'submitted'
+        if (statusFilter === 'review')    return p.status === 'review' && p.submission_status !== 'submitted'
+        if (statusFilter === 'complete')  return (p.status === 'complete' || p.status === 'completed' || p.status === 'exported') && p.submission_status !== 'submitted'
+        return true
+      })
     }
 
+    if (dateFrom) result = result.filter(p => (p.started_at || p.created_at) >= dateFrom)
+    if (dateTo)   result = result.filter(p => (p.started_at || p.created_at) <= dateTo + 'T23:59:59')
+
     setFiltered(result)
-  }, [search, dateFrom, dateTo, performances])
+  }, [search, dateFrom, dateTo, statusFilter, performances])
 
   function clearFilters() {
     setSearch('')
     setDateFrom('')
     setDateTo('')
+    setStatusFilter('all')
   }
 
   function navigateTo(p: Performance) {
-    if (p.status === 'live' || p.status === 'pending') {
+    if (p.submission_status === 'submitted') {
+      router.push(`/app/submit/${p.id}`)
+    } else if (p.status === 'live' || p.status === 'pending') {
       router.push(`/app/live/${p.id}`)
     } else {
       router.push(`/app/review/${p.id}`)
     }
   }
 
-  const hasFilters = search || dateFrom || dateTo
+  const hasFilters = search || dateFrom || dateTo || statusFilter !== 'all'
 
-  if (loading) {
-    return (
-      <div style={{
-        minHeight: '100svh', background: C.bg,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontFamily: '"DM Sans", system-ui, sans-serif',
-      }}>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
-          <div style={{
-            width: 44, height: 44, borderRadius: '50%',
-            border: `1.5px solid ${C.gold}`,
-            animation: 'breathe 1.8s ease-in-out infinite',
-          }} />
-          <span style={{ color: C.muted, fontSize: 11, letterSpacing: '0.15em', textTransform: 'uppercase' }}>
-            Loading
-          </span>
-        </div>
-        <style>{`@keyframes breathe{0%,100%{transform:scale(1);opacity:.3}50%{transform:scale(1.2);opacity:.8}}`}</style>
-      </div>
-    )
+  // Tab counts
+  const counts = {
+    all:       performances.length,
+    review:    performances.filter(p => p.status === 'review' && p.submission_status !== 'submitted').length,
+    complete:  performances.filter(p => ['complete','completed','exported'].includes(p.status) && p.submission_status !== 'submitted').length,
+    submitted: performances.filter(p => p.submission_status === 'submitted').length,
   }
 
+  if (loading) return (
+    <div style={{ minHeight: '100svh', background: C.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: '"DM Sans", system-ui, sans-serif' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+        <div style={{ width: 44, height: 44, borderRadius: '50%', border: `1.5px solid ${C.gold}`, animation: 'breathe 1.8s ease-in-out infinite' }} />
+        <span style={{ color: C.muted, fontSize: 11, letterSpacing: '0.15em', textTransform: 'uppercase' as const }}>Loading</span>
+      </div>
+      <style>{`@keyframes breathe{0%,100%{transform:scale(1);opacity:.3}50%{transform:scale(1.2);opacity:.8}}`}</style>
+    </div>
+  )
+
   return (
-    <div style={{
-      minHeight: '100svh', background: C.bg,
-      fontFamily: '"DM Sans", system-ui, sans-serif',
-    }}>
+    <div style={{ minHeight: '100svh', background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif' }}>
 
-      {/* Ambient glow */}
-      <div style={{
-        position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)',
-        width: '120vw', height: '40vh', pointerEvents: 'none', zIndex: 0,
-        background: 'radial-gradient(ellipse at 50% 0%, rgba(201,168,76,0.05) 0%, transparent 65%)',
-      }} />
+      <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '40vh', pointerEvents: 'none', zIndex: 0, background: 'radial-gradient(ellipse at 50% 0%, rgba(201,168,76,0.05) 0%, transparent 65%)' }} />
 
-      <div style={{
-        maxWidth: 600, margin: '0 auto', padding: '0 16px',
-        position: 'relative', zIndex: 1,
-      }}>
+      <div style={{ maxWidth: 600, margin: '0 auto', padding: '0 16px', position: 'relative', zIndex: 1 }}>
 
         {/* ── Header ── */}
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 12,
-          padding: '20px 0 24px', animation: 'fadeUp 0.3s ease',
-        }}>
-          <button
-            onClick={() => router.push('/app/dashboard')}
-            style={{
-              background: C.card, border: `1px solid ${C.border}`,
-              borderRadius: 8, padding: '7px 10px',
-              color: C.secondary, cursor: 'pointer', fontFamily: 'inherit',
-              display: 'flex', alignItems: 'center', gap: 4, fontSize: 12,
-            }}
-          >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '20px 0 24px' }}>
+          <button onClick={() => router.push('/app/dashboard')}
+            style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, padding: '7px 10px', color: C.secondary, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
             <ChevronLeft size={14} /> Back
           </button>
-
-          <h1 style={{
-            fontSize: 20, fontWeight: 800, color: C.text,
-            margin: 0, letterSpacing: '-0.02em', flex: 1,
-          }}>
+          <h1 style={{ fontSize: 20, fontWeight: 800, color: C.text, margin: 0, letterSpacing: '-0.02em', flex: 1 }}>
             Performance History
           </h1>
-
-          <div style={{
-            fontSize: 11, color: C.muted,
-            background: C.card, border: `1px solid ${C.border}`,
-            borderRadius: 20, padding: '5px 10px',
-          }}>
+          <div style={{ fontSize: 11, color: C.muted, background: C.card, border: `1px solid ${C.border}`, borderRadius: 20, padding: '5px 10px' }}>
             {performances.length} shows
           </div>
         </div>
 
         {/* ── Search ── */}
-        <div style={{ animation: 'fadeUp 0.35s ease', marginBottom: 12 }}>
+        <div style={{ marginBottom: 10 }}>
           <div style={{ position: 'relative', marginBottom: 10 }}>
-            <Search size={14} style={{
-              position: 'absolute', left: 12, top: '50%',
-              transform: 'translateY(-50%)', color: C.muted, pointerEvents: 'none',
-            }} />
+            <Search size={14} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: C.muted, pointerEvents: 'none' }} />
             <input
-              value={search}
-              onChange={e => setSearch(e.target.value)}
+              value={search} onChange={e => setSearch(e.target.value)}
               placeholder="Search venue, artist, or city..."
-              style={{
-                width: '100%', background: C.card,
-                border: `1px solid ${search ? C.borderGold : C.border}`,
-                borderRadius: 10, padding: '11px 14px 11px 36px',
-                color: C.text, fontSize: 14, fontFamily: 'inherit',
-                transition: 'border-color 0.15s ease',
-                boxSizing: 'border-box',
-              }}
+              style={{ width: '100%', background: C.card, border: `1px solid ${search ? C.borderGold : C.border}`, borderRadius: 10, padding: '11px 14px 11px 36px', color: C.text, fontSize: 14, fontFamily: 'inherit', transition: 'border-color 0.15s ease', boxSizing: 'border-box' as const }}
             />
+          </div>
+
+          {/* ── Status tabs ── */}
+          <div style={{ display: 'flex', gap: 6, marginBottom: 8, overflowX: 'auto' as const }}>
+            {([
+              { key: 'all',       label: 'All',       color: C.muted,   count: counts.all },
+              { key: 'review',    label: 'To Review',  color: C.blue,    count: counts.review },
+              { key: 'complete',  label: 'Complete',   color: C.green,   count: counts.complete },
+              { key: 'submitted', label: 'Submitted',  color: C.purple,  count: counts.submitted },
+            ] as const).map(tab => {
+              const active = statusFilter === tab.key
+              return (
+                <button key={tab.key} onClick={() => setStatusFilter(tab.key)}
+                  style={{ flexShrink: 0, padding: '6px 12px', borderRadius: 20, border: `1px solid ${active ? tab.color + '60' : C.border}`, background: active ? tab.color + '15' : 'transparent', color: active ? tab.color : C.muted, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 5, transition: 'all 0.15s ease', letterSpacing: '0.04em' }}>
+                  {tab.label}
+                  {tab.count > 0 && (
+                    <span style={{ fontSize: 10, background: active ? tab.color + '25' : 'rgba(255,255,255,0.06)', borderRadius: 10, padding: '1px 5px', color: active ? tab.color : C.muted }}>
+                      {tab.count}
+                    </span>
+                  )}
+                </button>
+              )
+            })}
           </div>
 
           {/* Filter row */}
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              style={{
-                background: showFilters ? C.goldDim : 'transparent',
-                border: `1px solid ${showFilters ? C.borderGold : C.border}`,
-                borderRadius: 8, padding: '7px 12px',
-                color: showFilters ? C.gold : C.muted,
-                fontSize: 11, fontWeight: 700, cursor: 'pointer',
-                letterSpacing: '0.06em', textTransform: 'uppercase',
-                fontFamily: 'inherit', transition: 'all 0.15s ease',
-              }}
-            >
+            <button onClick={() => setShowFilters(!showFilters)}
+              style={{ background: showFilters ? C.goldDim : 'transparent', border: `1px solid ${showFilters ? C.borderGold : C.border}`, borderRadius: 8, padding: '7px 12px', color: showFilters ? C.gold : C.muted, fontSize: 11, fontWeight: 700, cursor: 'pointer', letterSpacing: '0.06em', textTransform: 'uppercase' as const, fontFamily: 'inherit' }}>
               Date Range {showFilters ? '▲' : '▼'}
             </button>
-
             {hasFilters && (
-              <button
-                onClick={clearFilters}
-                style={{
-                  background: 'none', border: 'none', color: C.muted,
-                  fontSize: 11, cursor: 'pointer', fontFamily: 'inherit',
-                }}
-              >
+              <button onClick={clearFilters} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>
                 Clear ×
               </button>
             )}
-
             <span style={{ marginLeft: 'auto', fontSize: 12, color: C.muted }}>
               {filtered.length} result{filtered.length !== 1 ? 's' : ''}
             </span>
           </div>
 
-          {/* Date inputs */}
           {showFilters && (
-            <div style={{
-              display: 'flex', gap: 10, marginTop: 10,
-              animation: 'slideUp 0.15s ease',
-            }}>
+            <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
               {[
                 { label: 'From', value: dateFrom, set: setDateFrom },
                 { label: 'To',   value: dateTo,   set: setDateTo },
               ].map(({ label, value, set }) => (
                 <div key={label} style={{ flex: 1 }}>
-                  <label style={{
-                    fontSize: 10, color: C.muted, display: 'block', marginBottom: 5,
-                    letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700,
-                  }}>{label}</label>
-                  <input
-                    type="date" value={value}
-                    onChange={e => set(e.target.value)}
-                    style={{
-                      width: '100%', background: C.input,
-                      border: `1px solid ${value ? C.borderGold : C.border}`,
-                      borderRadius: 8, padding: '9px 12px',
-                      color: C.text, fontSize: 13, fontFamily: 'inherit',
-                      colorScheme: 'dark', boxSizing: 'border-box',
-                    }}
-                  />
+                  <label style={{ fontSize: 10, color: C.muted, display: 'block', marginBottom: 5, letterSpacing: '0.1em', textTransform: 'uppercase' as const, fontWeight: 700 }}>{label}</label>
+                  <input type="date" value={value} onChange={e => set(e.target.value)}
+                    style={{ width: '100%', background: C.input, border: `1px solid ${value ? C.borderGold : C.border}`, borderRadius: 8, padding: '9px 12px', color: C.text, fontSize: 13, fontFamily: 'inherit', colorScheme: 'dark' as const, boxSizing: 'border-box' as const }} />
                 </div>
               ))}
             </div>
@@ -267,89 +241,48 @@ export default function HistoryPage() {
         </div>
 
         {/* ── List ── */}
-        <div style={{ paddingBottom: 48, animation: 'fadeUp 0.4s ease' }}>
+        <div style={{ paddingBottom: 48 }}>
 
-          {/* Empty state */}
           {filtered.length === 0 && (
-            <div style={{
-              background: C.card, border: `1px solid ${C.border}`,
-              borderRadius: 14, padding: '52px 20px', textAlign: 'center',
-            }}>
-              <div style={{
-                width: 52, height: 52, borderRadius: '50%',
-                background: C.goldDim, border: `1px solid ${C.borderGold}`,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                margin: '0 auto 14px',
-              }}>
+            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '52px 20px', textAlign: 'center' }}>
+              <div style={{ width: 52, height: 52, borderRadius: '50%', background: C.goldDim, border: `1px solid ${C.borderGold}`, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px' }}>
                 <Music2 size={20} color={C.gold} />
               </div>
               <p style={{ fontSize: 15, fontWeight: 600, color: C.text, margin: '0 0 6px' }}>
                 {hasFilters ? 'No shows match your filters' : 'No past performances yet'}
               </p>
               <p style={{ fontSize: 13, color: C.muted, margin: '0 0 18px' }}>
-                {hasFilters ? 'Try adjusting your search' : 'Completed shows will appear here'}
+                {hasFilters ? 'Try adjusting your search or filters' : 'Completed shows will appear here'}
               </p>
               {!hasFilters && (
-                <button
-                  onClick={() => router.push('/app/show/new')}
-                  style={{
-                    background: C.goldDim, border: `1px solid ${C.borderGold}`,
-                    borderRadius: 10, padding: '10px 20px',
-                    color: C.gold, fontSize: 12, fontWeight: 700,
-                    cursor: 'pointer', letterSpacing: '0.06em',
-                    textTransform: 'uppercase', fontFamily: 'inherit',
-                  }}
-                >
+                <button onClick={() => router.push('/app/show/new')}
+                  style={{ background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 10, padding: '10px 20px', color: C.gold, fontSize: 12, fontWeight: 700, cursor: 'pointer', letterSpacing: '0.06em', textTransform: 'uppercase' as const, fontFamily: 'inherit' }}>
                   Start First Show
                 </button>
               )}
             </div>
           )}
 
-          {/* Rows */}
           {filtered.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {filtered.map((perf, i) => {
-                const status  = STATUS_LABEL[perf.status] || STATUS_LABEL.review
-                const dateStr = perf.started_at || perf.created_at
+                const displayStatus = getDisplayStatus(perf)
+                const dateStr       = perf.started_at || perf.created_at
+                const date          = new Date(dateStr)
 
                 return (
-                  <button
-                    key={perf.id}
-                    onClick={() => navigateTo(perf)}
-                    style={{
-                      background: C.card, border: `1px solid ${C.border}`,
-                      borderRadius: 12, padding: '14px 16px',
-                      cursor: 'pointer', textAlign: 'left',
-                      transition: 'background 0.12s ease, border-color 0.12s ease',
-                      display: 'flex', alignItems: 'center', gap: 12,
-                      fontFamily: 'inherit',
-                      animation: `fadeUp ${0.4 + i * 0.03}s ease`,
-                    }}
-                    onMouseEnter={e => {
-                      const el = e.currentTarget as HTMLElement
-                      el.style.background = C.cardHover
-                      el.style.borderColor = 'rgba(255,255,255,0.11)'
-                    }}
-                    onMouseLeave={e => {
-                      const el = e.currentTarget as HTMLElement
-                      el.style.background = C.card
-                      el.style.borderColor = C.border
-                    }}
-                  >
+                  <button key={perf.id} onClick={() => navigateTo(perf)}
+                    style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: '14px 16px', cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 12, fontFamily: 'inherit', width: '100%', transition: 'background 0.12s ease, border-color 0.12s ease' }}
+                    onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.background = C.cardHover; el.style.borderColor = 'rgba(255,255,255,0.11)' }}
+                    onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.background = C.card; el.style.borderColor = C.border }}>
+
                     {/* Date block */}
                     <div style={{ minWidth: 36, textAlign: 'center', flexShrink: 0 }}>
-                      <p style={{
-                        fontSize: 17, fontWeight: 800, color: C.text, margin: 0,
-                        fontFamily: '"DM Mono", monospace', lineHeight: 1,
-                      }}>
-                        {new Date(dateStr).getDate()}
+                      <p style={{ fontSize: 17, fontWeight: 800, color: C.text, margin: 0, fontFamily: '"DM Mono", monospace', lineHeight: 1 }}>
+                        {date.getDate()}
                       </p>
-                      <p style={{
-                        fontSize: 9, color: C.muted, margin: '2px 0 0',
-                        textTransform: 'uppercase', letterSpacing: '0.08em',
-                      }}>
-                        {new Date(dateStr).toLocaleDateString('en-US', { month: 'short' })}
+                      <p style={{ fontSize: 9, color: C.muted, margin: '2px 0 0', textTransform: 'uppercase' as const, letterSpacing: '0.08em' }}>
+                        {date.toLocaleDateString('en-US', { month: 'short' })}
                       </p>
                     </div>
 
@@ -357,11 +290,7 @@ export default function HistoryPage() {
 
                     {/* Venue + artist */}
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <p style={{
-                        fontSize: 14, fontWeight: 600, color: C.text,
-                        margin: '0 0 2px', whiteSpace: 'nowrap',
-                        overflow: 'hidden', textOverflow: 'ellipsis',
-                      }}>
+                      <p style={{ fontSize: 14, fontWeight: 600, color: C.text, margin: '0 0 2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {perf.venue_name}
                       </p>
                       <p style={{ fontSize: 11, color: C.secondary, margin: 0 }}>
@@ -371,16 +300,9 @@ export default function HistoryPage() {
                       </p>
                     </div>
 
-                    {/* Status */}
-                    <span style={{
-                      fontSize: 9, fontWeight: 700, letterSpacing: '0.1em',
-                      textTransform: 'uppercase', flexShrink: 0,
-                      color: status.color,
-                      background: status.color + '18',
-                      border: `1px solid ${status.color}35`,
-                      borderRadius: 20, padding: '3px 8px',
-                    }}>
-                      {status.label}
+                    {/* Status badge */}
+                    <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, flexShrink: 0, color: displayStatus.color, background: displayStatus.color + '18', border: `1px solid ${displayStatus.color}35`, borderRadius: 20, padding: '3px 8px' }}>
+                      {displayStatus.label}
                     </span>
                   </button>
                 )
