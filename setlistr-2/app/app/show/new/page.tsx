@@ -30,7 +30,6 @@ export default function NewShowPage() {
   const [loading, setLoading]           = useState(false)
   const [error, setError]               = useState('')
 
-  // Venue state
   const [venueQuery, setVenueQuery]         = useState('')
   const [venueId, setVenueId]               = useState<string | null>(null)
   const [venueCity, setVenueCity]           = useState('')
@@ -41,30 +40,28 @@ export default function NewShowPage() {
   const [showDropdown, setShowDropdown]     = useState(false)
   const [venueMemory, setVenueMemory]       = useState<VenueMemory | null>(null)
   const [venueCapacity, setVenueCapacity]   = useState<string>('')
-  const dropdownRef = useRef<HTMLDivElement>(null)
-  const searchTimer = useRef<NodeJS.Timeout | null>(null)
+  const dropdownRef  = useRef<HTMLDivElement>(null)
+  const searchTimer  = useRef<NodeJS.Timeout | null>(null)
 
-  // Reuse state
   const [showReuse, setShowReuse]       = useState(searchParams.get('reuse') === 'true')
   const [pastPerfs, setPastPerfs]       = useState<PastPerformance[]>([])
   const [pastLoading, setPastLoading]   = useState(false)
   const [selectedPast, setSelectedPast] = useState<PastPerformance | null>(null)
   const [cloning, setCloning]           = useState(false)
 
-  // ── LOAD YOUR SET state ──────────────────────────────────────────────────
-  const [setlistOpen, setSetlistOpen]       = useState(false)
-  const [plannedSongs, setPlannedSongs]     = useState<PlannedSong[]>([])
-  const [uploadMode, setUploadMode]         = useState<'chips' | 'upload'>('chips')
-  const [recentSongs, setRecentSongs]       = useState<{ title: string; artist: string }[]>([])
-  const [quickSearch, setQuickSearch]       = useState('')
-  const [uploading, setUploading]           = useState(false)
-  const [uploadError, setUploadError]       = useState('')
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [setlistOpen, setSetlistOpen]   = useState(false)
+  const [plannedSongs, setPlannedSongs] = useState<PlannedSong[]>([])
+  const [uploadMode, setUploadMode]     = useState<'chips' | 'upload'>('chips')
+  const [recentSongs, setRecentSongs]   = useState<{ title: string; artist: string }[]>([])
+  const [quickSearch, setQuickSearch]   = useState('')
+  const [uploading, setUploading]       = useState(false)
+  const [uploadError, setUploadError]   = useState('')
+  const fileInputRef   = useRef<HTMLInputElement>(null)
+  const cameraInputRef = useRef<HTMLInputElement>(null)
 
   const effectiveName = venueQuery.trim() || 'Show'
   const isValid = venueQuery.trim().length > 0
 
-  // Pre-fill artist name
   useEffect(() => {
     const supabase = createClient()
     supabase.auth.getUser().then(({ data: { user } }) => {
@@ -77,7 +74,6 @@ export default function NewShowPage() {
     })
   }, [])
 
-  // Load recent songs for quick-add chips
   useEffect(() => {
     if (!setlistOpen) return
     fetch('/api/recent-songs?limit=20')
@@ -86,7 +82,6 @@ export default function NewShowPage() {
       .catch(() => {})
   }, [setlistOpen])
 
-  // Outside click closes venue dropdown
   useEffect(() => {
     function handleClick(e: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) setShowDropdown(false)
@@ -152,11 +147,8 @@ export default function NewShowPage() {
     return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
   }
 
-  // ── LOAD YOUR SET functions ───────────────────────────────────────────────
-
   function addPlannedSong(title: string, artist: string = '') {
     if (!title.trim()) return
-    // Don't add duplicates
     if (plannedSongs.some(s => s.title.toLowerCase() === title.toLowerCase())) return
     setPlannedSongs(prev => [...prev, { title: title.trim(), artist: artist.trim(), position: prev.length }])
   }
@@ -165,7 +157,6 @@ export default function NewShowPage() {
     setPlannedSongs(prev => prev.filter((_, i) => i !== index).map((s, i) => ({ ...s, position: i })))
   }
 
-  // Load last venue setlist into planned songs
   function loadFromVenueMemory() {
     if (!venueMemory?.songs?.length) return
     setPlannedSongs(venueMemory.songs.map((s, i) => ({ ...s, position: i })))
@@ -181,7 +172,6 @@ export default function NewShowPage() {
       const res = await fetch('/api/parse-setlist', { method: 'POST', body: formData })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Upload failed')
-      // Merge with existing planned songs, avoid duplicates
       const existing = new Set(plannedSongs.map(s => s.title.toLowerCase()))
       const newSongs = (data.songs as PlannedSong[]).filter(s => !existing.has(s.title.toLowerCase()))
       setPlannedSongs(prev => [...prev, ...newSongs.map((s, i) => ({ ...s, position: prev.length + i }))])
@@ -192,12 +182,10 @@ export default function NewShowPage() {
     }
   }
 
-  const filteredRecent = recentSongs.filter(s => {
-    if (!quickSearch.trim()) return true
-    return s.title.toLowerCase().includes(quickSearch.toLowerCase())
-  }).filter(s => !plannedSongs.some(p => p.title.toLowerCase() === s.title.toLowerCase()))
+  const filteredRecent = recentSongs
+    .filter(s => !quickSearch.trim() || s.title.toLowerCase().includes(quickSearch.toLowerCase()))
+    .filter(s => !plannedSongs.some(p => p.title.toLowerCase() === s.title.toLowerCase()))
 
-  // ── Past performances ────────────────────────────────────────────────────
   useEffect(() => {
     if (!showReuse || pastPerfs.length > 0) return
     setPastLoading(true)
@@ -223,37 +211,22 @@ export default function NewShowPage() {
     loadPast()
   }, [showReuse])
 
-  // ── Save planned setlist & create performance ─────────────────────────────
   async function savePlannedSetlist(performanceId: string, userId: string, resolvedVenueId: string | null) {
     if (plannedSongs.length === 0) return
     const supabase = createClient()
     const { data: ps } = await supabase.from('planned_setlists').insert({
-      user_id: userId,
-      performance_id: performanceId,
-      venue_id: resolvedVenueId,
-      venue_name: venueQuery.trim(),
+      user_id: userId, performance_id: performanceId,
+      venue_id: resolvedVenueId, venue_name: venueQuery.trim(),
       date: new Date().toISOString().split('T')[0],
     }).select().single()
     if (!ps) return
-
     await supabase.from('planned_setlist_songs').insert(
-      plannedSongs.map((s, i) => ({
-        planned_setlist_id: ps.id,
-        title: s.title,
-        artist: s.artist,
-        position: i,
-      }))
+      plannedSongs.map((s, i) => ({ planned_setlist_id: ps.id, title: s.title, artist: s.artist, position: i }))
     )
-
-    // Pre-populate performance_songs with planned songs (was_planned = true)
     await supabase.from('performance_songs').insert(
       plannedSongs.map((s, i) => ({
-        performance_id: performanceId,
-        title: s.title,
-        artist: s.artist,
-        position: i,
-        was_planned: true,
-        source: 'planned',
+        performance_id: performanceId, title: s.title, artist: s.artist,
+        position: i, was_planned: true, source: 'planned',
       }))
     )
   }
@@ -265,49 +238,33 @@ export default function NewShowPage() {
       const supabase = createClient()
       const { data: { user }, error: userError } = await supabase.auth.getUser()
       if (userError || !user) throw new Error('Not authenticated: ' + userError?.message)
-
       let resolvedVenueId = venueId
       if (!resolvedVenueId && venueQuery.trim()) {
         const capacityMap: Record<string, number> = { small: 150, medium: 500, large: 2000, festival: 10000 }
         const { data: nv, error: venueError } = await supabase.from('venues').insert({
-          name: venueQuery.trim(),
-          city: venueCity.trim() || null,
+          name: venueQuery.trim(), city: venueCity.trim() || null,
           country: venueCountry.trim() || null,
           capacity: venueCapacity ? capacityMap[venueCapacity] : null
         }).select().single()
         if (venueError) throw new Error('Venue insert failed: ' + venueError.message)
         if (nv) resolvedVenueId = nv.id
       }
-
       const scheduledIso = showSchedule && scheduledAt ? new Date(scheduledAt).toISOString() : null
-
       const { data: show, error: showError } = await supabase.from('shows').insert({
         name: effectiveName, show_type: showType, scheduled_at: scheduledIso,
         started_at: new Date().toISOString(), status: 'live', created_by: user.id,
       }).select().single()
       if (showError) throw new Error('Show insert failed: ' + showError.message)
-
       const { data: performance, error: perfError } = await supabase.from('performances').insert({
-        show_id: show.id,
-        performance_date: scheduledIso || new Date().toISOString(),
+        show_id: show.id, performance_date: scheduledIso || new Date().toISOString(),
         artist_name: artistName.trim() || venueQuery.trim(),
-        venue_name: venueQuery.trim(),
-        venue_id: resolvedVenueId || null,
-        city: venueCity.trim() || null,
-        country: venueCountry.trim() || null,
-        status: 'live',
-        set_duration_minutes: 60,
-        auto_close_buffer_minutes: 5,
-        started_at: new Date().toISOString(),
-        user_id: user.id,
+        venue_name: venueQuery.trim(), venue_id: resolvedVenueId || null,
+        city: venueCity.trim() || null, country: venueCountry.trim() || null,
+        status: 'live', set_duration_minutes: 60, auto_close_buffer_minutes: 5,
+        started_at: new Date().toISOString(), user_id: user.id,
       }).select().single()
       if (perfError) throw new Error('Performance insert failed: ' + perfError.message)
-
-      // Save planned setlist if any songs were added
-      if (plannedSongs.length > 0) {
-        await savePlannedSetlist(performance.id, user.id, resolvedVenueId)
-      }
-
+      if (plannedSongs.length > 0) await savePlannedSetlist(performance.id, user.id, resolvedVenueId)
       router.push(`/app/live/${performance.id}`)
     } catch (err: any) {
       alert('DEBUG: ' + err?.message)
@@ -382,14 +339,12 @@ export default function NewShowPage() {
 
         <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '24px', display: 'flex', flexDirection: 'column', gap: 20, marginBottom: 16 }}>
 
-          {/* Artist name */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <label style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' as const, color: C.muted }}>Your Artist Name</label>
             <input type="text" value={artistName} onChange={e => setArtistName(e.target.value)} placeholder="Your artist name"
               style={{ background: C.input, border: `1px solid ${artistName.trim() ? C.borderGold : C.border}`, borderRadius: 10, padding: '13px 14px', color: C.text, fontSize: 15, fontFamily: 'inherit', width: '100%', outline: 'none' }} />
           </div>
 
-          {/* Venue */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, position: 'relative' }} ref={dropdownRef}>
             <label style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' as const, color: C.muted, display: 'flex', alignItems: 'center', gap: 5 }}>
               <MapPin size={10} />Venue
@@ -408,7 +363,6 @@ export default function NewShowPage() {
               </div>
             </div>
 
-            {/* Venue memory */}
             {venueMemory && (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '9px 12px', background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 8 }}>
                 <p style={{ fontSize: 12, color: C.gold, margin: 0, lineHeight: 1.4 }}>
@@ -423,7 +377,6 @@ export default function NewShowPage() {
               </div>
             )}
 
-            {/* FIX 1: preventDefault stops blur before click */}
             {showDropdown && venueResults.length > 0 && (
               <div onMouseDown={e => e.preventDefault()}
                 style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#1a1816', border: `1px solid ${C.borderGold}`, borderRadius: 10, marginTop: 4, zIndex: 50, overflow: 'hidden', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
@@ -449,7 +402,6 @@ export default function NewShowPage() {
               </div>
             )}
 
-            {/* FIX 2: capacity only shows when dropdown is gone */}
             {venueQuery.trim().length >= 2 && !venueSelected && !venueSearching && !showDropdown && (
               <div style={{ marginTop: 8 }}>
                 <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, color: C.muted, margin: '0 0 6px' }}>Venue size <span style={{ fontWeight: 400, textTransform: 'none' as const, letterSpacing: 0 }}>(helps estimate royalties)</span></p>
@@ -472,7 +424,6 @@ export default function NewShowPage() {
             )}
           </div>
 
-          {/* Writer's round toggle */}
           <button type="button" onClick={() => setShowType(showType === 'single' ? 'writers_round' : 'single')}
             style={{ display: 'flex', alignItems: 'center', gap: 8, background: showType === 'writers_round' ? C.goldDim : 'transparent', border: `1px solid ${showType === 'writers_round' ? C.borderGold : 'rgba(255,255,255,0.06)'}`, borderRadius: 10, padding: '10px 14px', cursor: 'pointer', fontFamily: 'inherit', width: '100%' }}>
             <span style={{ fontSize: 14, color: showType === 'writers_round' ? C.gold : C.muted }}>{showType === 'writers_round' ? '✓' : '○'}</span>
@@ -482,7 +433,6 @@ export default function NewShowPage() {
             </div>
           </button>
 
-          {/* Schedule */}
           {showSchedule && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               <label style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' as const, color: C.muted, display: 'flex', alignItems: 'center', gap: 5 }}>
@@ -494,32 +444,24 @@ export default function NewShowPage() {
           )}
         </div>
 
-        {/* ══════════════════════════════════════════════════════════════════
-            LOAD YOUR SET
-        ══════════════════════════════════════════════════════════════════ */}
+        {/* ── LOAD YOUR SET ── */}
         <div style={{ background: C.card, border: `1px solid ${setlistOpen ? C.borderGold : C.border}`, borderRadius: 16, marginBottom: 16, overflow: 'hidden', transition: 'border-color 0.2s ease' }}>
-
-          {/* Header toggle */}
           <button onClick={() => setSetlistOpen(v => !v)}
             style={{ width: '100%', padding: '16px 20px', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontFamily: 'inherit' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{ width: 28, height: 28, borderRadius: 8, background: setlistOpen ? C.goldDim : 'rgba(255,255,255,0.04)', border: `1px solid ${setlistOpen ? C.borderGold : C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s ease' }}>
+              <div style={{ width: 28, height: 28, borderRadius: 8, background: setlistOpen ? C.goldDim : 'rgba(255,255,255,0.04)', border: `1px solid ${setlistOpen ? C.borderGold : C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <Music4 size={13} color={setlistOpen ? C.gold : C.muted} />
               </div>
               <div style={{ textAlign: 'left' }}>
                 <p style={{ fontSize: 14, fontWeight: 700, color: setlistOpen ? C.gold : C.text, margin: 0 }}>Load Your Set</p>
                 <p style={{ fontSize: 11, color: C.muted, margin: '1px 0 0' }}>
-                  {plannedSongs.length > 0
-                    ? `${plannedSongs.length} songs loaded · auto-confirms during capture`
-                    : 'Optional · speeds up post-show review'}
+                  {plannedSongs.length > 0 ? `${plannedSongs.length} songs loaded · auto-confirms during capture` : 'Optional · speeds up post-show review'}
                 </p>
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               {plannedSongs.length > 0 && (
-                <span style={{ fontSize: 11, fontWeight: 700, color: C.gold, background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 20, padding: '2px 8px' }}>
-                  {plannedSongs.length}
-                </span>
+                <span style={{ fontSize: 11, fontWeight: 700, color: C.gold, background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 20, padding: '2px 8px' }}>{plannedSongs.length}</span>
               )}
               {setlistOpen ? <ChevronUp size={15} color={C.muted} /> : <ChevronDown size={15} color={C.muted} />}
             </div>
@@ -527,49 +469,38 @@ export default function NewShowPage() {
 
           {setlistOpen && (
             <div style={{ padding: '0 16px 20px', borderTop: `1px solid ${C.border}` }}>
-
-              {/* Mode tabs */}
-              <div style={{ display: 'flex', gap: 6, margin: '14px 0 14px' }}>
+              <div style={{ display: 'flex', gap: 6, margin: '14px 0' }}>
                 {([
                   { key: 'chips', label: '⚡ Quick Add' },
                   { key: 'upload', label: '📸 Upload Setlist' },
                 ] as const).map(tab => (
                   <button key={tab.key} onClick={() => setUploadMode(tab.key)}
-                    style={{ flex: 1, padding: '9px 12px', background: uploadMode === tab.key ? C.goldDim : 'transparent', border: `1px solid ${uploadMode === tab.key ? C.borderGold : C.border}`, borderRadius: 10, color: uploadMode === tab.key ? C.gold : C.muted, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s ease' }}>
+                    style={{ flex: 1, padding: '9px 12px', background: uploadMode === tab.key ? C.goldDim : 'transparent', border: `1px solid ${uploadMode === tab.key ? C.borderGold : C.border}`, borderRadius: 10, color: uploadMode === tab.key ? C.gold : C.muted, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
                     {tab.label}
                   </button>
                 ))}
               </div>
 
-              {/* ── Quick Add mode ── */}
+              {/* Quick Add */}
               {uploadMode === 'chips' && (
                 <div>
-                  {/* Search */}
                   <div style={{ position: 'relative', marginBottom: 10 }}>
                     <Search size={12} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: C.muted, pointerEvents: 'none' }} />
-                    <input
-                      value={quickSearch}
-                      onChange={e => setQuickSearch(e.target.value)}
-                      placeholder="Search your songs..."
-                      style={{ width: '100%', background: C.input, border: `1px solid ${C.border}`, borderRadius: 8, padding: '9px 12px 9px 30px', color: C.text, fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' as const }}
-                    />
+                    <input value={quickSearch} onChange={e => setQuickSearch(e.target.value)} placeholder="Search your songs..."
+                      style={{ width: '100%', background: C.input, border: `1px solid ${C.border}`, borderRadius: 8, padding: '9px 12px 9px 30px', color: C.text, fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' as const }} />
                   </div>
-
-                  {/* Song chips */}
                   {filteredRecent.length > 0 && (
                     <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: 6, marginBottom: 12 }}>
                       {filteredRecent.slice(0, 20).map((song, i) => (
                         <button key={i} onClick={() => addPlannedSong(song.title, song.artist)}
-                          style={{ padding: '6px 12px', background: 'rgba(255,255,255,0.04)', border: `1px solid ${C.border}`, borderRadius: 20, color: C.secondary, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 5, transition: 'all 0.15s ease' }}
+                          style={{ padding: '6px 12px', background: 'rgba(255,255,255,0.04)', border: `1px solid ${C.border}`, borderRadius: 20, color: C.secondary, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 5 }}
                           onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = C.goldDim; (e.currentTarget as HTMLElement).style.borderColor = C.borderGold; (e.currentTarget as HTMLElement).style.color = C.gold }}
                           onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.04)'; (e.currentTarget as HTMLElement).style.borderColor = C.border; (e.currentTarget as HTMLElement).style.color = C.secondary }}>
-                          <Plus size={10} />
-                          {song.title}
+                          <Plus size={10} />{song.title}
                         </button>
                       ))}
                     </div>
                   )}
-
                   {filteredRecent.length === 0 && quickSearch && (
                     <div style={{ marginBottom: 12 }}>
                       <button onClick={() => { addPlannedSong(quickSearch); setQuickSearch('') }}
@@ -578,50 +509,43 @@ export default function NewShowPage() {
                       </button>
                     </div>
                   )}
-
                   {recentSongs.length === 0 && !quickSearch && (
-                    <p style={{ fontSize: 12, color: C.muted, margin: '0 0 12px', fontStyle: 'italic' }}>
-                      No recent songs yet — type a song name above or use Upload Setlist
-                    </p>
+                    <p style={{ fontSize: 12, color: C.muted, margin: '0 0 12px', fontStyle: 'italic' }}>No recent songs yet — type a song name above or use Upload Setlist</p>
                   )}
                 </div>
               )}
 
-              {/* ── Upload mode ── */}
+              {/* Upload — two buttons: camera + file picker */}
               {uploadMode === 'upload' && (
                 <div style={{ marginBottom: 12 }}>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    style={{ display: 'none' }}
-                    onChange={e => {
-                      const file = e.target.files?.[0]
-                      if (file) handleFileUpload(file)
-                      e.target.value = ''
-                    }}
-                  />
+                  {/* Camera input — opens camera directly, avoids HEIC/picker issues */}
+                  <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }}
+                    onChange={e => { const f = e.target.files?.[0]; if (f) handleFileUpload(f); e.target.value = '' }} />
+                  {/* File input — for screenshots, PDFs, text files */}
+                  <input ref={fileInputRef} type="file" style={{ display: 'none' }}
+                    onChange={e => { const f = e.target.files?.[0]; if (f) handleFileUpload(f); e.target.value = '' }} />
 
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={uploading}
-                    style={{ width: '100%', padding: '20px', background: uploading ? C.goldDim : 'rgba(255,255,255,0.02)', border: `2px dashed ${uploading ? C.borderGold : C.border}`, borderRadius: 12, cursor: uploading ? 'default' : 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, transition: 'all 0.15s ease' }}
-                    onMouseEnter={e => { if (!uploading) (e.currentTarget as HTMLElement).style.borderColor = C.borderGold }}
-                    onMouseLeave={e => { if (!uploading) (e.currentTarget as HTMLElement).style.borderColor = C.border }}>
-                    {uploading ? (
-                      <>
-                        <div style={{ width: 20, height: 20, borderRadius: '50%', border: `2px solid ${C.muted}`, borderTopColor: C.gold, animation: 'spin 0.7s linear infinite' }} />
-                        <span style={{ fontSize: 13, color: C.gold, fontWeight: 600 }}>Reading your setlist...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Upload size={22} color={C.muted} />
-                        <span style={{ fontSize: 13, fontWeight: 700, color: C.secondary }}>Photo, PDF, or text file</span>
-                        <span style={{ fontSize: 11, color: C.muted, textAlign: 'center' as const, lineHeight: 1.4 }}>
-                          Take a photo of your paper setlist, upload a doc, or screenshot your Notes app
-                        </span>
-                      </>
-                    )}
-                  </button>
+                  <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                    <button onClick={() => cameraInputRef.current?.click()} disabled={uploading}
+                      style={{ flex: 1, padding: '18px 12px', background: 'rgba(255,255,255,0.02)', border: `1px solid ${C.border}`, borderRadius: 12, cursor: uploading ? 'default' : 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+                      <span style={{ fontSize: 24 }}>📷</span>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: C.secondary }}>Take Photo</span>
+                      <span style={{ fontSize: 10, color: C.muted }}>Point at paper setlist</span>
+                    </button>
+                    <button onClick={() => fileInputRef.current?.click()} disabled={uploading}
+                      style={{ flex: 1, padding: '18px 12px', background: 'rgba(255,255,255,0.02)', border: `1px solid ${C.border}`, borderRadius: 12, cursor: uploading ? 'default' : 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+                      <span style={{ fontSize: 24 }}>📁</span>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: C.secondary }}>Choose File</span>
+                      <span style={{ fontSize: 10, color: C.muted }}>Screenshot, PDF, notes</span>
+                    </button>
+                  </div>
+
+                  {uploading && (
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, padding: '14px', background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 10 }}>
+                      <div style={{ width: 16, height: 16, borderRadius: '50%', border: `2px solid ${C.muted}`, borderTopColor: C.gold, animation: 'spin 0.7s linear infinite' }} />
+                      <span style={{ fontSize: 13, color: C.gold, fontWeight: 600 }}>Reading your setlist...</span>
+                    </div>
+                  )}
 
                   {uploadError && (
                     <div style={{ marginTop: 8, padding: '10px 12px', background: C.redDim, border: '1px solid rgba(248,113,113,0.2)', borderRadius: 8 }}>
@@ -631,7 +555,7 @@ export default function NewShowPage() {
                 </div>
               )}
 
-              {/* ── Loaded songs list ── */}
+              {/* Loaded songs */}
               {plannedSongs.length > 0 && (
                 <div>
                   <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, color: C.muted, margin: '4px 0 8px' }}>
@@ -652,7 +576,6 @@ export default function NewShowPage() {
                       </div>
                     ))}
                   </div>
-
                   <div style={{ marginTop: 10, padding: '10px 12px', background: C.greenDim, border: '1px solid rgba(74,222,128,0.2)', borderRadius: 8 }}>
                     <p style={{ fontSize: 12, color: C.green, margin: 0, lineHeight: 1.4 }}>
                       ✓ Songs will auto-confirm during detection · Review shows planned vs played
@@ -664,14 +587,12 @@ export default function NewShowPage() {
           )}
         </div>
 
-        {/* Error */}
         {error && (
           <div style={{ background: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.2)', borderRadius: 10, padding: '12px 14px', marginBottom: 14 }}>
             <p style={{ fontSize: 13, color: '#f87171', margin: 0 }}>{error}</p>
           </div>
         )}
 
-        {/* Start button */}
         {!showReuse && (
           <button onClick={handleSubmit} disabled={!isValid || loading}
             style={{ width: '100%', padding: '15px', background: isValid ? C.gold : C.muted, border: 'none', borderRadius: 12, color: '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' as const, cursor: isValid && !loading ? 'pointer' : 'not-allowed', opacity: loading ? 0.7 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit' }}>
@@ -681,13 +602,11 @@ export default function NewShowPage() {
           </button>
         )}
 
-        {/* Reuse button */}
         <button onClick={() => { setShowReuse(v => !v); setSelectedPast(null) }}
           style={{ width: '100%', padding: '11px 16px', background: showReuse ? C.goldDim : 'transparent', border: `1px solid ${showReuse ? C.borderGold : C.border}`, borderRadius: 10, color: showReuse ? C.gold : C.muted, fontSize: 12, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' as const, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit', marginTop: showReuse ? 0 : 10 }}>
           <RefreshCw size={12} />{showReuse ? 'Cancel' : 'Reuse a Previous Setlist'}
         </button>
 
-        {/* Reuse list */}
         {showReuse && (
           <div style={{ marginTop: 10 }}>
             {pastLoading ? (
