@@ -67,7 +67,7 @@ export default function TermsPage() {
 
         <Section title="1. Who We Are">
           <P>Setlistr is a live performance tracking and royalty submission platform designed to help performing songwriters capture setlists and submit them to Performing Rights Organizations (PROs) such as SOCAN, ASCAP, BMI, PRS for Music, and APRA AMCOS.</P>
-          <P>Setlistr is operated by Jesse Slack (doing business as Setlistr). For questions about these Terms, contact us at <a href="mailto:hello@setlistr.ai" style={{ color: C.gold }}>hello@setlistr.ai</a>.</P>
+          <P>Setlistr is operated by Jesse Slack (doing business as Setlistr). For questions about these Terms, contact us at <a href="mailto:info@setlistr.ai" style={{ color: C.gold }}>info@setlistr.ai</a>.</P>
         </Section>
 
         <Section title="2. Eligibility">
@@ -75,7 +75,7 @@ export default function TermsPage() {
         </Section>
 
         <Section title="3. Your Account">
-          <P>You are responsible for maintaining the confidentiality of your account credentials and for all activity that occurs under your account. Notify us immediately at <a href="mailto:hello@setlistr.ai" style={{ color: C.gold }}>hello@setlistr.ai</a> if you suspect unauthorized access.</P>
+          <P>You are responsible for maintaining the confidentiality of your account credentials and for all activity that occurs under your account. Notify us immediately at <a href="mailto:info@setlistr.ai" style={{ color: C.gold }}>info@setlistr.ai</a> if you suspect unauthorized access.</P>
           <P>You must provide accurate, complete information when creating your account. We reserve the right to suspend or terminate accounts that contain false information or violate these Terms.</P>
         </Section>
 
@@ -151,7 +151,7 @@ export default function TermsPage() {
         </Section>
 
         <Section title="16. Contact">
-          <P>For questions about these Terms, contact us at <a href="mailto:hello@setlistr.ai" style={{ color: C.gold }}>hello@setlistr.ai</a>.</P>
+          <P>For questions about these Terms, contact us at <a href="mailto:info@setlistr.ai" style={{ color: C.gold }}>info@setlistr.ai</a>.</P>
         </Section>
 
         {/* Footer links */}
