@@ -194,7 +194,7 @@ export default function PrivacyPage() {
               <li key={item} style={{ marginBottom: 6, color: C.secondary }}>{item}</li>
             ))}
           </ul>
-          <P>To exercise any of these rights, email us at <a href="mailto:hello@setlistr.ai" style={{ color: C.gold }}>hello@setlistr.ai</a>. We will respond within 30 days.</P>
+          <P>To exercise any of these rights, email us at <a href="mailto:info@setlistr.ai" style={{ color: C.gold }}>info@setlistr.ai</a>. We will respond within 30 days.</P>
           <P>You can delete your account at any time from Settings → Account → Delete Account. Deletion removes all your personal data from our systems within 30 days, except where retention is required by law.</P>
         </Section>
 
@@ -204,7 +204,7 @@ export default function PrivacyPage() {
         </Section>
 
         <Section title="9. Children's Privacy">
-          <P>Setlistr is not directed at children under the age of 13. We do not knowingly collect personal information from children under 13. If you believe a child has provided us with personal information, contact us at <a href="mailto:hello@setlistr.ai" style={{ color: C.gold }}>hello@setlistr.ai</a> and we will delete it promptly.</P>
+          <P>Setlistr is not directed at children under the age of 13. We do not knowingly collect personal information from children under 13. If you believe a child has provided us with personal information, contact us at <a href="mailto:info@setlistr.ai" style={{ color: C.gold }}>info@setlistr.ai</a> and we will delete it promptly.</P>
         </Section>
 
         <Section title="10. Changes to This Policy">
@@ -214,7 +214,7 @@ export default function PrivacyPage() {
         <Section title="11. Contact">
           <P>
             For privacy questions or to exercise your rights:<br />
-            Email: <a href="mailto:hello@setlistr.ai" style={{ color: C.gold }}>hello@setlistr.ai</a><br />
+            Email: <a href="mailto:info@setlistr.ai" style={{ color: C.gold }}>info@setlistr.ai</a><br />
             Response time: within 30 days
           </P>
         </Section>
