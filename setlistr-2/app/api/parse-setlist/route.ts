@@ -18,26 +18,34 @@ export async function POST(req: NextRequest) {
     const base64 = Buffer.from(bytes).toString('base64')
     const mimeType = file.type as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp'
 
-    // Validate file type
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/heic', 'image/heif']
-    const isImage = allowedTypes.includes(file.type) || file.type.startsWith('image/')
-    const isPDF = file.type === 'application/pdf'
+    // Detect HEIC — Claude vision doesn't support it
+    const fileName = (file.name || '').toLowerCase()
+    const isHEIC = file.type === 'image/heic' || file.type === 'image/heif'
+      || fileName.endsWith('.heic') || fileName.endsWith('.heif')
+
+    if (isHEIC) {
+      return NextResponse.json({
+        error: "iPhone HEIC photos aren't supported. Take a screenshot instead (press Side button + Volume Up), then upload that.",
+      }, { status: 400 })
+    }
+
+    const isImage = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(file.type)
+      || (file.type.startsWith('image/') && !isHEIC)
+    const isPDF  = file.type === 'application/pdf'
     const isText = file.type === 'text/plain'
 
     if (!isImage && !isPDF && !isText) {
-      return NextResponse.json({ 
-        error: 'Unsupported file type. Please upload an image (JPG, PNG), PDF, or text file.' 
+      return NextResponse.json({
+        error: 'Unsupported file type. Upload a JPG, PNG, screenshot, PDF, or text file.',
       }, { status: 400 })
     }
 
     let songs: { title: string; artist?: string }[] = []
 
     if (isText) {
-      // Plain text — parse directly without Claude
       const text = Buffer.from(bytes).toString('utf-8')
       songs = parseTextSetlist(text)
     } else {
-      // Image or PDF — use Claude vision
       const mediaType = isPDF ? 'application/pdf' : (mimeType || 'image/jpeg')
 
       const response = await anthropic.messages.create({
@@ -78,20 +86,18 @@ Rules:
       })
 
       const raw = response.content[0].type === 'text' ? response.content[0].text : ''
-      
+
       try {
-        // Strip any markdown code fences if present
         const cleaned = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
         songs = JSON.parse(cleaned)
         if (!Array.isArray(songs)) throw new Error('Not an array')
       } catch {
-        return NextResponse.json({ 
-          error: 'Could not parse the setlist from this image. Try a clearer photo or type the songs manually.' 
+        return NextResponse.json({
+          error: 'Could not read the setlist from this image. Try a clearer photo or type songs manually.',
         }, { status: 422 })
       }
     }
 
-    // Sanitize
     const sanitized = songs
       .filter(s => s.title && s.title.trim().length > 0)
       .map((s, i) => ({
@@ -99,11 +105,11 @@ Rules:
         artist: (s.artist || '').trim(),
         position: i,
       }))
-      .slice(0, 40) // hard cap — no setlist has 40 songs
+      .slice(0, 40)
 
     if (sanitized.length === 0) {
-      return NextResponse.json({ 
-        error: 'No songs found. Try a clearer photo or type the songs manually.' 
+      return NextResponse.json({
+        error: 'No songs found. Try a clearer photo or type songs manually.',
       }, { status: 422 })
     }
 
@@ -111,13 +117,12 @@ Rules:
 
   } catch (err: any) {
     console.error('Parse setlist error:', err)
-    return NextResponse.json({ 
-      error: 'Something went wrong. Please try again or add songs manually.' 
+    return NextResponse.json({
+      error: 'Something went wrong. Please try again or add songs manually.',
     }, { status: 500 })
   }
 }
 
-// Simple line-by-line parser for plain text files
 function parseTextSetlist(text: string): { title: string; artist?: string }[] {
   return text
     .split('\n')
@@ -125,14 +130,11 @@ function parseTextSetlist(text: string): { title: string; artist?: string }[] {
     .filter(line => line.length > 0)
     .filter(line => !/^(set\s*\d|encore|intro|outro|break)/i.test(line))
     .map(line => {
-      // Strip leading numbers: "1. " "1) " "1 - "
       const stripped = line.replace(/^\d+[\.\)\-\s]+/, '').trim()
-      // Strip trailing timing: "(3:45)"
       const noTiming = stripped.replace(/\s*\(\d+:\d+\)\s*$/, '').trim()
-      // Try to split "Title - Artist" or "Title by Artist"
-      const byMatch = noTiming.match(/^(.+?)\s+by\s+(.+)$/i)
+      const byMatch   = noTiming.match(/^(.+?)\s+by\s+(.+)$/i)
       const dashMatch = noTiming.match(/^(.+?)\s+-\s+(.+)$/)
-      if (byMatch) return { title: byMatch[1].trim(), artist: byMatch[2].trim() }
+      if (byMatch)   return { title: byMatch[1].trim(),   artist: byMatch[2].trim() }
       if (dashMatch) return { title: dashMatch[1].trim(), artist: dashMatch[2].trim() }
       return { title: noTiming, artist: '' }
     })
