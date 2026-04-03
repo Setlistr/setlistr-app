@@ -67,13 +67,14 @@ export default function GetPaidPage() {
 
         {/* ── Hero ── */}
         <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', paddingTop: 72, paddingBottom: 56, overflow: 'hidden' }}>
-          {/* Large watermark logo behind headline */}
+          {/* Watermark */}
           <div style={{ position: 'absolute', top: 40, left: '50%', transform: 'translateX(-50%)', opacity: 0.035, pointerEvents: 'none', whiteSpace: 'nowrap' }}>
             <Image src="/logo-white.png" alt="" width={400} height={105} style={{ objectFit: 'contain' }} />
           </div>
 
+          {/* ── FIX: headline space bug — using a space between words ── */}
           <h1 style={{ fontSize: 'clamp(36px, 10vw, 52px)', fontWeight: 800, color: C.text, margin: '0 0 8px', letterSpacing: '-0.04em', lineHeight: 1.05, position: 'relative' }}>
-            You played that<br />song live.
+            You played that song live.
           </h1>
           <h2 style={{ fontSize: 'clamp(36px, 10vw, 52px)', fontWeight: 800, color: C.gold, margin: '0 0 20px', letterSpacing: '-0.04em', lineHeight: 1.05, position: 'relative' }}>
             Did you get paid?
@@ -83,7 +84,7 @@ export default function GetPaidPage() {
             Most live performances never get reported to PROs. Songwriters leave real money behind — every single show.
           </p>
 
-          <button onClick={() => router.push('/start')}
+          <button onClick={() => router.push('/app/show/new')}
             style={{ width: '100%', padding: '18px 24px', background: C.gold, border: 'none', borderRadius: 14, color: '#0a0908', fontSize: 15, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' as const, cursor: 'pointer', fontFamily: 'inherit', marginBottom: 12 }}
             onMouseEnter={e => (e.currentTarget.style.opacity = '0.88')}
             onMouseLeave={e => (e.currentTarget.style.opacity = '1')}>
@@ -93,7 +94,7 @@ export default function GetPaidPage() {
             No account needed · Takes 30 seconds
           </p>
 
-          <div style={{ display: 'flex', gap: 20, alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: 20, alignItems: 'center', flexWrap: 'wrap' as const, justifyContent: 'center' }}>
             {['SOCAN', 'ASCAP', 'BMI', 'PRS', 'APRA'].map(pro => (
               <span key={pro} style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.15em', color: 'rgba(160,144,112,0.4)', textTransform: 'uppercase' as const }}>{pro}</span>
             ))}
@@ -130,9 +131,10 @@ export default function GetPaidPage() {
 
         {/* ── Bottom CTA ── */}
         <div style={{ marginTop: 36, padding: '28px 24px', background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 16, textAlign: 'center' }}>
+          <Image src="/logo-white.png" alt="Setlistr" width={110} height={29} style={{ objectFit: 'contain', marginBottom: 14, opacity: 0.8 }} />
           <p style={{ fontSize: 17, fontWeight: 800, color: C.text, margin: '0 0 8px', letterSpacing: '-0.02em' }}>Ready to stop leaving money on stage?</p>
-          <p style={{ fontSize: 13, color: C.secondary, margin: '0 0 20px', lineHeight: 1.5 }}>Setlistr automatically captures your setlist during the show.</p>
-          <button onClick={() => router.push('/start')}
+          <p style={{ fontSize: 13, color: C.secondary, margin: '0 0 20px', lineHeight: 1.5 }}>Setlistr automatically captures your setlist during the show. Free to start.</p>
+          <button onClick={() => router.push('/app/show/new')}
             style={{ width: '100%', padding: '15px', background: C.gold, border: 'none', borderRadius: 12, color: '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' as const, cursor: 'pointer', fontFamily: 'inherit' }}>
             Start Free →
           </button>
@@ -141,12 +143,15 @@ export default function GetPaidPage() {
 
       {/* ── Footer ── */}
       <footer style={{ borderTop: `1px solid ${C.border}`, padding: '36px 20px', maxWidth: 480, margin: '0 auto' }}>
+
         <div style={{ marginBottom: 20 }}>
           <Link href="/" style={{ textDecoration: 'none' }}>
             <Image src="/logo-white.png" alt="Setlistr" width={100} height={26} style={{ objectFit: 'contain', opacity: 0.6 }} />
           </Link>
         </div>
-        <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: 6, marginBottom: 20 }}>
+
+        {/* Internal links */}
+        <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: 6, marginBottom: 24 }}>
           {[
             { href: '/get-paid-for-live-shows', label: 'How to Get Paid' },
             { href: '/unclaimed-music-royalties', label: 'Unclaimed Royalties' },
@@ -156,9 +161,39 @@ export default function GetPaidPage() {
             <Link key={href} href={href} style={{ textDecoration: 'none', fontSize: 12, color: C.muted, background: 'rgba(255,255,255,0.03)', border: `1px solid ${C.border}`, borderRadius: 6, padding: '5px 10px' }}>{label}</Link>
           ))}
         </div>
-        <p style={{ fontSize: 11, color: C.muted, margin: 0, lineHeight: 1.6 }}>
-          © {new Date().getFullYear()} Setlistr · Live performance tracking and royalty submission.<br />
-          <span style={{ opacity: 0.6 }}>Works with SOCAN, ASCAP, BMI, PRS, APRA and all major PROs.</span>
+
+        {/* Contact */}
+        <p style={{ fontSize: 12, color: C.muted, margin: '0 0 20px' }}>
+          Questions? <a href="mailto:hello@setlistr.ai" style={{ color: C.gold, textDecoration: 'none' }}>hello@setlistr.ai</a>
+        </p>
+
+        {/* Legal disclaimer */}
+        <div style={{ paddingTop: 20, borderTop: `1px solid rgba(255,255,255,0.04)`, marginBottom: 16 }}>
+          <p style={{ fontSize: 11, color: 'rgba(138,122,104,0.6)', margin: '0 0 8px', lineHeight: 1.6 }}>
+            <strong style={{ color: 'rgba(138,122,104,0.8)' }}>Disclaimer:</strong>{' '}
+            Royalty estimates are for informational purposes only and are based on publicly available PRO tariff data.
+            Actual payments vary based on venue license status, PRO distribution rules, song registration, writer splits,
+            and other factors outside Setlistr's control. Setlistr is not a licensed financial or legal advisor.
+            Always verify rates directly with your PRO.
+          </p>
+          <p style={{ fontSize: 11, color: 'rgba(138,122,104,0.5)', margin: '0 0 8px', lineHeight: 1.6 }}>
+            Setlistr is not affiliated with, endorsed by, or connected to SOCAN, ASCAP, BMI, SESAC, GMR,
+            PRS for Music, APRA AMCOS, or any Performing Rights Organization. All PRO names are trademarks
+            of their respective owners.
+          </p>
+          <p style={{ fontSize: 11, color: 'rgba(138,122,104,0.5)', margin: 0, lineHeight: 1.6 }}>
+            This site uses essential cookies for authentication only. No advertising or tracking cookies.{' '}
+            By using this site you agree to our{' '}
+            <Link href="/terms" style={{ color: 'rgba(201,168,76,0.5)', textDecoration: 'none' }}>Terms of Service</Link>
+            {' '}and{' '}
+            <Link href="/privacy" style={{ color: 'rgba(201,168,76,0.5)', textDecoration: 'none' }}>Privacy Policy</Link>.
+          </p>
+        </div>
+
+        {/* Copyright */}
+        <p style={{ fontSize: 11, color: 'rgba(138,122,104,0.4)', margin: 0, lineHeight: 1.6 }}>
+          © {new Date().getFullYear()} Setlistr · Live performance tracking and royalty submission for songwriters.<br />
+          <span style={{ opacity: 0.7 }}>Works with SOCAN, ASCAP, BMI, PRS, APRA and all major PROs.</span>
         </p>
       </footer>
 
