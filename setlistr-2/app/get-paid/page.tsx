@@ -164,7 +164,7 @@ export default function GetPaidPage() {
 
         {/* Contact */}
         <p style={{ fontSize: 12, color: C.muted, margin: '0 0 20px' }}>
-          Questions? <a href="mailto:hello@setlistr.ai" style={{ color: C.gold, textDecoration: 'none' }}>hello@setlistr.ai</a>
+          Questions? <a href="mailto:info@setlistr.ai" style={{ color: C.gold, textDecoration: 'none' }}>info@setlistr.ai</a>
         </p>
 
         {/* Legal disclaimer */}
