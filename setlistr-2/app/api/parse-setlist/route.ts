@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
       const mediaType = isPDF ? 'application/pdf' : (mimeType || 'image/jpeg')
 
       const response = await anthropic.messages.create({
-        model: 'claude-opus-4-5',
+        model: 'claude-sonnet-4-5',
         max_tokens: 1024,
         messages: [
           {
