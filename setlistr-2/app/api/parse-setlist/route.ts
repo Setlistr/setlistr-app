@@ -64,10 +64,7 @@ export async function POST(req: NextRequest) {
         const jpegBuffer = await sharp(inputBuffer)
           .jpeg({ quality: 90 })
           .toBuffer()
-        bytes = jpegBuffer.buffer.slice(
-          jpegBuffer.byteOffset,
-          jpegBuffer.byteOffset + jpegBuffer.byteLength
-        )
+        bytes = jpegBuffer.buffer as ArrayBuffer
         mimeType = 'image/jpeg'
         console.log('HEIC conversion successful, jpeg size:', jpegBuffer.length)
       } catch (convErr) {
