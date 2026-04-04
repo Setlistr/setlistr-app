@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
 
   const { data: perfSongs, error } = await supabaseAdmin
     .from('performance_songs')
-    .select('title, artist, isrc, composer, publisher, work_number, is_cover')
+    .select('title, artist, isrc, composer, publisher, is_cover')
     .eq('performance_id', performanceId)
     .order('position')
 
