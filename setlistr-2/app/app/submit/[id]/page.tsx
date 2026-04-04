@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { Check, ExternalLink, Copy, ChevronDown, ChevronUp, Music, AlertCircle } from 'lucide-react'
+import { Check, ExternalLink, Copy, ChevronDown, ChevronUp } from 'lucide-react'
 import { estimateRoyalties, capacityToBand } from '@/lib/royalty-estimate'
 
 const C = {
@@ -12,25 +12,17 @@ const C = {
   gold: '#c9a84c', goldDim: 'rgba(201,168,76,0.1)',
   green: '#4ade80', greenDim: 'rgba(74,222,128,0.08)',
   red: '#f87171', redDim: 'rgba(248,113,113,0.08)',
-  blue: '#60a5fa', blueDim: 'rgba(96,165,250,0.08)',
 }
 
 const PRO_CONFIG: Record<string, {
-  portal:      string
-  portalLabel: string
-  program:     string
-  submitUrl:   string
-  deadline:    string
-  deadlineDays: (now: Date) => number
-  steps: string[]
+  portal: string; portalLabel: string; program: string
+  submitUrl: string; deadline: string
+  deadlineDays: (now: Date) => number; steps: string[]
 }> = {
   SOCAN: {
-    portal:      'https://memp.socan.com',
-    portalLabel: 'Open SOCAN Portal',
-    program:     'Set Lists & Performances',
-    submitUrl:   'https://memp.socan.com',
-    deadline:    '1 year from show date',
-    deadlineDays: () => 365,
+    portal: 'https://memp.socan.com', portalLabel: 'Open SOCAN Portal',
+    program: 'Set Lists & Performances', submitUrl: 'https://memp.socan.com',
+    deadline: '1 year from show date', deadlineDays: () => 365,
     steps: [
       'Log in at memp.socan.com',
       'Go to Set Lists & Performances → Register New Set List',
@@ -41,11 +33,9 @@ const PRO_CONFIG: Record<string, {
     ],
   },
   ASCAP: {
-    portal:      'https://www.ascap.com/members',
-    portalLabel: 'Open ASCAP OnStage',
-    program:     'ASCAP OnStage',
-    submitUrl:   'https://www.ascap.com/members',
-    deadline:    'Same quarter as performance',
+    portal: 'https://www.ascap.com/members', portalLabel: 'Open ASCAP OnStage',
+    program: 'ASCAP OnStage', submitUrl: 'https://www.ascap.com/members',
+    deadline: 'Same quarter as performance',
     deadlineDays: (now) => {
       const y = now.getFullYear()
       const ends = [new Date(y,5,30),new Date(y,8,30),new Date(y,11,31),new Date(y+1,2,31)]
@@ -62,12 +52,9 @@ const PRO_CONFIG: Record<string, {
     ],
   },
   BMI: {
-    portal:      'https://www.bmi.com',
-    portalLabel: 'Open BMI Live',
-    program:     'BMI Live',
-    submitUrl:   'https://www.bmi.com',
-    deadline:    '9 months from show date',
-    deadlineDays: () => 270,
+    portal: 'https://www.bmi.com', portalLabel: 'Open BMI Live',
+    program: 'BMI Live', submitUrl: 'https://www.bmi.com',
+    deadline: '9 months from show date', deadlineDays: () => 270,
     steps: [
       'Log in at bmi.com → your name → Online Services',
       'Click BMI Live in the applications panel',
@@ -77,12 +64,9 @@ const PRO_CONFIG: Record<string, {
     ],
   },
   SESAC: {
-    portal:      'https://affiliates.sesac.com',
-    portalLabel: 'Open SESAC Portal',
-    program:     'SESAC Affiliate Services',
-    submitUrl:   'https://affiliates.sesac.com',
-    deadline:    'Contact your SESAC rep',
-    deadlineDays: () => 180,
+    portal: 'https://affiliates.sesac.com', portalLabel: 'Open SESAC Portal',
+    program: 'SESAC Affiliate Services', submitUrl: 'https://affiliates.sesac.com',
+    deadline: 'Contact your SESAC rep', deadlineDays: () => 180,
     steps: [
       'Log in at affiliates.sesac.com',
       'Navigate to Live Performances',
@@ -92,12 +76,9 @@ const PRO_CONFIG: Record<string, {
     ],
   },
   GMR: {
-    portal:      'https://globalmusicrights.com',
-    portalLabel: 'Contact GMR Rep',
-    program:     'GMR — Rep Submission',
-    submitUrl:   'https://globalmusicrights.com',
-    deadline:    'Contact your GMR rep',
-    deadlineDays: () => 180,
+    portal: 'https://globalmusicrights.com', portalLabel: 'Contact GMR Rep',
+    program: 'GMR — Rep Submission', submitUrl: 'https://globalmusicrights.com',
+    deadline: 'Contact your GMR rep', deadlineDays: () => 180,
     steps: [
       'GMR does not have a self-serve portal',
       'Contact your GMR representative directly',
@@ -106,12 +87,9 @@ const PRO_CONFIG: Record<string, {
     ],
   },
   PRS: {
-    portal:      'https://www.prsformusic.com/login',
-    portalLabel: 'Open PRS Portal',
-    program:     'PRS Live Music Reporting',
-    submitUrl:   'https://www.prsformusic.com/login',
-    deadline:    '1 year from show date',
-    deadlineDays: () => 365,
+    portal: 'https://www.prsformusic.com/login', portalLabel: 'Open PRS Portal',
+    program: 'PRS Live Music Reporting', submitUrl: 'https://www.prsformusic.com/login',
+    deadline: '1 year from show date', deadlineDays: () => 365,
     steps: [
       'Log in at prsformusic.com/login',
       'Go to Live Music → Submit a setlist',
@@ -121,12 +99,9 @@ const PRO_CONFIG: Record<string, {
     ],
   },
   APRA: {
-    portal:      'https://www.apraamcos.com.au/members',
-    portalLabel: 'Open APRA Portal',
-    program:     'APRA AMCOS Live Performance',
-    submitUrl:   'https://www.apraamcos.com.au/members',
-    deadline:    '1 year from show date',
-    deadlineDays: () => 365,
+    portal: 'https://www.apraamcos.com.au/members', portalLabel: 'Open APRA Portal',
+    program: 'APRA AMCOS Live Performance', submitUrl: 'https://www.apraamcos.com.au/members',
+    deadline: '1 year from show date', deadlineDays: () => 365,
     steps: [
       'Log in at apraamcos.com.au/members',
       'Navigate to Live Performance → Submit a setlist',
@@ -137,46 +112,37 @@ const PRO_CONFIG: Record<string, {
 }
 
 type Song = {
-  title:          string
-  artist:         string
-  isrc?:          string
-  composer?:      string
-  publisher?:     string
-  work_number?:   string
-  is_cover?:      boolean
+  title: string; artist: string; isrc?: string; composer?: string
+  publisher?: string; work_number?: string; is_cover?: boolean
   matchConfidence: 'matched' | 'partial' | 'unverified' | 'none'
 }
-
 type Performance = {
-  id:                string
-  venue_name:        string
-  city:              string
-  country:           string
-  started_at:        string
-  artist_name:       string
-  show_type?:        string
-  venue_capacity?:   number | null
-  submission_status?: string | null
+  id: string; venue_name: string; city: string; country: string
+  started_at: string; artist_name: string; show_type?: string | null
+  venue_capacity?: number | null; submission_status?: string | null
 }
-
 type Profile = {
-  pro_affiliation: string | null
-  legal_name:      string | null
-  ipi_number:      string | null
-  publisher_name:  string | null
-  artist_name:     string | null
+  pro_affiliation: string | null; legal_name: string | null
+  ipi_number: string | null; publisher_name: string | null; artist_name: string | null
 }
 
-function deriveConfidence(song: { isrc?: string; composer?: string }): 'matched' | 'partial' | 'unverified' | 'none' {
+function deriveConfidence(song: { isrc?: string; composer?: string }): Song['matchConfidence'] {
   if (song.isrc && song.composer) return 'matched'
   if (song.isrc || song.composer) return 'partial'
   return 'unverified'
 }
 
-// Confidence dot
 function ConfDot({ c }: { c: Song['matchConfidence'] }) {
   const color = c === 'matched' ? C.green : c === 'partial' ? C.gold : c === 'unverified' ? C.muted : 'transparent'
   return <div style={{ width: 7, height: 7, borderRadius: '50%', background: color, flexShrink: 0 }} />
+}
+
+function getTerritory(country?: string, city?: string): string {
+  const s = ((country || '') + ' ' + (city || '')).toLowerCase()
+  if (s.includes('canada') || s.includes('ontario') || s.includes('british columbia')
+    || s.includes('alberta') || s.includes('quebec') || s.includes('toronto')
+    || s.includes('vancouver') || s.includes('montreal') || s.trim() === 'ca') return 'CA'
+  return 'US'
 }
 
 export default function SubmitPage({ params }: { params: { id: string } }) {
@@ -185,7 +151,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
   const [songs, setSongs]             = useState<Song[]>([])
   const [profile, setProfile]         = useState<Profile | null>(null)
   const [loading, setLoading]         = useState(true)
-  const [copied, setCopied]           = useState<string | null>(null) // which item was copied
+  const [copied, setCopied]           = useState<string | null>(null)
   const [stepsOpen, setStepsOpen]     = useState(false)
   const [submitted, setSubmitted]     = useState(false)
   const [markingDone, setMarkingDone] = useState(false)
@@ -198,14 +164,12 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
       if (!user) { router.push('/auth/login'); return }
 
       const { data: profileData } = await supabase
-        .from('profiles')
-        .select('pro_affiliation, legal_name, ipi_number, publisher_name, artist_name')
+        .from('profiles').select('pro_affiliation, legal_name, ipi_number, publisher_name, artist_name')
         .eq('id', user.id).single()
       setProfile(profileData)
 
       const { data: perf } = await supabase
-        .from('performances')
-        .select('*, shows(show_type), venues(capacity)')
+        .from('performances').select('*, shows(show_type), venues(capacity)')
         .eq('id', params.id).single()
 
       if (!perf) { setLoading(false); return }
@@ -217,23 +181,31 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
       })
       setSubmitted(perf.submission_status === 'submitted')
 
-      const { data: songData } = await supabase
+      // Try performance_songs first, fall back to setlist_items
+      let songData: any[] = []
+      const { data: perfSongs } = await supabase
         .from('performance_songs')
         .select('title, artist, isrc, composer, publisher, work_number, is_cover')
         .eq('performance_id', params.id).order('position')
 
-      if (songData) {
-        const mapped: Song[] = songData.map(s => ({
-          title:           s.title,
-          artist:          s.artist || '',
-          isrc:            s.isrc || '',
-          composer:        s.composer || '',
-          publisher:       s.publisher || '',
-          work_number:     s.work_number || '',
-          is_cover:        s.is_cover || false,
+      if (perfSongs && perfSongs.length > 0) {
+        songData = perfSongs
+      } else if (perf.setlist_id) {
+        const { data: setlistSongs } = await supabase
+          .from('setlist_items')
+          .select('title, artist_name, isrc, composer, publisher, work_number, is_cover')
+          .eq('setlist_id', perf.setlist_id).order('position')
+        if (setlistSongs) songData = setlistSongs.map(s => ({ ...s, artist: s.artist_name }))
+      }
+
+      if (songData.length > 0) {
+        setSongs(songData.map(s => ({
+          title: s.title, artist: s.artist || '',
+          isrc: s.isrc || '', composer: s.composer || '',
+          publisher: s.publisher || '', work_number: s.work_number || '',
+          is_cover: s.is_cover || false,
           matchConfidence: deriveConfidence(s),
-        }))
-        setSongs(mapped)
+        })))
         const config = profileData?.pro_affiliation ? PRO_CONFIG[profileData.pro_affiliation] : null
         if (config) setStepsDone(new Array(config.steps.length).fill(false))
       }
@@ -257,8 +229,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
     setMarkingDone(true)
     const supabase = createClient()
     await supabase.from('performances').update({
-      submission_status: 'submitted',
-      submitted_at: new Date().toISOString(),
+      submission_status: 'submitted', submitted_at: new Date().toISOString(),
     }).eq('id', params.id)
     setSubmitted(true)
     setMarkingDone(false)
@@ -277,31 +248,26 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
     </div>
   )
 
-  const pro       = profile?.pro_affiliation
-  const proConfig = pro ? PRO_CONFIG[pro] : null
-  const hasPRO    = !!proConfig
-  const territory = (performance.country || '').toLowerCase().includes('canada') || performance.country === 'CA' ? 'CA' : 'US'
-  const estimate  = estimateRoyalties({
-    songCount:         songs.length,
-    venueCapacityBand: capacityToBand(performance.venue_capacity),
-    showType:          (performance.show_type as any) || 'single',
-    territory,
+  const pro             = profile?.pro_affiliation
+  const proConfig       = pro ? PRO_CONFIG[pro] : null
+  const hasPRO          = !!proConfig
+  const territory       = getTerritory(performance.country, performance.city)
+  const songCount       = songs.length > 0 ? songs.length : 8
+  const usingFallback   = songs.length === 0
+  const estimate        = estimateRoyalties({
+    songCount, venueCapacityBand: capacityToBand(performance.venue_capacity),
+    showType: (performance.show_type as any) || 'single', territory,
   })
-
   const matchedCount    = songs.filter(s => s.matchConfidence === 'matched').length
   const partialCount    = songs.filter(s => s.matchConfidence === 'partial').length
   const unverifiedCount = songs.filter(s => s.matchConfidence === 'unverified').length
   const coverCount      = songs.filter(s => s.is_cover).length
-  const strongCount     = matchedCount + partialCount
   const daysLeft        = proConfig ? proConfig.deadlineDays(new Date()) : 365
   const stepsCompleted  = stepsDone.filter(Boolean).length
   const totalSteps      = stepsDone.length
   const showDate        = new Date(performance.started_at)
+  const suggestedTitle  = `${profile?.artist_name || performance.artist_name} - ${performance.venue_name}`
 
-  // The suggested setlist title — mirrors what SOCAN/ASCAP expect
-  const suggestedTitle = `${profile?.artist_name || performance.artist_name} - ${performance.venue_name}`
-
-  // ── Submitted state ──────────────────────────────────────────────────────
   if (submitted) return (
     <div style={{ minHeight: '100svh', background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px 20px' }}>
       <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '60vh', pointerEvents: 'none', background: 'radial-gradient(ellipse at 50% 0%, rgba(74,222,128,0.06) 0%, transparent 65%)' }} />
@@ -311,42 +277,30 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
         </div>
         <h1 style={{ fontSize: 28, fontWeight: 800, color: C.text, margin: '0 0 8px', letterSpacing: '-0.025em' }}>Submitted to {pro}</h1>
         <p style={{ fontSize: 14, color: C.secondary, margin: '0 0 6px' }}>{performance.venue_name}{performance.city ? ` · ${performance.city}` : ''}</p>
-        <p style={{ fontSize: 13, color: C.muted, margin: '0 0 28px' }}>
-          {showDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
-        </p>
+        <p style={{ fontSize: 13, color: C.muted, margin: '0 0 28px' }}>{showDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
         <div style={{ width: '100%', background: C.greenDim, border: '1px solid rgba(74,222,128,0.2)', borderRadius: 16, padding: '20px', marginBottom: 20 }}>
           <p style={{ fontSize: 13, color: C.green, margin: '0 0 4px', fontWeight: 600 }}>~${estimate.expected} in progress</p>
-          <p style={{ fontSize: 12, color: C.secondary, margin: 0 }}>
-            {songs.length} songs submitted · expect payment in 6–9 months
-          </p>
+          <p style={{ fontSize: 12, color: C.secondary, margin: 0 }}>{songs.length} songs submitted · expect payment in 6–9 months</p>
         </div>
         <button onClick={() => router.push('/app/dashboard')}
           style={{ width: '100%', padding: '15px', background: C.gold, border: 'none', borderRadius: 12, color: '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' as const, cursor: 'pointer', fontFamily: 'inherit', marginBottom: 10 }}>
           Back to Dashboard
         </button>
-        <button onClick={() => setSubmitted(false)}
-          style={{ background: 'none', border: 'none', color: C.muted, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
+        <button onClick={() => setSubmitted(false)} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
           View submission details
         </button>
       </div>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500;700&display=swap');
-        @keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
-      `}</style>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500;700&display=swap');@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}`}</style>
     </div>
   )
 
   return (
     <div style={{ minHeight: '100svh', background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif' }}>
       <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '50vh', pointerEvents: 'none', zIndex: 0, background: 'radial-gradient(ellipse at 50% 0%, rgba(201,168,76,0.06) 0%, transparent 65%)' }} />
-
       <div style={{ position: 'relative', zIndex: 1, maxWidth: 480, width: '100%', margin: '0 auto', padding: '28px 16px 80px', boxSizing: 'border-box' as const }}>
 
-        <button onClick={() => router.back()} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', padding: '0 0 20px', letterSpacing: '0.04em' }}>
-          ← Back
-        </button>
+        <button onClick={() => router.back()} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', padding: '0 0 20px', letterSpacing: '0.04em' }}>← Back</button>
 
-        {/* ── Hero ── */}
         <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: C.gold, margin: '0 0 6px', opacity: 0.8 }}>
           {performance.venue_name}{performance.city ? ` · ${performance.city}` : ''}
         </p>
@@ -357,12 +311,14 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
           {showDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
         </p>
 
-        {/* ── Money + deadline ── */}
+        {/* Money + deadline */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
           <div style={{ background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 14, padding: '16px' }}>
             <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' as const, color: C.gold, margin: '0 0 6px' }}>You're owed</p>
             <p style={{ fontSize: 28, fontWeight: 800, color: C.gold, margin: 0, fontFamily: '"DM Mono", monospace', letterSpacing: '-0.02em' }}>~${estimate.expected}</p>
-            <p style={{ fontSize: 11, color: C.secondary, margin: '2px 0 0' }}>est. ${estimate.low}–${estimate.high}</p>
+            <p style={{ fontSize: 11, color: C.secondary, margin: '2px 0 0' }}>
+              est. ${estimate.low}–${estimate.high}{usingFallback ? ' · avg set' : ''}
+            </p>
           </div>
           <div style={{ background: daysLeft <= 30 ? C.redDim : daysLeft <= 60 ? C.goldDim : C.greenDim, border: `1px solid ${daysLeft <= 30 ? 'rgba(248,113,113,0.25)' : daysLeft <= 60 ? C.borderGold : 'rgba(74,222,128,0.25)'}`, borderRadius: 14, padding: '16px' }}>
             <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' as const, color: daysLeft <= 30 ? C.red : daysLeft <= 60 ? C.gold : C.green, margin: '0 0 6px' }}>
@@ -375,7 +331,6 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
           </div>
         </div>
 
-        {/* ── No PRO warning ── */}
         {!hasPRO && (
           <div style={{ background: C.redDim, border: '1px solid rgba(248,113,113,0.2)', borderRadius: 12, padding: '14px 16px', marginBottom: 12 }}>
             <p style={{ fontSize: 13, color: C.red, margin: '0 0 4px', fontWeight: 700 }}>No PRO selected</p>
@@ -387,23 +342,14 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
           </div>
         )}
 
-        {/* ══════════════════════════════════════════════════════════════════
-            SETLIST TITLE — mirrors exactly what SOCAN/ASCAP ask for
-        ══════════════════════════════════════════════════════════════════ */}
+        {/* Setlist title */}
         <div style={{ background: C.card, border: `1px solid ${C.borderGold}`, borderRadius: 14, padding: '16px 18px', marginBottom: 12 }}>
-          <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' as const, color: C.gold, margin: '0 0 6px' }}>
-            Step 1 — Set List Title
-          </p>
-          <p style={{ fontSize: 11, color: C.muted, margin: '0 0 12px', lineHeight: 1.5 }}>
-            Use this as your title when creating the setlist in the {pro || 'PRO'} portal.
-          </p>
+          <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' as const, color: C.gold, margin: '0 0 6px' }}>Step 1 — Set List Title</p>
+          <p style={{ fontSize: 11, color: C.muted, margin: '0 0 12px', lineHeight: 1.5 }}>Use this as your title when creating the setlist in the {pro || 'PRO'} portal.</p>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#0a0908', border: `1px solid rgba(255,255,255,0.07)`, borderRadius: 10, padding: '12px 14px' }}>
-            <span style={{ flex: 1, fontSize: 15, fontWeight: 700, color: C.text, fontFamily: '"DM Mono", monospace', letterSpacing: '-0.01em' }}>
-              {suggestedTitle}
-            </span>
-            <button
-              onClick={() => copyText(suggestedTitle, 'title')}
-              style={{ flexShrink: 0, background: copied === 'title' ? C.greenDim : 'rgba(255,255,255,0.04)', border: `1px solid ${copied === 'title' ? 'rgba(74,222,128,0.3)' : C.border}`, borderRadius: 8, padding: '7px 12px', color: copied === 'title' ? C.green : C.muted, fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, fontFamily: 'inherit', transition: 'all 0.15s ease' }}>
+            <span style={{ flex: 1, fontSize: 15, fontWeight: 700, color: C.text, fontFamily: '"DM Mono", monospace', letterSpacing: '-0.01em' }}>{suggestedTitle}</span>
+            <button onClick={() => copyText(suggestedTitle, 'title')}
+              style={{ flexShrink: 0, background: copied === 'title' ? C.greenDim : 'rgba(255,255,255,0.04)', border: `1px solid ${copied === 'title' ? 'rgba(74,222,128,0.3)' : C.border}`, borderRadius: 8, padding: '7px 12px', color: copied === 'title' ? C.green : C.muted, fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, fontFamily: 'inherit' }}>
               {copied === 'title' ? <><Check size={11} strokeWidth={3} /> Copied</> : <><Copy size={11} /> Copy</>}
             </button>
           </div>
@@ -417,12 +363,8 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
           )}
         </div>
 
-        {/* ══════════════════════════════════════════════════════════════════
-            SONG REFERENCE CARD — the key UX improvement
-            Designed to be referenced while tabbing through the PRO portal
-        ══════════════════════════════════════════════════════════════════ */}
+        {/* Song list */}
         <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, marginBottom: 12, overflow: 'hidden' }}>
-          {/* Header */}
           <div style={{ padding: '14px 18px 10px', borderBottom: `1px solid ${C.border}` }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' as const, color: C.muted, margin: 0 }}>
@@ -440,109 +382,74 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
             </p>
           </div>
 
-          {/* Song rows — tap to copy title */}
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            {songs.map((song, i) => {
-              const key = `song-${i}`
-              const isCopied = copied === key
-              return (
-                <button
-                  key={i}
-                  onClick={() => copyText(song.title, key)}
-                  style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 18px', background: isCopied ? 'rgba(74,222,128,0.04)' : 'transparent', border: 'none', borderBottom: i < songs.length - 1 ? `1px solid ${C.border}` : 'none', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', transition: 'background 0.15s ease', width: '100%' }}>
-                  {/* Position */}
-                  <span style={{ fontSize: 11, color: C.muted, minWidth: 20, textAlign: 'right', fontFamily: '"DM Mono", monospace', flexShrink: 0 }}>{i + 1}</span>
-
-                  {/* Song info */}
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <p style={{ fontSize: 14, fontWeight: 600, color: isCopied ? C.green : C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', transition: 'color 0.15s ease' }}>
-                        {song.title}
-                      </p>
-                      {song.is_cover && (
-                        <span style={{ fontSize: 9, fontWeight: 700, color: C.gold, background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 4, padding: '1px 5px', flexShrink: 0 }}>COVER</span>
-                      )}
+          {songs.length === 0 ? (
+            <div style={{ padding: '20px 18px', textAlign: 'center' }}>
+              <p style={{ fontSize: 13, color: C.muted, margin: '0 0 10px' }}>Complete your setlist review first to see songs here.</p>
+              <button onClick={() => router.push(`/app/review/${params.id}`)}
+                style={{ background: 'none', border: `1px solid ${C.borderGold}`, borderRadius: 8, padding: '8px 14px', color: C.gold, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                Review Setlist →
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              {songs.map((song, i) => {
+                const key = `song-${i}`
+                const isCopied = copied === key
+                return (
+                  <button key={i} onClick={() => copyText(song.title, key)}
+                    style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 18px', background: isCopied ? 'rgba(74,222,128,0.04)' : 'transparent', border: 'none', borderBottom: i < songs.length - 1 ? `1px solid ${C.border}` : 'none', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', width: '100%' }}>
+                    <span style={{ fontSize: 11, color: C.muted, minWidth: 20, textAlign: 'right', fontFamily: '"DM Mono", monospace', flexShrink: 0 }}>{i + 1}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <p style={{ fontSize: 14, fontWeight: 600, color: isCopied ? C.green : C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{song.title}</p>
+                        {song.is_cover && <span style={{ fontSize: 9, fontWeight: 700, color: C.gold, background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 4, padding: '1px 5px', flexShrink: 0 }}>COVER</span>}
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2, flexWrap: 'wrap' as const }}>
+                        {song.composer && <span style={{ fontSize: 10, color: C.muted }}>Writer: <span style={{ color: C.secondary }}>{song.composer}</span></span>}
+                        {song.work_number && <span style={{ fontSize: 10, color: C.muted, fontFamily: '"DM Mono", monospace' }}>Work #: <span style={{ color: C.gold }}>{song.work_number}</span></span>}
+                        {song.isrc && !song.work_number && <span style={{ fontSize: 10, color: C.muted, fontFamily: '"DM Mono", monospace' }}>ISRC: <span style={{ color: C.secondary }}>{song.isrc}</span></span>}
+                        {!song.composer && !song.isrc && !song.work_number && <span style={{ fontSize: 10, color: C.muted, fontStyle: 'italic' }}>no metadata — search by title</span>}
+                      </div>
                     </div>
-                    {/* Metadata line — what the PRO needs */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2, flexWrap: 'wrap' as const }}>
-                      {song.composer && (
-                        <span style={{ fontSize: 10, color: C.muted }}>
-                          Writer: <span style={{ color: C.secondary }}>{song.composer}</span>
-                        </span>
-                      )}
-                      {song.work_number && (
-                        <span style={{ fontSize: 10, color: C.muted, fontFamily: '"DM Mono", monospace' }}>
-                          Work #: <span style={{ color: C.gold }}>{song.work_number}</span>
-                        </span>
-                      )}
-                      {song.isrc && !song.work_number && (
-                        <span style={{ fontSize: 10, color: C.muted, fontFamily: '"DM Mono", monospace' }}>
-                          ISRC: <span style={{ color: C.secondary }}>{song.isrc}</span>
-                        </span>
-                      )}
-                      {!song.composer && !song.isrc && !song.work_number && (
-                        <span style={{ fontSize: 10, color: C.muted, fontStyle: 'italic' }}>no metadata — search by title</span>
-                      )}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                      <ConfDot c={song.matchConfidence} />
+                      {isCopied ? <span style={{ fontSize: 11, color: C.green, fontWeight: 700 }}>Copied</span> : <Copy size={12} color={C.muted} />}
                     </div>
-                  </div>
+                  </button>
+                )
+              })}
+            </div>
+          )}
 
-                  {/* Right side */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                    <ConfDot c={song.matchConfidence} />
-                    {isCopied
-                      ? <span style={{ fontSize: 11, color: C.green, fontWeight: 700 }}>Copied</span>
-                      : <Copy size={12} color={C.muted} />
-                    }
-                  </div>
-                </button>
-              )
-            })}
-          </div>
-
-          {/* Footer hint */}
           <div style={{ padding: '10px 18px', borderTop: `1px solid ${C.border}`, background: 'rgba(255,255,255,0.01)' }}>
-            <p style={{ fontSize: 11, color: C.muted, margin: 0 }}>
-              Tap any song to copy its title · Green = has ISRC + writer · Gold = partial metadata · Grey = title only
-            </p>
+            <p style={{ fontSize: 11, color: C.muted, margin: 0 }}>Tap any song to copy its title · Green = has ISRC + writer · Gold = partial metadata · Grey = title only</p>
           </div>
         </div>
 
-        {/* ══════════════════════════════════════════════════════════════════
-            GUIDED STEPS
-        ══════════════════════════════════════════════════════════════════ */}
+        {/* Guided steps */}
         {hasPRO && proConfig && (
           <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, marginBottom: 12, overflow: 'hidden' }}>
-            <button
-              onClick={() => setStepsOpen(v => !v)}
+            <button onClick={() => setStepsOpen(v => !v)}
               style={{ width: '100%', padding: '14px 18px', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontFamily: 'inherit' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <span style={{ fontSize: 13, fontWeight: 700, color: C.text }}>Step-by-step: {pro} portal</span>
                 {stepsCompleted > 0
                   ? <span style={{ fontSize: 11, color: C.green, background: C.greenDim, border: '1px solid rgba(74,222,128,0.2)', borderRadius: 20, padding: '2px 8px' }}>{stepsCompleted}/{totalSteps} done</span>
-                  : <span style={{ fontSize: 11, color: C.muted }}>{totalSteps} steps</span>
-                }
+                  : <span style={{ fontSize: 11, color: C.muted }}>{totalSteps} steps</span>}
               </div>
               {stepsOpen ? <ChevronUp size={15} color={C.muted} /> : <ChevronDown size={15} color={C.muted} />}
             </button>
-
             {stepsOpen && (
               <div style={{ padding: '0 18px 18px', borderTop: `1px solid ${C.border}` }}>
-                <p style={{ fontSize: 11, color: C.muted, margin: '12px 0 14px' }}>
-                  Program: <strong style={{ color: C.secondary }}>{proConfig.program}</strong>
-                </p>
+                <p style={{ fontSize: 11, color: C.muted, margin: '12px 0 14px' }}>Program: <strong style={{ color: C.secondary }}>{proConfig.program}</strong></p>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {proConfig.steps.map((step, i) => (
                     <button key={i} onClick={() => setStepsDone(prev => prev.map((v, idx) => idx === i ? !v : v))}
                       style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '11px 14px', background: stepsDone[i] ? C.greenDim : 'rgba(255,255,255,0.02)', border: `1px solid ${stepsDone[i] ? 'rgba(74,222,128,0.2)' : C.border}`, borderRadius: 10, cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', width: '100%' }}>
                       <div style={{ width: 22, height: 22, borderRadius: '50%', flexShrink: 0, marginTop: 1, background: stepsDone[i] ? C.green : 'rgba(255,255,255,0.06)', border: `1px solid ${stepsDone[i] ? C.green : C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        {stepsDone[i]
-                          ? <Check size={11} color="#0a0908" strokeWidth={3} />
-                          : <span style={{ fontSize: 10, color: C.muted, fontFamily: '"DM Mono", monospace', fontWeight: 700 }}>{i + 1}</span>
-                        }
+                        {stepsDone[i] ? <Check size={11} color="#0a0908" strokeWidth={3} /> : <span style={{ fontSize: 10, color: C.muted, fontFamily: '"DM Mono", monospace', fontWeight: 700 }}>{i + 1}</span>}
                       </div>
-                      <span style={{ fontSize: 13, color: stepsDone[i] ? C.green : C.text, lineHeight: 1.4, textDecoration: stepsDone[i] ? 'line-through' : 'none', opacity: stepsDone[i] ? 0.7 : 1 }}>
-                        {step}
-                      </span>
+                      <span style={{ fontSize: 13, color: stepsDone[i] ? C.green : C.text, lineHeight: 1.4, textDecoration: stepsDone[i] ? 'line-through' : 'none', opacity: stepsDone[i] ? 0.7 : 1 }}>{step}</span>
                     </button>
                   ))}
                 </div>
@@ -557,42 +464,35 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
           </div>
         )}
 
-        {/* ── Primary CTAs ── */}
+        {/* CTAs */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {hasPRO && proConfig && (
             <button onClick={() => window.open(proConfig.submitUrl, '_blank')}
               style={{ width: '100%', padding: '16px', background: C.gold, border: 'none', borderRadius: 12, color: '#0a0908', fontSize: 14, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' as const, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit' }}>
-              <ExternalLink size={15} strokeWidth={2.5} />
-              {proConfig.portalLabel}
+              <ExternalLink size={15} strokeWidth={2.5} />{proConfig.portalLabel}
             </button>
           )}
-
           <button onClick={markSubmitted} disabled={markingDone}
             style={{ width: '100%', padding: '14px', background: 'transparent', border: `1px solid ${C.green}40`, borderRadius: 12, color: C.green, fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, fontFamily: 'inherit', opacity: markingDone ? 0.6 : 1 }}>
-            <Check size={14} strokeWidth={2.5} />
-            {markingDone ? 'Marking...' : 'Mark as Submitted'}
+            <Check size={14} strokeWidth={2.5} />{markingDone ? 'Marking...' : 'Mark as Submitted'}
           </button>
-
           <button onClick={() => router.push('/app/dashboard')}
             style={{ background: 'none', border: 'none', color: C.muted, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', padding: '8px', width: '100%' }}>
             Back to Dashboard
           </button>
         </div>
 
-        {/* ── Why this matters ── */}
         <div style={{ marginTop: 24, padding: '14px 16px', background: 'rgba(255,255,255,0.02)', border: `1px solid rgba(255,255,255,0.04)`, borderRadius: 12 }}>
           <p style={{ fontSize: 11, color: C.muted, margin: 0, lineHeight: 1.6 }}>
             💡 <strong style={{ color: C.secondary }}>Why this matters:</strong> Your venue paid {pro || 'your PRO'} a licensing fee for this show. That money is sitting unclaimed until you submit your setlist. Most artists never do.
           </p>
         </div>
-
       </div>
-
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500;700&display=swap');
-        @keyframes fadeUp  { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
-        @keyframes slideUp { from{opacity:0;transform:translateY(6px)}  to{opacity:1;transform:translateY(0)} }
-        * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
+        @keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes slideUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+        *{-webkit-tap-highlight-color:transparent;box-sizing:border-box}
       `}</style>
     </div>
   )
