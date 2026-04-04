@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { Calendar, ArrowRight, Music4, RefreshCw, Check, MapPin, Search, Upload, X, Plus, ChevronDown, ChevronUp } from 'lucide-react'
+import { Calendar, ArrowRight, Music4, RefreshCw, Check, MapPin, Search, X, Plus, ChevronDown, ChevronUp } from 'lucide-react'
 
 const C = {
   bg: '#0a0908', card: '#141210', cardHover: '#181614',
@@ -11,8 +11,15 @@ const C = {
   gold: '#c9a84c', goldDim: 'rgba(201,168,76,0.1)',
   green: '#4ade80', greenDim: 'rgba(74,222,128,0.08)',
   red: '#f87171', redDim: 'rgba(248,113,113,0.08)',
-  blue: '#60a5fa', blueDim: 'rgba(96,165,250,0.08)',
 }
+
+// Supported types — must match API exactly
+const ALLOWED_MIME_TYPES = [
+  'image/jpeg', 'image/jpg', 'image/png', 'image/webp',
+  'image/heic', 'image/heif',
+  'application/pdf', 'text/plain',
+]
+const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
 
 type Venue = { id: string; name: string; city: string; country: string }
 type PastPerformance = { id: string; venue_name: string; artist_name: string; started_at: string; song_count: number }
@@ -163,18 +170,42 @@ export default function NewShowPage() {
     setSetlistOpen(true)
   }
 
+  // ── Client-side validation before hitting the API ─────────────────────────
   async function handleFileUpload(file: File) {
-    setUploading(true)
     setUploadError('')
+
+    // Size check
+    if (file.size > MAX_FILE_SIZE) {
+      setUploadError('File is too large. Maximum size is 10MB.')
+      return
+    }
+
+    // Type check — check both mime type and extension
+    const fileName = (file.name || '').toLowerCase()
+    const isHEIC = fileName.endsWith('.heic') || fileName.endsWith('.heif')
+      || file.type === 'image/heic' || file.type === 'image/heif'
+    const isAllowed = ALLOWED_MIME_TYPES.includes(file.type) || isHEIC
+
+    if (!isAllowed) {
+      setUploadError('Unsupported file type. Please upload a JPG, PNG, PDF, or TXT file.')
+      return
+    }
+
+    setUploading(true)
     try {
       const formData = new FormData()
       formData.append('file', file)
       const res = await fetch('/api/parse-setlist', { method: 'POST', body: formData })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Upload failed')
+
+      // Merge avoiding duplicates
       const existing = new Set(plannedSongs.map(s => s.title.toLowerCase()))
       const newSongs = (data.songs as PlannedSong[]).filter(s => !existing.has(s.title.toLowerCase()))
       setPlannedSongs(prev => [...prev, ...newSongs.map((s, i) => ({ ...s, position: prev.length + i }))])
+
+      // Switch to chips view to show the loaded songs
+      setUploadMode('chips')
     } catch (err: any) {
       setUploadError(err.message || 'Could not read the setlist. Try a clearer photo.')
     } finally {
@@ -474,7 +505,7 @@ export default function NewShowPage() {
                   { key: 'chips', label: '⚡ Quick Add' },
                   { key: 'upload', label: '📸 Upload Setlist' },
                 ] as const).map(tab => (
-                  <button key={tab.key} onClick={() => setUploadMode(tab.key)}
+                  <button key={tab.key} onClick={() => { setUploadMode(tab.key); setUploadError('') }}
                     style={{ flex: 1, padding: '9px 12px', background: uploadMode === tab.key ? C.goldDim : 'transparent', border: `1px solid ${uploadMode === tab.key ? C.borderGold : C.border}`, borderRadius: 10, color: uploadMode === tab.key ? C.gold : C.muted, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
                     {tab.label}
                   </button>
@@ -515,28 +546,31 @@ export default function NewShowPage() {
                 </div>
               )}
 
-              {/* Upload — two buttons: camera + file picker */}
+              {/* Upload */}
               {uploadMode === 'upload' && (
                 <div style={{ marginBottom: 12 }}>
-                  {/* Camera input — opens camera directly, avoids HEIC/picker issues */}
-                  <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }}
+                  {/* Camera — opens camera directly, iOS converts to JPEG automatically */}
+                  <input ref={cameraInputRef} type="file" accept="image/jpeg,image/png" capture="environment"
+                    style={{ display: 'none' }}
                     onChange={e => { const f = e.target.files?.[0]; if (f) handleFileUpload(f); e.target.value = '' }} />
-                  {/* File input — for screenshots, PDFs, text files */}
-                  <input ref={fileInputRef} type="file" style={{ display: 'none' }}
+                  {/* File picker — JPG, PNG, PDF, TXT only */}
+                  <input ref={fileInputRef} type="file"
+                    accept="image/jpeg,image/png,image/webp,application/pdf,text/plain"
+                    style={{ display: 'none' }}
                     onChange={e => { const f = e.target.files?.[0]; if (f) handleFileUpload(f); e.target.value = '' }} />
 
-                  <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-                    <button onClick={() => cameraInputRef.current?.click()} disabled={uploading}
-                      style={{ flex: 1, padding: '18px 12px', background: 'rgba(255,255,255,0.02)', border: `1px solid ${C.border}`, borderRadius: 12, cursor: uploading ? 'default' : 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+                  <div style={{ display: 'flex', gap: 8, marginBottom: uploading ? 8 : 0 }}>
+                    <button onClick={() => { setUploadError(''); cameraInputRef.current?.click() }} disabled={uploading}
+                      style={{ flex: 1, padding: '18px 12px', background: 'rgba(255,255,255,0.02)', border: `1px solid ${C.border}`, borderRadius: 12, cursor: uploading ? 'default' : 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, opacity: uploading ? 0.5 : 1 }}>
                       <span style={{ fontSize: 24 }}>📷</span>
                       <span style={{ fontSize: 12, fontWeight: 700, color: C.secondary }}>Take Photo</span>
-                      <span style={{ fontSize: 10, color: C.muted }}>Point at paper setlist</span>
+                      <span style={{ fontSize: 10, color: C.muted, textAlign: 'center' as const }}>Point at paper setlist</span>
                     </button>
-                    <button onClick={() => fileInputRef.current?.click()} disabled={uploading}
-                      style={{ flex: 1, padding: '18px 12px', background: 'rgba(255,255,255,0.02)', border: `1px solid ${C.border}`, borderRadius: 12, cursor: uploading ? 'default' : 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+                    <button onClick={() => { setUploadError(''); fileInputRef.current?.click() }} disabled={uploading}
+                      style={{ flex: 1, padding: '18px 12px', background: 'rgba(255,255,255,0.02)', border: `1px solid ${C.border}`, borderRadius: 12, cursor: uploading ? 'default' : 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, opacity: uploading ? 0.5 : 1 }}>
                       <span style={{ fontSize: 24 }}>📁</span>
                       <span style={{ fontSize: 12, fontWeight: 700, color: C.secondary }}>Choose File</span>
-                      <span style={{ fontSize: 10, color: C.muted }}>Screenshot, PDF, notes</span>
+                      <span style={{ fontSize: 10, color: C.muted, textAlign: 'center' as const }}>JPG, PNG, PDF, or TXT</span>
                     </button>
                   </div>
 
