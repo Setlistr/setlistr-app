@@ -192,42 +192,14 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
       setPerformance(perfRecord)
       setSubmitted(perf.submission_status === 'submitted')
 
-      // Load songs — try performance_songs first, then setlist_items
+      // Load songs via server-side API route (bypasses RLS auth timing issues)
       let songData: any[] = []
-
-      const { data: perfSongs } = await supabase
-        .from('performance_songs')
-        .select('title, artist, isrc, composer, publisher, work_number, is_cover')
-        .eq('performance_id', params.id)
-        .order('position')
-
-      if (perfSongs && perfSongs.length > 0) {
-        songData = perfSongs
-      } else {
-        // Try setlist_items — first via perf.setlist_id, then by looking up setlists table
-        let setlistId = perf.setlist_id || null
-
-        if (!setlistId) {
-          const { data: setlist } = await supabase
-            .from('setlists')
-            .select('id')
-            .eq('performance_id', params.id)
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .single()
-          setlistId = setlist?.id || null
-        }
-
-        if (setlistId) {
-          const { data: setlistSongs } = await supabase
-            .from('setlist_items')
-            .select('title, artist_name, isrc, composer, publisher, work_number, is_cover')
-            .eq('setlist_id', setlistId)
-            .order('position')
-          if (setlistSongs && setlistSongs.length > 0) {
-            songData = setlistSongs.map(s => ({ ...s, artist: s.artist_name }))
-          }
-        }
+      try {
+        const songsRes = await fetch(`/api/performance-songs?performanceId=${params.id}`)
+        const songsJson = await songsRes.json()
+        songData = songsJson.songs || []
+      } catch (e) {
+        console.error('[SubmitPage] songs fetch failed:', e)
       }
 
       const mapped: Song[] = songData.map(s => ({
