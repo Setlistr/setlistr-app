@@ -1,137 +1,164 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
+import { createClient } from '@supabase/supabase-js'
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY!,
 })
 
-const ALLOWED_TYPES = [
-  'image/jpeg',
-  'image/png',
-  'image/webp',
-  'image/gif',
-  'image/heic',
-  'image/heif',
-  'application/pdf',
-  'text/plain',
-]
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
 
-const MAX_SIZE = 10 * 1024 * 1024 // 10MB
+const ALLOWED_TYPES = [
+  'image/jpeg', 'image/png', 'image/webp', 'image/gif',
+  'image/heic', 'image/heif',
+  'application/pdf', 'text/plain',
+]
+const MAX_SIZE = 10 * 1024 * 1024
+
+// ── Fuzzy match helpers ───────────────────────────────────────────────────────
+
+function normalize(str: string): string {
+  return str
+    .toLowerCase()
+    .replace(/[''`]/g, "'")
+    .replace(/[^a-z0-9' ]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function similarity(a: string, b: string): number {
+  const na = normalize(a)
+  const nb = normalize(b)
+  if (na === nb) return 1.0
+
+  // Word overlap score
+  const wordsA = new Set(na.split(' ').filter(w => w.length > 2))
+  const wordsB = new Set(nb.split(' ').filter(w => w.length > 2))
+  if (wordsA.size === 0 || wordsB.size === 0) return 0
+
+  let overlap = 0
+  wordsA.forEach(w => { if (wordsB.has(w)) overlap++ })
+  const score = (overlap * 2) / (wordsA.size + wordsB.size)
+
+  // Bonus if one contains the other
+  if (na.includes(nb) || nb.includes(na)) return Math.max(score, 0.85)
+
+  return score
+}
+
+function fuzzyMatch(
+  claudeTitle: string,
+  catalog: { title: string; artist: string; user_song_id: string }[]
+): { title: string; artist: string; user_song_id?: string } | null {
+  let best: { score: number; song: typeof catalog[0] } | null = null
+
+  for (const song of catalog) {
+    const score = similarity(claudeTitle, song.title)
+    if (score > 0.65 && (!best || score > best.score)) {
+      best = { score, song }
+    }
+  }
+
+  if (best) {
+    return {
+      title: best.song.title,
+      artist: best.song.artist,
+      user_song_id: best.song.user_song_id,
+    }
+  }
+  return null
+}
 
 export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData()
     const file = formData.get('file') as File | null
+    const userId = formData.get('userId') as string | null
 
     if (!file) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 })
     }
 
-    // Log what's coming in
-    console.log('uploaded file', {
-      name: file.name,
-      type: file.type,
-      size: file.size,
-    })
+    console.log('uploaded file', { name: file.name, type: file.type, size: file.size })
 
-    // Size check
     if (file.size > MAX_SIZE) {
-      return NextResponse.json({
-        error: 'File is too large. Maximum size is 10MB.',
-      }, { status: 400 })
+      return NextResponse.json({ error: 'File is too large. Maximum size is 10MB.' }, { status: 400 })
     }
 
     const fileName = (file.name || '').toLowerCase()
     const isHEIC = file.type === 'image/heic' || file.type === 'image/heif'
       || fileName.endsWith('.heic') || fileName.endsWith('.heif')
 
-    // Type check — allow HEIC since we convert it
     if (!ALLOWED_TYPES.includes(file.type) && !isHEIC) {
       return NextResponse.json({
-        error: `Unsupported file type (${file.type || 'unknown'}). Please upload a JPG, PNG, PDF, or TXT file.`,
+        error: `Unsupported file type. Please upload a JPG, PNG, PDF, or TXT file.`,
       }, { status: 400 })
     }
 
     let bytes = await file.arrayBuffer()
     let mimeType: string = file.type
 
-    // ── HEIC/HEIF → JPEG conversion ──────────────────────────────────────
+    // ── HEIC conversion ───────────────────────────────────────────────────────
     if (isHEIC) {
       try {
-        console.log('Converting HEIC to JPEG...')
         const sharp = (await import('sharp')).default
-        const inputBuffer = Buffer.from(bytes)
-        const jpegBuffer = await sharp(inputBuffer)
-          .jpeg({ quality: 90 })
-          .toBuffer()
-        bytes = jpegBuffer.buffer as ArrayBuffer
+        const jpegBuffer = await sharp(Buffer.from(bytes)).jpeg({ quality: 90 }).toBuffer()
+        bytes = jpegBuffer.buffer.slice(jpegBuffer.byteOffset, jpegBuffer.byteOffset + jpegBuffer.byteLength) as ArrayBuffer
         mimeType = 'image/jpeg'
-        console.log('HEIC conversion successful, jpeg size:', jpegBuffer.length)
-      } catch (convErr) {
-        console.error('HEIC conversion failed:', convErr)
+        console.log('HEIC converted, size:', jpegBuffer.length)
+      } catch (err) {
+        console.error('HEIC conversion failed:', err)
         return NextResponse.json({
-          error: 'Could not convert your iPhone photo. Please take a screenshot instead (Side button + Volume Up) and upload that.',
+          error: 'Could not convert iPhone photo. Try a screenshot instead (Side + Volume Up).',
         }, { status: 422 })
       }
     }
 
     const base64 = Buffer.from(bytes).toString('base64')
-
     let songs: { title: string; artist?: string }[] = []
 
     if (mimeType === 'text/plain') {
-      // Parse text directly — no Claude needed
       const text = Buffer.from(bytes).toString('utf-8')
       songs = parseTextSetlist(text)
     } else {
-      // Image or PDF — use Claude vision
       const claudeMediaType = mimeType as 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif' | 'application/pdf'
 
       const response = await anthropic.messages.create({
         model: 'claude-sonnet-4-5',
         max_tokens: 1024,
-        messages: [
-          {
-            role: 'user',
-            content: [
-              {
-                type: mimeType === 'application/pdf' ? 'document' : 'image',
-                source: {
-                  type: 'base64',
-                  media_type: claudeMediaType,
-                  data: base64,
-                },
-              } as any,
-              {
-                type: 'text',
-                text: `This is a musician's setlist. Extract every song title in order, exactly as written.
+        messages: [{
+          role: 'user',
+          content: [
+            {
+              type: mimeType === 'application/pdf' ? 'document' : 'image',
+              source: { type: 'base64', media_type: claudeMediaType, data: base64 },
+            } as any,
+            {
+              type: 'text',
+              text: `This is a musician's setlist. Extract every song title in order, exactly as written.
 
-Return ONLY a JSON array of objects with this exact structure, nothing else:
-[{"title": "Song Title", "artist": "Artist Name or empty string"}]
+Return ONLY a JSON array like this:
+[{"title": "Song Title", "artist": "Artist or empty string"}]
 
 Rules:
-- Preserve the exact order shown
-- Include every song you can read, even if partially legible
-- If no artist is shown, use empty string for artist
-- Strip any numbering (1. 2. etc) from the title
-- Strip any timing notes like (3:45) from the title
-- If you see "x2" or "repeat" notes, include the song once
-- Do not include section headers like "Set 1" or "Encore" as songs
-- Return valid JSON only, no explanation, no markdown`,
-              },
-            ],
-          },
-        ],
+- Keep exact order
+- Strip numbering (1. 2. etc)
+- Strip timing notes like (3:45)
+- Skip section headers like "Set 1" or "Encore"
+- Return valid JSON only, no markdown`,
+            },
+          ],
+        }],
       })
 
-      // Robust response parsing
       const raw = response.content
-        .filter((block): block is Anthropic.TextBlock => block.type === 'text')
-        .map(block => block.text)
-        .join('\n')
-        .trim()
+        .filter((b): b is Anthropic.TextBlock => b.type === 'text')
+        .map(b => b.text).join('\n').trim()
 
-      console.log('Claude raw response:', raw.slice(0, 200))
+      console.log('Claude response:', raw.slice(0, 200))
 
       try {
         const cleaned = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
@@ -139,24 +166,51 @@ Rules:
         if (!Array.isArray(songs)) throw new Error('Not an array')
       } catch {
         return NextResponse.json({
-          error: 'Could not read the setlist from this file. Try a clearer photo or type songs manually.',
+          error: 'Could not read the setlist. Try a clearer photo or add songs manually.',
         }, { status: 422 })
       }
     }
 
-    const sanitized = songs
-      .filter(s => s.title && s.title.trim().length > 0)
-      .map((s, i) => ({
-        title: s.title.trim(),
-        artist: (s.artist || '').trim(),
-        position: i,
-      }))
+    // ── Sanitize ──────────────────────────────────────────────────────────────
+    let sanitized = songs
+      .filter(s => s.title?.trim())
+      .map((s, i) => ({ title: s.title.trim(), artist: (s.artist || '').trim(), position: i }))
       .slice(0, 40)
 
     if (sanitized.length === 0) {
       return NextResponse.json({
-        error: 'No songs found. Try a clearer photo or type songs manually.',
+        error: 'No songs found. Try a clearer photo or add songs manually.',
       }, { status: 422 })
+    }
+
+    // ── Catalog fuzzy matching ────────────────────────────────────────────────
+    if (userId) {
+      try {
+        const { data: userSongs } = await supabase
+          .from('user_songs')
+          .select('id, title, artist')
+          .eq('user_id', userId)
+
+        if (userSongs && userSongs.length > 0) {
+          const catalog = userSongs.map(s => ({
+            title: s.title,
+            artist: s.artist || '',
+            user_song_id: s.id,
+          }))
+
+          sanitized = sanitized.map(song => {
+            const match = fuzzyMatch(song.title, catalog)
+            if (match) {
+              console.log(`Matched "${song.title}" → "${match.title}"`)
+              return { ...song, title: match.title, artist: match.artist || song.artist }
+            }
+            return song
+          })
+        }
+      } catch (err) {
+        console.error('Catalog match error (non-fatal):', err)
+        // Non-fatal — return Claude's version if matching fails
+      }
     }
 
     return NextResponse.json({ songs: sanitized, count: sanitized.length })
@@ -171,16 +225,14 @@ Rules:
 
 function parseTextSetlist(text: string): { title: string; artist?: string }[] {
   return text
-    .split('\n')
-    .map(line => line.trim())
-    .filter(line => line.length > 0)
-    .filter(line => !/^(set\s*\d|encore|intro|outro|break)/i.test(line))
+    .split('\n').map(l => l.trim()).filter(l => l.length > 0)
+    .filter(l => !/^(set\s*\d|encore|intro|outro|break)/i.test(l))
     .map(line => {
       const stripped = line.replace(/^\d+[\.\)\-\s]+/, '').trim()
       const noTiming = stripped.replace(/\s*\(\d+:\d+\)\s*$/, '').trim()
       const byMatch   = noTiming.match(/^(.+?)\s+by\s+(.+)$/i)
       const dashMatch = noTiming.match(/^(.+?)\s+-\s+(.+)$/)
-      if (byMatch)   return { title: byMatch[1].trim(), artist: byMatch[2].trim() }
+      if (byMatch)   return { title: byMatch[1].trim(),   artist: byMatch[2].trim() }
       if (dashMatch) return { title: dashMatch[1].trim(), artist: dashMatch[2].trim() }
       return { title: noTiming, artist: '' }
     })
