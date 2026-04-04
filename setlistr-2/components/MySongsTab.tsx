@@ -10,6 +10,34 @@ const C = {
   green: '#4ade80', red: '#f87171',
 }
 
+const inp: React.CSSProperties = {
+  background: C.input, border: `1px solid ${C.border}`, borderRadius: 8,
+  padding: '10px 12px', color: C.text, fontSize: 14, outline: 'none',
+  width: '100%', boxSizing: 'border-box' as const, fontFamily: 'inherit',
+}
+const lbl: React.CSSProperties = {
+  fontSize: 10, fontWeight: 700, letterSpacing: '0.1em',
+  textTransform: 'uppercase' as const, color: C.muted, display: 'block', marginBottom: 5,
+}
+
+// ── Field MUST live outside the component so it never gets recreated on render ──
+function Field({ label, note, mono, ...props }: {
+  label: string; note?: string; mono?: boolean
+} & React.InputHTMLAttributes<HTMLInputElement>) {
+  return (
+    <div>
+      <label style={lbl}>{label}</label>
+      <input
+        {...props}
+        style={{ ...inp, ...(mono ? { fontFamily: '"DM Mono", monospace', fontSize: 13 } : {}) }}
+        onFocus={e => (e.target.style.borderColor = C.borderGold)}
+        onBlur={e => (e.target.style.borderColor = C.border)}
+      />
+      {note && <p style={{ fontSize: 11, color: C.muted, margin: '4px 0 0' }}>{note}</p>}
+    </div>
+  )
+}
+
 type Song = {
   id: string
   song_title: string
@@ -44,17 +72,17 @@ function timeAgo(d: string | null) {
 }
 
 export default function MySongsTab({ userId }: { userId: string }) {
-  const [songs, setSongs]               = useState<Song[]>([])
-  const [loading, setLoading]           = useState(true)
-  const [editingSong, setEditingSong]   = useState<Song | null>(null)
-  const [editState, setEditState]       = useState<EditState>(EMPTY_EDIT)
-  const [saving, setSaving]             = useState(false)
-  const [saveError, setSaveError]       = useState('')
-  const [search, setSearch]             = useState('')
-  const [showAdd, setShowAdd]           = useState(false)
-  const [addState, setAddState]         = useState<EditState>(EMPTY_EDIT)
-  const [adding, setAdding]             = useState(false)
-  const [filter, setFilter]             = useState<'all' | 'mine' | 'detected'>('all')
+  const [songs, setSongs]             = useState<Song[]>([])
+  const [loading, setLoading]         = useState(true)
+  const [editingSong, setEditingSong] = useState<Song | null>(null)
+  const [editState, setEditState]     = useState<EditState>(EMPTY_EDIT)
+  const [saving, setSaving]           = useState(false)
+  const [saveError, setSaveError]     = useState('')
+  const [search, setSearch]           = useState('')
+  const [showAdd, setShowAdd]         = useState(false)
+  const [addState, setAddState]       = useState<EditState>(EMPTY_EDIT)
+  const [adding, setAdding]           = useState(false)
+  const [filter, setFilter]           = useState<'all' | 'mine' | 'detected'>('all')
 
   const loadSongs = useCallback(async () => {
     setLoading(true)
@@ -98,7 +126,14 @@ export default function MySongsTab({ userId }: { userId: string }) {
       setSaveError(error.message)
     } else {
       setSongs(prev => prev.map(s => s.id === editingSong.id
-        ? { ...s, ...editState, song_title: editState.song_title.trim(), canonical_artist: editState.canonical_artist.trim() || null, isrc: editState.isrc.trim() || null, composer: editState.composer.trim() || null, publisher: editState.publisher.trim() || null }
+        ? {
+            ...s,
+            song_title: editState.song_title.trim(),
+            canonical_artist: editState.canonical_artist.trim() || null,
+            isrc: editState.isrc.trim() || null,
+            composer: editState.composer.trim() || null,
+            publisher: editState.publisher.trim() || null,
+          }
         : s))
       setEditingSong(null)
     }
@@ -149,19 +184,6 @@ export default function MySongsTab({ userId }: { userId: string }) {
              (s.isrc || '').toLowerCase().includes(q)
     })
 
-  const inp: React.CSSProperties = { background: C.input, border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 12px', color: C.text, fontSize: 14, outline: 'none', width: '100%', boxSizing: 'border-box' as const, fontFamily: 'inherit' }
-  const lbl: React.CSSProperties = { fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, color: C.muted, display: 'block', marginBottom: 5 }
-
-  const Field = ({ label, note, mono, ...props }: { label: string; note?: string; mono?: boolean } & React.InputHTMLAttributes<HTMLInputElement>) => (
-    <div>
-      <label style={lbl}>{label}</label>
-      <input {...props} style={{ ...inp, ...(mono ? { fontFamily: '"DM Mono", monospace', fontSize: 13 } : {}) }}
-        onFocus={e => (e.target.style.borderColor = C.borderGold)}
-        onBlur={e => (e.target.style.borderColor = C.border)} />
-      {note && <p style={{ fontSize: 11, color: C.muted, margin: '4px 0 0' }}>{note}</p>}
-    </div>
-  )
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12, paddingBottom: 40 }}>
 
@@ -182,29 +204,40 @@ export default function MySongsTab({ userId }: { userId: string }) {
       {showAdd && (
         <div style={{ background: C.card, border: `1px solid ${C.borderGold}`, borderRadius: 12, padding: '16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
           <p style={{ fontSize: 13, fontWeight: 700, color: C.gold, margin: 0 }}>Add to your catalog</p>
-          <Field label="Song Title *" autoFocus value={addState.song_title} onChange={e => setAddState(s => ({ ...s, song_title: e.target.value }))} placeholder="Song title" />
-          <Field label="Artist" value={addState.canonical_artist} onChange={e => setAddState(s => ({ ...s, canonical_artist: e.target.value }))} placeholder="Your artist name" />
+          <Field label="Song Title *" autoFocus value={addState.song_title}
+            onChange={e => setAddState(s => ({ ...s, song_title: e.target.value }))} placeholder="Song title" />
+          <Field label="Artist" value={addState.canonical_artist}
+            onChange={e => setAddState(s => ({ ...s, canonical_artist: e.target.value }))} placeholder="Your artist name" />
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <Field label="ISRC" mono value={addState.isrc} onChange={e => setAddState(s => ({ ...s, isrc: e.target.value }))} placeholder="USRC12345678" />
-            <Field label="Composer(s)" value={addState.composer} onChange={e => setAddState(s => ({ ...s, composer: e.target.value }))} placeholder="All songwriters" />
+            <Field label="ISRC" mono value={addState.isrc}
+              onChange={e => setAddState(s => ({ ...s, isrc: e.target.value }))} placeholder="USRC12345678" />
+            <Field label="Composer(s)" value={addState.composer}
+              onChange={e => setAddState(s => ({ ...s, composer: e.target.value }))} placeholder="All songwriters" />
           </div>
-          <Field label="Publisher" value={addState.publisher} onChange={e => setAddState(s => ({ ...s, publisher: e.target.value }))} placeholder="Publishing company" />
+          <Field label="Publisher" value={addState.publisher}
+            onChange={e => setAddState(s => ({ ...s, publisher: e.target.value }))} placeholder="Publishing company" />
           <div style={{ display: 'flex', gap: 8 }}>
             <button onClick={addSong} disabled={adding || !addState.song_title.trim()}
               style={{ flex: 1, padding: '11px', background: addState.song_title.trim() ? C.gold : C.muted, border: 'none', borderRadius: 8, color: '#0a0908', fontSize: 13, fontWeight: 800, cursor: adding || !addState.song_title.trim() ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: adding ? 0.7 : 1 }}>
               {adding ? 'Adding...' : 'Add to Catalog'}
             </button>
             <button onClick={() => setShowAdd(false)}
-              style={{ padding: '11px 16px', background: 'transparent', border: `1px solid ${C.border}`, borderRadius: 8, color: C.muted, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
+              style={{ padding: '11px 16px', background: 'transparent', border: `1px solid ${C.border}`, borderRadius: 8, color: C.muted, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>
+              Cancel
+            </button>
           </div>
         </div>
       )}
 
       {/* Search + filter */}
-      <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search songs, artists, ISRCs..."
+      <input
+        value={search}
+        onChange={e => setSearch(e.target.value)}
+        placeholder="Search songs, artists, ISRCs..."
         style={{ ...inp, padding: '11px 14px', fontSize: 14 }}
         onFocus={e => (e.target.style.borderColor = C.borderGold)}
-        onBlur={e => (e.target.style.borderColor = C.border)} />
+        onBlur={e => (e.target.style.borderColor = C.border)}
+      />
 
       <div style={{ display: 'flex', gap: 6 }}>
         {([
@@ -247,7 +280,6 @@ export default function MySongsTab({ userId }: { userId: string }) {
                   </span>
                 </div>
               </div>
-              {/* Metadata dots: ISRC / composer / publisher */}
               <div style={{ display: 'flex', gap: 3, flexShrink: 0 }}>
                 <span style={{ width: 6, height: 6, borderRadius: '50%', background: song.isrc ? C.green : 'rgba(255,255,255,0.1)', display: 'inline-block' }} />
                 <span style={{ width: 6, height: 6, borderRadius: '50%', background: song.composer ? C.gold : 'rgba(255,255,255,0.1)', display: 'inline-block' }} />
@@ -261,10 +293,13 @@ export default function MySongsTab({ userId }: { userId: string }) {
 
       {/* Edit sheet */}
       {editingSong && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
+        <div
+          style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
           onClick={() => setEditingSong(null)}>
-          <div onClick={e => e.stopPropagation()}
+          <div
+            onClick={e => e.stopPropagation()}
             style={{ width: '100%', maxWidth: 520, background: '#141210', borderRadius: '20px 20px 0 0', border: '1px solid rgba(255,255,255,0.07)', borderBottom: 'none', padding: '20px 20px 40px', display: 'flex', flexDirection: 'column', gap: 14, fontFamily: '"DM Sans", system-ui, sans-serif', maxHeight: '90vh', overflowY: 'auto' }}>
+
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <p style={{ fontSize: 15, fontWeight: 700, color: C.text, margin: 0 }}>Edit Song</p>
               <div style={{ display: 'flex', gap: 8 }}>
@@ -277,14 +312,27 @@ export default function MySongsTab({ userId }: { userId: string }) {
               </div>
             </div>
 
-            <Field label="Song Title *" value={editState.song_title} onChange={e => setEditState(s => ({ ...s, song_title: e.target.value }))} />
-            <Field label="Artist" value={editState.canonical_artist} onChange={e => setEditState(s => ({ ...s, canonical_artist: e.target.value }))} placeholder="Your artist name" />
-            <Field label="ISRC" mono note="Find in DistroKid, TuneCore, CD Baby, or your distribution platform"
-              value={editState.isrc} onChange={e => setEditState(s => ({ ...s, isrc: e.target.value }))} placeholder="e.g. USRC12345678" />
-            <Field label="Composer(s)" note="List all co-writers exactly as registered with your PRO"
-              value={editState.composer} onChange={e => setEditState(s => ({ ...s, composer: e.target.value }))} placeholder="e.g. Jesse Slack, Jane Smith" />
+            <Field label="Song Title *"
+              value={editState.song_title}
+              onChange={e => setEditState(s => ({ ...s, song_title: e.target.value }))} />
+            <Field label="Artist"
+              value={editState.canonical_artist}
+              onChange={e => setEditState(s => ({ ...s, canonical_artist: e.target.value }))}
+              placeholder="Your artist name" />
+            <Field label="ISRC" mono
+              note="Find in DistroKid, TuneCore, CD Baby, or your distribution platform"
+              value={editState.isrc}
+              onChange={e => setEditState(s => ({ ...s, isrc: e.target.value }))}
+              placeholder="e.g. USRC12345678" />
+            <Field label="Composer(s)"
+              note="List all co-writers exactly as registered with your PRO"
+              value={editState.composer}
+              onChange={e => setEditState(s => ({ ...s, composer: e.target.value }))}
+              placeholder="e.g. Jesse Slack, Jane Smith" />
             <Field label="Publisher"
-              value={editState.publisher} onChange={e => setEditState(s => ({ ...s, publisher: e.target.value }))} placeholder="e.g. Sony Music Publishing" />
+              value={editState.publisher}
+              onChange={e => setEditState(s => ({ ...s, publisher: e.target.value }))}
+              placeholder="e.g. Sony Music Publishing" />
 
             {saveError && <p style={{ fontSize: 12, color: C.red, margin: 0 }}>{saveError}</p>}
 
