@@ -550,7 +550,7 @@ export default function NewShowPage() {
               {uploadMode === 'upload' && (
                 <div style={{ marginBottom: 12 }}>
                   {/* Camera — opens camera directly, iOS converts to JPEG automatically */}
-                  <input ref={cameraInputRef} type="file" accept="image/jpeg,image/png" capture="environment"
+                  <input ref={cameraInputRef} type="file" capture="environment"
                     style={{ display: 'none' }}
                     onChange={e => { const f = e.target.files?.[0]; if (f) handleFileUpload(f); e.target.value = '' }} />
                   {/* File picker — JPG, PNG, PDF, TXT only */}
