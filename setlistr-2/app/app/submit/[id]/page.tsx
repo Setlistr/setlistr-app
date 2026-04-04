@@ -203,14 +203,30 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
 
       if (perfSongs && perfSongs.length > 0) {
         songData = perfSongs
-      } else if (perf.setlist_id) {
-        const { data: setlistSongs } = await supabase
-          .from('setlist_items')
-          .select('title, artist_name, isrc, composer, publisher, work_number, is_cover')
-          .eq('setlist_id', perf.setlist_id)
-          .order('position')
-        if (setlistSongs && setlistSongs.length > 0) {
-          songData = setlistSongs.map(s => ({ ...s, artist: s.artist_name }))
+      } else {
+        // Try setlist_items — first via perf.setlist_id, then by looking up setlists table
+        let setlistId = perf.setlist_id || null
+
+        if (!setlistId) {
+          const { data: setlist } = await supabase
+            .from('setlists')
+            .select('id')
+            .eq('performance_id', params.id)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .single()
+          setlistId = setlist?.id || null
+        }
+
+        if (setlistId) {
+          const { data: setlistSongs } = await supabase
+            .from('setlist_items')
+            .select('title, artist_name, isrc, composer, publisher, work_number, is_cover')
+            .eq('setlist_id', setlistId)
+            .order('position')
+          if (setlistSongs && setlistSongs.length > 0) {
+            songData = setlistSongs.map(s => ({ ...s, artist: s.artist_name }))
+          }
         }
       }
 
