@@ -170,30 +170,62 @@ export default function NewShowPage() {
     setSetlistOpen(true)
   }
 
-  async function handleFileUpload(file: File) {
-    setUploadError('')
-    if (file.size > MAX_FILE_SIZE) { setUploadError('File is too large. Maximum size is 10MB.'); return }
-    const fileName = (file.name || '').toLowerCase()
-    const isHEIC = fileName.endsWith('.heic') || fileName.endsWith('.heif') || file.type === 'image/heic' || file.type === 'image/heif'
-    const isAllowed = ALLOWED_MIME_TYPES.includes(file.type) || isHEIC
-    if (!isAllowed) { setUploadError('Unsupported file type. Please upload a JPG, PNG, PDF, or TXT file.'); return }
-    setUploading(true)
-    try {
-      const formData = new FormData()
-      formData.append('file', file)
-      const res = await fetch('/api/parse-setlist', { method: 'POST', body: formData })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Upload failed')
-      const existing = new Set(plannedSongs.map(s => s.title.toLowerCase()))
-      const newSongs = (data.songs as PlannedSong[]).filter(s => !existing.has(s.title.toLowerCase()))
-      setPlannedSongs(prev => [...prev, ...newSongs.map((s, i) => ({ ...s, position: prev.length + i }))])
-      setUploadMode('chips')
-    } catch (err: any) {
-      setUploadError(err.message || 'Could not read the setlist. Try a clearer photo.')
-    } finally {
-      setUploading(false)
+  async function compressImage(file: File): Promise<File> {
+  return new Promise((resolve) => {
+    const img = new Image()
+    const url = URL.createObjectURL(file)
+    img.onload = () => {
+      const MAX = 1600
+      let { width, height } = img
+      if (width > MAX || height > MAX) {
+        if (width > height) { height = Math.round(height * MAX / width); width = MAX }
+        else { width = Math.round(width * MAX / height); height = MAX }
+      }
+      const canvas = document.createElement('canvas')
+      canvas.width = width; canvas.height = height
+      canvas.getContext('2d')?.drawImage(img, 0, 0, width, height)
+      canvas.toBlob(blob => {
+        URL.revokeObjectURL(url)
+        if (blob) resolve(new File([blob], 'setlist.jpg', { type: 'image/jpeg' }))
+        else resolve(file)
+      }, 'image/jpeg', 0.85)
     }
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(file) }
+    img.src = url
+  })
+}
+
+async function handleFileUpload(file: File) {
+  setUploadError('')
+  if (file.size > MAX_FILE_SIZE) { setUploadError('File is too large. Maximum size is 10MB.'); return }
+  const fileName = (file.name || '').toLowerCase()
+  const isHEIC = fileName.endsWith('.heic') || fileName.endsWith('.heif') || file.type === 'image/heic' || file.type === 'image/heif'
+  const isAllowed = ALLOWED_MIME_TYPES.includes(file.type) || isHEIC
+  if (!isAllowed) { setUploadError('Unsupported file type. Please upload a JPG, PNG, PDF, or TXT file.'); return }
+  setUploading(true)
+  try {
+    let uploadFile = file
+    if (file.type.startsWith('image/') || isHEIC) {
+      uploadFile = await compressImage(file)
+    }
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    const formData = new FormData()
+    formData.append('file', uploadFile)
+    if (user?.id) formData.append('userId', user.id)
+    const res = await fetch('/api/parse-setlist', { method: 'POST', body: formData })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error || 'Upload failed')
+    const existing = new Set(plannedSongs.map(s => s.title.toLowerCase()))
+    const newSongs = (data.songs as PlannedSong[]).filter(s => !existing.has(s.title.toLowerCase()))
+    setPlannedSongs(prev => [...prev, ...newSongs.map((s, i) => ({ ...s, position: prev.length + i }))])
+    setUploadMode('chips')
+  } catch (err: any) {
+    setUploadError(err.message || 'Could not read the setlist. Try a clearer photo.')
+  } finally {
+    setUploading(false)
   }
+}
 
   const filteredRecent = recentSongs
     .filter(s => !quickSearch.trim() || s.title.toLowerCase().includes(quickSearch.toLowerCase()))
