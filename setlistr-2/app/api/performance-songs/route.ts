@@ -12,21 +12,15 @@ export async function GET(req: NextRequest) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY
 
-  // Debug: confirm env vars are present (never log full key in prod)
   if (!url || !key) {
-    return NextResponse.json({ 
-      error: 'missing env vars',
-      hasUrl: !!url,
-      hasKey: !!key,
-      songs: []
-    })
+    return NextResponse.json({ error: 'missing env vars', hasUrl: !!url, hasKey: !!key, songs: [] })
   }
 
   const supabaseAdmin = createClient(url, key)
 
   const { data: perfSongs, error } = await supabaseAdmin
     .from('performance_songs')
-    .select('title, artist, isrc, composer, publisher, is_cover')
+    .select('title, artist, isrc, composer, publisher')
     .eq('performance_id', performanceId)
     .order('position')
 
@@ -50,7 +44,7 @@ export async function GET(req: NextRequest) {
   if (setlist?.id) {
     const { data: setlistSongs } = await supabaseAdmin
       .from('setlist_items')
-      .select('title, artist_name, isrc, composer, publisher, work_number, is_cover')
+      .select('title, artist_name, isrc, composer, publisher')
       .eq('setlist_id', setlist.id)
       .order('position')
 
