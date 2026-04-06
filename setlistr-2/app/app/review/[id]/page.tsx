@@ -15,6 +15,7 @@ import { GripVertical, Download, Check, X, Music2, MapPin, Calendar } from 'luci
 import { estimateRoyalties, capacityToBand } from '@/lib/royalty-estimate'
 import CatalogSearch, { type CatalogSong } from '@/components/CatalogSearch'
 import { normalizeSong } from '@/lib/song-utils'
+import { PlannedVsPlayed } from '@/components/PlannedVsPlayed'
 
 const C = {
   bg: '#0a0908', card: '#141210', cardHover: '#181614',
@@ -484,6 +485,8 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
               </div>
             </div>
           </div>
+
+          {performance && <PlannedVsPlayed performanceId={performance.id} />}
 
           <div style={{ width: '100%', background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '14px 16px', marginBottom: 20, maxHeight: 160, overflowY: 'auto', animation: 'fadeUp 0.4s 0.1s ease both' }}>
             <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, margin: '0 0 10px', textAlign: 'left' }}>Setlist</p>
