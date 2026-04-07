@@ -103,7 +103,7 @@ export default function DashboardPage() {
         setTotalSongs(Object.values(countMap).reduce((a, b) => a + b, 0))
         const estimates: ShowEstimateInput[] = perfs
           .filter(p => p.status !== 'live' && p.status !== 'pending' && p.submission_status !== 'submitted')
-          .map(p => ({ performanceId: p.id, status: p.status, songCount: countMap[p.id] || 0, venueCapacityBand: capacityToBand(p.venue_capacity), showType: (p.show_type as any) || 'single', territory: p.country === 'CA' || p.country === 'Canada' ? 'CA' : 'US' }))
+          .map(p => ({ performanceId: p.id, status: p.status, songCount: countMap[p.id] || 0, venueCapacityBand: capacityToBand(p.venue_capacity), showType: (p.show_type as any) || 'single', territory: (['CA','Canada','ca'].includes(p.country || '') || (p.city || '').toLowerCase().includes('toronto') || (p.city || '').toLowerCase().includes('vancouver') || (p.city || '').toLowerCase().includes('montreal') || (p.city || '').toLowerCase().includes('calgary') || (p.country || '').toLowerCase().includes('canada')) ? 'CA' : 'US' }))
           .filter(e => e.songCount > 0)
         setShowEstimates(estimates)
       }
@@ -304,7 +304,7 @@ export default function DashboardPage() {
                 const dateStr       = perf.started_at || perf.created_at
                 const songCount     = songCountMap[perf.id] || 0
                 const isFinished    = perf.status !== 'live' && perf.status !== 'pending'
-                const perfEst       = isFinished && songCount > 0 ? estimateRoyalties({ songCount, venueCapacityBand: capacityToBand(perf.venue_capacity), showType: (perf.show_type as any) || 'single', territory: perf.country === 'CA' || perf.country === 'Canada' ? 'CA' : 'US' }) : null
+                const perfEst       = isFinished && songCount > 0 ? estimateRoyalties({ songCount, venueCapacityBand: capacityToBand(perf.venue_capacity), showType: (perf.show_type as any) || 'single', territory: (['CA','Canada','ca'].includes(perf.country || '') || (perf.city || '').toLowerCase().includes('toronto') || (perf.city || '').toLowerCase().includes('vancouver') || (perf.city || '').toLowerCase().includes('montreal') || (perf.city || '').toLowerCase().includes('calgary') || (perf.country || '').toLowerCase().includes('canada')) ? 'CA' : 'US' }) : null
                 return (
                   <button key={perf.id} onClick={() => navigateToPerformance(perf)}
                     style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: '14px 16px', cursor: 'pointer', textAlign: 'left', transition: 'background 0.15s ease, border-color 0.15s ease', display: 'flex', alignItems: 'center', gap: 12, fontFamily: 'inherit', animation: `fadeUp ${0.5 + i * 0.06}s ease` }}
