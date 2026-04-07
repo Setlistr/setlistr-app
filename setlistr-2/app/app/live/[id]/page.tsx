@@ -95,6 +95,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   const [lastSongAt, setLastSongAt]     = useState<number>(0)
   const [showSilenceWarning, setShowSilenceWarning] = useState(false)
   const [restarting, setRestarting]     = useState(false)
+  const [plannedCount, setPlannedCount] = useState<number>(0)
 
   const mediaRecorderRef    = useRef<MediaRecorder | null>(null)
   const chunksRef           = useRef<Blob[]>([])
@@ -122,6 +123,15 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         if (data) {
           setPerformance(data); setShowId(data.show_id || null); setSetlistId(data.setlist_id || null); setArtistId(data.artist_id || null)
           if (data.started_at) showStartRef.current = new Date(data.started_at).getTime()
+          // Load planned song count for progress indicator
+          if (data.id) {
+            const supabase2 = createClient()
+            const { data: planned } = await supabase2.from('planned_setlists').select('id').eq('performance_id', data.id).single()
+            if (planned?.id) {
+              const { count } = await supabase2.from('planned_setlist_songs').select('id', { count: 'exact', head: true }).eq('planned_setlist_id', planned.id)
+              if (count) setPlannedCount(count)
+            }
+          }
         }
       })
   }, [params.id])
@@ -315,6 +325,19 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         </div>
       </div>
 
+      {/* Progress indicator — only when planned songs loaded */}
+      {plannedCount > 0 && isListening && (
+        <div style={{ position: 'relative', zIndex: 10, background: 'rgba(255,255,255,0.02)', borderBottom: `1px solid ${C.border}`, padding: '7px 16px', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+          <div style={{ flex: 1, height: 3, background: 'rgba(255,255,255,0.06)', borderRadius: 2, overflow: 'hidden' }}>
+            <div style={{ height: '100%', background: C.gold, borderRadius: 2, width: `${Math.min((confirmedSongs.length / plannedCount) * 100, 100)}%`, transition: 'width 0.6s ease' }} />
+          </div>
+          <span style={{ fontSize: 11, color: C.gold, fontWeight: 700, flexShrink: 0, fontFamily: '"DM Mono", monospace' }}>
+            {confirmedSongs.length}/{plannedCount}
+          </span>
+          <span style={{ fontSize: 11, color: C.muted, flexShrink: 0 }}>planned</span>
+        </div>
+      )}
+
       {/* Stalled banner */}
       {engineState === 'stalled' && isListening && (
         <div style={{ position: 'relative', zIndex: 10, background: 'rgba(220,38,38,0.08)', borderBottom: '1px solid rgba(220,38,38,0.2)', padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexShrink: 0, animation: 'slideDown 0.2s ease' }}>
@@ -424,7 +447,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
               const isSuggested = song.confidence_level === 'suggest'
               const realIdx = songs.indexOf(song)
               return (
-                <div key={i} style={{ background: C.card, border: `1px solid ${editingIndex === realIdx ? 'rgba(201,168,76,0.45)' : 'rgba(255,255,255,0.05)'}`, borderRadius: 10, overflow: 'hidden', animation: 'slideUp 0.22s ease' }}>
+                <div key={i} style={{ background: C.card, border: `1px solid ${editingIndex === realIdx ? 'rgba(201,168,76,0.45)' : 'rgba(255,255,255,0.05)'}`, borderRadius: 10, overflow: 'hidden', animation: 'songPop 0.35s cubic-bezier(0.34,1.56,0.64,1) both' }}>
                   {editingIndex === realIdx ? (
                     <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
                       <input autoFocus value={editTitle} onChange={e => setEditTitle(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') cancelEdit() }} placeholder="Song title"
@@ -527,7 +550,8 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         @keyframes ring-pulse { 0%{opacity:.5;transform:translateX(-50%) scale(.97)} 100%{opacity:0;transform:translateX(-50%) scale(1.2)} }
         @keyframes ring-catch { 0%{opacity:.9;transform:translateX(-50%) scale(.93)} 100%{opacity:0;transform:translateX(-50%) scale(1.42)} }
         @keyframes wave-bar   { from{height:4px} to{height:22px} }
-        @keyframes slideUp    { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes slideUp    { from{opacity:0;transform:translateY(6px) scale(0.97)} to{opacity:1;transform:translateY(0) scale(1)} }
+        @keyframes songPop    { 0%{opacity:0;transform:translateY(4px) scale(0.96)} 60%{transform:translateY(-2px) scale(1.01)} 100%{opacity:1;transform:translateY(0) scale(1)} }
         @keyframes slideDown  { from{opacity:0;transform:translateY(-6px)} to{opacity:1;transform:translateY(0)} }
         @keyframes fadeIn     { from{opacity:0} to{opacity:1} }
         @keyframes breathe    { 0%,100%{transform:scale(1);opacity:.4} 50%{transform:scale(1.15);opacity:.9} }
