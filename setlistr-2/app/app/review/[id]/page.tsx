@@ -508,6 +508,21 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
             style={{ width: '100%', padding: '16px', background: C.gold, border: 'none', borderRadius: 12, color: '#0a0908', fontSize: 14, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', marginBottom: 10, animation: 'fadeUp 0.4s 0.14s ease both', fontFamily: 'inherit' }}>
             Show Complete
           </button>
+
+          {/* Share setlist button */}
+          <button
+            onClick={() => {
+              const url = `https://setlistr.ai/s/${params.id}`
+              if (navigator.share) {
+                navigator.share({ title: `${performance?.artist_name} at ${performance?.venue_name}`, text: `Check out my setlist from tonight's show`, url })
+              } else {
+                navigator.clipboard.writeText(url).then(() => alert('Link copied!'))
+              }
+            }}
+            style={{ width: '100%', padding: '14px', background: 'transparent', border: `1px solid rgba(201,168,76,0.3)`, borderRadius: 12, color: C.gold, fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit', marginBottom: 10, animation: 'fadeUp 0.4s 0.16s ease both', letterSpacing: '0.04em', WebkitTapHighlightColor: 'transparent' }}>
+            ✦ Share Setlist
+          </button>
+
           <div style={{ width: '100%', display: 'flex', gap: 8, marginBottom: 16, animation: 'fadeUp 0.4s 0.18s ease both' }}>
             <button onClick={() => router.push(`/app/submit/${params.id}`)}
               style={{ flex: 1, padding: '12px', background: 'transparent', border: `1px solid ${C.borderGold}`, borderRadius: 10, color: C.gold, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', letterSpacing: '0.04em' }}>
