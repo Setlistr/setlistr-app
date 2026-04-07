@@ -123,15 +123,14 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         if (data) {
           setPerformance(data); setShowId(data.show_id || null); setSetlistId(data.setlist_id || null); setArtistId(data.artist_id || null)
           if (data.started_at) showStartRef.current = new Date(data.started_at).getTime()
-          // Load planned song count for progress indicator
-          if (data.id) {
-            const supabase2 = createClient()
-            const { data: planned } = await supabase2.from('planned_setlists').select('id').eq('performance_id', data.id).single()
-            if (planned?.id) {
-              const { count } = await supabase2.from('planned_setlist_songs').select('id', { count: 'exact', head: true }).eq('planned_setlist_id', planned.id)
-              if (count) setPlannedCount(count)
-            }
-          }
+          // Load planned song count for progress indicator — separate async call
+          const supabase2 = createClient()
+          supabase2.from('planned_setlists').select('id').eq('performance_id', data.id).single()
+            .then(({ data: planned }) => {
+              if (!planned?.id) return
+              supabase2.from('planned_setlist_songs').select('id', { count: 'exact', head: true }).eq('planned_setlist_id', planned.id)
+                .then(({ count }) => { if (count) setPlannedCount(count) })
+            })
         }
       })
   }, [params.id])
