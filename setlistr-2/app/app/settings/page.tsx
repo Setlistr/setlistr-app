@@ -28,12 +28,6 @@ type SpotifyArtist = {
   genres: string[]
 }
 
-type SpotifyTrack = {
-  id: string
-  name: string
-  artists: string[]
-}
-
 export default function SettingsPage() {
   // Profile
   const [fullName, setFullName]     = useState('')
@@ -88,10 +82,8 @@ export default function SettingsPage() {
         setIpiNumber(profile.ipi_number ?? '')
         setPublisherName(profile.publisher_name ?? '')
         setLegalName(profile.legal_name ?? '')
-        // Pre-fill spotify search with artist name
         if (profile.artist_name) setSpotifyQuery(profile.artist_name)
       }
-      // Check if user already has spotify imports
       const { count } = await supabase
         .from('user_songs')
         .select('id', { count: 'exact', head: true })
@@ -151,7 +143,7 @@ export default function SettingsPage() {
     setTimeout(() => setProSaved(false), 2000)
   }
 
-  // ── Spotify import ────────────────────────────────────────────────────────
+  // ── Spotify search — calls our backend only, no client-side credentials ─────
   async function searchSpotify() {
     if (!spotifyQuery.trim()) return
     setSpotifySearching(true)
@@ -161,21 +153,14 @@ export default function SettingsPage() {
     setImportDone(false)
 
     try {
-      // Get Spotify access token (public client credentials — no user auth needed)
-      const tokenRes = await fetch('https://accounts.spotify.com/api/token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: 'grant_type=client_credentials&client_id=1d8e6a8f3c4b4e5f9a0b2c3d4e5f6a7b&client_secret=a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6',
-      })
-
-      // Note: We use our own backend to avoid exposing credentials
       const res = await fetch(`/api/spotify-search?q=${encodeURIComponent(spotifyQuery.trim())}`)
       if (!res.ok) throw new Error('Search failed')
       const data = await res.json()
+      if (data.error) throw new Error(data.error)
       setSpotifyResults(data.artists || [])
       if (!data.artists?.length) setSpotifyError('No artists found. Try a different name.')
-    } catch {
-      setSpotifyError('Search failed. Please try again.')
+    } catch (err: any) {
+      setSpotifyError(err?.message || 'Search failed. Please try again.')
     } finally {
       setSpotifySearching(false)
     }
@@ -192,11 +177,12 @@ export default function SettingsPage() {
       })
       if (!res.ok) throw new Error('Import failed')
       const data = await res.json()
+      if (data.error) throw new Error(data.error)
       setImportCount(data.imported || 0)
       setImportDone(true)
       setExistingImportCount(prev => prev + (data.imported || 0))
-    } catch {
-      setSpotifyError('Import failed. Please try again.')
+    } catch (err: any) {
+      setSpotifyError(err?.message || 'Import failed. Please try again.')
       setSelectedArtist(null)
     } finally {
       setImporting(false)
@@ -338,7 +324,6 @@ export default function SettingsPage() {
             {existingImportCount > 0 ? ' Real show data always ranks above imported songs.' : ''}
           </p>
 
-          {/* Import done state */}
           {importDone ? (
             <div style={{ background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.2)', borderRadius: 12, padding: '16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -355,7 +340,6 @@ export default function SettingsPage() {
             </div>
           ) : (
             <>
-              {/* Search input */}
               <div style={{ display: 'flex', gap: 8 }}>
                 <input
                   value={spotifyQuery}
@@ -379,7 +363,6 @@ export default function SettingsPage() {
                 <p style={{ fontSize: 12, color: '#f87171', margin: 0 }}>{spotifyError}</p>
               )}
 
-              {/* Artist results */}
               {spotifyResults.length > 0 && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, margin: 0 }}>
@@ -394,7 +377,6 @@ export default function SettingsPage() {
                       onMouseEnter={e => { if (!importing) (e.currentTarget as HTMLElement).style.background = 'rgba(201,168,76,0.06)' }}
                       onMouseLeave={e => { if (selectedArtist?.id !== artist.id) (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.02)' }}
                     >
-                      {/* Artist image */}
                       {artist.image ? (
                         <img src={artist.image} alt={artist.name} style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
                       ) : (
@@ -402,7 +384,6 @@ export default function SettingsPage() {
                           <Music2 size={18} color={C.muted} />
                         </div>
                       )}
-                      {/* Artist info */}
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <p style={{ fontSize: 14, fontWeight: 700, color: C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{artist.name}</p>
                         <p style={{ fontSize: 11, color: C.muted, margin: '2px 0 0' }}>
@@ -410,7 +391,6 @@ export default function SettingsPage() {
                           {artist.genres.length > 0 && ` · ${artist.genres.slice(0, 2).join(', ')}`}
                         </p>
                       </div>
-                      {/* Import indicator */}
                       {importing && selectedArtist?.id === artist.id ? (
                         <div style={{ width: 16, height: 16, borderRadius: '50%', border: `1.5px solid ${C.gold}40`, borderTopColor: C.gold, animation: 'spin 0.8s linear infinite', flexShrink: 0 }} />
                       ) : (
