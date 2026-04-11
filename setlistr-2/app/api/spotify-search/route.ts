@@ -6,6 +6,10 @@ export const dynamic = 'force-dynamic'
 async function getSpotifyToken(): Promise<string> {
   const clientId     = process.env.SPOTIFY_CLIENT_ID!
   const clientSecret = process.env.SPOTIFY_CLIENT_SECRET!
+
+  console.log('[SpotifySearch] clientId present:', !!clientId, 'length:', clientId?.length)
+  console.log('[SpotifySearch] clientSecret present:', !!clientSecret, 'length:', clientSecret?.length)
+
   const credentials  = Buffer.from(`${clientId}:${clientSecret}`).toString('base64')
 
   const res = await fetch('https://accounts.spotify.com/api/token', {
@@ -17,8 +21,16 @@ async function getSpotifyToken(): Promise<string> {
     body: 'grant_type=client_credentials',
   })
 
-  if (!res.ok) throw new Error('Failed to get Spotify token')
+  console.log('[SpotifySearch] token response status:', res.status)
+
+  if (!res.ok) {
+    const body = await res.text()
+    console.error('[SpotifySearch] token error body:', body)
+    throw new Error(`Spotify token failed: ${res.status} — ${body}`)
+  }
+
   const data = await res.json()
+  console.log('[SpotifySearch] token received, length:', data.access_token?.length)
   return data.access_token
 }
 
@@ -34,9 +46,15 @@ export async function GET(req: NextRequest) {
       { headers: { 'Authorization': `Bearer ${token}` } }
     )
 
-    if (!res.ok) throw new Error('Spotify search failed')
-    const data = await res.json()
+    console.log('[SpotifySearch] search response status:', res.status)
 
+    if (!res.ok) {
+      const body = await res.text()
+      console.error('[SpotifySearch] search error body:', body)
+      throw new Error(`Spotify search failed: ${res.status}`)
+    }
+
+    const data = await res.json()
     const artists = (data.artists?.items || []).map((a: any) => ({
       id:        a.id,
       name:      a.name,
@@ -45,10 +63,11 @@ export async function GET(req: NextRequest) {
       genres:    a.genres?.slice(0, 3) || [],
     }))
 
+    console.log('[SpotifySearch] returning', artists.length, 'artists')
     return NextResponse.json({ artists })
 
   } catch (err: any) {
-    console.error('[SpotifySearch] Error:', err)
+    console.error('[SpotifySearch] Error:', err.message)
     return NextResponse.json({ error: err.message }, { status: 500 })
   }
 }
