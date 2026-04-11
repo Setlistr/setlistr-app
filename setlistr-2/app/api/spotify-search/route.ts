@@ -6,10 +6,6 @@ export const dynamic = 'force-dynamic'
 async function getSpotifyToken(): Promise<string> {
   const clientId     = process.env.SPOTIFY_CLIENT_ID!
   const clientSecret = process.env.SPOTIFY_CLIENT_SECRET!
-
-  console.log('[SpotifySearch] clientId present:', !!clientId, 'length:', clientId?.length)
-  console.log('[SpotifySearch] clientSecret present:', !!clientSecret, 'length:', clientSecret?.length)
-
   const credentials  = Buffer.from(`${clientId}:${clientSecret}`).toString('base64')
 
   const res = await fetch('https://accounts.spotify.com/api/token', {
@@ -19,18 +15,11 @@ async function getSpotifyToken(): Promise<string> {
       'Content-Type': 'application/x-www-form-urlencoded',
     },
     body: 'grant_type=client_credentials',
+    cache: 'no-store', // ← prevents Vercel from serving a stale cached token
   })
 
-  console.log('[SpotifySearch] token response status:', res.status)
-
-  if (!res.ok) {
-    const body = await res.text()
-    console.error('[SpotifySearch] token error body:', body)
-    throw new Error(`Spotify token failed: ${res.status} — ${body}`)
-  }
-
+  if (!res.ok) throw new Error('Failed to get Spotify token')
   const data = await res.json()
-  console.log('[SpotifySearch] token received, length:', data.access_token?.length)
   return data.access_token
 }
 
@@ -43,16 +32,13 @@ export async function GET(req: NextRequest) {
 
     const res = await fetch(
       `https://api.spotify.com/v1/search?q=${encodeURIComponent(q)}&type=artist&limit=5`,
-      { headers: { 'Authorization': `Bearer ${token}` } }
+      {
+        headers: { 'Authorization': `Bearer ${token}` },
+        cache: 'no-store',
+      }
     )
 
-    console.log('[SpotifySearch] search response status:', res.status)
-
-    if (!res.ok) {
-      const body = await res.text()
-      console.error('[SpotifySearch] search error body:', body)
-      throw new Error(`Spotify search failed: ${res.status}`)
-    }
+    if (!res.ok) throw new Error(`Spotify search failed: ${res.status}`)
 
     const data = await res.json()
     const artists = (data.artists?.items || []).map((a: any) => ({
@@ -63,7 +49,6 @@ export async function GET(req: NextRequest) {
       genres:    a.genres?.slice(0, 3) || [],
     }))
 
-    console.log('[SpotifySearch] returning', artists.length, 'artists')
     return NextResponse.json({ artists })
 
   } catch (err: any) {
