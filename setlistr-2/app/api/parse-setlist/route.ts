@@ -12,7 +12,8 @@ const supabase = createClient(
 )
 
 const ALLOWED_TYPES = [
-  'image/jpeg', 'image/png', 'image/webp', 'image/gif',
+  'image/jpeg', 'image/jpg', // Samsung sends image/jpg
+  'image/png', 'image/webp', 'image/gif',
   'image/heic', 'image/heif',
   'application/pdf', 'text/plain',
 ]
@@ -34,7 +35,6 @@ function similarity(a: string, b: string): number {
   const nb = normalize(b)
   if (na === nb) return 1.0
 
-  // Word overlap score
   const wordsA = new Set(na.split(' ').filter(w => w.length > 2))
   const wordsB = new Set(nb.split(' ').filter(w => w.length > 2))
   if (wordsA.size === 0 || wordsB.size === 0) return 0
@@ -43,7 +43,6 @@ function similarity(a: string, b: string): number {
   wordsA.forEach(w => { if (wordsB.has(w)) overlap++ })
   const score = (overlap * 2) / (wordsA.size + wordsB.size)
 
-  // Bonus if one contains the other
   if (na.includes(nb) || nb.includes(na)) return Math.max(score, 0.85)
 
   return score
@@ -72,6 +71,22 @@ function fuzzyMatch(
   return null
 }
 
+// ── Normalise MIME type — Samsung sends 'image/jpg', we need 'image/jpeg' ─────
+function normaliseMime(mime: string, filename: string): string {
+  const lower = mime.toLowerCase()
+  if (lower === 'image/jpg') return 'image/jpeg'
+  // Fallback: infer from filename if mime is empty or generic
+  if (!mime || mime === 'application/octet-stream') {
+    const ext = filename.split('.').pop()?.toLowerCase()
+    if (ext === 'jpg' || ext === 'jpeg') return 'image/jpeg'
+    if (ext === 'png') return 'image/png'
+    if (ext === 'webp') return 'image/webp'
+    if (ext === 'heic' || ext === 'heif') return 'image/heic'
+    if (ext === 'pdf') return 'application/pdf'
+  }
+  return lower
+}
+
 export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData()
@@ -82,24 +97,25 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 })
     }
 
-    console.log('uploaded file', { name: file.name, type: file.type, size: file.size })
+    const fileName = (file.name || '').toLowerCase()
+    let mimeType = normaliseMime(file.type, fileName)
+
+    console.log('uploaded file', { name: file.name, originalType: file.type, normalisedType: mimeType, size: file.size })
 
     if (file.size > MAX_SIZE) {
       return NextResponse.json({ error: 'File is too large. Maximum size is 10MB.' }, { status: 400 })
     }
 
-    const fileName = (file.name || '').toLowerCase()
-    const isHEIC = file.type === 'image/heic' || file.type === 'image/heif'
+    const isHEIC = mimeType === 'image/heic' || mimeType === 'image/heif'
       || fileName.endsWith('.heic') || fileName.endsWith('.heif')
 
-    if (!ALLOWED_TYPES.includes(file.type) && !isHEIC) {
+    if (!ALLOWED_TYPES.includes(mimeType) && !isHEIC) {
       return NextResponse.json({
-        error: `Unsupported file type. Please upload a JPG, PNG, PDF, or TXT file.`,
+        error: `Unsupported file type (${file.type}). Please upload a JPG, PNG, PDF, or TXT file.`,
       }, { status: 400 })
     }
 
     let bytes = await file.arrayBuffer()
-    let mimeType: string = file.type
 
     // ── HEIC conversion ───────────────────────────────────────────────────────
     if (isHEIC) {
@@ -114,6 +130,22 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({
           error: 'Could not convert iPhone photo. Try a screenshot instead (Side + Volume Up).',
         }, { status: 422 })
+      }
+    }
+
+    // ── EXIF rotation fix for Android/Samsung ─────────────────────────────────
+    // Samsung cameras embed EXIF rotation rather than physically rotating pixels.
+    // Sharp strips EXIF and physically rotates, fixing upside-down/sideways images.
+    if (mimeType === 'image/jpeg' || mimeType === 'image/png') {
+      try {
+        const sharp = (await import('sharp')).default
+        const rotated = await sharp(Buffer.from(bytes)).rotate().jpeg({ quality: 92 }).toBuffer()
+        bytes = rotated.buffer.slice(rotated.byteOffset, rotated.byteOffset + rotated.byteLength) as ArrayBuffer
+        mimeType = 'image/jpeg'
+        console.log('EXIF rotation applied, size:', rotated.length)
+      } catch (err) {
+        // Non-fatal — proceed with original bytes
+        console.warn('EXIF rotation failed (non-fatal):', err)
       }
     }
 
@@ -209,7 +241,6 @@ Rules:
         }
       } catch (err) {
         console.error('Catalog match error (non-fatal):', err)
-        // Non-fatal — return Claude's version if matching fails
       }
     }
 
