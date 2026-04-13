@@ -96,7 +96,6 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   const [showSilenceWarning, setShowSilenceWarning] = useState(false)
   const [restarting, setRestarting]     = useState(false)
   const [plannedCount, setPlannedCount] = useState<number>(0)
-  // Planned songs loaded at show start — used for reconciliation
   const plannedSongsRef = useRef<{ title: string; normalizedTitle: string; artist: string }[]>([])
 
   const mediaRecorderRef    = useRef<MediaRecorder | null>(null)
@@ -125,7 +124,6 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         if (data) {
           setPerformance(data); setShowId(data.show_id || null); setSetlistId(data.setlist_id || null); setArtistId(data.artist_id || null)
           if (data.started_at) showStartRef.current = new Date(data.started_at).getTime()
-          // Load planned song count for progress indicator — separate async call
           const supabase2 = createClient()
           supabase2.from('planned_setlists').select('id').eq('performance_id', data.id).single()
             .then(({ data: planned }) => {
@@ -134,7 +132,6 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
                 .then(({ data: pSongs }) => {
                   if (!pSongs) return
                   setPlannedCount(pSongs.length)
-                  // Store normalized planned songs for reconciliation
                   plannedSongsRef.current = pSongs.map(s => ({
                     title: s.title,
                     artist: s.artist || '',
@@ -191,24 +188,19 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
 
   const confirmCandidate = useCallback((candidate: PendingCandidate, setlist_item_id?: string, enriched?: { isrc?: string; composer?: string; publisher?: string }) => {
     const normalizedIncoming = normalizeSongKey(candidate.title)
-    // Check if this matches a planned song (case-insensitive, normalized)
     const plannedMatch = plannedSongsRef.current.find(p => p.normalizedTitle === normalizedIncoming)
 
     if (plannedMatch) {
-      // Reconcile: update the planned song entry instead of adding a duplicate
       setSongs(prev => {
         const existingIdx = prev.findIndex(s => normalizeSongKey(s.title) === plannedMatch.normalizedTitle)
         if (existingIdx !== -1) {
-          // Already in list — just mark it confirmed live
           return prev.map((s, i) => i === existingIdx
             ? { ...s, title: plannedMatch.title, source: candidate.source, confidence_level: candidate.confidence_level, isrc: enriched?.isrc || s.isrc || '', composer: enriched?.composer || s.composer || '', publisher: enriched?.publisher || s.publisher || '' }
             : s)
         }
-        // Not yet in list — add with the canonical planned title
         return [...prev, { title: plannedMatch.title, artist: plannedMatch.artist || candidate.artist, source: candidate.source, setlist_item_id, confidence_level: candidate.confidence_level, isrc: enriched?.isrc || '', composer: enriched?.composer || '', publisher: enriched?.publisher || '' }]
       })
     } else {
-      // New song not in plan — add normally
       setSongs(prev => [...prev, { title: candidate.title, artist: candidate.artist, source: candidate.source, setlist_item_id, confidence_level: candidate.confidence_level, isrc: enriched?.isrc || '', composer: enriched?.composer || '', publisher: enriched?.publisher || '' }])
     }
     const now = Date.now()
@@ -247,16 +239,12 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         const isFirstSong      = confirmed.length === 0 && lastConfirmedAtRef.current === 0
         const cooldownPassed   = secondsSinceLast >= MIN_SONG_GAP_SECONDS
 
-        // First song of the show: confirm immediately on first hit (no one is performing yet)
         if (isFirstSong) {
           confirmCandidate({ title, artist, source, confidence_level, firstDetectedAt: now, lastDetectedAt: now, matchCount: 1 }, setlist_item_id, { isrc: data.isrc, composer: data.composer, publisher: data.publisher })
           return
         }
 
-        // All subsequent songs: require 2 consecutive hits to prevent false positives
-        // during the middle of a song being played
         if (!cooldownPassed) {
-          // Still in cooldown window — update or start pending
           if (pending && normalizeSongKey(pending.title) === normalizeSongKey(title)) {
             setPendingCandidate({ ...pending, lastDetectedAt: now, matchCount: pending.matchCount + 1 })
           } else if (!pending) {
@@ -266,12 +254,9 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
           return
         }
 
-        // Cooldown passed — require 2 hits for stability
         if (pending && normalizeSongKey(pending.title) === normalizeSongKey(title)) {
-          // Second hit of the same song after cooldown — confirm it
           confirmCandidate({ ...pending, lastDetectedAt: now, matchCount: pending.matchCount + 1 }, setlist_item_id, { isrc: data.isrc, composer: data.composer, publisher: data.publisher })
         } else {
-          // First hit after cooldown — start pending, wait for confirmation
           setPendingCandidate({ title, artist, source, confidence_level, firstDetectedAt: now, lastDetectedAt: now, matchCount: 1 })
           setDetectStatus(`hearing "${title}"...`)
         }
@@ -380,6 +365,12 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
             <div style={{ width: 6, height: 6, borderRadius: '50%', background: engineDot, animation: engineState === 'listening' ? 'pulse-dot 1.4s ease-in-out infinite' : 'none', boxShadow: engineState === 'listening' ? `0 0 5px ${engineDot}80` : 'none', transition: 'background 0.5s ease' }} />
             <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: engineDot, transition: 'color 0.5s ease' }}>{engineLabel}</span>
           </div>
+          {/* ── Song count — appears after first song is logged ── */}
+          {confirmedSongs.length > 0 && (
+            <span style={{ fontFamily: '"DM Mono", monospace', fontSize: 13, fontWeight: 800, color: C.gold, letterSpacing: '-0.01em', animation: 'fadeIn 0.3s ease' }}>
+              {confirmedSongs.length}♪
+            </span>
+          )}
           <span style={{ fontFamily: '"DM Mono", monospace', fontSize: 16, fontWeight: 700, color: C.muted, letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums' }}>{formatTime(elapsed)}</span>
         </div>
       </div>
