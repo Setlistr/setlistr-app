@@ -321,6 +321,11 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
       }
       await supabase.from('setlists').update({ status: 'review', updated_at: new Date().toISOString() }).eq('id', setlistId)
     }
+    // Clear any pre-inserted planned songs before saving confirmed setlist.
+    // Without this, planned songs (inserted at show start) + detected songs both
+    // land in performance_songs, creating duplicates on the review screen.
+    await supabase.from('performance_songs').delete().eq('performance_id', performance.id)
+
     const songsToSave = confirmedSongsRef.current
     if (songsToSave.length > 0) {
       await supabase.from('performance_songs').insert(songsToSave.map((song, i) => ({ performance_id: performance.id, title: song.source === 'unidentified' ? (song.title === 'Unknown Song' ? null : song.title) : song.title, artist: song.artist || performance.artist_name || null, position: i + 1, isrc: song.isrc || null, composer: song.composer || null, publisher: song.publisher || null, source: song.source || 'manual' })))
