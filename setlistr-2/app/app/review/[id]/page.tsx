@@ -432,7 +432,6 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
   const dur              = formatDuration()
 
   if (showComplete) {
-    // ── FIXED: robust territory detection + fallback song count ──
     const territory    = getTerritory(performance?.country, performance?.city)
     const songCount    = songs.length > 0 ? songs.length : 8
     const estimate     = estimateRoyalties({
@@ -459,7 +458,14 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
           </div>
           <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.muted, margin: '0 0 6px' }}>Show captured</p>
           <h1 style={{ fontSize: 26, fontWeight: 800, color: C.text, margin: '0 0 4px', letterSpacing: '-0.025em', lineHeight: 1.15 }}>{performance?.venue_name}</h1>
-          <p style={{ fontSize: 14, color: C.secondary, margin: '0 0 6px' }}>You played {songs.filter(s => s.source !== 'unidentified').length} songs{performance?.city ? ` in ${performance.city}` : ''}.</p>
+
+          {/* ── SPRINT CHANGE 1: Specific capture summary instead of generic "You played X songs" ── */}
+          <p style={{ fontSize: 14, color: C.secondary, margin: '0 0 4px' }}>
+            {autoCount > 0
+              ? `${autoCount} caught live · ${songs.filter(s => s.source !== 'unidentified').length - autoCount > 0 ? `${songs.filter(s => s.source !== 'unidentified').length - autoCount} added manually` : 'nothing to clean up'}`
+              : `${songs.filter(s => s.source !== 'unidentified').length} songs added manually`
+            }{performance?.city ? ` · ${performance.city}` : ''}
+          </p>
           <p style={{ fontSize: 12, color: C.muted, margin: '0 0 24px' }}>Here's what you captured tonight.</p>
 
           <div style={{ width: '100%', background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 16, padding: '20px', marginBottom: 10, animation: 'fadeUp 0.4s 0.06s ease both' }}>
@@ -488,6 +494,29 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
 
           {performance && <PlannedVsPlayed performanceId={performance.id} />}
 
+          {/* ── SPRINT CHANGE 2: Live vs photo capture callout ── */}
+          {autoCount > 0 ? (
+            <div style={{ width: '100%', background: 'rgba(74,222,128,0.07)', border: '1px solid rgba(74,222,128,0.2)', borderRadius: 12, padding: '14px 16px', marginBottom: 10, textAlign: 'left', animation: 'fadeUp 0.4s 0.11s ease both' }}>
+              <p style={{ fontSize: 13, fontWeight: 700, color: C.green, margin: '0 0 3px' }}>
+                {autoCount} of {songs.filter(s => s.source !== 'unidentified').length} songs caught automatically.
+              </p>
+              <p style={{ fontSize: 12, color: C.secondary, margin: 0 }}>
+                {songs.filter(s => s.source !== 'unidentified').length - autoCount === 0
+                  ? "Nothing to clean up — that's the live capture advantage."
+                  : `You only needed to fix ${songs.filter(s => s.source !== 'unidentified').length - autoCount}.`}
+              </p>
+            </div>
+          ) : songs.filter(s => s.source !== 'unidentified').length > 0 ? (
+            <div style={{ width: '100%', background: 'rgba(255,255,255,0.03)', border: `1px solid ${C.border}`, borderRadius: 12, padding: '14px 16px', marginBottom: 10, textAlign: 'left', animation: 'fadeUp 0.4s 0.11s ease both' }}>
+              <p style={{ fontSize: 13, color: C.secondary, margin: '0 0 3px' }}>
+                You added all {songs.filter(s => s.source !== 'unidentified').length} songs manually.
+              </p>
+              <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>
+                Next show — try Live Capture. Setlistr listens as you play and catches songs automatically.
+              </p>
+            </div>
+          ) : null}
+
           <div style={{ width: '100%', background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '14px 16px', marginBottom: 20, maxHeight: 160, overflowY: 'auto', animation: 'fadeUp 0.4s 0.1s ease both' }}>
             <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, margin: '0 0 10px', textAlign: 'left' }}>Setlist</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -509,7 +538,6 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
             Show Complete
           </button>
 
-          {/* Share setlist button */}
           <button
             onClick={() => {
               const url = `https://setlistr.ai/s/${params.id}`
