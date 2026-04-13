@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { Plus, TrendingUp, Mic, Music4, RefreshCw, AlertCircle, Check } from 'lucide-react'
+import { Plus, TrendingUp, Mic, Music4, AlertCircle, Check } from 'lucide-react'
 import {
   estimateRoyalties, aggregateUnclaimedEarnings,
   capacityToBand, type ShowEstimateInput,
@@ -90,7 +90,6 @@ export default function DashboardPage() {
         }))
         setPerformances(perfs)
         setNeedsReview(perfs.filter(p => (p.status === 'review' || p.status === 'complete' || p.status === 'completed') && p.submission_status !== 'submitted').length)
-        // Live perf: status live/pending AND started within last 6 hours
         const live = perfs.find(p =>
           (p.status === 'live' || p.status === 'pending') &&
           minutesSince(p.started_at || p.created_at) < 360
@@ -154,13 +153,12 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* ── RESUME LIVE SESSION — prominent when show is active ── */}
+        {/* ── RESUME LIVE SESSION ── */}
         {livePerf ? (() => {
           const minsSinceStart = minutesSince(livePerf.started_at || livePerf.created_at)
           const mightBeInterrupted = minsSinceStart > 5
           return (
             <div style={{ marginBottom: 24, animation: 'fadeUp 0.3s ease' }}>
-              {/* Interrupted warning */}
               {mightBeInterrupted && (
                 <div style={{ background: 'rgba(220,38,38,0.07)', border: '1px solid rgba(220,38,38,0.2)', borderRadius: '12px 12px 0 0', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 8 }}>
                   <div style={{ width: 6, height: 6, borderRadius: '50%', background: C.red, animation: 'pulse-dot 1.4s ease-in-out infinite', flexShrink: 0 }} />
@@ -192,24 +190,26 @@ export default function DashboardPage() {
             </div>
           )
         })() : (
-          /* Hero CTA — only shown when no live show */
+          /* ── HERO CTA — no live show active ── */
           <div style={{ animation: 'fadeUp 0.35s ease', marginBottom: 20 }}>
             <h1 style={{ fontSize: 32, fontWeight: 800, color: C.text, margin: '0 0 6px', letterSpacing: '-0.03em', lineHeight: 1.1 }}>
               Ready to<br /><span style={{ color: C.gold }}>go live?</span>
             </h1>
             <p style={{ fontSize: 14, color: C.secondary, margin: '0 0 22px' }}>Capture your setlist in real time.</p>
+
+            {/* Primary — Live Capture */}
             <button onClick={() => router.push('/app/show/new')}
-              style={{ width: '100%', padding: '16px', background: C.gold, border: 'none', borderRadius: 14, color: '#0a0908', fontSize: 14, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit' }}>
-              <Plus size={16} strokeWidth={2.5} />Start New Show
+              style={{ width: '100%', padding: '16px', background: C.gold, border: 'none', borderRadius: 14, color: '#0a0908', fontSize: 14, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit', marginBottom: 10 }}>
+              <Plus size={16} strokeWidth={2.5} />Start Live Capture
             </button>
-            {performances.length > 0 && (
-              <button onClick={() => router.push('/app/show/new?reuse=true')}
-                style={{ width: '100%', padding: '13px', background: 'transparent', border: `1px solid ${C.border}`, borderRadius: 14, marginTop: 10, color: C.secondary, fontSize: 13, fontWeight: 600, letterSpacing: '0.04em', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit' }}
-                onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.borderColor = C.borderGold; el.style.color = C.gold }}
-                onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.borderColor = C.border; el.style.color = C.secondary }}>
-                <RefreshCw size={14} />Reuse a Previous Setlist
-              </button>
-            )}
+
+            {/* Secondary — Photo upload */}
+            <button onClick={() => router.push('/app/show/new?mode=upload')}
+              style={{ width: '100%', padding: '13px', background: 'transparent', border: `1px solid rgba(255,255,255,0.1)`, borderRadius: 14, color: C.secondary, fontSize: 13, fontWeight: 600, letterSpacing: '0.03em', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit' }}
+              onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.borderColor = C.borderGold; el.style.color = C.gold }}
+              onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.borderColor = 'rgba(255,255,255,0.1)'; el.style.color = C.secondary }}>
+              📷 Upload Your Setlist
+            </button>
           </div>
         )}
 
@@ -294,7 +294,7 @@ export default function DashboardPage() {
               <p style={{ fontSize: 13, color: C.muted, margin: '0 0 20px', lineHeight: 1.5 }}>Setlistr listens while you play and builds your setlist automatically.</p>
               <button onClick={() => router.push('/app/show/new')}
                 style={{ background: C.gold, border: 'none', borderRadius: 10, padding: '12px 24px', color: '#0a0908', fontSize: 13, fontWeight: 800, cursor: 'pointer', letterSpacing: '0.06em', textTransform: 'uppercase', fontFamily: 'inherit' }}>
-                Start a Show
+                Start Live Capture
               </button>
             </div>
           ) : (
