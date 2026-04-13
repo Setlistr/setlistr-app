@@ -69,6 +69,14 @@ export default function NewShowPage() {
   const effectiveName = venueQuery.trim() || 'Show'
   const isValid = venueQuery.trim().length > 0
 
+  // ── Auto-open upload mode when arriving via ?mode=upload ──
+  useEffect(() => {
+    if (searchParams.get('mode') === 'upload') {
+      setSetlistOpen(true)
+      setUploadMode('upload')
+    }
+  }, [])
+
   useEffect(() => {
     const supabase = createClient()
     supabase.auth.getUser().then(({ data: { user } }) => {
@@ -171,61 +179,61 @@ export default function NewShowPage() {
   }
 
   async function compressImage(file: File): Promise<File> {
-  return new Promise((resolve) => {
-    const img = new Image()
-    const url = URL.createObjectURL(file)
-    img.onload = () => {
-      const MAX = 1600
-      let { width, height } = img
-      if (width > MAX || height > MAX) {
-        if (width > height) { height = Math.round(height * MAX / width); width = MAX }
-        else { width = Math.round(width * MAX / height); height = MAX }
+    return new Promise((resolve) => {
+      const img = new Image()
+      const url = URL.createObjectURL(file)
+      img.onload = () => {
+        const MAX = 1600
+        let { width, height } = img
+        if (width > MAX || height > MAX) {
+          if (width > height) { height = Math.round(height * MAX / width); width = MAX }
+          else { width = Math.round(width * MAX / height); height = MAX }
+        }
+        const canvas = document.createElement('canvas')
+        canvas.width = width; canvas.height = height
+        canvas.getContext('2d')?.drawImage(img, 0, 0, width, height)
+        canvas.toBlob(blob => {
+          URL.revokeObjectURL(url)
+          if (blob) resolve(new File([blob], 'setlist.jpg', { type: 'image/jpeg' }))
+          else resolve(file)
+        }, 'image/jpeg', 0.85)
       }
-      const canvas = document.createElement('canvas')
-      canvas.width = width; canvas.height = height
-      canvas.getContext('2d')?.drawImage(img, 0, 0, width, height)
-      canvas.toBlob(blob => {
-        URL.revokeObjectURL(url)
-        if (blob) resolve(new File([blob], 'setlist.jpg', { type: 'image/jpeg' }))
-        else resolve(file)
-      }, 'image/jpeg', 0.85)
-    }
-    img.onerror = () => { URL.revokeObjectURL(url); resolve(file) }
-    img.src = url
-  })
-}
-
-async function handleFileUpload(file: File) {
-  setUploadError('')
-  if (file.size > MAX_FILE_SIZE) { setUploadError('File is too large. Maximum size is 10MB.'); return }
-  const fileName = (file.name || '').toLowerCase()
-  const isHEIC = fileName.endsWith('.heic') || fileName.endsWith('.heif') || file.type === 'image/heic' || file.type === 'image/heif'
-  const isAllowed = ALLOWED_MIME_TYPES.includes(file.type) || isHEIC
-  if (!isAllowed) { setUploadError('Unsupported file type. Please upload a JPG, PNG, PDF, or TXT file.'); return }
-  setUploading(true)
-  try {
-    let uploadFile = file
-    if (file.type.startsWith('image/') || isHEIC) {
-      uploadFile = await compressImage(file)
-    }
-    const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    const formData = new FormData()
-    formData.append('file', uploadFile)
-    if (user?.id) formData.append('userId', user.id)
-    const res = await fetch('/api/parse-setlist', { method: 'POST', body: formData })
-    const data = await res.json()
-    if (!res.ok) throw new Error(data.error || 'Upload failed')
-    const existing = new Set(plannedSongs.map(s => s.title.toLowerCase()))
-    const newSongs = (data.songs as PlannedSong[]).filter(s => !existing.has(s.title.toLowerCase()))
-    setPlannedSongs(prev => [...prev, ...newSongs.map((s, i) => ({ ...s, position: prev.length + i }))])
-    setUploadMode('chips')
-  } catch (err: any) {
-    setUploadError(err.message || 'Could not read the setlist. Try a clearer photo.')
-  } finally {
-    setUploading(false)
+      img.onerror = () => { URL.revokeObjectURL(url); resolve(file) }
+      img.src = url
+    })
   }
-}
+
+  async function handleFileUpload(file: File) {
+    setUploadError('')
+    if (file.size > MAX_FILE_SIZE) { setUploadError('File is too large. Maximum size is 10MB.'); return }
+    const fileName = (file.name || '').toLowerCase()
+    const isHEIC = fileName.endsWith('.heic') || fileName.endsWith('.heif') || file.type === 'image/heic' || file.type === 'image/heif'
+    const isAllowed = ALLOWED_MIME_TYPES.includes(file.type) || isHEIC
+    if (!isAllowed) { setUploadError('Unsupported file type. Please upload a JPG, PNG, PDF, or TXT file.'); return }
+    setUploading(true)
+    try {
+      let uploadFile = file
+      if (file.type.startsWith('image/') || isHEIC) {
+        uploadFile = await compressImage(file)
+      }
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      const formData = new FormData()
+      formData.append('file', uploadFile)
+      if (user?.id) formData.append('userId', user.id)
+      const res = await fetch('/api/parse-setlist', { method: 'POST', body: formData })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Upload failed')
+      const existing = new Set(plannedSongs.map(s => s.title.toLowerCase()))
+      const newSongs = (data.songs as PlannedSong[]).filter(s => !existing.has(s.title.toLowerCase()))
+      setPlannedSongs(prev => [...prev, ...newSongs.map((s, i) => ({ ...s, position: prev.length + i }))])
+      setUploadMode('chips')
+    } catch (err: any) {
+      setUploadError(err.message || 'Could not read the setlist. Try a clearer photo.')
+    } finally {
+      setUploading(false)
+    }
+  }
 
   const filteredRecent = recentSongs
     .filter(s => !quickSearch.trim() || s.title.toLowerCase().includes(quickSearch.toLowerCase()))
@@ -563,21 +571,18 @@ async function handleFileUpload(file: File) {
               {/* Upload */}
               {uploadMode === 'upload' && (
                 <div style={{ marginBottom: 12 }}>
-                  {/* Hidden file input for non-camera uploads */}
                   <input ref={fileInputRef} type="file"
                     accept="image/jpeg,image/png,image/webp,application/pdf,text/plain"
                     style={{ display: 'none' }}
                     onChange={e => { const f = e.target.files?.[0]; if (f) handleFileUpload(f); e.target.value = '' }} />
 
                   <div style={{ display: 'flex', gap: 8, marginBottom: uploading ? 8 : 0 }}>
-                    {/* Take Photo — uses Web Camera API, no file input, no iOS issues */}
                     <button onClick={() => { setUploadError(''); setShowCamera(true) }} disabled={uploading}
                       style={{ flex: 1, padding: '18px 12px', background: 'rgba(255,255,255,0.02)', border: `1px solid ${C.border}`, borderRadius: 12, cursor: uploading ? 'default' : 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, opacity: uploading ? 0.5 : 1 }}>
                       <span style={{ fontSize: 24 }}>📷</span>
                       <span style={{ fontSize: 12, fontWeight: 700, color: C.secondary }}>Take Photo</span>
                       <span style={{ fontSize: 10, color: C.muted, textAlign: 'center' as const }}>Point at paper setlist</span>
                     </button>
-                    {/* Choose File — for screenshots, PDFs, TXT */}
                     <button onClick={() => { setUploadError(''); fileInputRef.current?.click() }} disabled={uploading}
                       style={{ flex: 1, padding: '18px 12px', background: 'rgba(255,255,255,0.02)', border: `1px solid ${C.border}`, borderRadius: 12, cursor: uploading ? 'default' : 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, opacity: uploading ? 0.5 : 1 }}>
                       <span style={{ fontSize: 24 }}>📁</span>
@@ -712,7 +717,6 @@ async function handleFileUpload(file: File) {
         </button>
       </div>
 
-      {/* Camera modal — bypasses iOS file input entirely */}
       {showCamera && (
         <CameraCapture
           onCapture={handleFileUpload}
