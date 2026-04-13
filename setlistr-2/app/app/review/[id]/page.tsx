@@ -126,7 +126,7 @@ function ShareCardButton({ performanceId, artistName, venueName }: {
             await navigator.share({
               files: [file],
               title: `${artistName} at ${venueName}`,
-              text: 'Check out my setlist from tonight's show — tracked with Setlistr',
+              text: "Check out my setlist from tonight's show — tracked with Setlistr",
             })
             setState('done')
             setTimeout(() => setState('idle'), 3000)
@@ -136,7 +136,7 @@ function ShareCardButton({ performanceId, artistName, venueName }: {
         // Fall back to URL share
         await navigator.share({
           title: `${artistName} at ${venueName}`,
-          text: 'Check out my setlist from tonight's show',
+          text: "Check out my setlist from tonight's show",
           url: `https://setlistr.ai/s/${performanceId}`,
         })
         setState('done')
