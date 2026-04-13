@@ -106,6 +106,81 @@ function useKeyboardOffset(): number {
   return offset
 }
 
+function ShareCardButton({ performanceId, artistName, venueName }: {
+  performanceId: string; artistName?: string; venueName?: string
+}) {
+  const [state, setState] = useState<'idle' | 'loading' | 'done'>('idle')
+
+  async function handleShare() {
+    setState('loading')
+    try {
+      const imageUrl = `/api/og/${performanceId}`
+
+      // Try native share with files first (iOS/Android)
+      if (navigator.share) {
+        try {
+          const res = await fetch(imageUrl)
+          const blob = await res.blob()
+          const file = new File([blob], 'setlist.png', { type: 'image/png' })
+          if (navigator.canShare && navigator.canShare({ files: [file] })) {
+            await navigator.share({
+              files: [file],
+              title: `${artistName} at ${venueName}`,
+              text: 'Check out my setlist from tonight's show — tracked with Setlistr',
+            })
+            setState('done')
+            setTimeout(() => setState('idle'), 3000)
+            return
+          }
+        } catch {}
+        // Fall back to URL share
+        await navigator.share({
+          title: `${artistName} at ${venueName}`,
+          text: 'Check out my setlist from tonight's show',
+          url: `https://setlistr.ai/s/${performanceId}`,
+        })
+        setState('done')
+        setTimeout(() => setState('idle'), 3000)
+        return
+      }
+
+      // Desktop: open image in new tab so they can save it
+      window.open(imageUrl, '_blank')
+      setState('done')
+      setTimeout(() => setState('idle'), 3000)
+    } catch (err) {
+      // User cancelled or error — reset silently
+      setState('idle')
+    }
+  }
+
+  return (
+    <button
+      onClick={handleShare}
+      disabled={state === 'loading'}
+      style={{
+        width: '100%', padding: '14px',
+        background: state === 'done' ? 'rgba(74,222,128,0.08)' : 'transparent',
+        border: `1px solid ${state === 'done' ? 'rgba(74,222,128,0.3)' : 'rgba(201,168,76,0.3)'}`,
+        borderRadius: 12,
+        color: state === 'done' ? C.green : C.gold,
+        fontSize: 13, fontWeight: 700, cursor: state === 'loading' ? 'wait' : 'pointer',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+        fontFamily: 'inherit', marginBottom: 10,
+        animation: 'fadeUp 0.4s 0.16s ease both',
+        letterSpacing: '0.04em', WebkitTapHighlightColor: 'transparent',
+        opacity: state === 'loading' ? 0.7 : 1,
+        transition: 'all 0.2s ease',
+      }}>
+      {state === 'loading'
+        ? <><div style={{ width: 13, height: 13, borderRadius: '50%', border: `2px solid rgba(201,168,76,0.3)`, borderTopColor: C.gold, animation: 'spin 0.7s linear infinite' }} />Generating card...</>
+        : state === 'done'
+        ? <>✓ Card ready — check your share sheet</>
+        : <>✦ Share Setlist Card</>}
+    </button>
+  )
+}
+
 function SortableRow({ song, index, onDelete, onTap }: {
   song: Song; index: number; onDelete: (id: string) => void; onTap: (id: string) => void
 }) {
@@ -538,18 +613,8 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
             Show Complete
           </button>
 
-          <button
-            onClick={() => {
-              const url = `https://setlistr.ai/s/${params.id}`
-              if (navigator.share) {
-                navigator.share({ title: `${performance?.artist_name} at ${performance?.venue_name}`, text: `Check out my setlist from tonight's show`, url })
-              } else {
-                navigator.clipboard.writeText(url).then(() => alert('Link copied!'))
-              }
-            }}
-            style={{ width: '100%', padding: '14px', background: 'transparent', border: `1px solid rgba(201,168,76,0.3)`, borderRadius: 12, color: C.gold, fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit', marginBottom: 10, animation: 'fadeUp 0.4s 0.16s ease both', letterSpacing: '0.04em', WebkitTapHighlightColor: 'transparent' }}>
-            ✦ Share Setlist
-          </button>
+          {/* ── Share card button ── */}
+          <ShareCardButton performanceId={params.id} artistName={performance?.artist_name} venueName={performance?.venue_name} />
 
           <div style={{ width: '100%', display: 'flex', gap: 8, marginBottom: 16, animation: 'fadeUp 0.4s 0.18s ease both' }}>
             <button onClick={() => router.push(`/app/submit/${params.id}`)}
