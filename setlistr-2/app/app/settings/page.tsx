@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Check, KeyRound, User, Music2, Search, Download, X } from 'lucide-react'
+import { Check, KeyRound, User, Music2, Search, Download, Radio } from 'lucide-react'
 
 const C = {
   bg: '#0a0908',
@@ -53,6 +53,13 @@ export default function SettingsPage() {
   const [proSaved, setProSaved]             = useState(false)
   const [proError, setProError]             = useState('')
 
+  // Bandsintown
+  const [bandsintownName, setBandsintownName]       = useState('')
+  const [bandsintownSaving, setBandsintownSaving]   = useState(false)
+  const [bandsintownSaved, setBandsintownSaved]     = useState(false)
+  const [bandsintownTesting, setBandsintownTesting] = useState(false)
+  const [bandsintownTestResult, setBandsintownTestResult] = useState<{ ok: boolean; count: number } | null>(null)
+
   // Spotify import
   const [spotifyQuery, setSpotifyQuery]           = useState('')
   const [spotifySearching, setSpotifySearching]   = useState(false)
@@ -72,7 +79,7 @@ export default function SettingsPage() {
       setEmail(user.email ?? '')
       const { data: profile } = await supabase
         .from('profiles')
-        .select('full_name, artist_name, pro_affiliation, ipi_number, publisher_name, legal_name')
+        .select('full_name, artist_name, pro_affiliation, ipi_number, publisher_name, legal_name, bandsintown_artist_name')
         .eq('id', user.id)
         .single()
       if (profile) {
@@ -82,6 +89,7 @@ export default function SettingsPage() {
         setIpiNumber(profile.ipi_number ?? '')
         setPublisherName(profile.publisher_name ?? '')
         setLegalName(profile.legal_name ?? '')
+        setBandsintownName(profile.bandsintown_artist_name ?? '')
         if (profile.artist_name) setSpotifyQuery(profile.artist_name)
       }
       const { count } = await supabase
@@ -143,15 +151,38 @@ export default function SettingsPage() {
     setTimeout(() => setProSaved(false), 2000)
   }
 
-  // ── Spotify search — calls our backend only, no client-side credentials ─────
+  async function saveBandsintown() {
+    setBandsintownSaving(true)
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    await supabase.from('profiles').update({
+      bandsintown_artist_name: bandsintownName.trim() || null,
+      updated_at: new Date().toISOString(),
+    }).eq('id', user.id)
+    setBandsintownSaving(false)
+    setBandsintownSaved(true)
+    setTimeout(() => setBandsintownSaved(false), 2000)
+  }
+
+  async function testBandsintown() {
+    if (!bandsintownName.trim()) return
+    setBandsintownTesting(true)
+    setBandsintownTestResult(null)
+    try {
+      const res = await fetch(`/api/bandsintown/upcoming?artist=${encodeURIComponent(bandsintownName.trim())}`)
+      const data = await res.json()
+      setBandsintownTestResult({ ok: true, count: data.events?.length ?? 0 })
+    } catch {
+      setBandsintownTestResult({ ok: false, count: 0 })
+    } finally {
+      setBandsintownTesting(false)
+    }
+  }
+
   async function searchSpotify() {
     if (!spotifyQuery.trim()) return
-    setSpotifySearching(true)
-    setSpotifyError('')
-    setSpotifyResults([])
-    setSelectedArtist(null)
-    setImportDone(false)
-
+    setSpotifySearching(true); setSpotifyError(''); setSpotifyResults([]); setSelectedArtist(null); setImportDone(false)
     try {
       const res = await fetch(`/api/spotify-search?q=${encodeURIComponent(spotifyQuery.trim())}`)
       if (!res.ok) throw new Error('Search failed')
@@ -167,19 +198,13 @@ export default function SettingsPage() {
   }
 
   async function importFromSpotify(artist: SpotifyArtist) {
-    setSelectedArtist(artist)
-    setImporting(true)
-    setSpotifyError('')
-
+    setSelectedArtist(artist); setImporting(true); setSpotifyError('')
     try {
-      const res = await fetch(`/api/spotify-import?artist_id=${artist.id}&artist_name=${encodeURIComponent(artist.name)}`, {
-        method: 'POST',
-      })
+      const res = await fetch(`/api/spotify-import?artist_id=${artist.id}&artist_name=${encodeURIComponent(artist.name)}`, { method: 'POST' })
       if (!res.ok) throw new Error('Import failed')
       const data = await res.json()
       if (data.error) throw new Error(data.error)
-      setImportCount(data.imported || 0)
-      setImportDone(true)
+      setImportCount(data.imported || 0); setImportDone(true)
       setExistingImportCount(prev => prev + (data.imported || 0))
     } catch (err: any) {
       setSpotifyError(err?.message || 'Import failed. Please try again.')
@@ -244,6 +269,67 @@ export default function SettingsPage() {
             style={{ width: '100%', padding: '13px', background: profileSaved ? '#16a34a' : C.gold, border: 'none', borderRadius: 10, color: profileSaved ? '#fff' : '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontFamily: 'inherit', opacity: profileSaving ? 0.7 : 1 }}>
             {profileSaved ? <><Check size={14} strokeWidth={2.5} />Saved</> : profileSaving ? 'Saving...' : 'Save Profile'}
           </button>
+        </div>
+
+        {/* ── Bandsintown ── */}
+        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Radio size={15} color={C.gold} />
+              <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.secondary, margin: 0 }}>Bandsintown</p>
+            </div>
+            {bandsintownName && bandsintownTestResult?.ok && (
+              <span style={{ fontSize: 10, fontWeight: 700, color: C.green, background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.2)', borderRadius: 20, padding: '3px 10px' }}>
+                Connected
+              </span>
+            )}
+          </div>
+
+          <p style={{ fontSize: 12, color: C.muted, margin: 0, lineHeight: 1.6 }}>
+            Connect your Bandsintown profile to see upcoming shows on your dashboard and get day-of reminders.
+          </p>
+
+          <div>
+            <label style={labelStyle}>Your Artist Name on Bandsintown</label>
+            <input
+              value={bandsintownName}
+              onChange={e => { setBandsintownName(e.target.value); setBandsintownTestResult(null) }}
+              placeholder="e.g. Jesse Slack"
+              style={inputStyle}
+              onFocus={e => (e.target as HTMLInputElement).style.borderColor = C.borderGold}
+              onBlur={e => (e.target as HTMLInputElement).style.borderColor = C.inputBorder}
+            />
+            <p style={{ fontSize: 11, color: C.muted, margin: '6px 0 0' }}>
+              Must match exactly how your name appears on bandsintown.com
+            </p>
+          </div>
+
+          {bandsintownTestResult && (
+            <div style={{
+              padding: '11px 14px', borderRadius: 10,
+              background: bandsintownTestResult.ok ? 'rgba(74,222,128,0.08)' : 'rgba(248,113,113,0.08)',
+              border: `1px solid ${bandsintownTestResult.ok ? 'rgba(74,222,128,0.2)' : 'rgba(248,113,113,0.2)'}`,
+            }}>
+              <p style={{ fontSize: 13, color: bandsintownTestResult.ok ? C.green : '#f87171', margin: 0 }}>
+                {bandsintownTestResult.ok
+                  ? bandsintownTestResult.count > 0
+                    ? `✓ Found ${bandsintownTestResult.count} upcoming show${bandsintownTestResult.count !== 1 ? 's' : ''}`
+                    : '✓ Artist found — no upcoming shows listed yet'
+                  : '✗ Artist not found — check the spelling on Bandsintown'}
+              </p>
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={testBandsintown} disabled={!bandsintownName.trim() || bandsintownTesting}
+              style={{ flex: 1, padding: '12px', background: 'transparent', border: `1px solid ${C.borderGold}`, borderRadius: 10, color: C.gold, fontSize: 13, fontWeight: 700, cursor: bandsintownName.trim() && !bandsintownTesting ? 'pointer' : 'not-allowed', fontFamily: 'inherit', opacity: !bandsintownName.trim() ? 0.4 : 1 }}>
+              {bandsintownTesting ? 'Testing...' : 'Test Connection'}
+            </button>
+            <button onClick={saveBandsintown} disabled={bandsintownSaving || bandsintownSaved}
+              style={{ flex: 1, padding: '12px', background: bandsintownSaved ? '#16a34a' : C.gold, border: 'none', borderRadius: 10, color: bandsintownSaved ? '#fff' : '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontFamily: 'inherit', opacity: bandsintownSaving ? 0.7 : 1 }}>
+              {bandsintownSaved ? <><Check size={14} strokeWidth={2.5} />Saved</> : bandsintownSaving ? 'Saving...' : 'Save'}
+            </button>
+          </div>
         </div>
 
         {/* ── PRO Information ── */}
@@ -318,21 +404,17 @@ export default function SettingsPage() {
               </span>
             )}
           </div>
-
           <p style={{ fontSize: 12, color: C.muted, margin: 0, lineHeight: 1.6 }}>
             Import your top tracks from Spotify to get a head start. These songs will appear in your quick-add list during shows.
             {existingImportCount > 0 ? ' Real show data always ranks above imported songs.' : ''}
           </p>
-
           {importDone ? (
             <div style={{ background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.2)', borderRadius: 12, padding: '16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Check size={16} color={C.green} strokeWidth={2.5} />
                 <p style={{ fontSize: 14, fontWeight: 700, color: C.green, margin: 0 }}>{importCount} songs imported</p>
               </div>
-              <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>
-                From {selectedArtist?.name}. These will appear in your quick-add list and improve as you run more shows.
-              </p>
+              <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>From {selectedArtist?.name}. These will appear in your quick-add list.</p>
               <button onClick={() => { setImportDone(false); setSelectedArtist(null); setSpotifyResults([]) }}
                 style={{ background: 'transparent', border: 'none', color: C.muted, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', padding: 0, textAlign: 'left', textDecoration: 'underline' }}>
                 Import from a different artist
@@ -341,61 +423,33 @@ export default function SettingsPage() {
           ) : (
             <>
               <div style={{ display: 'flex', gap: 8 }}>
-                <input
-                  value={spotifyQuery}
-                  onChange={e => setSpotifyQuery(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && searchSpotify()}
-                  placeholder="Search your artist name on Spotify..."
-                  style={{ ...inputStyle, flex: 1 }}
+                <input value={spotifyQuery} onChange={e => setSpotifyQuery(e.target.value)} onKeyDown={e => e.key === 'Enter' && searchSpotify()} placeholder="Search your artist name on Spotify..." style={{ ...inputStyle, flex: 1 }}
                   onFocus={e => (e.target as HTMLInputElement).style.borderColor = C.borderGold}
-                  onBlur={e => (e.target as HTMLInputElement).style.borderColor = C.inputBorder}
-                />
-                <button
-                  onClick={searchSpotify}
-                  disabled={spotifySearching || !spotifyQuery.trim()}
+                  onBlur={e => (e.target as HTMLInputElement).style.borderColor = C.inputBorder} />
+                <button onClick={searchSpotify} disabled={spotifySearching || !spotifyQuery.trim()}
                   style={{ padding: '11px 16px', background: C.gold, border: 'none', borderRadius: 10, color: '#0a0908', cursor: spotifySearching ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'inherit', fontWeight: 700, fontSize: 13, flexShrink: 0, opacity: spotifySearching ? 0.7 : 1 }}>
-                  <Search size={14} />
-                  {spotifySearching ? '...' : 'Search'}
+                  <Search size={14} />{spotifySearching ? '...' : 'Search'}
                 </button>
               </div>
-
-              {spotifyError && (
-                <p style={{ fontSize: 12, color: '#f87171', margin: 0 }}>{spotifyError}</p>
-              )}
-
+              {spotifyError && <p style={{ fontSize: 12, color: '#f87171', margin: 0 }}>{spotifyError}</p>}
               {spotifyResults.length > 0 && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, margin: 0 }}>
-                    Select your profile
-                  </p>
+                  <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, margin: 0 }}>Select your profile</p>
                   {spotifyResults.map(artist => (
-                    <button
-                      key={artist.id}
-                      onClick={() => importFromSpotify(artist)}
-                      disabled={importing}
+                    <button key={artist.id} onClick={() => importFromSpotify(artist)} disabled={importing}
                       style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', background: selectedArtist?.id === artist.id ? C.goldDim : 'rgba(255,255,255,0.02)', border: `1px solid ${selectedArtist?.id === artist.id ? C.borderGold : C.border}`, borderRadius: 12, cursor: importing ? 'wait' : 'pointer', textAlign: 'left', fontFamily: 'inherit', width: '100%', transition: 'all 0.15s ease', WebkitTapHighlightColor: 'transparent' }}
                       onMouseEnter={e => { if (!importing) (e.currentTarget as HTMLElement).style.background = 'rgba(201,168,76,0.06)' }}
-                      onMouseLeave={e => { if (selectedArtist?.id !== artist.id) (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.02)' }}
-                    >
-                      {artist.image ? (
-                        <img src={artist.image} alt={artist.name} style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
-                      ) : (
-                        <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                          <Music2 size={18} color={C.muted} />
-                        </div>
-                      )}
+                      onMouseLeave={e => { if (selectedArtist?.id !== artist.id) (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.02)' }}>
+                      {artist.image
+                        ? <img src={artist.image} alt={artist.name} style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+                        : <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Music2 size={18} color={C.muted} /></div>}
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <p style={{ fontSize: 14, fontWeight: 700, color: C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{artist.name}</p>
-                        <p style={{ fontSize: 11, color: C.muted, margin: '2px 0 0' }}>
-                          {artist.followers.toLocaleString()} followers
-                          {artist.genres.length > 0 && ` · ${artist.genres.slice(0, 2).join(', ')}`}
-                        </p>
+                        <p style={{ fontSize: 11, color: C.muted, margin: '2px 0 0' }}>{artist.followers.toLocaleString()} followers{artist.genres.length > 0 && ` · ${artist.genres.slice(0, 2).join(', ')}`}</p>
                       </div>
-                      {importing && selectedArtist?.id === artist.id ? (
-                        <div style={{ width: 16, height: 16, borderRadius: '50%', border: `1.5px solid ${C.gold}40`, borderTopColor: C.gold, animation: 'spin 0.8s linear infinite', flexShrink: 0 }} />
-                      ) : (
-                        <Download size={14} color={C.muted} style={{ flexShrink: 0 }} />
-                      )}
+                      {importing && selectedArtist?.id === artist.id
+                        ? <div style={{ width: 16, height: 16, borderRadius: '50%', border: `1.5px solid ${C.gold}40`, borderTopColor: C.gold, animation: 'spin 0.8s linear infinite', flexShrink: 0 }} />
+                        : <Download size={14} color={C.muted} style={{ flexShrink: 0 }} />}
                     </button>
                   ))}
                 </div>
