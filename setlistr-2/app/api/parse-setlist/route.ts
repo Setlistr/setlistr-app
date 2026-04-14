@@ -134,8 +134,6 @@ export async function POST(req: NextRequest) {
     }
 
     // ── EXIF rotation fix for Android/Samsung ─────────────────────────────────
-    // Samsung cameras embed EXIF rotation rather than physically rotating pixels.
-    // Sharp strips EXIF and physically rotates, fixing upside-down/sideways images.
     if (mimeType === 'image/jpeg' || mimeType === 'image/png') {
       try {
         const sharp = (await import('sharp')).default
@@ -144,7 +142,6 @@ export async function POST(req: NextRequest) {
         mimeType = 'image/jpeg'
         console.log('EXIF rotation applied, size:', rotated.length)
       } catch (err) {
-        // Non-fatal — proceed with original bytes
         console.warn('EXIF rotation failed (non-fatal):', err)
       }
     }
@@ -180,7 +177,8 @@ Rules:
 - Strip numbering (1. 2. etc)
 - Strip timing notes like (3:45)
 - Skip section headers like "Set 1" or "Encore"
-- Return valid JSON only, no markdown`,
+- Return valid JSON only, no markdown
+- CRITICAL: Only return songs you can directly read from the image or document. If the text is unclear, blurry, or you cannot confidently read a title, omit it. If you cannot read any songs at all, return an empty array []. Do NOT guess, infer, or generate song titles that are not visibly present.`,
             },
           ],
         }],
