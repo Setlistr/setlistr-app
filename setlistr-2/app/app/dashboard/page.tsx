@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { Plus, TrendingUp, Mic, Music4, AlertCircle, Check } from 'lucide-react'
+import { TrendingUp, Mic, Music4, AlertCircle, Check } from 'lucide-react'
 import {
   estimateRoyalties, aggregateUnclaimedEarnings,
   capacityToBand, type ShowEstimateInput,
@@ -190,26 +190,43 @@ export default function DashboardPage() {
             </div>
           )
         })() : (
-          /* ── HERO CTA — no live show active ── */
+          /* ── HERO — two equal-weight action cards ── */
           <div style={{ animation: 'fadeUp 0.35s ease', marginBottom: 20 }}>
-            <h1 style={{ fontSize: 32, fontWeight: 800, color: C.text, margin: '0 0 6px', letterSpacing: '-0.03em', lineHeight: 1.1 }}>
-              Ready to<br /><span style={{ color: C.gold }}>go live?</span>
-            </h1>
-            <p style={{ fontSize: 14, color: C.secondary, margin: '0 0 22px' }}>Capture your setlist in real time.</p>
+            <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.muted, margin: '0 0 14px' }}>Start a Show</p>
 
-            {/* Primary — Live Capture */}
-            <button onClick={() => router.push('/app/show/new')}
-              style={{ width: '100%', padding: '16px', background: C.gold, border: 'none', borderRadius: 14, color: '#0a0908', fontSize: 14, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit', marginBottom: 10 }}>
-              <Plus size={16} strokeWidth={2.5} />Start Live Capture
-            </button>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
 
-            {/* Secondary — Photo upload */}
-            <button onClick={() => router.push('/app/show/new?mode=upload')}
-              style={{ width: '100%', padding: '13px', background: 'transparent', border: `1px solid rgba(255,255,255,0.1)`, borderRadius: 14, color: C.secondary, fontSize: 13, fontWeight: 600, letterSpacing: '0.03em', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit' }}
-              onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.borderColor = C.borderGold; el.style.color = C.gold }}
-              onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.borderColor = 'rgba(255,255,255,0.1)'; el.style.color = C.secondary }}>
-              📷 Upload Your Setlist
-            </button>
+              {/* Live Capture card */}
+              <button
+                onClick={() => router.push('/app/show/new')}
+                style={{ background: C.gold, border: 'none', borderRadius: 16, padding: '20px 16px', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', gap: 10, minHeight: 130 }}
+              >
+                <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(10,9,8,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+                  <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#0a0908', opacity: 0.8 }} />
+                  <div style={{ position: 'absolute', width: 36, height: 36, borderRadius: '50%', border: '1.5px solid rgba(10,9,8,0.2)', animation: 'orb-pulse 2s ease-in-out infinite' }} />
+                </div>
+                <div>
+                  <p style={{ fontSize: 14, fontWeight: 800, color: '#0a0908', margin: '0 0 3px', letterSpacing: '-0.01em' }}>Live Capture</p>
+                  <p style={{ fontSize: 11, color: 'rgba(10,9,8,0.6)', margin: 0, lineHeight: 1.4 }}>Setlistr listens as you play</p>
+                </div>
+              </button>
+
+              {/* Photo Upload card */}
+              <button
+                onClick={() => router.push('/app/show/new?mode=upload')}
+                style={{ background: C.card, border: `1px solid ${C.borderGold}`, borderRadius: 16, padding: '20px 16px', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', gap: 10, minHeight: 130, transition: 'background 0.15s ease' }}
+                onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = C.cardHover}
+                onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = C.card}
+              >
+                <div style={{ width: 36, height: 36, borderRadius: '50%', background: C.goldDim, border: `1px solid ${C.borderGold}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <span style={{ fontSize: 17 }}>📷</span>
+                </div>
+                <div>
+                  <p style={{ fontSize: 14, fontWeight: 800, color: C.gold, margin: '0 0 3px', letterSpacing: '-0.01em' }}>Photo Setlist</p>
+                  <p style={{ fontSize: 11, color: C.muted, margin: 0, lineHeight: 1.4 }}>Snap a paper setlist to import</p>
+                </div>
+              </button>
+            </div>
           </div>
         )}
 
@@ -349,6 +366,7 @@ export default function DashboardPage() {
         @keyframes fadeUp    { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
         @keyframes pulse-dot { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(.8)} }
         @keyframes breathe   { 0%,100%{transform:scale(1);opacity:.3} 50%{transform:scale(1.2);opacity:.8} }
+        @keyframes orb-pulse { 0%,100%{transform:scale(1);opacity:0.4} 50%{transform:scale(1.35);opacity:0} }
         * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
       `}</style>
     </div>
