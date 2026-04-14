@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { TrendingUp, Mic, Music4, AlertCircle, Check } from 'lucide-react'
+import { TrendingUp, Mic, Music4, AlertCircle, Check, Calendar } from 'lucide-react'
 import {
   estimateRoyalties, aggregateUnclaimedEarnings,
   capacityToBand, type ShowEstimateInput,
@@ -19,17 +19,16 @@ const C = {
 }
 
 type Performance = {
-  id: string
-  venue_name: string
-  artist_name: string
-  city: string
-  country: string
-  status: string
-  submission_status: string | null
-  started_at: string
-  created_at: string
-  show_type?: string
-  venue_capacity?: number | null
+  id: string; venue_name: string; artist_name: string
+  city: string; country: string; status: string
+  submission_status: string | null; started_at: string
+  created_at: string; ended_at?: string
+  show_type?: string; venue_capacity?: number | null
+}
+
+type BitEvent = {
+  id: string; datetime: string; venueName: string
+  venueCity: string; venueRegion: string; venueCountry: string; url: string
 }
 
 function getDisplayStatus(p: Performance): { label: string; color: string; bg: string } {
@@ -59,25 +58,71 @@ function minutesSince(dateStr: string): number {
   return Math.floor((Date.now() - new Date(dateStr).getTime()) / 60000)
 }
 
+function hoursSince(dateStr: string): number {
+  return (Date.now() - new Date(dateStr).getTime()) / 3600000
+}
+
+function isToday(dateStr: string): boolean {
+  const d = new Date(dateStr)
+  const now = new Date()
+  return d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate()
+}
+
+function isTomorrow(dateStr: string): boolean {
+  const d = new Date(dateStr)
+  const tomorrow = new Date()
+  tomorrow.setDate(tomorrow.getDate() + 1)
+  return d.getFullYear() === tomorrow.getFullYear() &&
+    d.getMonth() === tomorrow.getMonth() &&
+    d.getDate() === tomorrow.getDate()
+}
+
+function formatShowTime(dateStr: string): string {
+  return new Date(dateStr).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+}
+
+function formatShowDate(dateStr: string): string {
+  return new Date(dateStr).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+}
+
 export default function DashboardPage() {
   const router = useRouter()
   const [performances, setPerformances] = useState<Performance[]>([])
   const [loading, setLoading]           = useState(true)
   const [livePerf, setLivePerf]         = useState<Performance | null>(null)
+  const [morningAfterPerf, setMorningAfterPerf] = useState<Performance | null>(null)
   const [totalSongs, setTotalSongs]     = useState(0)
   const [needsReview, setNeedsReview]   = useState(0)
   const [userId, setUserId]             = useState<string | null>(null)
   const [showEstimates, setShowEstimates] = useState<ShowEstimateInput[]>([])
   const [songCountMap, setSongCountMap] = useState<Record<string, number>>({})
+  const [bandsintownName, setBandsintownName] = useState<string | null>(null)
+  const [upcomingShows, setUpcomingShows]     = useState<BitEvent[]>([])
+  const [todayShow, setTodayShow]             = useState<BitEvent | null>(null)
 
   useEffect(() => {
     const supabase = createClient()
     async function load() {
       const { data: { user } } = await supabase.auth.getUser()
       if (user) setUserId(user.id)
+
+      // Load profile for Bandsintown name
+      if (user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('bandsintown_artist_name')
+          .eq('id', user.id)
+          .single()
+        if (profile?.bandsintown_artist_name) {
+          setBandsintownName(profile.bandsintown_artist_name)
+        }
+      }
+
       const { data, error } = await supabase
         .from('performances')
-        .select(`id, venue_name, artist_name, city, country, status, submission_status, started_at, created_at, shows ( show_type ), venues ( capacity )`)
+        .select(`id, venue_name, artist_name, city, country, status, submission_status, started_at, ended_at, created_at, shows ( show_type ), venues ( capacity )`)
         .order('created_at', { ascending: false })
       if (error) console.error('Dashboard error:', error)
       if (data) {
@@ -85,21 +130,36 @@ export default function DashboardPage() {
           id: p.id, venue_name: p.venue_name, artist_name: p.artist_name,
           city: p.city, country: p.country, status: p.status,
           submission_status: p.submission_status || null,
-          started_at: p.started_at, created_at: p.created_at,
+          started_at: p.started_at, ended_at: p.ended_at || null,
+          created_at: p.created_at,
           show_type: p.shows?.show_type || 'single', venue_capacity: p.venues?.capacity || null,
         }))
         setPerformances(perfs)
         setNeedsReview(perfs.filter(p => (p.status === 'review' || p.status === 'complete' || p.status === 'completed') && p.submission_status !== 'submitted').length)
+
+        // Active live show
         const live = perfs.find(p =>
           (p.status === 'live' || p.status === 'pending') &&
           minutesSince(p.started_at || p.created_at) < 360
         )
         setLivePerf(live || null)
+
+        // Morning-after nudge: ended in last 18h, not submitted, not live
+        const morningAfter = perfs.find(p => {
+          const endedAt = p.ended_at || p.started_at
+          const hoursAgo = hoursSince(endedAt)
+          return hoursAgo > 0 && hoursAgo <= 18 &&
+            p.status !== 'live' && p.status !== 'pending' &&
+            p.submission_status !== 'submitted'
+        })
+        setMorningAfterPerf(morningAfter || null)
+
         const { data: songData } = await supabase.from('performance_songs').select('performance_id').in('performance_id', perfs.map(p => p.id))
         const countMap: Record<string, number> = {}
         songData?.forEach((s: any) => { countMap[s.performance_id] = (countMap[s.performance_id] || 0) + 1 })
         setSongCountMap(countMap)
         setTotalSongs(Object.values(countMap).reduce((a, b) => a + b, 0))
+
         const estimates: ShowEstimateInput[] = perfs
           .filter(p => p.status !== 'live' && p.status !== 'pending' && p.submission_status !== 'submitted')
           .map(p => ({ performanceId: p.id, status: p.status, songCount: countMap[p.id] || 0, venueCapacityBand: capacityToBand(p.venue_capacity), showType: (p.show_type as any) || 'single', territory: (['CA','Canada','ca'].includes(p.country || '') || (p.city || '').toLowerCase().includes('toronto') || (p.city || '').toLowerCase().includes('vancouver') || (p.city || '').toLowerCase().includes('montreal') || (p.city || '').toLowerCase().includes('calgary') || (p.country || '').toLowerCase().includes('canada')) ? 'CA' : 'US' }))
@@ -111,6 +171,25 @@ export default function DashboardPage() {
     load()
   }, [])
 
+  // Fetch Bandsintown upcoming shows once we have the artist name
+  useEffect(() => {
+    if (!bandsintownName) return
+    fetch(`/api/bandsintown/upcoming?artist=${encodeURIComponent(bandsintownName)}`)
+      .then(r => r.json())
+      .then(data => {
+        const events: BitEvent[] = data.events || []
+        // Only show next 3 upcoming
+        const upcoming = events
+          .filter(e => new Date(e.datetime) > new Date())
+          .slice(0, 3)
+        setUpcomingShows(upcoming)
+        // Today's show
+        const today = events.find(e => isToday(e.datetime))
+        setTodayShow(today || null)
+      })
+      .catch(() => {})
+  }, [bandsintownName])
+
   const aggregate      = aggregateUnclaimedEarnings(showEstimates)
   const totalShows     = performances.filter(p => p.status !== 'live' && p.status !== 'pending').length
   const submittedCount = performances.filter(p => p.submission_status === 'submitted').length
@@ -120,6 +199,16 @@ export default function DashboardPage() {
     if (p.status === 'live' || p.status === 'pending') router.push(`/app/live/${p.id}`)
     else if (p.submission_status === 'submitted') router.push(`/app/submit/${p.id}`)
     else router.push(`/app/review/${p.id}`)
+  }
+
+  function startShowFromBIT(event: BitEvent) {
+    // Pre-fill new show page with venue from Bandsintown
+    const params = new URLSearchParams({
+      venue: event.venueName,
+      city: event.venueCity,
+      country: event.venueCountry,
+    })
+    router.push(`/app/show/new?${params.toString()}`)
   }
 
   if (loading) return (
@@ -153,8 +242,43 @@ export default function DashboardPage() {
           </div>
         </div>
 
+        {/* ── MORNING-AFTER NUDGE — highest priority banner ── */}
+        {morningAfterPerf && !livePerf && (
+          <div style={{ marginBottom: 20, animation: 'fadeUp 0.3s ease' }}>
+            <button onClick={() => navigateToPerformance(morningAfterPerf)}
+              style={{ width: '100%', background: 'rgba(201,168,76,0.07)', border: `1px solid ${C.borderGold}`, borderRadius: 14, padding: '16px 18px', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 14 }}>
+              <div style={{ width: 40, height: 40, borderRadius: '50%', background: C.goldDim, border: `1px solid ${C.borderGold}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <span style={{ fontSize: 18 }}>🌅</span>
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.gold, margin: '0 0 3px' }}>Last Night's Show</p>
+                <p style={{ fontSize: 15, fontWeight: 700, color: C.text, margin: '0 0 2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{morningAfterPerf.venue_name}</p>
+                <p style={{ fontSize: 12, color: C.secondary, margin: 0 }}>Review your setlist and claim your royalties →</p>
+              </div>
+            </button>
+          </div>
+        )}
+
+        {/* ── TODAY'S SHOW from Bandsintown ── */}
+        {todayShow && !livePerf && (
+          <div style={{ marginBottom: 20, animation: 'fadeUp 0.32s ease' }}>
+            <button onClick={() => startShowFromBIT(todayShow)}
+              style={{ width: '100%', background: 'rgba(74,222,128,0.06)', border: '1px solid rgba(74,222,128,0.2)', borderRadius: 14, padding: '16px 18px', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 14 }}>
+              <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'rgba(74,222,128,0.1)', border: '1px solid rgba(74,222,128,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, position: 'relative' }}>
+                <span style={{ fontSize: 18 }}>🎸</span>
+                <div style={{ position: 'absolute', width: 40, height: 40, borderRadius: '50%', border: '1.5px solid rgba(74,222,128,0.3)', animation: 'orb-pulse 2s ease-in-out infinite' }} />
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.green, margin: '0 0 3px' }}>You're Playing Tonight</p>
+                <p style={{ fontSize: 15, fontWeight: 700, color: C.text, margin: '0 0 2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{todayShow.venueName}</p>
+                <p style={{ fontSize: 12, color: C.secondary, margin: 0 }}>{todayShow.venueCity} · {formatShowTime(todayShow.datetime)} — tap to start capture</p>
+              </div>
+            </button>
+          </div>
+        )}
+
         {/* ── RESUME LIVE SESSION ── */}
-        {livePerf ? (() => {
+        {livePerf && (() => {
           const minsSinceStart = minutesSince(livePerf.started_at || livePerf.created_at)
           const mightBeInterrupted = minsSinceStart > 5
           return (
@@ -162,26 +286,18 @@ export default function DashboardPage() {
               {mightBeInterrupted && (
                 <div style={{ background: 'rgba(220,38,38,0.07)', border: '1px solid rgba(220,38,38,0.2)', borderRadius: '12px 12px 0 0', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 8 }}>
                   <div style={{ width: 6, height: 6, borderRadius: '50%', background: C.red, animation: 'pulse-dot 1.4s ease-in-out infinite', flexShrink: 0 }} />
-                  <p style={{ fontSize: 12, color: C.red, margin: 0, fontWeight: 600 }}>
-                    Show in progress — capture may have been interrupted
-                  </p>
+                  <p style={{ fontSize: 12, color: C.red, margin: 0, fontWeight: 600 }}>Show in progress — capture may have been interrupted</p>
                 </div>
               )}
-              <button
-                onClick={() => navigateToPerformance(livePerf)}
-                style={{ width: '100%', background: C.card, border: `2px solid ${C.borderGold}`, borderRadius: mightBeInterrupted ? '0 0 14px 14px' : 14, padding: '18px 16px', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 14 }}
-              >
+              <button onClick={() => navigateToPerformance(livePerf)}
+                style={{ width: '100%', background: C.card, border: `2px solid ${C.borderGold}`, borderRadius: mightBeInterrupted ? '0 0 14px 14px' : 14, padding: '18px 16px', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 14 }}>
                 <div style={{ width: 44, height: 44, borderRadius: '50%', background: C.goldDim, border: `1px solid ${C.borderGold}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                   <div style={{ width: 12, height: 12, borderRadius: '50%', background: C.gold, animation: 'pulse-dot 1.4s ease-in-out infinite' }} />
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.gold, margin: '0 0 3px' }}>
-                    {mightBeInterrupted ? 'Resume Capture' : 'Show Active'}
-                  </p>
+                  <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.gold, margin: '0 0 3px' }}>{mightBeInterrupted ? 'Resume Capture' : 'Show Active'}</p>
                   <p style={{ fontSize: 16, fontWeight: 800, color: C.text, margin: '0 0 2px', letterSpacing: '-0.01em' }}>{livePerf.venue_name}</p>
-                  <p style={{ fontSize: 12, color: C.secondary, margin: 0 }}>
-                    {livePerf.artist_name}{livePerf.city ? ` · ${livePerf.city}` : ''} · {minsSinceStart} min ago
-                  </p>
+                  <p style={{ fontSize: 12, color: C.secondary, margin: 0 }}>{livePerf.artist_name}{livePerf.city ? ` · ${livePerf.city}` : ''} · {minsSinceStart} min ago</p>
                 </div>
                 <div style={{ background: C.gold, borderRadius: 10, padding: '10px 14px', fontSize: 12, fontWeight: 800, color: '#0a0908', letterSpacing: '0.06em', textTransform: 'uppercase', flexShrink: 0 }}>
                   {mightBeInterrupted ? 'Resume →' : 'Continue →'}
@@ -189,18 +305,15 @@ export default function DashboardPage() {
               </button>
             </div>
           )
-        })() : (
-          /* ── HERO — two equal-weight action cards ── */
+        })()}
+
+        {/* ── HERO — two equal-weight action cards ── */}
+        {!livePerf && (
           <div style={{ animation: 'fadeUp 0.35s ease', marginBottom: 20 }}>
             <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.muted, margin: '0 0 14px' }}>Start a Show</p>
-
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
-
-              {/* Live Capture card */}
-              <button
-                onClick={() => router.push('/app/show/new')}
-                style={{ background: C.gold, border: 'none', borderRadius: 16, padding: '20px 16px', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', gap: 10, minHeight: 130 }}
-              >
+              <button onClick={() => router.push('/app/show/new')}
+                style={{ background: C.gold, border: 'none', borderRadius: 16, padding: '20px 16px', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', gap: 10, minHeight: 130 }}>
                 <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(10,9,8,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
                   <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#0a0908', opacity: 0.8 }} />
                   <div style={{ position: 'absolute', width: 36, height: 36, borderRadius: '50%', border: '1.5px solid rgba(10,9,8,0.2)', animation: 'orb-pulse 2s ease-in-out infinite' }} />
@@ -211,13 +324,10 @@ export default function DashboardPage() {
                 </div>
               </button>
 
-              {/* Photo Upload card */}
-              <button
-                onClick={() => router.push('/app/show/new?mode=upload')}
+              <button onClick={() => router.push('/app/show/new?mode=upload')}
                 style={{ background: C.card, border: `1px solid ${C.borderGold}`, borderRadius: 16, padding: '20px 16px', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', gap: 10, minHeight: 130, transition: 'background 0.15s ease' }}
                 onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = C.cardHover}
-                onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = C.card}
-              >
+                onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = C.card}>
                 <div style={{ width: 36, height: 36, borderRadius: '50%', background: C.goldDim, border: `1px solid ${C.borderGold}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <span style={{ fontSize: 17 }}>📷</span>
                 </div>
@@ -226,6 +336,39 @@ export default function DashboardPage() {
                   <p style={{ fontSize: 11, color: C.muted, margin: 0, lineHeight: 1.4 }}>Snap a paper setlist to import</p>
                 </div>
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── UPCOMING SHOWS from Bandsintown ── */}
+        {upcomingShows.length > 0 && (
+          <div style={{ marginBottom: 20, animation: 'fadeUp 0.38s ease' }}>
+            <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.muted, margin: '0 0 10px', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Calendar size={10} />Upcoming Shows
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {upcomingShows.map(event => {
+                const isEventToday    = isToday(event.datetime)
+                const isEventTomorrow = isTomorrow(event.datetime)
+                const dateLabel       = isEventToday ? 'Tonight' : isEventTomorrow ? 'Tomorrow' : formatShowDate(event.datetime)
+                return (
+                  <button key={event.id} onClick={() => startShowFromBIT(event)}
+                    style={{ background: C.card, border: `1px solid ${isEventToday ? C.borderGold : C.border}`, borderRadius: 12, padding: '13px 16px', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 12, transition: 'background 0.15s ease' }}
+                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = C.cardHover}
+                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = C.card}>
+                    <div style={{ minWidth: 44, textAlign: 'center', flexShrink: 0 }}>
+                      <p style={{ fontSize: 11, fontWeight: 700, color: isEventToday ? C.gold : C.secondary, margin: 0, letterSpacing: '0.04em' }}>{dateLabel}</p>
+                      <p style={{ fontSize: 10, color: C.muted, margin: '2px 0 0' }}>{formatShowTime(event.datetime)}</p>
+                    </div>
+                    <div style={{ width: 1, height: 28, background: C.border, flexShrink: 0 }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontSize: 14, fontWeight: 600, color: isEventToday ? C.gold : C.text, margin: '0 0 2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{event.venueName}</p>
+                      <p style={{ fontSize: 11, color: C.secondary, margin: 0 }}>{event.venueCity}{event.venueRegion ? `, ${event.venueRegion}` : ''}</p>
+                    </div>
+                    <span style={{ fontSize: 11, color: C.gold, flexShrink: 0, fontWeight: 600 }}>Start →</span>
+                  </button>
+                )
+              })}
             </div>
           </div>
         )}
