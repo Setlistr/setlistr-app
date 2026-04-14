@@ -29,6 +29,7 @@ type PlannedSong = { title: string; artist: string; position: number }
 export default function NewShowPage() {
   const router       = useRouter()
   const searchParams = useSearchParams()
+  const isUploadMode = searchParams.get('mode') === 'upload'
 
   const [artistName, setArtistName]     = useState('')
   const [showType, setShowType]         = useState<'single' | 'writers_round'>('single')
@@ -69,9 +70,8 @@ export default function NewShowPage() {
   const effectiveName = venueQuery.trim() || 'Show'
   const isValid = venueQuery.trim().length > 0
 
-  // ── Auto-open upload mode when arriving via ?mode=upload ──
   useEffect(() => {
-    if (searchParams.get('mode') === 'upload') {
+    if (isUploadMode) {
       setSetlistOpen(true)
       setUploadMode('upload')
     }
@@ -374,6 +374,242 @@ export default function NewShowPage() {
     }
   }
 
+  // ── Upload-first layout (when arriving from "Photo Setlist" card) ────────────
+  if (isUploadMode) {
+    return (
+      <div style={{ minHeight: '100svh', background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '0 0 48px' }}>
+        <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '50vh', pointerEvents: 'none', zIndex: 0, background: 'radial-gradient(ellipse at 50% 0%, rgba(201,168,76,0.07) 0%, transparent 65%)' }} />
+
+        <div style={{ width: '100%', maxWidth: 440, position: 'relative', zIndex: 1, padding: '24px 20px 0', animation: 'fadeUp 0.4s ease' }}>
+
+          {/* Header */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 24 }}>
+            <button onClick={() => router.push('/app/dashboard')}
+              style={{ background: 'none', border: 'none', color: C.muted, cursor: 'pointer', fontSize: 20, lineHeight: 1, padding: 0, display: 'flex', alignItems: 'center' }}>←</button>
+            <div style={{ width: 32, height: 32, borderRadius: '50%', background: C.goldDim, border: `1px solid ${C.borderGold}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <span style={{ fontSize: 15 }}>📷</span>
+            </div>
+            <p style={{ fontSize: 14, fontWeight: 700, color: C.text, margin: 0 }}>Photo Setlist</p>
+          </div>
+
+          <h1 style={{ fontSize: 26, fontWeight: 800, color: C.text, margin: '0 0 6px', letterSpacing: '-0.025em' }}>Snap your setlist.</h1>
+          <p style={{ fontSize: 14, color: C.secondary, margin: '0 0 24px' }}>We'll read it and build the list for you.</p>
+
+          {/* ── PHOTO UPLOAD — front and centre ── */}
+          <input ref={fileInputRef} type="file"
+            accept="image/jpeg,image/png,image/webp,application/pdf,text/plain"
+            style={{ display: 'none' }}
+            onChange={e => { const f = e.target.files?.[0]; if (f) handleFileUpload(f); e.target.value = '' }} />
+
+          {plannedSongs.length === 0 ? (
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ display: 'flex', gap: 10, marginBottom: uploading ? 12 : 0 }}>
+                <button onClick={() => { setUploadError(''); setShowCamera(true) }} disabled={uploading}
+                  style={{ flex: 1, padding: '28px 16px', background: C.card, border: `1px solid ${C.borderGold}`, borderRadius: 16, cursor: uploading ? 'default' : 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, opacity: uploading ? 0.5 : 1, transition: 'background 0.15s ease' }}
+                  onMouseEnter={e => !uploading && ((e.currentTarget as HTMLElement).style.background = C.cardHover)}
+                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = C.card}>
+                  <span style={{ fontSize: 32 }}>📷</span>
+                  <span style={{ fontSize: 13, fontWeight: 800, color: C.gold }}>Take Photo</span>
+                  <span style={{ fontSize: 11, color: C.muted, textAlign: 'center' as const }}>Point at paper setlist</span>
+                </button>
+                <button onClick={() => { setUploadError(''); fileInputRef.current?.click() }} disabled={uploading}
+                  style={{ flex: 1, padding: '28px 16px', background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, cursor: uploading ? 'default' : 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, opacity: uploading ? 0.5 : 1, transition: 'background 0.15s ease' }}
+                  onMouseEnter={e => !uploading && ((e.currentTarget as HTMLElement).style.background = C.cardHover)}
+                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = C.card}>
+                  <span style={{ fontSize: 32 }}>📁</span>
+                  <span style={{ fontSize: 13, fontWeight: 800, color: C.secondary }}>Choose File</span>
+                  <span style={{ fontSize: 11, color: C.muted, textAlign: 'center' as const }}>JPG, PNG, PDF or TXT</span>
+                </button>
+              </div>
+
+              {uploading && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, padding: '16px', background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 12 }}>
+                  <div style={{ width: 16, height: 16, borderRadius: '50%', border: `2px solid ${C.muted}`, borderTopColor: C.gold, animation: 'spin 0.7s linear infinite' }} />
+                  <span style={{ fontSize: 13, color: C.gold, fontWeight: 600 }}>Reading your setlist...</span>
+                </div>
+              )}
+
+              {uploadError && (
+                <div style={{ marginTop: 10, padding: '12px 14px', background: C.redDim, border: '1px solid rgba(248,113,113,0.2)', borderRadius: 10 }}>
+                  <p style={{ fontSize: 13, color: C.red, margin: 0 }}>{uploadError}</p>
+                </div>
+              )}
+            </div>
+          ) : (
+            /* Songs loaded — show list with option to re-upload */
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: C.green }} />
+                  <span style={{ fontSize: 13, fontWeight: 700, color: C.green }}>{plannedSongs.length} songs imported</span>
+                </div>
+                <button onClick={() => { setPlannedSongs([]); setUploadMode('upload') }}
+                  style={{ background: 'none', border: 'none', color: C.muted, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  Redo photo
+                </button>
+              </div>
+
+              <div style={{ background: C.card, border: `1px solid ${C.borderGold}`, borderRadius: 14, overflow: 'hidden', marginBottom: 10 }}>
+                <div style={{ maxHeight: 260, overflowY: 'auto' }}>
+                  {plannedSongs.map((song, i) => (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderBottom: i < plannedSongs.length - 1 ? `1px solid ${C.border}` : 'none' }}>
+                      <span style={{ fontSize: 11, color: C.muted, minWidth: 20, fontFamily: '"DM Mono", monospace', fontWeight: 700, textAlign: 'right' }}>{i + 1}</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <p style={{ fontSize: 14, fontWeight: 600, color: C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{song.title}</p>
+                        {song.artist && <p style={{ fontSize: 11, color: C.muted, margin: '2px 0 0' }}>{song.artist}</p>}
+                      </div>
+                      <button onClick={() => removePlannedSong(i)}
+                        style={{ background: 'none', border: 'none', color: C.muted, cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                        <X size={13} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Add more songs inline */}
+              <div style={{ position: 'relative' }}>
+                <Plus size={12} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: C.muted, pointerEvents: 'none' }} />
+                <input
+                  value={quickSearch}
+                  onChange={e => setQuickSearch(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter' && quickSearch.trim()) { addPlannedSong(quickSearch); setQuickSearch('') } }}
+                  placeholder="Add a missing song..."
+                  style={{ width: '100%', background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: '11px 12px 11px 30px', color: C.text, fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' as const }}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* ── VENUE — simplified, feels like step 2 ── */}
+          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '20px', marginBottom: 16 }}>
+            <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' as const, color: C.muted, margin: '0 0 14px' }}>
+              {plannedSongs.length > 0 ? 'Now — where was this show?' : 'Where was this show?'}
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <label style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, color: C.muted }}>Artist Name</label>
+                <input type="text" value={artistName} onChange={e => setArtistName(e.target.value)} placeholder="Your artist name"
+                  style={{ background: C.input, border: `1px solid ${artistName.trim() ? C.borderGold : C.border}`, borderRadius: 10, padding: '12px 14px', color: C.text, fontSize: 14, fontFamily: 'inherit', width: '100%', outline: 'none' }} />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, position: 'relative' }} ref={dropdownRef}>
+                <label style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, color: C.muted, display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <MapPin size={10} />Venue
+                </label>
+                <div style={{ position: 'relative' }}>
+                  <input type="text" value={venueQuery}
+                    onChange={e => handleVenueInput(e.target.value)}
+                    onFocus={() => { if (venueResults.length > 0) setShowDropdown(true) }}
+                    placeholder="Search or type venue name..."
+                    style={{ background: C.input, border: `1px solid ${venueSelected ? C.borderGold : venueQuery.trim() ? C.borderGold : C.border}`, borderRadius: 10, padding: '12px 40px 12px 14px', color: C.text, fontSize: 14, fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' as const, outline: 'none' }} />
+                  <div style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}>
+                    {venueSearching
+                      ? <div style={{ width: 13, height: 13, borderRadius: '50%', border: `2px solid ${C.muted}`, borderTopColor: C.gold, animation: 'spin 0.7s linear infinite' }} />
+                      : venueSelected ? <span style={{ fontSize: 13, color: C.gold }}>✓</span>
+                      : <Search size={13} color={C.muted} />}
+                  </div>
+                </div>
+
+                {showDropdown && venueResults.length > 0 && (
+                  <div onMouseDown={e => e.preventDefault()}
+                    style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#1a1816', border: `1px solid ${C.borderGold}`, borderRadius: 10, marginTop: 4, zIndex: 50, overflow: 'hidden', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
+                    {venueResults.map((v, i) => (
+                      <button key={v.id} onMouseDown={() => selectVenue(v)}
+                        style={{ width: '100%', padding: '11px 14px', background: 'transparent', border: 'none', borderBottom: i < venueResults.length - 1 ? `1px solid ${C.border}` : 'none', cursor: 'pointer', textAlign: 'left', display: 'flex', flexDirection: 'column', gap: 2, fontFamily: 'inherit' }}
+                        onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = C.cardHover}
+                        onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}>
+                        <span style={{ fontSize: 14, fontWeight: 600, color: C.text }}>{v.name}</span>
+                        {(v.city || v.country) && <span style={{ fontSize: 11, color: C.muted }}>{[v.city, v.country].filter(Boolean).join(', ')}</span>}
+                      </button>
+                    ))}
+                    <button onMouseDown={() => { setVenueSelected(false); setShowDropdown(false) }}
+                      style={{ width: '100%', padding: '10px 14px', background: C.goldDim, border: 'none', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit' }}>
+                      <span style={{ fontSize: 12, color: C.gold, fontWeight: 600 }}>+ Add "{venueQuery}" as new venue</span>
+                    </button>
+                  </div>
+                )}
+
+                {showDropdown && venueResults.length === 0 && venueQuery.trim().length >= 2 && !venueSearching && (
+                  <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#1a1816', border: `1px solid ${C.border}`, borderRadius: 10, marginTop: 4, zIndex: 50, padding: '12px 14px' }}>
+                    <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>No venues found — will be saved as new.</p>
+                  </div>
+                )}
+
+                {venueMemory && (
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '9px 12px', background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 8 }}>
+                    <p style={{ fontSize: 12, color: C.gold, margin: 0, lineHeight: 1.4 }}>
+                      Last time: <strong>{venueMemory.songCount} songs</strong> on {formatDate(venueMemory.lastDate)}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Venue size — only show for new venues */}
+              {venueQuery.trim().length >= 2 && !venueSelected && !venueSearching && !showDropdown && (
+                <div>
+                  <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, color: C.muted, margin: '0 0 6px' }}>Venue size <span style={{ fontWeight: 400, textTransform: 'none' as const, letterSpacing: 0 }}>(helps estimate royalties)</span></p>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    {([
+                      { key: 'small', label: 'Small', sub: '<300' },
+                      { key: 'medium', label: 'Medium', sub: '300–2k' },
+                      { key: 'large', label: 'Large', sub: '2k–10k' },
+                      { key: 'festival', label: 'Festival', sub: '10k+' },
+                    ] as const).map(opt => (
+                      <button key={opt.key} type="button"
+                        onClick={() => setVenueCapacity(venueCapacity === opt.key ? '' : opt.key)}
+                        style={{ flex: 1, padding: '8px 4px', background: venueCapacity === opt.key ? C.goldDim : 'transparent', border: `1px solid ${venueCapacity === opt.key ? C.borderGold : C.border}`, borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: venueCapacity === opt.key ? C.gold : C.secondary }}>{opt.label}</span>
+                        <span style={{ fontSize: 9, color: C.muted }}>{opt.sub}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {error && (
+            <div style={{ background: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.2)', borderRadius: 10, padding: '12px 14px', marginBottom: 14 }}>
+              <p style={{ fontSize: 13, color: '#f87171', margin: 0 }}>{error}</p>
+            </div>
+          )}
+
+          {/* Start button */}
+          <button onClick={handleSubmit} disabled={!isValid || loading}
+            style={{ width: '100%', padding: '15px', background: isValid ? C.gold : C.muted, border: 'none', borderRadius: 12, color: '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' as const, cursor: isValid && !loading ? 'pointer' : 'not-allowed', opacity: loading ? 0.7 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit', marginBottom: 12 }}>
+            {loading
+              ? <><div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid #0a090840', borderTopColor: '#0a0908', animation: 'spin 0.7s linear infinite' }} />Starting...</>
+              : <>{plannedSongs.length > 0 ? `Start · ${plannedSongs.length} songs loaded` : 'Start Listening'} <ArrowRight size={15} strokeWidth={2.5} /></>}
+          </button>
+
+          <button onClick={() => router.push('/app/dashboard')}
+            style={{ background: 'none', border: 'none', color: C.muted, fontSize: 12, cursor: 'pointer', letterSpacing: '0.04em', fontFamily: 'inherit', padding: '4px', width: '100%' }}>
+            ← Back to Dashboard
+          </button>
+        </div>
+
+        {showCamera && (
+          <CameraCapture
+            onCapture={handleFileUpload}
+            onClose={() => setShowCamera(false)}
+          />
+        )}
+
+        <style>{`
+          @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500;700&display=swap');
+          @keyframes fadeUp  { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
+          @keyframes spin    { to{transform:rotate(360deg)} }
+          * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
+          input::placeholder { color: #6a6050; }
+          input:focus { border-color: rgba(201,168,76,0.4) !important; outline: none; }
+        `}</style>
+      </div>
+    )
+  }
+
+  // ── Standard live-capture layout ─────────────────────────────────────────────
   return (
     <div style={{ minHeight: '100svh', background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px 20px' }}>
       <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '50vh', pointerEvents: 'none', zIndex: 0, background: 'radial-gradient(ellipse at 50% 0%, rgba(201,168,76,0.07) 0%, transparent 65%)' }} />
@@ -534,7 +770,6 @@ export default function NewShowPage() {
                 ))}
               </div>
 
-              {/* Quick Add */}
               {uploadMode === 'chips' && (
                 <div>
                   <div style={{ position: 'relative', marginBottom: 10 }}>
@@ -568,7 +803,6 @@ export default function NewShowPage() {
                 </div>
               )}
 
-              {/* Upload */}
               {uploadMode === 'upload' && (
                 <div style={{ marginBottom: 12 }}>
                   <input ref={fileInputRef} type="file"
@@ -606,7 +840,6 @@ export default function NewShowPage() {
                 </div>
               )}
 
-              {/* Loaded songs */}
               {plannedSongs.length > 0 && (
                 <div>
                   <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, color: C.muted, margin: '4px 0 8px' }}>
