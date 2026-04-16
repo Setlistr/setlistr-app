@@ -278,7 +278,7 @@ export default function SettingsPage() {
               <Radio size={15} color={C.gold} />
               <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.secondary, margin: 0 }}>Bandsintown</p>
             </div>
-            {bandsintownName && bandsintownTestResult?.ok && (
+            {bandsintownName && bandsintownTestResult?.ok && bandsintownTestResult.count > 0 && (
               <span style={{ fontSize: 10, fontWeight: 700, color: C.green, background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.2)', borderRadius: 20, padding: '3px 10px' }}>
                 Connected
               </span>
