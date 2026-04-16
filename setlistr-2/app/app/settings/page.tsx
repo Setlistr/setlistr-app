@@ -276,7 +276,7 @@ export default function SettingsPage() {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <Radio size={15} color={C.gold} />
-              <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.secondary, margin: 0 }}>Bandsintown</p>
+              <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.secondary, margin: 0 }}>Upcoming Shows</p>
             </div>
             {bandsintownName && bandsintownTestResult?.ok && bandsintownTestResult.count > 0 && (
               <span style={{ fontSize: 10, fontWeight: 700, color: C.green, background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.2)', borderRadius: 20, padding: '3px 10px' }}>
@@ -286,11 +286,11 @@ export default function SettingsPage() {
           </div>
 
           <p style={{ fontSize: 12, color: C.muted, margin: 0, lineHeight: 1.6 }}>
-            Connect your Bandsintown profile to see upcoming shows on your dashboard and get day-of reminders.
+            Connect your artist profile to automatically see upcoming shows on your dashboard. We check Bandsintown and Ticketmaster.
           </p>
 
           <div>
-            <label style={labelStyle}>Your Artist Name on Bandsintown</label>
+            <label style={labelStyle}>Your Artist Name</label>
             <input
               value={bandsintownName}
               onChange={e => { setBandsintownName(e.target.value); setBandsintownTestResult(null) }}
@@ -300,7 +300,7 @@ export default function SettingsPage() {
               onBlur={e => (e.target as HTMLInputElement).style.borderColor = C.inputBorder}
             />
             <p style={{ fontSize: 11, color: C.muted, margin: '6px 0 0' }}>
-              Must match exactly how your name appears on bandsintown.com
+              Must match exactly how your name appears on Bandsintown or Ticketmaster
             </p>
           </div>
 
@@ -315,7 +315,7 @@ export default function SettingsPage() {
                   ? bandsintownTestResult.count > 0
                     ? `✓ Found ${bandsintownTestResult.count} upcoming show${bandsintownTestResult.count !== 1 ? 's' : ''}`
                     : '✓ Artist found — no upcoming shows listed yet'
-                  : '✗ Artist not found — check the spelling on Bandsintown'}
+                  : '✗ Artist not found — check the spelling on Bandsintown or Ticketmaster'}
               </p>
             </div>
           )}
