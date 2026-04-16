@@ -171,23 +171,37 @@ export default function DashboardPage() {
     load()
   }, [])
 
-  // Fetch Bandsintown upcoming shows once we have the artist name
+  // Fetch upcoming shows — Bandsintown first, Ticketmaster fallback
   useEffect(() => {
     if (!bandsintownName) return
-    fetch(`/api/bandsintown/upcoming?artist=${encodeURIComponent(bandsintownName)}`)
-      .then(r => r.json())
-      .then(data => {
-        const events: BitEvent[] = data.events || []
-        // Only show next 3 upcoming
+
+    async function fetchUpcoming() {
+      try {
+        // Try Bandsintown first
+        let events: BitEvent[] = []
+        const bitRes = await fetch(`/api/bandsintown/upcoming?artist=${encodeURIComponent(bandsintownName!)}`)
+        const bitData = await bitRes.json()
+        events = bitData.events || []
+
+        // Fall back to Ticketmaster if Bandsintown returns nothing
+        if (events.length === 0) {
+          const tmRes = await fetch(`/api/ticketmaster/upcoming?artist=${encodeURIComponent(bandsintownName!)}`)
+          const tmData = await tmRes.json()
+          events = tmData.events || []
+        }
+
         const upcoming = events
           .filter(e => new Date(e.datetime) > new Date())
           .slice(0, 3)
         setUpcomingShows(upcoming)
-        // Today's show
         const today = events.find(e => isToday(e.datetime))
         setTodayShow(today || null)
-      })
-      .catch(() => {})
+      } catch {
+        // Non-fatal — dashboard works fine without upcoming shows
+      }
+    }
+
+    fetchUpcoming()
   }, [bandsintownName])
 
   const aggregate      = aggregateUnclaimedEarnings(showEstimates)
