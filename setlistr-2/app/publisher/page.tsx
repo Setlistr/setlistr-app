@@ -13,8 +13,7 @@ const C = {
 }
 
 // Hardcoded for now — will be dynamic when publisher auth is added
-const PUBLISHER_ID = '76d888c9-d096-4fcc-a795-84cd9a43484f'
-
+const PUBLISHER_ID = process.env.NEXT_PUBLIC_PUBLISHER_DEMO_ID || ''
 type Artist = {
   user_id: string
   artist_name: string
