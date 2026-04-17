@@ -308,9 +308,9 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
     if (mediaRecorderRef.current?.state === 'recording') mediaRecorderRef.current.stop()
     if (streamRef.current) { streamRef.current.getTracks().forEach(t => t.stop()); streamRef.current = null }
     setIsListening(false); setEngineState('idle'); setDetectStatus('')
-    // Release wake lock when capture stops
+    // Release wake lock when capture stops (fire and forget — no await needed)
     if (wakeLockRef.current) {
-      try { await wakeLockRef.current.release() } catch {}
+      try { wakeLockRef.current.release() } catch {}
       wakeLockRef.current = null
     }
   }, [])
