@@ -122,6 +122,13 @@ export default function DashboardPage() {
           .select('bandsintown_artist_name, artist_name, full_name')
           .eq('id', user.id)
           .single()
+
+        // Redirect to onboarding if profile not complete
+        if (!profile?.artist_name?.trim()) {
+          router.replace('/app/onboarding')
+          return
+        }
+
         if (profile?.bandsintown_artist_name) setLookupName(profile.bandsintown_artist_name)
         setArtistName(profile?.artist_name || profile?.full_name || null)
       }
@@ -242,14 +249,17 @@ export default function DashboardPage() {
       <div style={{ maxWidth: 480, margin: '0 auto', padding: '0 16px', position: 'relative', zIndex: 1 }}>
 
         {/* ── NAV ── */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', padding: '20px 0 24px', gap: 16 }}>
-          {submittedCount > 0 && (
-            <span style={{ fontSize: 11, color: C.green, background: C.greenDim, border: '1px solid rgba(74,222,128,0.2)', borderRadius: 20, padding: '3px 10px', display: 'flex', alignItems: 'center', gap: 4 }}>
-              <Check size={10} strokeWidth={2.5} />{submittedCount} submitted
-            </span>
-          )}
-          <button onClick={() => router.push('/app/settings')} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>Settings</button>
-          <button onClick={() => router.push('/app/history')} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>History →</button>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 0 24px' }}>
+          <span style={{ fontSize: 13, fontWeight: 800, color: C.gold, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Setlistr</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            {submittedCount > 0 && (
+              <span style={{ fontSize: 11, color: C.green, background: C.greenDim, border: '1px solid rgba(74,222,128,0.2)', borderRadius: 20, padding: '3px 10px', display: 'flex', alignItems: 'center', gap: 4 }}>
+                <Check size={10} strokeWidth={2.5} />{submittedCount}
+              </span>
+            )}
+            <button onClick={() => router.push('/app/settings')} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>Settings</button>
+            <button onClick={() => router.push('/app/history')} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>History →</button>
+          </div>
         </div>
 
         {/* ── MORNING-AFTER NUDGE ── */}
@@ -352,12 +362,12 @@ export default function DashboardPage() {
 
               {/* Orb */}
               <div style={{ position: 'relative', flexShrink: 0 }}>
-                <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'rgba(10,9,8,0.25)', border: '2px solid rgba(10,9,8,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <div style={{ width: 16, height: 16, borderRadius: '50%', background: '#0a0908' }} />
+                <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'rgba(10,9,8,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <div style={{ width: 18, height: 18, borderRadius: '50%', background: '#0a0908', opacity: 0.85 }} />
                 </div>
                 {/* Pulse rings */}
-                <div style={{ position: 'absolute', inset: -8, borderRadius: '50%', border: '1.5px solid rgba(255,255,255,0.25)', animation: 'orb-pulse 2s ease-in-out infinite' }} />
-                <div style={{ position: 'absolute', inset: -18, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.12)', animation: 'orb-pulse 2s ease-in-out 0.5s infinite' }} />
+                <div style={{ position: 'absolute', inset: -6, borderRadius: '50%', border: '1.5px solid rgba(10,9,8,0.2)', animation: 'orb-pulse 2s ease-in-out infinite' }} />
+                <div style={{ position: 'absolute', inset: -14, borderRadius: '50%', border: '1px solid rgba(10,9,8,0.1)', animation: 'orb-pulse 2s ease-in-out 0.4s infinite' }} />
               </div>
 
               <div style={{ flex: 1, minWidth: 0, position: 'relative', zIndex: 1 }}>
@@ -388,7 +398,7 @@ export default function DashboardPage() {
               onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'rgba(201,168,76,0.08)'}>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <p style={{ fontSize: 20, fontWeight: 800, color: C.gold, margin: '0 0 2px', fontFamily: '"DM Mono", monospace', letterSpacing: '-0.02em' }}>~${aggregate.unclaimedExpected.toLocaleString()} unclaimed</p>
-                <p style={{ fontSize: 12, color: C.secondary, margin: 0 }}>{aggregate.unclaimedCount} show{aggregate.unclaimedCount !== 1 ? 's' : ''} · {totalSongs} songs</p>
+                <p style={{ fontSize: 12, color: C.secondary, margin: 0 }}>{aggregate.unclaimedCount} show{aggregate.unclaimedCount !== 1 ? 's' : ''} not yet submitted · {totalSongs} songs tracked</p>
               </div>
               <span style={{ fontSize: 13, color: C.gold, flexShrink: 0, fontWeight: 700 }}>Claim →</span>
             </button>
