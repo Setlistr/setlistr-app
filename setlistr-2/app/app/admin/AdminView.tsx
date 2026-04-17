@@ -147,6 +147,7 @@ export default function AdminDashboard({
   const [addError, setAddError]       = useState('')
   const [addSuccess, setAddSuccess]   = useState('')
   const [invites, setInvites]         = useState<BetaInvite[]>(betaInvites)
+  const [spotifyImporting, setSpotifyImporting] = useState<Record<string, 'idle' | 'loading' | 'done' | 'error'>>({})
   const [localPerfs, setLocalPerfs]   = useState<Performance[]>(performances)
 
   // ── Detection stats ────────────────────────────────────────────────────────
@@ -375,6 +376,24 @@ export default function AdminDashboard({
     const a    = document.createElement('a')
     a.href = url; a.download = filename; a.click()
     URL.revokeObjectURL(url)
+  }
+
+  async function importSpotifyForArtist(userId: string, artistName: string) {
+    setSpotifyImporting(prev => ({ ...prev, [userId]: 'loading' }))
+    try {
+      const res = await fetch('/api/admin/spotify-import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId, artist_name: artistName }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Import failed')
+      setSpotifyImporting(prev => ({ ...prev, [userId]: 'done' }))
+      setTimeout(() => setSpotifyImporting(prev => ({ ...prev, [userId]: 'idle' })), 4000)
+    } catch {
+      setSpotifyImporting(prev => ({ ...prev, [userId]: 'error' }))
+      setTimeout(() => setSpotifyImporting(prev => ({ ...prev, [userId]: 'idle' })), 3000)
+    }
   }
 
   async function addBetaUser() {
@@ -751,11 +770,29 @@ export default function AdminDashboard({
                       ))}
                     </div>
                   </div>
-                  {a.submitted > 0 && (
-                    <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.green, background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.2)', borderRadius: 6, padding: '3px 8px', flexShrink: 0 }}>
-                      Submitted
-                    </span>
-                  )}
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>
+                    {a.submitted > 0 && (
+                      <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.green, background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.2)', borderRadius: 6, padding: '3px 8px' }}>
+                        Submitted
+                      </span>
+                    )}
+                    {(() => {
+                      const state = spotifyImporting[a.id] || 'idle'
+                      return (
+                        <button
+                          onClick={() => importSpotifyForArtist(a.id, a.name)}
+                          disabled={state === 'loading'}
+                          style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', background: state === 'done' ? 'rgba(74,222,128,0.08)' : state === 'error' ? 'rgba(248,113,113,0.08)' : 'rgba(30,215,96,0.08)', border: `1px solid ${state === 'done' ? 'rgba(74,222,128,0.25)' : state === 'error' ? 'rgba(248,113,113,0.25)' : 'rgba(30,215,96,0.2)'}`, borderRadius: 8, cursor: state === 'loading' ? 'wait' : 'pointer', fontFamily: 'inherit', opacity: state === 'loading' ? 0.6 : 1, transition: 'all 0.2s ease' }}>
+                          {state === 'loading'
+                            ? <div style={{ width: 10, height: 10, borderRadius: '50%', border: '1.5px solid rgba(30,215,96,0.3)', borderTopColor: '#1ed760', animation: 'spin 0.8s linear infinite' }} />
+                            : <svg width="10" height="10" viewBox="0 0 24 24" fill={state === 'done' ? C.green : state === 'error' ? C.red : '#1ed760'}><path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/></svg>}
+                          <span style={{ fontSize: 10, fontWeight: 700, color: state === 'done' ? C.green : state === 'error' ? C.red : '#1ed760' }}>
+                            {state === 'loading' ? 'Importing...' : state === 'done' ? 'Imported ✓' : state === 'error' ? 'Failed' : 'Spotify'}
+                          </span>
+                        </button>
+                      )
+                    })()}
+                  </div>
                 </div>
               </div>
             ))}
@@ -904,112 +941,78 @@ export default function AdminDashboard({
         )}
 
         {/* ════════════════════════════ BETA USERS ══════════════════════════ */}
-        {tab === 'beta' && (() => {
-          const accepted = invites.filter(i => i.accepted_at)
-          const pending  = invites.filter(i => !i.accepted_at)
-          return (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        {tab === 'beta' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
-              {/* Stats */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-                <Stat label="Total Invited" value={invites.length} />
-                <Stat label="Accepted"      value={accepted.length} color={C.green} sub="signed up" />
-                <Stat label="Pending"       value={pending.length}  color={C.amber} sub="not yet" />
-              </div>
+            {/* Stats */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
+              <Stat label="Total Invited"  value={invites.length} />
+              <Stat label="Accepted"       value={invites.filter(i => i.accepted_at).length} color={C.green} sub="signed in at least once" />
+            </div>
 
-              {/* Signup link */}
-              <div style={{ background: 'rgba(201,168,76,0.08)', border: `1px solid rgba(201,168,76,0.25)`, borderRadius: 12, padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-                <div>
-                  <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.gold, margin: '0 0 3px' }}>Share this link</p>
-                  <p style={{ fontSize: 12, color: C.secondary, margin: 0, fontFamily: '"DM Mono", monospace' }}>setlistr.ai/auth/login</p>
-                </div>
+            {/* Add user form */}
+            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: '18px 20px' }}>
+              <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, margin: '0 0 14px' }}>Add Beta User</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <input
+                  value={newEmail}
+                  onChange={e => setNewEmail(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && addBetaUser()}
+                  placeholder="email@example.com"
+                  type="email"
+                  style={{ background: '#0f0e0c', border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 12px', color: C.text, fontSize: 14, outline: 'none', fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' as const }}
+                />
+                <input
+                  value={newName}
+                  onChange={e => setNewName(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && addBetaUser()}
+                  placeholder="Name (optional)"
+                  style={{ background: '#0f0e0c', border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 12px', color: C.text, fontSize: 14, outline: 'none', fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' as const }}
+                />
+                {addError && <p style={{ fontSize: 12, color: C.red, margin: 0 }}>{addError}</p>}
+                {addSuccess && <p style={{ fontSize: 12, color: C.green, margin: 0 }}>{addSuccess}</p>}
                 <button
-                  onClick={() => navigator.clipboard.writeText(window.location.origin + '/auth/login')}
-                  style={{ padding: '8px 14px', background: C.gold, border: 'none', borderRadius: 8, color: '#0a0908', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}>
-                  Copy
+                  onClick={addBetaUser}
+                  disabled={addingUser || !newEmail.trim()}
+                  style={{ padding: '11px', background: newEmail.trim() ? C.gold : C.muted, border: 'none', borderRadius: 8, color: '#0a0908', fontSize: 12, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: addingUser || !newEmail.trim() ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: addingUser ? 0.7 : 1 }}>
+                  {addingUser ? 'Adding...' : 'Grant Access'}
                 </button>
               </div>
+            </div>
 
-              {/* Add user form */}
-              <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: '18px 20px' }}>
-                <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, margin: '0 0 14px' }}>Add Beta Artist</p>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <input
-                      value={newName}
-                      onChange={e => setNewName(e.target.value)}
-                      placeholder="Name (optional)"
-                      style={{ flex: 1, background: '#0f0e0c', border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 12px', color: C.text, fontSize: 14, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' as const }}
-                    />
-                    <input
-                      value={newEmail}
-                      onChange={e => setNewEmail(e.target.value)}
-                      onKeyDown={e => e.key === 'Enter' && addBetaUser()}
-                      placeholder="email@example.com"
-                      type="email"
-                      style={{ flex: 2, background: '#0f0e0c', border: `1px solid ${newEmail.trim() ? 'rgba(201,168,76,0.3)' : C.border}`, borderRadius: 8, padding: '10px 12px', color: C.text, fontSize: 14, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' as const }}
-                    />
+            {/* Invite list */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {invites.map(invite => (
+                <div key={invite.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', background: C.card, border: `1px solid ${C.border}`, borderRadius: 10 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+                      <p style={{ fontSize: 13, fontWeight: 600, color: C.text, margin: 0 }}>{invite.email}</p>
+                      {invite.accepted_at ? (
+                        <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.green, background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.2)', borderRadius: 4, padding: '2px 6px' }}>Active</span>
+                      ) : (
+                        <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.muted, background: 'rgba(255,255,255,0.04)', border: `1px solid ${C.border}`, borderRadius: 4, padding: '2px 6px' }}>Pending</span>
+                      )}
+                    </div>
+                    <p style={{ fontSize: 11, color: C.muted, margin: 0 }}>
+                      {invite.name || 'No name'} · Added {timeAgo(invite.created_at)}
+                      {invite.accepted_at ? ` · Joined ${timeAgo(invite.accepted_at)}` : ''}
+                    </p>
                   </div>
-                  {addError && <p style={{ fontSize: 12, color: C.red, margin: 0 }}>{addError}</p>}
-                  {addSuccess && <p style={{ fontSize: 12, color: C.green, margin: 0 }}>✓ {addSuccess} — copy the link above and send it to them</p>}
                   <button
-                    onClick={addBetaUser}
-                    disabled={addingUser || !newEmail.trim()}
-                    style={{ padding: '11px', background: newEmail.trim() ? C.gold : C.muted, border: 'none', borderRadius: 8, color: '#0a0908', fontSize: 12, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: addingUser || !newEmail.trim() ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: addingUser ? 0.7 : newEmail.trim() ? 1 : 0.4 }}>
-                    {addingUser ? 'Adding...' : 'Add to Beta'}
+                    onClick={() => removeBetaUser(invite.id, invite.email)}
+                    style={{ background: 'none', border: `1px solid rgba(248,113,113,0.2)`, borderRadius: 6, color: C.red, fontSize: 11, cursor: 'pointer', padding: '4px 10px', fontFamily: 'inherit', opacity: 0.6, transition: 'opacity 0.15s ease', flexShrink: 0 }}
+                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '1'}
+                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '0.6'}>
+                    Remove
                   </button>
                 </div>
-              </div>
-
-              {/* Pending */}
-              {pending.length > 0 && (
-                <div>
-                  <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, margin: '0 0 8px' }}>Pending · {pending.length}</p>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    {pending.map(invite => (
-                      <div key={invite.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', background: C.card, border: `1px solid ${C.border}`, borderRadius: 10 }}>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          {invite.name && <p style={{ fontSize: 13, fontWeight: 600, color: C.text, margin: '0 0 1px' }}>{invite.name}</p>}
-                          <p style={{ fontSize: invite.name ? 12 : 13, color: invite.name ? C.muted : C.text, margin: 0, fontWeight: invite.name ? 400 : 600 }}>{invite.email}</p>
-                          <p style={{ fontSize: 11, color: C.muted, margin: '2px 0 0' }}>Added {timeAgo(invite.created_at)}</p>
-                        </div>
-                        <button onClick={() => removeBetaUser(invite.id, invite.email)}
-                          style={{ background: 'none', border: `1px solid rgba(248,113,113,0.2)`, borderRadius: 6, color: C.red, fontSize: 11, cursor: 'pointer', padding: '4px 10px', fontFamily: 'inherit', opacity: 0.5, flexShrink: 0 }}
-                          onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '1'}
-                          onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '0.5'}>
-                          Remove
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Accepted */}
-              {accepted.length > 0 && (
-                <div>
-                  <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, margin: '0 0 8px' }}>Accepted · {accepted.length}</p>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    {accepted.map(invite => (
-                      <div key={invite.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', background: C.card, border: `1px solid rgba(74,222,128,0.12)`, borderRadius: 10 }}>
-                        <div style={{ width: 7, height: 7, borderRadius: '50%', background: C.green, flexShrink: 0, opacity: 0.7 }} />
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          {invite.name && <p style={{ fontSize: 13, fontWeight: 600, color: C.text, margin: '0 0 1px' }}>{invite.name}</p>}
-                          <p style={{ fontSize: invite.name ? 12 : 13, color: invite.name ? C.muted : C.text, margin: 0, fontWeight: invite.name ? 400 : 600 }}>{invite.email}</p>
-                          <p style={{ fontSize: 11, color: C.green, margin: '2px 0 0', opacity: 0.7 }}>Joined {timeAgo(invite.accepted_at!)}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
+              ))}
               {invites.length === 0 && (
-                <p style={{ textAlign: 'center', color: C.muted, padding: '40px 0' }}>No beta artists yet — add one above</p>
+                <p style={{ textAlign: 'center', color: C.muted, padding: '40px 0' }}>No beta users yet</p>
               )}
             </div>
-          )
-        })()}
+          </div>
+        )}
 
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500;700&display=swap');
