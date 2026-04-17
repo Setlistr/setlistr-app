@@ -781,12 +781,13 @@ export default function AdminDashboard({
                     {(() => {
                       const state = spotifyImporting[a.id] || 'idle'
                       return (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                         <input
                             value={spotifyOverride[a.id] ?? ''}
                             onChange={e => setSpotifyOverride(prev => ({ ...prev, [a.id]: e.target.value }))}
                             placeholder={a.name}
-                            title="Override Spotify search name"
-                            style={{ background: '#0f0e0c', border: '1px solid rgba(30,215,96,0.2)', borderRadius: 6, padding: '4px 8px', color: '#f0ece3', fontSize: 11, fontFamily: 'inherit', outline: 'none', width: '100%', marginBottom: 4, textAlign: 'right', boxSizing: 'border-box' as const }}
+                            title="Override artist name for Spotify search"
+                            style={{ background: '#0f0e0c', border: '1px solid rgba(30,215,96,0.2)', borderRadius: 6, padding: '4px 8px', color: '#f0ece3', fontSize: 11, fontFamily: 'inherit', outline: 'none', width: '100%', textAlign: 'right', boxSizing: 'border-box' as const }}
                           />
                         <button
                           onClick={() => importSpotifyForArtist(a.id, a.name)}
@@ -799,6 +800,7 @@ export default function AdminDashboard({
                             {state === 'loading' ? 'Importing...' : state === 'done' ? 'Imported ✓' : state === 'error' ? 'Failed' : 'Spotify'}
                           </span>
                         </button>
+                        </div>
                       )
                     })()}
                   </div>
