@@ -86,7 +86,7 @@ function LoginPageInner() {
       setSuccess('Account created! Check your email to confirm, then sign in.')
       switchMode('signin')
     } else {
-      window.location.href = '/app/dashboard'
+      window.location.href = '/app/onboarding'
     }
     setLoading(false)
   }
