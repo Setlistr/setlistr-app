@@ -507,131 +507,128 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
   const dur              = formatDuration()
 
   if (showComplete) {
-    const territory    = getTerritory(performance?.country, performance?.city)
-    const songCount    = songs.length > 0 ? songs.length : 8
-    const estimate     = estimateRoyalties({
+    const territory = getTerritory(performance?.country, performance?.city)
+    const songCount = songs.length > 0 ? songs.length : 8
+    const estimate  = estimateRoyalties({
       songCount,
       venueCapacityBand: capacityToBand(performance?.venue_capacity),
       showType:          (performance?.show_type as any) || 'single',
       territory,
     })
-
-    const matchedSongs    = songs.filter(s => getMatchConfidence(s) === 'matched')
-    const partialSongs    = songs.filter(s => getMatchConfidence(s) === 'partial')
-    const unverifiedSongs = songs.filter(s => getMatchConfidence(s) === 'unverified')
-    const noSignalSongs   = songs.filter(s => getMatchConfidence(s) === 'none')
-    const assessedCount   = matchedSongs.length + partialSongs.length + unverifiedSongs.length
-    const strongCount     = matchedSongs.length + partialSongs.length
+    const cleanSongs   = songs.filter(s => s.source !== 'unidentified')
+    const showDate     = performance?.started_at
+      ? new Date(performance.started_at).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+      : ''
+    const durMins = performance?.started_at && performance?.ended_at
+      ? Math.round((new Date(performance.ended_at).getTime() - new Date(performance.started_at).getTime()) / 60000)
+      : null
 
     return (
-      <div style={{ minHeight: '100svh', background: C.bg, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px 20px', fontFamily: '"DM Sans", system-ui, sans-serif' }}>
-        <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '60vh', pointerEvents: 'none', background: 'radial-gradient(ellipse at 50% 0%, rgba(201,168,76,0.08) 0%, transparent 65%)' }} />
-        <div style={{ width: '100%', maxWidth: 400, position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', animation: 'fadeUp 0.4s ease' }}>
+      <div style={{ minHeight: '100svh', background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif', overflowY: 'auto' }}>
 
-          <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'rgba(74,222,128,0.1)', border: '1px solid rgba(74,222,128,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
-            <Check size={24} color={C.green} strokeWidth={2.5} />
-          </div>
-          <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.muted, margin: '0 0 6px' }}>Show captured</p>
-          <h1 style={{ fontSize: 26, fontWeight: 800, color: C.text, margin: '0 0 4px', letterSpacing: '-0.025em', lineHeight: 1.15 }}>{performance?.venue_name}</h1>
+        {/* Ambient glow — larger and warmer on completion */}
+        <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '70vh', pointerEvents: 'none', zIndex: 0, background: 'radial-gradient(ellipse at 50% 10%, rgba(201,168,76,0.12) 0%, transparent 65%)' }} />
 
-          {/* ── SPRINT CHANGE 1: Specific capture summary instead of generic "You played X songs" ── */}
-          <p style={{ fontSize: 14, color: C.secondary, margin: '0 0 4px' }}>
-            {autoCount > 0
-              ? `${autoCount} caught live · ${songs.filter(s => s.source !== 'unidentified').length - autoCount > 0 ? `${songs.filter(s => s.source !== 'unidentified').length - autoCount} added manually` : 'nothing to clean up'}`
-              : `${songs.filter(s => s.source !== 'unidentified').length} songs added manually`
-            }{performance?.city ? ` · ${performance.city}` : ''}
-          </p>
-          <p style={{ fontSize: 12, color: C.muted, margin: '0 0 24px' }}>Here's what you captured tonight.</p>
+        <div style={{ maxWidth: 420, margin: '0 auto', padding: '0 20px 60px', position: 'relative', zIndex: 1 }}>
 
-          <div style={{ width: '100%', background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 16, padding: '20px', marginBottom: 10, animation: 'fadeUp 0.4s 0.06s ease both' }}>
-            <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.gold, margin: '0 0 8px', opacity: 0.8 }}>Estimated royalties</p>
-            <p style={{ fontSize: 40, fontWeight: 800, color: C.gold, margin: '0 0 6px', fontFamily: '"DM Mono", monospace', letterSpacing: '-0.03em', lineHeight: 1 }}>~${estimate.expected}</p>
-            <p style={{ fontSize: 12, color: C.secondary, margin: '0 0 14px' }}>${estimate.low}–${estimate.high} range · {estimate.confidenceNote}</p>
+          {/* ── HERO — emotional first ── */}
+          <div style={{ paddingTop: 56, paddingBottom: 40, textAlign: 'center', animation: 'fadeUp 0.5s ease' }}>
 
-            <div style={{ borderTop: `1px solid rgba(201,168,76,0.2)`, paddingTop: 14 }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                <span style={{ fontSize: 11, color: C.secondary }}>Song metadata</span>
-                <span style={{ fontSize: 11, fontWeight: 700, color: strongCount === assessedCount && assessedCount > 0 ? C.green : C.gold }}>
-                  {strongCount}/{assessedCount > 0 ? assessedCount : songs.length} with metadata
-                </span>
+            {/* Gold orb completion indicator */}
+            <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginBottom: 28 }}>
+              <div style={{ width: 72, height: 72, borderRadius: '50%', background: 'radial-gradient(circle at 38% 32%, rgba(201,168,76,0.9), rgba(180,140,50,0.7))', boxShadow: `0 0 40px rgba(201,168,76,0.3), 0 0 80px rgba(201,168,76,0.12)`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Check size={28} color="#0a0908" strokeWidth={2.5} />
               </div>
-              <div style={{ height: 4, background: 'rgba(255,255,255,0.08)', borderRadius: 2, overflow: 'hidden', marginBottom: 10 }}>
-                <div style={{ height: '100%', borderRadius: 2, background: strongCount === assessedCount && assessedCount > 0 ? C.green : C.gold, width: `${Math.round((strongCount / Math.max(assessedCount || songs.length, 1)) * 100)}%`, transition: 'width 0.6s ease' }} />
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                {matchedSongs.length > 0 && <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}><span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: C.secondary }}><span style={{ width: 6, height: 6, borderRadius: '50%', background: C.green, display: 'inline-block', flexShrink: 0 }} />Metadata found</span><span style={{ fontSize: 12, fontWeight: 700, color: C.green, fontFamily: '"DM Mono", monospace' }}>{matchedSongs.length}</span></div>}
-                {partialSongs.length > 0 && <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}><span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: C.secondary }}><span style={{ width: 6, height: 6, borderRadius: '50%', background: C.gold, display: 'inline-block', flexShrink: 0 }} />Partial metadata</span><span style={{ fontSize: 12, fontWeight: 700, color: C.gold, fontFamily: '"DM Mono", monospace' }}>{partialSongs.length}</span></div>}
-                {unverifiedSongs.length > 0 && <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}><span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: C.muted }}><span style={{ width: 6, height: 6, borderRadius: '50%', background: C.muted, display: 'inline-block', flexShrink: 0 }} />No metadata</span><span style={{ fontSize: 12, fontWeight: 700, color: C.muted, fontFamily: '"DM Mono", monospace' }}>{unverifiedSongs.length}</span></div>}
-                {noSignalSongs.length > 0 && <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}><span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: C.muted }}><span style={{ width: 6, height: 6, borderRadius: '50%', background: 'rgba(255,255,255,0.1)', display: 'inline-block', flexShrink: 0 }} />Manually added</span><span style={{ fontSize: 12, fontWeight: 700, color: C.muted, fontFamily: '"DM Mono", monospace' }}>{noSignalSongs.length}</span></div>}
-              </div>
+              {/* Outer ring */}
+              <div style={{ position: 'absolute', inset: -8, borderRadius: '50%', border: '1px solid rgba(201,168,76,0.2)' }} />
             </div>
+
+            {/* Venue name — the headline */}
+            <h1 style={{ fontSize: 32, fontWeight: 800, color: C.text, margin: '0 0 8px', letterSpacing: '-0.025em', lineHeight: 1.1 }}>
+              {performance?.venue_name}
+            </h1>
+
+            {/* Meta line */}
+            <p style={{ fontSize: 13, color: C.secondary, margin: '0 0 16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, flexWrap: 'wrap' as const }}>
+              {showDate && <span>{showDate}</span>}
+              {performance?.city && <><span style={{ opacity: 0.4 }}>·</span><span>{performance.city}</span></>}
+              {durMins && <><span style={{ opacity: 0.4 }}>·</span><span>{durMins} min</span></>}
+            </p>
+
+            {/* The validation line — this is the emotional core */}
+            <p style={{ fontSize: 18, fontWeight: 700, color: C.gold, margin: 0, letterSpacing: '-0.01em' }}>
+              That one's on record.
+            </p>
           </div>
 
-          {performance && <PlannedVsPlayed performanceId={performance.id} />}
+          {/* ── VISUAL RECORD — the setlist card, turned inward ── */}
+          <div style={{ background: C.card, border: `1px solid rgba(201,168,76,0.2)`, borderRadius: 20, overflow: 'hidden', marginBottom: 12, animation: 'fadeUp 0.5s 0.08s ease both' }}>
 
-          {/* ── SPRINT CHANGE 2: Live vs photo capture callout ── */}
-          {autoCount > 0 ? (
-            <div style={{ width: '100%', background: 'rgba(74,222,128,0.07)', border: '1px solid rgba(74,222,128,0.2)', borderRadius: 12, padding: '14px 16px', marginBottom: 10, textAlign: 'left', animation: 'fadeUp 0.4s 0.11s ease both' }}>
-              <p style={{ fontSize: 13, fontWeight: 700, color: C.green, margin: '0 0 3px' }}>
-                {autoCount} of {songs.filter(s => s.source !== 'unidentified').length} songs caught automatically.
-              </p>
-              <p style={{ fontSize: 12, color: C.secondary, margin: 0 }}>
-                {songs.filter(s => s.source !== 'unidentified').length - autoCount === 0
-                  ? "Nothing to clean up — that's the live capture advantage."
-                  : `You only needed to fix ${songs.filter(s => s.source !== 'unidentified').length - autoCount}.`}
-              </p>
+            {/* Card header */}
+            <div style={{ padding: '16px 20px 12px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.gold, margin: '0 0 1px', opacity: 0.8 }}>Setlistr</p>
+                <p style={{ fontSize: 13, fontWeight: 700, color: C.text, margin: 0 }}>{cleanSongs.length} song{cleanSongs.length !== 1 ? 's' : ''} performed</p>
+              </div>
+              {/* "Saved" badge — identity not distribution */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.2)', borderRadius: 20, padding: '5px 10px' }}>
+                <div style={{ width: 5, height: 5, borderRadius: '50%', background: C.green }} />
+                <span style={{ fontSize: 10, fontWeight: 700, color: C.green, letterSpacing: '0.06em' }}>Saved</span>
+              </div>
             </div>
-          ) : songs.filter(s => s.source !== 'unidentified').length > 0 ? (
-            <div style={{ width: '100%', background: 'rgba(255,255,255,0.03)', border: `1px solid ${C.border}`, borderRadius: 12, padding: '14px 16px', marginBottom: 10, textAlign: 'left', animation: 'fadeUp 0.4s 0.11s ease both' }}>
-              <p style={{ fontSize: 13, color: C.secondary, margin: '0 0 3px' }}>
-                You added all {songs.filter(s => s.source !== 'unidentified').length} songs manually.
-              </p>
-              <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>
-                Next show — try Live Capture. Setlistr listens as you play and catches songs automatically.
-              </p>
-            </div>
-          ) : null}
 
-          <div style={{ width: '100%', background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '14px 16px', marginBottom: 20, maxHeight: 160, overflowY: 'auto', animation: 'fadeUp 0.4s 0.1s ease both' }}>
-            <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, margin: '0 0 10px', textAlign: 'left' }}>Setlist</p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {songs.map((s, i) => {
-                const dotColor = s.isrc ? C.green : s.composer ? C.gold : C.muted
-                return (
-                  <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ fontSize: 10, color: C.muted, minWidth: 16, textAlign: 'right', fontFamily: '"DM Mono", monospace', flexShrink: 0 }}>{i + 1}</span>
-                    <span style={{ width: 5, height: 5, borderRadius: '50%', background: dotColor, flexShrink: 0 }} />
-                    <p style={{ fontSize: 13, color: C.text, margin: 0, fontWeight: 500, flex: 1, textAlign: 'left', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.title}</p>
-                  </div>
-                )
-              })}
+            {/* Setlist */}
+            <div style={{ padding: '12px 0' }}>
+              {cleanSongs.map((s, i) => (
+                <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 20px' }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: C.muted, minWidth: 20, textAlign: 'right', fontFamily: '"DM Mono", monospace', flexShrink: 0, opacity: 0.5 }}>{i + 1}</span>
+                  <p style={{ fontSize: 14, fontWeight: 500, color: C.text, margin: 0, flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.title}</p>
+                  {s.isrc && <span style={{ width: 5, height: 5, borderRadius: '50%', background: C.green, flexShrink: 0, opacity: 0.6 }} />}
+                </div>
+              ))}
+            </div>
+
+            {/* Card footer */}
+            <div style={{ padding: '10px 20px 14px', borderTop: `1px solid ${C.border}` }}>
+              <p style={{ fontSize: 11, color: C.muted, margin: 0, textAlign: 'center', letterSpacing: '0.04em' }}>
+                Saved to your Setlistr · {showDate}
+              </p>
             </div>
           </div>
 
-          <button onClick={() => router.push('/app/dashboard')}
-            style={{ width: '100%', padding: '16px', background: C.gold, border: 'none', borderRadius: 12, color: '#0a0908', fontSize: 14, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', marginBottom: 10, animation: 'fadeUp 0.4s 0.14s ease both', fontFamily: 'inherit' }}>
-            Show Complete
-          </button>
-
-          {/* ── Share card button ── */}
-          <ShareCardButton performanceId={params.id} artistName={performance?.artist_name} venueName={performance?.venue_name} />
-
-          <div style={{ width: '100%', display: 'flex', gap: 8, marginBottom: 16, animation: 'fadeUp 0.4s 0.18s ease both' }}>
+          {/* ── MONEY LAYER — soft, after emotional ── */}
+          <div style={{ background: 'rgba(201,168,76,0.06)', border: `1px solid rgba(201,168,76,0.18)`, borderRadius: 16, padding: '18px 20px', marginBottom: 12, animation: 'fadeUp 0.5s 0.14s ease both' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+              <p style={{ fontSize: 13, color: C.secondary, margin: 0 }}>Estimated royalties</p>
+              <p style={{ fontSize: 22, fontWeight: 800, color: C.gold, margin: 0, fontFamily: '"DM Mono", monospace', letterSpacing: '-0.02em' }}>~${estimate.expected}</p>
+            </div>
+            <p style={{ fontSize: 11, color: C.muted, margin: '0 0 14px' }}>${estimate.low}–${estimate.high} range · {cleanSongs.length} songs tracked</p>
             <button onClick={() => router.push(`/app/submit/${params.id}`)}
-              style={{ flex: 1, padding: '12px', background: 'transparent', border: `1px solid ${C.borderGold}`, borderRadius: 10, color: C.gold, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', letterSpacing: '0.04em' }}>
-              Claim Now
+              style={{ width: '100%', padding: '11px', background: 'transparent', border: `1px solid rgba(201,168,76,0.3)`, borderRadius: 10, color: C.gold, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', letterSpacing: '0.04em', transition: 'all 0.15s ease' }}
+              onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'rgba(201,168,76,0.08)'}
+              onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}>
+              Submit to get paid →
+            </button>
+          </div>
+
+          {/* ── ACTIONS ── */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, animation: 'fadeUp 0.5s 0.18s ease both' }}>
+            <button onClick={() => router.push('/app/dashboard')}
+              style={{ width: '100%', padding: '15px', background: C.gold, border: 'none', borderRadius: 12, color: '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'inherit' }}>
+              Done
             </button>
             <button onClick={() => setShowComplete(false)}
-              style={{ flex: 1, padding: '12px', background: 'transparent', border: `1px solid ${C.border}`, borderRadius: 10, color: C.secondary, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-              Review Setlist
+              style={{ width: '100%', padding: '12px', background: 'transparent', border: `1px solid ${C.border}`, borderRadius: 10, color: C.muted, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+              Review setlist
             </button>
           </div>
-          <p style={{ fontSize: 11, color: C.muted, margin: 0, lineHeight: 1.5, animation: 'fadeUp 0.4s 0.2s ease both' }}>
-            ~${estimate.expected} estimated · {assessedCount > 0 ? `${strongCount} of ${assessedCount} detected songs have metadata` : 'submit to your PRO to claim'}.{' '}
-            <span style={{ color: C.secondary }}>We'll remind you on the dashboard.</span>
-          </p>
+
         </div>
-        <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500;700&display=swap');@keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}`}</style>
+        <style>{`
+          @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500;700&display=swap');
+          @keyframes fadeUp { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:translateY(0)} }
+          * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
+        `}</style>
       </div>
     )
   }
