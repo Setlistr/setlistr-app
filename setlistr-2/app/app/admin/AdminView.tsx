@@ -148,6 +148,7 @@ export default function AdminDashboard({
   const [addSuccess, setAddSuccess]   = useState('')
   const [invites, setInvites]         = useState<BetaInvite[]>(betaInvites)
   const [spotifyImporting, setSpotifyImporting] = useState<Record<string, 'idle' | 'loading' | 'done' | 'error'>>({})
+  const [spotifyOverride, setSpotifyOverride]   = useState<Record<string, string>>({})
   const [localPerfs, setLocalPerfs]   = useState<Performance[]>(performances)
 
   // ── Detection stats ────────────────────────────────────────────────────────
@@ -379,12 +380,13 @@ export default function AdminDashboard({
   }
 
   async function importSpotifyForArtist(userId: string, artistName: string) {
+    const searchName = spotifyOverride[userId]?.trim() || artistName
     setSpotifyImporting(prev => ({ ...prev, [userId]: 'loading' }))
     try {
       const res = await fetch('/api/admin/spotify-import', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: userId, artist_name: artistName }),
+        body: JSON.stringify({ user_id: userId, artist_name: searchName }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Import failed')
@@ -779,6 +781,13 @@ export default function AdminDashboard({
                     {(() => {
                       const state = spotifyImporting[a.id] || 'idle'
                       return (
+                        <input
+                            value={spotifyOverride[a.id] ?? ''}
+                            onChange={e => setSpotifyOverride(prev => ({ ...prev, [a.id]: e.target.value }))}
+                            placeholder={a.name}
+                            title="Override Spotify search name"
+                            style={{ background: '#0f0e0c', border: '1px solid rgba(30,215,96,0.2)', borderRadius: 6, padding: '4px 8px', color: '#f0ece3', fontSize: 11, fontFamily: 'inherit', outline: 'none', width: '100%', marginBottom: 4, textAlign: 'right', boxSizing: 'border-box' as const }}
+                          />
                         <button
                           onClick={() => importSpotifyForArtist(a.id, a.name)}
                           disabled={state === 'loading'}
@@ -945,72 +954,89 @@ export default function AdminDashboard({
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
             {/* Stats */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
-              <Stat label="Total Invited"  value={invites.length} />
-              <Stat label="Accepted"       value={invites.filter(i => i.accepted_at).length} color={C.green} sub="signed in at least once" />
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+              <Stat label="Total Invited" value={invites.length} />
+              <Stat label="Accepted"      value={invites.filter(i => i.accepted_at).length} color={C.green} sub="signed up" />
+              <Stat label="Pending"       value={invites.filter(i => !i.accepted_at).length} color={C.amber} sub="not yet" />
+            </div>
+
+            {/* Signup link */}
+            <div style={{ background: 'rgba(201,168,76,0.08)', border: `1px solid rgba(201,168,76,0.25)`, borderRadius: 12, padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+              <div>
+                <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.gold, margin: '0 0 3px' }}>Share this link</p>
+                <p style={{ fontSize: 12, color: C.secondary, margin: 0, fontFamily: '"DM Mono", monospace' }}>setlistr.ai/auth/login</p>
+              </div>
+              <button onClick={() => navigator.clipboard.writeText(window.location.origin + '/auth/login')}
+                style={{ padding: '8px 14px', background: C.gold, border: 'none', borderRadius: 8, color: '#0a0908', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}>
+                Copy
+              </button>
             </div>
 
             {/* Add user form */}
             <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: '18px 20px' }}>
-              <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, margin: '0 0 14px' }}>Add Beta User</p>
+              <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, margin: '0 0 14px' }}>Add Beta Artist</p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <input
-                  value={newEmail}
-                  onChange={e => setNewEmail(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && addBetaUser()}
-                  placeholder="email@example.com"
-                  type="email"
-                  style={{ background: '#0f0e0c', border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 12px', color: C.text, fontSize: 14, outline: 'none', fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' as const }}
-                />
-                <input
-                  value={newName}
-                  onChange={e => setNewName(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && addBetaUser()}
-                  placeholder="Name (optional)"
-                  style={{ background: '#0f0e0c', border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 12px', color: C.text, fontSize: 14, outline: 'none', fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' as const }}
-                />
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Name (optional)"
+                    style={{ flex: 1, background: '#0f0e0c', border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 12px', color: C.text, fontSize: 14, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' as const }} />
+                  <input value={newEmail} onChange={e => setNewEmail(e.target.value)} onKeyDown={e => e.key === 'Enter' && addBetaUser()} placeholder="email@example.com" type="email"
+                    style={{ flex: 2, background: '#0f0e0c', border: `1px solid ${newEmail.trim() ? 'rgba(201,168,76,0.3)' : C.border}`, borderRadius: 8, padding: '10px 12px', color: C.text, fontSize: 14, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' as const }} />
+                </div>
                 {addError && <p style={{ fontSize: 12, color: C.red, margin: 0 }}>{addError}</p>}
-                {addSuccess && <p style={{ fontSize: 12, color: C.green, margin: 0 }}>{addSuccess}</p>}
-                <button
-                  onClick={addBetaUser}
-                  disabled={addingUser || !newEmail.trim()}
-                  style={{ padding: '11px', background: newEmail.trim() ? C.gold : C.muted, border: 'none', borderRadius: 8, color: '#0a0908', fontSize: 12, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: addingUser || !newEmail.trim() ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: addingUser ? 0.7 : 1 }}>
-                  {addingUser ? 'Adding...' : 'Grant Access'}
+                {addSuccess && <p style={{ fontSize: 12, color: C.green, margin: 0 }}>✓ {addSuccess} — copy the link above and send it</p>}
+                <button onClick={addBetaUser} disabled={addingUser || !newEmail.trim()}
+                  style={{ padding: '11px', background: newEmail.trim() ? C.gold : C.muted, border: 'none', borderRadius: 8, color: '#0a0908', fontSize: 12, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: addingUser || !newEmail.trim() ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: addingUser ? 0.7 : newEmail.trim() ? 1 : 0.4 }}>
+                  {addingUser ? 'Adding...' : 'Add to Beta'}
                 </button>
               </div>
             </div>
 
-            {/* Invite list */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              {invites.map(invite => (
-                <div key={invite.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', background: C.card, border: `1px solid ${C.border}`, borderRadius: 10 }}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
-                      <p style={{ fontSize: 13, fontWeight: 600, color: C.text, margin: 0 }}>{invite.email}</p>
-                      {invite.accepted_at ? (
-                        <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.green, background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.2)', borderRadius: 4, padding: '2px 6px' }}>Active</span>
-                      ) : (
-                        <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.muted, background: 'rgba(255,255,255,0.04)', border: `1px solid ${C.border}`, borderRadius: 4, padding: '2px 6px' }}>Pending</span>
-                      )}
+            {/* Pending */}
+            {invites.filter(i => !i.accepted_at).length > 0 && (
+              <div>
+                <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, margin: '0 0 8px' }}>Pending · {invites.filter(i => !i.accepted_at).length}</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {invites.filter(i => !i.accepted_at).map(invite => (
+                    <div key={invite.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', background: C.card, border: `1px solid ${C.border}`, borderRadius: 10 }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        {invite.name && <p style={{ fontSize: 13, fontWeight: 600, color: C.text, margin: '0 0 1px' }}>{invite.name}</p>}
+                        <p style={{ fontSize: invite.name ? 12 : 13, color: invite.name ? C.muted : C.text, margin: 0 }}>{invite.email}</p>
+                        <p style={{ fontSize: 11, color: C.muted, margin: '2px 0 0' }}>Added {timeAgo(invite.created_at)}</p>
+                      </div>
+                      <button onClick={() => removeBetaUser(invite.id, invite.email)}
+                        style={{ background: 'none', border: `1px solid rgba(248,113,113,0.2)`, borderRadius: 6, color: C.red, fontSize: 11, cursor: 'pointer', padding: '4px 10px', fontFamily: 'inherit', opacity: 0.5, flexShrink: 0 }}
+                        onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '1'}
+                        onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '0.5'}>
+                        Remove
+                      </button>
                     </div>
-                    <p style={{ fontSize: 11, color: C.muted, margin: 0 }}>
-                      {invite.name || 'No name'} · Added {timeAgo(invite.created_at)}
-                      {invite.accepted_at ? ` · Joined ${timeAgo(invite.accepted_at)}` : ''}
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => removeBetaUser(invite.id, invite.email)}
-                    style={{ background: 'none', border: `1px solid rgba(248,113,113,0.2)`, borderRadius: 6, color: C.red, fontSize: 11, cursor: 'pointer', padding: '4px 10px', fontFamily: 'inherit', opacity: 0.6, transition: 'opacity 0.15s ease', flexShrink: 0 }}
-                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '1'}
-                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '0.6'}>
-                    Remove
-                  </button>
+                  ))}
                 </div>
-              ))}
-              {invites.length === 0 && (
-                <p style={{ textAlign: 'center', color: C.muted, padding: '40px 0' }}>No beta users yet</p>
-              )}
-            </div>
+              </div>
+            )}
+
+            {/* Accepted */}
+            {invites.filter(i => i.accepted_at).length > 0 && (
+              <div>
+                <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, margin: '0 0 8px' }}>Accepted · {invites.filter(i => i.accepted_at).length}</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {invites.filter(i => i.accepted_at).map(invite => (
+                    <div key={invite.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', background: C.card, border: `1px solid rgba(74,222,128,0.12)`, borderRadius: 10 }}>
+                      <div style={{ width: 7, height: 7, borderRadius: '50%', background: C.green, flexShrink: 0, opacity: 0.7 }} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        {invite.name && <p style={{ fontSize: 13, fontWeight: 600, color: C.text, margin: '0 0 1px' }}>{invite.name}</p>}
+                        <p style={{ fontSize: invite.name ? 12 : 13, color: invite.name ? C.muted : C.text, margin: 0 }}>{invite.email}</p>
+                        <p style={{ fontSize: 11, color: C.green, margin: '2px 0 0', opacity: 0.7 }}>Joined {timeAgo(invite.accepted_at!)}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {invites.length === 0 && (
+              <p style={{ textAlign: 'center', color: C.muted, padding: '40px 0' }}>No beta artists yet</p>
+            )}
           </div>
         )}
 
