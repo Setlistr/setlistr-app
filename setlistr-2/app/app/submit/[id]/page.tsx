@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { Check, ExternalLink, Copy, ChevronDown, ChevronUp } from 'lucide-react'
+import { Check, ExternalLink, Copy, ChevronDown, ChevronUp, Download, FileText } from 'lucide-react'
 import { estimateRoyalties, capacityToBand } from '@/lib/royalty-estimate'
 
 const C = {
@@ -152,6 +152,93 @@ function getTerritory(country?: string | null, city?: string | null): string {
   return 'US'
 }
 
+// ── Generates and downloads a plain-text submission brief ─────────────────────
+// This is the foundation of the "Setlistr prepared everything" experience.
+// Future: swap this for a PDF or structured PRO-formatted file per organization.
+function downloadSubmissionBrief({
+  performance, songs, profile, proConfig, pro, estimate, suggestedTitle, effectiveCapacity,
+}: {
+  performance: Performance
+  songs: Song[]
+  profile: Profile | null
+  proConfig: typeof PRO_CONFIG[string] | null
+  pro: string | null | undefined
+  estimate: { expected: number; low: number; high: number }
+  suggestedTitle: string
+  effectiveCapacity: number | null
+}) {
+  const showDate = new Date(performance.started_at)
+    .toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
+
+  const line = (char = '─', n = 52) => char.repeat(n)
+
+  const songLines = songs.map((s, i) => {
+    const parts = [`${String(i + 1).padStart(2, ' ')}. ${s.title}`]
+    if (s.is_cover) parts.push('  [COVER]')
+    if (s.composer) parts.push(`    Composer: ${s.composer}`)
+    if (s.work_number) parts.push(`    Work #: ${s.work_number}`)
+    if (s.isrc) parts.push(`    ISRC: ${s.isrc}`)
+    return parts.join('\n')
+  }).join('\n\n')
+
+  const steps = proConfig
+    ? proConfig.steps.map((s, i) => `  ${i + 1}. ${s}`).join('\n')
+    : '  Set your PRO in Setlistr Settings to see submission steps.'
+
+  const brief = [
+    `SETLISTR SUBMISSION BRIEF`,
+    `Generated: ${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`,
+    line(),
+    '',
+    `SHOW DETAILS`,
+    line('─', 30),
+    `Artist:    ${profile?.artist_name || performance.artist_name}`,
+    `Venue:     ${performance.venue_name}${performance.city ? `, ${performance.city}` : ''}`,
+    `Date:      ${showDate}`,
+    effectiveCapacity ? `Capacity:  ~${effectiveCapacity.toLocaleString()}` : '',
+    '',
+    `PRO SUBMISSION`,
+    line('─', 30),
+    `PRO:           ${pro || 'Not set'}`,
+    profile?.legal_name ? `Legal Name:    ${profile.legal_name}` : '',
+    profile?.ipi_number ? `IPI Number:    ${profile.ipi_number}` : '',
+    profile?.publisher_name ? `Publisher:     ${profile.publisher_name}` : '',
+    `Setlist Title: ${suggestedTitle}`,
+    proConfig ? `Portal:        ${proConfig.submitUrl}` : '',
+    proConfig ? `Deadline:      ${proConfig.deadline}` : '',
+    '',
+    `ESTIMATED ROYALTIES`,
+    line('─', 30),
+    `Expected:  ~$${estimate.expected}`,
+    `Range:     $${estimate.low} – $${estimate.high}`,
+    `Songs:     ${songs.length}`,
+    '',
+    `SETLIST (${songs.length} songs)`,
+    line('─', 30),
+    songLines,
+    '',
+    `SUBMISSION STEPS — ${pro || 'Your PRO'}`,
+    line('─', 30),
+    steps,
+    '',
+    line(),
+    `Keep this file for your records. Royalty payments typically arrive 6–9 months`,
+    `after submission. Questions? support@setlistr.ai`,
+  ].filter(l => l !== null && l !== undefined).join('\n')
+
+  const blob = new Blob([brief], { type: 'text/plain' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  const safeVenue = performance.venue_name.replace(/[^a-z0-9]/gi, '-').toLowerCase()
+  const safeDate = new Date(performance.started_at).toISOString().slice(0, 10)
+  a.href = url
+  a.download = `setlistr-brief-${safeVenue}-${safeDate}.txt`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
 export default function SubmitPage({ params }: { params: { id: string } }) {
   const router = useRouter()
   const [performance, setPerformance]   = useState<Performance | null>(null)
@@ -164,6 +251,9 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
   const [markingDone, setMarkingDone]   = useState(false)
   const [stepsDone, setStepsDone]       = useState<boolean[]>([])
   const [venueSizePick, setVenueSizePick] = useState<VenueSizePick | null>(null)
+  // Tracks whether artist has opened the PRO portal — flips the primary CTA
+  // to "I've Filed It" so they close the loop without hunting for a ghost button
+  const [portalOpened, setPortalOpened] = useState(false)
 
   useEffect(() => {
     const supabase = createClient()
@@ -192,7 +282,6 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
       setPerformance(perfRecord)
       setSubmitted(perf.submission_status === 'submitted')
 
-      // Load songs via server-side API route (bypasses RLS auth timing issues)
       let songData: any[] = []
       try {
         const songsRes = await fetch(`/api/performance-songs?performanceId=${params.id}`)
@@ -211,7 +300,6 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
       }))
       setSongs(mapped)
 
-      // Init steps checklist
       const config = profileData?.pro_affiliation ? PRO_CONFIG[profileData.pro_affiliation] : null
       if (config) setStepsDone(new Array(config.steps.length).fill(false))
 
@@ -228,6 +316,18 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
     }
     setCopied(key)
     setTimeout(() => setCopied(null), 2000)
+  }
+
+  // Copies every song title as a newline-separated list — one tap, ready to paste
+  function copyAllSongs() {
+    const allTitles = songs.map(s => s.title).join('\n')
+    copyText(allTitles, 'all-songs')
+  }
+
+  function handleOpenPortal(url: string) {
+    window.open(url, '_blank')
+    // Flip CTA state: artist just went to file — surface "I've Filed It" immediately
+    setPortalOpened(true)
   }
 
   async function markSubmitted() {
@@ -268,12 +368,10 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
   const unverCount     = songs.filter(s => s.matchConfidence === 'unverified').length
   const coverCount     = songs.filter(s => s.is_cover).length
 
-  // Venue capacity: use DB value, or fall back to user-picked size
   const effectiveCapacity = performance.venue_capacity
     || (venueSizePick ? VENUE_SIZE_OPTIONS.find(o => o.key === venueSizePick)?.capacity : null)
   const needsVenuePick = !performance.venue_capacity
 
-  // Royalty estimate — always uses real song count, never $0 unless literally 0 songs
   const songCount = songs.length > 0 ? songs.length : 8
   const estimate  = estimateRoyalties({
     songCount,
@@ -282,7 +380,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
     territory,
   })
 
-  // ── Submitted confirmation ───────────────────────────────────────────────
+  // ── Submitted confirmation ──────────────────────────────────────────────────
   if (submitted) return (
     <div style={{ minHeight: '100svh', background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px 20px' }}>
       <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '60vh', pointerEvents: 'none', background: 'radial-gradient(ellipse at 50% 0%, rgba(74,222,128,0.06) 0%, transparent 65%)' }} />
@@ -290,13 +388,35 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
         <div style={{ width: 64, height: 64, borderRadius: '50%', background: C.greenDim, border: '1px solid rgba(74,222,128,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 20 }}>
           <Check size={28} color={C.green} strokeWidth={2.5} />
         </div>
-        <h1 style={{ fontSize: 28, fontWeight: 800, color: C.text, margin: '0 0 8px', letterSpacing: '-0.025em' }}>Submitted to {pro}</h1>
+        <h1 style={{ fontSize: 28, fontWeight: 800, color: C.text, margin: '0 0 8px', letterSpacing: '-0.025em' }}>Filed with {pro}</h1>
         <p style={{ fontSize: 14, color: C.secondary, margin: '0 0 6px' }}>{performance.venue_name}{performance.city ? ` · ${performance.city}` : ''}</p>
         <p style={{ fontSize: 13, color: C.muted, margin: '0 0 28px' }}>{showDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
+
         <div style={{ width: '100%', background: C.greenDim, border: '1px solid rgba(74,222,128,0.2)', borderRadius: 16, padding: '20px', marginBottom: 20 }}>
-          <p style={{ fontSize: 13, color: C.green, margin: '0 0 4px', fontWeight: 600 }}>~${estimate.expected} in progress</p>
-          <p style={{ fontSize: 12, color: C.secondary, margin: 0 }}>{songs.length} songs submitted · expect payment in 6–9 months</p>
+          <p style={{ fontSize: 13, color: C.green, margin: '0 0 4px', fontWeight: 600 }}>~${estimate.expected} on its way</p>
+          <p style={{ fontSize: 12, color: C.secondary, margin: 0 }}>{songs.length} songs on record · expect payment in 6–9 months</p>
         </div>
+
+        {/* Receipt — the trust-building artefact that accumulates over time */}
+        <div style={{ width: '100%', background: 'rgba(255,255,255,0.02)', border: `1px solid ${C.border}`, borderRadius: 14, padding: '14px 18px', marginBottom: 20, textAlign: 'left' }}>
+          <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' as const, color: C.muted, margin: '0 0 10px' }}>Submission Receipt</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {[
+              ['Show', `${performance.venue_name}${performance.city ? `, ${performance.city}` : ''}`],
+              ['Date', showDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })],
+              ['Filed to', pro || '—'],
+              ['Songs', String(songs.length)],
+              ['Filed on', new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })],
+              ['Est. value', `~$${estimate.expected}`],
+            ].map(([label, value]) => (
+              <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 11, color: C.muted }}>{label}</span>
+                <span style={{ fontSize: 11, color: C.secondary, fontFamily: '"DM Mono", monospace' }}>{value}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
         <button onClick={() => router.push('/app/dashboard')}
           style={{ width: '100%', padding: '15px', background: C.gold, border: 'none', borderRadius: 12, color: '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' as const, cursor: 'pointer', fontFamily: 'inherit', marginBottom: 10 }}>
           Back to Dashboard
@@ -327,7 +447,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
           {showDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
         </p>
 
-        {/* Venue size picker — shows when capacity unknown */}
+        {/* Venue size picker */}
         {needsVenuePick && (
           <div style={{ background: C.card, border: `1px solid ${C.borderGold}`, borderRadius: 14, padding: '14px 16px', marginBottom: 12 }}>
             <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, color: C.gold, margin: '0 0 4px' }}>Venue Size</p>
@@ -398,7 +518,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
         {/* Step 2 — Song list */}
         <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, marginBottom: 12, overflow: 'hidden' }}>
           <div style={{ padding: '14px 18px 10px', borderBottom: `1px solid ${C.border}` }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
               <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' as const, color: C.muted, margin: 0 }}>
                 Step 2 — Add Songs ({songs.length} total)
               </p>
@@ -408,8 +528,27 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
                 {unverCount > 0 && <span style={{ fontSize: 10, color: C.muted }}>●&nbsp;{unverCount} no data</span>}
               </div>
             </div>
-            <p style={{ fontSize: 11, color: C.muted, margin: '6px 0 0', lineHeight: 1.5 }}>
-              Search each song in the {pro || 'PRO'} portal. Tap a song to copy its title.
+
+            {/* Copy All Songs — eliminates song-by-song tapping */}
+            {songs.length > 0 && (
+              <button
+                onClick={copyAllSongs}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 7,
+                  background: copied === 'all-songs' ? C.greenDim : 'rgba(255,255,255,0.03)',
+                  border: `1px solid ${copied === 'all-songs' ? 'rgba(74,222,128,0.3)' : C.border}`,
+                  borderRadius: 8, padding: '8px 12px', cursor: 'pointer',
+                  fontFamily: 'inherit', marginBottom: 8,
+                }}>
+                {copied === 'all-songs'
+                  ? <><Check size={11} color={C.green} strokeWidth={3} /><span style={{ fontSize: 11, fontWeight: 700, color: C.green }}>All {songs.length} titles copied</span></>
+                  : <><Copy size={11} color={C.muted} /><span style={{ fontSize: 11, fontWeight: 600, color: C.secondary }}>Copy all song titles</span></>
+                }
+              </button>
+            )}
+
+            <p style={{ fontSize: 11, color: C.muted, margin: 0, lineHeight: 1.5 }}>
+              Or tap any song to copy its title individually.
               {coverCount > 0 && <span style={{ color: C.gold }}> {coverCount} cover{coverCount > 1 ? 's' : ''} — use "Add Cover Version" in the portal.</span>}
             </p>
           </div>
@@ -455,7 +594,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
 
           <div style={{ padding: '10px 18px', borderTop: `1px solid ${C.border}`, background: 'rgba(255,255,255,0.01)' }}>
             <p style={{ fontSize: 11, color: C.muted, margin: 0 }}>
-              Tap any song to copy its title · Green = has ISRC + writer · Gold = partial metadata · Grey = title only
+              Green = has ISRC + writer · Gold = partial metadata · Grey = title only
             </p>
           </div>
         </div>
@@ -490,7 +629,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
                 {stepsCompleted === totalSteps && totalSteps > 0 && (
                   <div style={{ marginTop: 12, padding: '10px 14px', background: C.greenDim, border: '1px solid rgba(74,222,128,0.2)', borderRadius: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
                     <Check size={14} color={C.green} strokeWidth={2.5} />
-                    <span style={{ fontSize: 12, fontWeight: 600, color: C.green }}>All steps done — mark as submitted below</span>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: C.green }}>All steps done — tap "I've Filed It" below</span>
                   </div>
                 )}
               </div>
@@ -500,16 +639,62 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
 
         {/* CTAs */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {hasPRO && proConfig && (
-            <button onClick={() => window.open(proConfig.submitUrl, '_blank')}
-              style={{ width: '100%', padding: '16px', background: C.gold, border: 'none', borderRadius: 12, color: '#0a0908', fontSize: 14, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' as const, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit' }}>
-              <ExternalLink size={15} strokeWidth={2.5} />{proConfig.portalLabel}
+
+          {/* Download Submission Brief — Setlistr prepares everything, artist just files */}
+          {songs.length > 0 && (
+            <button
+              onClick={() => downloadSubmissionBrief({ performance, songs, profile, proConfig: proConfig || null, pro, estimate, suggestedTitle, effectiveCapacity })}
+              style={{
+                width: '100%', padding: '14px',
+                background: 'rgba(201,168,76,0.06)',
+                border: `1px solid ${C.borderGold}`,
+                borderRadius: 12, color: C.gold, fontSize: 13, fontWeight: 700,
+                cursor: 'pointer', display: 'flex', alignItems: 'center',
+                justifyContent: 'center', gap: 8, fontFamily: 'inherit',
+              }}>
+              <FileText size={14} strokeWidth={2} />
+              Download Submission Brief
             </button>
           )}
-          <button onClick={markSubmitted} disabled={markingDone}
-            style={{ width: '100%', padding: '14px', background: 'transparent', border: `1px solid ${C.green}40`, borderRadius: 12, color: C.green, fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, fontFamily: 'inherit', opacity: markingDone ? 0.6 : 1 }}>
-            <Check size={14} strokeWidth={2.5} />{markingDone ? 'Marking...' : 'Mark as Submitted'}
-          </button>
+
+          {/* Primary CTA: flips from "Open Portal" → "I've Filed It" after portal is opened */}
+          {hasPRO && proConfig && (
+            !portalOpened ? (
+              <button
+                onClick={() => handleOpenPortal(proConfig.submitUrl)}
+                style={{ width: '100%', padding: '16px', background: C.gold, border: 'none', borderRadius: 12, color: '#0a0908', fontSize: 14, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' as const, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit' }}>
+                <ExternalLink size={15} strokeWidth={2.5} />{proConfig.portalLabel}
+              </button>
+            ) : (
+              <button
+                onClick={markSubmitted}
+                disabled={markingDone}
+                style={{
+                  width: '100%', padding: '16px',
+                  background: markingDone ? C.greenDim : C.green,
+                  border: 'none', borderRadius: 12,
+                  color: markingDone ? C.green : '#0a0908',
+                  fontSize: 14, fontWeight: 800, letterSpacing: '0.06em',
+                  textTransform: 'uppercase' as const,
+                  cursor: markingDone ? 'default' : 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  gap: 8, fontFamily: 'inherit',
+                  animation: 'fadeUp 0.3s ease',
+                }}>
+                <Check size={15} strokeWidth={2.5} />
+                {markingDone ? 'Recording...' : "I've Filed It"}
+              </button>
+            )
+          )}
+
+          {/* If no PRO — still show the mark submitted ghost button */}
+          {!hasPRO && (
+            <button onClick={markSubmitted} disabled={markingDone}
+              style={{ width: '100%', padding: '14px', background: 'transparent', border: `1px solid ${C.green}40`, borderRadius: 12, color: C.green, fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, fontFamily: 'inherit', opacity: markingDone ? 0.6 : 1 }}>
+              <Check size={14} strokeWidth={2.5} />{markingDone ? 'Recording...' : 'Mark as Submitted'}
+            </button>
+          )}
+
           <button onClick={() => router.push('/app/dashboard')}
             style={{ background: 'none', border: 'none', color: C.muted, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', padding: '8px', width: '100%' }}>
             Back to Dashboard
