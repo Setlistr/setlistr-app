@@ -643,7 +643,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
           {/* Download Submission Brief — Setlistr prepares everything, artist just files */}
           {songs.length > 0 && (
             <button
-              onClick={() => downloadSubmissionBrief({ performance, songs, profile, proConfig: proConfig || null, pro, estimate, suggestedTitle, effectiveCapacity })}
+              onClick={() => downloadSubmissionBrief({ performance, songs, profile, proConfig: proConfig || null, pro, estimate, suggestedTitle, effectiveCapacity: effectiveCapacity ?? null })}
               style={{
                 width: '100%', padding: '14px',
                 background: 'rgba(201,168,76,0.06)',
