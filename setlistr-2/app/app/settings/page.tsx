@@ -91,7 +91,7 @@ export default function SettingsPage() {
   const [delegates, setDelegates]             = useState<Delegate[]>([])
   const [delegateEmail, setDelegateEmail]     = useState('')
   const [inviting, setInviting]               = useState(false)
-  const [inviteResult, setInviteResult]       = useState<{ invite_url: string; invite_message: string; delegate_name: string | null; delegate_found: boolean } | null>(null)
+  const [inviteResult, setInviteResult]       = useState<{ invite_url: string; invite_message: string; delegate_name: string | null; delegate_found: boolean; email_sent: boolean } | null>(null)
   const [inviteError, setInviteError]         = useState('')
   const [copiedInvite, setCopiedInvite]       = useState(false)
   const [revoking, setRevoking]               = useState<string | null>(null)
@@ -460,28 +460,23 @@ export default function SettingsPage() {
             </div>
           )}
 
-          {/* Invite result — show the link to copy and send */}
+          {/* Invite result */}
           {inviteResult && (
             <div style={{ background: C.greenDim, border: '1px solid rgba(74,222,128,0.2)', borderRadius: 12, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Check size={14} color={C.green} strokeWidth={2.5} />
                 <p style={{ fontSize: 13, fontWeight: 700, color: C.green, margin: 0 }}>
-                  {inviteResult.delegate_found
-                    ? `Invite created for ${inviteResult.delegate_name || 'this user'}`
-                    : 'Invite created — they can sign up when they accept'
-                  }
+                  {(inviteResult as any).email_sent ? 'Invite email sent' : inviteResult.delegate_found ? `Invite created for ${inviteResult.delegate_name || 'this user'}` : 'Invite created'}
                 </p>
               </div>
               <p style={{ fontSize: 12, color: C.muted, margin: 0, lineHeight: 1.5 }}>
-                Send them this message — they tap the link to accept access to your account.
+                {(inviteResult as any).email_sent
+                  ? "They'll receive an email with a link to accept access to your account."
+                  : 'Send them this link — they tap it to accept access.'}
               </p>
-              {/* Message to copy */}
-              <div style={{ background: '#0a0908', border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 12px' }}>
-                <pre style={{ fontSize: 12, color: C.secondary, margin: 0, fontFamily: '"DM Sans", system-ui', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{inviteResult.invite_message}</pre>
-              </div>
-              <button onClick={() => copyInvite(inviteResult.invite_message)}
-                style={{ width: '100%', padding: '12px', background: copiedInvite ? '#16a34a' : C.gold, border: 'none', borderRadius: 10, color: copiedInvite ? '#fff' : '#0a0908', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, letterSpacing: '0.04em' }}>
-                {copiedInvite ? <><Check size={14} strokeWidth={2.5} /> Copied</> : <><Copy size={14} strokeWidth={2} /> Copy Message</>}
+              <button onClick={() => copyInvite(inviteResult.invite_url)}
+                style={{ width: '100%', padding: '12px', background: copiedInvite ? '#16a34a' : 'transparent', border: `1px solid ${copiedInvite ? 'rgba(74,222,128,0.4)' : 'rgba(74,222,128,0.25)'}`, borderRadius: 10, color: copiedInvite ? C.green : C.secondary, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                {copiedInvite ? <><Check size={12} strokeWidth={2.5} /> Link Copied</> : <><Copy size={12} strokeWidth={2} /> Copy Invite Link</>}
               </button>
             </div>
           )}
