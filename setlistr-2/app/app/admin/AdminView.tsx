@@ -416,7 +416,7 @@ export default function AdminDashboard({
         setInvites(prev => [data.invite, ...prev])
         setNewEmail('')
         setNewName('')
-        setAddSuccess(`${data.invite.email} added successfully`)
+        setAddSuccess(`${data.invite.email} ${data.email_sent ? '— invite email sent' : '— added (email not sent)'}`)
         setTimeout(() => setAddSuccess(''), 4000)
       }
     } catch {
@@ -985,7 +985,7 @@ export default function AdminDashboard({
                     style={{ flex: 2, background: '#0f0e0c', border: `1px solid ${newEmail.trim() ? 'rgba(201,168,76,0.3)' : C.border}`, borderRadius: 8, padding: '10px 12px', color: C.text, fontSize: 14, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' as const }} />
                 </div>
                 {addError && <p style={{ fontSize: 12, color: C.red, margin: 0 }}>{addError}</p>}
-                {addSuccess && <p style={{ fontSize: 12, color: C.green, margin: 0 }}>✓ {addSuccess} — copy the link above and send it</p>}
+                {addSuccess && <p style={{ fontSize: 12, color: C.green, margin: 0 }}>✓ {addSuccess}</p>}
                 <button onClick={addBetaUser} disabled={addingUser || !newEmail.trim()}
                   style={{ padding: '11px', background: newEmail.trim() ? C.gold : C.muted, border: 'none', borderRadius: 8, color: '#0a0908', fontSize: 12, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: addingUser || !newEmail.trim() ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: addingUser ? 0.7 : newEmail.trim() ? 1 : 0.4 }}>
                   {addingUser ? 'Adding...' : 'Add to Beta'}
