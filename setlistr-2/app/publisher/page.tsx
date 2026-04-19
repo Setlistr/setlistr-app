@@ -337,11 +337,9 @@ function SearchResultCard({
               Add to Roster
             </button>
           ) : result.already_invited ? (
-  <button onClick={onInvite} disabled={inviting}
-    style={{ flex: 1, padding: '13px', background: 'transparent', border: `1px solid ${C.borderGold}`, borderRadius: 10, color: C.gold, fontSize: 13, fontWeight: 800, cursor: inviting ? 'default' : 'pointer', fontFamily: 'inherit', letterSpacing: '0.04em', opacity: inviting ? 0.7 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}>
-    <UserPlus size={14} strokeWidth={2.5} />
-    {inviting ? 'Generating...' : 'Resend Invite'}
-  </button>
+            <div style={{ flex: 1, padding: '12px', background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 10, textAlign: 'center' }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: C.gold }}>✉ Invite already sent</span>
+            </div>
           ) : (
             <button onClick={onInvite} disabled={inviting}
               style={{ flex: 1, padding: '13px', background: C.red, border: 'none', borderRadius: 10, color: '#fff', fontSize: 13, fontWeight: 800, cursor: inviting ? 'default' : 'pointer', fontFamily: 'inherit', letterSpacing: '0.04em', opacity: inviting ? 0.7 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}>
@@ -357,8 +355,11 @@ function SearchResultCard({
 
 // ── Invite Modal ──────────────────────────────────────────────────────────────
 
-function InviteModal({ invite, artistName, onClose }: { invite: InviteResult; artistName: string; onClose: () => void }) {
+function InviteModal({ invite, artistName, publisherId, publisherName, onClose }: { invite: InviteResult; artistName: string; publisherId: string; publisherName: string; onClose: () => void }) {
   const [copied, setCopied] = useState<'subject' | 'body' | 'all' | null>(null)
+  const [recipientEmail, setRecipientEmail] = useState('')
+  const [sending, setSending] = useState(false)
+  const [emailSent, setEmailSent] = useState(false)
 
   function copy(text: string, key: 'subject' | 'body' | 'all') {
     try { navigator.clipboard.writeText(text) } catch {
@@ -368,6 +369,26 @@ function InviteModal({ invite, artistName, onClose }: { invite: InviteResult; ar
     }
     setCopied(key)
     setTimeout(() => setCopied(null), 2000)
+  }
+
+  async function sendEmail() {
+    if (!recipientEmail.trim()) return
+    setSending(true)
+    try {
+      await fetch('/api/publisher/invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          publisher_id: publisherId,
+          publisher_name: publisherName,
+          artist_name: artistName,
+          artist_email: recipientEmail.trim(),
+        }),
+      })
+      setEmailSent(true)
+    } catch { /* silently fail */ } finally {
+      setSending(false)
+    }
   }
 
   return (
@@ -385,9 +406,33 @@ function InviteModal({ invite, artistName, onClose }: { invite: InviteResult; ar
         </div>
 
         <div style={{ padding: '20px 24px' }}>
-          <p style={{ fontSize: 12, color: C.secondary, margin: '0 0 16px', lineHeight: 1.5 }}>
-            Send this from your own email — it'll land with more authority coming directly from you.
-          </p>
+          {/* Send via Resend */}
+          <div style={{ marginBottom: 16 }}>
+            <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, color: C.muted, margin: '0 0 8px' }}>Send Email Directly</p>
+            {emailSent ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '11px 14px', background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.2)', borderRadius: 10 }}>
+                <Check size={13} color={C.green} strokeWidth={2.5} />
+                <span style={{ fontSize: 12, fontWeight: 700, color: C.green }}>Email sent to {recipientEmail}</span>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input
+                  value={recipientEmail}
+                  onChange={e => setRecipientEmail(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && sendEmail()}
+                  placeholder="artist@email.com"
+                  type="email"
+                  style={{ flex: 1, padding: '10px 12px', background: '#0a0908', border: `1px solid rgba(255,255,255,0.09)`, borderRadius: 8, color: C.text, fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' as const }}
+                />
+                <button onClick={sendEmail} disabled={sending || !recipientEmail.trim()}
+                  style={{ padding: '10px 16px', background: recipientEmail.trim() ? C.gold : 'rgba(255,255,255,0.04)', border: 'none', borderRadius: 8, color: recipientEmail.trim() ? '#0a0908' : C.muted, fontSize: 12, fontWeight: 700, cursor: sending || !recipientEmail.trim() ? 'default' : 'pointer', fontFamily: 'inherit', flexShrink: 0 }}>
+                  {sending ? 'Sending...' : 'Send'}
+                </button>
+              </div>
+            )}
+          </div>
+
+          <p style={{ fontSize: 11, color: C.muted, margin: '0 0 14px' }}>Or copy and send manually:</p>
 
           {/* Subject */}
           <div style={{ marginBottom: 12 }}>
@@ -609,7 +654,7 @@ export default function IndustryTerminal() {
     <div style={{ minHeight: '100svh', background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif' }}>
       {/* Invite modal */}
       {inviteResult && (
-        <InviteModal invite={inviteResult} artistName={inviteArtistName} onClose={() => setInviteResult(null)} />
+        <InviteModal invite={inviteResult} artistName={inviteArtistName} publisherId={PUBLISHER_ID} publisherName={publisher?.name || ''} onClose={() => setInviteResult(null)} />
       )}
 
       <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '50vh', pointerEvents: 'none', zIndex: 0, background: 'radial-gradient(ellipse at 50% 0%, rgba(201,168,76,0.06) 0%, transparent 65%)' }} />
