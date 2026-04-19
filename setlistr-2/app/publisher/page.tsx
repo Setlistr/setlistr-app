@@ -337,9 +337,11 @@ function SearchResultCard({
               Add to Roster
             </button>
           ) : result.already_invited ? (
-            <div style={{ flex: 1, padding: '12px', background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 10, textAlign: 'center' }}>
-              <span style={{ fontSize: 12, fontWeight: 700, color: C.gold }}>✉ Invite already sent</span>
-            </div>
+            <button onClick={onInvite} disabled={inviting}
+              style={{ flex: 1, padding: '13px', background: 'transparent', border: `1px solid ${C.borderGold}`, borderRadius: 10, color: C.gold, fontSize: 13, fontWeight: 800, cursor: inviting ? 'default' : 'pointer', fontFamily: 'inherit', letterSpacing: '0.04em', opacity: inviting ? 0.7 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}>
+              <UserPlus size={14} strokeWidth={2.5} />
+              {inviting ? 'Opening...' : '✉ Resend Invite'}
+            </button>
           ) : (
             <button onClick={onInvite} disabled={inviting}
               style={{ flex: 1, padding: '13px', background: C.red, border: 'none', borderRadius: 10, color: '#fff', fontSize: 13, fontWeight: 800, cursor: inviting ? 'default' : 'pointer', fontFamily: 'inherit', letterSpacing: '0.04em', opacity: inviting ? 0.7 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}>
