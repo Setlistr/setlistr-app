@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { TrendingUp, Mic, Check, Calendar, ChevronDown, Users, X, Home } from 'lucide-react'
+import { TrendingUp, Mic, Check, Calendar, ChevronDown, Users, X } from 'lucide-react'
 import {
   estimateRoyalties, aggregateUnclaimedEarnings,
   capacityToBand, type ShowEstimateInput,
@@ -19,8 +19,6 @@ const C = {
 }
 
 const ACTING_AS_KEY  = 'setlistr_acting_as'
-const PWA_DISMISSED  = 'setlistr_pwa_dismissed'
-
 type Performance = {
   id: string; venue_name: string; artist_name: string
   city: string; country: string; status: string
@@ -101,29 +99,6 @@ export default function DashboardPage() {
   const [managedArtists, setManagedArtists]   = useState<ManagedArtist[]>([])
   const [actingAs, setActingAs]               = useState<ActingAs>(null)
   const [switcherOpen, setSwitcherOpen]       = useState(false)
-
-  // PWA prompt
-  const [showPWAPrompt, setShowPWAPrompt]     = useState(false)
-  const [isIOS, setIsIOS]                     = useState(false)
-
-  // ── PWA detection ─────────────────────────────────────────────────────────
-  useEffect(() => {
-    const dismissed   = localStorage.getItem(PWA_DISMISSED)
-    const isStandalone = window.matchMedia('(display-mode: standalone)').matches
-    const ios = /iphone|ipad|ipod/i.test(navigator.userAgent)
-    const android = /android/i.test(navigator.userAgent)
-    const isMobile = ios || android
-    if (!dismissed && !isStandalone && isMobile) {
-      setIsIOS(ios)
-      // Delay slightly so it doesn't flash on load
-      setTimeout(() => setShowPWAPrompt(true), 3000)
-    }
-  }, [])
-
-  function dismissPWA() {
-    localStorage.setItem(PWA_DISMISSED, '1')
-    setShowPWAPrompt(false)
-  }
 
   // ── Load ──────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -326,30 +301,6 @@ export default function DashboardPage() {
   return (
     <div style={{ minHeight: '100svh', background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif' }}>
       <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '50vh', pointerEvents: 'none', zIndex: 0, background: 'radial-gradient(ellipse at 50% 0%, rgba(201,168,76,0.07) 0%, transparent 65%)' }} />
-
-      {/* ── PWA PROMPT ── */}
-      {showPWAPrompt && (
-        <div style={{ position: 'fixed', bottom: 80, left: 16, right: 16, zIndex: 100, animation: 'fadeUp 0.4s ease' }}>
-          <div style={{ background: C.card, border: `1px solid ${C.borderGold}`, borderRadius: 16, padding: '14px 16px', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-              <div style={{ width: 36, height: 36, borderRadius: 10, background: C.goldDim, border: `1px solid ${C.borderGold}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <Home size={16} color={C.gold} strokeWidth={2} />
-              </div>
-              <div style={{ flex: 1 }}>
-                <p style={{ fontSize: 13, fontWeight: 700, color: C.text, margin: '0 0 3px' }}>Add Setlistr to your home screen</p>
-                <p style={{ fontSize: 11, color: C.muted, margin: 0, lineHeight: 1.5 }}>
-                  {isIOS
-                    ? 'Tap the share button below, then "Add to Home Screen" for instant access.'
-                    : 'Tap your browser menu → "Add to Home Screen" for instant access.'}
-                </p>
-              </div>
-              <button onClick={dismissPWA} style={{ background: 'none', border: 'none', color: C.muted, cursor: 'pointer', padding: 4, flexShrink: 0 }}>
-                <X size={14} />
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       <div style={{ maxWidth: 480, margin: '0 auto', padding: '0 16px', position: 'relative', zIndex: 1 }}>
 
