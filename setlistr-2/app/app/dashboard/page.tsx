@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { TrendingUp, Mic, AlertCircle, Check, Calendar } from 'lucide-react'
+import { TrendingUp, Mic, AlertCircle, Check, Calendar, ChevronDown, Users, X } from 'lucide-react'
 import {
   estimateRoyalties, aggregateUnclaimedEarnings,
   capacityToBand, type ShowEstimateInput,
@@ -18,6 +18,8 @@ const C = {
   blue: '#60a5fa', blueDim: 'rgba(96,165,250,0.1)',
 }
 
+const ACTING_AS_KEY = 'setlistr_acting_as'
+
 type Performance = {
   id: string; venue_name: string; artist_name: string
   city: string; country: string; status: string
@@ -30,6 +32,17 @@ type BitEvent = {
   id: string; datetime: string; venueName: string
   venueCity: string; venueRegion: string; venueCountry: string; url: string
 }
+
+type ManagedArtist = {
+  artist_id: string
+  artist_name: string
+  role: string
+}
+
+type ActingAs = {
+  artist_id: string
+  artist_name: string
+} | null
 
 function getDisplayStatus(p: Performance): { label: string; color: string; bg: string } {
   if (p.submission_status === 'submitted') return { label: 'Submitted', color: C.green, bg: C.greenDim }
@@ -63,20 +76,13 @@ function hoursSince(dateStr: string): number {
 }
 
 function isToday(dateStr: string): boolean {
-  const d = new Date(dateStr)
-  const now = new Date()
-  return d.getFullYear() === now.getFullYear() &&
-    d.getMonth() === now.getMonth() &&
-    d.getDate() === now.getDate()
+  const d = new Date(dateStr); const now = new Date()
+  return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate()
 }
 
 function isTomorrow(dateStr: string): boolean {
-  const d = new Date(dateStr)
-  const tomorrow = new Date()
-  tomorrow.setDate(tomorrow.getDate() + 1)
-  return d.getFullYear() === tomorrow.getFullYear() &&
-    d.getMonth() === tomorrow.getMonth() &&
-    d.getDate() === tomorrow.getDate()
+  const d = new Date(dateStr); const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1)
+  return d.getFullYear() === tomorrow.getFullYear() && d.getMonth() === tomorrow.getMonth() && d.getDate() === tomorrow.getDate()
 }
 
 function formatShowTime(dateStr: string): string {
@@ -96,6 +102,8 @@ function isCanadian(country?: string | null, city?: string | null): boolean {
 
 export default function DashboardPage() {
   const router = useRouter()
+
+  // Own account data
   const [performances, setPerformances]   = useState<Performance[]>([])
   const [loading, setLoading]             = useState(true)
   const [livePerf, setLivePerf]           = useState<Performance | null>(null)
@@ -103,6 +111,7 @@ export default function DashboardPage() {
   const [totalSongs, setTotalSongs]       = useState(0)
   const [needsReview, setNeedsReview]     = useState(0)
   const [userId, setUserId]               = useState<string | null>(null)
+  const [ownArtistName, setOwnArtistName] = useState<string | null>(null)
   const [artistName, setArtistName]       = useState<string | null>(null)
   const [showEstimates, setShowEstimates] = useState<ShowEstimateInput[]>([])
   const [songCountMap, setSongCountMap]   = useState<Record<string, number>>({})
@@ -110,6 +119,12 @@ export default function DashboardPage() {
   const [upcomingShows, setUpcomingShows] = useState<BitEvent[]>([])
   const [todayShow, setTodayShow]         = useState<BitEvent | null>(null)
 
+  // Delegation
+  const [managedArtists, setManagedArtists] = useState<ManagedArtist[]>([])
+  const [actingAs, setActingAs]             = useState<ActingAs>(null)
+  const [switcherOpen, setSwitcherOpen]     = useState(false)
+
+  // ── Load own account + check for managed artists ──────────────────────────
   useEffect(() => {
     const supabase = createClient()
     async function load() {
@@ -123,77 +138,179 @@ export default function DashboardPage() {
           .eq('id', user.id)
           .single()
 
-        // Redirect to onboarding if profile not complete
         if (!profile?.artist_name?.trim()) {
           router.replace('/app/onboarding')
           return
         }
 
+        const name = profile?.artist_name || profile?.full_name || null
+        setOwnArtistName(name)
+
         if (profile?.bandsintown_artist_name) setLookupName(profile.bandsintown_artist_name)
-        setArtistName(profile?.artist_name || profile?.full_name || null)
+
+        // Check for managed artists
+        const managedRes = await fetch('/api/team/managed-artists')
+        const managedData = await managedRes.json()
+        const managed: ManagedArtist[] = managedData.managed || []
+        setManagedArtists(managed)
+
+        // Restore acting-as context from localStorage
+        const savedActingAs = localStorage.getItem(ACTING_AS_KEY)
+        if (savedActingAs && managed.length > 0) {
+          try {
+            const parsed = JSON.parse(savedActingAs)
+            // Verify still valid
+            const stillManages = managed.find(m => m.artist_id === parsed.artist_id)
+            if (stillManages) {
+              setActingAs(parsed)
+              await loadDelegateContext(parsed.artist_id, parsed.artist_name)
+              setLoading(false)
+              return
+            } else {
+              localStorage.removeItem(ACTING_AS_KEY)
+            }
+          } catch { localStorage.removeItem(ACTING_AS_KEY) }
+        }
+
+        setArtistName(name)
       }
 
-      const { data, error } = await supabase
-        .from('performances')
-        .select(`id, venue_name, artist_name, city, country, status, submission_status, started_at, ended_at, created_at, shows ( show_type ), venues ( capacity )`)
-        .order('created_at', { ascending: false })
-      if (error) console.error('Dashboard error:', error)
-      if (data) {
-        const perfs: Performance[] = data.map((p: any) => ({
-          id: p.id, venue_name: p.venue_name, artist_name: p.artist_name,
-          city: p.city, country: p.country, status: p.status,
-          submission_status: p.submission_status || null,
-          started_at: p.started_at, ended_at: p.ended_at || null,
-          created_at: p.created_at,
-          show_type: p.shows?.show_type || 'single', venue_capacity: p.venues?.capacity || null,
-        }))
-        setPerformances(perfs)
-        setNeedsReview(perfs.filter(p =>
-          (p.status === 'review' || p.status === 'complete' || p.status === 'completed') &&
-          p.submission_status !== 'submitted'
-        ).length)
-
-        const live = perfs.find(p =>
-          (p.status === 'live' || p.status === 'pending') &&
-          minutesSince(p.started_at || p.created_at) < 360
-        )
-        setLivePerf(live || null)
-
-        const morningAfter = perfs.find(p => {
-          const endedAt = p.ended_at || p.started_at
-          const hoursAgo = hoursSince(endedAt)
-          return hoursAgo > 0 && hoursAgo <= 18 &&
-            p.status !== 'live' && p.status !== 'pending' &&
-            p.submission_status !== 'submitted'
-        })
-        setMorningAfterPerf(morningAfter || null)
-
-        const { data: songData } = await supabase
-          .from('performance_songs')
-          .select('performance_id')
-          .in('performance_id', perfs.map(p => p.id))
-        const countMap: Record<string, number> = {}
-        songData?.forEach((s: any) => { countMap[s.performance_id] = (countMap[s.performance_id] || 0) + 1 })
-        setSongCountMap(countMap)
-        setTotalSongs(Object.values(countMap).reduce((a, b) => a + b, 0))
-
-        const estimates: ShowEstimateInput[] = perfs
-          .filter(p => p.status !== 'live' && p.status !== 'pending' && p.submission_status !== 'submitted')
-          .map(p => ({
-            performanceId: p.id, status: p.status,
-            songCount: countMap[p.id] || 0,
-            venueCapacityBand: capacityToBand(p.venue_capacity),
-            showType: (p.show_type as any) || 'single',
-            territory: isCanadian(p.country, p.city) ? 'CA' : 'US',
-          }))
-          .filter(e => e.songCount > 0)
-        setShowEstimates(estimates)
-      }
+      // Load own performances
+      await loadOwnPerformances(supabase)
       setLoading(false)
     }
     load()
   }, [])
 
+  async function loadOwnPerformances(supabase: any) {
+    const { data, error } = await supabase
+      .from('performances')
+      .select(`id, venue_name, artist_name, city, country, status, submission_status, started_at, ended_at, created_at, shows ( show_type ), venues ( capacity )`)
+      .order('created_at', { ascending: false })
+    if (error) console.error('Dashboard error:', error)
+    if (data) processPerformances(data)
+  }
+
+  async function loadDelegateContext(artistId: string, artistDisplayName: string) {
+    const res = await fetch(`/api/team/context-data?artist_id=${artistId}`)
+    const data = await res.json()
+    if (data.error) {
+      console.error('Context data error:', data.error)
+      return
+    }
+    setArtistName(data.artist_name)
+    if (data.bandsintown_artist_name) setLookupName(data.bandsintown_artist_name)
+    processPerformances(data.performances, data.songCountMap)
+  }
+
+  function processPerformances(rawPerfs: any[], existingSongCountMap?: Record<string, number>) {
+    const perfs: Performance[] = rawPerfs.map((p: any) => ({
+      id: p.id, venue_name: p.venue_name, artist_name: p.artist_name,
+      city: p.city, country: p.country, status: p.status,
+      submission_status: p.submission_status || null,
+      started_at: p.started_at, ended_at: p.ended_at || null,
+      created_at: p.created_at,
+      show_type: p.shows?.show_type || p.show_type || 'single',
+      venue_capacity: p.venues?.capacity || p.venue_capacity || null,
+    }))
+    setPerformances(perfs)
+    setNeedsReview(perfs.filter(p =>
+      (p.status === 'review' || p.status === 'complete' || p.status === 'completed') &&
+      p.submission_status !== 'submitted'
+    ).length)
+
+    const live = perfs.find(p =>
+      (p.status === 'live' || p.status === 'pending') &&
+      minutesSince(p.started_at || p.created_at) < 360
+    )
+    setLivePerf(live || null)
+
+    const morningAfter = perfs.find(p => {
+      const endedAt = p.ended_at || p.started_at
+      const hoursAgo = hoursSince(endedAt)
+      return hoursAgo > 0 && hoursAgo <= 18 &&
+        p.status !== 'live' && p.status !== 'pending' &&
+        p.submission_status !== 'submitted'
+    })
+    setMorningAfterPerf(morningAfter || null)
+
+    // Song counts — either from server (delegate) or fetch ourselves
+    if (existingSongCountMap) {
+      setSongCountMap(existingSongCountMap)
+      setTotalSongs(Object.values(existingSongCountMap).reduce((a, b) => a + b, 0))
+      const estimates: ShowEstimateInput[] = perfs
+        .filter(p => p.status !== 'live' && p.status !== 'pending' && p.submission_status !== 'submitted')
+        .map(p => ({
+          performanceId: p.id, status: p.status,
+          songCount: existingSongCountMap[p.id] || 0,
+          venueCapacityBand: capacityToBand(p.venue_capacity),
+          showType: (p.show_type as any) || 'single',
+          territory: isCanadian(p.country, p.city) ? 'CA' : 'US',
+        }))
+        .filter(e => e.songCount > 0)
+      setShowEstimates(estimates)
+    } else {
+      // Fetch song counts from Supabase directly (own account)
+      const supabase = createClient()
+      supabase.from('performance_songs')
+        .select('performance_id')
+        .in('performance_id', perfs.map(p => p.id))
+        .then(({ data: songData }) => {
+          const countMap: Record<string, number> = {}
+          songData?.forEach((s: any) => { countMap[s.performance_id] = (countMap[s.performance_id] || 0) + 1 })
+          setSongCountMap(countMap)
+          setTotalSongs(Object.values(countMap).reduce((a, b) => a + b, 0))
+          const estimates: ShowEstimateInput[] = perfs
+            .filter(p => p.status !== 'live' && p.status !== 'pending' && p.submission_status !== 'submitted')
+            .map(p => ({
+              performanceId: p.id, status: p.status,
+              songCount: countMap[p.id] || 0,
+              venueCapacityBand: capacityToBand(p.venue_capacity),
+              showType: (p.show_type as any) || 'single',
+              territory: isCanadian(p.country, p.city) ? 'CA' : 'US',
+            }))
+            .filter(e => e.songCount > 0)
+          setShowEstimates(estimates)
+        })
+    }
+  }
+
+  // Switch into a managed artist's context
+  async function switchToArtist(artist: ManagedArtist) {
+    setSwitcherOpen(false)
+    setLoading(true)
+    setLookupName(null)
+    setUpcomingShows([])
+    setTodayShow(null)
+    const ctx = { artist_id: artist.artist_id, artist_name: artist.artist_name }
+    setActingAs(ctx)
+    localStorage.setItem(ACTING_AS_KEY, JSON.stringify(ctx))
+    await loadDelegateContext(artist.artist_id, artist.artist_name)
+    setLoading(false)
+  }
+
+  // Switch back to own account
+  async function switchToOwn() {
+    setSwitcherOpen(false)
+    setLoading(true)
+    setActingAs(null)
+    localStorage.removeItem(ACTING_AS_KEY)
+    setLookupName(null)
+    setUpcomingShows([])
+    setTodayShow(null)
+    setArtistName(ownArtistName)
+    const supabase = createClient()
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('bandsintown_artist_name')
+      .eq('id', userId!)
+      .single()
+    if (profile?.bandsintown_artist_name) setLookupName(profile.bandsintown_artist_name)
+    await loadOwnPerformances(supabase)
+    setLoading(false)
+  }
+
+  // Upcoming shows
   useEffect(() => {
     if (!lookupName) return
     async function fetchUpcoming() {
@@ -235,7 +352,9 @@ export default function DashboardPage() {
     <div style={{ minHeight: '100svh', background: C.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: '"DM Sans", system-ui, sans-serif' }}>
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
         <div style={{ width: 44, height: 44, borderRadius: '50%', border: `1.5px solid ${C.gold}`, animation: 'breathe 1.8s ease-in-out infinite' }} />
-        <span style={{ color: C.muted, fontSize: 11, letterSpacing: '0.15em', textTransform: 'uppercase' }}>Loading</span>
+        <span style={{ color: C.muted, fontSize: 11, letterSpacing: '0.15em', textTransform: 'uppercase' }}>
+          {actingAs ? `Loading ${actingAs.artist_name}...` : 'Loading'}
+        </span>
       </div>
       <style>{`@keyframes breathe{0%,100%{transform:scale(1);opacity:.3}50%{transform:scale(1.2);opacity:.8}}`}</style>
     </div>
@@ -243,7 +362,6 @@ export default function DashboardPage() {
 
   return (
     <div style={{ minHeight: '100svh', background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif' }}>
-      {/* Ambient gold glow */}
       <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '50vh', pointerEvents: 'none', zIndex: 0, background: 'radial-gradient(ellipse at 50% 0%, rgba(201,168,76,0.07) 0%, transparent 65%)' }} />
 
       <div style={{ maxWidth: 480, margin: '0 auto', padding: '0 16px', position: 'relative', zIndex: 1 }}>
@@ -251,7 +369,7 @@ export default function DashboardPage() {
         {/* ── NAV ── */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 0 24px' }}>
           <span style={{ fontSize: 13, fontWeight: 800, color: C.gold, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Setlistr</span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             {submittedCount > 0 && (
               <span style={{ fontSize: 11, color: C.green, background: C.greenDim, border: '1px solid rgba(74,222,128,0.2)', borderRadius: 20, padding: '3px 10px', display: 'flex', alignItems: 'center', gap: 4 }}>
                 <Check size={10} strokeWidth={2.5} />{submittedCount}
@@ -262,6 +380,91 @@ export default function DashboardPage() {
           </div>
         </div>
 
+        {/* ── ACTING-AS BANNER ── */}
+        {actingAs && (
+          <div style={{ marginBottom: 16, animation: 'fadeUp 0.3s ease' }}>
+            <div style={{ background: 'rgba(201,168,76,0.08)', border: `1px solid ${C.borderGold}`, borderRadius: 12, padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Users size={13} color={C.gold} strokeWidth={2} />
+                <span style={{ fontSize: 12, fontWeight: 700, color: C.gold }}>Managing: {actingAs.artist_name}</span>
+              </div>
+              <button onClick={switchToOwn}
+                style={{ background: 'none', border: `1px solid ${C.borderGold}`, borderRadius: 8, padding: '4px 10px', color: C.secondary, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}>
+                <X size={10} /> Exit
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── ACCOUNT SWITCHER — shows if managing artists ── */}
+        {managedArtists.length > 0 && (
+          <div style={{ marginBottom: 16, position: 'relative' }}>
+            <button
+              onClick={() => setSwitcherOpen(v => !v)}
+              style={{
+                width: '100%', background: C.card, border: `1px solid ${actingAs ? C.borderGold : C.border}`,
+                borderRadius: 12, padding: '10px 16px', cursor: 'pointer', fontFamily: 'inherit',
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+              }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ width: 28, height: 28, borderRadius: '50%', background: actingAs ? C.goldDim : 'rgba(255,255,255,0.04)', border: `1px solid ${actingAs ? C.borderGold : C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <span style={{ fontSize: 11, fontWeight: 800, color: actingAs ? C.gold : C.secondary }}>
+                    {(actingAs ? actingAs.artist_name : ownArtistName || 'Y')?.charAt(0).toUpperCase()}
+                  </span>
+                </div>
+                <div style={{ textAlign: 'left' }}>
+                  <p style={{ fontSize: 13, fontWeight: 700, color: C.text, margin: 0 }}>
+                    {actingAs ? actingAs.artist_name : ownArtistName || 'Your Account'}
+                  </p>
+                  <p style={{ fontSize: 10, color: C.muted, margin: 0 }}>
+                    {actingAs ? 'Managing · tap to switch' : 'Your account · tap to switch'}
+                  </p>
+                </div>
+              </div>
+              <ChevronDown size={14} color={C.muted} style={{ transform: switcherOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s ease', flexShrink: 0 }} />
+            </button>
+
+            {/* Dropdown */}
+            {switcherOpen && (
+              <div style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, right: 0, background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, overflow: 'hidden', zIndex: 50, boxShadow: '0 8px 24px rgba(0,0,0,0.4)', animation: 'fadeUp 0.15s ease' }}>
+
+                {/* Own account */}
+                <button onClick={switchToOwn}
+                  style={{ width: '100%', padding: '12px 16px', background: !actingAs ? 'rgba(201,168,76,0.06)' : 'transparent', border: 'none', borderBottom: `1px solid ${C.border}`, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left' }}>
+                  <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'rgba(255,255,255,0.04)', border: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <span style={{ fontSize: 11, fontWeight: 800, color: C.secondary }}>{(ownArtistName || 'Y').charAt(0).toUpperCase()}</span>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <p style={{ fontSize: 13, fontWeight: 600, color: C.text, margin: 0 }}>{ownArtistName || 'Your Account'}</p>
+                    <p style={{ fontSize: 10, color: C.muted, margin: 0 }}>Your account</p>
+                  </div>
+                  {!actingAs && <Check size={12} color={C.gold} strokeWidth={2.5} />}
+                </button>
+
+                {/* Managed artists */}
+                {managedArtists.map(artist => (
+                  <button key={artist.artist_id} onClick={() => switchToArtist(artist)}
+                    style={{ width: '100%', padding: '12px 16px', background: actingAs?.artist_id === artist.artist_id ? C.goldDim : 'transparent', border: 'none', borderBottom: `1px solid ${C.border}`, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left' }}>
+                    <div style={{ width: 28, height: 28, borderRadius: '50%', background: C.goldDim, border: `1px solid ${C.borderGold}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <span style={{ fontSize: 11, fontWeight: 800, color: C.gold }}>{artist.artist_name.charAt(0).toUpperCase()}</span>
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <p style={{ fontSize: 13, fontWeight: 600, color: C.text, margin: 0 }}>{artist.artist_name}</p>
+                      <p style={{ fontSize: 10, color: C.muted, margin: 0 }}>Managing · {artist.role}</p>
+                    </div>
+                    {actingAs?.artist_id === artist.artist_id && <Check size={12} color={C.gold} strokeWidth={2.5} />}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Close switcher on outside click */}
+        {switcherOpen && (
+          <div onClick={() => setSwitcherOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 40 }} />
+        )}
+
         {/* ── MORNING-AFTER NUDGE ── */}
         {morningAfterPerf && !livePerf && (
           <div style={{ marginBottom: 16, animation: 'fadeUp 0.3s ease' }}>
@@ -269,7 +472,9 @@ export default function DashboardPage() {
               style={{ width: '100%', background: 'rgba(201,168,76,0.07)', border: `1px solid ${C.borderGold}`, borderRadius: 14, padding: '14px 18px', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 14 }}>
               <span style={{ fontSize: 20, flexShrink: 0 }}>🌅</span>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.gold, margin: '0 0 2px' }}>Last Night's Show</p>
+                <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.gold, margin: '0 0 2px' }}>
+                  {actingAs ? `${actingAs.artist_name}'s Last Show` : "Last Night's Show"}
+                </p>
                 <p style={{ fontSize: 14, fontWeight: 700, color: C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{morningAfterPerf.venue_name} — review & claim →</p>
               </div>
             </button>
@@ -286,7 +491,9 @@ export default function DashboardPage() {
                 <div style={{ position: 'absolute', inset: -6, borderRadius: '50%', border: '1.5px solid rgba(74,222,128,0.3)', animation: 'orb-pulse 2s ease-in-out infinite' }} />
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.green, margin: '0 0 2px' }}>You're Playing Tonight</p>
+                <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.green, margin: '0 0 2px' }}>
+                  {actingAs ? `${actingAs.artist_name} Plays Tonight` : "You're Playing Tonight"}
+                </p>
                 <p style={{ fontSize: 14, fontWeight: 700, color: C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{todayShow.venueName} · {formatShowTime(todayShow.datetime)}</p>
               </div>
               <span style={{ fontSize: 12, color: C.green, fontWeight: 700, flexShrink: 0 }}>Start →</span>
@@ -327,61 +534,36 @@ export default function DashboardPage() {
         {/* ── HERO — LOAD YOUR SET ── */}
         {!livePerf && (
           <div style={{ marginBottom: 24, animation: 'fadeUp 0.3s ease' }}>
-
-            {/* Artist identity line */}
             {artistName && (
               <p style={{ fontSize: 13, color: C.secondary, margin: '0 0 16px', fontWeight: 500 }}>
                 {totalShows > 0
                   ? `${totalShows} show${totalShows !== 1 ? 's' : ''} on record${submittedCount > 0 ? ` · ${submittedCount} submitted` : ''}`
-                  : 'Ready for your first show.'}
+                  : 'Ready for the first show.'}
               </p>
             )}
 
-            {/* The orb button */}
             <button
               onClick={() => router.push('/app/show/new')}
-              style={{
-                width: '100%',
-                background: `linear-gradient(135deg, #c9a84c 0%, #a8872d 100%)`,
-                border: 'none',
-                borderRadius: 20,
-                padding: '28px 24px',
-                cursor: 'pointer',
-                fontFamily: 'inherit',
-                textAlign: 'left',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 20,
-                position: 'relative',
-                overflow: 'hidden',
-                WebkitTapHighlightColor: 'transparent',
-              }}
-            >
-              {/* Background glow */}
+              style={{ width: '100%', background: `linear-gradient(135deg, #c9a84c 0%, #a8872d 100%)`, border: 'none', borderRadius: 20, padding: '28px 24px', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 20, position: 'relative', overflow: 'hidden', WebkitTapHighlightColor: 'transparent' }}>
               <div style={{ position: 'absolute', top: '-40%', right: '-10%', width: '60%', height: '180%', background: 'radial-gradient(ellipse, rgba(255,255,255,0.12) 0%, transparent 70%)', pointerEvents: 'none' }} />
-
-              {/* Orb */}
               <div style={{ position: 'relative', flexShrink: 0 }}>
                 <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'rgba(10,9,8,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <div style={{ width: 18, height: 18, borderRadius: '50%', background: '#0a0908', opacity: 0.85 }} />
                 </div>
-                {/* Pulse rings */}
                 <div style={{ position: 'absolute', inset: -6, borderRadius: '50%', border: '1.5px solid rgba(10,9,8,0.2)', animation: 'orb-pulse 2s ease-in-out infinite' }} />
                 <div style={{ position: 'absolute', inset: -14, borderRadius: '50%', border: '1px solid rgba(10,9,8,0.1)', animation: 'orb-pulse 2s ease-in-out 0.4s infinite' }} />
               </div>
-
               <div style={{ flex: 1, minWidth: 0, position: 'relative', zIndex: 1 }}>
                 <p style={{ fontSize: 22, fontWeight: 800, color: '#0a0908', margin: '0 0 4px', letterSpacing: '-0.02em', lineHeight: 1.1 }}>Load Your Set</p>
-                <p style={{ fontSize: 13, color: 'rgba(10,9,8,0.6)', margin: 0, fontWeight: 500 }}>Start live capture · Setlistr listens</p>
+                <p style={{ fontSize: 13, color: 'rgba(10,9,8,0.6)', margin: 0, fontWeight: 500 }}>
+                  {actingAs ? `Capturing for ${actingAs.artist_name}` : 'Start live capture · Setlistr listens'}
+                </p>
               </div>
-
               <div style={{ fontSize: 20, color: 'rgba(10,9,8,0.4)', flexShrink: 0, position: 'relative', zIndex: 1 }}>→</div>
             </button>
 
-            {/* Photo setlist — demoted to text link */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16, marginTop: 12 }}>
-              <button
-                onClick={() => router.push('/app/show/new?mode=upload')}
+              <button onClick={() => router.push('/app/show/new?mode=upload')}
                 style={{ background: 'none', border: 'none', color: C.muted, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 5, padding: '4px 0' }}>
                 📷 Upload a paper setlist instead
               </button>
@@ -389,7 +571,7 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* ── UNCLAIMED EARNINGS — financial tension ── */}
+        {/* ── UNCLAIMED EARNINGS ── */}
         {aggregate.unclaimedCount > 0 && (
           <div style={{ marginBottom: 16, animation: 'fadeUp 0.36s ease' }}>
             <button onClick={() => router.push('/app/history')}
@@ -415,7 +597,7 @@ export default function DashboardPage() {
               {upcomingShows.map(event => {
                 const isEventToday    = isToday(event.datetime)
                 const isEventTomorrow = isTomorrow(event.datetime)
-                const dateLabel       = isEventToday ? 'Tonight' : isEventTomorrow ? 'Tomorrow' : formatShowDate(event.datetime)
+                const dateLabel = isEventToday ? 'Tonight' : isEventTomorrow ? 'Tomorrow' : formatShowDate(event.datetime)
                 return (
                   <button key={event.id} onClick={() => startShowFromBIT(event)}
                     style={{ background: C.card, border: `1px solid ${isEventToday ? C.borderGold : C.border}`, borderRadius: 12, padding: '12px 16px', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 12, transition: 'background 0.15s ease' }}
@@ -451,11 +633,11 @@ export default function DashboardPage() {
             <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '36px 20px', textAlign: 'center' }}>
               <Mic size={24} color={C.muted} style={{ marginBottom: 12 }} />
               <p style={{ fontSize: 14, color: C.secondary, margin: '0 0 4px', fontWeight: 600 }}>No shows yet.</p>
-              <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>Load your first set to get started.</p>
+              <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>Load the first set to get started.</p>
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {recentPerfs.map((perf, i) => {
+              {recentPerfs.map(perf => {
                 const displayStatus = getDisplayStatus(perf)
                 const dateStr       = perf.started_at || perf.created_at
                 const songCount     = songCountMap[perf.id] || 0
@@ -490,15 +672,16 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {/* ── STATS — condensed, below the fold ── */}
+        {/* ── STATS ── */}
         {totalShows > 0 && (
           <div style={{ paddingBottom: 48, animation: 'fadeUp 0.5s ease' }}>
             <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '16px 20px' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                 <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, margin: 0, display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <TrendingUp size={10} />Your Numbers
+                  <TrendingUp size={10} />
+                  {actingAs ? `${actingAs.artist_name}'s Numbers` : 'Your Numbers'}
                 </p>
-                {userId && (
+                {!actingAs && userId && (
                   <button onClick={() => router.push(`/app/artist/${userId}`)}
                     style={{ background: 'none', border: 'none', color: C.muted, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>
                     Full profile →
@@ -519,9 +702,7 @@ export default function DashboardPage() {
               </div>
               {showEstimates.length > 0 && (
                 <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 12 }}>
-                  <p style={{ fontSize: 12, color: C.secondary, margin: '0 0 2px' }}>
-                    Estimated royalty range
-                  </p>
+                  <p style={{ fontSize: 12, color: C.secondary, margin: '0 0 2px' }}>Estimated royalty range</p>
                   <p style={{ fontSize: 20, fontWeight: 800, color: C.gold, margin: 0, fontFamily: '"DM Mono", monospace', letterSpacing: '-0.02em' }}>
                     ${aggregate.totalLow.toLocaleString()} – ${aggregate.totalHigh.toLocaleString()}
                   </p>
