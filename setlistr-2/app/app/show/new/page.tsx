@@ -308,6 +308,12 @@ export default function NewShowPage() {
         started_at: new Date().toISOString(), status: 'live', created_by: user.id,
       }).select().single()
       if (showError) throw new Error('Show insert failed: ' + showError.message)
+      // Check if operating on behalf of another artist (manager context)
+      const actingAsRaw = localStorage.getItem('setlistr_acting_as')
+      const actingAsCtx = actingAsRaw ? JSON.parse(actingAsRaw) : null
+      const { data: selfProfile } = await supabase.from('profiles').select('artist_name, full_name').eq('id', user.id).single()
+      const selfName = selfProfile?.artist_name || selfProfile?.full_name || null
+
       const { data: performance, error: perfError } = await supabase.from('performances').insert({
         show_id: show.id, performance_date: scheduledIso || new Date().toISOString(),
         artist_name: artistName.trim() || venueQuery.trim(),
@@ -315,6 +321,8 @@ export default function NewShowPage() {
         city: venueCity.trim() || null, country: venueCountry.trim() || null,
         status: 'live', set_duration_minutes: 60, auto_close_buffer_minutes: 5,
         started_at: new Date().toISOString(), user_id: user.id,
+        captured_by: actingAsCtx ? user.id : null,
+        captured_by_name: actingAsCtx ? selfName : null,
       }).select().single()
       if (perfError) throw new Error('Performance insert failed: ' + perfError.message)
       if (plannedSongs.length > 0) await savePlannedSetlist(performance.id, user.id, resolvedVenueId)
@@ -349,6 +357,11 @@ export default function NewShowPage() {
         started_at: new Date().toISOString(), status: 'completed', created_by: user.id
       }).select().single()
       if (showError) throw new Error('Show insert failed: ' + showError.message)
+      const actingAsRaw2 = localStorage.getItem('setlistr_acting_as')
+      const actingAsCtx2 = actingAsRaw2 ? JSON.parse(actingAsRaw2) : null
+      const { data: selfProfile2 } = await supabase.from('profiles').select('artist_name, full_name').eq('id', user.id).single()
+      const selfName2 = selfProfile2?.artist_name || selfProfile2?.full_name || null
+
       const { data: performance, error: perfError } = await supabase.from('performances').insert({
         show_id: show.id, performance_date: scheduledIso || new Date().toISOString(),
         artist_name: artistName.trim() || venueQuery.trim(),
@@ -356,7 +369,9 @@ export default function NewShowPage() {
         city: venueCity.trim() || null, country: venueCountry.trim() || null,
         status: 'review', set_duration_minutes: 60, auto_close_buffer_minutes: 5,
         started_at: new Date().toISOString(), ended_at: new Date().toISOString(),
-        user_id: user.id
+        user_id: user.id,
+        captured_by: actingAsCtx2 ? user.id : null,
+        captured_by_name: actingAsCtx2 ? selfName2 : null,
       }).select().single()
       if (perfError) throw new Error('Performance insert failed: ' + perfError.message)
       const { data: sourceSongs } = await supabase.from('performance_songs')
