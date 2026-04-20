@@ -28,6 +28,7 @@ type Performance = {
   venue_capacity?:   number | null
   show_type?:        string | null
   song_count?:       number
+  captured_by_name?: string | null
 }
 
 function getDisplayStatus(p: Performance): { label: string; color: string } {
@@ -76,7 +77,7 @@ export default function HistoryPage() {
 
       const { data, error } = await supabase
         .from('performances')
-        .select('id, venue_name, artist_name, city, country, status, submission_status, started_at, created_at, shows(show_type), venues(capacity)')
+        .select('id, venue_name, artist_name, city, country, status, submission_status, started_at, created_at, captured_by_name, shows(show_type), venues(capacity)')
         .eq('user_id', user.id)
         .not('status', 'in', '("live","pending")')
         .order('started_at', { ascending: false })
@@ -103,6 +104,7 @@ export default function HistoryPage() {
             venue_capacity: p.venues?.capacity || null,
             show_type: p.shows?.show_type || 'single',
             song_count: countMap[p.id] || 0,
+            captured_by_name: p.captured_by_name || null,
           }))
 
         setPerformances(clean)
@@ -329,6 +331,7 @@ export default function HistoryPage() {
                       <p style={{ fontSize: 11, color: C.secondary, margin: 0 }}>
                         {perf.artist_name}{perf.city ? ` · ${perf.city}` : ''}{perf.country ? `, ${perf.country}` : ''}
                       </p>
+                      {perf.captured_by_name && <p style={{ fontSize: 10, color: C.muted, margin: '2px 0 0' }}>Captured by {perf.captured_by_name}</p>}
                     </div>
 
                     {/* Right side — estimate + status or just status */}
