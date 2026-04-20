@@ -25,6 +25,7 @@ type Performance = {
   submission_status: string | null; started_at: string
   created_at: string; ended_at?: string
   show_type?: string; venue_capacity?: number | null
+  captured_by_name?: string | null
 }
 
 type BitEvent = {
@@ -148,7 +149,7 @@ export default function DashboardPage() {
   async function loadOwnPerformances(supabase: any) {
     const { data } = await supabase
       .from('performances')
-      .select(`id, venue_name, artist_name, city, country, status, submission_status, started_at, ended_at, created_at, shows ( show_type ), venues ( capacity )`)
+      .select(`id, venue_name, artist_name, city, country, status, submission_status, started_at, ended_at, created_at, captured_by_name, shows ( show_type ), venues ( capacity )`)
       .order('created_at', { ascending: false })
     if (data) processPerformances(data)
   }
@@ -170,6 +171,7 @@ export default function DashboardPage() {
       started_at: p.started_at, ended_at: p.ended_at || null, created_at: p.created_at,
       show_type: p.shows?.show_type || p.show_type || 'single',
       venue_capacity: p.venues?.capacity || p.venue_capacity || null,
+      captured_by_name: p.captured_by_name || null,
     }))
     setPerformances(perfs)
 
@@ -612,6 +614,7 @@ export default function DashboardPage() {
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <p style={{ fontSize: 13, fontWeight: 600, color: C.text, margin: '0 0 1px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{perf.venue_name}</p>
                       <p style={{ fontSize: 11, color: C.secondary, margin: 0 }}>{perf.city ? `${perf.city} · ` : ''}{songCount > 0 ? `${songCount} songs` : timeAgo(perf.created_at)}</p>
+                      {perf.captured_by_name && <p style={{ fontSize: 10, color: C.muted, margin: '2px 0 0' }}>Captured by {perf.captured_by_name}</p>}
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3, flexShrink: 0 }}>
                       <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: displayStatus.color, background: displayStatus.bg, border: `1px solid ${displayStatus.color}40`, borderRadius: 20, padding: '2px 7px' }}>{displayStatus.label}</span>
