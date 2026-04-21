@@ -17,9 +17,9 @@ const MIN_SONG_GAP_SECONDS     = 30
 const CANDIDATE_WINDOW_SECONDS = 60
 const HEARTBEAT_SLOW_MS  = 3 * 60 * 1000
 const HEARTBEAT_STALL_MS = 5 * 60 * 1000
-const AUTO_CLOSE_SILENCE_MS = 30 * 60 * 1000
+const AUTO_CLOSE_SILENCE_MS = 60 * 60 * 1000
 const HARD_CEILING_MS = 4 * 60 * 60 * 1000
-const SILENCE_WARNING_MS = 20 * 60 * 1000
+const SILENCE_WARNING_MS = 45 * 60 * 1000
 
 type AcrCandidate = { title: string; artist: string; score: number }
 type DetectedSong = {
@@ -127,7 +127,27 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         if (data) {
           setPerformance(data); setShowId(data.show_id || null); setSetlistId(data.setlist_id || null); setArtistId(data.artist_id || null)
           if (data.started_at) showStartRef.current = new Date(data.started_at).getTime()
+
+          // ── Resume fix: reload any songs already saved to this performance ──
+          // Without this, closing and reopening the app loses all captured songs
           const supabase2 = createClient()
+          supabase2.from('performance_songs')
+            .select('title, artist, isrc, composer, publisher, source, position')
+            .eq('performance_id', data.id)
+            .order('position', { ascending: true })
+            .then(({ data: existingSongs }) => {
+              if (existingSongs && existingSongs.length > 0) {
+                setSongs(existingSongs.map(s => ({
+                  title: s.title || 'Unknown Song',
+                  artist: s.artist || '',
+                  source: (s.source as any) || 'manual',
+                  isrc: s.isrc || '',
+                  composer: s.composer || '',
+                  publisher: s.publisher || '',
+                })))
+              }
+            })
+
           supabase2.from('planned_setlists').select('id').eq('performance_id', data.id).single()
             .then(({ data: planned }) => {
               if (!planned?.id) return
