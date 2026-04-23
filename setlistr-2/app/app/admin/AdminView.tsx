@@ -1118,9 +1118,9 @@ export default function AdminDashboard({
               <p style={{ fontSize: 11, color: C.muted, margin: '0 0 14px' }}>Skips the invite/accept flow. Instantly gives delegate_id manager access to artist_id.</p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <input value={saArtistId} onChange={e => setSaArtistId(e.target.value)} placeholder="Artist user_id (the account being managed)"
-                  style={{ background: '#0f0e0c', border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 12px', color: C.text, fontSize: 13, fontFamily: 'inherit', outline: 'none', fontFamily: '"DM Mono", monospace' }} />
+                  style={{ background: '#0f0e0c', border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 12px', color: C.text, fontSize: 13, fontFamily: '"DM Mono", monospace', outline: 'none' }} />
                 <input value={saManagerId} onChange={e => setSaManagerId(e.target.value)} placeholder="Manager user_id (Daryl's ID)"
-                  style={{ background: '#0f0e0c', border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 12px', color: C.text, fontSize: 13, fontFamily: 'inherit', outline: 'none', fontFamily: '"DM Mono", monospace' }} />
+                  style={{ background: '#0f0e0c', border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 12px', color: C.text, fontSize: 13, fontFamily: '"DM Mono", monospace', outline: 'none' }} />
                 {saAssignMsg && <p style={{ fontSize: 12, color: saAssignMsg.startsWith('✓') ? C.green : C.red, margin: 0 }}>{saAssignMsg}</p>}
                 <button onClick={assignDelegate} disabled={saAssigning || !saArtistId.trim() || !saManagerId.trim()}
                   style={{ padding: '11px', background: C.gold, border: 'none', borderRadius: 8, color: '#0a0908', fontSize: 12, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'inherit', opacity: saAssigning ? 0.7 : 1 }}>
@@ -1135,7 +1135,7 @@ export default function AdminDashboard({
               <p style={{ fontSize: 11, color: C.muted, margin: '0 0 14px' }}>Adds songs to an artist's user_songs catalog so they appear in quick-add during capture. One song per line.</p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <input value={saSetlistArtistId} onChange={e => setSaSetlistArtistId(e.target.value)} placeholder="Artist user_id"
-                  style={{ background: '#0f0e0c', border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 12px', color: C.text, fontSize: 13, fontFamily: 'inherit', outline: 'none', fontFamily: '"DM Mono", monospace' }} />
+                  style={{ background: '#0f0e0c', border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 12px', color: C.text, fontSize: 13, fontFamily: '"DM Mono", monospace', outline: 'none' }} />
                 <textarea value={saSetlistSongs} onChange={e => setSaSetlistSongs(e.target.value)} placeholder={"Song Title One\nSong Title Two\nSong Title Three"}
                   rows={8}
                   style={{ background: '#0f0e0c', border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 12px', color: C.text, fontSize: 13, fontFamily: 'inherit', outline: 'none', resize: 'vertical', lineHeight: 1.6 }} />
