@@ -1088,60 +1088,62 @@ export default function AdminDashboard({
         {tab === 'superadmin' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-            {/* Warning */}
             <div style={{ background: 'rgba(248,113,113,0.06)', border: '1px solid rgba(248,113,113,0.2)', borderRadius: 12, padding: '12px 16px' }}>
-              <p style={{ fontSize: 12, color: C.red, margin: 0, fontWeight: 700 }}>⚡ Superadmin — for founder use only. These actions bypass normal auth flows.</p>
+              <p style={{ fontSize: 12, color: C.red, margin: 0, fontWeight: 700 }}>⚡ Superadmin — founder use only.</p>
             </div>
 
-            {/* Profile lookup reference */}
+            {/* Assign Manager Access — dropdown based */}
             <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: '18px 20px' }}>
-              <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, margin: '0 0 12px' }}>Artist Profile IDs</p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 200, overflowY: 'auto' }}>
-                {artists.map(a => (
-                  <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 10px', background: 'rgba(255,255,255,0.02)', border: `1px solid ${C.border}`, borderRadius: 8 }}>
-                    <div style={{ flex: 1 }}>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{a.name}</span>
-                      <span style={{ fontSize: 11, color: C.muted, marginLeft: 8 }}>{a.pro}</span>
-                    </div>
-                    <button onClick={() => navigator.clipboard.writeText(a.id)}
-                      style={{ fontSize: 10, color: C.gold, background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 6, padding: '3px 8px', cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}>
-                      {a.id.slice(0, 8)}… copy
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Assign delegate */}
-            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: '18px 20px' }}>
-              <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, margin: '0 0 6px' }}>Assign Manager Access</p>
-              <p style={{ fontSize: 11, color: C.muted, margin: '0 0 14px' }}>Skips the invite/accept flow. Instantly gives delegate_id manager access to artist_id.</p>
+              <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, margin: '0 0 4px' }}>Give Someone Manager Access</p>
+              <p style={{ fontSize: 11, color: C.muted, margin: '0 0 14px' }}>Pick the artist being managed, then pick who gets access. No invites needed.</p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <input value={saArtistId} onChange={e => setSaArtistId(e.target.value)} placeholder="Artist user_id (the account being managed)"
-                  style={{ background: '#0f0e0c', border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 12px', color: C.text, fontSize: 13, fontFamily: '"DM Mono", monospace', outline: 'none' }} />
-                <input value={saManagerId} onChange={e => setSaManagerId(e.target.value)} placeholder="Manager user_id (Daryl's ID)"
-                  style={{ background: '#0f0e0c', border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 12px', color: C.text, fontSize: 13, fontFamily: '"DM Mono", monospace', outline: 'none' }} />
+                <div>
+                  <label style={{ fontSize: 10, color: C.muted, display: 'block', marginBottom: 5, letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 700 }}>Artist (being managed)</label>
+                  <select value={saArtistId} onChange={e => setSaArtistId(e.target.value)}
+                    style={{ width: '100%', background: '#0f0e0c', border: `1px solid ${saArtistId ? C.borderGold : C.border}`, borderRadius: 8, padding: '10px 12px', color: saArtistId ? C.text : C.muted, fontSize: 13, fontFamily: 'inherit', outline: 'none', cursor: 'pointer' }}>
+                    <option value=''>Select artist…</option>
+                    {artists.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={{ fontSize: 10, color: C.muted, display: 'block', marginBottom: 5, letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 700 }}>Manager (gets access)</label>
+                  <select value={saManagerId} onChange={e => setSaManagerId(e.target.value)}
+                    style={{ width: '100%', background: '#0f0e0c', border: `1px solid ${saManagerId ? C.borderGold : C.border}`, borderRadius: 8, padding: '10px 12px', color: saManagerId ? C.text : C.muted, fontSize: 13, fontFamily: 'inherit', outline: 'none', cursor: 'pointer' }}>
+                    <option value=''>Select manager…</option>
+                    {artists.filter(a => a.id !== saArtistId).map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                  </select>
+                </div>
                 {saAssignMsg && <p style={{ fontSize: 12, color: saAssignMsg.startsWith('✓') ? C.green : C.red, margin: 0 }}>{saAssignMsg}</p>}
-                <button onClick={assignDelegate} disabled={saAssigning || !saArtistId.trim() || !saManagerId.trim()}
-                  style={{ padding: '11px', background: C.gold, border: 'none', borderRadius: 8, color: '#0a0908', fontSize: 12, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'inherit', opacity: saAssigning ? 0.7 : 1 }}>
-                  {saAssigning ? 'Assigning...' : 'Assign Manager Access'}
+                <button onClick={assignDelegate} disabled={saAssigning || !saArtistId || !saManagerId}
+                  style={{ padding: '13px', background: saArtistId && saManagerId ? C.gold : C.muted, border: 'none', borderRadius: 8, color: '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: saArtistId && saManagerId ? 'pointer' : 'default', fontFamily: 'inherit', opacity: saAssigning ? 0.7 : 1 }}>
+                  {saAssigning ? 'Assigning...' : saArtistId && saManagerId ? `Give ${artists.find(a=>a.id===saManagerId)?.name||'them'} access to ${artists.find(a=>a.id===saArtistId)?.name||'artist'}` : 'Select both to continue'}
                 </button>
               </div>
             </div>
 
-            {/* Preload setlist / song catalog */}
+            {/* Preload Song Catalog — dropdown + textarea */}
             <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: '18px 20px' }}>
-              <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, margin: '0 0 6px' }}>Preload Song Catalog</p>
-              <p style={{ fontSize: 11, color: C.muted, margin: '0 0 14px' }}>Adds songs to an artist's user_songs catalog so they appear in quick-add during capture. One song per line.</p>
+              <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, margin: '0 0 4px' }}>Preload Song Catalog</p>
+              <p style={{ fontSize: 11, color: C.muted, margin: '0 0 14px' }}>Songs appear in quick-add chips during live capture. One song per line.</p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <input value={saSetlistArtistId} onChange={e => setSaSetlistArtistId(e.target.value)} placeholder="Artist user_id"
-                  style={{ background: '#0f0e0c', border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 12px', color: C.text, fontSize: 13, fontFamily: '"DM Mono", monospace', outline: 'none' }} />
-                <textarea value={saSetlistSongs} onChange={e => setSaSetlistSongs(e.target.value)} placeholder={"Song Title One\nSong Title Two\nSong Title Three"}
-                  rows={8}
-                  style={{ background: '#0f0e0c', border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 12px', color: C.text, fontSize: 13, fontFamily: 'inherit', outline: 'none', resize: 'vertical', lineHeight: 1.6 }} />
+                <div>
+                  <label style={{ fontSize: 10, color: C.muted, display: 'block', marginBottom: 5, letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 700 }}>Artist</label>
+                  <select value={saSetlistArtistId} onChange={e => setSaSetlistArtistId(e.target.value)}
+                    style={{ width: '100%', background: '#0f0e0c', border: `1px solid ${saSetlistArtistId ? C.borderGold : C.border}`, borderRadius: 8, padding: '10px 12px', color: saSetlistArtistId ? C.text : C.muted, fontSize: 13, fontFamily: 'inherit', outline: 'none', cursor: 'pointer' }}>
+                    <option value=''>Select artist…</option>
+                    {artists.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={{ fontSize: 10, color: C.muted, display: 'block', marginBottom: 5, letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 700 }}>Songs (one per line)</label>
+                  <textarea value={saSetlistSongs} onChange={e => setSaSetlistSongs(e.target.value)}
+                    placeholder={'Five Beers From Now\nNobody Wins\nPure Excuses'}
+                    rows={8}
+                    style={{ width: '100%', background: '#0f0e0c', border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 12px', color: C.text, fontSize: 13, fontFamily: 'inherit', outline: 'none', resize: 'vertical', lineHeight: 1.8, boxSizing: 'border-box' }} />
+                </div>
                 {saSetlistMsg && <p style={{ fontSize: 12, color: saSetlistMsg.startsWith('✓') ? C.green : C.red, margin: 0 }}>{saSetlistMsg}</p>}
-                <button onClick={preloadSetlist} disabled={saSetlistLoading || !saSetlistArtistId.trim() || !saSetlistSongs.trim()}
-                  style={{ padding: '11px', background: C.gold, border: 'none', borderRadius: 8, color: '#0a0908', fontSize: 12, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'inherit', opacity: saSetlistLoading ? 0.7 : 1 }}>
+                <button onClick={preloadSetlist} disabled={saSetlistLoading || !saSetlistArtistId || !saSetlistSongs.trim()}
+                  style={{ padding: '13px', background: saSetlistArtistId && saSetlistSongs.trim() ? C.gold : C.muted, border: 'none', borderRadius: 8, color: '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: saSetlistArtistId && saSetlistSongs.trim() ? 'pointer' : 'default', fontFamily: 'inherit', opacity: saSetlistLoading ? 0.7 : 1 }}>
                   {saSetlistLoading ? 'Loading...' : 'Preload Songs'}
                 </button>
               </div>
