@@ -382,7 +382,6 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
   const pro            = profile?.pro_affiliation
   const proConfig      = pro ? PRO_CONFIG[pro] : null
   const hasPRO         = !!proConfig
-  const songCount = songs.length > 0 ? songs.length : 8
   const stepsCompleted = stepsDone.filter(Boolean).length
   const totalSteps     = stepsDone.length
   const showDate       = new Date(performance.started_at)
