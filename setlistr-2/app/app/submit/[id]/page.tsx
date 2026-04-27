@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { Check, ExternalLink, Copy, ChevronDown, ChevronUp, Download, FileText, AlertCircle } from 'lucide-react'
+import { Check, ExternalLink, Copy, ChevronDown, ChevronUp, FileText } from 'lucide-react'
 import { estimateRoyalties, capacityToBand } from '@/lib/royalty-estimate'
 
 const C = {
@@ -127,12 +127,7 @@ const PRO_CONFIG: Record<string, {
   },
 }
 
-// Secondary PRO suggestion when territory doesn't match registered PRO
-const SECONDARY_PRO_NUDGE: Record<string, { pro: string; reason: string; url: string }> = {
-  'SOCAN-US': { pro: 'ASCAP / BMI', reason: 'You played in the US. Canadian artists can also collect US performance royalties through ASCAP or BMI.', url: 'https://www.ascap.com/help/royalties-and-licensing/performing-rights/international-affiliates' },
-  'ASCAP-CA': { pro: 'SOCAN', reason: 'You played in Canada. US artists can collect Canadian royalties through SOCAN reciprocal agreements.', url: 'https://www.socan.com/faq/international-performances' },
-  'BMI-CA':   { pro: 'SOCAN', reason: 'You played in Canada. US artists can collect Canadian royalties through SOCAN reciprocal agreements.', url: 'https://www.socan.com/faq/international-performances' },
-}
+
 
 type VenueSizePick = 'small' | 'medium' | 'large' | 'arena'
 const VENUE_SIZE_OPTIONS: { key: VenueSizePick; label: string; sub: string; capacity: number }[] = [
@@ -387,8 +382,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
   const pro            = profile?.pro_affiliation
   const proConfig      = pro ? PRO_CONFIG[pro] : null
   const hasPRO         = !!proConfig
-  const territory      = getTerritory(performance.country, performance.city)
-  const daysLeft       = proConfig ? proConfig.deadlineDays(new Date()) : 365
+  const songCount = songs.length > 0 ? songs.length : 8
   const stepsCompleted = stepsDone.filter(Boolean).length
   const totalSteps     = stepsDone.length
   const showDate       = new Date(performance.started_at)
@@ -397,6 +391,9 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
   const partialCount   = songs.filter(s => s.matchConfidence === 'partial').length
   const unverCount     = songs.filter(s => s.matchConfidence === 'unverified').length
   const coverCount     = songs.filter(s => s.is_cover).length
+
+  const territory      = getTerritory(performance.country, performance.city)
+  const daysLeft       = proConfig ? proConfig.deadlineDays(new Date()) : 365
 
   const effectiveCapacity = performance.venue_capacity
     || (venueSizePick ? VENUE_SIZE_OPTIONS.find(o => o.key === venueSizePick)?.capacity : null)
@@ -408,11 +405,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
     showType: (performance.show_type as any) || 'single', territory,
   })
 
-  // Secondary PRO nudge — cross-territory collection
-  const secondaryNudgeKey = pro ? `${pro}-${territory}` : null
-  const secondaryNudge = secondaryNudgeKey ? SECONDARY_PRO_NUDGE[secondaryNudgeKey] : null
 
-  // Which show detail fields does this PRO need?
   const needsPromoter    = proConfig?.requiresPromoter
   const needsTicket      = proConfig?.requiresTicketPrice
   const needsAttendance  = proConfig?.requiresAttendance
@@ -565,23 +558,6 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
             <p style={{ fontSize: 11, color: C.muted, margin: '10px 0 0', lineHeight: 1.5 }}>
               AllTrack is recommended by SOCAN for tech-forward global submission. Free to join.
             </p>
-          </div>
-        )}
-
-        {/* Cross-territory secondary PRO nudge */}
-        {secondaryNudge && (
-          <div style={{ background: 'rgba(201,168,76,0.06)', border: `1px solid ${C.borderGold}`, borderRadius: 12, padding: '14px 16px', marginBottom: 12 }}>
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-              <AlertCircle size={14} color={C.gold} style={{ flexShrink: 0, marginTop: 2 }} />
-              <div>
-                <p style={{ fontSize: 12, fontWeight: 700, color: C.gold, margin: '0 0 4px' }}>Also collect from {secondaryNudge.pro}</p>
-                <p style={{ fontSize: 12, color: C.secondary, margin: '0 0 8px', lineHeight: 1.5 }}>{secondaryNudge.reason}</p>
-                <a href={secondaryNudge.url} target="_blank" rel="noreferrer"
-                  style={{ fontSize: 11, color: C.gold, fontWeight: 600, textDecoration: 'none' }}>
-                  Learn how to claim ↗
-                </a>
-              </div>
-            </div>
           </div>
         )}
 
