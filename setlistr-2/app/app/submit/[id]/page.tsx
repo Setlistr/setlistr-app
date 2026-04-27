@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { Check, ExternalLink, Copy, ChevronDown, ChevronUp, Download, FileText } from 'lucide-react'
+import { Check, ExternalLink, Copy, ChevronDown, ChevronUp, Download, FileText, AlertCircle } from 'lucide-react'
 import { estimateRoyalties, capacityToBand } from '@/lib/royalty-estimate'
 
 const C = {
@@ -17,23 +17,29 @@ const C = {
 const PRO_CONFIG: Record<string, {
   portalLabel: string; program: string; submitUrl: string
   deadline: string; deadlineDays: (now: Date) => number; steps: string[]
+  requiresTicketPrice?: boolean; requiresPromoter?: boolean; requiresAttendance?: boolean
+  supportUrl?: string; phone?: string
 }> = {
   SOCAN: {
     portalLabel: 'Open SOCAN Portal', program: 'Set Lists & Performances',
     submitUrl: 'https://memp.socan.com', deadline: '1 year from show date',
     deadlineDays: () => 365,
+    requiresPromoter: true,
+    supportUrl: 'https://www.socan.com/contact-us', phone: '1-800-557-6226',
     steps: [
       'Log in at memp.socan.com',
       'Go to Set Lists & Performances → Register New Set List',
       'Enter the Set List Title below as the title',
       'Click "Add Work" → search each song by title or work number',
-      'Click Next → fill in venue name, date, and attach your set list',
+      'Click Next → fill in venue name, date, promoter name, and attach your set list',
       'Click Confirm & Submit Setlist',
     ],
   },
   ASCAP: {
     portalLabel: 'Open ASCAP OnStage', program: 'ASCAP OnStage',
     submitUrl: 'https://www.ascap.com/members', deadline: 'Same quarter as performance',
+    requiresTicketPrice: true, requiresPromoter: true, requiresAttendance: true,
+    supportUrl: 'https://www.ascap.com/help', phone: '1-800-952-7227',
     deadlineDays: (now) => {
       const y = now.getFullYear()
       const ends = [new Date(y,5,30),new Date(y,8,30),new Date(y,11,31),new Date(y+1,2,31)]
@@ -46,52 +52,62 @@ const PRO_CONFIG: Record<string, {
       'Name your setlist using the title below',
       'Check each song you performed → Add to Setlist',
       'Performances → Add+ → search your venue',
+      'Enter ticket price, promoter name, and estimated attendance',
       'Select your setlist → Submit',
     ],
   },
   BMI: {
     portalLabel: 'Open BMI Live', program: 'BMI Live',
     submitUrl: 'https://www.bmi.com', deadline: '9 months from show date',
+    requiresTicketPrice: true, requiresPromoter: true,
+    supportUrl: 'https://www.bmi.com/contact', phone: '1-800-925-8451',
     deadlineDays: () => 270,
     steps: [
       'Log in at bmi.com → your name → Online Services',
       'Click BMI Live in the applications panel',
       'Click Add a Performance (top right)',
-      'Enter venue name, address, date and time',
+      'Enter venue name, address, date, time, and ticket price',
+      'Enter promoter name if applicable',
       'Search each song by title → Submit',
     ],
   },
   SESAC: {
     portalLabel: 'Open SESAC Portal', program: 'SESAC Affiliate Services',
     submitUrl: 'https://affiliates.sesac.com', deadline: 'Contact your SESAC rep',
+    requiresTicketPrice: true, requiresAttendance: true,
+    supportUrl: 'https://www.sesac.com/contact',
     deadlineDays: () => 180,
     steps: [
       'Log in at affiliates.sesac.com',
       'Navigate to Live Performances',
       'Create a setlist using the title below',
-      'Enter venue, capacity, date and music fees',
+      'Enter venue, capacity, date, ticket price, and music fees',
       'Add song titles → Submit',
     ],
   },
   GMR: {
     portalLabel: 'Contact GMR Rep', program: 'GMR — Rep Submission',
     submitUrl: 'https://globalmusicrights.com', deadline: 'Contact your GMR rep',
+    supportUrl: 'https://globalmusicrights.com/contact',
     deadlineDays: () => 180,
     steps: [
       'GMR does not have a self-serve portal',
       'Contact your GMR representative directly',
-      'Provide: venue, date, setlist, and audience size',
+      'Provide: venue, date, promoter, setlist, and audience size',
       'Your rep handles submission on your behalf',
     ],
   },
   PRS: {
     portalLabel: 'Open PRS Portal', program: 'PRS Live Music Reporting',
     submitUrl: 'https://www.prsformusic.com/login', deadline: '1 year from show date',
+    requiresTicketPrice: true, requiresPromoter: true,
+    supportUrl: 'https://www.prsformusic.com/help', phone: '+44 (0)207 580 5544',
     deadlineDays: () => 365,
     steps: [
       'Log in at prsformusic.com/login',
       'Go to Live Music → Submit a setlist',
-      'Enter venue name, postcode, date and ticket price',
+      'Enter venue name, postcode, date, and ticket price',
+      'Enter promoter name',
       'Add song titles and your writer share',
       'Submit',
     ],
@@ -99,22 +115,31 @@ const PRO_CONFIG: Record<string, {
   APRA: {
     portalLabel: 'Open APRA Portal', program: 'APRA AMCOS Live Performance',
     submitUrl: 'https://www.apraamcos.com.au/members', deadline: '1 year from show date',
+    requiresPromoter: true,
+    supportUrl: 'https://www.apraamcos.com.au/contact', phone: '+61 2 9935 7900',
     deadlineDays: () => 365,
     steps: [
       'Log in at apraamcos.com.au/members',
       'Navigate to Live Performance → Submit a setlist',
-      'Enter venue, date, and performance details',
+      'Enter venue, date, promoter, and performance details',
       'Add songs performed from your catalog → Submit',
     ],
   },
 }
 
+// Secondary PRO suggestion when territory doesn't match registered PRO
+const SECONDARY_PRO_NUDGE: Record<string, { pro: string; reason: string; url: string }> = {
+  'SOCAN-US': { pro: 'ASCAP / BMI', reason: 'You played in the US. Canadian artists can also collect US performance royalties through ASCAP or BMI.', url: 'https://www.ascap.com/help/royalties-and-licensing/performing-rights/international-affiliates' },
+  'ASCAP-CA': { pro: 'SOCAN', reason: 'You played in Canada. US artists can collect Canadian royalties through SOCAN reciprocal agreements.', url: 'https://www.socan.com/faq/international-performances' },
+  'BMI-CA':   { pro: 'SOCAN', reason: 'You played in Canada. US artists can collect Canadian royalties through SOCAN reciprocal agreements.', url: 'https://www.socan.com/faq/international-performances' },
+}
+
 type VenueSizePick = 'small' | 'medium' | 'large' | 'arena'
 const VENUE_SIZE_OPTIONS: { key: VenueSizePick; label: string; sub: string; capacity: number }[] = [
-  { key: 'small',  label: 'Small',  sub: '< 300',   capacity: 200 },
-  { key: 'medium', label: 'Medium', sub: '300–2k',  capacity: 600 },
-  { key: 'large',  label: 'Large',  sub: '2k–10k',  capacity: 5000 },
-  { key: 'arena',  label: 'Arena',  sub: '10k+',    capacity: 20000 },
+  { key: 'small',  label: 'Small',  sub: '< 300',  capacity: 200 },
+  { key: 'medium', label: 'Medium', sub: '300–2k', capacity: 600 },
+  { key: 'large',  label: 'Large',  sub: '2k–10k', capacity: 5000 },
+  { key: 'arena',  label: 'Arena',  sub: '10k+',   capacity: 20000 },
 ]
 
 type Song = {
@@ -152,26 +177,19 @@ function getTerritory(country?: string | null, city?: string | null): string {
   return 'US'
 }
 
-// ── Generates and downloads a plain-text submission brief ─────────────────────
-// This is the foundation of the "Setlistr prepared everything" experience.
-// Future: swap this for a PDF or structured PRO-formatted file per organization.
 function downloadSubmissionBrief({
-  performance, songs, profile, proConfig, pro, estimate, suggestedTitle, effectiveCapacity,
+  performance, songs, profile, proConfig, pro, estimate, suggestedTitle,
+  effectiveCapacity, promoter, ticketPrice, attendanceEstimate,
 }: {
-  performance: Performance
-  songs: Song[]
-  profile: Profile | null
-  proConfig: typeof PRO_CONFIG[string] | null
-  pro: string | null | undefined
+  performance: Performance; songs: Song[]; profile: Profile | null
+  proConfig: typeof PRO_CONFIG[string] | null; pro: string | null | undefined
   estimate: { expected: number; low: number; high: number }
-  suggestedTitle: string
-  effectiveCapacity: number | null
+  suggestedTitle: string; effectiveCapacity: number | null
+  promoter: string; ticketPrice: string; attendanceEstimate: string
 }) {
   const showDate = new Date(performance.started_at)
     .toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
-
   const line = (char = '─', n = 52) => char.repeat(n)
-
   const songLines = songs.map((s, i) => {
     const parts = [`${String(i + 1).padStart(2, ' ')}. ${s.title}`]
     if (s.is_cover) parts.push('  [COVER]')
@@ -180,7 +198,6 @@ function downloadSubmissionBrief({
     if (s.isrc) parts.push(`    ISRC: ${s.isrc}`)
     return parts.join('\n')
   }).join('\n\n')
-
   const steps = proConfig
     ? proConfig.steps.map((s, i) => `  ${i + 1}. ${s}`).join('\n')
     : '  Set your PRO in Setlistr Settings to see submission steps.'
@@ -196,6 +213,9 @@ function downloadSubmissionBrief({
     `Venue:     ${performance.venue_name}${performance.city ? `, ${performance.city}` : ''}`,
     `Date:      ${showDate}`,
     effectiveCapacity ? `Capacity:  ~${effectiveCapacity.toLocaleString()}` : '',
+    promoter ? `Promoter:  ${promoter}` : '',
+    ticketPrice ? `Ticket:    $${ticketPrice}` : '',
+    attendanceEstimate ? `Attendance: ~${attendanceEstimate}` : '',
     '',
     `PRO SUBMISSION`,
     line('─', 30),
@@ -206,12 +226,21 @@ function downloadSubmissionBrief({
     `Setlist Title: ${suggestedTitle}`,
     proConfig ? `Portal:        ${proConfig.submitUrl}` : '',
     proConfig ? `Deadline:      ${proConfig.deadline}` : '',
+    proConfig?.supportUrl ? `Support:       ${proConfig.supportUrl}` : '',
+    proConfig?.phone ? `Phone:         ${proConfig.phone}` : '',
     '',
     `ESTIMATED ROYALTIES`,
     line('─', 30),
     `Expected:  ~$${estimate.expected}`,
     `Range:     $${estimate.low} – $${estimate.high}`,
     `Songs:     ${songs.length}`,
+    '',
+    `WHAT HAPPENS NEXT`,
+    line('─', 30),
+    `  After submission, your PRO reviews and processes the claim.`,
+    `  Royalty payments typically arrive 6–9 months after submission.`,
+    `  You can track submission status in your PRO member portal.`,
+    `  Questions? ${proConfig?.supportUrl || 'support@setlistr.ai'}`,
     '',
     `SETLIST (${songs.length} songs)`,
     line('─', 30),
@@ -222,8 +251,7 @@ function downloadSubmissionBrief({
     steps,
     '',
     line(),
-    `Keep this file for your records. Royalty payments typically arrive 6–9 months`,
-    `after submission. Questions? support@setlistr.ai`,
+    `Keep this file for your records. Questions? support@setlistr.ai`,
   ].filter(l => l !== null && l !== undefined).join('\n')
 
   const blob = new Blob([brief], { type: 'text/plain' })
@@ -233,27 +261,29 @@ function downloadSubmissionBrief({
   const safeDate = new Date(performance.started_at).toISOString().slice(0, 10)
   a.href = url
   a.download = `setlistr-brief-${safeVenue}-${safeDate}.txt`
-  document.body.appendChild(a)
-  a.click()
-  document.body.removeChild(a)
-  URL.revokeObjectURL(url)
+  document.body.appendChild(a); a.click()
+  document.body.removeChild(a); URL.revokeObjectURL(url)
 }
 
 export default function SubmitPage({ params }: { params: { id: string } }) {
   const router = useRouter()
-  const [performance, setPerformance]   = useState<Performance | null>(null)
-  const [songs, setSongs]               = useState<Song[]>([])
-  const [profile, setProfile]           = useState<Profile | null>(null)
-  const [loading, setLoading]           = useState(true)
-  const [copied, setCopied]             = useState<string | null>(null)
-  const [stepsOpen, setStepsOpen]       = useState(false)
-  const [submitted, setSubmitted]       = useState(false)
-  const [markingDone, setMarkingDone]   = useState(false)
-  const [stepsDone, setStepsDone]       = useState<boolean[]>([])
+  const [performance, setPerformance]     = useState<Performance | null>(null)
+  const [songs, setSongs]                 = useState<Song[]>([])
+  const [profile, setProfile]             = useState<Profile | null>(null)
+  const [loading, setLoading]             = useState(true)
+  const [copied, setCopied]               = useState<string | null>(null)
+  const [stepsOpen, setStepsOpen]         = useState(false)
+  const [submitted, setSubmitted]         = useState(false)
+  const [markingDone, setMarkingDone]     = useState(false)
+  const [stepsDone, setStepsDone]         = useState<boolean[]>([])
   const [venueSizePick, setVenueSizePick] = useState<VenueSizePick | null>(null)
-  // Tracks whether artist has opened the PRO portal — flips the primary CTA
-  // to "I've Filed It" so they close the loop without hunting for a ghost button
-  const [portalOpened, setPortalOpened] = useState(false)
+  const [portalOpened, setPortalOpened]   = useState(false)
+
+  // Show details PROs need
+  const [promoter, setPromoter]                 = useState('')
+  const [ticketPrice, setTicketPrice]           = useState('')
+  const [attendanceEstimate, setAttendanceEstimate] = useState('')
+  const [showDetailsOpen, setShowDetailsOpen]   = useState(false)
 
   useEffect(() => {
     const supabase = createClient()
@@ -287,9 +317,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
         const songsRes = await fetch(`/api/performance-songs?performanceId=${params.id}`)
         const songsJson = await songsRes.json()
         songData = songsJson.songs || []
-      } catch (e) {
-        console.error('[SubmitPage] songs fetch failed:', e)
-      }
+      } catch (e) { console.error('[SubmitPage] songs fetch failed:', e) }
 
       const mapped: Song[] = songData.map(s => ({
         title: s.title, artist: s.artist || '',
@@ -302,6 +330,11 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
 
       const config = profileData?.pro_affiliation ? PRO_CONFIG[profileData.pro_affiliation] : null
       if (config) setStepsDone(new Array(config.steps.length).fill(false))
+
+      // Auto-open show details if PRO requires promoter/ticket price
+      if (config && (config.requiresPromoter || config.requiresTicketPrice)) {
+        setShowDetailsOpen(true)
+      }
 
       setLoading(false)
     }
@@ -318,15 +351,12 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
     setTimeout(() => setCopied(null), 2000)
   }
 
-  // Copies every song title as a newline-separated list — one tap, ready to paste
   function copyAllSongs() {
-    const allTitles = songs.map(s => s.title).join('\n')
-    copyText(allTitles, 'all-songs')
+    copyText(songs.map(s => s.title).join('\n'), 'all-songs')
   }
 
   function handleOpenPortal(url: string) {
     window.open(url, '_blank')
-    // Flip CTA state: artist just went to file — surface "I've Filed It" immediately
     setPortalOpened(true)
   }
 
@@ -374,11 +404,22 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
 
   const songCount = songs.length > 0 ? songs.length : 8
   const estimate  = estimateRoyalties({
-    songCount,
-    venueCapacityBand: capacityToBand(effectiveCapacity),
-    showType: (performance.show_type as any) || 'single',
-    territory,
+    songCount, venueCapacityBand: capacityToBand(effectiveCapacity),
+    showType: (performance.show_type as any) || 'single', territory,
   })
+
+  // Secondary PRO nudge — cross-territory collection
+  const secondaryNudgeKey = pro ? `${pro}-${territory}` : null
+  const secondaryNudge = secondaryNudgeKey ? SECONDARY_PRO_NUDGE[secondaryNudgeKey] : null
+
+  // Which show detail fields does this PRO need?
+  const needsPromoter    = proConfig?.requiresPromoter
+  const needsTicket      = proConfig?.requiresTicketPrice
+  const needsAttendance  = proConfig?.requiresAttendance
+  const hasAnyShowDetail = needsPromoter || needsTicket || needsAttendance
+  const showDetailsFilled = (!needsPromoter || promoter.trim())
+    && (!needsTicket || ticketPrice.trim())
+    && (!needsAttendance || attendanceEstimate.trim())
 
   // ── Submitted confirmation ──────────────────────────────────────────────────
   if (submitted) return (
@@ -392,12 +433,36 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
         <p style={{ fontSize: 14, color: C.secondary, margin: '0 0 6px' }}>{performance.venue_name}{performance.city ? ` · ${performance.city}` : ''}</p>
         <p style={{ fontSize: 13, color: C.muted, margin: '0 0 28px' }}>{showDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
 
-        <div style={{ width: '100%', background: C.greenDim, border: '1px solid rgba(74,222,128,0.2)', borderRadius: 16, padding: '20px', marginBottom: 20 }}>
+        <div style={{ width: '100%', background: C.greenDim, border: '1px solid rgba(74,222,128,0.2)', borderRadius: 16, padding: '20px', marginBottom: 14 }}>
           <p style={{ fontSize: 13, color: C.green, margin: '0 0 4px', fontWeight: 600 }}>~${estimate.expected} on its way</p>
           <p style={{ fontSize: 12, color: C.secondary, margin: 0 }}>{songs.length} songs on record · expect payment in 6–9 months</p>
         </div>
 
-        {/* Receipt — the trust-building artefact that accumulates over time */}
+        {/* What happens next */}
+        <div style={{ width: '100%', background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '16px 18px', marginBottom: 14, textAlign: 'left' }}>
+          <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' as const, color: C.gold, margin: '0 0 12px' }}>What Happens Next</p>
+          {[
+            { icon: '📋', label: 'PRO reviews your claim', when: 'Now – 4 weeks' },
+            { icon: '✅', label: 'Claim processed & logged', when: '1–3 months' },
+            { icon: '💰', label: 'Royalty payment issued', when: '6–9 months' },
+          ].map(({ icon, label, when }) => (
+            <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0', borderBottom: label !== 'Royalty payment issued' ? `1px solid ${C.border}` : 'none' }}>
+              <span style={{ fontSize: 18, flexShrink: 0 }}>{icon}</span>
+              <div style={{ flex: 1 }}>
+                <p style={{ fontSize: 12, color: C.text, margin: 0, fontWeight: 600 }}>{label}</p>
+              </div>
+              <span style={{ fontSize: 11, color: C.muted, fontFamily: '"DM Mono", monospace', flexShrink: 0 }}>{when}</span>
+            </div>
+          ))}
+          {proConfig?.supportUrl && (
+            <p style={{ fontSize: 11, color: C.muted, margin: '10px 0 0', lineHeight: 1.5 }}>
+              Track your claim at{' '}
+              <a href={proConfig.submitUrl} target="_blank" rel="noreferrer" style={{ color: C.gold, textDecoration: 'none' }}>{proConfig.submitUrl}</a>
+            </p>
+          )}
+        </div>
+
+        {/* Receipt */}
         <div style={{ width: '100%', background: 'rgba(255,255,255,0.02)', border: `1px solid ${C.border}`, borderRadius: 14, padding: '14px 18px', marginBottom: 20, textAlign: 'left' }}>
           <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' as const, color: C.muted, margin: '0 0 10px' }}>Submission Receipt</p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -487,10 +552,120 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
           <div style={{ background: C.redDim, border: '1px solid rgba(248,113,113,0.2)', borderRadius: 12, padding: '14px 16px', marginBottom: 12 }}>
             <p style={{ fontSize: 13, color: C.red, margin: '0 0 4px', fontWeight: 700 }}>No PRO selected</p>
             <p style={{ fontSize: 12, color: C.secondary, margin: '0 0 10px' }}>Set your PRO affiliation in Settings to use the guided submission flow.</p>
-            <button onClick={() => router.push('/app/settings')}
-              style={{ background: 'none', border: '1px solid rgba(248,113,113,0.3)', borderRadius: 8, padding: '8px 14px', color: C.red, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-              Go to Settings →
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' as const }}>
+              <button onClick={() => router.push('/app/settings')}
+                style={{ background: 'none', border: '1px solid rgba(248,113,113,0.3)', borderRadius: 8, padding: '8px 14px', color: C.red, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                Go to Settings →
+              </button>
+              <a href="https://www.alltrack.org" target="_blank" rel="noreferrer"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'none', border: `1px solid ${C.borderGold}`, borderRadius: 8, padding: '8px 14px', color: C.gold, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>
+                Not in a PRO? Try AllTrack ↗
+              </a>
+            </div>
+            <p style={{ fontSize: 11, color: C.muted, margin: '10px 0 0', lineHeight: 1.5 }}>
+              AllTrack is recommended by SOCAN for tech-forward global submission. Free to join.
+            </p>
+          </div>
+        )}
+
+        {/* Cross-territory secondary PRO nudge */}
+        {secondaryNudge && (
+          <div style={{ background: 'rgba(201,168,76,0.06)', border: `1px solid ${C.borderGold}`, borderRadius: 12, padding: '14px 16px', marginBottom: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+              <AlertCircle size={14} color={C.gold} style={{ flexShrink: 0, marginTop: 2 }} />
+              <div>
+                <p style={{ fontSize: 12, fontWeight: 700, color: C.gold, margin: '0 0 4px' }}>Also collect from {secondaryNudge.pro}</p>
+                <p style={{ fontSize: 12, color: C.secondary, margin: '0 0 8px', lineHeight: 1.5 }}>{secondaryNudge.reason}</p>
+                <a href={secondaryNudge.url} target="_blank" rel="noreferrer"
+                  style={{ fontSize: 11, color: C.gold, fontWeight: 600, textDecoration: 'none' }}>
+                  Learn how to claim ↗
+                </a>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Show Details — PRO required fields */}
+        {hasAnyShowDetail && (
+          <div style={{ background: C.card, border: `1px solid ${showDetailsFilled ? 'rgba(74,222,128,0.25)' : C.borderGold}`, borderRadius: 14, marginBottom: 12, overflow: 'hidden' }}>
+            <button onClick={() => setShowDetailsOpen(v => !v)}
+              style={{ width: '100%', padding: '14px 18px', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontFamily: 'inherit' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: C.text }}>Show Details</span>
+                {showDetailsFilled
+                  ? <span style={{ fontSize: 11, color: C.green, background: C.greenDim, border: '1px solid rgba(74,222,128,0.2)', borderRadius: 20, padding: '2px 8px' }}>✓ Ready</span>
+                  : <span style={{ fontSize: 11, color: C.gold, background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 20, padding: '2px 8px' }}>Required by {pro}</span>
+                }
+              </div>
+              {showDetailsOpen ? <ChevronUp size={15} color={C.muted} /> : <ChevronDown size={15} color={C.muted} />}
             </button>
+            {showDetailsOpen && (
+              <div style={{ padding: '0 18px 18px', borderTop: `1px solid ${C.border}`, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <p style={{ fontSize: 11, color: C.muted, margin: '12px 0 0', lineHeight: 1.5 }}>
+                  {pro} requires these details for a complete submission. Fill them in before opening the portal.
+                </p>
+
+                {needsPromoter && (
+                  <div>
+                    <label style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, color: C.muted, display: 'block', marginBottom: 6 }}>
+                      Promoter Name <span style={{ color: C.gold }}>*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={promoter}
+                      onChange={e => setPromoter(e.target.value)}
+                      placeholder="e.g. Live Nation, self-promoted, venue name..."
+                      style={{ width: '100%', background: '#0a0908', border: `1px solid ${promoter ? C.borderGold : C.border}`, borderRadius: 10, padding: '11px 14px', color: C.text, fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' as const }}
+                    />
+                    <p style={{ fontSize: 10, color: C.muted, margin: '4px 0 0' }}>
+                      If self-promoted, enter your own name or the venue name.
+                    </p>
+                  </div>
+                )}
+
+                {needsTicket && (
+                  <div>
+                    <label style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, color: C.muted, display: 'block', marginBottom: 6 }}>
+                      Ticket Price <span style={{ color: C.gold }}>*</span>
+                    </label>
+                    <div style={{ position: 'relative' }}>
+                      <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: C.muted, fontSize: 13 }}>$</span>
+                      <input
+                        type="number"
+                        value={ticketPrice}
+                        onChange={e => setTicketPrice(e.target.value)}
+                        placeholder="0.00"
+                        min="0"
+                        step="0.01"
+                        style={{ width: '100%', background: '#0a0908', border: `1px solid ${ticketPrice ? C.borderGold : C.border}`, borderRadius: 10, padding: '11px 14px 11px 28px', color: C.text, fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' as const }}
+                      />
+                    </div>
+                    <p style={{ fontSize: 10, color: C.muted, margin: '4px 0 0' }}>
+                      Enter 0 for free shows. This affects your royalty calculation.
+                    </p>
+                  </div>
+                )}
+
+                {needsAttendance && (
+                  <div>
+                    <label style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, color: C.muted, display: 'block', marginBottom: 6 }}>
+                      Estimated Attendance
+                    </label>
+                    <input
+                      type="number"
+                      value={attendanceEstimate}
+                      onChange={e => setAttendanceEstimate(e.target.value)}
+                      placeholder="e.g. 150"
+                      min="0"
+                      style={{ width: '100%', background: '#0a0908', border: `1px solid ${attendanceEstimate ? C.borderGold : C.border}`, borderRadius: 10, padding: '11px 14px', color: C.text, fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' as const }}
+                    />
+                    <p style={{ fontSize: 10, color: C.muted, margin: '4px 0 0' }}>
+                      Best estimate is fine — PROs use this for weighting, not auditing.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 
@@ -505,13 +680,38 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
               {copied === 'title' ? <><Check size={11} strokeWidth={3} /> Copied</> : <><Copy size={11} /> Copy</>}
             </button>
           </div>
-          {profile?.ipi_number && (
-            <p style={{ fontSize: 11, color: C.muted, margin: '8px 0 0' }}>
-              IPI: <span style={{ color: C.secondary, fontFamily: '"DM Mono", monospace' }}>{profile.ipi_number}</span>
-              <button onClick={() => copyText(profile.ipi_number!, 'ipi')} style={{ background: 'none', border: 'none', color: copied === 'ipi' ? C.green : C.muted, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', marginLeft: 6 }}>
-                {copied === 'ipi' ? '✓ copied' : 'copy'}
-              </button>
-            </p>
+
+          {/* Profile info for portal */}
+          {(profile?.ipi_number || profile?.legal_name || profile?.publisher_name) && (
+            <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {profile?.legal_name && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: 11, color: C.muted }}>Legal Name</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: 11, color: C.secondary, fontFamily: '"DM Mono", monospace' }}>{profile.legal_name}</span>
+                    <button onClick={() => copyText(profile.legal_name!, 'legal')} style={{ background: 'none', border: 'none', color: copied === 'legal' ? C.green : C.muted, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>{copied === 'legal' ? '✓' : 'copy'}</button>
+                  </div>
+                </div>
+              )}
+              {profile?.ipi_number && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: 11, color: C.muted }}>IPI Number</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: 11, color: C.secondary, fontFamily: '"DM Mono", monospace' }}>{profile.ipi_number}</span>
+                    <button onClick={() => copyText(profile.ipi_number!, 'ipi')} style={{ background: 'none', border: 'none', color: copied === 'ipi' ? C.green : C.muted, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>{copied === 'ipi' ? '✓' : 'copy'}</button>
+                  </div>
+                </div>
+              )}
+              {profile?.publisher_name && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: 11, color: C.muted }}>Publisher</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: 11, color: C.secondary, fontFamily: '"DM Mono", monospace' }}>{profile.publisher_name}</span>
+                    <button onClick={() => copyText(profile.publisher_name!, 'pub')} style={{ background: 'none', border: 'none', color: copied === 'pub' ? C.green : C.muted, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>{copied === 'pub' ? '✓' : 'copy'}</button>
+                  </div>
+                </div>
+              )}
+            </div>
           )}
         </div>
 
@@ -528,25 +728,14 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
                 {unverCount > 0 && <span style={{ fontSize: 10, color: C.muted }}>●&nbsp;{unverCount} no data</span>}
               </div>
             </div>
-
-            {/* Copy All Songs — eliminates song-by-song tapping */}
             {songs.length > 0 && (
-              <button
-                onClick={copyAllSongs}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 7,
-                  background: copied === 'all-songs' ? C.greenDim : 'rgba(255,255,255,0.03)',
-                  border: `1px solid ${copied === 'all-songs' ? 'rgba(74,222,128,0.3)' : C.border}`,
-                  borderRadius: 8, padding: '8px 12px', cursor: 'pointer',
-                  fontFamily: 'inherit', marginBottom: 8,
-                }}>
+              <button onClick={copyAllSongs}
+                style={{ display: 'flex', alignItems: 'center', gap: 7, background: copied === 'all-songs' ? C.greenDim : 'rgba(255,255,255,0.03)', border: `1px solid ${copied === 'all-songs' ? 'rgba(74,222,128,0.3)' : C.border}`, borderRadius: 8, padding: '8px 12px', cursor: 'pointer', fontFamily: 'inherit', marginBottom: 8 }}>
                 {copied === 'all-songs'
                   ? <><Check size={11} color={C.green} strokeWidth={3} /><span style={{ fontSize: 11, fontWeight: 700, color: C.green }}>All {songs.length} titles copied</span></>
-                  : <><Copy size={11} color={C.muted} /><span style={{ fontSize: 11, fontWeight: 600, color: C.secondary }}>Copy all song titles</span></>
-                }
+                  : <><Copy size={11} color={C.muted} /><span style={{ fontSize: 11, fontWeight: 600, color: C.secondary }}>Copy all song titles</span></>}
               </button>
             )}
-
             <p style={{ fontSize: 11, color: C.muted, margin: 0, lineHeight: 1.5 }}>
               Or tap any song to copy its title individually.
               {coverCount > 0 && <span style={{ color: C.gold }}> {coverCount} cover{coverCount > 1 ? 's' : ''} — use "Add Cover Version" in the portal.</span>}
@@ -614,7 +803,15 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
             </button>
             {stepsOpen && (
               <div style={{ padding: '0 18px 18px', borderTop: `1px solid ${C.border}` }}>
-                <p style={{ fontSize: 11, color: C.muted, margin: '12px 0 14px' }}>Program: <strong style={{ color: C.secondary }}>{proConfig.program}</strong></p>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '12px 0 14px' }}>
+                  <p style={{ fontSize: 11, color: C.muted, margin: 0 }}>Program: <strong style={{ color: C.secondary }}>{proConfig.program}</strong></p>
+                  {proConfig.phone && (
+                    <a href={`tel:${proConfig.phone.replace(/[^0-9+]/g, '')}`}
+                      style={{ fontSize: 11, color: C.muted, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}>
+                      📞 {proConfig.phone}
+                    </a>
+                  )}
+                </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {proConfig.steps.map((step, i) => (
                     <button key={i} onClick={() => setStepsDone(prev => prev.map((v, idx) => idx === i ? !v : v))}
@@ -632,6 +829,12 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
                     <span style={{ fontSize: 12, fontWeight: 600, color: C.green }}>All steps done — tap "I've Filed It" below</span>
                   </div>
                 )}
+                {proConfig.supportUrl && (
+                  <a href={proConfig.supportUrl} target="_blank" rel="noreferrer"
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 5, marginTop: 12, fontSize: 11, color: C.muted, textDecoration: 'none' }}>
+                    Need help? {pro} support ↗
+                  </a>
+                )}
               </div>
             )}
           </div>
@@ -639,55 +842,30 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
 
         {/* CTAs */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-
-          {/* Download Submission Brief — Setlistr prepares everything, artist just files */}
           {songs.length > 0 && (
             <button
-              onClick={() => downloadSubmissionBrief({ performance, songs, profile, proConfig: proConfig || null, pro, estimate, suggestedTitle, effectiveCapacity: effectiveCapacity ?? null })}
-              style={{
-                width: '100%', padding: '14px',
-                background: 'rgba(201,168,76,0.06)',
-                border: `1px solid ${C.borderGold}`,
-                borderRadius: 12, color: C.gold, fontSize: 13, fontWeight: 700,
-                cursor: 'pointer', display: 'flex', alignItems: 'center',
-                justifyContent: 'center', gap: 8, fontFamily: 'inherit',
-              }}>
+              onClick={() => downloadSubmissionBrief({ performance, songs, profile, proConfig: proConfig || null, pro, estimate, suggestedTitle, effectiveCapacity: effectiveCapacity ?? null, promoter, ticketPrice, attendanceEstimate })}
+              style={{ width: '100%', padding: '14px', background: 'rgba(201,168,76,0.06)', border: `1px solid ${C.borderGold}`, borderRadius: 12, color: C.gold, fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit' }}>
               <FileText size={14} strokeWidth={2} />
               Download Submission Brief
             </button>
           )}
 
-          {/* Primary CTA: flips from "Open Portal" → "I've Filed It" after portal is opened */}
           {hasPRO && proConfig && (
             !portalOpened ? (
-              <button
-                onClick={() => handleOpenPortal(proConfig.submitUrl)}
+              <button onClick={() => handleOpenPortal(proConfig.submitUrl)}
                 style={{ width: '100%', padding: '16px', background: C.gold, border: 'none', borderRadius: 12, color: '#0a0908', fontSize: 14, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' as const, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit' }}>
                 <ExternalLink size={15} strokeWidth={2.5} />{proConfig.portalLabel}
               </button>
             ) : (
-              <button
-                onClick={markSubmitted}
-                disabled={markingDone}
-                style={{
-                  width: '100%', padding: '16px',
-                  background: markingDone ? C.greenDim : C.green,
-                  border: 'none', borderRadius: 12,
-                  color: markingDone ? C.green : '#0a0908',
-                  fontSize: 14, fontWeight: 800, letterSpacing: '0.06em',
-                  textTransform: 'uppercase' as const,
-                  cursor: markingDone ? 'default' : 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  gap: 8, fontFamily: 'inherit',
-                  animation: 'fadeUp 0.3s ease',
-                }}>
+              <button onClick={markSubmitted} disabled={markingDone}
+                style={{ width: '100%', padding: '16px', background: markingDone ? C.greenDim : C.green, border: 'none', borderRadius: 12, color: markingDone ? C.green : '#0a0908', fontSize: 14, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' as const, cursor: markingDone ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit', animation: 'fadeUp 0.3s ease' }}>
                 <Check size={15} strokeWidth={2.5} />
                 {markingDone ? 'Recording...' : "I've Filed It"}
               </button>
             )
           )}
 
-          {/* If no PRO — still show the mark submitted ghost button */}
           {!hasPRO && (
             <button onClick={markSubmitted} disabled={markingDone}
               style={{ width: '100%', padding: '14px', background: 'transparent', border: `1px solid ${C.green}40`, borderRadius: 12, color: C.green, fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, fontFamily: 'inherit', opacity: markingDone ? 0.6 : 1 }}>
@@ -703,7 +881,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
 
         <div style={{ marginTop: 24, padding: '14px 16px', background: 'rgba(255,255,255,0.02)', border: `1px solid rgba(255,255,255,0.04)`, borderRadius: 12 }}>
           <p style={{ fontSize: 11, color: C.muted, margin: 0, lineHeight: 1.6 }}>
-            💡 <strong style={{ color: C.secondary }}>Why this matters:</strong> Your venue paid {pro || 'your PRO'} a licensing fee for this show. That money is sitting unclaimed until you submit your setlist. Most artists never do.
+            💡 <strong style={{ color: C.secondary }}>Why this matters:</strong> Your venue paid {pro || 'your PRO'} a licensing fee for this show. That money is sitting unclaimed until you submit your setlist. Royalties typically arrive 6–9 months after filing.
           </p>
         </div>
       </div>
@@ -712,6 +890,9 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500;700&display=swap');
         @keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
         *{-webkit-tap-highlight-color:transparent;box-sizing:border-box}
+        input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none}
+        input::placeholder{color:#6a6050}
+        input:focus{border-color:rgba(201,168,76,0.4)!important;outline:none}
       `}</style>
     </div>
   )
