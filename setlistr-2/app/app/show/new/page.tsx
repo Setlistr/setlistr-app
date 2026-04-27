@@ -77,6 +77,7 @@ export default function NewShowPage() {
     }
   }, [])
 
+  // ── Pre-fill artist name from profile ──
   useEffect(() => {
     const supabase = createClient()
     supabase.auth.getUser().then(({ data: { user } }) => {
@@ -87,6 +88,34 @@ export default function NewShowPage() {
           if (n) setArtistName(prev => prev === '' ? n : prev)
         })
     })
+  }, [])
+
+  // ── Pre-fill last used venue on mount ──
+  useEffect(() => {
+    const supabase = createClient()
+    async function loadLastVenue() {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      const { data: lastPerf } = await supabase
+        .from('performances')
+        .select('venue_id, venue_name, city, country')
+        .eq('user_id', user.id)
+        .in('status', ['review', 'complete', 'completed', 'exported'])
+        .not('venue_name', 'is', null)
+        .order('started_at', { ascending: false })
+        .limit(1)
+        .single()
+      if (!lastPerf?.venue_name || lastPerf.venue_name.trim() === '.') return
+      setVenueQuery(lastPerf.venue_name)
+      setVenueCity(lastPerf.city || '')
+      setVenueCountry(lastPerf.country || '')
+      if (lastPerf.venue_id) {
+        setVenueId(lastPerf.venue_id)
+        setVenueSelected(true)
+        fetchVenueMemory(lastPerf.venue_id)
+      }
+    }
+    loadLastVenue()
   }, [])
 
   useEffect(() => {
@@ -177,6 +206,9 @@ export default function NewShowPage() {
     setPlannedSongs(venueMemory.songs.map((s, i) => ({ ...s, position: i })))
     setSetlistOpen(true)
   }
+
+  // ── Grammar helper ──
+  function songWord(n: number) { return n === 1 ? 'song' : 'songs' }
 
   async function compressImage(file: File): Promise<File> {
     return new Promise((resolve) => {
@@ -308,7 +340,6 @@ export default function NewShowPage() {
         started_at: new Date().toISOString(), status: 'live', created_by: user.id,
       }).select().single()
       if (showError) throw new Error('Show insert failed: ' + showError.message)
-      // Check if operating on behalf of another artist (manager context)
       const actingAsRaw = localStorage.getItem('setlistr_acting_as')
       const actingAsCtx = actingAsRaw ? JSON.parse(actingAsRaw) : null
       const { data: selfProfile } = await supabase.from('profiles').select('artist_name, full_name').eq('id', user.id).single()
@@ -420,7 +451,7 @@ export default function NewShowPage() {
             {venueMemory && (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '9px 12px', background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 8 }}>
                 <p style={{ fontSize: 12, color: C.gold, margin: 0, lineHeight: 1.4 }}>
-                  Last time: <strong>{venueMemory.songCount} songs</strong> on {formatDate(venueMemory.lastDate)}
+                  Last time: <strong>{venueMemory.songCount} {songWord(venueMemory.songCount)}</strong> on {formatDate(venueMemory.lastDate)}
                 </p>
                 {venueMemory.songs && venueMemory.songs.length > 0 && (
                   <button onClick={loadFromVenueMemory}
@@ -509,7 +540,9 @@ export default function NewShowPage() {
               <div style={{ textAlign: 'left' }}>
                 <p style={{ fontSize: 14, fontWeight: 700, color: setlistOpen ? C.gold : C.text, margin: 0 }}>Load Your Set</p>
                 <p style={{ fontSize: 11, color: C.muted, margin: '1px 0 0' }}>
-                  {plannedSongs.length > 0 ? `${plannedSongs.length} songs loaded · auto-confirms during capture` : 'Optional · speeds up post-show review'}
+                  {plannedSongs.length > 0
+                    ? `${plannedSongs.length} ${songWord(plannedSongs.length)} loaded · auto-confirms during capture`
+                    : 'Optional · speeds up post-show review'}
                 </p>
               </div>
             </div>
@@ -611,7 +644,7 @@ export default function NewShowPage() {
               {plannedSongs.length > 0 && (
                 <div>
                   <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, color: C.muted, margin: '4px 0 8px' }}>
-                    Loaded · {plannedSongs.length} songs
+                    Loaded · {plannedSongs.length} {songWord(plannedSongs.length)}
                   </p>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                     {plannedSongs.map((song, i) => (
@@ -650,7 +683,9 @@ export default function NewShowPage() {
             style={{ width: '100%', padding: '15px', background: isValid ? C.gold : C.muted, border: 'none', borderRadius: 12, color: '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' as const, cursor: isValid && !loading ? 'pointer' : 'not-allowed', opacity: loading ? 0.7 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit' }}>
             {loading
               ? <><div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid #0a090840', borderTopColor: '#0a0908', animation: 'spin 0.7s linear infinite' }} />Starting...</>
-              : <>{plannedSongs.length > 0 ? `Start · ${plannedSongs.length} songs loaded` : 'Start Capture'} <ArrowRight size={15} strokeWidth={2.5} /></>}
+              : <>{plannedSongs.length > 0
+                  ? `Start · ${plannedSongs.length} ${songWord(plannedSongs.length)} loaded`
+                  : 'Start Capture'} <ArrowRight size={15} strokeWidth={2.5} /></>}
           </button>
         )}
 
@@ -687,7 +722,7 @@ export default function NewShowPage() {
                         <p style={{ fontSize: 11, color: C.secondary, margin: '2px 0 0' }}>{perf.artist_name} · {formatDate(perf.started_at)}</p>
                       </div>
                       <span style={{ fontSize: 11, fontWeight: 700, color: isSelected ? C.gold : C.muted, flexShrink: 0 }}>
-                        {perf.song_count} {perf.song_count === 1 ? 'song' : 'songs'}
+                        {perf.song_count} {songWord(perf.song_count)}
                       </span>
                     </button>
                   )
@@ -700,7 +735,7 @@ export default function NewShowPage() {
                   style={{ width: '100%', padding: '15px', background: isValid ? C.gold : C.muted, border: 'none', borderRadius: 12, color: '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' as const, cursor: isValid && !cloning ? 'pointer' : 'not-allowed', opacity: cloning ? 0.7 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit' }}>
                   {cloning
                     ? <><div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid #0a090840', borderTopColor: '#0a0908', animation: 'spin 0.7s linear infinite' }} />Cloning...</>
-                    : <><RefreshCw size={14} />Clone {selectedPast.song_count} {selectedPast.song_count === 1 ? 'Song' : 'Songs'} → Review</>}
+                    : <><RefreshCw size={14} />Clone {selectedPast.song_count} {songWord(selectedPast.song_count)} → Review</>}
                 </button>
               </div>
             )}
