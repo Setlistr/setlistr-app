@@ -98,6 +98,10 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   const [plannedCount, setPlannedCount] = useState<number>(0)
   const plannedSongsRef = useRef<{ title: string; normalizedTitle: string; artist: string }[]>([])
 
+  // Two-tap delete: track which song index is pending delete confirmation
+  const [deletePending, setDeletePending] = useState<number | null>(null)
+  const deletePendingTimerRef = useRef<NodeJS.Timeout | null>(null)
+
   const mediaRecorderRef    = useRef<MediaRecorder | null>(null)
   const chunksRef           = useRef<Blob[]>([])
   const listenIntervalRef   = useRef<NodeJS.Timeout | null>(null)
@@ -112,13 +116,16 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   const isListeningRef      = useRef<boolean>(false)
   const endingRef           = useRef<boolean>(false)
   const wakeLockRef         = useRef<WakeLockSentinel | null>(null)
-  const [showScreenWarning, setShowScreenWarning] = useState(false)
-  const [screenWarningDismissed, setScreenWarningDismissed] = useState(false)
 
   useEffect(() => { pendingCandidateRef.current = pendingCandidate }, [pendingCandidate])
   useEffect(() => { confirmedSongsRef.current = songs }, [songs])
   useEffect(() => { isListeningRef.current = isListening }, [isListening])
   useEffect(() => { endingRef.current = ending }, [ending])
+
+  // Clean up delete pending timer on unmount
+  useEffect(() => {
+    return () => { if (deletePendingTimerRef.current) clearTimeout(deletePendingTimerRef.current) }
+  }, [])
 
   useEffect(() => {
     const supabase = createClient()
@@ -128,8 +135,6 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
           setPerformance(data); setShowId(data.show_id || null); setSetlistId(data.setlist_id || null); setArtistId(data.artist_id || null)
           if (data.started_at) showStartRef.current = new Date(data.started_at).getTime()
 
-          // ── Resume fix: reload any songs already saved to this performance ──
-          // Without this, closing and reopening the app loses all captured songs
           const supabase2 = createClient()
           supabase2.from('performance_songs')
             .select('title, artist, isrc, composer, publisher, source, position')
@@ -200,13 +205,35 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
 
   useEffect(() => { fetchRecentSongs() }, [fetchRecentSongs])
 
-  function startEdit(index: number) { setEditingIndex(index); setEditTitle(songs[index].title); setEditArtist(songs[index].artist) }
+  function startEdit(index: number) {
+    // Cancel any pending delete if editing
+    if (deletePendingTimerRef.current) clearTimeout(deletePendingTimerRef.current)
+    setDeletePending(null)
+    setEditingIndex(index); setEditTitle(songs[index].title); setEditArtist(songs[index].artist)
+  }
   function saveEdit() {
     if (editingIndex === null || !editTitle.trim()) return
     setSongs(prev => prev.map((s, i) => i === editingIndex ? { ...s, title: editTitle.trim(), artist: editArtist.trim() || s.artist, source: s.source === 'unidentified' ? 'manual' : s.source } : s))
     setEditingIndex(null)
   }
   function cancelEdit() { setEditingIndex(null) }
+
+  // Two-tap delete: first tap arms, second tap within 2.5s confirms
+  function handleDeleteTap(e: React.MouseEvent | React.TouchEvent, realIdx: number) {
+    e.stopPropagation()
+    if (deletePending === realIdx) {
+      // Confirmed — delete
+      if (deletePendingTimerRef.current) clearTimeout(deletePendingTimerRef.current)
+      setDeletePending(null)
+      deleteSong(realIdx)
+    } else {
+      // First tap — arm it
+      if (deletePendingTimerRef.current) clearTimeout(deletePendingTimerRef.current)
+      setDeletePending(realIdx)
+      deletePendingTimerRef.current = setTimeout(() => setDeletePending(null), 2500)
+    }
+  }
+
   function deleteSong(index: number) { setSongs(prev => prev.filter((_, i) => i !== index)) }
 
   const confirmCandidate = useCallback((candidate: PendingCandidate, setlist_item_id?: string, enriched?: { isrc?: string; composer?: string; publisher?: string }) => {
@@ -303,14 +330,12 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       streamRef.current = stream; setIsListening(true); setDetectStatus('listening...')
       const pingTime = Date.now(); lastPingRef.current = pingTime; setEngineState('listening')
-      // Request wake lock to keep screen on during capture
+      // Request wake lock to keep screen on during capture (silent — no user-facing warning)
       try {
         if ('wakeLock' in navigator) {
           wakeLockRef.current = await (navigator as any).wakeLock.request('screen')
         }
       } catch {}
-      // Show screen-on warning once (iOS ignores Wake Lock)
-      if (!screenWarningDismissed) setShowScreenWarning(true)
       const recordAndDetect = () => {
         if (isDetecting) return; chunksRef.current = []
         const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4'
@@ -328,7 +353,6 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
     if (mediaRecorderRef.current?.state === 'recording') mediaRecorderRef.current.stop()
     if (streamRef.current) { streamRef.current.getTracks().forEach(t => t.stop()); streamRef.current = null }
     setIsListening(false); setEngineState('idle'); setDetectStatus('')
-    // Release wake lock when capture stops (fire and forget — no await needed)
     if (wakeLockRef.current) {
       try { wakeLockRef.current.release() } catch {}
       wakeLockRef.current = null
@@ -357,11 +381,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
       }
       await supabase.from('setlists').update({ status: 'review', updated_at: new Date().toISOString() }).eq('id', setlistId)
     }
-    // Clear any pre-inserted planned songs before saving confirmed setlist.
-    // Without this, planned songs (inserted at show start) + detected songs both
-    // land in performance_songs, creating duplicates on the review screen.
     await supabase.from('performance_songs').delete().eq('performance_id', performance.id)
-
     const songsToSave = confirmedSongsRef.current
     if (songsToSave.length > 0) {
       await supabase.from('performance_songs').insert(songsToSave.map((song, i) => ({ performance_id: performance.id, title: song.source === 'unidentified' ? (song.title === 'Unknown Song' ? null : song.title) : song.title, artist: song.artist || performance.artist_name || null, position: i + 1, isrc: song.isrc || null, composer: song.composer || null, publisher: song.publisher || null, source: song.source || 'manual' })))
@@ -395,7 +415,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   const engineLabel    = engineState === 'listening' ? 'LISTENING' : engineState === 'slow' ? 'SLOW' : engineState === 'stalled' ? 'STALLED' : 'IDLE'
 
   return (
-    <div style={{ minHeight: '100svh', background: C.bg, display: 'flex', flexDirection: 'column', fontFamily: '"DM Sans", system-ui, sans-serif', overflowX: 'hidden' }}>
+    <div style={{ minHeight: '100svh', background: C.bg, display: 'flex', flexDirection: 'column', fontFamily: '"DM Sans", system-ui, sans-serif', overflowX: 'hidden', overscrollBehavior: 'none' }}>
       <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '70vh', background: isListening ? `radial-gradient(ellipse at 50% 35%, rgba(201,168,76,0.08) 0%, transparent 65%)` : `radial-gradient(ellipse at 50% 35%, rgba(201,168,76,0.03) 0%, transparent 55%)`, pointerEvents: 'none', transition: 'background 1.8s ease', zIndex: 0 }} />
 
       {/* Header */}
@@ -406,7 +426,6 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
             <div style={{ width: 6, height: 6, borderRadius: '50%', background: engineDot, animation: engineState === 'listening' ? 'pulse-dot 1.4s ease-in-out infinite' : 'none', boxShadow: engineState === 'listening' ? `0 0 5px ${engineDot}80` : 'none', transition: 'background 0.5s ease' }} />
             <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: engineDot, transition: 'color 0.5s ease' }}>{engineLabel}</span>
           </div>
-          {/* ── Song count — appears after first song is logged ── */}
           {confirmedSongs.length > 0 && (
             <span style={{ fontFamily: '"DM Mono", monospace', fontSize: 13, fontWeight: 800, color: C.gold, letterSpacing: '-0.01em', animation: 'fadeIn 0.3s ease' }}>
               {confirmedSongs.length}♪
@@ -452,20 +471,6 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         </div>
       )}
 
-      {/* Screen-on warning — fires once when capture starts */}
-      {showScreenWarning && !screenWarningDismissed && (
-        <div style={{ position: 'relative', zIndex: 10, background: 'rgba(201,168,76,0.07)', borderBottom: '1px solid rgba(201,168,76,0.18)', padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexShrink: 0, animation: 'slideDown 0.2s ease' }}>
-          <p style={{ fontSize: 12, color: C.gold, margin: 0, lineHeight: 1.4 }}>
-            <strong>Keep your screen on.</strong>{' '}Detection pauses if the screen locks.
-          </p>
-          <button
-            onClick={() => { setShowScreenWarning(false); setScreenWarningDismissed(true) }}
-            style={{ background: 'none', border: 'none', color: C.muted, cursor: 'pointer', padding: '4px 8px', fontFamily: 'inherit', fontSize: 16, flexShrink: 0, WebkitTapHighlightColor: 'transparent' }}>
-            ✕
-          </button>
-        </div>
-      )}
-
       {/* Silence warning */}
       {showSilenceWarning && !ending && (
         <div style={{ position: 'relative', zIndex: 10, background: 'rgba(201,168,76,0.08)', borderBottom: `1px solid rgba(201,168,76,0.2)`, padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexShrink: 0, animation: 'slideDown 0.2s ease' }}>
@@ -489,7 +494,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
           </>
         )}
         <button onClick={isListening ? stopListening : startListening} disabled={isDetecting && !isListening}
-          style={{ width: 160, height: 160, borderRadius: '50%', border: 'none', cursor: isDetecting && !isListening ? 'wait' : 'pointer', position: 'relative', zIndex: 2, background: catchFlash ? `radial-gradient(circle at 40% 35%, #e8c76a, ${C.gold} 55%, #a07828)` : isListening ? `radial-gradient(circle at 40% 35%, ${C.gold}cc, ${C.gold} 55%, #8a6520)` : `radial-gradient(circle at 40% 35%, #2a2520, #1a1610 55%, #0f0e0c)`, boxShadow: catchFlash ? `0 0 60px ${C.gold}80, 0 0 120px ${C.gold}30, inset 0 1px 0 rgba(255,255,255,0.25)` : isListening ? `0 0 40px ${C.gold}40, 0 0 80px ${C.gold}18, inset 0 1px 0 rgba(255,255,255,0.12)` : `0 8px 40px rgba(0,0,0,0.6), 0 2px 8px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06)`, transform: catchFlash ? 'scale(1.05)' : 'scale(1)', transition: 'background 0.4s ease, box-shadow 0.4s ease, transform 0.2s ease', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6, WebkitTapHighlightColor: 'transparent', outline: 'none' }}>
+          style={{ width: 160, height: 160, borderRadius: '50%', border: 'none', cursor: isDetecting && !isListening ? 'wait' : 'pointer', position: 'relative', zIndex: 2, background: catchFlash ? `radial-gradient(circle at 40% 35%, #e8c76a, ${C.gold} 55%, #a07828)` : isListening ? `radial-gradient(circle at 40% 35%, ${C.gold}cc, ${C.gold} 55%, #8a6520)` : `radial-gradient(circle at 40% 35%, #2a2520, #1a1610 55%, #0f0e0c)`, boxShadow: catchFlash ? `0 0 60px ${C.gold}80, 0 0 120px ${C.gold}30, inset 0 1px 0 rgba(255,255,255,0.25)` : isListening ? `0 0 40px ${C.gold}40, 0 0 80px ${C.gold}18, inset 0 1px 0 rgba(255,255,255,0.12)` : `0 8px 40px rgba(0,0,0,0.6), 0 2px 8px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06)`, transform: catchFlash ? 'scale(1.05)' : 'scale(1)', transition: 'background 0.4s ease, box-shadow 0.4s ease, transform 0.2s ease', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6, WebkitTapHighlightColor: 'transparent', outline: 'none', touchAction: 'manipulation' }}>
           <div style={{ width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             {isDetecting ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: 3, height: 28 }}>
@@ -551,8 +556,9 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
             {confirmedSongs.map((song, i) => {
               const isSuggested = song.confidence_level === 'suggest'
               const realIdx = songs.indexOf(song)
+              const isPendingDelete = deletePending === realIdx
               return (
-                <div key={i} style={{ background: C.card, border: `1px solid ${editingIndex === realIdx ? 'rgba(201,168,76,0.45)' : 'rgba(255,255,255,0.05)'}`, borderRadius: 10, overflow: 'hidden', animation: 'songPop 0.35s cubic-bezier(0.34,1.56,0.64,1) both' }}>
+                <div key={i} style={{ background: C.card, border: `1px solid ${editingIndex === realIdx ? 'rgba(201,168,76,0.45)' : isPendingDelete ? 'rgba(220,38,38,0.35)' : 'rgba(255,255,255,0.05)'}`, borderRadius: 10, overflow: 'hidden', animation: 'songPop 0.35s cubic-bezier(0.34,1.56,0.64,1) both', transition: 'border-color 0.15s ease' }}>
                   {editingIndex === realIdx ? (
                     <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
                       <input autoFocus value={editTitle} onChange={e => setEditTitle(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') cancelEdit() }} placeholder="Song title"
@@ -565,15 +571,20 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
                       </div>
                     </div>
                   ) : (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px', cursor: 'pointer', WebkitTapHighlightColor: 'transparent', minHeight: 52 }} onClick={() => startEdit(realIdx)}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px', cursor: 'pointer', WebkitTapHighlightColor: 'transparent', minHeight: 52 }} onClick={() => !isPendingDelete && startEdit(realIdx)}>
                       <span style={{ fontSize: 11, color: C.muted, minWidth: 16, textAlign: 'right', fontFamily: '"DM Mono", monospace', opacity: 0.45 }}>{i + 1}</span>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <p style={{ fontSize: 14, fontWeight: 600, margin: 0, color: C.text, opacity: isSuggested ? 0.75 : 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{song.title}</p>
-                        {song.artist && song.artist !== performance.artist_name && <p style={{ fontSize: 11, color: C.muted, margin: '2px 0 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{song.artist}</p>}
+                        <p style={{ fontSize: 14, fontWeight: 600, margin: 0, color: isPendingDelete ? '#f87171' : C.text, opacity: isSuggested && !isPendingDelete ? 0.75 : 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', transition: 'color 0.15s ease' }}>{song.title}</p>
+                        {song.artist && song.artist !== performance.artist_name && !isPendingDelete && <p style={{ fontSize: 11, color: C.muted, margin: '2px 0 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{song.artist}</p>}
+                        {isPendingDelete && <p style={{ fontSize: 11, color: '#f87171', margin: '2px 0 0', fontWeight: 600 }}>Tap ✕ again to delete</p>}
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                        <span style={{ width: 5, height: 5, borderRadius: '50%', background: C.gold, opacity: isSuggested ? 0.3 : 0.65, display: 'inline-block' }} />
-                        <button onClick={e => { e.stopPropagation(); deleteSong(realIdx) }} style={{ background: 'none', border: 'none', color: C.muted, cursor: 'pointer', padding: '4px 6px', borderRadius: 6, fontSize: 14, lineHeight: 1, opacity: 0.5, WebkitTapHighlightColor: 'transparent' }}>✕</button>
+                        {!isPendingDelete && <span style={{ width: 5, height: 5, borderRadius: '50%', background: C.gold, opacity: isSuggested ? 0.3 : 0.65, display: 'inline-block' }} />}
+                        <button
+                          onClick={e => handleDeleteTap(e, realIdx)}
+                          style={{ background: isPendingDelete ? 'rgba(220,38,38,0.15)' : 'none', border: isPendingDelete ? '1px solid rgba(220,38,38,0.35)' : 'none', borderRadius: 6, color: isPendingDelete ? '#f87171' : C.muted, cursor: 'pointer', padding: isPendingDelete ? '4px 8px' : '4px 6px', fontSize: isPendingDelete ? 11 : 14, lineHeight: 1, opacity: isPendingDelete ? 1 : 0.5, WebkitTapHighlightColor: 'transparent', fontWeight: isPendingDelete ? 700 : 400, transition: 'all 0.15s ease', fontFamily: 'inherit' }}>
+                          {isPendingDelete ? '✕ Delete?' : '✕'}
+                        </button>
                       </div>
                     </div>
                   )}
@@ -598,7 +609,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
                   return (
                     <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: 'rgba(245,158,11,0.04)', border: `1px solid rgba(245,158,11,0.12)`, borderRadius: 8, cursor: 'pointer', WebkitTapHighlightColor: 'transparent' }} onClick={() => startEdit(realIdx)}>
                       <span style={{ fontSize: 12, color: C.amber, fontStyle: 'italic', flex: 1 }}>Unknown — tap to fill</span>
-                      <button onClick={e => { e.stopPropagation(); deleteSong(realIdx) }} style={{ background: 'none', border: 'none', color: C.muted, cursor: 'pointer', padding: '4px', opacity: 0.5, WebkitTapHighlightColor: 'transparent' }}>✕</button>
+                      <button onClick={e => handleDeleteTap(e, realIdx)} style={{ background: 'none', border: 'none', color: C.muted, cursor: 'pointer', padding: '4px', opacity: 0.5, WebkitTapHighlightColor: 'transparent' }}>✕</button>
                     </div>
                   )
                 })}
@@ -665,6 +676,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         input::placeholder { color: #5a5040; }
         input:focus { border-color: rgba(201,168,76,0.3) !important; outline: none; }
         ::-webkit-scrollbar { display: none; }
+        html, body { overscroll-behavior: none; }
       `}</style>
     </div>
   )
