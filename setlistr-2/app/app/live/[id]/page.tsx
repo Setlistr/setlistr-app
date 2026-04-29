@@ -24,11 +24,12 @@ const SILENCE_WARNING_MS = 45 * 60 * 1000
 type AcrCandidate = { title: string; artist: string; score: number }
 type DetectedSong = {
   title: string; artist: string
-  source: 'fingerprint' | 'humming' | 'transcript' | 'combined' | 'manual' | 'cloned' | 'unidentified'
+  // 'planned' = pre-loaded, not yet heard. All other sources = confirmed.
+  source: 'planned' | 'fingerprint' | 'humming' | 'transcript' | 'combined' | 'manual' | 'cloned' | 'unidentified'
   setlist_item_id?: string
   confidence_level?: 'auto' | 'suggest' | 'manual_review'
   isrc?: string; composer?: string; publisher?: string
-  was_planned?: boolean  // pre-loaded in setlist AND confirmed by detection
+  was_planned?: boolean  // was on setlist AND subsequently verified
 }
 type PendingCandidate = {
   title: string; artist: string
@@ -99,11 +100,9 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   const [plannedCount, setPlannedCount] = useState<number>(0)
   const plannedSongsRef = useRef<{ title: string; normalizedTitle: string; artist: string }[]>([])
 
-  // Two-tap delete
   const [deletePending, setDeletePending] = useState<number | null>(null)
   const deletePendingTimerRef = useRef<NodeJS.Timeout | null>(null)
 
-  // Placement card — shows once per session when capture first starts
   const [showPlacementCard, setShowPlacementCard] = useState(false)
   const placementShownRef = useRef(false)
   const placementTimerRef = useRef<NodeJS.Timeout | null>(null)
@@ -142,9 +141,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         if (data) {
           setPerformance(data); setShowId(data.show_id || null); setSetlistId(data.setlist_id || null); setArtistId(data.artist_id || null)
           if (data.started_at) showStartRef.current = new Date(data.started_at).getTime()
-
           const supabase2 = createClient()
-          // Read was_planned from DB so resume preserves planned state
           supabase2.from('performance_songs')
             .select('title, artist, isrc, composer, publisher, source, position, was_planned')
             .eq('performance_id', data.id)
@@ -152,17 +149,13 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
             .then(({ data: existingSongs }) => {
               if (existingSongs && existingSongs.length > 0) {
                 setSongs(existingSongs.map(s => ({
-                  title: s.title || 'Unknown Song',
-                  artist: s.artist || '',
+                  title: s.title || 'Unknown Song', artist: s.artist || '',
                   source: (s.source as any) || 'manual',
-                  isrc: s.isrc || '',
-                  composer: s.composer || '',
-                  publisher: s.publisher || '',
+                  isrc: s.isrc || '', composer: s.composer || '', publisher: s.publisher || '',
                   was_planned: s.was_planned === true,
                 })))
               }
             })
-
           supabase2.from('planned_setlists').select('id').eq('performance_id', data.id).single()
             .then(({ data: planned }) => {
               if (!planned?.id) return
@@ -170,10 +163,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
                 .then(({ data: pSongs }) => {
                   if (!pSongs) return
                   setPlannedCount(pSongs.length)
-                  plannedSongsRef.current = pSongs.map(s => ({
-                    title: s.title, artist: s.artist || '',
-                    normalizedTitle: normalizeSongKey(s.title),
-                  }))
+                  plannedSongsRef.current = pSongs.map(s => ({ title: s.title, artist: s.artist || '', normalizedTitle: normalizeSongKey(s.title) }))
                 })
             })
         }
@@ -208,8 +198,11 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   useEffect(() => { return () => stopListening() }, [])
 
   const fetchRecentSongs = useCallback(() => {
-    const exclude = confirmedSongsRef.current.filter(s => s.source !== 'unidentified').map(s => encodeURIComponent(s.title)).join(',')
-    fetch(exclude ? `/api/recent-songs?exclude=${exclude}` : '/api/recent-songs').then(r => r.json()).then(data => { if (data.songs) setRecentSongs(data.songs.slice(0, 8)) }).catch(() => {})
+    const exclude = confirmedSongsRef.current
+      .filter(s => s.source !== 'unidentified' && s.source !== 'planned')
+      .map(s => encodeURIComponent(s.title)).join(',')
+    fetch(exclude ? `/api/recent-songs?exclude=${exclude}` : '/api/recent-songs')
+      .then(r => r.json()).then(data => { if (data.songs) setRecentSongs(data.songs.slice(0, 8)) }).catch(() => {})
   }, [])
 
   useEffect(() => { fetchRecentSongs() }, [fetchRecentSongs])
@@ -226,7 +219,9 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   }
   function saveEdit() {
     if (editingIndex === null || !editTitle.trim()) return
-    setSongs(prev => prev.map((s, i) => i === editingIndex ? { ...s, title: editTitle.trim(), artist: editArtist.trim() || s.artist, source: s.source === 'unidentified' ? 'manual' : s.source } : s))
+    setSongs(prev => prev.map((s, i) => i === editingIndex
+      ? { ...s, title: editTitle.trim(), artist: editArtist.trim() || s.artist, source: (s.source === 'unidentified' || s.source === 'planned') ? 'manual' : s.source }
+      : s))
     setEditingIndex(null)
   }
   function cancelEdit() { setEditingIndex(null) }
@@ -245,17 +240,28 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
 
   function deleteSong(index: number) { setSongs(prev => prev.filter((_, i) => i !== index)) }
 
+  // Artist manually marks a waiting planned song as played
+  function markPlannedAsPlayed(realIdx: number) {
+    const song = songs[realIdx]
+    setSongs(prev => prev.map((s, i) => i === realIdx ? { ...s, source: 'manual', was_planned: true } : s))
+    setLastCaught(song.title); setCatchFlash(true)
+    const now = Date.now()
+    lastSongRef.current = now; setLastSongAt(now); setShowSilenceWarning(false)
+    setTimeout(() => setCatchFlash(false), 1200)
+    setTimeout(() => setLastCaught(null), 4000)
+  }
+
   const confirmCandidate = useCallback((candidate: PendingCandidate, setlist_item_id?: string, enriched?: { isrc?: string; composer?: string; publisher?: string }) => {
     const normalizedIncoming = normalizeSongKey(candidate.title)
     const plannedMatch = plannedSongsRef.current.find(p => p.normalizedTitle === normalizedIncoming)
 
     if (plannedMatch) {
-      // This song was pre-loaded — mark was_planned: true on confirm
       setSongs(prev => {
         const existingIdx = prev.findIndex(s => normalizeSongKey(s.title) === plannedMatch.normalizedTitle)
         if (existingIdx !== -1) {
+          // Transition: 'planned' (waiting) → detected+verified
           return prev.map((s, i) => i === existingIdx
-            ? { ...s, title: plannedMatch.title, source: candidate.source, confidence_level: candidate.confidence_level, was_planned: true, isrc: enriched?.isrc || s.isrc || '', composer: enriched?.composer || s.composer || '', publisher: enriched?.publisher || s.publisher || '' }
+            ? { ...s, source: candidate.source, confidence_level: candidate.confidence_level, was_planned: true, isrc: enriched?.isrc || s.isrc || '', composer: enriched?.composer || s.composer || '', publisher: enriched?.publisher || s.publisher || '' }
             : s)
         }
         return [...prev, { title: plannedMatch.title, artist: plannedMatch.artist || candidate.artist, source: candidate.source, setlist_item_id, confidence_level: candidate.confidence_level, was_planned: true, isrc: enriched?.isrc || '', composer: enriched?.composer || '', publisher: enriched?.publisher || '' }]
@@ -286,12 +292,15 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
       if (showId) formData.append('show_id', showId); if (setlistId) formData.append('setlist_id', setlistId); if (artistId) formData.append('artist_id', artistId)
       if (performance?.artist_name) formData.append('artist_name', performance.artist_name); if (performance?.venue_name) formData.append('venue_name', performance.venue_name)
       formData.append('show_type', (performance as any).show_type || 'single')
-      formData.append('previous_songs', JSON.stringify(confirmedSongsRef.current.map(s => s.title)))
+      // Only pass already-confirmed songs as "previous" — not planned/waiting ones
+      formData.append('previous_songs', JSON.stringify(confirmedSongsRef.current.filter(s => s.source !== 'planned').map(s => s.title)))
       formData.append('candidate_history', JSON.stringify(candidateHistoryRef.current))
       const res = await fetch('/api/identify', { method: 'POST', body: formData })
       const data = await res.json()
       if (data.acr_score) { candidateHistoryRef.current = [{ title: data.title || '', artist: data.artist || '', score: data.acr_score, timestamp: Date.now() }, ...candidateHistoryRef.current].slice(0, 3) }
-      const now = Date.now(); const confirmed = confirmedSongsRef.current; const pending = pendingCandidateRef.current
+      const now = Date.now()
+      const confirmed = confirmedSongsRef.current.filter(s => s.source !== 'planned')
+      const pending = pendingCandidateRef.current
       if (!data.detected) { setDetectStatus(''); return }
       const { title, artist, setlist_item_id, confidence_level, source } = data
       if (confirmed.some(s => isSameSong(s, { title }))) { setDetectStatus(''); return }
@@ -339,8 +348,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
       const pingTime = Date.now(); lastPingRef.current = pingTime; setEngineState('listening')
       try { if ('wakeLock' in navigator) wakeLockRef.current = await (navigator as any).wakeLock.request('screen') } catch {}
       if (!placementShownRef.current) {
-        placementShownRef.current = true
-        setShowPlacementCard(true)
+        placementShownRef.current = true; setShowPlacementCard(true)
         placementTimerRef.current = setTimeout(() => setShowPlacementCard(false), 8000)
       }
       const recordAndDetect = () => {
@@ -377,7 +385,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
     if (showId) await supabase.from('shows').update({ status: 'completed', ended_at: new Date().toISOString() }).eq('id', showId)
     await supabase.from('capture_sessions').update({ ended_at: new Date().toISOString(), status: 'ended' }).eq('performance_id', performance.id)
     if (setlistId) {
-      const manualSongs = songs.filter(s => s.source === 'manual')
+      const manualSongs = confirmedSongsRef.current.filter(s => s.source === 'manual' && !s.was_planned)
       if (manualSongs.length > 0) {
         const { data: existingItems } = await supabase.from('setlist_items').select('position').eq('setlist_id', setlistId).order('position', { ascending: false }).limit(1)
         const startPosition = (existingItems?.[0]?.position || 0) + 1
@@ -386,7 +394,8 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
       await supabase.from('setlists').update({ status: 'review', updated_at: new Date().toISOString() }).eq('id', setlistId)
     }
     await supabase.from('performance_songs').delete().eq('performance_id', performance.id)
-    const songsToSave = confirmedSongsRef.current
+    // Only save confirmed songs — drop planned-but-never-heard
+    const songsToSave = confirmedSongsRef.current.filter(s => s.source !== 'planned')
     if (songsToSave.length > 0) {
       await supabase.from('performance_songs').insert(songsToSave.map((song, i) => ({
         performance_id: performance.id,
@@ -419,11 +428,15 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
     </div>
   )
 
-  const ringState      = catchFlash ? 'catch' : isDetecting ? 'detect' : isListening ? 'listen' : 'idle'
-  const confirmedSongs = songs.filter(s => s.source !== 'unidentified')
+  // ── Derived groups ────────────────────────────────────────────────────────
+  const confirmedSongs = songs.filter(s => s.source !== 'planned' && s.source !== 'unidentified')
+  const waitingSongs   = songs.filter(s => s.source === 'planned')
   const unknownSongs   = songs.filter(s => s.source === 'unidentified')
-  const engineDot      = engineState === 'listening' ? C.green : engineState === 'slow' ? C.amber : engineState === 'stalled' ? '#f87171' : C.muted
-  const engineLabel    = engineState === 'listening' ? 'LISTENING' : engineState === 'slow' ? 'SLOW' : engineState === 'stalled' ? 'STALLED' : 'IDLE'
+  const verifiedCount  = songs.filter(s => s.was_planned && s.source !== 'planned').length
+
+  const ringState   = catchFlash ? 'catch' : isDetecting ? 'detect' : isListening ? 'listen' : 'idle'
+  const engineDot   = engineState === 'listening' ? C.green : engineState === 'slow' ? C.amber : engineState === 'stalled' ? '#f87171' : C.muted
+  const engineLabel = engineState === 'listening' ? 'LISTENING' : engineState === 'slow' ? 'SLOW' : engineState === 'stalled' ? 'STALLED' : 'IDLE'
 
   function renderTrustSignal() {
     if (lastCaught) {
@@ -455,23 +468,23 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
           <span style={{ fontSize: 12, color: C.amber, fontWeight: 500, textAlign: 'center' as const }}>Having trouble hearing — move closer to the speakers</span>
           <button onClick={restartListening} disabled={restarting}
             style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '7px 14px', background: 'transparent', border: `1px solid rgba(245,158,11,0.35)`, borderRadius: 20, color: C.amber, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent' }}>
-            <RefreshCw size={11} style={{ animation: restarting ? 'spin 0.7s linear infinite' : 'none' }} />
-            {restarting ? 'Restarting...' : 'Restart'}
+            <RefreshCw size={11} style={{ animation: restarting ? 'spin 0.7s linear infinite' : 'none' }} />{restarting ? 'Restarting...' : 'Restart'}
           </button>
         </div>
       )
     }
-    if (pendingCandidate && !lastCaught) {
+    if (pendingCandidate) {
+      const isOnSetlist = plannedSongsRef.current.some(p => p.normalizedTitle === normalizeSongKey(pendingCandidate.title))
       return (
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, animation: 'fadeIn 0.2s ease' }}>
-          <div style={{ width: 6, height: 6, borderRadius: '50%', background: C.amber, animation: 'pulse-dot 1s ease-in-out infinite' }} />
-          <span style={{ fontSize: 13, color: C.secondary, fontWeight: 500 }}>Hearing something...</span>
+          <div style={{ width: 6, height: 6, borderRadius: '50%', background: isOnSetlist ? C.green : C.amber, animation: 'pulse-dot 1s ease-in-out infinite' }} />
+          <span style={{ fontSize: 13, color: C.secondary, fontWeight: 500 }}>
+            {isOnSetlist ? `Hearing "${pendingCandidate.title}"...` : 'Hearing something...'}
+          </span>
         </div>
       )
     }
-    if (lastSongAt > 0 && isListening) {
-      return <span style={{ fontSize: 11, color: C.muted + '90' }}>Last song {timeAgo(lastSongAt)}</span>
-    }
+    if (lastSongAt > 0 && isListening) return <span style={{ fontSize: 11, color: C.muted + '90' }}>Last song {timeAgo(lastSongAt)}</span>
     if (isDetecting) {
       return (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -506,24 +519,20 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
             <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: engineDot, transition: 'color 0.5s ease' }}>{engineLabel}</span>
           </div>
           {confirmedSongs.length > 0 && (
-            <span style={{ fontFamily: '"DM Mono", monospace', fontSize: 13, fontWeight: 800, color: C.gold, letterSpacing: '-0.01em', animation: 'fadeIn 0.3s ease' }}>
-              {confirmedSongs.length}♪
-            </span>
+            <span style={{ fontFamily: '"DM Mono", monospace', fontSize: 13, fontWeight: 800, color: C.gold, letterSpacing: '-0.01em', animation: 'fadeIn 0.3s ease' }}>{confirmedSongs.length}♪</span>
           )}
           <span style={{ fontFamily: '"DM Mono", monospace', fontSize: 16, fontWeight: 700, color: C.muted, letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums' }}>{formatTime(elapsed)}</span>
         </div>
       </div>
 
-      {/* Progress bar */}
+      {/* Progress bar — verified / total planned */}
       {plannedCount > 0 && isListening && (
         <div style={{ position: 'relative', zIndex: 10, background: 'rgba(255,255,255,0.02)', borderBottom: `1px solid ${C.border}`, padding: '7px 16px', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
           <div style={{ flex: 1, height: 3, background: 'rgba(255,255,255,0.06)', borderRadius: 2, overflow: 'hidden' }}>
-            <div style={{ height: '100%', background: C.gold, borderRadius: 2, width: `${Math.min((confirmedSongs.filter(s => s.was_planned).length / plannedCount) * 100, 100)}%`, transition: 'width 0.6s ease' }} />
+            <div style={{ height: '100%', background: C.green, borderRadius: 2, width: `${Math.min((verifiedCount / plannedCount) * 100, 100)}%`, transition: 'width 0.6s ease' }} />
           </div>
-          <span style={{ fontSize: 11, color: C.gold, fontWeight: 700, flexShrink: 0, fontFamily: '"DM Mono", monospace' }}>
-            {confirmedSongs.filter(s => s.was_planned).length}/{plannedCount}
-          </span>
-          <span style={{ fontSize: 11, color: C.muted, flexShrink: 0 }}>planned</span>
+          <span style={{ fontSize: 11, color: C.green, fontWeight: 700, flexShrink: 0, fontFamily: '"DM Mono", monospace' }}>{verifiedCount}/{plannedCount}</span>
+          <span style={{ fontSize: 11, color: C.muted, flexShrink: 0 }}>verified</span>
         </div>
       )}
 
@@ -532,10 +541,8 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         <div style={{ position: 'relative', zIndex: 10, background: 'rgba(201,168,76,0.08)', borderBottom: `1px solid rgba(201,168,76,0.2)`, padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexShrink: 0, animation: 'slideDown 0.2s ease' }}>
           <p style={{ fontSize: 12, color: C.gold, margin: 0 }}>No songs in a while · auto-closing soon</p>
           <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-            <button onClick={() => { setShowSilenceWarning(false); lastSongRef.current = Date.now() }}
-              style={{ padding: '6px 12px', background: C.goldDim, border: `1px solid rgba(201,168,76,0.3)`, borderRadius: 8, color: C.gold, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent' }}>Keep Going</button>
-            <button onClick={handleEnd}
-              style={{ padding: '6px 12px', background: 'transparent', border: `1px solid ${C.border}`, borderRadius: 8, color: C.muted, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent' }}>End Now</button>
+            <button onClick={() => { setShowSilenceWarning(false); lastSongRef.current = Date.now() }} style={{ padding: '6px 12px', background: C.goldDim, border: `1px solid rgba(201,168,76,0.3)`, borderRadius: 8, color: C.gold, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent' }}>Keep Going</button>
+            <button onClick={handleEnd} style={{ padding: '6px 12px', background: 'transparent', border: `1px solid ${C.border}`, borderRadius: 8, color: C.muted, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent' }}>End Now</button>
           </div>
         </div>
       )}
@@ -549,7 +556,6 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
             ))}
           </>
         )}
-
         <button onClick={isListening ? stopListening : startListening} disabled={isDetecting && !isListening}
           style={{ width: 160, height: 160, borderRadius: '50%', border: 'none', cursor: isDetecting && !isListening ? 'wait' : 'pointer', position: 'relative', zIndex: 2, background: catchFlash ? `radial-gradient(circle at 40% 35%, #e8c76a, ${C.gold} 55%, #a07828)` : isListening ? `radial-gradient(circle at 40% 35%, ${C.gold}cc, ${C.gold} 55%, #8a6520)` : `radial-gradient(circle at 40% 35%, #2a2520, #1a1610 55%, #0f0e0c)`, boxShadow: catchFlash ? `0 0 60px ${C.gold}80, 0 0 120px ${C.gold}30, inset 0 1px 0 rgba(255,255,255,0.25)` : isListening ? `0 0 40px ${C.gold}40, 0 0 80px ${C.gold}18, inset 0 1px 0 rgba(255,255,255,0.12)` : `0 8px 40px rgba(0,0,0,0.6), 0 2px 8px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06)`, transform: catchFlash ? 'scale(1.05)' : 'scale(1)', transition: 'background 0.4s ease, box-shadow 0.4s ease, transform 0.2s ease', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6, WebkitTapHighlightColor: 'transparent', outline: 'none', touchAction: 'manipulation' }}>
           <div style={{ width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -571,19 +577,15 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
           </span>
         </button>
 
-        {/* Trust signal zone */}
         <div style={{ marginTop: 22, minHeight: 44, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
           {renderTrustSignal()}
         </div>
 
-        {/* Device placement card */}
         {showPlacementCard && (
           <div style={{ marginTop: 8, maxWidth: 300, width: '100%', background: 'rgba(255,255,255,0.03)', border: `1px solid rgba(255,255,255,0.09)`, borderRadius: 12, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10, animation: 'fadeUp 0.3s ease' }}>
             <span style={{ fontSize: 16, flexShrink: 0 }}>📍</span>
             <span style={{ fontSize: 12, color: C.secondary, lineHeight: 1.4, flex: 1 }}>Best results at front of house or near the PA</span>
-            <button onClick={dismissPlacementCard} style={{ background: 'none', border: 'none', color: C.muted, cursor: 'pointer', padding: '2px', flexShrink: 0, display: 'flex', alignItems: 'center', WebkitTapHighlightColor: 'transparent' }}>
-              <X size={13} />
-            </button>
+            <button onClick={dismissPlacementCard} style={{ background: 'none', border: 'none', color: C.muted, cursor: 'pointer', padding: '2px', flexShrink: 0, display: 'flex', alignItems: 'center', WebkitTapHighlightColor: 'transparent' }}><X size={13} /></button>
           </div>
         )}
       </div>
@@ -594,9 +596,8 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
           <div style={{ background: '#161310', border: `1px solid rgba(201,168,76,0.22)`, borderRadius: 14, padding: '14px 16px' }}>
             <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: C.muted, margin: '0 0 8px' }}>
               Hearing something{pendingCandidate.matchCount > 1 ? ` · ${pendingCandidate.matchCount}×` : ''}
-              {/* Show "on your setlist" if it's a planned song */}
               {plannedSongsRef.current.some(p => p.normalizedTitle === normalizeSongKey(pendingCandidate.title)) && (
-                <span style={{ marginLeft: 6, color: C.green }}>· on your setlist</span>
+                <span style={{ marginLeft: 6, color: C.green }}>· on your setlist ✓</span>
               )}
             </p>
             <p style={{ fontSize: 15, fontWeight: 700, color: C.text, margin: '0 0 2px', letterSpacing: '-0.01em' }}>{pendingCandidate.title}</p>
@@ -612,34 +613,22 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
       {/* Lower section */}
       <div style={{ position: 'relative', zIndex: 1, flex: 1, display: 'flex', flexDirection: 'column', gap: 8, padding: '0 16px 40px', maxWidth: 480, width: '100%', margin: '0 auto', boxSizing: 'border-box' }}>
 
+        {/* ── CONFIRMED — heard by engine or manually added ── */}
         {confirmedSongs.length > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             {confirmedSongs.map((song, i) => {
-              const isSuggested       = song.confidence_level === 'suggest'
-              const isPlannedConfirmed = !!song.was_planned && song.source !== 'manual'
-              const realIdx           = songs.indexOf(song)
-              const isPendingDelete   = deletePending === realIdx
-
-              // Border: green for planned+confirmed, red-tint for pending delete, default otherwise
-              const cardBorderColor = isPendingDelete
-                ? 'rgba(220,38,38,0.35)'
-                : editingIndex === realIdx
-                ? 'rgba(201,168,76,0.45)'
-                : isPlannedConfirmed
-                ? 'rgba(74,222,128,0.25)'
-                : 'rgba(255,255,255,0.05)'
-
+              const isVerified    = !!song.was_planned
+              const isSuggested   = song.confidence_level === 'suggest' && !isVerified
+              const realIdx       = songs.indexOf(song)
+              const isPendingDel  = deletePending === realIdx
               return (
                 <div key={i} style={{
                   background: C.card,
-                  border: `1px solid ${cardBorderColor}`,
-                  // Green left accent strip for planned+confirmed
-                  borderLeft: isPlannedConfirmed && !isPendingDelete && editingIndex !== realIdx
-                    ? `3px solid rgba(74,222,128,0.5)`
-                    : `1px solid ${cardBorderColor}`,
+                  border: `1px solid ${isPendingDel ? 'rgba(220,38,38,0.35)' : editingIndex === realIdx ? 'rgba(201,168,76,0.45)' : isVerified ? 'rgba(74,222,128,0.2)' : 'rgba(255,255,255,0.05)'}`,
+                  borderLeft: isVerified && !isPendingDel && editingIndex !== realIdx ? `3px solid rgba(74,222,128,0.55)` : undefined,
                   borderRadius: 10, overflow: 'hidden',
                   animation: 'songPop 0.35s cubic-bezier(0.34,1.56,0.64,1) both',
-                  transition: 'border-color 0.15s ease',
+                  transition: 'border-color 0.2s ease',
                 }}>
                   {editingIndex === realIdx ? (
                     <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -653,32 +642,30 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
                       </div>
                     </div>
                   ) : (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', cursor: 'pointer', WebkitTapHighlightColor: 'transparent', minHeight: 52 }} onClick={() => !isPendingDelete && startEdit(realIdx)}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', cursor: 'pointer', WebkitTapHighlightColor: 'transparent', minHeight: 52 }} onClick={() => !isPendingDel && startEdit(realIdx)}>
                       <span style={{ fontSize: 11, color: C.muted, minWidth: 16, textAlign: 'right', fontFamily: '"DM Mono", monospace', opacity: 0.45 }}>{i + 1}</span>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <p style={{ fontSize: 14, fontWeight: 600, margin: 0, color: isPendingDelete ? '#f87171' : C.text, opacity: isSuggested && !isPendingDelete ? 0.75 : 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', transition: 'color 0.15s ease' }}>{song.title}</p>
-                        {isPendingDelete
+                        <p style={{ fontSize: 14, fontWeight: 600, margin: 0, color: isPendingDel ? '#f87171' : C.text, opacity: isSuggested ? 0.75 : 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{song.title}</p>
+                        {isPendingDel
                           ? <p style={{ fontSize: 11, color: '#f87171', margin: '2px 0 0', fontWeight: 600 }}>Tap ✕ again to delete</p>
-                          : isPlannedConfirmed
-                          ? <p style={{ fontSize: 10, color: C.green, margin: '2px 0 0', fontWeight: 700, letterSpacing: '0.04em', opacity: 0.8 }}>✓ verified from setlist</p>
+                          : isVerified
+                          ? <p style={{ fontSize: 10, color: C.green, margin: '2px 0 0', fontWeight: 600, opacity: 0.85 }}>Verified ✓</p>
                           : song.artist && song.artist !== performance.artist_name
                           ? <p style={{ fontSize: 11, color: C.muted, margin: '2px 0 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{song.artist}</p>
                           : null
                         }
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                        {!isPendingDelete && (
-                          isPlannedConfirmed
-                            // Green check for planned+confirmed
-                            ? <div style={{ width: 18, height: 18, borderRadius: '50%', background: 'rgba(74,222,128,0.15)', border: '1px solid rgba(74,222,128,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        {!isPendingDel && (
+                          isVerified
+                            ? <div style={{ width: 18, height: 18, borderRadius: '50%', background: 'rgba(74,222,128,0.12)', border: '1px solid rgba(74,222,128,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                 <Check size={10} color={C.green} strokeWidth={2.5} />
                               </div>
-                            // Gold dot for fresh detections
                             : <span style={{ width: 5, height: 5, borderRadius: '50%', background: C.gold, opacity: isSuggested ? 0.3 : 0.65, display: 'inline-block' }} />
                         )}
                         <button onClick={e => handleDeleteTap(e, realIdx)}
-                          style={{ background: isPendingDelete ? 'rgba(220,38,38,0.15)' : 'none', border: isPendingDelete ? '1px solid rgba(220,38,38,0.35)' : 'none', borderRadius: 6, color: isPendingDelete ? '#f87171' : C.muted, cursor: 'pointer', padding: isPendingDelete ? '4px 8px' : '4px 6px', fontSize: isPendingDelete ? 11 : 14, lineHeight: 1, opacity: isPendingDelete ? 1 : 0.5, WebkitTapHighlightColor: 'transparent', fontWeight: isPendingDelete ? 700 : 400, transition: 'all 0.15s ease', fontFamily: 'inherit' }}>
-                          {isPendingDelete ? '✕ Delete?' : '✕'}
+                          style={{ background: isPendingDel ? 'rgba(220,38,38,0.15)' : 'none', border: isPendingDel ? '1px solid rgba(220,38,38,0.35)' : 'none', borderRadius: 6, color: isPendingDel ? '#f87171' : C.muted, cursor: 'pointer', padding: isPendingDel ? '4px 8px' : '4px 6px', fontSize: isPendingDel ? 11 : 14, lineHeight: 1, opacity: isPendingDel ? 1 : 0.5, WebkitTapHighlightColor: 'transparent', fontWeight: isPendingDel ? 700 : 400, transition: 'all 0.15s ease', fontFamily: 'inherit' }}>
+                          {isPendingDel ? '✕ Delete?' : '✕'}
                         </button>
                       </div>
                     </div>
@@ -689,6 +676,34 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
           </div>
         )}
 
+        {/* ── WAITING — on setlist but not yet heard ── */}
+        {waitingSongs.length > 0 && (
+          <div style={{ marginTop: confirmedSongs.length > 0 ? 4 : 0 }}>
+            <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, margin: '0 0 6px', paddingLeft: 2 }}>
+              On your setlist · waiting to be heard
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+              {waitingSongs.map((song, i) => {
+                const realIdx = songs.indexOf(song)
+                return (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 14px', background: 'rgba(255,255,255,0.02)', border: `1px dashed rgba(255,255,255,0.09)`, borderRadius: 10, opacity: 0.6 }}>
+                    <div style={{ width: 16, height: 16, borderRadius: '50%', border: `1.5px solid rgba(255,255,255,0.15)`, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <div style={{ width: 5, height: 5, borderRadius: '50%', background: 'rgba(255,255,255,0.2)' }} />
+                    </div>
+                    <p style={{ fontSize: 13, fontWeight: 500, color: C.secondary, margin: 0, flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{song.title}</p>
+                    <button
+                      onClick={() => markPlannedAsPlayed(realIdx)}
+                      style={{ flexShrink: 0, padding: '4px 10px', background: 'transparent', border: `1px solid rgba(255,255,255,0.1)`, borderRadius: 6, color: C.muted, fontSize: 10, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', letterSpacing: '0.04em', WebkitTapHighlightColor: 'transparent' }}>
+                      Played
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Unknown songs */}
         {unknownSongs.length > 0 && (
           <div>
             <button onClick={() => setShowUnknowns(v => !v)}
