@@ -2,8 +2,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { Calendar, ArrowRight, Music4, RefreshCw, Check, MapPin, Search, X, Plus, ChevronDown, ChevronUp } from 'lucide-react'
-import { CameraCapture } from '@/components/CameraCapture'
+import { Calendar, ArrowRight, RefreshCw, Check, MapPin, Search, X, Plus, ChevronDown, ChevronUp } from 'lucide-react'
 
 const C = {
   bg: '#0a0908', card: '#141210', cardHover: '#181614',
@@ -25,6 +24,12 @@ type Venue = { id: string; name: string; city: string; country: string }
 type PastPerformance = { id: string; venue_name: string; artist_name: string; started_at: string; song_count: number }
 type VenueMemory = { lastDate: string; songCount: number; showCount: number; songs?: { title: string; artist: string }[] }
 type PlannedSong = { title: string; artist: string; position: number }
+
+// Setlist mode:
+// null   → show the two-path choice buttons
+// 'photo' → camera/file upload area is expanded
+// 'quick' → manual chip/search add is expanded
+type SetlistMode = null | 'photo' | 'quick'
 
 export default function NewShowPage() {
   const router       = useRouter()
@@ -56,15 +61,18 @@ export default function NewShowPage() {
   const [selectedPast, setSelectedPast] = useState<PastPerformance | null>(null)
   const [cloning, setCloning]           = useState(false)
 
-  const [setlistOpen, setSetlistOpen]   = useState(false)
+  // Setlist state — replaces setlistOpen + uploadMode + showCamera
+  const [setlistMode, setSetlistMode]   = useState<SetlistMode>(null)
   const [plannedSongs, setPlannedSongs] = useState<PlannedSong[]>([])
-  const [uploadMode, setUploadMode]     = useState<'chips' | 'upload'>('chips')
   const [recentSongs, setRecentSongs]   = useState<{ title: string; artist: string }[]>([])
   const [quickSearch, setQuickSearch]   = useState('')
   const [uploading, setUploading]       = useState(false)
   const [uploadError, setUploadError]   = useState('')
-  const [showCamera, setShowCamera]     = useState(false)
-  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Camera input: capture="environment" opens native camera on iOS + Android
+  const cameraInputRef = useRef<HTMLInputElement>(null)
+  // Gallery/file input: no capture attribute — opens file picker
+  const fileInputRef   = useRef<HTMLInputElement>(null)
 
   const effectiveName = venueQuery.trim() || 'Show'
   const isValid = venueQuery.trim().length > 0
@@ -72,8 +80,7 @@ export default function NewShowPage() {
   // ── Auto-open upload mode when arriving via ?mode=upload ──
   useEffect(() => {
     if (searchParams.get('mode') === 'upload') {
-      setSetlistOpen(true)
-      setUploadMode('upload')
+      setSetlistMode('photo')
     }
   }, [])
 
@@ -118,13 +125,14 @@ export default function NewShowPage() {
     loadLastVenue()
   }, [])
 
+  // ── Load recent songs when quick-add mode opens ──
   useEffect(() => {
-    if (!setlistOpen) return
+    if (setlistMode !== 'quick') return
     fetch('/api/recent-songs?limit=20')
       .then(r => r.json())
       .then(data => setRecentSongs(data?.songs || []))
       .catch(() => {})
-  }, [setlistOpen])
+  }, [setlistMode])
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -204,10 +212,9 @@ export default function NewShowPage() {
   function loadFromVenueMemory() {
     if (!venueMemory?.songs?.length) return
     setPlannedSongs(venueMemory.songs.map((s, i) => ({ ...s, position: i })))
-    setSetlistOpen(true)
+    // Don't force a mode — songs will appear regardless
   }
 
-  // ── Grammar helper ──
   function songWord(n: number) { return n === 1 ? 'song' : 'songs' }
 
   async function compressImage(file: File): Promise<File> {
@@ -245,9 +252,7 @@ export default function NewShowPage() {
     setUploading(true)
     try {
       let uploadFile = file
-      if (file.type.startsWith('image/') || isHEIC) {
-        uploadFile = await compressImage(file)
-      }
+      if (file.type.startsWith('image/') || isHEIC) uploadFile = await compressImage(file)
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       const formData = new FormData()
@@ -259,12 +264,17 @@ export default function NewShowPage() {
       const existing = new Set(plannedSongs.map(s => s.title.toLowerCase()))
       const newSongs = (data.songs as PlannedSong[]).filter(s => !existing.has(s.title.toLowerCase()))
       setPlannedSongs(prev => [...prev, ...newSongs.map((s, i) => ({ ...s, position: prev.length + i }))])
-      setUploadMode('chips')
     } catch (err: any) {
       setUploadError(err.message || 'Could not read the setlist. Try a clearer photo.')
     } finally {
       setUploading(false)
     }
+  }
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0]
+    if (f) handleFileUpload(f)
+    e.target.value = ''
   }
 
   const filteredRecent = recentSongs
@@ -344,7 +354,6 @@ export default function NewShowPage() {
       const actingAsCtx = actingAsRaw ? JSON.parse(actingAsRaw) : null
       const { data: selfProfile } = await supabase.from('profiles').select('artist_name, full_name').eq('id', user.id).single()
       const selfName = selfProfile?.artist_name || selfProfile?.full_name || null
-
       const { data: performance, error: perfError } = await supabase.from('performances').insert({
         show_id: show.id, performance_date: scheduledIso || new Date().toISOString(),
         artist_name: artistName.trim() || venueQuery.trim(),
@@ -359,7 +368,6 @@ export default function NewShowPage() {
       if (plannedSongs.length > 0) await savePlannedSetlist(performance.id, user.id, resolvedVenueId)
       router.push(`/app/live/${performance.id}`)
     } catch (err: any) {
-      alert('DEBUG: ' + err?.message)
       setError(err?.message || 'Something went wrong. Please try again.')
       setLoading(false)
     }
@@ -392,7 +400,6 @@ export default function NewShowPage() {
       const actingAsCtx2 = actingAsRaw2 ? JSON.parse(actingAsRaw2) : null
       const { data: selfProfile2 } = await supabase.from('profiles').select('artist_name, full_name').eq('id', user.id).single()
       const selfName2 = selfProfile2?.artist_name || selfProfile2?.full_name || null
-
       const { data: performance, error: perfError } = await supabase.from('performances').insert({
         show_id: show.id, performance_date: scheduledIso || new Date().toISOString(),
         artist_name: artistName.trim() || venueQuery.trim(),
@@ -424,10 +431,30 @@ export default function NewShowPage() {
     <div style={{ minHeight: '100svh', background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px 20px' }}>
       <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '50vh', pointerEvents: 'none', zIndex: 0, background: 'radial-gradient(ellipse at 50% 0%, rgba(201,168,76,0.07) 0%, transparent 65%)' }} />
 
+      {/* Hidden file inputs */}
+      {/* Camera: capture="environment" opens native camera on iOS + Android */}
+      <input
+        ref={cameraInputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
+        capture="environment"
+        style={{ display: 'none' }}
+        onChange={handleFileChange}
+      />
+      {/* Gallery: no capture attribute — file picker only */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp,application/pdf,text/plain"
+        style={{ display: 'none' }}
+        onChange={handleFileChange}
+      />
+
       <div style={{ width: '100%', maxWidth: 440, position: 'relative', zIndex: 1, animation: 'fadeUp 0.4s ease' }}>
 
         <h1 style={{ fontSize: 30, fontWeight: 800, color: C.text, margin: '0 0 24px', letterSpacing: '-0.025em' }}>Where tonight?</h1>
 
+        {/* ── VENUE CARD ── */}
         <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '20px', display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 16 }}>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, position: 'relative' }} ref={dropdownRef}>
@@ -455,7 +482,7 @@ export default function NewShowPage() {
                 </p>
                 {venueMemory.songs && venueMemory.songs.length > 0 && (
                   <button onClick={loadFromVenueMemory}
-                    style={{ fontSize: 11, fontWeight: 700, color: C.gold, background: 'rgba(201,168,76,0.15)', border: `1px solid ${C.borderGold}`, borderRadius: 6, padding: '4px 8px', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
+                    style={{ fontSize: 11, fontWeight: 700, color: C.gold, background: 'rgba(201,168,76,0.15)', border: `1px solid ${C.borderGold}`, borderRadius: 6, padding: '4px 8px', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' as const }}>
                     Load Set →
                   </button>
                 )}
@@ -529,155 +556,196 @@ export default function NewShowPage() {
           )}
         </div>
 
-        {/* ── LOAD YOUR SET ── */}
-        <div style={{ background: C.card, border: `1px solid ${setlistOpen ? C.borderGold : C.border}`, borderRadius: 16, marginBottom: 16, overflow: 'hidden', transition: 'border-color 0.2s ease' }}>
-          <button onClick={() => setSetlistOpen(v => !v)}
-            style={{ width: '100%', padding: '16px 20px', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontFamily: 'inherit' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{ width: 28, height: 28, borderRadius: 8, background: setlistOpen ? C.goldDim : 'rgba(255,255,255,0.04)', border: `1px solid ${setlistOpen ? C.borderGold : C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Music4 size={13} color={setlistOpen ? C.gold : C.muted} />
-              </div>
-              <div style={{ textAlign: 'left' }}>
-                <p style={{ fontSize: 14, fontWeight: 700, color: setlistOpen ? C.gold : C.text, margin: 0 }}>Load Your Set</p>
-                <p style={{ fontSize: 11, color: C.muted, margin: '1px 0 0' }}>
-                  {plannedSongs.length > 0
-                    ? `${plannedSongs.length} ${songWord(plannedSongs.length)} loaded · auto-confirms during capture`
-                    : 'Optional · speeds up post-show review'}
-                </p>
-              </div>
+        {/* ── SETLIST SECTION ── */}
+        <div style={{ background: C.card, border: `1px solid ${plannedSongs.length > 0 ? C.borderGold : C.border}`, borderRadius: 16, marginBottom: 16, overflow: 'hidden', transition: 'border-color 0.2s ease' }}>
+
+          {/* Header */}
+          <div style={{ padding: '16px 20px 14px' }}>
+            <p style={{ fontSize: 14, fontWeight: 700, color: plannedSongs.length > 0 ? C.gold : C.text, margin: '0 0 3px', transition: 'color 0.2s ease' }}>
+              {plannedSongs.length > 0
+                ? `✓ ${plannedSongs.length} ${songWord(plannedSongs.length)} loaded`
+                : 'Have a setlist?'}
+            </p>
+            <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>
+              {plannedSongs.length > 0
+                ? 'Songs will auto-confirm during capture · tap to add more'
+                : 'A photo speeds up capture and improves accuracy'}
+            </p>
+          </div>
+
+          {/* ── PATH CHOICE — shown when no mode selected and no songs yet ── */}
+          {setlistMode === null && plannedSongs.length === 0 && (
+            <div style={{ padding: '0 16px 16px', display: 'flex', gap: 8 }}>
+              {/* Primary: open camera immediately */}
+              <button
+                onClick={() => {
+                  setUploadError('')
+                  setSetlistMode('photo')
+                  // Slight delay so state updates before input click
+                  setTimeout(() => cameraInputRef.current?.click(), 50)
+                }}
+                style={{ flex: 2, padding: '16px 12px', background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 12, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, WebkitTapHighlightColor: 'transparent' }}>
+                <span style={{ fontSize: 22 }}>📸</span>
+                <span style={{ fontSize: 12, fontWeight: 800, color: C.gold, textAlign: 'center' as const }}>Photo setlist</span>
+                <span style={{ fontSize: 10, color: C.muted, textAlign: 'center' as const }}>Scan paper or screen</span>
+              </button>
+              {/* Secondary: manual add */}
+              <button
+                onClick={() => setSetlistMode('quick')}
+                style={{ flex: 1, padding: '16px 12px', background: 'rgba(255,255,255,0.02)', border: `1px solid ${C.border}`, borderRadius: 12, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, WebkitTapHighlightColor: 'transparent' }}>
+                <span style={{ fontSize: 22 }}>🎵</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: C.secondary, textAlign: 'center' as const }}>Add songs</span>
+                <span style={{ fontSize: 10, color: C.muted, textAlign: 'center' as const }}>From catalog</span>
+              </button>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              {plannedSongs.length > 0 && (
-                <span style={{ fontSize: 11, fontWeight: 700, color: C.gold, background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 20, padding: '2px 8px' }}>{plannedSongs.length}</span>
+          )}
+
+          {/* ── PHOTO MODE ── */}
+          {setlistMode === 'photo' && (
+            <div style={{ padding: '0 16px 16px', borderTop: `1px solid ${C.border}` }}>
+              <div style={{ paddingTop: 14, display: 'flex', gap: 8 }}>
+                {/* Retake / add another photo */}
+                <button
+                  onClick={() => { setUploadError(''); cameraInputRef.current?.click() }}
+                  disabled={uploading}
+                  style={{ flex: 1, padding: '14px 10px', background: uploading ? 'transparent' : C.goldDim, border: `1px solid ${uploading ? C.border : C.borderGold}`, borderRadius: 10, cursor: uploading ? 'default' : 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, opacity: uploading ? 0.5 : 1, WebkitTapHighlightColor: 'transparent' }}>
+                  <span style={{ fontSize: 20 }}>📷</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: C.gold }}>
+                    {plannedSongs.length > 0 ? 'Add page 2' : 'Take photo'}
+                  </span>
+                </button>
+                {/* Gallery / file picker */}
+                <button
+                  onClick={() => { setUploadError(''); fileInputRef.current?.click() }}
+                  disabled={uploading}
+                  style={{ flex: 1, padding: '14px 10px', background: 'rgba(255,255,255,0.02)', border: `1px solid ${C.border}`, borderRadius: 10, cursor: uploading ? 'default' : 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, opacity: uploading ? 0.5 : 1, WebkitTapHighlightColor: 'transparent' }}>
+                  <span style={{ fontSize: 20 }}>📁</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: C.secondary }}>Gallery / file</span>
+                </button>
+                {/* Switch to manual */}
+                <button
+                  onClick={() => setSetlistMode('quick')}
+                  style={{ flex: 1, padding: '14px 10px', background: 'rgba(255,255,255,0.02)', border: `1px solid ${C.border}`, borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, WebkitTapHighlightColor: 'transparent' }}>
+                  <span style={{ fontSize: 20 }}>✏️</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: C.secondary }}>Type it</span>
+                </button>
+              </div>
+
+              {uploading && (
+                <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, padding: '14px', background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 10 }}>
+                  <div style={{ width: 16, height: 16, borderRadius: '50%', border: `2px solid ${C.muted}`, borderTopColor: C.gold, animation: 'spin 0.7s linear infinite' }} />
+                  <span style={{ fontSize: 13, color: C.gold, fontWeight: 600 }}>Reading your setlist...</span>
+                </div>
               )}
-              {setlistOpen ? <ChevronUp size={15} color={C.muted} /> : <ChevronDown size={15} color={C.muted} />}
+
+              {uploadError && (
+                <div style={{ marginTop: 8, padding: '10px 12px', background: C.redDim, border: '1px solid rgba(248,113,113,0.2)', borderRadius: 8 }}>
+                  <p style={{ fontSize: 12, color: C.red, margin: 0 }}>{uploadError}</p>
+                </div>
+              )}
             </div>
-          </button>
+          )}
 
-          {setlistOpen && (
-            <div style={{ padding: '0 16px 20px', borderTop: `1px solid ${C.border}` }}>
-              <div style={{ display: 'flex', gap: 6, margin: '14px 0' }}>
-                {([
-                  { key: 'chips', label: '⚡ Quick Add' },
-                  { key: 'upload', label: '📸 Upload Setlist' },
-                ] as const).map(tab => (
-                  <button key={tab.key} onClick={() => { setUploadMode(tab.key); setUploadError('') }}
-                    style={{ flex: 1, padding: '9px 12px', background: uploadMode === tab.key ? C.goldDim : 'transparent', border: `1px solid ${uploadMode === tab.key ? C.borderGold : C.border}`, borderRadius: 10, color: uploadMode === tab.key ? C.gold : C.muted, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
-                    {tab.label}
-                  </button>
-                ))}
-              </div>
+          {/* ── QUICK ADD MODE ── */}
+          {setlistMode === 'quick' && (
+            <div style={{ padding: '0 16px 16px', borderTop: `1px solid ${C.border}` }}>
+              <div style={{ paddingTop: 14 }}>
+                <div style={{ position: 'relative', marginBottom: 10 }}>
+                  <Search size={12} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: C.muted, pointerEvents: 'none' }} />
+                  <input
+                    value={quickSearch}
+                    onChange={e => setQuickSearch(e.target.value)}
+                    placeholder="Search your songs..."
+                    autoFocus
+                    style={{ width: '100%', background: C.input, border: `1px solid ${C.border}`, borderRadius: 8, padding: '9px 12px 9px 30px', color: C.text, fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' as const }} />
+                </div>
 
-              {/* Quick Add */}
-              {uploadMode === 'chips' && (
-                <div>
-                  <div style={{ position: 'relative', marginBottom: 10 }}>
-                    <Search size={12} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: C.muted, pointerEvents: 'none' }} />
-                    <input value={quickSearch} onChange={e => setQuickSearch(e.target.value)} placeholder="Search your songs..."
-                      style={{ width: '100%', background: C.input, border: `1px solid ${C.border}`, borderRadius: 8, padding: '9px 12px 9px 30px', color: C.text, fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' as const }} />
-                  </div>
-                  {filteredRecent.length > 0 && (
-                    <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: 6, marginBottom: 12 }}>
-                      {filteredRecent.slice(0, 20).map((song, i) => (
-                        <button key={i} onClick={() => addPlannedSong(song.title, song.artist)}
-                          style={{ padding: '6px 12px', background: 'rgba(255,255,255,0.04)', border: `1px solid ${C.border}`, borderRadius: 20, color: C.secondary, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 5 }}
-                          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = C.goldDim; (e.currentTarget as HTMLElement).style.borderColor = C.borderGold; (e.currentTarget as HTMLElement).style.color = C.gold }}
-                          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.04)'; (e.currentTarget as HTMLElement).style.borderColor = C.border; (e.currentTarget as HTMLElement).style.color = C.secondary }}>
-                          <Plus size={10} />{song.title}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                  {filteredRecent.length === 0 && quickSearch && (
-                    <div style={{ marginBottom: 12 }}>
-                      <button onClick={() => { addPlannedSong(quickSearch); setQuickSearch('') }}
-                        style={{ padding: '8px 14px', background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 20, color: C.gold, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
-                        + Add "{quickSearch}"
+                {filteredRecent.length > 0 && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: 6, marginBottom: 12 }}>
+                    {filteredRecent.slice(0, 20).map((song, i) => (
+                      <button key={i} onClick={() => addPlannedSong(song.title, song.artist)}
+                        style={{ padding: '6px 12px', background: 'rgba(255,255,255,0.04)', border: `1px solid ${C.border}`, borderRadius: 20, color: C.secondary, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 5 }}
+                        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = C.goldDim; (e.currentTarget as HTMLElement).style.borderColor = C.borderGold; (e.currentTarget as HTMLElement).style.color = C.gold }}
+                        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.04)'; (e.currentTarget as HTMLElement).style.borderColor = C.border; (e.currentTarget as HTMLElement).style.color = C.secondary }}>
+                        <Plus size={10} />{song.title}
                       </button>
-                    </div>
-                  )}
-                  {recentSongs.length === 0 && !quickSearch && (
-                    <p style={{ fontSize: 12, color: C.muted, margin: '0 0 12px', fontStyle: 'italic' }}>No recent songs yet — type a song name above or use Upload Setlist</p>
-                  )}
-                </div>
-              )}
-
-              {/* Upload */}
-              {uploadMode === 'upload' && (
-                <div style={{ marginBottom: 12 }}>
-                  <input ref={fileInputRef} type="file"
-                    accept="image/jpeg,image/png,image/webp,application/pdf,text/plain"
-                    style={{ display: 'none' }}
-                    onChange={e => { const f = e.target.files?.[0]; if (f) handleFileUpload(f); e.target.value = '' }} />
-
-                  <div style={{ display: 'flex', gap: 8, marginBottom: uploading ? 8 : 0 }}>
-                    <button onClick={() => { setUploadError(''); setShowCamera(true) }} disabled={uploading}
-                      style={{ flex: 1, padding: '18px 12px', background: 'rgba(255,255,255,0.02)', border: `1px solid ${C.border}`, borderRadius: 12, cursor: uploading ? 'default' : 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, opacity: uploading ? 0.5 : 1 }}>
-                      <span style={{ fontSize: 24 }}>📷</span>
-                      <span style={{ fontSize: 12, fontWeight: 700, color: C.secondary }}>Take Photo</span>
-                      <span style={{ fontSize: 10, color: C.muted, textAlign: 'center' as const }}>Point at paper setlist</span>
-                    </button>
-                    <button onClick={() => { setUploadError(''); fileInputRef.current?.click() }} disabled={uploading}
-                      style={{ flex: 1, padding: '18px 12px', background: 'rgba(255,255,255,0.02)', border: `1px solid ${C.border}`, borderRadius: 12, cursor: uploading ? 'default' : 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, opacity: uploading ? 0.5 : 1 }}>
-                      <span style={{ fontSize: 24 }}>📁</span>
-                      <span style={{ fontSize: 12, fontWeight: 700, color: C.secondary }}>Choose File</span>
-                      <span style={{ fontSize: 10, color: C.muted, textAlign: 'center' as const }}>JPG, PNG, PDF, or TXT</span>
-                    </button>
-                  </div>
-
-                  {uploading && (
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, padding: '14px', background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 10 }}>
-                      <div style={{ width: 16, height: 16, borderRadius: '50%', border: `2px solid ${C.muted}`, borderTopColor: C.gold, animation: 'spin 0.7s linear infinite' }} />
-                      <span style={{ fontSize: 13, color: C.gold, fontWeight: 600 }}>Reading your setlist...</span>
-                    </div>
-                  )}
-
-                  {uploadError && (
-                    <div style={{ marginTop: 8, padding: '10px 12px', background: C.redDim, border: '1px solid rgba(248,113,113,0.2)', borderRadius: 8 }}>
-                      <p style={{ fontSize: 12, color: C.red, margin: 0 }}>{uploadError}</p>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Loaded songs */}
-              {plannedSongs.length > 0 && (
-                <div>
-                  <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, color: C.muted, margin: '4px 0 8px' }}>
-                    Loaded · {plannedSongs.length} {songWord(plannedSongs.length)}
-                  </p>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    {plannedSongs.map((song, i) => (
-                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', background: 'rgba(255,255,255,0.02)', border: `1px solid ${C.border}`, borderRadius: 8 }}>
-                        <span style={{ fontSize: 11, color: C.muted, minWidth: 18, fontFamily: '"DM Mono", monospace', fontWeight: 700 }}>{i + 1}</span>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <p style={{ fontSize: 13, fontWeight: 600, color: C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{song.title}</p>
-                          {song.artist && <p style={{ fontSize: 11, color: C.muted, margin: '1px 0 0' }}>{song.artist}</p>}
-                        </div>
-                        <button onClick={() => removePlannedSong(i)}
-                          style={{ background: 'none', border: 'none', color: C.muted, cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center', flexShrink: 0 }}>
-                          <X size={13} />
-                        </button>
-                      </div>
                     ))}
                   </div>
-                  <div style={{ marginTop: 10, padding: '10px 12px', background: C.greenDim, border: '1px solid rgba(74,222,128,0.2)', borderRadius: 8 }}>
-                    <p style={{ fontSize: 12, color: C.green, margin: 0, lineHeight: 1.4 }}>
-                      ✓ Songs will auto-confirm during detection · Review shows planned vs played
-                    </p>
+                )}
+
+                {filteredRecent.length === 0 && quickSearch && (
+                  <div style={{ marginBottom: 12 }}>
+                    <button onClick={() => { addPlannedSong(quickSearch); setQuickSearch('') }}
+                      style={{ padding: '8px 14px', background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 20, color: C.gold, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                      + Add "{quickSearch}"
+                    </button>
                   </div>
-                </div>
+                )}
+
+                {recentSongs.length === 0 && !quickSearch && (
+                  <p style={{ fontSize: 12, color: C.muted, margin: '0 0 12px', fontStyle: 'italic' }}>
+                    No recent songs yet — type a song name above
+                  </p>
+                )}
+
+                {/* Also offer photo from quick-add mode */}
+                <button
+                  onClick={() => { setSetlistMode('photo'); setTimeout(() => cameraInputRef.current?.click(), 50) }}
+                  style={{ fontSize: 12, color: C.muted, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>
+                  📸 Scan a photo instead →
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ── LOADED SONGS — always shown when songs exist ── */}
+          {plannedSongs.length > 0 && (
+            <div style={{ padding: '0 16px 16px', borderTop: setlistMode !== null ? `1px solid ${C.border}` : 'none' }}>
+              {setlistMode !== null && <div style={{ height: 12 }} />}
+              <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, color: C.muted, margin: '0 0 8px' }}>
+                Loaded · {plannedSongs.length} {songWord(plannedSongs.length)}
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {plannedSongs.map((song, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', background: 'rgba(255,255,255,0.02)', border: `1px solid ${C.border}`, borderRadius: 8 }}>
+                    <span style={{ fontSize: 11, color: C.muted, minWidth: 18, fontFamily: '"DM Mono", monospace', fontWeight: 700 }}>{i + 1}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontSize: 13, fontWeight: 600, color: C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{song.title}</p>
+                      {song.artist && <p style={{ fontSize: 11, color: C.muted, margin: '1px 0 0' }}>{song.artist}</p>}
+                    </div>
+                    <button onClick={() => removePlannedSong(i)}
+                      style={{ background: 'none', border: 'none', color: C.muted, cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                      <X size={13} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <div style={{ marginTop: 10, padding: '10px 12px', background: C.greenDim, border: '1px solid rgba(74,222,128,0.2)', borderRadius: 8 }}>
+                <p style={{ fontSize: 12, color: C.green, margin: 0, lineHeight: 1.4 }}>
+                  ✓ Songs will auto-confirm during detection · review shows planned vs played
+                </p>
+              </div>
+
+              {/* Let them add more photos if they have a multi-page setlist */}
+              {setlistMode === null && (
+                <button
+                  onClick={() => { setSetlistMode('photo'); setTimeout(() => cameraInputRef.current?.click(), 50) }}
+                  style={{ marginTop: 10, fontSize: 12, color: C.muted, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>
+                  📸 Add another page →
+                </button>
               )}
             </div>
           )}
         </div>
 
+        {/* ── ERROR ── */}
         {error && (
           <div style={{ background: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.2)', borderRadius: 10, padding: '12px 14px', marginBottom: 14 }}>
             <p style={{ fontSize: 13, color: '#f87171', margin: 0 }}>{error}</p>
           </div>
         )}
 
+        {/* ── START BUTTON ── */}
         {!showReuse && (
           <button onClick={handleSubmit} disabled={!isValid || loading}
             style={{ width: '100%', padding: '15px', background: isValid ? C.gold : C.muted, border: 'none', borderRadius: 12, color: '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' as const, cursor: isValid && !loading ? 'pointer' : 'not-allowed', opacity: loading ? 0.7 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit' }}>
@@ -685,10 +753,11 @@ export default function NewShowPage() {
               ? <><div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid #0a090840', borderTopColor: '#0a0908', animation: 'spin 0.7s linear infinite' }} />Starting...</>
               : <>{plannedSongs.length > 0
                   ? `Start · ${plannedSongs.length} ${songWord(plannedSongs.length)} loaded`
-                  : 'Start Capture'} <ArrowRight size={15} strokeWidth={2.5} /></>}
+                  : 'Start Capturing'} <ArrowRight size={15} strokeWidth={2.5} /></>}
           </button>
         )}
 
+        {/* ── REUSE SETLIST ── */}
         <button onClick={() => { setShowReuse(v => !v); setSelectedPast(null) }}
           style={{ width: '100%', padding: '11px 16px', background: showReuse ? C.goldDim : 'transparent', border: `1px solid ${showReuse ? C.borderGold : C.border}`, borderRadius: 10, color: showReuse ? C.gold : C.muted, fontSize: 12, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' as const, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit', marginTop: showReuse ? 0 : 10 }}>
           <RefreshCw size={12} />{showReuse ? 'Cancel' : 'Reuse a Previous Setlist'}
@@ -752,13 +821,6 @@ export default function NewShowPage() {
           ← Back to Dashboard
         </button>
       </div>
-
-      {showCamera && (
-        <CameraCapture
-          onCapture={handleFileUpload}
-          onClose={() => setShowCamera(false)}
-        />
-      )}
 
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500;700&display=swap');
