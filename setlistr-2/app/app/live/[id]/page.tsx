@@ -163,7 +163,10 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
                 .then(({ data: pSongs }) => {
                   if (!pSongs) return
                   setPlannedCount(pSongs.length)
-                  plannedSongsRef.current = pSongs.map(s => ({ title: s.title, artist: s.artist || '', normalizedTitle: normalizeSongKey(s.title) }))
+                  plannedSongsRef.current = pSongs.map(s => ({
+                    title: s.title, artist: s.artist || '',
+                    normalizedTitle: normalizeSongKey(s.title),
+                  }))
                 })
             })
         }
@@ -240,7 +243,6 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
 
   function deleteSong(index: number) { setSongs(prev => prev.filter((_, i) => i !== index)) }
 
-  // Artist manually marks a waiting planned song as played
   function markPlannedAsPlayed(realIdx: number) {
     const song = songs[realIdx]
     setSongs(prev => prev.map((s, i) => i === realIdx ? { ...s, source: 'manual', was_planned: true } : s))
@@ -259,7 +261,6 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
       setSongs(prev => {
         const existingIdx = prev.findIndex(s => normalizeSongKey(s.title) === plannedMatch.normalizedTitle)
         if (existingIdx !== -1) {
-          // Transition: 'planned' (waiting) → detected+verified
           return prev.map((s, i) => i === existingIdx
             ? { ...s, source: candidate.source, confidence_level: candidate.confidence_level, was_planned: true, isrc: enriched?.isrc || s.isrc || '', composer: enriched?.composer || s.composer || '', publisher: enriched?.publisher || s.publisher || '' }
             : s)
@@ -292,7 +293,6 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
       if (showId) formData.append('show_id', showId); if (setlistId) formData.append('setlist_id', setlistId); if (artistId) formData.append('artist_id', artistId)
       if (performance?.artist_name) formData.append('artist_name', performance.artist_name); if (performance?.venue_name) formData.append('venue_name', performance.venue_name)
       formData.append('show_type', (performance as any).show_type || 'single')
-      // Only pass already-confirmed songs as "previous" — not planned/waiting ones
       formData.append('previous_songs', JSON.stringify(confirmedSongsRef.current.filter(s => s.source !== 'planned').map(s => s.title)))
       formData.append('candidate_history', JSON.stringify(candidateHistoryRef.current))
       const res = await fetch('/api/identify', { method: 'POST', body: formData })
@@ -302,41 +302,64 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
       const confirmed = confirmedSongsRef.current.filter(s => s.source !== 'planned')
       const pending = pendingCandidateRef.current
       if (!data.detected) { setDetectStatus(''); return }
-      const { title, artist, setlist_item_id, confidence_level, source } = data
+      const { title, artist, setlist_item_id, source } = data
+      let { confidence_level } = data
       if (confirmed.some(s => isSameSong(s, { title }))) { setDetectStatus(''); return }
-      if (confidence_level === 'auto') {
+
+      // ── Setlist-constrained auto-confirm ─────────────────────────────────
+      // If the detected song is on the preloaded setlist, treat it as 'auto'
+      // confidence regardless of what ACR returned. The pre-load is the first
+      // vote; a single detection hit is sufficient corroboration.
+      const isOnSetlist = plannedSongsRef.current.some(
+        p => p.normalizedTitle === normalizeSongKey(title)
+      )
+      const effectiveConfidence = (isOnSetlist && confidence_level !== 'manual_review')
+        ? 'auto'
+        : confidence_level
+
+      if (effectiveConfidence === 'auto') {
         const secondsSinceLast = (now - lastConfirmedAtRef.current) / 1000
         const isFirstSong      = confirmed.length === 0 && lastConfirmedAtRef.current === 0
         const cooldownPassed   = secondsSinceLast >= MIN_SONG_GAP_SECONDS
+
         if (isFirstSong) {
-          confirmCandidate({ title, artist, source, confidence_level, firstDetectedAt: now, lastDetectedAt: now, matchCount: 1 }, setlist_item_id, { isrc: data.isrc, composer: data.composer, publisher: data.publisher })
+          confirmCandidate({ title, artist, source, confidence_level: effectiveConfidence, firstDetectedAt: now, lastDetectedAt: now, matchCount: 1 }, setlist_item_id, { isrc: data.isrc, composer: data.composer, publisher: data.publisher })
           return
         }
         if (!cooldownPassed) {
           if (pending && normalizeSongKey(pending.title) === normalizeSongKey(title)) {
             setPendingCandidate({ ...pending, lastDetectedAt: now, matchCount: pending.matchCount + 1 })
           } else if (!pending) {
-            setPendingCandidate({ title, artist, source, confidence_level, firstDetectedAt: now, lastDetectedAt: now, matchCount: 1 })
+            setPendingCandidate({ title, artist, source, confidence_level: effectiveConfidence, firstDetectedAt: now, lastDetectedAt: now, matchCount: 1 })
           }
           setDetectStatus(`hearing "${title}"...`); return
         }
         if (pending && normalizeSongKey(pending.title) === normalizeSongKey(title)) {
           confirmCandidate({ ...pending, lastDetectedAt: now, matchCount: pending.matchCount + 1 }, setlist_item_id, { isrc: data.isrc, composer: data.composer, publisher: data.publisher })
         } else {
-          setPendingCandidate({ title, artist, source, confidence_level, firstDetectedAt: now, lastDetectedAt: now, matchCount: 1 })
+          setPendingCandidate({ title, artist, source, confidence_level: effectiveConfidence, firstDetectedAt: now, lastDetectedAt: now, matchCount: 1 })
           setDetectStatus(`hearing "${title}"...`)
         }
         return
       }
-      if (confidence_level === 'suggest') {
+
+      // Non-setlist 'suggest' — existing multi-hit logic
+      if (effectiveConfidence === 'suggest') {
         if (pending && normalizeSongKey(pending.title) === normalizeSongKey(title)) {
           const updated: PendingCandidate = { ...pending, lastDetectedAt: now, matchCount: pending.matchCount + 1, source }
           const withinWindow = (now - pending.firstDetectedAt) / 1000 <= CANDIDATE_WINDOW_SECONDS
           if (withinWindow && updated.matchCount >= 2) { confirmCandidate(updated, setlist_item_id, { isrc: data.isrc, composer: data.composer, publisher: data.publisher }) } else { setPendingCandidate(updated); setDetectStatus(`hearing "${title}"... (${updated.matchCount}×)`) }
           return
         }
-        const secondsSinceLast = (now - lastConfirmedAtRef.current) / 1000; const cooldownPassed = secondsSinceLast >= MIN_SONG_GAP_SECONDS; const isFirstSong = confirmed.length === 0 && lastConfirmedAtRef.current === 0
-        if (!pending || cooldownPassed || isFirstSong) { setPendingCandidate({ title, artist, source, confidence_level, firstDetectedAt: now, lastDetectedAt: now, matchCount: 1 }); setDetectStatus(`hearing "${title}"...`) } else { setDetectStatus(`hearing "${pending.title}"...`) }
+        const secondsSinceLast = (now - lastConfirmedAtRef.current) / 1000
+        const cooldownPassed   = secondsSinceLast >= MIN_SONG_GAP_SECONDS
+        const isFirstSong      = confirmed.length === 0 && lastConfirmedAtRef.current === 0
+        if (!pending || cooldownPassed || isFirstSong) {
+          setPendingCandidate({ title, artist, source, confidence_level: effectiveConfidence, firstDetectedAt: now, lastDetectedAt: now, matchCount: 1 })
+          setDetectStatus(`hearing "${title}"...`)
+        } else {
+          setDetectStatus(`hearing "${pending.title}"...`)
+        }
       }
     } catch { setDetectStatus('') } finally { setIsDetecting(false) }
   }, [params.id, showId, setlistId, artistId, confirmCandidate, performance])
@@ -394,15 +417,20 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
       await supabase.from('setlists').update({ status: 'review', updated_at: new Date().toISOString() }).eq('id', setlistId)
     }
     await supabase.from('performance_songs').delete().eq('performance_id', performance.id)
-    // Only save confirmed songs — drop planned-but-never-heard
-    const songsToSave = confirmedSongsRef.current.filter(s => s.source !== 'planned')
+
+    // Save ALL songs — including planned-but-unverified so the artist can
+    // confirm or remove them on the review screen. Nothing gets silently dropped.
+    const songsToSave = confirmedSongsRef.current.filter(s => s.source !== 'unidentified' || s.title !== 'Unknown Song')
     if (songsToSave.length > 0) {
       await supabase.from('performance_songs').insert(songsToSave.map((song, i) => ({
         performance_id: performance.id,
         title: song.source === 'unidentified' ? (song.title === 'Unknown Song' ? null : song.title) : song.title,
         artist: song.artist || performance.artist_name || null,
-        position: i + 1, isrc: song.isrc || null, composer: song.composer || null,
-        publisher: song.publisher || null, source: song.source || 'manual',
+        position: i + 1,
+        isrc: song.isrc || null,
+        composer: song.composer || null,
+        publisher: song.publisher || null,
+        source: song.source || 'manual',
         was_planned: song.was_planned || false,
       })))
     }
@@ -428,7 +456,6 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
     </div>
   )
 
-  // ── Derived groups ────────────────────────────────────────────────────────
   const confirmedSongs = songs.filter(s => s.source !== 'planned' && s.source !== 'unidentified')
   const waitingSongs   = songs.filter(s => s.source === 'planned')
   const unknownSongs   = songs.filter(s => s.source === 'unidentified')
@@ -525,7 +552,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         </div>
       </div>
 
-      {/* Progress bar — verified / total planned */}
+      {/* Progress bar */}
       {plannedCount > 0 && isListening && (
         <div style={{ position: 'relative', zIndex: 10, background: 'rgba(255,255,255,0.02)', borderBottom: `1px solid ${C.border}`, padding: '7px 16px', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
           <div style={{ flex: 1, height: 3, background: 'rgba(255,255,255,0.06)', borderRadius: 2, overflow: 'hidden' }}>
@@ -613,14 +640,14 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
       {/* Lower section */}
       <div style={{ position: 'relative', zIndex: 1, flex: 1, display: 'flex', flexDirection: 'column', gap: 8, padding: '0 16px 40px', maxWidth: 480, width: '100%', margin: '0 auto', boxSizing: 'border-box' }}>
 
-        {/* ── CONFIRMED — heard by engine or manually added ── */}
+        {/* Confirmed — heard or manually added */}
         {confirmedSongs.length > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             {confirmedSongs.map((song, i) => {
-              const isVerified    = !!song.was_planned
-              const isSuggested   = song.confidence_level === 'suggest' && !isVerified
-              const realIdx       = songs.indexOf(song)
-              const isPendingDel  = deletePending === realIdx
+              const isVerified   = !!song.was_planned
+              const isSuggested  = song.confidence_level === 'suggest' && !isVerified
+              const realIdx      = songs.indexOf(song)
+              const isPendingDel = deletePending === realIdx
               return (
                 <div key={i} style={{
                   background: C.card,
@@ -676,7 +703,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
           </div>
         )}
 
-        {/* ── WAITING — on setlist but not yet heard ── */}
+        {/* Waiting — on setlist, not yet heard */}
         {waitingSongs.length > 0 && (
           <div style={{ marginTop: confirmedSongs.length > 0 ? 4 : 0 }}>
             <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, margin: '0 0 6px', paddingLeft: 2 }}>
@@ -691,8 +718,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
                       <div style={{ width: 5, height: 5, borderRadius: '50%', background: 'rgba(255,255,255,0.2)' }} />
                     </div>
                     <p style={{ fontSize: 13, fontWeight: 500, color: C.secondary, margin: 0, flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{song.title}</p>
-                    <button
-                      onClick={() => markPlannedAsPlayed(realIdx)}
+                    <button onClick={() => markPlannedAsPlayed(realIdx)}
                       style={{ flexShrink: 0, padding: '4px 10px', background: 'transparent', border: `1px solid rgba(255,255,255,0.1)`, borderRadius: 6, color: C.muted, fontSize: 10, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', letterSpacing: '0.04em', WebkitTapHighlightColor: 'transparent' }}>
                       Played
                     </button>
@@ -703,7 +729,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
           </div>
         )}
 
-        {/* Unknown songs */}
+        {/* Unknowns */}
         {unknownSongs.length > 0 && (
           <div>
             <button onClick={() => setShowUnknowns(v => !v)}
