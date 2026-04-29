@@ -185,7 +185,6 @@ export default function DashboardPage() {
     setMorningAfterPerf(morningAfter || null)
 
     const buildEstimates = (countMap: Record<string, number>) => {
-      // Unclaimed (not submitted, has songs)
       const unclaimed: ShowEstimateInput[] = perfs
         .filter(p => p.status !== 'live' && p.status !== 'pending' && p.submission_status !== 'submitted')
         .map(p => ({
@@ -196,7 +195,6 @@ export default function DashboardPage() {
           territory: isCanadian(p.country, p.city) ? 'CA' : 'US',
         })).filter(e => e.songCount > 0)
 
-      // Submitted (for lifetime total)
       const submitted: ShowEstimateInput[] = perfs
         .filter(p => p.submission_status === 'submitted')
         .map(p => ({
@@ -270,12 +268,12 @@ export default function DashboardPage() {
   }, [lookupName])
 
   // ── Derived values ────────────────────────────────────────────────────────
-  const aggregate        = aggregateUnclaimedEarnings(showEstimates)
+  const aggregate          = aggregateUnclaimedEarnings(showEstimates)
   const submittedAggregate = aggregateUnclaimedEarnings(submittedEstimates)
-  const lifetimeTotal    = aggregate.totalExpected + submittedAggregate.totalExpected
-  const totalShows       = performances.filter(p => p.status !== 'live' && p.status !== 'pending').length
-  const submittedCount   = performances.filter(p => p.submission_status === 'submitted').length
-  const recentPerfs      = performances.slice(0, 5)
+  const lifetimeTotal      = aggregate.totalExpected + submittedAggregate.totalExpected
+  const totalShows         = performances.filter(p => p.status !== 'live' && p.status !== 'pending').length
+  const submittedCount     = performances.filter(p => p.submission_status === 'submitted').length
+  const recentPerfs        = performances.slice(0, 5)
 
   function navigateToPerformance(p: Performance) {
     if (p.status === 'live' || p.status === 'pending') router.push(`/app/live/${p.id}`)
@@ -453,7 +451,7 @@ export default function DashboardPage() {
           )
         })()}
 
-        {/* ── HERO — LOAD YOUR SET ── */}
+        {/* ── HERO CTA ── */}
         {!livePerf && (
           <div style={{ marginBottom: 24, animation: 'fadeUp 0.3s ease' }}>
             {artistName && (
@@ -474,19 +472,13 @@ export default function DashboardPage() {
                 <div style={{ position: 'absolute', inset: -14, borderRadius: '50%', border: '1px solid rgba(10,9,8,0.1)', animation: 'orb-pulse 2s ease-in-out 0.4s infinite' }} />
               </div>
               <div style={{ flex: 1, minWidth: 0, position: 'relative', zIndex: 1 }}>
-                <p style={{ fontSize: 22, fontWeight: 800, color: '#0a0908', margin: '0 0 4px', letterSpacing: '-0.02em', lineHeight: 1.1 }}>Load Your Set</p>
+                <p style={{ fontSize: 22, fontWeight: 800, color: '#0a0908', margin: '0 0 4px', letterSpacing: '-0.02em', lineHeight: 1.1 }}>Start a Show</p>
                 <p style={{ fontSize: 13, color: 'rgba(10,9,8,0.6)', margin: 0, fontWeight: 500 }}>
-                  {actingAs ? `Capturing for ${actingAs.artist_name}` : 'Start live capture · Setlistr listens'}
+                  {actingAs ? `Capturing for ${actingAs.artist_name}` : 'Venue · setlist · automatic capture'}
                 </p>
               </div>
               <div style={{ fontSize: 20, color: 'rgba(10,9,8,0.4)', flexShrink: 0, position: 'relative', zIndex: 1 }}>→</div>
             </button>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: 12 }}>
-              <button onClick={() => router.push('/app/show/new?mode=upload')}
-                style={{ background: 'none', border: 'none', color: C.muted, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 5, padding: '4px 0' }}>
-                📷 Upload a paper setlist instead
-              </button>
-            </div>
           </div>
         )}
 
@@ -513,7 +505,6 @@ export default function DashboardPage() {
                   </div>
                 )}
               </div>
-              {/* Progress bar: filed vs total */}
               {submittedCount > 0 && lifetimeTotal > 0 && (
                 <div style={{ marginTop: 12 }}>
                   <div style={{ height: 3, background: 'rgba(255,255,255,0.06)', borderRadius: 2, overflow: 'hidden' }}>
@@ -589,7 +580,7 @@ export default function DashboardPage() {
             <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '36px 20px', textAlign: 'center' }}>
               <Mic size={24} color={C.muted} style={{ marginBottom: 12 }} />
               <p style={{ fontSize: 14, color: C.secondary, margin: '0 0 4px', fontWeight: 600 }}>No shows yet.</p>
-              <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>Load the first set to get started.</p>
+              <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>Start a show to get started.</p>
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
