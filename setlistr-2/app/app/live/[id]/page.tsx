@@ -98,9 +98,14 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   const [plannedCount, setPlannedCount] = useState<number>(0)
   const plannedSongsRef = useRef<{ title: string; normalizedTitle: string; artist: string }[]>([])
 
-  // Two-tap delete: track which song index is pending delete confirmation
+  // Two-tap delete
   const [deletePending, setDeletePending] = useState<number | null>(null)
   const deletePendingTimerRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Placement card — shows once per session when capture first starts
+  const [showPlacementCard, setShowPlacementCard] = useState(false)
+  const placementShownRef  = useRef(false)
+  const placementTimerRef  = useRef<NodeJS.Timeout | null>(null)
 
   const mediaRecorderRef    = useRef<MediaRecorder | null>(null)
   const chunksRef           = useRef<Blob[]>([])
@@ -122,9 +127,11 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   useEffect(() => { isListeningRef.current = isListening }, [isListening])
   useEffect(() => { endingRef.current = ending }, [ending])
 
-  // Clean up delete pending timer on unmount
   useEffect(() => {
-    return () => { if (deletePendingTimerRef.current) clearTimeout(deletePendingTimerRef.current) }
+    return () => {
+      if (deletePendingTimerRef.current) clearTimeout(deletePendingTimerRef.current)
+      if (placementTimerRef.current) clearTimeout(placementTimerRef.current)
+    }
   }, [])
 
   useEffect(() => {
@@ -134,7 +141,6 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         if (data) {
           setPerformance(data); setShowId(data.show_id || null); setSetlistId(data.setlist_id || null); setArtistId(data.artist_id || null)
           if (data.started_at) showStartRef.current = new Date(data.started_at).getTime()
-
           const supabase2 = createClient()
           supabase2.from('performance_songs')
             .select('title, artist, isrc, composer, publisher, source, position')
@@ -143,16 +149,12 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
             .then(({ data: existingSongs }) => {
               if (existingSongs && existingSongs.length > 0) {
                 setSongs(existingSongs.map(s => ({
-                  title: s.title || 'Unknown Song',
-                  artist: s.artist || '',
+                  title: s.title || 'Unknown Song', artist: s.artist || '',
                   source: (s.source as any) || 'manual',
-                  isrc: s.isrc || '',
-                  composer: s.composer || '',
-                  publisher: s.publisher || '',
+                  isrc: s.isrc || '', composer: s.composer || '', publisher: s.publisher || '',
                 })))
               }
             })
-
           supabase2.from('planned_setlists').select('id').eq('performance_id', data.id).single()
             .then(({ data: planned }) => {
               if (!planned?.id) return
@@ -161,8 +163,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
                   if (!pSongs) return
                   setPlannedCount(pSongs.length)
                   plannedSongsRef.current = pSongs.map(s => ({
-                    title: s.title,
-                    artist: s.artist || '',
+                    title: s.title, artist: s.artist || '',
                     normalizedTitle: normalizeSongKey(s.title),
                   }))
                 })
@@ -205,8 +206,12 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
 
   useEffect(() => { fetchRecentSongs() }, [fetchRecentSongs])
 
+  function dismissPlacementCard() {
+    if (placementTimerRef.current) clearTimeout(placementTimerRef.current)
+    setShowPlacementCard(false)
+  }
+
   function startEdit(index: number) {
-    // Cancel any pending delete if editing
     if (deletePendingTimerRef.current) clearTimeout(deletePendingTimerRef.current)
     setDeletePending(null)
     setEditingIndex(index); setEditTitle(songs[index].title); setEditArtist(songs[index].artist)
@@ -218,16 +223,12 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   }
   function cancelEdit() { setEditingIndex(null) }
 
-  // Two-tap delete: first tap arms, second tap within 2.5s confirms
   function handleDeleteTap(e: React.MouseEvent | React.TouchEvent, realIdx: number) {
     e.stopPropagation()
     if (deletePending === realIdx) {
-      // Confirmed — delete
       if (deletePendingTimerRef.current) clearTimeout(deletePendingTimerRef.current)
-      setDeletePending(null)
-      deleteSong(realIdx)
+      setDeletePending(null); deleteSong(realIdx)
     } else {
-      // First tap — arm it
       if (deletePendingTimerRef.current) clearTimeout(deletePendingTimerRef.current)
       setDeletePending(realIdx)
       deletePendingTimerRef.current = setTimeout(() => setDeletePending(null), 2500)
@@ -239,7 +240,6 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   const confirmCandidate = useCallback((candidate: PendingCandidate, setlist_item_id?: string, enriched?: { isrc?: string; composer?: string; publisher?: string }) => {
     const normalizedIncoming = normalizeSongKey(candidate.title)
     const plannedMatch = plannedSongsRef.current.find(p => p.normalizedTitle === normalizedIncoming)
-
     if (plannedMatch) {
       setSongs(prev => {
         const existingIdx = prev.findIndex(s => normalizeSongKey(s.title) === plannedMatch.normalizedTitle)
@@ -256,7 +256,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
     const now = Date.now()
     lastConfirmedAtRef.current = now; lastSongRef.current = now; setLastSongAt(now); setShowSilenceWarning(false)
     setPendingCandidate(null); setCatchFlash(true); setLastCaught(candidate.title)
-    setTimeout(() => setCatchFlash(false), 1200); setTimeout(() => setLastCaught(null), 3500); setDetectStatus('')
+    setTimeout(() => setCatchFlash(false), 1200); setTimeout(() => setLastCaught(null), 4000); setDetectStatus('')
     if (candidate.confidence_level === 'suggest' || candidate.source === 'manual') {
       const supabase = createClient()
       supabase.auth.getUser().then(({ data: { user } }) => { if (user && params.id) writeUserSong(supabase, candidate.title, candidate.artist || '', user.id, params.id) })
@@ -264,10 +264,10 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   }, [params.id])
 
   const confirmPending = useCallback(() => { if (!pendingCandidateRef.current) return; confirmCandidate(pendingCandidateRef.current) }, [confirmCandidate])
-  const dismissPending = useCallback(() => { setPendingCandidate(null); setDetectStatus('listening...') }, [])
+  const dismissPending = useCallback(() => { setPendingCandidate(null); setDetectStatus('') }, [])
 
   const detectSong = useCallback(async (audioBlob: Blob) => {
-    setIsDetecting(true); setDetectStatus('listening...')
+    setIsDetecting(true)
     const pingTime = Date.now(); lastPingRef.current = pingTime; setEngineState('listening')
     try {
       const formData = new FormData()
@@ -281,19 +281,17 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
       const data = await res.json()
       if (data.acr_score) { candidateHistoryRef.current = [{ title: data.title || '', artist: data.artist || '', score: data.acr_score, timestamp: Date.now() }, ...candidateHistoryRef.current].slice(0, 3) }
       const now = Date.now(); const confirmed = confirmedSongsRef.current; const pending = pendingCandidateRef.current
-      if (!data.detected) { setDetectStatus('listening...'); return }
+      if (!data.detected) { setDetectStatus(''); return }
       const { title, artist, setlist_item_id, confidence_level, source } = data
-      if (confirmed.some(s => isSameSong(s, { title }))) { setDetectStatus('already logged'); setTimeout(() => setDetectStatus(''), 3000); return }
+      if (confirmed.some(s => isSameSong(s, { title }))) { setDetectStatus(''); return }
       if (confidence_level === 'auto') {
         const secondsSinceLast = (now - lastConfirmedAtRef.current) / 1000
         const isFirstSong      = confirmed.length === 0 && lastConfirmedAtRef.current === 0
         const cooldownPassed   = secondsSinceLast >= MIN_SONG_GAP_SECONDS
-
         if (isFirstSong) {
           confirmCandidate({ title, artist, source, confidence_level, firstDetectedAt: now, lastDetectedAt: now, matchCount: 1 }, setlist_item_id, { isrc: data.isrc, composer: data.composer, publisher: data.publisher })
           return
         }
-
         if (!cooldownPassed) {
           if (pending && normalizeSongKey(pending.title) === normalizeSongKey(title)) {
             setPendingCandidate({ ...pending, lastDetectedAt: now, matchCount: pending.matchCount + 1 })
@@ -303,7 +301,6 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
           setDetectStatus(`hearing "${title}"...`)
           return
         }
-
         if (pending && normalizeSongKey(pending.title) === normalizeSongKey(title)) {
           confirmCandidate({ ...pending, lastDetectedAt: now, matchCount: pending.matchCount + 1 }, setlist_item_id, { isrc: data.isrc, composer: data.composer, publisher: data.publisher })
         } else {
@@ -322,20 +319,23 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         const secondsSinceLast = (now - lastConfirmedAtRef.current) / 1000; const cooldownPassed = secondsSinceLast >= MIN_SONG_GAP_SECONDS; const isFirstSong = confirmed.length === 0 && lastConfirmedAtRef.current === 0
         if (!pending || cooldownPassed || isFirstSong) { setPendingCandidate({ title, artist, source, confidence_level, firstDetectedAt: now, lastDetectedAt: now, matchCount: 1 }); setDetectStatus(`hearing "${title}"...`) } else { setDetectStatus(`hearing "${pending.title}"...`) }
       }
-    } catch { setDetectStatus('listening...') } finally { setIsDetecting(false) }
+    } catch { setDetectStatus('') } finally { setIsDetecting(false) }
   }, [params.id, showId, setlistId, artistId, confirmCandidate, performance])
 
   const startListening = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      streamRef.current = stream; setIsListening(true); setDetectStatus('listening...')
+      streamRef.current = stream; setIsListening(true)
       const pingTime = Date.now(); lastPingRef.current = pingTime; setEngineState('listening')
-      // Request wake lock to keep screen on during capture (silent — no user-facing warning)
       try {
-        if ('wakeLock' in navigator) {
-          wakeLockRef.current = await (navigator as any).wakeLock.request('screen')
-        }
+        if ('wakeLock' in navigator) wakeLockRef.current = await (navigator as any).wakeLock.request('screen')
       } catch {}
+      // Show placement card once per session
+      if (!placementShownRef.current) {
+        placementShownRef.current = true
+        setShowPlacementCard(true)
+        placementTimerRef.current = setTimeout(() => setShowPlacementCard(false), 8000)
+      }
       const recordAndDetect = () => {
         if (isDetecting) return; chunksRef.current = []
         const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4'
@@ -345,7 +345,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         recorder.start(); setTimeout(() => { if (recorder.state === 'recording') recorder.stop() }, 12000)
       }
       recordAndDetect(); listenIntervalRef.current = setInterval(recordAndDetect, 20000)
-    } catch { setDetectStatus('mic access denied'); setIsListening(false) }
+    } catch { setIsListening(false) }
   }, [detectSong, isDetecting])
 
   const stopListening = useCallback(() => {
@@ -353,10 +353,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
     if (mediaRecorderRef.current?.state === 'recording') mediaRecorderRef.current.stop()
     if (streamRef.current) { streamRef.current.getTracks().forEach(t => t.stop()); streamRef.current = null }
     setIsListening(false); setEngineState('idle'); setDetectStatus('')
-    if (wakeLockRef.current) {
-      try { wakeLockRef.current.release() } catch {}
-      wakeLockRef.current = null
-    }
+    if (wakeLockRef.current) { try { wakeLockRef.current.release() } catch {}; wakeLockRef.current = null }
   }, [])
 
   const restartListening = useCallback(async () => {
@@ -384,7 +381,13 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
     await supabase.from('performance_songs').delete().eq('performance_id', performance.id)
     const songsToSave = confirmedSongsRef.current
     if (songsToSave.length > 0) {
-      await supabase.from('performance_songs').insert(songsToSave.map((song, i) => ({ performance_id: performance.id, title: song.source === 'unidentified' ? (song.title === 'Unknown Song' ? null : song.title) : song.title, artist: song.artist || performance.artist_name || null, position: i + 1, isrc: song.isrc || null, composer: song.composer || null, publisher: song.publisher || null, source: song.source || 'manual' })))
+      await supabase.from('performance_songs').insert(songsToSave.map((song, i) => ({
+        performance_id: performance.id,
+        title: song.source === 'unidentified' ? (song.title === 'Unknown Song' ? null : song.title) : song.title,
+        artist: song.artist || performance.artist_name || null,
+        position: i + 1, isrc: song.isrc || null, composer: song.composer || null,
+        publisher: song.publisher || null, source: song.source || 'manual',
+      })))
     }
     router.push(`/app/review/${performance.id}`)
   }, [performance, songs, router, stopListening, showId, setlistId])
@@ -414,6 +417,76 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   const engineDot      = engineState === 'listening' ? C.green : engineState === 'slow' ? C.amber : engineState === 'stalled' ? '#f87171' : C.muted
   const engineLabel    = engineState === 'listening' ? 'LISTENING' : engineState === 'slow' ? 'SLOW' : engineState === 'stalled' ? 'STALLED' : 'IDLE'
 
+  // ── Trust signal: what to show below the button ──────────────────────────
+  // Priority: catch > stalled > slow > pending > lastSongAt > detecting > listening
+  function renderTrustSignal() {
+    if (lastCaught) {
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, animation: 'trustPop 0.3s cubic-bezier(0.34,1.56,0.64,1)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 16, color: C.gold }}>✦</span>
+            <span style={{ fontSize: 15, fontWeight: 700, color: C.text, letterSpacing: '-0.01em' }}>{lastCaught}</span>
+          </div>
+          <span style={{ fontSize: 11, color: C.green, fontWeight: 600, letterSpacing: '0.06em' }}>CAUGHT</span>
+        </div>
+      )
+    }
+    if (engineState === 'stalled' && isListening) {
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, animation: 'fadeIn 0.2s ease' }}>
+          <span style={{ fontSize: 13, color: '#f87171', fontWeight: 600 }}>Engine stalled — tap to restart</span>
+          <button onClick={restartListening} disabled={restarting}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', background: 'rgba(220,38,38,0.12)', border: '1px solid rgba(220,38,38,0.3)', borderRadius: 20, color: '#f87171', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', opacity: restarting ? 0.6 : 1, WebkitTapHighlightColor: 'transparent' }}>
+            <RefreshCw size={12} style={{ animation: restarting ? 'spin 0.7s linear infinite' : 'none' }} />
+            {restarting ? 'Restarting...' : 'Restart'}
+          </button>
+        </div>
+      )
+    }
+    if (engineState === 'slow' && isListening) {
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, animation: 'fadeIn 0.2s ease' }}>
+          <span style={{ fontSize: 12, color: C.amber, fontWeight: 500, textAlign: 'center' as const }}>Having trouble hearing — move closer to the speakers</span>
+          <button onClick={restartListening} disabled={restarting}
+            style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '7px 14px', background: 'transparent', border: `1px solid rgba(245,158,11,0.35)`, borderRadius: 20, color: C.amber, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent' }}>
+            <RefreshCw size={11} style={{ animation: restarting ? 'spin 0.7s linear infinite' : 'none' }} />
+            {restarting ? 'Restarting...' : 'Restart'}
+          </button>
+        </div>
+      )
+    }
+    if (pendingCandidate && !lastCaught) {
+      return (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, animation: 'fadeIn 0.2s ease' }}>
+          <div style={{ width: 6, height: 6, borderRadius: '50%', background: C.amber, animation: 'pulse-dot 1s ease-in-out infinite' }} />
+          <span style={{ fontSize: 13, color: C.secondary, fontWeight: 500 }}>Hearing something...</span>
+        </div>
+      )
+    }
+    if (lastSongAt > 0 && isListening) {
+      return <span style={{ fontSize: 11, color: C.muted + '90' }}>Last song {timeAgo(lastSongAt)}</span>
+    }
+    if (isDetecting) {
+      return (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+            {[0,1,2].map(i => <div key={i} style={{ width: 3, height: 3, borderRadius: '50%', background: C.gold, opacity: 0.7, animation: `dot-bounce 1s ${i * 0.2}s ease-in-out infinite` }} />)}
+          </div>
+          <span style={{ fontSize: 12, color: C.muted }}>Scanning...</span>
+        </div>
+      )
+    }
+    if (isListening) {
+      return (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+          <div style={{ width: 7, height: 7, borderRadius: '50%', background: C.green, animation: 'pulse-dot 1.6s ease-in-out infinite', boxShadow: `0 0 6px ${C.green}60` }} />
+          <span style={{ fontSize: 12, color: C.muted + 'a0', animation: 'breathe-text 3s ease-in-out infinite' }}>Listening...</span>
+        </div>
+      )
+    }
+    return null
+  }
+
   return (
     <div style={{ minHeight: '100svh', background: C.bg, display: 'flex', flexDirection: 'column', fontFamily: '"DM Sans", system-ui, sans-serif', overflowX: 'hidden', overscrollBehavior: 'none' }}>
       <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '70vh', background: isListening ? `radial-gradient(ellipse at 50% 35%, rgba(201,168,76,0.08) 0%, transparent 65%)` : `radial-gradient(ellipse at 50% 35%, rgba(201,168,76,0.03) 0%, transparent 55%)`, pointerEvents: 'none', transition: 'background 1.8s ease', zIndex: 0 }} />
@@ -435,46 +508,21 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         </div>
       </div>
 
-      {/* Progress indicator — only when planned songs loaded */}
+      {/* Progress bar — planned setlist */}
       {plannedCount > 0 && isListening && (
         <div style={{ position: 'relative', zIndex: 10, background: 'rgba(255,255,255,0.02)', borderBottom: `1px solid ${C.border}`, padding: '7px 16px', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
           <div style={{ flex: 1, height: 3, background: 'rgba(255,255,255,0.06)', borderRadius: 2, overflow: 'hidden' }}>
             <div style={{ height: '100%', background: C.gold, borderRadius: 2, width: `${Math.min((confirmedSongs.length / plannedCount) * 100, 100)}%`, transition: 'width 0.6s ease' }} />
           </div>
-          <span style={{ fontSize: 11, color: C.gold, fontWeight: 700, flexShrink: 0, fontFamily: '"DM Mono", monospace' }}>
-            {confirmedSongs.length}/{plannedCount}
-          </span>
+          <span style={{ fontSize: 11, color: C.gold, fontWeight: 700, flexShrink: 0, fontFamily: '"DM Mono", monospace' }}>{confirmedSongs.length}/{plannedCount}</span>
           <span style={{ fontSize: 11, color: C.muted, flexShrink: 0 }}>planned</span>
         </div>
       )}
 
-      {/* Stalled banner */}
-      {engineState === 'stalled' && isListening && (
-        <div style={{ position: 'relative', zIndex: 10, background: 'rgba(220,38,38,0.08)', borderBottom: '1px solid rgba(220,38,38,0.2)', padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexShrink: 0, animation: 'slideDown 0.2s ease' }}>
-          <p style={{ fontSize: 12, color: '#f87171', margin: 0, fontWeight: 600 }}>Capture may have stalled</p>
-          <button onClick={restartListening} disabled={restarting}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: 'rgba(220,38,38,0.15)', border: '1px solid rgba(220,38,38,0.3)', borderRadius: 8, color: '#f87171', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', opacity: restarting ? 0.6 : 1, WebkitTapHighlightColor: 'transparent' }}>
-            <RefreshCw size={12} style={{ animation: restarting ? 'spin 0.7s linear infinite' : 'none' }} />
-            {restarting ? 'Restarting...' : 'Restart'}
-          </button>
-        </div>
-      )}
-
-      {/* Slow banner */}
-      {engineState === 'slow' && isListening && (
-        <div style={{ position: 'relative', zIndex: 10, background: C.amberDim, borderBottom: `1px solid rgba(245,158,11,0.2)`, padding: '8px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexShrink: 0, animation: 'slideDown 0.2s ease' }}>
-          <p style={{ fontSize: 12, color: C.amber, margin: 0 }}>No activity in a while — move closer to the stage</p>
-          <button onClick={restartListening} disabled={restarting}
-            style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', background: 'transparent', border: `1px solid rgba(245,158,11,0.3)`, borderRadius: 8, color: C.amber, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent' }}>
-            <RefreshCw size={11} /> Restart
-          </button>
-        </div>
-      )}
-
-      {/* Silence warning */}
+      {/* Silence warning — top banner (only for silence, not slow/stalled which are inline now) */}
       {showSilenceWarning && !ending && (
         <div style={{ position: 'relative', zIndex: 10, background: 'rgba(201,168,76,0.08)', borderBottom: `1px solid rgba(201,168,76,0.2)`, padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexShrink: 0, animation: 'slideDown 0.2s ease' }}>
-          <p style={{ fontSize: 12, color: C.gold, margin: 0 }}>No songs in 20 min · auto-closing soon</p>
+          <p style={{ fontSize: 12, color: C.gold, margin: 0 }}>No songs in a while · auto-closing soon</p>
           <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
             <button onClick={() => { setShowSilenceWarning(false); lastSongRef.current = Date.now() }}
               style={{ padding: '6px 12px', background: C.goldDim, border: `1px solid rgba(201,168,76,0.3)`, borderRadius: 8, color: C.gold, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent' }}>Keep Going</button>
@@ -493,6 +541,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
             ))}
           </>
         )}
+
         <button onClick={isListening ? stopListening : startListening} disabled={isDetecting && !isListening}
           style={{ width: 160, height: 160, borderRadius: '50%', border: 'none', cursor: isDetecting && !isListening ? 'wait' : 'pointer', position: 'relative', zIndex: 2, background: catchFlash ? `radial-gradient(circle at 40% 35%, #e8c76a, ${C.gold} 55%, #a07828)` : isListening ? `radial-gradient(circle at 40% 35%, ${C.gold}cc, ${C.gold} 55%, #8a6520)` : `radial-gradient(circle at 40% 35%, #2a2520, #1a1610 55%, #0f0e0c)`, boxShadow: catchFlash ? `0 0 60px ${C.gold}80, 0 0 120px ${C.gold}30, inset 0 1px 0 rgba(255,255,255,0.25)` : isListening ? `0 0 40px ${C.gold}40, 0 0 80px ${C.gold}18, inset 0 1px 0 rgba(255,255,255,0.12)` : `0 8px 40px rgba(0,0,0,0.6), 0 2px 8px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06)`, transform: catchFlash ? 'scale(1.05)' : 'scale(1)', transition: 'background 0.4s ease, box-shadow 0.4s ease, transform 0.2s ease', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6, WebkitTapHighlightColor: 'transparent', outline: 'none', touchAction: 'manipulation' }}>
           <div style={{ width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -514,22 +563,21 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
           </span>
         </button>
 
-        {/* Status line */}
-        <div style={{ marginTop: 18, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          {lastCaught ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, animation: 'fadeIn 0.25s ease' }}>
-              <span style={{ fontSize: 13, color: C.gold }}>✦</span>
-              <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{lastCaught}</span>
-              <span style={{ fontSize: 11, color: C.muted }}>added</span>
-            </div>
-          ) : lastSongAt > 0 && isListening ? (
-            <span style={{ fontSize: 11, color: C.muted + '80' }}>Last song: {timeAgo(lastSongAt)}</span>
-          ) : detectStatus && detectStatus !== 'listening...' ? (
-            <span style={{ fontSize: 12, color: C.muted, animation: 'fadeIn 0.2s ease' }}>{detectStatus}</span>
-          ) : isListening && !isDetecting && !pendingCandidate ? (
-            <span style={{ fontSize: 11, color: C.muted + '60' }}>listening</span>
-          ) : null}
+        {/* ── TRUST SIGNAL ZONE ── */}
+        <div style={{ marginTop: 22, minHeight: 44, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+          {renderTrustSignal()}
         </div>
+
+        {/* ── DEVICE PLACEMENT CARD ── */}
+        {showPlacementCard && (
+          <div style={{ marginTop: 8, maxWidth: 300, width: '100%', background: 'rgba(255,255,255,0.03)', border: `1px solid rgba(255,255,255,0.09)`, borderRadius: 12, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10, animation: 'fadeUp 0.3s ease' }}>
+            <span style={{ fontSize: 16, flexShrink: 0 }}>📍</span>
+            <span style={{ fontSize: 12, color: C.secondary, lineHeight: 1.4, flex: 1 }}>Best results at front of house or near the PA</span>
+            <button onClick={dismissPlacementCard} style={{ background: 'none', border: 'none', color: C.muted, cursor: 'pointer', padding: '2px', flexShrink: 0, display: 'flex', alignItems: 'center', WebkitTapHighlightColor: 'transparent' }}>
+              <X size={13} />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Pending card */}
@@ -550,7 +598,6 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
       {/* Lower section */}
       <div style={{ position: 'relative', zIndex: 1, flex: 1, display: 'flex', flexDirection: 'column', gap: 8, padding: '0 16px 40px', maxWidth: 480, width: '100%', margin: '0 auto', boxSizing: 'border-box' }}>
 
-        {/* Confirmed songs */}
         {confirmedSongs.length > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             {confirmedSongs.map((song, i) => {
@@ -580,8 +627,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
                         {!isPendingDelete && <span style={{ width: 5, height: 5, borderRadius: '50%', background: C.gold, opacity: isSuggested ? 0.3 : 0.65, display: 'inline-block' }} />}
-                        <button
-                          onClick={e => handleDeleteTap(e, realIdx)}
+                        <button onClick={e => handleDeleteTap(e, realIdx)}
                           style={{ background: isPendingDelete ? 'rgba(220,38,38,0.15)' : 'none', border: isPendingDelete ? '1px solid rgba(220,38,38,0.35)' : 'none', borderRadius: 6, color: isPendingDelete ? '#f87171' : C.muted, cursor: 'pointer', padding: isPendingDelete ? '4px 8px' : '4px 6px', fontSize: isPendingDelete ? 11 : 14, lineHeight: 1, opacity: isPendingDelete ? 1 : 0.5, WebkitTapHighlightColor: 'transparent', fontWeight: isPendingDelete ? 700 : 400, transition: 'all 0.15s ease', fontFamily: 'inherit' }}>
                           {isPendingDelete ? '✕ Delete?' : '✕'}
                         </button>
@@ -594,7 +640,6 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
           </div>
         )}
 
-        {/* Collapsed unknowns */}
         {unknownSongs.length > 0 && (
           <div>
             <button onClick={() => setShowUnknowns(v => !v)}
@@ -618,7 +663,6 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
           </div>
         )}
 
-        {/* Add a song */}
         <button onClick={() => setShowManual(v => !v)}
           style={{ width: '100%', padding: '13px', background: showManual ? 'transparent' : 'rgba(201,168,76,0.08)', border: `1px solid ${showManual ? C.border : 'rgba(201,168,76,0.25)'}`, borderRadius: 10, color: showManual ? C.muted : C.gold, fontSize: 13, fontWeight: 700, letterSpacing: '0.06em', cursor: 'pointer', fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent', transition: 'all 0.15s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
           <span style={{ fontSize: 16, lineHeight: 1, fontWeight: 400 }}>{showManual ? '✕' : '+'}</span>
@@ -652,7 +696,6 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
           </div>
         )}
 
-        {/* End show */}
         <button onClick={handleEnd} disabled={ending}
           style={{ width: '100%', padding: '14px', background: 'rgba(220,38,38,0.07)', border: `1px solid rgba(220,38,38,0.22)`, borderRadius: 10, color: ending ? C.muted : '#f87171', fontSize: 12, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: ending ? 'not-allowed' : 'pointer', opacity: ending ? 0.4 : 1, transition: 'all 0.15s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent' }}>
           <span style={{ width: 6, height: 6, background: ending ? C.muted : C.red, borderRadius: 1, display: 'inline-block', flexShrink: 0 }} />
@@ -662,16 +705,20 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
 
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500;700&display=swap');
-        @keyframes pulse-dot  { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(.8)} }
-        @keyframes ring-pulse { 0%{opacity:.5;transform:translateX(-50%) scale(.97)} 100%{opacity:0;transform:translateX(-50%) scale(1.2)} }
-        @keyframes ring-catch { 0%{opacity:.9;transform:translateX(-50%) scale(.93)} 100%{opacity:0;transform:translateX(-50%) scale(1.42)} }
-        @keyframes wave-bar   { from{height:4px} to{height:22px} }
-        @keyframes slideUp    { from{opacity:0;transform:translateY(6px) scale(0.97)} to{opacity:1;transform:translateY(0) scale(1)} }
-        @keyframes songPop    { 0%{opacity:0;transform:translateY(4px) scale(0.96)} 60%{transform:translateY(-2px) scale(1.01)} 100%{opacity:1;transform:translateY(0) scale(1)} }
-        @keyframes slideDown  { from{opacity:0;transform:translateY(-6px)} to{opacity:1;transform:translateY(0)} }
-        @keyframes fadeIn     { from{opacity:0} to{opacity:1} }
-        @keyframes breathe    { 0%,100%{transform:scale(1);opacity:.4} 50%{transform:scale(1.15);opacity:.9} }
-        @keyframes spin       { to{transform:rotate(360deg)} }
+        @keyframes pulse-dot    { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(.8)} }
+        @keyframes ring-pulse   { 0%{opacity:.5;transform:translateX(-50%) scale(.97)} 100%{opacity:0;transform:translateX(-50%) scale(1.2)} }
+        @keyframes ring-catch   { 0%{opacity:.9;transform:translateX(-50%) scale(.93)} 100%{opacity:0;transform:translateX(-50%) scale(1.42)} }
+        @keyframes wave-bar     { from{height:4px} to{height:22px} }
+        @keyframes slideUp      { from{opacity:0;transform:translateY(6px) scale(0.97)} to{opacity:1;transform:translateY(0) scale(1)} }
+        @keyframes slideDown    { from{opacity:0;transform:translateY(-6px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes songPop      { 0%{opacity:0;transform:translateY(4px) scale(0.96)} 60%{transform:translateY(-2px) scale(1.01)} 100%{opacity:1;transform:translateY(0) scale(1)} }
+        @keyframes fadeIn       { from{opacity:0} to{opacity:1} }
+        @keyframes fadeUp       { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes breathe      { 0%,100%{transform:scale(1);opacity:.4} 50%{transform:scale(1.15);opacity:.9} }
+        @keyframes breathe-text { 0%,100%{opacity:0.5} 50%{opacity:0.85} }
+        @keyframes dot-bounce   { 0%,100%{transform:translateY(0);opacity:0.4} 50%{transform:translateY(-4px);opacity:1} }
+        @keyframes trustPop     { 0%{opacity:0;transform:scale(0.9) translateY(4px)} 70%{transform:scale(1.04) translateY(-1px)} 100%{opacity:1;transform:scale(1) translateY(0)} }
+        @keyframes spin         { to{transform:rotate(360deg)} }
         * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
         input::placeholder { color: #5a5040; }
         input:focus { border-color: rgba(201,168,76,0.3) !important; outline: none; }
