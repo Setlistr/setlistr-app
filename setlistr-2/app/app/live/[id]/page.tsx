@@ -24,12 +24,11 @@ const SILENCE_WARNING_MS = 45 * 60 * 1000
 type AcrCandidate = { title: string; artist: string; score: number }
 type DetectedSong = {
   title: string; artist: string
-  // 'planned' = pre-loaded, not yet heard. All other sources = confirmed.
   source: 'planned' | 'fingerprint' | 'humming' | 'transcript' | 'combined' | 'manual' | 'cloned' | 'unidentified'
   setlist_item_id?: string
   confidence_level?: 'auto' | 'suggest' | 'manual_review'
   isrc?: string; composer?: string; publisher?: string
-  was_planned?: boolean  // was on setlist AND subsequently verified
+  was_planned?: boolean
 }
 type PendingCandidate = {
   title: string; artist: string
@@ -256,7 +255,6 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   const confirmCandidate = useCallback((candidate: PendingCandidate, setlist_item_id?: string, enriched?: { isrc?: string; composer?: string; publisher?: string }) => {
     const normalizedIncoming = normalizeSongKey(candidate.title)
     const plannedMatch = plannedSongsRef.current.find(p => p.normalizedTitle === normalizedIncoming)
-
     if (plannedMatch) {
       setSongs(prev => {
         const existingIdx = prev.findIndex(s => normalizeSongKey(s.title) === plannedMatch.normalizedTitle)
@@ -270,7 +268,6 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
     } else {
       setSongs(prev => [...prev, { title: candidate.title, artist: candidate.artist, source: candidate.source, setlist_item_id, confidence_level: candidate.confidence_level, was_planned: false, isrc: enriched?.isrc || '', composer: enriched?.composer || '', publisher: enriched?.publisher || '' }])
     }
-
     const now = Date.now()
     lastConfirmedAtRef.current = now; lastSongRef.current = now; setLastSongAt(now); setShowSilenceWarning(false)
     setPendingCandidate(null); setCatchFlash(true); setLastCaught(candidate.title)
@@ -302,49 +299,60 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
       const confirmed = confirmedSongsRef.current.filter(s => s.source !== 'planned')
       const pending = pendingCandidateRef.current
       if (!data.detected) { setDetectStatus(''); return }
-      const { title, artist, setlist_item_id, source } = data
-      let { confidence_level } = data
+      const { title, artist, setlist_item_id, source, confidence_level } = data
       if (confirmed.some(s => isSameSong(s, { title }))) { setDetectStatus(''); return }
 
-      // ── Setlist-constrained auto-confirm ─────────────────────────────────
-      // If the detected song is on the preloaded setlist, treat it as 'auto'
-      // confidence regardless of what ACR returned. The pre-load is the first
-      // vote; a single detection hit is sufficient corroboration.
+      // ── Is this song on the preloaded setlist? ────────────────────────────
       const isOnSetlist = plannedSongsRef.current.some(
         p => p.normalizedTitle === normalizeSongKey(title)
       )
-      const effectiveConfidence = (isOnSetlist && confidence_level !== 'manual_review')
-        ? 'auto'
-        : confidence_level
 
-      if (effectiveConfidence === 'auto') {
+      // ── SETLIST SONG: confirm immediately on first hit ─────────────────
+      // No cooldown, no pending card, no multi-hit requirement.
+      // The pre-load is the first vote; one detection is enough.
+      if (isOnSetlist && confidence_level !== 'manual_review') {
+        // Only skip if already confirmed (duplicate guard above handles this,
+        // but also check the planned slot isn't already verified)
+        const alreadyVerified = confirmedSongsRef.current.some(
+          s => s.was_planned && normalizeSongKey(s.title) === normalizeSongKey(title) && s.source !== 'planned'
+        )
+        if (!alreadyVerified) {
+          confirmCandidate(
+            { title, artist, source, confidence_level: 'auto', firstDetectedAt: now, lastDetectedAt: now, matchCount: 1 },
+            setlist_item_id,
+            { isrc: data.isrc, composer: data.composer, publisher: data.publisher }
+          )
+        }
+        return
+      }
+
+      // ── NON-SETLIST SONG: existing cooldown + multi-hit logic ──────────
+      if (confidence_level === 'auto') {
         const secondsSinceLast = (now - lastConfirmedAtRef.current) / 1000
         const isFirstSong      = confirmed.length === 0 && lastConfirmedAtRef.current === 0
         const cooldownPassed   = secondsSinceLast >= MIN_SONG_GAP_SECONDS
-
         if (isFirstSong) {
-          confirmCandidate({ title, artist, source, confidence_level: effectiveConfidence, firstDetectedAt: now, lastDetectedAt: now, matchCount: 1 }, setlist_item_id, { isrc: data.isrc, composer: data.composer, publisher: data.publisher })
+          confirmCandidate({ title, artist, source, confidence_level, firstDetectedAt: now, lastDetectedAt: now, matchCount: 1 }, setlist_item_id, { isrc: data.isrc, composer: data.composer, publisher: data.publisher })
           return
         }
         if (!cooldownPassed) {
           if (pending && normalizeSongKey(pending.title) === normalizeSongKey(title)) {
             setPendingCandidate({ ...pending, lastDetectedAt: now, matchCount: pending.matchCount + 1 })
           } else if (!pending) {
-            setPendingCandidate({ title, artist, source, confidence_level: effectiveConfidence, firstDetectedAt: now, lastDetectedAt: now, matchCount: 1 })
+            setPendingCandidate({ title, artist, source, confidence_level, firstDetectedAt: now, lastDetectedAt: now, matchCount: 1 })
           }
           setDetectStatus(`hearing "${title}"...`); return
         }
         if (pending && normalizeSongKey(pending.title) === normalizeSongKey(title)) {
           confirmCandidate({ ...pending, lastDetectedAt: now, matchCount: pending.matchCount + 1 }, setlist_item_id, { isrc: data.isrc, composer: data.composer, publisher: data.publisher })
         } else {
-          setPendingCandidate({ title, artist, source, confidence_level: effectiveConfidence, firstDetectedAt: now, lastDetectedAt: now, matchCount: 1 })
+          setPendingCandidate({ title, artist, source, confidence_level, firstDetectedAt: now, lastDetectedAt: now, matchCount: 1 })
           setDetectStatus(`hearing "${title}"...`)
         }
         return
       }
 
-      // Non-setlist 'suggest' — existing multi-hit logic
-      if (effectiveConfidence === 'suggest') {
+      if (confidence_level === 'suggest') {
         if (pending && normalizeSongKey(pending.title) === normalizeSongKey(title)) {
           const updated: PendingCandidate = { ...pending, lastDetectedAt: now, matchCount: pending.matchCount + 1, source }
           const withinWindow = (now - pending.firstDetectedAt) / 1000 <= CANDIDATE_WINDOW_SECONDS
@@ -355,7 +363,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         const cooldownPassed   = secondsSinceLast >= MIN_SONG_GAP_SECONDS
         const isFirstSong      = confirmed.length === 0 && lastConfirmedAtRef.current === 0
         if (!pending || cooldownPassed || isFirstSong) {
-          setPendingCandidate({ title, artist, source, confidence_level: effectiveConfidence, firstDetectedAt: now, lastDetectedAt: now, matchCount: 1 })
+          setPendingCandidate({ title, artist, source, confidence_level, firstDetectedAt: now, lastDetectedAt: now, matchCount: 1 })
           setDetectStatus(`hearing "${title}"...`)
         } else {
           setDetectStatus(`hearing "${pending.title}"...`)
@@ -417,20 +425,15 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
       await supabase.from('setlists').update({ status: 'review', updated_at: new Date().toISOString() }).eq('id', setlistId)
     }
     await supabase.from('performance_songs').delete().eq('performance_id', performance.id)
-
-    // Save ALL songs — including planned-but-unverified so the artist can
-    // confirm or remove them on the review screen. Nothing gets silently dropped.
-    const songsToSave = confirmedSongsRef.current.filter(s => s.source !== 'unidentified' || s.title !== 'Unknown Song')
+    // Save all songs — planned (unverified) included so artist can confirm on review
+    const songsToSave = confirmedSongsRef.current.filter(s => !(s.source === 'unidentified' && s.title === 'Unknown Song'))
     if (songsToSave.length > 0) {
       await supabase.from('performance_songs').insert(songsToSave.map((song, i) => ({
         performance_id: performance.id,
         title: song.source === 'unidentified' ? (song.title === 'Unknown Song' ? null : song.title) : song.title,
         artist: song.artist || performance.artist_name || null,
-        position: i + 1,
-        isrc: song.isrc || null,
-        composer: song.composer || null,
-        publisher: song.publisher || null,
-        source: song.source || 'manual',
+        position: i + 1, isrc: song.isrc || null, composer: song.composer || null,
+        publisher: song.publisher || null, source: song.source || 'manual',
         was_planned: song.was_planned || false,
       })))
     }
@@ -500,14 +503,12 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         </div>
       )
     }
+    // Only show pending card prompt for NON-setlist songs
     if (pendingCandidate) {
-      const isOnSetlist = plannedSongsRef.current.some(p => p.normalizedTitle === normalizeSongKey(pendingCandidate.title))
       return (
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, animation: 'fadeIn 0.2s ease' }}>
-          <div style={{ width: 6, height: 6, borderRadius: '50%', background: isOnSetlist ? C.green : C.amber, animation: 'pulse-dot 1s ease-in-out infinite' }} />
-          <span style={{ fontSize: 13, color: C.secondary, fontWeight: 500 }}>
-            {isOnSetlist ? `Hearing "${pendingCandidate.title}"...` : 'Hearing something...'}
-          </span>
+          <div style={{ width: 6, height: 6, borderRadius: '50%', background: C.amber, animation: 'pulse-dot 1s ease-in-out infinite' }} />
+          <span style={{ fontSize: 13, color: C.secondary, fontWeight: 500 }}>Hearing something...</span>
         </div>
       )
     }
@@ -617,15 +618,12 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         )}
       </div>
 
-      {/* Pending card */}
+      {/* Pending card — only for non-setlist songs */}
       {pendingCandidate && (
         <div style={{ position: 'relative', zIndex: 1, maxWidth: 480, width: '100%', margin: '0 auto', padding: '0 16px 12px', animation: 'slideUp 0.2s ease' }}>
           <div style={{ background: '#161310', border: `1px solid rgba(201,168,76,0.22)`, borderRadius: 14, padding: '14px 16px' }}>
             <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: C.muted, margin: '0 0 8px' }}>
               Hearing something{pendingCandidate.matchCount > 1 ? ` · ${pendingCandidate.matchCount}×` : ''}
-              {plannedSongsRef.current.some(p => p.normalizedTitle === normalizeSongKey(pendingCandidate.title)) && (
-                <span style={{ marginLeft: 6, color: C.green }}>· on your setlist ✓</span>
-              )}
             </p>
             <p style={{ fontSize: 15, fontWeight: 700, color: C.text, margin: '0 0 2px', letterSpacing: '-0.01em' }}>{pendingCandidate.title}</p>
             <p style={{ fontSize: 12, color: C.secondary, margin: '0 0 12px' }}>{pendingCandidate.artist}</p>
@@ -640,7 +638,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
       {/* Lower section */}
       <div style={{ position: 'relative', zIndex: 1, flex: 1, display: 'flex', flexDirection: 'column', gap: 8, padding: '0 16px 40px', maxWidth: 480, width: '100%', margin: '0 auto', boxSizing: 'border-box' }}>
 
-        {/* Confirmed — heard or manually added */}
+        {/* Confirmed */}
         {confirmedSongs.length > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             {confirmedSongs.map((song, i) => {
