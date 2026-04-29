@@ -4,6 +4,18 @@ import { createServerSupabaseClient } from '@/lib/supabase/server'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
+// Normalized keys that should never appear as song chips
+const SKIP_NORMALIZED_KEYS = new Set([
+  'unknown track',
+  'unknown song',
+  'unknown',
+  'unidentified',
+  'untitled',
+  'no song',
+  'null',
+  '',
+])
+
 function cleanTitle(title: string): string {
   return title
     .replace(/\s*\(made popular by[^)]*\)/gi, '')
@@ -37,7 +49,7 @@ export async function GET(req: NextRequest) {
     const url          = new URL(req.url)
     const allowRepeats = url.searchParams.get('allow_repeats') === '1'
     const venueId      = url.searchParams.get('venue_id') || ''
-    const searchQuery  = url.searchParams.get('q') || ''  // ← NEW: search filter
+    const searchQuery  = url.searchParams.get('q') || ''
 
     const excludeRaw   = url.searchParams.get('exclude') || ''
     const excludedKeys = excludeRaw
@@ -62,9 +74,6 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // ── Fetch user's song catalog ─────────────────────────────────────────────
-    // If a search query is provided, filter by it server-side.
-    // Otherwise return full catalog (up to 200) for client-side scoring.
     let queryBuilder = supabase
       .from('user_songs')
       .select('id, song_title, canonical_artist, confirmed_count, last_confirmed_at, source')
@@ -88,9 +97,16 @@ export async function GET(req: NextRequest) {
     }>()
 
     for (const s of data || []) {
+      // Skip null/empty song titles
+      if (!s.song_title || !s.song_title.trim()) continue
+
       const title = cleanTitle(s.song_title)
       const key   = normalizeSongKey(title)
-      if (!key) continue
+
+      // Skip unknown/placeholder tracks
+      if (!key || SKIP_NORMALIZED_KEYS.has(key)) continue
+      // Also skip if the raw title starts with "Unknown" (catches "Unknown Song", "Unknown Track", etc.)
+      if (/^unknown\b/i.test(title.trim())) continue
 
       const boost = venuePlayedKeys.has(key) ? 1.2 : 1
       const score = rankingScore(s.confirmed_count || 1, s.last_confirmed_at, boost)
