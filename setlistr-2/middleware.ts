@@ -32,9 +32,32 @@ export async function middleware(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser()
 
+  const isRootRoute = request.nextUrl.pathname === '/'
   const isAppRoute  = request.nextUrl.pathname.startsWith('/app')
   const isAuthRoute = request.nextUrl.pathname.startsWith('/auth')
   const isBetaPage  = request.nextUrl.pathname === '/beta'
+
+  // ── Root route: if logged in with access, skip marketing and go straight to app
+  if (isRootRoute && user) {
+    const email = user.email ?? ''
+
+    if (ADMIN_EMAILS.includes(email)) {
+      return NextResponse.redirect(new URL('/app/dashboard', request.url))
+    }
+
+    const { data: invite } = await supabase
+      .from('beta_invites')
+      .select('id')
+      .eq('email', email)
+      .single()
+
+    if (invite) {
+      return NextResponse.redirect(new URL('/app/dashboard', request.url))
+    }
+
+    // Not a beta user — let them see the landing page
+    return supabaseResponse
+  }
 
   // Not logged in trying to access app
   if (isAppRoute && !user) {
@@ -58,7 +81,6 @@ export async function middleware(request: NextRequest) {
       .single()
 
     if (!invite) {
-      // Not invited — mark accepted_at if they were just added while browsing
       return NextResponse.redirect(new URL('/beta', request.url))
     }
 
@@ -99,5 +121,6 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/app/:path*', '/auth/:path*', '/beta'],
+  // Added '/' so middleware runs on the root route for beta user redirect
+  matcher: ['/', '/app/:path*', '/auth/:path*', '/beta'],
 }
