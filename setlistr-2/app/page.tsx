@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import Image from 'next/image'
 import Link from 'next/link'
 import WaitlistForm from '@/components/WaitlistForm'
+import CursorEffect from '@/components/CursorEffect'
 
 export const metadata: Metadata = {
   title: 'Setlistr — The System of Record for Live Music',
@@ -28,6 +29,34 @@ export const metadata: Metadata = {
   ],
 }
 
+const STAGES = [
+  {
+    n: '01', name: 'Tool', now: true,
+    sub: 'Building now',
+    desc: 'Capture every show. Submit to every PRO. Royalties enter the pipeline. Under 90 seconds after the last song.',
+  },
+  {
+    n: '02', name: 'Habit', now: false,
+    sub: 'Q3 2026',
+    desc: 'The pre-show ritual. The post-show record. A career archive that compounds with every performance.',
+  },
+  {
+    n: '03', name: 'Network', now: false,
+    sub: 'Q4 2026',
+    desc: 'Publishers, co-writers, and fans connected to the verified live record in real time.',
+  },
+  {
+    n: '04', name: 'Intelligence', now: false,
+    sub: '2027',
+    desc: 'The system surfaces shows that were never submitted. Royalties the artist never knew existed.',
+  },
+  {
+    n: '05', name: 'Infrastructure', now: false,
+    sub: '2028+',
+    desc: 'The canonical live performance layer. Licensed globally to labels, DSPs, PROs, and analytics platforms.',
+  },
+]
+
 export default function HomePage() {
   return (
     <div style={{
@@ -39,27 +68,23 @@ export default function HomePage() {
       cursor: 'none',
     }}>
 
-      {/* ── Load Bebas Neue ── */}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap');
 
-        /* Custom cursor */
         #sl-cursor {
           position: fixed; width: 10px; height: 10px;
           background: #C9A84C; border-radius: 50%;
           pointer-events: none; z-index: 9999;
           transform: translate(-50%,-50%);
-          transition: width .15s, height .15s;
         }
         #sl-cursor-ring {
           position: fixed; width: 32px; height: 32px;
           border: 1px solid rgba(201,168,76,0.4); border-radius: 50%;
           pointer-events: none; z-index: 9998;
           transform: translate(-50%,-50%);
-          transition: all .25s cubic-bezier(.16,1,.3,1);
+          transition: all .2s cubic-bezier(.16,1,.3,1);
         }
 
-        /* Grid drift */
         .sl-bg-lines {
           position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden;
         }
@@ -80,13 +105,11 @@ export default function HomePage() {
           to   { transform: translate(80px,80px); }
         }
 
-        /* Orbs */
         .sl-orb {
           position: fixed; pointer-events: none; z-index: 0;
-          border-radius: 50%; filter: blur(120px); opacity: .15;
+          border-radius: 50%; filter: blur(120px);
         }
 
-        /* Pulsing dot */
         .sl-pulse {
           width: 6px; height: 6px; background: #C9A84C;
           border-radius: 50%; flex-shrink: 0;
@@ -97,12 +120,10 @@ export default function HomePage() {
           50%       { opacity: .4; transform: scale(.7); }
         }
 
-        /* Nav */
         .sl-nav-link {
           font-family: "DM Mono", monospace;
           font-size: 11px; letter-spacing: .14em; text-transform: uppercase;
-          color: #d4d1ca; text-decoration: none;
-          transition: color .2s;
+          color: #d4d1ca; text-decoration: none; transition: color .2s;
         }
         .sl-nav-link:hover { color: #C9A84C; }
 
@@ -110,13 +131,11 @@ export default function HomePage() {
           font-family: "DM Mono", monospace;
           font-size: 11px; letter-spacing: .14em; text-transform: uppercase;
           background: #C9A84C; color: #080706;
-          padding: 9px 20px; text-decoration: none;
-          border-radius: 6px;
+          padding: 9px 20px; text-decoration: none; border-radius: 6px;
           transition: opacity .2s;
         }
         .sl-nav-apply:hover { opacity: .84; }
 
-        /* Hero */
         .sl-hero-tag {
           display: inline-flex; align-items: center; gap: 8px;
           border: 1px solid rgba(201,168,76,.4); border-radius: 20px;
@@ -126,56 +145,140 @@ export default function HomePage() {
           text-transform: uppercase; margin-bottom: 32px;
         }
 
-        /* Stat cells */
+        /* Stats */
         .sl-stat {
           background: rgba(255,255,255,0.03);
           border: 1px solid rgba(255,255,255,0.06);
-          border-radius: 14px;
-          padding: 28px 24px;
-          text-align: center;
-          position: relative; overflow: hidden;
+          border-radius: 14px; padding: 32px 28px;
+          text-align: center; position: relative; overflow: hidden;
           transition: border-color .25s;
         }
-        .sl-stat:hover { border-color: rgba(201,168,76,.3); }
         .sl-stat::before {
           content: "";
           position: absolute; inset: 0;
-          background: linear-gradient(135deg, rgba(201,168,76,.05), transparent);
+          background: linear-gradient(135deg, rgba(201,168,76,.06), transparent);
           pointer-events: none;
         }
+        .sl-stat:hover { border-color: rgba(201,168,76,.3); }
 
         /* Cards */
         .sl-card {
           background: rgba(255,255,255,0.03);
           border: 1px solid rgba(255,255,255,0.06);
-          border-radius: 14px;
-          transition: border-color .25s;
+          border-radius: 14px; transition: border-color .25s;
         }
         .sl-card:hover { border-color: rgba(201,168,76,.3); }
 
         .sl-card-gold {
           background: linear-gradient(135deg, rgba(201,168,76,.1), rgba(201,168,76,.03));
-          border: 1px solid rgba(201,168,76,.35);
-          border-radius: 14px;
+          border: 1px solid rgba(201,168,76,.35); border-radius: 14px;
         }
 
-        /* Stages */
-        .sl-stage { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; padding: 24px; transition: border-color .25s; }
-        .sl-stage:hover { border-color: rgba(201,168,76,.3); }
-        .sl-stage-now { background: linear-gradient(135deg, rgba(201,168,76,.1), rgba(201,168,76,.03)); border: 1px solid rgba(201,168,76,.45); border-radius: 12px; padding: 24px; }
+        /* ── STAGES — visual rebuild ── */
+        .sl-stage-wrap {
+          display: grid;
+          grid-template-columns: repeat(5, 1fr);
+          gap: 10px;
+        }
 
-        /* Access section */
+        .sl-stage {
+          position: relative; overflow: hidden;
+          border-radius: 14px;
+          padding: 28px 24px 28px;
+          display: flex; flex-direction: column;
+          min-height: 240px;
+          transition: border-color .25s, background .25s;
+        }
+
+        .sl-stage-inactive {
+          background: rgba(255,255,255,0.025);
+          border: 1px solid rgba(255,255,255,0.06);
+        }
+        .sl-stage-inactive:hover {
+          border-color: rgba(201,168,76,.2);
+          background: rgba(255,255,255,0.04);
+        }
+
+        .sl-stage-active {
+          background: linear-gradient(145deg, rgba(201,168,76,.15), rgba(201,168,76,.04));
+          border: 1px solid rgba(201,168,76,.5);
+        }
+
+        /* Watermark number */
+        .sl-stage-watermark {
+          position: absolute;
+          bottom: -12px; right: 12px;
+          font-family: "Bebas Neue", sans-serif;
+          font-size: 96px; line-height: 1;
+          letter-spacing: 0.04em;
+          pointer-events: none; user-select: none;
+        }
+        .sl-stage-inactive .sl-stage-watermark { color: rgba(255,255,255,0.04); }
+        .sl-stage-active   .sl-stage-watermark { color: rgba(201,168,76,0.18); }
+
+        .sl-stage-top {
+          display: flex; align-items: center;
+          justify-content: space-between;
+          margin-bottom: 12px;
+        }
+        .sl-stage-num {
+          font-family: "DM Mono", monospace;
+          font-size: 10px; letter-spacing: 0.2em;
+        }
+        .sl-stage-inactive .sl-stage-num { color: rgba(255,255,255,0.2); }
+        .sl-stage-active   .sl-stage-num { color: #C9A84C; }
+
+        .sl-stage-badge {
+          font-family: "DM Mono", monospace;
+          font-size: 8px; letter-spacing: .12em;
+          color: #C9A84C;
+          border: 1px solid rgba(201,168,76,.4);
+          padding: 2px 7px; border-radius: 3px;
+        }
+
+        .sl-stage-when {
+          font-family: "DM Mono", monospace;
+          font-size: 9px; letter-spacing: .12em;
+          color: rgba(255,255,255,0.18);
+        }
+
+        .sl-stage-name {
+          font-family: "Bebas Neue", sans-serif;
+          font-size: 28px; letter-spacing: 0.04em;
+          margin: 0 0 10px; position: relative; z-index: 1;
+        }
+        .sl-stage-inactive .sl-stage-name { color: rgba(255,255,255,0.4); }
+        .sl-stage-active   .sl-stage-name { color: #FFFFFF; }
+
+        .sl-stage-desc {
+          font-size: 13px; font-weight: 300;
+          line-height: 1.6;
+          position: relative; z-index: 1;
+          flex: 1;
+        }
+        .sl-stage-inactive .sl-stage-desc { color: rgba(255,255,255,0.25); }
+        .sl-stage-active   .sl-stage-desc { color: rgba(255,255,255,0.7); }
+
+        /* Traction pills */
+        .sl-pill {
+          display: inline-flex; align-items: center; gap: 8px;
+          border: 1px solid rgba(39,174,96,.35);
+          background: rgba(39,174,96,.08);
+          color: #4ec97b;
+          font-family: "DM Mono", monospace;
+          font-size: 11px; padding: 7px 16px;
+          border-radius: 20px; letter-spacing: .06em;
+        }
+
         .sl-access-card {
           background: rgba(255,255,255,0.03);
           border: 1px solid rgba(255,255,255,0.06);
-          border-radius: 14px;
-          padding: 26px;
+          border-radius: 14px; padding: 26px;
           transition: border-color .25s;
           text-decoration: none; display: block;
         }
         .sl-access-card:hover { border-color: rgba(201,168,76,.4); }
 
-        /* Footer links */
         .sl-footer-link {
           font-family: "DM Mono", monospace;
           font-size: 10px; letter-spacing: .12em;
@@ -184,42 +287,37 @@ export default function HomePage() {
         }
         .sl-footer-link:hover { color: #605e58; }
 
-        /* Responsive */
-        @media (max-width: 860px) {
+        @media (max-width: 900px) {
           .sl-stats-grid  { grid-template-columns: 1fr !important; }
-          .sl-stages-grid { grid-template-columns: 1fr 1fr !important; }
+          .sl-stage-wrap  { grid-template-columns: 1fr 1fr !important; }
           .sl-split       { grid-template-columns: 1fr !important; gap: 40px !important; }
-          .sl-access-cols { grid-template-columns: 1fr !important; }
         }
         @media (max-width: 540px) {
-          .sl-stages-grid { grid-template-columns: 1fr !important; }
+          .sl-stage-wrap  { grid-template-columns: 1fr !important; }
           .sl-hide-mobile { display: none !important; }
-          #sl-cursor, #sl-cursor-ring { display: none; }
+          #sl-cursor, #sl-cursor-ring { display: none !important; }
         }
 
         input::placeholder { color: #3a3028 !important; }
       `}</style>
 
-      {/* Cursor */}
+      {/* Cursor elements — animated by CursorEffect client component */}
       <div id="sl-cursor" />
       <div id="sl-cursor-ring" />
+      <CursorEffect />
 
       {/* Background */}
       <div className="sl-bg-lines" />
-      <div className="sl-orb" style={{ width: 500, height: 500, background: 'radial-gradient(circle, rgba(201,168,76,1), transparent)', top: -200, right: -150 }} />
-      <div className="sl-orb" style={{ width: 350, height: 350, background: 'radial-gradient(circle, rgba(201,168,76,0.6), transparent)', bottom: -100, left: -100 }} />
+      <div className="sl-orb" style={{ width: 500, height: 500, background: 'radial-gradient(circle, rgba(201,168,76,1), transparent)', opacity: 0.14, top: -200, right: -150 }} />
+      <div className="sl-orb" style={{ width: 350, height: 350, background: 'radial-gradient(circle, rgba(201,168,76,0.6), transparent)', opacity: 0.12, bottom: -100, left: -100 }} />
 
-      {/* ════════════════════════════════════════
-          NAV
-      ════════════════════════════════════════ */}
+      {/* ════ NAV ════ */}
       <header style={{
         position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100,
-        height: 64,
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        height: 64, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         padding: '0 48px',
         background: 'rgba(8,7,6,0.88)',
-        backdropFilter: 'blur(24px)',
-        WebkitBackdropFilter: 'blur(24px)',
+        backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)',
         borderBottom: '1px solid rgba(255,255,255,0.05)',
       }}>
         <Link href="/" style={{ textDecoration: 'none' }}>
@@ -234,16 +332,13 @@ export default function HomePage() {
 
       <div style={{ position: 'relative', zIndex: 1 }}>
 
-        {/* ════════════════════════════════════════
-            HERO
-        ════════════════════════════════════════ */}
+        {/* ════ HERO ════ */}
         <section style={{
           minHeight: '100svh',
           display: 'flex', flexDirection: 'column',
           alignItems: 'center', justifyContent: 'center',
           textAlign: 'center', padding: '100px 24px 80px',
         }}>
-
           <div className="sl-hero-tag">
             <div className="sl-pulse" />
             Live Performance Infrastructure
@@ -251,12 +346,9 @@ export default function HomePage() {
 
           <h1 style={{
             fontFamily: '"Bebas Neue", sans-serif',
-            fontSize: 'clamp(64px, 10vw, 148px)',
-            lineHeight: 0.9,
-            letterSpacing: '0.03em',
-            color: '#FFFFFF',
-            margin: 0,
-            maxWidth: 960,
+            fontSize: 'clamp(60px, 10vw, 148px)',
+            lineHeight: 0.9, letterSpacing: '0.03em',
+            color: '#FFFFFF', margin: 0, maxWidth: 960,
           }}>
             The Live<br />
             Performance Record<br />
@@ -265,9 +357,8 @@ export default function HomePage() {
 
           <div style={{
             fontFamily: '"Bebas Neue", sans-serif',
-            fontSize: 'clamp(40px, 6vw, 88px)',
-            lineHeight: 1.0,
-            letterSpacing: '0.03em',
+            fontSize: 'clamp(36px, 6vw, 88px)',
+            lineHeight: 1.0, letterSpacing: '0.03em',
             color: 'rgba(255,255,255,0.2)',
             marginTop: 4, marginBottom: 40,
           }}>
@@ -275,12 +366,8 @@ export default function HomePage() {
           </div>
 
           <p style={{
-            fontFamily: '"DM Sans", sans-serif',
-            fontSize: 'clamp(16px, 2vw, 20px)',
-            fontWeight: 300,
-            color: '#d4d1ca',
-            maxWidth: 520,
-            lineHeight: 1.7,
+            fontSize: 'clamp(16px, 2vw, 20px)', fontWeight: 300,
+            color: '#d4d1ca', maxWidth: 520, lineHeight: 1.7,
             margin: '0 0 48px',
           }}>
             Every show. Every song. Every royalty — captured, structured,
@@ -292,10 +379,9 @@ export default function HomePage() {
               fontFamily: '"Bebas Neue", sans-serif',
               fontSize: 18, letterSpacing: '0.1em',
               background: '#C9A84C', color: '#080706',
-              padding: '14px 32px', textDecoration: 'none',
-              borderRadius: 8,
+              padding: '14px 32px', textDecoration: 'none', borderRadius: 8,
             }}>
-              See What You're Owed
+              See What You&apos;re Owed
             </Link>
             <a href="#access" style={{
               fontFamily: '"Bebas Neue", sans-serif',
@@ -303,141 +389,113 @@ export default function HomePage() {
               background: 'transparent',
               border: '1px solid rgba(201,168,76,0.35)',
               color: '#d4d1ca',
-              padding: '14px 32px', textDecoration: 'none',
-              borderRadius: 8,
+              padding: '14px 32px', textDecoration: 'none', borderRadius: 8,
             }}>
               Request Access
             </a>
           </div>
 
-          {/* PRO strip — readable */}
           <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', justifyContent: 'center' }}>
             {['SOCAN', 'ASCAP', 'BMI', 'PRS', 'APRA', 'SESAC', 'GMR'].map(pro => (
               <span key={pro} style={{
                 fontFamily: '"DM Mono", monospace',
                 fontSize: 11, letterSpacing: '0.18em',
-                color: 'rgba(212,209,202,0.35)',
+                color: 'rgba(212,209,202,0.4)',
                 textTransform: 'uppercase',
               }}>{pro}</span>
             ))}
           </div>
         </section>
 
-        {/* ════════════════════════════════════════
-            STATS
-        ════════════════════════════════════════ */}
+        {/* ════ STATS ════ */}
         <section style={{ padding: '0 48px 80px', maxWidth: 1200, margin: '0 auto' }}>
           <div className="sl-stats-grid" style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(3, 1fr)',
-            gap: 14,
+            display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14,
           }}>
             {[
-              { stat: '$2B+',  label: 'Annual live royalty pool',  sub: 'Global PRO collections tied to live performance. The money exists. It just can\'t be distributed.' },
-              { stat: '<30%',  label: 'Shows ever submitted',       sub: 'Most live performances generate no royalty claim — ever. The submission never happens.' },
-              { stat: '0',     label: 'Verified real-time live performance databases', sub: 'No PRO has it. No label has it. No streaming platform has it. Until now.' },
+              { stat: '$2B+', label: 'Annual live royalty pool',
+                sub: 'Global PRO collections tied to live performance. The money is collected. It just can\'t be distributed.' },
+              { stat: '<30%', label: 'Shows ever submitted',
+                sub: 'Most live performances generate no royalty claim — ever. The submission never happens.' },
+              { stat: '0',    label: 'Verified real-time live performance databases',
+                sub: 'No PRO has it. No label has it. No streaming platform has it. Until now.' },
             ].map(({ stat, label, sub }) => (
               <div key={stat} className="sl-stat">
                 <div style={{
                   fontFamily: '"Bebas Neue", sans-serif',
-                  fontSize: 'clamp(52px, 6vw, 80px)',
+                  fontSize: 'clamp(52px, 6vw, 88px)',
                   color: '#C9A84C', lineHeight: 1,
-                  letterSpacing: '0.02em',
-                  marginBottom: 10,
-                }}>
-                  {stat}
-                </div>
-                <div style={{ fontSize: 14, fontWeight: 500, color: '#f5f3ef', marginBottom: 10 }}>
-                  {label}
-                </div>
-                <div style={{ fontSize: 13, fontWeight: 300, color: '#605e58', lineHeight: 1.65 }}>
-                  {sub}
-                </div>
+                  letterSpacing: '0.02em', marginBottom: 12,
+                }}>{stat}</div>
+                <div style={{ fontSize: 14, fontWeight: 500, color: '#f5f3ef', marginBottom: 10 }}>{label}</div>
+                <div style={{ fontSize: 13, fontWeight: 300, color: '#605e58', lineHeight: 1.65 }}>{sub}</div>
               </div>
             ))}
           </div>
         </section>
 
-        {/* ════════════════════════════════════════
-            THE STATEMENT
-        ════════════════════════════════════════ */}
-        <section style={{ padding: '40px 48px 80px', maxWidth: 1000, margin: '0 auto' }}>
+        {/* ════ STATEMENT ════ */}
+        <section style={{ padding: '0 48px 60px', maxWidth: 1100, margin: '0 auto' }}>
           <div style={{
             fontFamily: '"DM Mono", monospace',
             fontSize: 11, letterSpacing: '0.22em',
-            color: '#C9A84C', textTransform: 'uppercase',
-            marginBottom: 24,
-          }}>
-            The Problem
-          </div>
+            color: '#C9A84C', textTransform: 'uppercase', marginBottom: 24,
+          }}>The Problem</div>
           <h2 style={{
             fontFamily: '"Bebas Neue", sans-serif',
             fontSize: 'clamp(40px, 6vw, 84px)',
-            lineHeight: 0.95,
-            letterSpacing: '0.02em',
-            color: '#FFFFFF',
-            margin: '0 0 20px',
-          }}>
-            An artist just walked off stage.
-          </h2>
+            lineHeight: 0.95, letterSpacing: '0.02em',
+            color: '#FFFFFF', margin: '0 0 12px',
+          }}>An artist just walked off stage.</h2>
           <h2 style={{
             fontFamily: '"Bebas Neue", sans-serif',
             fontSize: 'clamp(40px, 6vw, 84px)',
-            lineHeight: 0.95,
-            letterSpacing: '0.02em',
-            color: '#C9A84C',
-            margin: '0 0 32px',
-          }}>
-            They left $340 behind.
-          </h2>
-          <p style={{ fontSize: 18, fontWeight: 300, color: '#d4d1ca', lineHeight: 1.7, maxWidth: 700, margin: 0 }}>
-            They&apos;ll do it again tomorrow. And every night after that.
-            Not because they&apos;re lazy — because the system to capture it was never built.
-            PROs hold billions in royalties they literally cannot distribute.
-            The data doesn&apos;t exist to match the money to the artist who earned it.
+            lineHeight: 0.95, letterSpacing: '0.02em',
+            color: '#C9A84C', margin: '0 0 32px',
+          }}>They left $340 behind.</h2>
+          <p style={{ fontSize: 18, fontWeight: 300, color: '#d4d1ca', lineHeight: 1.75, maxWidth: 720, margin: 0 }}>
+            They&apos;ll do it again tomorrow. And every night after that. Not because they&apos;re lazy —
+            because the system to capture it was never built. PROs hold billions in royalties they
+            literally cannot distribute. The underlying performance data doesn&apos;t exist.
           </p>
         </section>
 
-        {/* ════════════════════════════════════════
-            INFRASTRUCTURE
-        ════════════════════════════════════════ */}
+        {/* ════ HOW IT WORKS ════ */}
         <section style={{ padding: '0 48px 80px', maxWidth: 1200, margin: '0 auto' }}>
           <div className="sl-split" style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            gap: 48, alignItems: 'start',
+            display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 60, alignItems: 'start',
           }}>
             <div>
               <div style={{
                 fontFamily: '"DM Mono", monospace',
                 fontSize: 11, letterSpacing: '0.22em',
-                color: '#C9A84C', textTransform: 'uppercase',
-                marginBottom: 20,
-              }}>
-                The Solution
-              </div>
+                color: '#C9A84C', textTransform: 'uppercase', marginBottom: 20,
+              }}>The Solution</div>
               <h2 style={{
                 fontFamily: '"Bebas Neue", sans-serif',
-                fontSize: 'clamp(36px, 5vw, 72px)',
+                fontSize: 'clamp(36px, 5vw, 68px)',
                 lineHeight: 0.95, letterSpacing: '0.02em',
-                color: '#FFFFFF', margin: '0 0 16px',
+                color: '#FFFFFF', margin: '0 0 24px',
               }}>
                 Not a tool.<br />
                 <span style={{ color: '#C9A84C' }}>The layer<br />that was missing.</span>
               </h2>
-              <p style={{ fontSize: 16, fontWeight: 300, color: '#d4d1ca', lineHeight: 1.8, margin: 0 }}>
+              <p style={{ fontSize: 16, fontWeight: 300, color: '#d4d1ca', lineHeight: 1.8, margin: '0 0 20px' }}>
                 Setlistr connects performance to payment in one continuous system.
                 Real-time audio recognition captures songs as they are performed.
-                Structured data is built automatically — artist, song, venue, co-writers,
-                PRO affiliations. Submission packages are prepared and filed in minutes.
+                Structured data is built automatically — artist, song, venue, co-writers, PRO affiliations.
+              </p>
+              <p style={{ fontSize: 16, fontWeight: 300, color: '#d4d1ca', lineHeight: 1.8, margin: 0 }}>
+                Submission packages are prepared and filed in minutes, not hours.
+                For every artist. Every venue. Every show.
               </p>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {[
-                { step: '01', title: 'Open before the show', body: 'Load your planned set or let audio recognition do everything. The capture engine arms automatically.' },
-                { step: '02', title: 'Play your show',        body: 'Real-time song identification as you perform. No interruptions. No manual input during the set.' },
-                { step: '03', title: 'Review in 90 seconds',  body: 'Post-show recap shows songs captured, royalty estimate, and submission status. Confirm and done.' },
-                { step: '04', title: 'Submit to your PRO',    body: 'PRO-specific formatted packages with direct deep links. 45 minutes of confusion becomes 5 minutes.' },
+                { step: '01', title: 'Open before the show',  body: 'Load your planned set or let audio recognition do everything. The capture engine arms automatically.' },
+                { step: '02', title: 'Play your show',         body: 'Real-time song identification as you perform. No interruptions. No manual input during the set.' },
+                { step: '03', title: 'Review in 90 seconds',   body: 'Post-show recap shows songs captured, royalty estimate, and submission status. Confirm and done.' },
+                { step: '04', title: 'Submit to your PRO',     body: 'PRO-specific formatted packages with direct deep links. 45 minutes of confusion becomes 5 minutes.' },
               ].map(({ step, title, body }) => (
                 <div key={step} className="sl-card" style={{ padding: '18px 22px', display: 'flex', gap: 18, alignItems: 'flex-start' }}>
                   <span style={{
@@ -455,71 +513,55 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* ════════════════════════════════════════
-            STAGES
-        ════════════════════════════════════════ */}
+        {/* ════ STAGES — rebuilt visual ════ */}
         <section style={{ padding: '0 48px 80px', maxWidth: 1200, margin: '0 auto' }}>
           <div style={{
             fontFamily: '"DM Mono", monospace',
             fontSize: 11, letterSpacing: '0.22em',
-            color: '#C9A84C', textTransform: 'uppercase',
-            marginBottom: 20,
-          }}>
-            The Roadmap
-          </div>
-          <div className="sl-stages-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10 }}>
-            {[
-              { n: '01', name: 'Tool',           now: true,  desc: 'Capture every show. Submit to every PRO. Royalties enter the pipeline. Immediately useful.' },
-              { n: '02', name: 'Habit',          now: false, desc: 'Pre-show ritual. Post-show recap. The career archive that compounds with every performance.' },
-              { n: '03', name: 'Network',        now: false, desc: 'Publishers, co-writers, fans — all connected to the verified live record in real time.' },
-              { n: '04', name: 'Intelligence',   now: false, desc: 'The system surfaces shows never submitted. Royalties the artist never knew existed.' },
-              { n: '05', name: 'Infrastructure', now: false, desc: 'The canonical live performance layer. Licensed globally to labels, DSPs, PROs, analytics.' },
-            ].map(({ n, name, now, desc }) => (
-              <div key={n} className={now ? 'sl-stage-now' : 'sl-stage'}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-                  <span style={{
-                    fontFamily: '"DM Mono", monospace',
-                    fontSize: 10, letterSpacing: '0.18em',
-                    color: now ? '#C9A84C' : '#3a3028',
-                  }}>{n}</span>
-                  {now && (
-                    <span style={{
-                      fontFamily: '"DM Mono", monospace',
-                      fontSize: 8, letterSpacing: '0.1em',
-                      color: '#C9A84C',
-                      border: '1px solid rgba(201,168,76,0.3)',
-                      padding: '2px 6px', borderRadius: 3,
-                    }}>NOW</span>
-                  )}
+            color: '#C9A84C', textTransform: 'uppercase', marginBottom: 20,
+          }}>The Roadmap</div>
+
+          <div className="sl-stage-wrap">
+            {STAGES.map(({ n, name, now, sub, desc }) => (
+              <div key={n} className={now ? 'sl-stage sl-stage-active' : 'sl-stage sl-stage-inactive'}>
+                {/* Top row */}
+                <div className="sl-stage-top">
+                  <span className="sl-stage-num">{n}</span>
+                  {now
+                    ? <span className="sl-stage-badge">NOW</span>
+                    : <span className="sl-stage-when">{sub}</span>
+                  }
                 </div>
+
+                {/* Name */}
+                <div className="sl-stage-name">{name}</div>
+
+                {/* Divider — gold for active, subtle for inactive */}
                 <div style={{
-                  fontFamily: '"Bebas Neue", sans-serif',
-                  fontSize: 22, letterSpacing: '0.04em',
-                  color: now ? '#FFFFFF' : '#3a3028',
-                  marginBottom: 10,
-                }}>{name}</div>
-                <div style={{
-                  fontSize: 12, fontWeight: 300,
-                  color: now ? '#605e58' : '#2a2520',
-                  lineHeight: 1.65,
-                }}>{desc}</div>
+                  height: 1,
+                  background: now
+                    ? 'linear-gradient(to right, rgba(201,168,76,0.6), transparent)'
+                    : 'rgba(255,255,255,0.06)',
+                  marginBottom: 14,
+                }} />
+
+                {/* Description */}
+                <div className="sl-stage-desc">{desc}</div>
+
+                {/* Watermark number */}
+                <div className="sl-stage-watermark">{n}</div>
               </div>
             ))}
           </div>
         </section>
 
-        {/* ════════════════════════════════════════
-            WHY NOW — SEO
-        ════════════════════════════════════════ */}
-        <section style={{ padding: '40px 48px 80px', maxWidth: 800, margin: '0 auto' }}>
+        {/* ════ WHY NOW ════ */}
+        <section style={{ padding: '0 48px 80px', maxWidth: 800, margin: '0 auto' }}>
           <div style={{
             fontFamily: '"DM Mono", monospace',
             fontSize: 11, letterSpacing: '0.22em',
-            color: '#C9A84C', textTransform: 'uppercase',
-            marginBottom: 24,
-          }}>
-            Why Now
-          </div>
+            color: '#C9A84C', textTransform: 'uppercase', marginBottom: 24,
+          }}>Why Now</div>
           <h2 style={{
             fontFamily: '"Bebas Neue", sans-serif',
             fontSize: 'clamp(36px, 5vw, 64px)',
@@ -532,17 +574,18 @@ export default function HomePage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
             <p style={{ fontSize: 16, fontWeight: 300, color: '#d4d1ca', lineHeight: 1.85, margin: 0 }}>
               The problem of <strong style={{ color: '#f5f3ef', fontWeight: 400 }}>unclaimed live performance royalties</strong> has
-              existed for decades. What is different now is that audio recognition is accurate enough for
-              real-time live song identification at scale. Mobile-first behavior makes passive background
-              capture possible. PRO submission APIs exist — and in some cases are entirely unoccupied,
-              including the SOCAN NLMP API, abandoned since 2020.
+              existed for decades. What is different now is that audio recognition is accurate enough
+              for real-time live song identification at scale. Mobile-first behavior makes passive
+              background capture possible. PRO submission infrastructure exists and is ready for
+              third-party integration.
             </p>
             <p style={{ fontSize: 16, fontWeight: 300, color: '#d4d1ca', lineHeight: 1.85, margin: 0 }}>
               Every working songwriter registered with <strong style={{ color: '#f5f3ef', fontWeight: 400 }}>SOCAN, ASCAP, BMI,
-              PRS for Music, APRA AMCOS, SESAC, or GMR</strong> is owed performance royalties for every live
-              performance of their registered songs. The <strong style={{ color: '#f5f3ef', fontWeight: 400 }}>setlist submission</strong> process
-              is the only barrier between the artist and money they have already earned.
-              Most never submit. Most publishers never follow up. Most PROs never know the show happened.
+              PRS for Music, APRA AMCOS, SESAC, or GMR</strong> is owed performance royalties for every
+              live performance of their registered songs. The <strong style={{ color: '#f5f3ef', fontWeight: 400 }}>setlist
+              submission</strong> process is the only barrier between the artist and money they have
+              already earned. Most never submit. Most publishers never follow up.
+              Most PROs never know the show happened.
             </p>
             <p style={{ fontSize: 16, fontWeight: 300, color: '#d4d1ca', lineHeight: 1.85, margin: 0 }}>
               The first platform to capture live performance data at scale owns it permanently.
@@ -554,34 +597,30 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* ════════════════════════════════════════
-            MOAT QUOTE
-        ════════════════════════════════════════ */}
+        {/* ════ MOAT QUOTE ════ */}
         <section style={{ padding: '0 48px 80px', maxWidth: 1200, margin: '0 auto' }}>
-          <div className="sl-card-gold" style={{ padding: '32px 40px' }}>
+          <div className="sl-card-gold" style={{ padding: '36px 44px' }}>
             <div style={{
               fontFamily: '"Bebas Neue", sans-serif',
-              fontSize: 'clamp(22px, 3vw, 40px)',
-              lineHeight: 1.15, letterSpacing: '0.02em',
+              fontSize: 'clamp(22px, 3vw, 42px)',
+              lineHeight: 1.1, letterSpacing: '0.02em',
               color: '#FFFFFF', margin: '0 0 16px',
             }}>
-              &ldquo;Anyone can build a submission tool. No one can recreate a global dataset of verified
-              live performance history once it has been captured. The first mover owns it permanently.&rdquo;
+              &ldquo;Anyone can build a submission tool. No one can recreate a global dataset
+              of verified live performance history once it has been captured.
+              The first mover owns it permanently.&rdquo;
             </div>
             <div style={{
               fontFamily: '"DM Mono", monospace',
               fontSize: 10, letterSpacing: '0.18em',
-              color: 'rgba(201,168,76,0.6)',
-              textTransform: 'uppercase',
+              color: 'rgba(201,168,76,0.6)', textTransform: 'uppercase',
             }}>
               Setlistr Strategic Blueprint &middot; 2026
             </div>
           </div>
         </section>
 
-        {/* ════════════════════════════════════════
-            TRACTION PILLS
-        ════════════════════════════════════════ */}
+        {/* ════ TRACTION ════ */}
         <section style={{ padding: '0 48px 80px', maxWidth: 1200, margin: '0 auto' }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, justifyContent: 'center' }}>
             {[
@@ -590,18 +629,9 @@ export default function HomePage() {
               'Universal Music Publishing conversations active',
               'Strategic advisor · Enterprise infrastructure background',
               '6 provisional patents drafted',
-              'SOCAN NLMP API · pursuing authorized partner status',
               'First investor committed',
             ].map(label => (
-              <div key={label} style={{
-                display: 'inline-flex', alignItems: 'center', gap: 8,
-                border: '1px solid rgba(39,174,96,.35)',
-                background: 'rgba(39,174,96,.08)',
-                color: '#4ec97b',
-                fontFamily: '"DM Mono", monospace',
-                fontSize: 11, padding: '7px 16px',
-                borderRadius: 20, letterSpacing: '0.06em',
-              }}>
+              <div key={label} className="sl-pill">
                 <div className="sl-pulse" style={{ background: '#27ae60' }} />
                 {label}
               </div>
@@ -609,13 +639,10 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* ════════════════════════════════════════
-            ACCESS / WAITLIST
-        ════════════════════════════════════════ */}
+        {/* ════ ACCESS ════ */}
         <section id="access" style={{
           padding: '80px 24px 120px',
-          textAlign: 'center',
-          position: 'relative',
+          textAlign: 'center', position: 'relative',
         }}>
           <div style={{
             position: 'absolute', top: 0, left: '50%',
@@ -624,41 +651,29 @@ export default function HomePage() {
             background: 'linear-gradient(to bottom, transparent, rgba(201,168,76,0.5))',
           }} />
 
-          <Image
-            src="/logo-white.png"
-            alt="Setlistr"
-            width={100}
-            height={26}
-            style={{ objectFit: 'contain', opacity: 0.5, marginBottom: 32 }}
-          />
+          <Image src="/logo-white.png" alt="Setlistr" width={100} height={26}
+            style={{ objectFit: 'contain', opacity: 0.5, marginBottom: 32 }} />
 
           <h2 style={{
             fontFamily: '"Bebas Neue", sans-serif',
             fontSize: 'clamp(48px, 8vw, 96px)',
-            lineHeight: 0.92,
-            letterSpacing: '0.03em',
-            color: '#FFFFFF',
-            margin: '0 0 8px',
+            lineHeight: 0.92, letterSpacing: '0.03em',
+            color: '#FFFFFF', margin: '0 0 8px',
           }}>
             Early Access.
           </h2>
           <h2 style={{
             fontFamily: '"Bebas Neue", sans-serif',
             fontSize: 'clamp(48px, 8vw, 96px)',
-            lineHeight: 0.92,
-            letterSpacing: '0.03em',
-            color: '#C9A84C',
-            margin: '0 0 24px',
+            lineHeight: 0.92, letterSpacing: '0.03em',
+            color: '#C9A84C', margin: '0 0 24px',
           }}>
             By Application Only.
           </h2>
 
           <p style={{
-            fontFamily: '"DM Sans", sans-serif',
-            fontSize: 16, fontWeight: 300,
-            color: '#605e58',
-            maxWidth: 380, margin: '0 auto 48px',
-            lineHeight: 1.7,
+            fontSize: 16, fontWeight: 300, color: '#605e58',
+            maxWidth: 380, margin: '0 auto 48px', lineHeight: 1.7,
           }}>
             We are onboarding a limited number of artists and industry partners.
             Applications are reviewed personally.
@@ -678,17 +693,15 @@ export default function HomePage() {
           </p>
         </section>
 
-        {/* ════════════════════════════════════════
-            FOOTER
-        ════════════════════════════════════════ */}
+        {/* ════ FOOTER ════ */}
         <footer style={{
           borderTop: '1px solid rgba(255,255,255,0.05)',
           padding: '32px 48px',
           display: 'flex', alignItems: 'center',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap', gap: 20,
+          justifyContent: 'space-between', flexWrap: 'wrap', gap: 20,
         }}>
-          <Image src="/logo-white.png" alt="Setlistr" width={80} height={22} style={{ objectFit: 'contain', opacity: 0.35 }} />
+          <Image src="/logo-white.png" alt="Setlistr" width={80} height={22}
+            style={{ objectFit: 'contain', opacity: 0.35 }} />
           <nav style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
             {[
               { label: 'For Artists',  href: '/get-paid' },
@@ -713,25 +726,6 @@ export default function HomePage() {
           </p>
         </footer>
       </div>
-
-      {/* Cursor script */}
-      <script dangerouslySetInnerHTML={{ __html: `
-        (function(){
-          var c=document.getElementById('sl-cursor');
-          var r=document.getElementById('sl-cursor-ring');
-          if(!c||!r)return;
-          var mx=0,my=0,rx=0,ry=0;
-          document.addEventListener('mousemove',function(e){
-            mx=e.clientX;my=e.clientY;
-            c.style.left=mx+'px';c.style.top=my+'px';
-          });
-          (function anim(){
-            rx+=(mx-rx)*.12;ry+=(my-ry)*.12;
-            r.style.left=rx+'px';r.style.top=ry+'px';
-            requestAnimationFrame(anim);
-          })();
-        })();
-      `}} />
     </div>
   )
 }
