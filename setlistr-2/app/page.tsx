@@ -3,6 +3,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import WaitlistForm from '@/components/WaitlistForm'
 import CursorEffect from '@/components/CursorEffect'
+import StageCards from '@/components/StageCards'
 
 export const metadata: Metadata = {
   title: 'Setlistr — The System of Record for Live Music',
@@ -29,33 +30,6 @@ export const metadata: Metadata = {
   ],
 }
 
-const STAGES = [
-  {
-    n: '01', name: 'Tool', now: true,
-    sub: 'Building now',
-    desc: 'Capture every show. Submit to every PRO. Royalties enter the pipeline. Under 90 seconds after the last song.',
-  },
-  {
-    n: '02', name: 'Habit', now: false,
-    sub: 'Q3 2026',
-    desc: 'The pre-show ritual. The post-show record. A career archive that compounds with every performance.',
-  },
-  {
-    n: '03', name: 'Network', now: false,
-    sub: 'Q4 2026',
-    desc: 'Publishers, co-writers, and fans connected to the verified live record in real time.',
-  },
-  {
-    n: '04', name: 'Intelligence', now: false,
-    sub: '2027',
-    desc: 'The system surfaces shows that were never submitted. Royalties the artist never knew existed.',
-  },
-  {
-    n: '05', name: 'Infrastructure', now: false,
-    sub: '2028+',
-    desc: 'The canonical live performance layer. Licensed globally to labels, DSPs, PROs, and analytics platforms.',
-  },
-]
 
 export default function HomePage() {
   return (
@@ -513,46 +487,14 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* ════ STAGES — rebuilt visual ════ */}
+        {/* ════ STAGES ════ */}
         <section style={{ padding: '0 48px 80px', maxWidth: 1200, margin: '0 auto' }}>
           <div style={{
             fontFamily: '"DM Mono", monospace',
             fontSize: 11, letterSpacing: '0.22em',
             color: '#C9A84C', textTransform: 'uppercase', marginBottom: 20,
           }}>The Roadmap</div>
-
-          <div className="sl-stage-wrap">
-            {STAGES.map(({ n, name, now, sub, desc }) => (
-              <div key={n} className={now ? 'sl-stage sl-stage-active' : 'sl-stage sl-stage-inactive'}>
-                {/* Top row */}
-                <div className="sl-stage-top">
-                  <span className="sl-stage-num">{n}</span>
-                  {now
-                    ? <span className="sl-stage-badge">NOW</span>
-                    : <span className="sl-stage-when">{sub}</span>
-                  }
-                </div>
-
-                {/* Name */}
-                <div className="sl-stage-name">{name}</div>
-
-                {/* Divider — gold for active, subtle for inactive */}
-                <div style={{
-                  height: 1,
-                  background: now
-                    ? 'linear-gradient(to right, rgba(201,168,76,0.6), transparent)'
-                    : 'rgba(255,255,255,0.06)',
-                  marginBottom: 14,
-                }} />
-
-                {/* Description */}
-                <div className="sl-stage-desc">{desc}</div>
-
-                {/* Watermark number */}
-                <div className="sl-stage-watermark">{n}</div>
-              </div>
-            ))}
-          </div>
+          <StageCards />
         </section>
 
         {/* ════ WHY NOW ════ */}
@@ -650,9 +592,6 @@ export default function HomePage() {
             width: 1, height: 80,
             background: 'linear-gradient(to bottom, transparent, rgba(201,168,76,0.5))',
           }} />
-
-          <Image src="/logo-white.png" alt="Setlistr" width={100} height={26}
-            style={{ objectFit: 'contain', opacity: 0.5, marginBottom: 32 }} />
 
           <h2 style={{
             fontFamily: '"Bebas Neue", sans-serif',
