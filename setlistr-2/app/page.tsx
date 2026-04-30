@@ -4,734 +4,733 @@ import Link from 'next/link'
 import WaitlistForm from '@/components/WaitlistForm'
 
 export const metadata: Metadata = {
-  title: 'Setlistr — The System of Record for Live Music',
-  description: 'Every licensed venue pays a performance royalty. Most of it never reaches the artist who earned it. Setlistr is the data infrastructure that connects live performance to payment — automatically.',
+  title: 'Setlistr — The Live Performance Record',
+  description: 'The live performance record has never existed. Until now. Setlistr is the data infrastructure that connects every show, every song, and every royalty — automatically.',
   openGraph: {
-    title: 'Setlistr — The System of Record for Live Music',
-    description: 'The infrastructure layer that connects every live performance to every royalty it has earned.',
+    title: 'Setlistr — The Live Performance Record',
+    description: 'The live performance record has never existed. Until now.',
     url: 'https://setlistr.ai',
     siteName: 'Setlistr',
     type: 'website',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Setlistr — The System of Record for Live Music',
-    description: 'The infrastructure layer that connects every live performance to every royalty it has earned.',
+    title: 'Setlistr — The Live Performance Record',
+    description: 'The live performance record has never existed. Until now.',
   },
   alternates: { canonical: 'https://setlistr.ai' },
   keywords: [
-    'live performance royalties', 'setlist submission software', 'SOCAN setlist submission',
-    'ASCAP live performance royalties', 'BMI setlist submission', 'PRS live royalties',
-    'APRA performance royalties', 'SESAC live performance', 'GMR royalties',
-    'how to submit setlist to PRO', 'unclaimed music royalties', 'live music royalty tracking',
-    'performance rights organization submission', 'songwriter royalty software',
-    'live performance data', 'music royalty infrastructure',
+    'live performance royalties', 'setlist submission', 'SOCAN submission',
+    'ASCAP live performance', 'BMI setlist', 'PRS royalties', 'APRA performance',
+    'SESAC live', 'GMR royalties', 'unclaimed music royalties',
+    'how to submit setlist to PRO', 'live music royalty tracking',
+    'performance rights submission', 'songwriter live royalties',
+    'live performance data infrastructure',
   ],
-}
-
-const C = {
-  bg:          '#0a0908',
-  bg2:         '#0d0c0a',
-  card:        '#141210',
-  card2:       '#0f0e0c',
-  border:      'rgba(255,255,255,0.06)',
-  borderGold:  'rgba(201,168,76,0.22)',
-  text:        '#f0ece3',
-  secondary:   '#a09880',
-  muted:       '#5a5448',
-  gold:        '#c9a84c',
-  goldDim:     'rgba(201,168,76,0.45)',
-  goldGlow:    'rgba(201,168,76,0.07)',
-}
-
-// The Setlistr logo mark as inline SVG — matches brand guide exactly
-function LogoMark({ size = 32, color = C.gold }: { size?: number; color?: string }) {
-  const w = size
-  const barH = w * 0.09
-  const gap = w * 0.07
-  const r = barH / 2
-  const bars = [
-    { y: 0,              width: w * 0.78 },
-    { y: barH + gap,     width: w * 0.52 },
-    { y: (barH+gap)*2,   width: w * 0.65 },
-  ]
-  const dotRow = (barH + gap) * 3
-  const dotSize = w * 0.13
-  return (
-    <svg width={w} height={dotRow + dotSize} viewBox={`0 0 ${w} ${dotRow + dotSize}`} fill="none">
-      {bars.map((b, i) => (
-        <rect key={i} x={0} y={b.y} width={b.width} height={barH} rx={r} fill={i === 0 ? C.text : C.muted} opacity={i === 0 ? 1 : 0.6} />
-      ))}
-      <rect x={0} y={dotRow} width={w * 0.48} height={barH} rx={r} fill={C.muted} opacity={0.4} />
-      <circle cx={w * 0.48 + dotSize / 2 + w * 0.03} cy={dotRow + barH / 2} r={dotSize / 2} fill={color} />
-    </svg>
-  )
 }
 
 export default function HomePage() {
   return (
-    <div style={{ minHeight: '100svh', background: C.bg, overflowX: 'hidden', fontFamily: '"DM Sans", system-ui, sans-serif' }}>
+    <div style={{
+      minHeight: '100svh',
+      background: '#0a0908',
+      overflowX: 'hidden',
+      fontFamily: 'var(--font-sans)',
+    }}>
 
-      {/* Ambient glow */}
-      <div aria-hidden style={{
-        position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none',
-        background: [
-          'radial-gradient(ellipse 80% 55% at 50% -5%, rgba(201,168,76,0.08) 0%, transparent 65%)',
-          'radial-gradient(ellipse 35% 35% at 90% 90%, rgba(201,168,76,0.03) 0%, transparent 55%)',
-        ].join(','),
-      }} />
+      {/* ── Grain overlay ── */}
+      <div aria-hidden className="sl-grain" />
 
-      {/* ══════════════════════════════════════════
+      {/* ── Breathing glow ── */}
+      <div aria-hidden className="sl-glow" />
+
+      {/* ════════════════════════════════════════
           NAV
-      ══════════════════════════════════════════ */}
-      <header style={{
-        position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100,
-        height: 64, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '0 40px',
-        background: 'rgba(10,9,8,0.9)',
-        backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)',
-        borderBottom: `1px solid ${C.border}`,
-      }}>
-        {/* Logo */}
-        <Link href="/" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 12 }}>
-          <LogoMark size={28} />
-          <span style={{
-            fontFamily: '"DM Mono", monospace', fontSize: 13,
-            fontWeight: 500, letterSpacing: '0.22em',
-            color: C.text, textTransform: 'uppercase',
-          }}>
-            Setlistr
-          </span>
+      ════════════════════════════════════════ */}
+      <header className="sl-nav">
+        <Link href="/" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center' }}>
+          <Image
+            src="/logo-white.png"
+            alt="Setlistr"
+            width={120}
+            height={32}
+            priority
+            style={{ objectFit: 'contain', opacity: 0.92 }}
+          />
         </Link>
 
-        {/* Nav */}
-        <nav style={{ display: 'flex', alignItems: 'center', gap: 36 }}>
-          <Link href="/get-paid" className="sl-nav-link">For Artists</Link>
-          <a href="mailto:info@setlistr.ai" className="sl-nav-link">For Publishers</a>
-          <a href="#waitlist" className="sl-nav-cta">Request Access</a>
+        <nav className="sl-nav__links">
+          <Link href="/get-paid" className="sl-nav__link">For Artists</Link>
+          <a href="mailto:info@setlistr.ai" className="sl-nav__link">For Publishers</a>
+          <a href="#access" className="sl-nav__apply">Apply</a>
         </nav>
       </header>
 
-      <div style={{ position: 'relative', zIndex: 1 }}>
+      {/* ════════════════════════════════════════
+          HERO
+      ════════════════════════════════════════ */}
+      <section className="sl-hero">
 
-        {/* ══════════════════════════════════════════
-            HERO
-        ══════════════════════════════════════════ */}
-        <section style={{
-          minHeight: '100svh',
-          display: 'flex', flexDirection: 'column',
-          alignItems: 'center', justifyContent: 'center',
-          textAlign: 'center', padding: '100px 24px 80px',
-          position: 'relative', overflow: 'hidden',
-        }}>
-          {/* Big watermark logo */}
-          <div aria-hidden style={{
-            position: 'absolute', top: '50%', left: '50%',
-            transform: 'translate(-50%, -50%)',
-            opacity: 0.018, pointerEvents: 'none',
-            width: '70vw', maxWidth: 700,
-          }}>
-            <Image src="/logo-white.png" alt="" fill style={{ objectFit: 'contain', position: 'relative' }}
-              sizes="70vw" />
+        {/* Eyebrow */}
+        <div className="sl-hero__eyebrow sl-blur-in" style={{ animationDelay: '0.1s' }}>
+          <div className="sl-eyebrow__line" />
+          <span className="sl-eyebrow__text">Live Performance Infrastructure</span>
+          <div className="sl-eyebrow__line" />
+        </div>
+
+        {/* Headline */}
+        <h1 className="sl-hero__headline sl-blur-in" style={{ animationDelay: '0.4s' }}>
+          The live performance<br />
+          record has never<br />
+          <em>existed.</em>
+        </h1>
+
+        {/* Until now */}
+        <p className="sl-hero__until sl-blur-in" style={{ animationDelay: '0.9s' }}>
+          Until now.
+        </p>
+
+        {/* CTA */}
+        <div className="sl-blur-in" style={{ animationDelay: '1.3s' }}>
+          <a href="#access" className="sl-hero__cta">
+            Apply for early access
+          </a>
+        </div>
+
+        {/* PRO strip — legible */}
+        <div className="sl-hero__pros sl-blur-in" style={{ animationDelay: '1.6s' }}>
+          {['SOCAN', 'ASCAP', 'BMI', 'PRS', 'APRA', 'SESAC', 'GMR'].map(pro => (
+            <span key={pro} className="sl-pro">{pro}</span>
+          ))}
+        </div>
+
+        {/* Scroll indicator */}
+        <div className="sl-hero__scroll sl-blur-in" style={{ animationDelay: '2s' }}>
+          <div className="sl-scroll__line" />
+        </div>
+      </section>
+
+      {/* ════════════════════════════════════════
+          THE NUMBERS
+      ════════════════════════════════════════ */}
+      <section className="sl-numbers">
+        {[
+          {
+            stat: '$2B+',
+            label: 'In uncollected live royalties annually',
+            body: 'Every licensed venue in the world pays into a pool. Most of it never reaches the artist. The data to distribute it has never existed.',
+          },
+          {
+            stat: '<30%',
+            label: 'Of live shows ever submitted to a PRO',
+            body: 'SOCAN, ASCAP, BMI, PRS, APRA, SESAC, GMR — across every major performing rights organization, the vast majority of live performances generate no claim.',
+          },
+          {
+            stat: '0',
+            label: 'Verified real-time live performance databases',
+            body: 'No PRO has it. No label has it. No streaming platform has it. The ground-truth record of what is performed live, by whom, where — has never been built.',
+          },
+        ].map(({ stat, label, body }) => (
+          <div key={stat} className="sl-number__cell">
+            <p className="sl-number__stat">{stat}</p>
+            <p className="sl-number__label">{label}</p>
+            <p className="sl-number__body">{body}</p>
           </div>
+        ))}
+      </section>
 
-          {/* Eyebrow */}
-          <div style={{
-            display: 'inline-flex', alignItems: 'center', gap: 10,
-            marginBottom: 44,
-            animation: 'fadeUp 0.7s ease 0.1s both',
-          }}>
-            <div style={{ width: 24, height: 1, background: C.goldDim }} />
-            <span style={{
-              fontFamily: '"DM Mono", monospace', fontSize: 10,
-              letterSpacing: '0.3em', color: C.goldDim, textTransform: 'uppercase',
-            }}>
-              Live performance infrastructure
-            </span>
-            <div style={{ width: 24, height: 1, background: C.goldDim }} />
-          </div>
+      {/* ════════════════════════════════════════
+          THE STATEMENT
+      ════════════════════════════════════════ */}
+      <section className="sl-statement">
+        <p className="sl-statement__mono">The Problem</p>
+        <blockquote className="sl-statement__text">
+          PROs are holding billions in royalties they cannot distribute.
+          Publishers have thousands of writers on stage every night with
+          zero visibility into what is being performed. The setlist has
+          never been infrastructure.
+        </blockquote>
+        <p className="sl-statement__text sl-statement__text--gold">
+          Setlistr is building the layer that makes all of it visible.
+        </p>
+      </section>
 
-          {/* Main headline */}
-          <h1 style={{
-            fontFamily: '"DM Serif Display", Georgia, serif',
-            fontWeight: 400, fontStyle: 'normal',
-            fontSize: 'clamp(52px, 9vw, 116px)',
-            lineHeight: 0.97, letterSpacing: '-0.025em',
-            color: C.text, margin: '0 0 0', maxWidth: 920,
-            animation: 'fadeUp 1s ease 0.2s both',
-          }}>
-            Every performance.<br />
-            Every song.<br />
-            <em style={{ color: C.gold, fontStyle: 'italic' }}>
-              Finally paid.
-            </em>
-          </h1>
-
-          {/* Rule */}
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 16,
-            width: '100%', maxWidth: 440, margin: '52px auto',
-            animation: 'fadeUp 0.7s ease 0.5s both',
-          }}>
-            <div style={{ flex: 1, height: 1, background: C.border }} />
-            <LogoMark size={18} color={C.goldDim} />
-            <div style={{ flex: 1, height: 1, background: C.border }} />
-          </div>
-
-          {/* Sub */}
-          <p style={{
-            fontSize: 'clamp(16px, 2vw, 20px)', fontWeight: 300,
-            color: C.secondary, maxWidth: 500, lineHeight: 1.75,
-            margin: '0 0 56px',
-            animation: 'fadeUp 0.8s ease 0.6s both',
-          }}>
-            Live performance is the largest unstructured dataset in music.
-            We are the infrastructure that changes that — for every artist,
-            every show, every royalty.
-          </p>
-
-          {/* CTAs */}
-          <div style={{
-            display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center',
-            animation: 'fadeUp 0.8s ease 0.75s both',
-          }}>
-            <Link href="/start" className="sl-btn-gold">
-              See what you&apos;re owed →
-            </Link>
-            <a href="#waitlist" className="sl-btn-ghost">
-              Request access
-            </a>
-          </div>
-
-          {/* PRO strip */}
-          <div style={{
-            display: 'flex', gap: 24, alignItems: 'center',
-            flexWrap: 'wrap', justifyContent: 'center',
-            marginTop: 56,
-            animation: 'fadeUp 0.6s ease 0.9s both',
-          }}>
-            {['SOCAN', 'ASCAP', 'BMI', 'PRS', 'APRA', 'SESAC', 'GMR'].map(pro => (
-              <span key={pro} style={{
-                fontFamily: '"DM Mono", monospace', fontSize: 9,
-                letterSpacing: '0.22em', color: 'rgba(160,152,128,0.25)',
-                textTransform: 'uppercase',
-              }}>{pro}</span>
-            ))}
-          </div>
-
-          {/* Scroll cue */}
-          <div style={{
-            position: 'absolute', bottom: 36, left: '50%',
-            transform: 'translateX(-50%)',
-            display: 'flex', flexDirection: 'column',
-            alignItems: 'center', gap: 6,
-            animation: 'fadeUp 0.6s ease 1.2s both',
-          }}>
-            <div style={{ width: 1, height: 32, background: `linear-gradient(to bottom, transparent, ${C.goldDim})` }} />
-          </div>
-        </section>
-
-        {/* ══════════════════════════════════════════
-            THE BLIND SPOT
-        ══════════════════════════════════════════ */}
-        <section style={{ padding: '80px 24px 100px', maxWidth: 960, margin: '0 auto' }}>
-          <SectionLabel num="001" text="The Problem" />
-
-          <h2 style={{
-            fontFamily: '"DM Serif Display", Georgia, serif', fontWeight: 400,
-            fontSize: 'clamp(28px, 4vw, 52px)', lineHeight: 1.25,
-            color: C.text, margin: '0 0 28px', maxWidth: 800,
-          }}>
-            Billions in performance royalties sit uncollected every year.
-            Not because the system is corrupt —
-          </h2>
-          <h2 style={{
-            fontFamily: '"DM Serif Display", Georgia, serif', fontWeight: 400,
-            fontSize: 'clamp(28px, 4vw, 52px)', lineHeight: 1.25,
-            color: C.secondary, margin: 0, maxWidth: 800,
-          }}>
-            because{' '}
-            <span style={{ color: C.text }}>the underlying performance data doesn&apos;t exist.</span>
-          </h2>
-        </section>
-
-        {/* ══════════════════════════════════════════
-            STATS
-        ══════════════════════════════════════════ */}
-        <section style={{ padding: '0 24px 100px', maxWidth: 1100, margin: '0 auto' }}>
-          <div className="sl-stats-grid">
-            {[
-              { stat: '$2B+', label: 'Annual live royalty pool', sub: 'Global PRO collections tied to live performance across SOCAN, ASCAP, BMI, PRS, APRA, SESAC, and GMR every year.' },
-              { stat: '<30%', label: 'Shows ever submitted',     sub: 'Industry average setlist submission rate. The vast majority of live performances generate no royalty claim — ever.' },
-              { stat: '4M+',  label: 'PRO members globally',    sub: 'Working songwriters registered worldwide. Most submitting nothing. Most unaware of what they are owed.' },
-            ].map(({ stat, label, sub }) => (
-              <div key={stat} className="sl-stat-cell">
-                <p className="sl-stat-number">{stat}</p>
-                <p className="sl-stat-label">{label}</p>
-                <p className="sl-stat-sub">{sub}</p>
+      {/* ════════════════════════════════════════
+          THE EVOLUTION — 5 STAGES
+      ════════════════════════════════════════ */}
+      <section className="sl-stages">
+        <p className="sl-stages__label">The Roadmap</p>
+        <div className="sl-stages__grid">
+          {[
+            { n: '01', name: 'Tool',           now: true,  desc: 'Artists capture shows in real time. Submit to every PRO in minutes. Royalties enter the pipeline.' },
+            { n: '02', name: 'Habit',          now: false, desc: 'The pre-show ritual. The post-show record. A career archive that compounds with every performance.' },
+            { n: '03', name: 'Network',        now: false, desc: 'Publishers, co-writers, fans — all connected to the verified live record in real time.' },
+            { n: '04', name: 'Intelligence',   now: false, desc: 'The system surfaces shows never submitted. Royalties the artist never knew existed.' },
+            { n: '05', name: 'Infrastructure', now: false, desc: 'The canonical live performance layer. Licensed globally to labels, DSPs, PROs, and analytics platforms.' },
+          ].map(({ n, name, now, desc }) => (
+            <div key={n} className={now ? 'sl-stage sl-stage--now' : 'sl-stage'}>
+              <div className="sl-stage__top">
+                <span className="sl-stage__n">{n}</span>
+                {now && <span className="sl-stage__badge">Now</span>}
               </div>
-            ))}
-          </div>
-        </section>
-
-        {/* ══════════════════════════════════════════
-            WHAT WE'RE BUILDING
-        ══════════════════════════════════════════ */}
-        <section style={{ padding: '80px 24px 100px', maxWidth: 1100, margin: '0 auto' }}>
-          <SectionLabel num="002" text="The Infrastructure" />
-
-          <div className="sl-split-grid">
-            <div>
-              <h2 style={{
-                fontFamily: '"DM Serif Display", Georgia, serif', fontWeight: 400,
-                fontSize: 'clamp(32px, 4.5vw, 58px)', lineHeight: 1.08,
-                color: C.text, margin: 0,
-              }}>
-                Not a tool.<br />
-                <em style={{ color: C.gold, fontStyle: 'italic' }}>The layer<br />that was missing.</em>
-              </h2>
+              <p className="sl-stage__name">{name}</p>
+              <p className="sl-stage__desc">{desc}</p>
             </div>
-            <div style={{ paddingTop: 4 }}>
-              <p style={{ fontSize: 16, fontWeight: 300, color: C.secondary, lineHeight: 1.85, margin: '0 0 22px' }}>
-                PROs have operated the same way for decades — sample models, major tour data,
-                and setlists artists submit manually, if they remember, if they can find the portal,
-                if the submission window hasn&apos;t already closed.
-              </p>
-              <p style={{ fontSize: 16, fontWeight: 300, color: C.secondary, lineHeight: 1.85, margin: '0 0 22px' }}>
-                The result: a financial system that works for artists who are already commercially
-                visible. Everyone else — the working songwriter, the regional touring act, the
-                writers round performer — leaves money in a pool redistributed to the artists who
-                need it least.
-              </p>
-              <p style={{ fontSize: 16, fontWeight: 300, color: C.secondary, lineHeight: 1.85, margin: 0 }}>
-                <strong style={{ color: C.text, fontWeight: 500 }}>
-                  Setlistr captures every performance in real time. Structures the data automatically.
-                  Routes it through the royalty pipeline.
-                </strong>{' '}
-                For every artist. Every venue. Every show. No forms. No portals. No missed windows.
-              </p>
-            </div>
-          </div>
-        </section>
+          ))}
+        </div>
+      </section>
 
-        {/* ══════════════════════════════════════════
-            STAGE EVOLUTION
-        ══════════════════════════════════════════ */}
-        <section style={{ padding: '0 24px 100px', maxWidth: 1100, margin: '0 auto' }}>
-          <div className="sl-stages">
-            {[
-              { n: '01', name: 'Tool',           active: true,  desc: 'Capture every show. Submit to every PRO. Under 90 seconds after the last song.' },
-              { n: '02', name: 'Habit',          active: false, desc: 'The pre-show ritual. The post-show recap. The career archive that compounds with every performance.' },
-              { n: '03', name: 'Network',        active: false, desc: 'Publishers, co-writers, and fans connected to the live performance record in real time.' },
-              { n: '04', name: 'Intelligence',   active: false, desc: 'The system surfaces shows that were never submitted. Royalties the artist did not know existed.' },
-              { n: '05', name: 'Infrastructure', active: false, desc: 'The canonical live performance layer. Licensed to labels, DSPs, PROs, and analytics platforms globally.' },
-            ].map(({ n, name, active, desc }) => (
-              <div key={n} className={active ? 'sl-stage sl-stage--active' : 'sl-stage'}>
-                <span className="sl-stage__num">{n}</span>
-                <p className="sl-stage__name">{name}</p>
-                <p className="sl-stage__desc">{desc}</p>
-              </div>
-            ))}
-          </div>
-        </section>
+      {/* ════════════════════════════════════════
+          SEO BODY — Why Now
+      ════════════════════════════════════════ */}
+      <section className="sl-why">
+        <p className="sl-why__mono">Why Now</p>
+        <h2 className="sl-why__headline">
+          The window is open.<br />
+          <em>It will not stay open.</em>
+        </h2>
+        <div className="sl-why__body">
+          <p>
+            The problem of <strong>unclaimed live performance royalties</strong> has existed for
+            decades. What is different now is that the technology to solve it has matured
+            simultaneously with the industry&apos;s openness to third-party digital submission
+            workflows. Real-time audio recognition is accurate enough to identify songs as they
+            are performed. Mobile-first behavior makes passive background capture possible.
+            PRO submission APIs exist — and in some cases are entirely unoccupied, including
+            the SOCAN NLMP API abandoned since 2020.
+          </p>
+          <p>
+            Every songwriter registered with <strong>SOCAN, ASCAP, BMI, PRS for Music,
+            APRA AMCOS, SESAC, or GMR</strong> is owed performance royalties for every live
+            performance of their registered songs. The <strong>setlist submission</strong> process
+            required to collect those royalties is the only barrier between the artist and
+            money they have already earned. Most never submit. Most publishers never follow
+            up. Most PROs never know the show happened.
+          </p>
+          <p>
+            The first platform to capture live performance data at scale owns it permanently.
+            Historical performance records cannot be recreated retroactively.{' '}
+            <strong>This is the race — and Setlistr is already moving.</strong>
+          </p>
+        </div>
+      </section>
 
-        {/* ══════════════════════════════════════════
-            HOW IT WORKS
-        ══════════════════════════════════════════ */}
-        <section style={{ padding: '80px 24px 100px', maxWidth: 800, margin: '0 auto' }}>
-          <SectionLabel num="003" text="How It Works" />
+      {/* ════════════════════════════════════════
+          THE MOAT QUOTE
+      ════════════════════════════════════════ */}
+      <section className="sl-moat">
+        <div className="sl-moat__inner">
+          <blockquote className="sl-moat__quote">
+            &ldquo;Anyone can build a submission tool. No one can recreate a global dataset
+            of verified live performance history once it has been captured.&rdquo;
+          </blockquote>
+          <p className="sl-moat__attribution">Setlistr Strategic Blueprint · 2026</p>
+        </div>
+      </section>
 
-          <h2 style={{
-            fontFamily: '"DM Serif Display", Georgia, serif', fontWeight: 400,
-            fontSize: 'clamp(28px, 3.5vw, 44px)', color: C.text,
-            margin: '0 0 52px', lineHeight: 1.15,
-          }}>
-            Zero effort during the show.<br />Under 90 seconds after.
+      {/* ════════════════════════════════════════
+          WAITLIST / ACCESS
+      ════════════════════════════════════════ */}
+      <section id="access" className="sl-access">
+
+        {/* Pin line from above */}
+        <div className="sl-access__pin" />
+
+        <div className="sl-access__inner">
+          <Image
+            src="/logo-white.png"
+            alt="Setlistr"
+            width={100}
+            height={26}
+            style={{ objectFit: 'contain', opacity: 0.5, marginBottom: 36 }}
+          />
+
+          <h2 className="sl-access__headline">
+            Early access.<br />
+            <em>By application only.</em>
           </h2>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-            {[
-              { step: '01', title: 'Open Setlistr before the show',   body: 'Load your planned set or start fresh. The capture engine arms automatically.' },
-              { step: '02', title: 'Play your show',                   body: 'Real-time audio recognition identifies every song as you perform it. No manual input. No interruptions.' },
-              { step: '03', title: 'Review the recap after',           body: 'Your setlist is confirmed, royalties are estimated, and the submission package is built — in seconds.' },
-              { step: '04', title: 'Submit to your PRO',               body: 'PRO-specific formatted files and direct deep links. Submission goes from 45 minutes of confusion to 5 minutes of filing.' },
-            ].map(({ step, title, body }) => (
-              <div key={step} style={{
-                display: 'grid', gridTemplateColumns: '56px 1fr',
-                gap: 24, padding: '28px 0',
-                borderBottom: `1px solid ${C.border}`,
-              }}>
-                <span style={{
-                  fontFamily: '"DM Mono", monospace', fontSize: 11,
-                  letterSpacing: '0.15em', color: C.gold, paddingTop: 3,
-                }}>
-                  {step}
-                </span>
-                <div>
-                  <p style={{ fontSize: 16, fontWeight: 600, color: C.text, margin: '0 0 8px' }}>{title}</p>
-                  <p style={{ fontSize: 14, fontWeight: 300, color: C.secondary, lineHeight: 1.7, margin: 0 }}>{body}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* ══════════════════════════════════════════
-            SEO — WHY NOW
-        ══════════════════════════════════════════ */}
-        <section style={{ padding: '80px 24px 100px', maxWidth: 800, margin: '0 auto' }}>
-          <SectionLabel num="004" text="Why Now" />
-
-          <h2 style={{
-            fontFamily: '"DM Serif Display", Georgia, serif', fontWeight: 400,
-            fontSize: 'clamp(28px, 3.5vw, 44px)', color: C.text,
-            margin: '0 0 32px', lineHeight: 1.15,
-          }}>
-            The window to build this is open.<br />It will not stay open.
-          </h2>
-
-          <p style={{ fontSize: 15, fontWeight: 300, color: C.secondary, lineHeight: 1.9, margin: '0 0 20px' }}>
-            The problem of <strong style={{ color: C.text, fontWeight: 400 }}>unclaimed live performance royalties</strong> is
-            not new. What is new is the technology to solve it. Audio recognition is now accurate enough for
-            real-time live song identification at scale. Mobile-first behavior makes passive background capture
-            possible. PRO APIs exist and are, in some cases, entirely unoccupied — including the SOCAN NLMP API,
-            abandoned since 2020.
-          </p>
-
-          <p style={{ fontSize: 15, fontWeight: 300, color: C.secondary, lineHeight: 1.9, margin: '0 0 20px' }}>
-            Every working songwriter registered with <strong style={{ color: C.text, fontWeight: 400 }}>SOCAN, ASCAP, BMI,
-            PRS for Music, APRA AMCOS, SESAC, or GMR</strong> is owed performance royalties for every live
-            performance of their registered songs. The <strong style={{ color: C.text, fontWeight: 400 }}>setlist
-            submission</strong> process required to collect those royalties — submitting to ASCAP&apos;s live
-            performance portal, filing with SOCAN&apos;s NLMP, reporting to BMI&apos;s online system — is the
-            only barrier between the artist and money they have already earned.
-          </p>
-
-          <p style={{ fontSize: 15, fontWeight: 300, color: C.secondary, lineHeight: 1.9, margin: '0 0 20px' }}>
-            Publishers with live performance rights have thousands of writers on stage every night with zero
-            real-time visibility into what is being performed, what has been submitted, and how much royalty
-            revenue is sitting unclaimed. The publisher blind spot is worth hundreds of millions annually —
-            and nobody has built infrastructure to address it. Until now.
-          </p>
-
-          <p style={{ fontSize: 15, fontWeight: 300, color: C.secondary, lineHeight: 1.9, margin: 0 }}>
-            The first platform to capture live performance data at scale owns it permanently. Historical
-            performance records cannot be recreated retroactively.{' '}
-            <strong style={{ color: C.text, fontWeight: 400 }}>
-              This is the race. Setlistr is already moving.
-            </strong>
-          </p>
-        </section>
-
-        {/* ══════════════════════════════════════════
-            DATA MOAT
-        ══════════════════════════════════════════ */}
-        <section style={{ padding: '0 24px 100px', maxWidth: 1100, margin: '0 auto' }}>
-          <div style={{
-            background: C.card, border: `1px solid ${C.border}`,
-            borderLeft: `3px solid ${C.gold}`,
-            padding: '40px 48px',
-          }}>
-            <p style={{
-              fontFamily: '"DM Serif Display", Georgia, serif',
-              fontWeight: 400, fontStyle: 'italic',
-              fontSize: 'clamp(20px, 2.5vw, 30px)',
-              color: C.text, lineHeight: 1.45, margin: '0 0 20px',
-            }}>
-              &ldquo;SaaS is the interface layer. The underlying business is data infrastructure.
-              The more shows captured, the more valuable the dataset becomes — and that value
-              compounds permanently. Anyone can build a submission tool. No one can recreate a
-              global dataset of verified live performance history once it has been captured.&rdquo;
-            </p>
-            <p style={{
-              fontFamily: '"DM Mono", monospace', fontSize: 10,
-              letterSpacing: '0.2em', color: C.goldDim, textTransform: 'uppercase', margin: 0,
-            }}>
-              — Setlistr · Strategic Blueprint 2026
-            </p>
-          </div>
-        </section>
-
-        {/* ══════════════════════════════════════════
-            WAITLIST
-        ══════════════════════════════════════════ */}
-        <section id="waitlist" style={{
-          padding: '100px 24px 140px',
-          position: 'relative', textAlign: 'center',
-        }}>
-          {/* Top pin */}
-          <div style={{
-            position: 'absolute', top: 0, left: '50%',
-            transform: 'translateX(-50%)',
-            width: 1, height: 80,
-            background: `linear-gradient(to bottom, transparent, ${C.goldDim})`,
-          }} />
-
-          <div style={{ marginBottom: 20 }}>
-            <LogoMark size={36} />
-          </div>
-
-          <p style={{
-            fontFamily: '"DM Mono", monospace', fontSize: 10,
-            letterSpacing: '0.28em', color: C.goldDim,
-            textTransform: 'uppercase', marginBottom: 28, display: 'block',
-          }}>
-            Early Access
-          </p>
-
-          <h2 style={{
-            fontFamily: '"DM Serif Display", Georgia, serif', fontWeight: 400,
-            fontSize: 'clamp(36px, 5.5vw, 68px)',
-            color: C.text, lineHeight: 1.05, margin: '0 0 16px',
-          }}>
-            Get in early.
-          </h2>
-          <h2 style={{
-            fontFamily: '"DM Serif Display", Georgia, serif', fontWeight: 400,
-            fontStyle: 'italic',
-            fontSize: 'clamp(36px, 5.5vw, 68px)',
-            color: C.gold, lineHeight: 1.05, margin: '0 0 28px',
-          }}>
-            The list is short.
-          </h2>
-
-          <p style={{
-            fontSize: 16, fontWeight: 300, color: C.secondary,
-            maxWidth: 400, margin: '0 auto 52px', lineHeight: 1.7,
-          }}>
-            We are onboarding a limited number of artists and publishers.
-            Select your access path below.
+          <p className="sl-access__sub">
+            We are onboarding a limited number of artists and industry partners.
+            Applications are reviewed personally.
           </p>
 
           <WaitlistForm />
 
-          <p style={{
-            fontFamily: '"DM Mono", monospace', fontSize: 10,
-            letterSpacing: '0.15em', color: C.muted,
-            margin: '40px 0 0',
-          }}>
+          <p className="sl-access__investor">
             Investor inquiries —{' '}
-            <a href="mailto:invest@setlistr.ai" style={{ color: C.goldDim, textDecoration: 'none' }}>
-              invest@setlistr.ai
+            <a href="mailto:info@setlistr.ai" className="sl-access__investor-link">
+              info@setlistr.ai
             </a>
           </p>
-        </section>
+        </div>
+      </section>
 
-        {/* ══════════════════════════════════════════
-            FOOTER
-        ══════════════════════════════════════════ */}
-        <footer style={{
-          borderTop: `1px solid ${C.border}`,
-          padding: '36px 40px',
-          display: 'flex', alignItems: 'center',
-          justifyContent: 'space-between', flexWrap: 'wrap', gap: 20,
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <LogoMark size={20} />
-            <span style={{
-              fontFamily: '"DM Mono", monospace', fontSize: 11,
-              letterSpacing: '0.2em', color: C.muted, textTransform: 'uppercase',
-            }}>
-              Setlistr
-            </span>
-          </div>
+      {/* ════════════════════════════════════════
+          FOOTER
+      ════════════════════════════════════════ */}
+      <footer className="sl-footer">
+        <Image
+          src="/logo-white.png"
+          alt="Setlistr"
+          width={80}
+          height={22}
+          style={{ objectFit: 'contain', opacity: 0.35 }}
+        />
 
-          <nav style={{ display: 'flex', gap: 28, flexWrap: 'wrap', alignItems: 'center' }}>
-            {[
-              { label: 'For Artists',  href: '/get-paid' },
-              { label: 'How It Works', href: '/start' },
-              { label: 'Contact',      href: 'mailto:info@setlistr.ai' },
-              { label: 'Investors',    href: 'mailto:invest@setlistr.ai' },
-              { label: 'Privacy',      href: '/privacy' },
-              { label: 'Terms',        href: '/terms' },
-            ].map(({ label, href }) =>
-              href.startsWith('mailto') ? (
-                <a key={label} href={href} className="sl-footer-link">{label}</a>
-              ) : (
-                <Link key={label} href={href} className="sl-footer-link">{label}</Link>
-              )
-            )}
-          </nav>
+        <nav className="sl-footer__links">
+          {[
+            { label: 'For Artists',  href: '/get-paid' },
+            { label: 'How It Works', href: '/start' },
+            { label: 'Contact',      href: 'mailto:info@setlistr.ai' },
+            { label: 'Privacy',      href: '/privacy' },
+            { label: 'Terms',        href: '/terms' },
+          ].map(({ label, href }) =>
+            href.startsWith('mailto') ? (
+              <a key={label} href={href} className="sl-footer__link">{label}</a>
+            ) : (
+              <Link key={label} href={href} className="sl-footer__link">{label}</Link>
+            )
+          )}
+        </nav>
 
-          <p style={{
-            fontFamily: '"DM Mono", monospace', fontSize: 10,
-            letterSpacing: '0.1em', color: 'rgba(90,84,72,0.45)', margin: 0,
-          }}>
-            © {new Date().getFullYear()} Setlistr Inc.
-          </p>
-        </footer>
-      </div>
+        <p className="sl-footer__copy">
+          © {new Date().getFullYear()} Setlistr Inc.
+        </p>
+      </footer>
 
-      {/* ══ GLOBAL STYLES ══ */}
+      {/* ════════════════════════════════════════
+          STYLES
+      ════════════════════════════════════════ */}
       <style>{`
-        @keyframes fadeUp {
-          from { opacity: 0; transform: translateY(22px); }
-          to   { opacity: 1; transform: translateY(0); }
+
+        /* ── Grain ── */
+        .sl-grain {
+          position: fixed; inset: 0; z-index: 999;
+          pointer-events: none;
+          background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.06'/%3E%3C/svg%3E");
+          opacity: 0.35;
         }
 
-        /* Nav */
-        .sl-nav-link {
-          font-size: 13px; font-weight: 400; letter-spacing: 0.01em;
-          color: #5a5448; text-decoration: none;
-          transition: color 0.2s ease;
+        /* ── Breathing glow ── */
+        .sl-glow {
+          position: fixed;
+          top: -20vh; left: 50%;
+          transform: translateX(-50%);
+          width: 120vw; height: 80vh;
+          background: radial-gradient(ellipse at 50% 0%,
+            rgba(201,168,76,0.09) 0%,
+            rgba(201,168,76,0.03) 40%,
+            transparent 70%
+          );
+          pointer-events: none; z-index: 0;
+          animation: breathe 6s ease-in-out infinite;
         }
-        .sl-nav-link:hover { color: #f0ece3; }
 
-        .sl-nav-cta {
-          font-family: "DM Mono", monospace;
-          font-size: 11px; font-weight: 500; letter-spacing: 0.12em;
+        @keyframes breathe {
+          0%, 100% { opacity: 0.7; transform: translateX(-50%) scaleX(1); }
+          50%       { opacity: 1;   transform: translateX(-50%) scaleX(1.08); }
+        }
+
+        /* ── Blur-in animation ── */
+        .sl-blur-in {
+          opacity: 0;
+          animation: blurIn 1.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        @keyframes blurIn {
+          from { opacity: 0; filter: blur(12px); transform: translateY(10px); }
+          to   { opacity: 1; filter: blur(0px);  transform: translateY(0); }
+        }
+
+        /* ── Nav ── */
+        .sl-nav {
+          position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+          height: 64px;
+          display: flex; align-items: center; justify-content: space-between;
+          padding: 0 40px;
+          background: rgba(10,9,8,0.85);
+          backdrop-filter: blur(24px);
+          -webkit-backdrop-filter: blur(24px);
+          border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+        .sl-nav__links {
+          display: flex; align-items: center; gap: 36px;
+        }
+        .sl-nav__link {
+          font-family: var(--font-mono);
+          font-size: 10px; letter-spacing: 0.16em;
+          color: rgba(160,152,128,0.55);
+          text-decoration: none; text-transform: uppercase;
+          transition: color 0.25s ease;
+        }
+        .sl-nav__link:hover { color: #f0ece3; }
+        .sl-nav__apply {
+          font-family: var(--font-mono);
+          font-size: 10px; letter-spacing: 0.18em;
           color: #0a0908; background: #c9a84c;
-          padding: 9px 20px; text-decoration: none;
+          padding: 8px 18px; text-decoration: none;
           text-transform: uppercase;
           transition: opacity 0.2s ease;
         }
-        .sl-nav-cta:hover { opacity: 0.84; }
+        .sl-nav__apply:hover { opacity: 0.82; }
 
-        /* Hero buttons */
-        .sl-btn-gold {
-          display: inline-block;
-          background: #c9a84c; color: #0a0908;
-          font-family: "DM Mono", monospace;
-          font-size: 12px; font-weight: 600;
-          letter-spacing: 0.1em; text-transform: uppercase;
-          padding: 16px 32px; text-decoration: none;
-          transition: opacity 0.2s ease;
+        /* ── Hero ── */
+        .sl-hero {
+          position: relative; z-index: 1;
+          min-height: 100svh;
+          display: flex; flex-direction: column;
+          align-items: center; justify-content: center;
+          text-align: center;
+          padding: 100px 24px 80px;
         }
-        .sl-btn-gold:hover { opacity: 0.86; }
 
-        .sl-btn-ghost {
-          display: inline-block;
-          background: transparent;
-          border: 1px solid rgba(201,168,76,0.2);
-          color: #a09880;
-          font-family: "DM Mono", monospace;
-          font-size: 12px; font-weight: 400;
-          letter-spacing: 0.08em; text-transform: uppercase;
-          padding: 16px 32px; text-decoration: none;
-          transition: border-color 0.2s ease, color 0.2s ease;
+        .sl-hero__eyebrow {
+          display: flex; align-items: center; gap: 14px;
+          margin-bottom: 52px;
         }
-        .sl-btn-ghost:hover {
-          border-color: rgba(201,168,76,0.4);
+        .sl-eyebrow__line {
+          width: 32px; height: 1px;
+          background: rgba(201,168,76,0.35);
+        }
+        .sl-eyebrow__text {
+          font-family: var(--font-mono);
+          font-size: 10px; letter-spacing: 0.28em;
+          color: rgba(201,168,76,0.6);
+          text-transform: uppercase;
+        }
+
+        .sl-hero__headline {
+          font-family: var(--font-display);
+          font-weight: 400; font-style: normal;
+          font-size: clamp(52px, 9.5vw, 120px);
+          line-height: 0.96;
+          letter-spacing: -0.028em;
           color: #f0ece3;
+          margin: 0 0 0;
+          max-width: 880px;
+        }
+        .sl-hero__headline em {
+          font-style: italic;
+          color: #c9a84c;
         }
 
-        /* Stats */
-        .sl-stats-grid {
-          display: grid;
-          grid-template-columns: repeat(3, 1fr);
+        .sl-hero__until {
+          font-family: var(--font-display);
+          font-style: italic;
+          font-size: clamp(52px, 9.5vw, 120px);
+          line-height: 0.96;
+          letter-spacing: -0.028em;
+          color: rgba(240,236,227,0.22);
+          margin: 0 0 60px;
+        }
+
+        .sl-hero__cta {
+          display: inline-block;
+          font-family: var(--font-mono);
+          font-size: 11px; letter-spacing: 0.18em;
+          text-transform: uppercase;
+          color: #0a0908; background: #c9a84c;
+          padding: 16px 36px;
+          text-decoration: none;
+          transition: opacity 0.2s ease;
+          margin-bottom: 60px;
+        }
+        .sl-hero__cta:hover { opacity: 0.84; }
+
+        /* PROs — legible */
+        .sl-hero__pros {
+          display: flex; gap: 20px; align-items: center;
+          flex-wrap: wrap; justify-content: center;
+          margin-bottom: 56px;
+        }
+        .sl-pro {
+          font-family: var(--font-mono);
+          font-size: 10px; letter-spacing: 0.2em;
+          color: rgba(160,152,128,0.5);
+          text-transform: uppercase;
+        }
+
+        /* Scroll indicator */
+        .sl-hero__scroll {
+          position: absolute; bottom: 32px;
+          left: 50%; transform: translateX(-50%);
+        }
+        .sl-scroll__line {
+          width: 1px; height: 40px;
+          background: linear-gradient(to bottom, transparent, rgba(201,168,76,0.4));
+          animation: scrollPulse 2s ease-in-out infinite;
+        }
+        @keyframes scrollPulse {
+          0%, 100% { opacity: 0.4; transform: scaleY(1); }
+          50%       { opacity: 1;   transform: scaleY(1.15); }
+        }
+
+        /* ── Numbers ── */
+        .sl-numbers {
+          position: relative; z-index: 1;
+          display: grid; grid-template-columns: repeat(3, 1fr);
           gap: 1px;
-          background: rgba(255,255,255,0.06);
-          border: 1px solid rgba(255,255,255,0.06);
+          background: rgba(255,255,255,0.05);
+          border-top: 1px solid rgba(255,255,255,0.05);
+          border-bottom: 1px solid rgba(255,255,255,0.05);
         }
-        .sl-stat-cell {
-          background: #141210;
-          padding: 48px 40px;
-          transition: background 0.2s ease;
+        .sl-number__cell {
+          background: #0a0908;
+          padding: 60px 44px;
+          transition: background 0.3s ease;
         }
-        .sl-stat-cell:hover { background: #0f0e0c; }
-        .sl-stat-number {
-          font-family: "DM Serif Display", Georgia, serif;
-          font-size: clamp(52px, 6vw, 80px); font-weight: 400;
-          color: #c9a84c; margin: 0 0 14px;
-          line-height: 1; letter-spacing: -0.025em;
+        .sl-number__cell:hover { background: #0d0c0a; }
+        .sl-number__stat {
+          font-family: var(--font-display);
+          font-size: clamp(56px, 7vw, 88px);
+          font-weight: 400; font-style: normal;
+          color: #c9a84c;
+          margin: 0 0 16px; line-height: 1;
+          letter-spacing: -0.03em;
         }
-        .sl-stat-label {
-          font-size: 13px; font-weight: 600;
-          color: #f0ece3; margin: 0 0 12px; letter-spacing: 0.01em;
+        .sl-number__label {
+          font-family: var(--font-sans);
+          font-size: 14px; font-weight: 500;
+          color: #f0ece3;
+          margin: 0 0 14px; line-height: 1.3;
         }
-        .sl-stat-sub {
+        .sl-number__body {
+          font-family: var(--font-sans);
           font-size: 13px; font-weight: 300;
-          color: #5a5448; line-height: 1.65; margin: 0;
+          color: #5a5448; line-height: 1.7; margin: 0;
         }
 
-        /* Split grid */
-        .sl-split-grid {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 80px; align-items: start;
+        /* ── Statement ── */
+        .sl-statement {
+          position: relative; z-index: 1;
+          padding: 120px 40px;
+          max-width: 860px; margin: 0 auto;
         }
+        .sl-statement__mono {
+          font-family: var(--font-mono);
+          font-size: 10px; letter-spacing: 0.28em;
+          color: rgba(201,168,76,0.45);
+          text-transform: uppercase;
+          margin: 0 0 32px;
+        }
+        .sl-statement__text {
+          font-family: var(--font-display);
+          font-weight: 400;
+          font-size: clamp(24px, 3.5vw, 42px);
+          line-height: 1.3; color: rgba(160,152,128,0.7);
+          margin: 0 0 20px;
+        }
+        .sl-statement__text--gold { color: #f0ece3; }
 
-        /* Stages */
+        /* ── Stages ── */
         .sl-stages {
-          display: grid;
-          grid-template-columns: repeat(5, 1fr);
+          position: relative; z-index: 1;
+          padding: 0 40px 100px;
+          max-width: 1120px; margin: 0 auto;
+        }
+        .sl-stages__label {
+          font-family: var(--font-mono);
+          font-size: 10px; letter-spacing: 0.28em;
+          color: rgba(201,168,76,0.45);
+          text-transform: uppercase;
+          margin: 0 0 28px;
+        }
+        .sl-stages__grid {
+          display: grid; grid-template-columns: repeat(5, 1fr);
           gap: 1px;
-          background: rgba(255,255,255,0.06);
-          border: 1px solid rgba(255,255,255,0.06);
+          background: rgba(255,255,255,0.05);
+          border: 1px solid rgba(255,255,255,0.05);
         }
         .sl-stage {
-          background: #141210;
+          background: #0a0908;
           padding: 32px 24px;
           border-top: 2px solid transparent;
         }
-        .sl-stage--active {
-          background: #0f0e0c;
+        .sl-stage--now {
+          background: #0d0c0a;
           border-top-color: #c9a84c;
         }
-        .sl-stage__num {
-          font-family: "DM Mono", monospace;
-          font-size: 9px; letter-spacing: 0.22em;
-          color: #5a5448; display: block; margin-bottom: 18px;
+        .sl-stage__top {
+          display: flex; align-items: center;
+          justify-content: space-between;
+          margin-bottom: 20px;
         }
-        .sl-stage--active .sl-stage__num { color: #c9a84c; }
+        .sl-stage__n {
+          font-family: var(--font-mono);
+          font-size: 10px; letter-spacing: 0.2em;
+          color: #3a3028;
+        }
+        .sl-stage--now .sl-stage__n { color: #c9a84c; }
+        .sl-stage__badge {
+          font-family: var(--font-mono);
+          font-size: 8px; letter-spacing: 0.14em;
+          color: #c9a84c;
+          border: 1px solid rgba(201,168,76,0.3);
+          padding: 2px 6px; text-transform: uppercase;
+        }
         .sl-stage__name {
-          font-family: "DM Serif Display", Georgia, serif;
+          font-family: var(--font-display);
           font-size: 20px; font-weight: 400;
-          color: #a09880; margin: 0 0 10px;
+          color: #3a3028; margin: 0 0 10px;
         }
-        .sl-stage--active .sl-stage__name { color: #f0ece3; }
+        .sl-stage--now .sl-stage__name { color: #f0ece3; }
         .sl-stage__desc {
+          font-family: var(--font-sans);
           font-size: 12px; font-weight: 300;
-          color: #5a5448; line-height: 1.65; margin: 0;
+          color: #3a3028; line-height: 1.65; margin: 0;
+        }
+        .sl-stage--now .sl-stage__desc { color: #6a5f50; }
+
+        /* ── Why Now ── */
+        .sl-why {
+          position: relative; z-index: 1;
+          padding: 100px 40px;
+          max-width: 780px; margin: 0 auto;
+        }
+        .sl-why__mono {
+          font-family: var(--font-mono);
+          font-size: 10px; letter-spacing: 0.28em;
+          color: rgba(201,168,76,0.45);
+          text-transform: uppercase;
+          margin: 0 0 32px;
+        }
+        .sl-why__headline {
+          font-family: var(--font-display);
+          font-weight: 400;
+          font-size: clamp(28px, 4vw, 48px);
+          color: #f0ece3; margin: 0 0 40px; line-height: 1.15;
+        }
+        .sl-why__headline em {
+          font-style: italic; color: #c9a84c;
+        }
+        .sl-why__body {
+          display: flex; flex-direction: column; gap: 20px;
+        }
+        .sl-why__body p {
+          font-family: var(--font-sans);
+          font-size: 15px; font-weight: 300;
+          color: #6a5f50; line-height: 1.85; margin: 0;
+        }
+        .sl-why__body strong { color: #a09070; font-weight: 400; }
+
+        /* ── Moat quote ── */
+        .sl-moat {
+          position: relative; z-index: 1;
+          padding: 0 40px 100px;
+          max-width: 1120px; margin: 0 auto;
+        }
+        .sl-moat__inner {
+          border-left: 2px solid #c9a84c;
+          padding: 36px 48px;
+          background: rgba(201,168,76,0.03);
+        }
+        .sl-moat__quote {
+          font-family: var(--font-display);
+          font-style: italic; font-weight: 400;
+          font-size: clamp(18px, 2.5vw, 26px);
+          color: rgba(240,236,227,0.7);
+          line-height: 1.5; margin: 0 0 20px;
+        }
+        .sl-moat__attribution {
+          font-family: var(--font-mono);
+          font-size: 10px; letter-spacing: 0.18em;
+          color: rgba(201,168,76,0.4);
+          text-transform: uppercase; margin: 0;
         }
 
-        /* Footer */
-        .sl-footer-link {
-          font-family: "DM Mono", monospace;
+        /* ── Access / Waitlist ── */
+        .sl-access {
+          position: relative; z-index: 1;
+          padding: 120px 24px 140px;
+          text-align: center;
+        }
+        .sl-access__pin {
+          position: absolute; top: 0; left: 50%;
+          transform: translateX(-50%);
+          width: 1px; height: 80px;
+          background: linear-gradient(to bottom,
+            transparent,
+            rgba(201,168,76,0.4)
+          );
+        }
+        .sl-access__inner {
+          display: flex; flex-direction: column;
+          align-items: center; max-width: 420px; margin: 0 auto;
+        }
+        .sl-access__headline {
+          font-family: var(--font-display);
+          font-weight: 400;
+          font-size: clamp(38px, 6vw, 72px);
+          color: #f0ece3; line-height: 1.05;
+          margin: 0 0 20px;
+        }
+        .sl-access__headline em {
+          font-style: italic; color: #c9a84c;
+        }
+        .sl-access__sub {
+          font-family: var(--font-sans);
+          font-size: 14px; font-weight: 300;
+          color: #5a5448; line-height: 1.7;
+          margin: 0 0 48px; max-width: 340px;
+        }
+        .sl-access__investor {
+          font-family: var(--font-mono);
           font-size: 10px; letter-spacing: 0.12em;
-          color: #5a5448; text-decoration: none;
-          text-transform: uppercase; transition: color 0.2s ease;
+          color: #3a3028; margin: 32px 0 0;
         }
-        .sl-footer-link:hover { color: #a09880; }
+        .sl-access__investor-link {
+          color: rgba(201,168,76,0.45);
+          text-decoration: none;
+        }
+        .sl-access__investor-link:hover {
+          color: rgba(201,168,76,0.7);
+        }
 
-        /* Input placeholders */
-        input::placeholder { color: #5a5448 !important; }
-        input:focus { border-color: rgba(201,168,76,0.3) !important; }
+        /* ── Footer ── */
+        .sl-footer {
+          position: relative; z-index: 1;
+          border-top: 1px solid rgba(255,255,255,0.05);
+          padding: 36px 40px;
+          display: flex; align-items: center;
+          justify-content: space-between;
+          flex-wrap: wrap; gap: 20px;
+        }
+        .sl-footer__links {
+          display: flex; gap: 28px;
+          flex-wrap: wrap; align-items: center;
+        }
+        .sl-footer__link {
+          font-family: var(--font-mono);
+          font-size: 9px; letter-spacing: 0.14em;
+          color: #3a3028; text-decoration: none;
+          text-transform: uppercase;
+          transition: color 0.2s ease;
+        }
+        .sl-footer__link:hover { color: #6a5f50; }
+        .sl-footer__copy {
+          font-family: var(--font-mono);
+          font-size: 9px; letter-spacing: 0.1em;
+          color: #2a2520; margin: 0;
+        }
 
-        /* Responsive */
-        @media (max-width: 860px) {
-          .sl-split-grid { grid-template-columns: 1fr !important; gap: 40px !important; }
-          .sl-stages { grid-template-columns: 1fr 1fr !important; }
-          .sl-stats-grid { grid-template-columns: 1fr !important; }
+        /* ── Responsive ── */
+        @media (max-width: 900px) {
+          .sl-numbers { grid-template-columns: 1fr !important; }
+          .sl-stages__grid { grid-template-columns: 1fr 1fr !important; }
+          .sl-moat__inner { padding: 28px 32px; }
         }
-        @media (max-width: 540px) {
-          .sl-stages { grid-template-columns: 1fr !important; }
-          nav .sl-nav-link { display: none; }
+        @media (max-width: 600px) {
+          .sl-nav { padding: 0 20px; }
+          .sl-nav__link { display: none; }
+          .sl-stages__grid { grid-template-columns: 1fr !important; }
+          .sl-statement,
+          .sl-why,
+          .sl-moat,
+          .sl-stages { padding-left: 24px !important; padding-right: 24px !important; }
+          .sl-footer { padding: 28px 24px; flex-direction: column; align-items: flex-start; }
         }
+
       `}</style>
-    </div>
-  )
-}
-
-/* ── Section label component ── */
-function SectionLabel({ num, text }: { num: string; text: string }) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 40 }}>
-      <span style={{
-        fontFamily: '"DM Mono", monospace', fontSize: 9,
-        letterSpacing: '0.28em', color: 'rgba(201,168,76,0.45)',
-        textTransform: 'uppercase',
-      }}>
-        {num}
-      </span>
-      <div style={{ flex: 0, width: 28, height: 1, background: 'rgba(201,168,76,0.2)' }} />
-      <span style={{
-        fontFamily: '"DM Mono", monospace', fontSize: 9,
-        letterSpacing: '0.28em', color: 'rgba(201,168,76,0.45)',
-        textTransform: 'uppercase',
-      }}>
-        {text}
-      </span>
     </div>
   )
 }
