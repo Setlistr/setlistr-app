@@ -50,6 +50,7 @@ type Song = {
   source?: string; recognition_decision_id?: string | null
   isrc?: string; composer?: string; publisher?: string
   reviewState?: 'clean' | 'needs_review'
+  was_planned?: boolean
 }
 
 type Performance = {
@@ -110,73 +111,31 @@ function ShareCardButton({ performanceId, artistName, venueName }: {
   performanceId: string; artistName?: string; venueName?: string
 }) {
   const [state, setState] = useState<'idle' | 'loading' | 'done'>('idle')
-
   async function handleShare() {
     setState('loading')
     try {
       const imageUrl = `/api/og/${performanceId}`
-
-      // Try native share with files first (iOS/Android)
       if (navigator.share) {
         try {
           const res = await fetch(imageUrl)
           const blob = await res.blob()
           const file = new File([blob], 'setlist.png', { type: 'image/png' })
           if (navigator.canShare && navigator.canShare({ files: [file] })) {
-            await navigator.share({
-              files: [file],
-              title: `${artistName} at ${venueName}`,
-              text: "Check out my setlist from tonight's show — tracked with Setlistr",
-            })
-            setState('done')
-            setTimeout(() => setState('idle'), 3000)
-            return
+            await navigator.share({ files: [file], title: `${artistName} at ${venueName}`, text: "Check out my setlist from tonight's show — tracked with Setlistr" })
+            setState('done'); setTimeout(() => setState('idle'), 3000); return
           }
         } catch {}
-        // Fall back to URL share
-        await navigator.share({
-          title: `${artistName} at ${venueName}`,
-          text: "Check out my setlist from tonight's show",
-          url: `https://setlistr.ai/s/${performanceId}`,
-        })
-        setState('done')
-        setTimeout(() => setState('idle'), 3000)
-        return
+        await navigator.share({ title: `${artistName} at ${venueName}`, text: "Check out my setlist from tonight's show", url: `https://setlistr.ai/s/${performanceId}` })
+        setState('done'); setTimeout(() => setState('idle'), 3000); return
       }
-
-      // Desktop: open image in new tab so they can save it
       window.open(imageUrl, '_blank')
-      setState('done')
-      setTimeout(() => setState('idle'), 3000)
-    } catch (err) {
-      // User cancelled or error — reset silently
-      setState('idle')
-    }
+      setState('done'); setTimeout(() => setState('idle'), 3000)
+    } catch { setState('idle') }
   }
-
   return (
-    <button
-      onClick={handleShare}
-      disabled={state === 'loading'}
-      style={{
-        width: '100%', padding: '14px',
-        background: state === 'done' ? 'rgba(74,222,128,0.08)' : 'transparent',
-        border: `1px solid ${state === 'done' ? 'rgba(74,222,128,0.3)' : 'rgba(201,168,76,0.3)'}`,
-        borderRadius: 12,
-        color: state === 'done' ? C.green : C.gold,
-        fontSize: 13, fontWeight: 700, cursor: state === 'loading' ? 'wait' : 'pointer',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-        fontFamily: 'inherit', marginBottom: 10,
-        animation: 'fadeUp 0.4s 0.16s ease both',
-        letterSpacing: '0.04em', WebkitTapHighlightColor: 'transparent',
-        opacity: state === 'loading' ? 0.7 : 1,
-        transition: 'all 0.2s ease',
-      }}>
-      {state === 'loading'
-        ? <><div style={{ width: 13, height: 13, borderRadius: '50%', border: `2px solid rgba(201,168,76,0.3)`, borderTopColor: C.gold, animation: 'spin 0.7s linear infinite' }} />Generating card...</>
-        : state === 'done'
-        ? <>✓ Card ready — check your share sheet</>
-        : <>✦ Share Setlist Card</>}
+    <button onClick={handleShare} disabled={state === 'loading'}
+      style={{ width: '100%', padding: '14px', background: state === 'done' ? 'rgba(74,222,128,0.08)' : 'transparent', border: `1px solid ${state === 'done' ? 'rgba(74,222,128,0.3)' : 'rgba(201,168,76,0.3)'}`, borderRadius: 12, color: state === 'done' ? C.green : C.gold, fontSize: 13, fontWeight: 700, cursor: state === 'loading' ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit', marginBottom: 10, letterSpacing: '0.04em', WebkitTapHighlightColor: 'transparent', opacity: state === 'loading' ? 0.7 : 1, transition: 'all 0.2s ease' }}>
+      {state === 'loading' ? <><div style={{ width: 13, height: 13, borderRadius: '50%', border: `2px solid rgba(201,168,76,0.3)`, borderTopColor: C.gold, animation: 'spin 0.7s linear infinite' }} />Generating card...</> : state === 'done' ? <>✓ Card ready</> : <>✦ Share Setlist Card</>}
     </button>
   )
 }
@@ -193,6 +152,7 @@ function SortableRow({ song, index, onDelete, onTap }: {
   const isOpen = swipeX <= -THRESHOLD
   const isUnknown = song.source === 'unidentified'
   const needsReview = isUnknown || song.reviewState === 'needs_review'
+  const isVerified = !!song.was_planned && song.source !== 'planned'
 
   function onTouchStart(e: React.TouchEvent) { touchStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }; setSwiping(false) }
   function onTouchMove(e: React.TouchEvent) {
@@ -208,17 +168,16 @@ function SortableRow({ song, index, onDelete, onTap }: {
   function onTouchEnd() { if (!swiping) return; setSwiping(false); touchStart.current = null; setSwipeX(swipeX < -THRESHOLD ? -ACTION_W : 0) }
   function closeSwipe() { setSwipeX(0) }
 
-  const leftBorder = needsReview ? 'rgba(201,168,76,0.6)' : 'rgba(74,222,128,0.25)'
+  const leftBorder = isVerified ? 'rgba(74,222,128,0.5)' : needsReview ? 'rgba(201,168,76,0.6)' : 'rgba(74,222,128,0.25)'
+
   return (
     <div ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition: swiping ? 'none' : transition, position: 'relative', borderRadius: 12, overflow: 'hidden', opacity: isDragging ? 0.4 : 1 }}>
       <div style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: ACTION_W, display: 'flex', pointerEvents: swipeX < -20 ? 'auto' : 'none' }}>
-        <button onClick={() => { closeSwipe(); onTap(song.id) }}
-          style={{ flex: 1, background: C.gold, border: 'none', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3, color: '#0a0908' }}>
+        <button onClick={() => { closeSwipe(); onTap(song.id) }} style={{ flex: 1, background: C.gold, border: 'none', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3, color: '#0a0908' }}>
           <span style={{ fontSize: 16 }}>✏️</span>
           <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', fontFamily: 'inherit' }}>Edit</span>
         </button>
-        <button onClick={() => { closeSwipe(); onDelete(song.id) }}
-          style={{ flex: 1, background: C.red, border: 'none', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3, color: '#fff', borderRadius: '0 12px 12px 0' }}>
+        <button onClick={() => { closeSwipe(); onDelete(song.id) }} style={{ flex: 1, background: C.red, border: 'none', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3, color: '#fff', borderRadius: '0 12px 12px 0' }}>
           <span style={{ fontSize: 16 }}>🗑️</span>
           <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', fontFamily: 'inherit' }}>Delete</span>
         </button>
@@ -228,8 +187,7 @@ function SortableRow({ song, index, onDelete, onTap }: {
         onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
         onClick={() => { if (swipeX < -10) { closeSwipe(); return } onTap(song.id) }}
         style={{ transform: `translateX(${swipeX}px)`, transition: swiping ? 'none' : 'transform 0.22s cubic-bezier(0.25,1,0.5,1)', background: isDragging ? C.cardHover : C.card, border: `1px solid ${isDragging ? C.gold + '50' : C.border}`, borderLeft: `3px solid ${leftBorder}`, borderRadius: 12, display: 'flex', alignItems: 'center', gap: 12, padding: '14px 14px 14px 12px', minHeight: 64, cursor: 'pointer', WebkitTapHighlightColor: 'transparent', userSelect: 'none' }}>
-        <div {...attributes} {...listeners} onClick={e => e.stopPropagation()}
-          style={{ color: C.muted, cursor: 'grab', flexShrink: 0, display: 'flex', alignItems: 'center', padding: '4px 2px', touchAction: 'none' }}>
+        <div {...attributes} {...listeners} onClick={e => e.stopPropagation()} style={{ color: C.muted, cursor: 'grab', flexShrink: 0, display: 'flex', alignItems: 'center', padding: '4px 2px', touchAction: 'none' }}>
           <GripVertical size={15} />
         </div>
         <span style={{ fontSize: 11, fontWeight: 700, color: C.muted, minWidth: 18, textAlign: 'right', flexShrink: 0, fontFamily: '"DM Mono", monospace', fontVariantNumeric: 'tabular-nums' }}>{index + 1}</span>
@@ -242,7 +200,12 @@ function SortableRow({ song, index, onDelete, onTap }: {
           ) : (
             <div>
               <p style={{ fontSize: 14, fontWeight: 600, color: C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{song.title}</p>
-              {song.isrc ? <p style={{ fontSize: 10, color: C.muted, margin: '2px 0 0', fontFamily: '"DM Mono", monospace', letterSpacing: '0.04em' }}>{song.isrc}</p> : null}
+              {isVerified
+                ? <p style={{ fontSize: 10, color: C.green, margin: '2px 0 0', fontWeight: 600, opacity: 0.85 }}>Verified ✓</p>
+                : song.isrc
+                ? <p style={{ fontSize: 10, color: C.muted, margin: '2px 0 0', fontFamily: '"DM Mono", monospace', letterSpacing: '0.04em' }}>{song.isrc}</p>
+                : null
+              }
             </div>
           )}
         </div>
@@ -250,6 +213,10 @@ function SortableRow({ song, index, onDelete, onTap }: {
           style={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: 6, background: hovered ? 'rgba(239,68,68,0.12)' : 'transparent', border: hovered ? '1px solid rgba(239,68,68,0.25)' : '1px solid transparent', transition: 'all 0.15s ease', cursor: hovered ? 'pointer' : 'default' }}>
           {hovered ? (
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={C.red} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+          ) : isVerified ? (
+            <div style={{ width: 18, height: 18, borderRadius: '50%', background: 'rgba(74,222,128,0.12)', border: '1px solid rgba(74,222,128,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Check size={10} color={C.green} strokeWidth={2.5} />
+            </div>
           ) : needsReview ? (
             <span style={{ fontSize: 10, color: C.gold, opacity: 0.7, fontWeight: 700 }}>!</span>
           ) : (() => {
@@ -271,22 +238,14 @@ function EditSheet({ song, onSave, onClose }: { song: Song; onSave: (id: string,
   const bottomOffset        = useKeyboardOffset()
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', animation: 'fadeIn 0.15s ease' }} onClick={onClose}>
-      <div onClick={e => e.stopPropagation()}
-        style={{ width: '100%', maxWidth: 520, background: '#141210', borderRadius: '20px 20px 0 0', border: '1px solid rgba(255,255,255,0.07)', borderBottom: 'none', padding: '20px 20px 40px', display: 'flex', flexDirection: 'column', gap: 12, animation: 'sheetUp 0.22s ease', fontFamily: '"DM Sans", system-ui, sans-serif', marginBottom: bottomOffset, transition: 'margin-bottom 0.15s ease' }}>
+      <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 520, background: '#141210', borderRadius: '20px 20px 0 0', border: '1px solid rgba(255,255,255,0.07)', borderBottom: 'none', padding: '20px 20px 40px', display: 'flex', flexDirection: 'column', gap: 12, animation: 'sheetUp 0.22s ease', fontFamily: '"DM Sans", system-ui, sans-serif', marginBottom: bottomOffset, transition: 'margin-bottom 0.15s ease' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
           <p style={{ fontSize: 13, fontWeight: 700, color: C.text, margin: 0 }}>Edit song</p>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: C.muted, cursor: 'pointer', padding: 4 }}><X size={16} /></button>
         </div>
-        <input autoFocus value={title} onChange={e => setTitle(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter' && title.trim()) { onSave(song.id, title.trim(), artist.trim()); onClose() } }}
-          placeholder="Song title"
-          style={{ background: C.input, border: `1px solid ${C.gold}40`, borderRadius: 10, padding: '13px 14px', color: C.text, fontSize: 15, outline: 'none', fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' }} />
-        <input value={artist} onChange={e => setArtist(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter' && title.trim()) { onSave(song.id, title.trim(), artist.trim()); onClose() } }}
-          placeholder="Artist"
-          style={{ background: C.input, border: `1px solid ${C.border}`, borderRadius: 10, padding: '13px 14px', color: C.text, fontSize: 15, outline: 'none', fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' }} />
-        <button onClick={() => { if (title.trim()) { onSave(song.id, title.trim(), artist.trim()); onClose() } }} disabled={!title.trim()}
-          style={{ width: '100%', padding: '14px', background: title.trim() ? C.gold : C.muted, border: 'none', borderRadius: 10, color: '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: title.trim() ? 'pointer' : 'not-allowed', opacity: title.trim() ? 1 : 0.4, fontFamily: 'inherit', marginTop: 4 }}>
+        <input autoFocus value={title} onChange={e => setTitle(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && title.trim()) { onSave(song.id, title.trim(), artist.trim()); onClose() } }} placeholder="Song title" style={{ background: C.input, border: `1px solid ${C.gold}40`, borderRadius: 10, padding: '13px 14px', color: C.text, fontSize: 15, outline: 'none', fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' }} />
+        <input value={artist} onChange={e => setArtist(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && title.trim()) { onSave(song.id, title.trim(), artist.trim()); onClose() } }} placeholder="Artist" style={{ background: C.input, border: `1px solid ${C.border}`, borderRadius: 10, padding: '13px 14px', color: C.text, fontSize: 15, outline: 'none', fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' }} />
+        <button onClick={() => { if (title.trim()) { onSave(song.id, title.trim(), artist.trim()); onClose() } }} disabled={!title.trim()} style={{ width: '100%', padding: '14px', background: title.trim() ? C.gold : C.muted, border: 'none', borderRadius: 10, color: '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: title.trim() ? 'pointer' : 'not-allowed', opacity: title.trim() ? 1 : 0.4, fontFamily: 'inherit', marginTop: 4 }}>
           Save
         </button>
       </div>
@@ -302,20 +261,55 @@ function AssignSheet({ assignSheet, onAssign, onClose, onCatalogSelect, userId, 
   const bottomOffset = useKeyboardOffset()
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', animation: 'fadeIn 0.15s ease' }} onClick={onClose}>
-      <div onClick={e => e.stopPropagation()}
-        style={{ width: '100%', maxWidth: 520, background: '#141210', borderRadius: '20px 20px 0 0', border: '1px solid rgba(255,255,255,0.07)', borderBottom: 'none', padding: '20px 20px 40px', display: 'flex', flexDirection: 'column', gap: 12, animation: 'sheetUp 0.22s ease', fontFamily: '"DM Sans", system-ui, sans-serif', marginBottom: bottomOffset, transition: 'margin-bottom 0.15s ease' }}>
+      <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 520, background: '#141210', borderRadius: '20px 20px 0 0', border: '1px solid rgba(255,255,255,0.07)', borderBottom: 'none', padding: '20px 20px 40px', display: 'flex', flexDirection: 'column', gap: 12, animation: 'sheetUp 0.22s ease', fontFamily: '"DM Sans", system-ui, sans-serif', marginBottom: bottomOffset, transition: 'margin-bottom 0.15s ease' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
           <div>
             <p style={{ fontSize: 14, fontWeight: 700, color: C.text, margin: 0 }}>What song was this?</p>
-            {assignSheet.currentTitle && assignSheet.currentTitle !== 'Unknown song'
-              ? <p style={{ fontSize: 11, color: C.muted, margin: '2px 0 0' }}>replacing: {assignSheet.currentTitle}</p>
-              : null}
+            {assignSheet.currentTitle && assignSheet.currentTitle !== 'Unknown song' ? <p style={{ fontSize: 11, color: C.muted, margin: '2px 0 0' }}>replacing: {assignSheet.currentTitle}</p> : null}
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: C.muted, cursor: 'pointer', padding: 4 }}><X size={16} /></button>
         </div>
-        <CatalogSearch userId={userId} placeholder="Search or type any song title..." autoFocus showEmpty currentSongs={currentSongs}
-          onSelect={(song) => onCatalogSelect(song, assignSheet.songId)} />
+        <CatalogSearch userId={userId} placeholder="Search or type any song title..." autoFocus showEmpty currentSongs={currentSongs} onSelect={(song) => onCatalogSelect(song, assignSheet.songId)} />
         <p style={{ fontSize: 11, color: C.muted, margin: '4px 0 0', lineHeight: 1.5, textAlign: 'center' }}>Search your catalog or type any title to add it</p>
+      </div>
+    </div>
+  )
+}
+
+// ── Planned song row — binary yes/no, no drag ─────────────────────────────────
+function PlannedSongRow({ song, onPlayed, onRemove }: {
+  song: Song
+  onPlayed: (id: string) => void
+  onRemove: (id: string) => void
+}) {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px',
+      background: 'rgba(255,255,255,0.02)',
+      border: '1px dashed rgba(255,255,255,0.1)',
+      borderRadius: 12, opacity: 0.75,
+    }}>
+      {/* Empty circle — waiting state */}
+      <div style={{ width: 18, height: 18, borderRadius: '50%', border: '1.5px solid rgba(255,255,255,0.15)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ width: 5, height: 5, borderRadius: '50%', background: 'rgba(255,255,255,0.2)' }} />
+      </div>
+
+      <p style={{ fontSize: 14, fontWeight: 500, color: C.secondary, margin: 0, flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        {song.title}
+      </p>
+
+      {/* Actions */}
+      <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+        <button
+          onClick={() => onPlayed(song.id)}
+          style={{ padding: '6px 12px', background: 'rgba(74,222,128,0.1)', border: '1px solid rgba(74,222,128,0.25)', borderRadius: 8, color: C.green, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', letterSpacing: '0.04em', WebkitTapHighlightColor: 'transparent', whiteSpace: 'nowrap' }}>
+          ✓ Played
+        </button>
+        <button
+          onClick={() => onRemove(song.id)}
+          style={{ padding: '6px 10px', background: 'transparent', border: `1px solid ${C.border}`, borderRadius: 8, color: C.muted, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent' }}>
+          ✕
+        </button>
       </div>
     </div>
   )
@@ -384,6 +378,19 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
     else setEditSheet(song)
   }
 
+  // Mark a planned song as played — moves it into confirmed
+  function markPlannedAsPlayed(songId: string) {
+    setSongs(prev => prev.map(s => s.id === songId
+      ? { ...s, source: 'manual', was_planned: true, reviewState: 'clean' }
+      : s
+    ))
+  }
+
+  // Remove a planned song entirely
+  function removePlannedSong(songId: string) {
+    setSongs(prev => prev.filter(s => s.id !== songId))
+  }
+
   useEffect(() => {
     const supabase = createClient()
     supabase.auth.getUser().then(({ data: { user } }) => { if (user) setUserId(user.id) })
@@ -398,7 +405,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
           if (items && items.length > 0) {
             setSongs(items.map(s => {
               const n = normalizeSong({ title: s.title, artist: s.artist_name || '' })
-              return { id: s.id, title: n.title, artist: n.artist, position: s.position, source: s.source, recognition_decision_id: s.recognition_decision_id, isrc: s.isrc || '', composer: s.composer || '', publisher: s.publisher || '', reviewState: (s.source === 'unidentified' ? 'needs_review' : 'clean') as 'clean' | 'needs_review' }
+              return { id: s.id, title: n.title, artist: n.artist, position: s.position, source: s.source, recognition_decision_id: s.recognition_decision_id, isrc: s.isrc || '', composer: s.composer || '', publisher: s.publisher || '', reviewState: (s.source === 'unidentified' ? 'needs_review' : 'clean') as 'clean' | 'needs_review', was_planned: s.was_planned || false }
             }))
             setLoading(false); return
           }
@@ -407,8 +414,17 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
         if (songData) {
           setSongs(songData.map(s => {
             const isUnidentified = s.source === 'unidentified' || !s.title
+            const isPlanned = s.source === 'planned'
             const n = normalizeSong({ title: s.title || 'Unknown Song', artist: s.artist || '' })
-            return { id: s.id || String(s.position), title: n.title, artist: n.artist, position: s.position, source: isUnidentified ? 'unidentified' : (s.source || 'recognized'), recognition_decision_id: null, isrc: s.isrc || '', composer: s.composer || '', publisher: s.publisher || '', reviewState: (isUnidentified ? 'needs_review' : 'clean') as 'clean' | 'needs_review' }
+            return {
+              id: s.id || String(s.position),
+              title: n.title, artist: n.artist, position: s.position,
+              source: isUnidentified ? 'unidentified' : (s.source || 'recognized'),
+              recognition_decision_id: null,
+              isrc: s.isrc || '', composer: s.composer || '', publisher: s.publisher || '',
+              reviewState: (isUnidentified ? 'needs_review' : 'clean') as 'clean' | 'needs_review',
+              was_planned: s.was_planned || isPlanned || false,
+            }
           }))
         }
         setLoading(false)
@@ -432,33 +448,26 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
     if (!performance) return
     setSaving(true)
     const supabase = createClient()
+    // Only save confirmed songs — drop planned-but-unconfirmed
+    const songsToSave = songs.filter(s => s.source !== 'planned')
     if (setlistId) {
       await supabase.from('setlist_items').delete().eq('setlist_id', setlistId)
-      await supabase.from('setlist_items').insert(songs.map((s, i) => {
+      await supabase.from('setlist_items').insert(songsToSave.map((s, i) => {
         const n = normalizeSong({ title: s.title, artist: s.artist })
         return { setlist_id: setlistId, title: n.title, artist_name: n.artist, position: i + 1, source: s.source || 'manual', recognition_decision_id: s.recognition_decision_id || null }
       }))
-      for (const song of songs) {
-        if (song.recognition_decision_id) {
-          const { data: orig } = await supabase.from('recognition_decisions').select('final_title, final_artist, job_id').eq('id', song.recognition_decision_id).single()
-          if (orig && (orig.final_title !== song.title || orig.final_artist !== song.artist)) {
-            const { data: newD } = await supabase.from('recognition_decisions').insert({ job_id: orig.job_id, decision_type: 'manual_override', final_title: song.title, final_artist: song.artist, notes: `Corrected from: ${orig.final_title} by ${orig.final_artist}`, decided_at: new Date().toISOString() }).select().single()
-            if (newD) await supabase.from('setlist_items').update({ recognition_decision_id: newD.id }).eq('setlist_id', setlistId).eq('title', song.title)
-          }
-        }
-      }
       await supabase.from('setlists').update({ status: 'confirmed', confirmed_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', setlistId)
     }
     await supabase.from('performance_songs').delete().eq('performance_id', performance.id)
-    await supabase.from('performance_songs').insert(songs.map((s, i) => {
+    await supabase.from('performance_songs').insert(songsToSave.map((s, i) => {
       const n = normalizeSong({ title: s.title, artist: s.artist })
-      return { performance_id: performance.id, title: n.title, artist: n.artist, position: i + 1, isrc: s.isrc || null, composer: s.composer || null, publisher: s.publisher || null }
+      return { performance_id: performance.id, title: n.title, artist: n.artist, position: i + 1, isrc: s.isrc || null, composer: s.composer || null, publisher: s.publisher || null, was_planned: s.was_planned || false }
     }))
     await supabase.from('performances').update({ status: 'completed' }).eq('id', performance.id)
     if (performance.show_id) await supabase.from('shows').update({ status: 'completed' }).eq('id', performance.show_id)
     try {
       const { data: { user } } = await supabase.auth.getUser()
-      if (user) { for (const song of songs) { if (!song.title?.trim()) continue; writeUserSongFromReview(supabase, song.title, song.artist || '', user.id, performance.id) } }
+      if (user) { for (const song of songsToSave) { if (!song.title?.trim()) continue; writeUserSongFromReview(supabase, song.title, song.artist || '', user.id, performance.id) } }
     } catch (err) { console.error('[ReviewSave]', err) }
     setSaving(false); setSaved(true); setShowComplete(true)
   }, [performance, songs, setlistId])
@@ -466,12 +475,13 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
   function generateExportCSV(pro: PRO) {
     if (!performance) return
     const date = new Date(performance.started_at).toLocaleDateString()
+    const confirmedSongs = songs.filter(s => s.source !== 'planned')
     const headers: Record<PRO, string[]> = {
       SOCAN: ['Title', 'Artist', 'Composer', 'Publisher', 'ISRC', 'Duration', 'Date', 'Venue', 'City'],
       ASCAP: ['Title', 'Performer', 'Composer/Author', 'Publisher', 'ISRC', 'Venue', 'Date', 'City', 'State'],
       BMI:   ['Song Title', 'Artist', 'BMI Work #', 'Composer', 'Publisher', 'Venue Name', 'Date', 'City'],
     }
-    const rows = songs.map(s => {
+    const rows = confirmedSongs.map(s => {
       const c = s.composer || '', p = s.publisher || '', i = s.isrc || ''
       if (pro === 'SOCAN') return [s.title, s.artist, c, p, i, '', date, performance.venue_name, performance.city]
       if (pro === 'ASCAP') return [s.title, performance.artist_name, c, p, i, performance.venue_name, date, performance.city, performance.country || '']
@@ -501,117 +511,90 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
     </div>
   )
 
-  const autoCount        = songs.filter(s => s.source === 'recognized' || s.source === 'detected').length
-  const needsReviewCount = songs.filter(s => s.source === 'unidentified' || s.reviewState === 'needs_review').length
-  const allClean         = needsReviewCount === 0
-  const dur              = formatDuration()
+  // ── Split songs into confirmed and planned-unverified ─────────────────────
+  const confirmedSongs    = songs.filter(s => s.source !== 'planned')
+  const plannedPending    = songs.filter(s => s.source === 'planned')
+  const autoCount         = confirmedSongs.filter(s => s.source === 'recognized' || s.source === 'detected' || s.source === 'fingerprint' || s.source === 'humming').length
+  const verifiedCount     = confirmedSongs.filter(s => s.was_planned).length
+  const needsReviewCount  = confirmedSongs.filter(s => s.source === 'unidentified' || s.reviewState === 'needs_review').length
+  const allClean          = needsReviewCount === 0
+  const dur               = formatDuration()
 
   if (showComplete) {
     const territory = getTerritory(performance?.country, performance?.city)
-    const songCount = songs.length > 0 ? songs.length : 8
-    const estimate  = estimateRoyalties({
-      songCount,
-      venueCapacityBand: capacityToBand(performance?.venue_capacity),
-      showType:          (performance?.show_type as any) || 'single',
-      territory,
-    })
-    const cleanSongs   = songs.filter(s => s.source !== 'unidentified')
-    const showDate     = performance?.started_at
-      ? new Date(performance.started_at).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
-      : ''
-    const durMins = performance?.started_at && performance?.ended_at
-      ? Math.round((new Date(performance.ended_at).getTime() - new Date(performance.started_at).getTime()) / 60000)
-      : null
+    const songCount = confirmedSongs.length > 0 ? confirmedSongs.length : 8
+    const estimate  = estimateRoyalties({ songCount, venueCapacityBand: capacityToBand(performance?.venue_capacity), showType: (performance?.show_type as any) || 'single', territory })
+    const showDate  = performance?.started_at ? new Date(performance.started_at).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : ''
+    const durMins   = performance?.started_at && performance?.ended_at ? Math.round((new Date(performance.ended_at).getTime() - new Date(performance.started_at).getTime()) / 60000) : null
+    const manualCount = confirmedSongs.filter(s => s.source === 'manual' && !s.was_planned).length
 
     return (
       <div style={{ minHeight: '100svh', background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif', overflowY: 'auto' }}>
-
-        {/* Ambient glow — larger and warmer on completion */}
         <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '70vh', pointerEvents: 'none', zIndex: 0, background: 'radial-gradient(ellipse at 50% 10%, rgba(201,168,76,0.12) 0%, transparent 65%)' }} />
-
         <div style={{ maxWidth: 420, margin: '0 auto', padding: '0 20px 60px', position: 'relative', zIndex: 1 }}>
-
-          {/* ── HERO — emotional first ── */}
           <div style={{ paddingTop: 56, paddingBottom: 40, textAlign: 'center', animation: 'fadeUp 0.5s ease' }}>
-
-            {/* Gold orb completion indicator */}
             <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginBottom: 28 }}>
               <div style={{ width: 72, height: 72, borderRadius: '50%', background: 'radial-gradient(circle at 38% 32%, rgba(201,168,76,0.9), rgba(180,140,50,0.7))', boxShadow: `0 0 40px rgba(201,168,76,0.3), 0 0 80px rgba(201,168,76,0.12)`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <Check size={28} color="#0a0908" strokeWidth={2.5} />
               </div>
-              {/* Outer ring */}
               <div style={{ position: 'absolute', inset: -8, borderRadius: '50%', border: '1px solid rgba(201,168,76,0.2)' }} />
             </div>
-
-            {/* Venue name — the headline */}
-            <h1 style={{ fontSize: 32, fontWeight: 800, color: C.text, margin: '0 0 8px', letterSpacing: '-0.025em', lineHeight: 1.1 }}>
-              {performance?.venue_name}
-            </h1>
-
-            {/* Meta line */}
+            <h1 style={{ fontSize: 32, fontWeight: 800, color: C.text, margin: '0 0 8px', letterSpacing: '-0.025em', lineHeight: 1.1 }}>{performance?.venue_name}</h1>
             <p style={{ fontSize: 13, color: C.secondary, margin: '0 0 16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, flexWrap: 'wrap' as const }}>
               {showDate && <span>{showDate}</span>}
               {performance?.city && <><span style={{ opacity: 0.4 }}>·</span><span>{performance.city}</span></>}
               {durMins && <><span style={{ opacity: 0.4 }}>·</span><span>{durMins} min</span></>}
             </p>
-
-            {/* The validation line — this is the emotional core */}
-            <p style={{ fontSize: 18, fontWeight: 700, color: C.gold, margin: 0, letterSpacing: '-0.01em' }}>
-              That one's on record.
-            </p>
+            <p style={{ fontSize: 18, fontWeight: 700, color: C.gold, margin: 0, letterSpacing: '-0.01em' }}>That one's on record.</p>
           </div>
 
-          {/* ── VISUAL RECORD — the setlist card, turned inward ── */}
+          {/* Setlist card */}
           <div style={{ background: C.card, border: `1px solid rgba(201,168,76,0.2)`, borderRadius: 20, overflow: 'hidden', marginBottom: 12, animation: 'fadeUp 0.5s 0.08s ease both' }}>
-
-            {/* Card header */}
             <div style={{ padding: '16px 20px 12px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div>
                 <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.gold, margin: '0 0 1px', opacity: 0.8 }}>Setlistr</p>
-                <p style={{ fontSize: 13, fontWeight: 700, color: C.text, margin: 0 }}>{cleanSongs.length} song{cleanSongs.length !== 1 ? 's' : ''} performed</p>
+                <p style={{ fontSize: 13, fontWeight: 700, color: C.text, margin: 0 }}>{confirmedSongs.length} song{confirmedSongs.length !== 1 ? 's' : ''} performed</p>
               </div>
-              {/* "Saved" badge — identity not distribution */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.2)', borderRadius: 20, padding: '5px 10px' }}>
                 <div style={{ width: 5, height: 5, borderRadius: '50%', background: C.green }} />
                 <span style={{ fontSize: 10, fontWeight: 700, color: C.green, letterSpacing: '0.06em' }}>Saved</span>
               </div>
             </div>
 
-            {/* Setlist */}
+            {/* Capture breakdown */}
+            <div style={{ padding: '10px 20px', borderBottom: `1px solid ${C.border}`, display: 'flex', gap: 16, flexWrap: 'wrap' as const }}>
+              {verifiedCount > 0 && <span style={{ fontSize: 11, color: C.green }}>✓ {verifiedCount} verified from setlist</span>}
+              {autoCount > verifiedCount && <span style={{ fontSize: 11, color: C.gold }}>✦ {autoCount - verifiedCount} auto-detected</span>}
+              {manualCount > 0 && <span style={{ fontSize: 11, color: C.muted }}>+ {manualCount} added manually</span>}
+            </div>
+
             <div style={{ padding: '12px 0' }}>
-              {cleanSongs.map((s, i) => (
+              {confirmedSongs.map((s, i) => (
                 <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 20px' }}>
                   <span style={{ fontSize: 11, fontWeight: 700, color: C.muted, minWidth: 20, textAlign: 'right', fontFamily: '"DM Mono", monospace', flexShrink: 0, opacity: 0.5 }}>{i + 1}</span>
                   <p style={{ fontSize: 14, fontWeight: 500, color: C.text, margin: 0, flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.title}</p>
-                  {s.isrc && <span style={{ width: 5, height: 5, borderRadius: '50%', background: C.green, flexShrink: 0, opacity: 0.6 }} />}
+                  {s.was_planned && <span style={{ fontSize: 10, color: C.green, opacity: 0.7, flexShrink: 0 }}>✓</span>}
                 </div>
               ))}
             </div>
-
-            {/* Card footer */}
             <div style={{ padding: '10px 20px 14px', borderTop: `1px solid ${C.border}` }}>
-              <p style={{ fontSize: 11, color: C.muted, margin: 0, textAlign: 'center', letterSpacing: '0.04em' }}>
-                Saved to your Setlistr · {showDate}
-              </p>
+              <p style={{ fontSize: 11, color: C.muted, margin: 0, textAlign: 'center', letterSpacing: '0.04em' }}>Saved to your Setlistr · {showDate}</p>
             </div>
           </div>
 
-          {/* ── MONEY LAYER — soft, after emotional ── */}
+          {/* Royalty estimate */}
           <div style={{ background: 'rgba(201,168,76,0.06)', border: `1px solid rgba(201,168,76,0.18)`, borderRadius: 16, padding: '18px 20px', marginBottom: 12, animation: 'fadeUp 0.5s 0.14s ease both' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
               <p style={{ fontSize: 13, color: C.secondary, margin: 0 }}>Estimated royalties</p>
               <p style={{ fontSize: 22, fontWeight: 800, color: C.gold, margin: 0, fontFamily: '"DM Mono", monospace', letterSpacing: '-0.02em' }}>~${estimate.expected}</p>
             </div>
-            <p style={{ fontSize: 11, color: C.muted, margin: '0 0 14px' }}>${estimate.low}–${estimate.high} range · {cleanSongs.length} songs tracked</p>
+            <p style={{ fontSize: 11, color: C.muted, margin: '0 0 14px' }}>${estimate.low}–${estimate.high} range · {confirmedSongs.length} songs tracked</p>
             <button onClick={() => router.push(`/app/submit/${params.id}`)}
-              style={{ width: '100%', padding: '11px', background: 'transparent', border: `1px solid rgba(201,168,76,0.3)`, borderRadius: 10, color: C.gold, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', letterSpacing: '0.04em', transition: 'all 0.15s ease' }}
-              onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'rgba(201,168,76,0.08)'}
-              onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}>
+              style={{ width: '100%', padding: '11px', background: 'transparent', border: `1px solid rgba(201,168,76,0.3)`, borderRadius: 10, color: C.gold, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', letterSpacing: '0.04em' }}>
               Submit to get paid →
             </button>
           </div>
 
-          {/* ── ACTIONS ── */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, animation: 'fadeUp 0.5s 0.18s ease both' }}>
             <button onClick={() => router.push('/app/dashboard')}
               style={{ width: '100%', padding: '15px', background: C.gold, border: 'none', borderRadius: 12, color: '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'inherit' }}>
@@ -622,7 +605,6 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
               Review setlist
             </button>
           </div>
-
         </div>
         <style>{`
           @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500;700&display=swap');
@@ -650,7 +632,11 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
             {dur ? <span style={{ fontSize: 12, color: C.secondary }}>· {dur}</span> : null}
           </div>
           <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
-            {[{ label: 'This Show', value: songs.length }, { label: 'Auto', value: autoCount }, { label: 'Need Fix', value: needsReviewCount }].map(stat => (
+            {[
+              { label: 'Confirmed', value: confirmedSongs.length },
+              { label: 'Auto', value: autoCount },
+              { label: 'Need Fix', value: needsReviewCount },
+            ].map(stat => (
               <div key={stat.label} style={{ flex: 1, padding: '10px 12px', background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, textAlign: 'center' }}>
                 <p style={{ fontSize: 20, fontWeight: 800, color: C.gold, margin: 0, fontFamily: '"DM Mono", monospace', fontVariantNumeric: 'tabular-nums' }}>{stat.value}</p>
                 <p style={{ fontSize: 9, color: C.muted, margin: '2px 0 0', letterSpacing: '0.08em', textTransform: 'uppercase' }}>{stat.label}</p>
@@ -659,18 +645,9 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
           </div>
         </div>
 
+        {/* Confirmed songs header + add */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, animation: 'fadeUp 0.4s 0.05s ease both' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.muted }}>Setlist</span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-              {([{ color: C.green, label: 'Metadata found' }, { color: C.gold, label: 'Partial metadata' }, { color: '#6a6050', label: 'No metadata' }] as const).map(({ color, label }) => (
-                <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: color, display: 'inline-block', flexShrink: 0 }} />
-                  <span style={{ fontSize: 11, color: C.secondary, fontWeight: 500 }}>{label}</span>
-                </div>
-              ))}
-            </div>
-          </div>
+          <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.muted }}>Setlist</span>
           <button onClick={() => setShowAdd(!showAdd)}
             style={{ display: 'flex', alignItems: 'center', gap: 6, background: showAdd ? 'transparent' : C.goldDim, border: `1px solid ${showAdd ? C.border : C.borderGold}`, borderRadius: 10, padding: '9px 16px', color: showAdd ? C.muted : C.gold, fontSize: 13, fontWeight: 700, cursor: 'pointer', letterSpacing: '0.04em', transition: 'all 0.15s ease', fontFamily: 'inherit', minHeight: 40, WebkitTapHighlightColor: 'transparent' }}>
             <span style={{ display: 'inline-block', transform: showAdd ? 'rotate(45deg)' : 'rotate(0)', transition: 'transform 0.2s ease', fontSize: 16, lineHeight: 1, fontWeight: 400 }}>+</span>
@@ -678,11 +655,9 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
           </button>
         </div>
 
-        {songs.length > 0 ? <p style={{ fontSize: 12, color: C.secondary, margin: '0 0 10px' }}>Tap any song to edit or remove</p> : null}
-
         {showAdd ? (
           <div style={{ background: C.card, border: `1px solid ${C.borderGold}`, borderRadius: 12, padding: 14, marginBottom: 10, animation: 'slideUp 0.2s ease' }}>
-            <CatalogSearch userId={userId} placeholder="Search or add a song..." autoFocus showEmpty currentSongs={songs.map(s => s.title)}
+            <CatalogSearch userId={userId} placeholder="Search or add a song..." autoFocus showEmpty currentSongs={confirmedSongs.map(s => s.title)}
               onSelect={(catalogSong) => {
                 const normalized = normalizeSong({ title: catalogSong.title, artist: catalogSong.artist || performance?.artist_name || '' })
                 setSongs(prev => [...prev, { id: `manual-${Date.now()}`, title: normalized.title, artist: normalized.artist, position: songs.length + 1, source: 'manual', recognition_decision_id: null, isrc: catalogSong.isrc || '', composer: catalogSong.composer || '', publisher: catalogSong.publisher || '', reviewState: 'clean' }])
@@ -692,7 +667,8 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
           </div>
         ) : null}
 
-        {songs.length === 0 ? (
+        {/* Confirmed songs — drag/drop */}
+        {confirmedSongs.length === 0 && plannedPending.length === 0 ? (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '64px 0', animation: 'fadeUp 0.4s ease' }}>
             <div style={{ width: 56, height: 56, borderRadius: '50%', background: C.card, border: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
               <Music2 size={22} color={C.muted} />
@@ -702,18 +678,45 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
           </div>
         ) : null}
 
-        {songs.length > 0 ? (
+        {confirmedSongs.length > 0 ? (
           <div style={{ animation: 'fadeUp 0.4s 0.1s ease both' }}>
+            {confirmedSongs.length > 0 ? <p style={{ fontSize: 12, color: C.secondary, margin: '0 0 10px' }}>Tap any song to edit · swipe to delete</p> : null}
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-              <SortableContext items={songs.map(s => s.id)} strategy={verticalListSortingStrategy}>
+              <SortableContext items={confirmedSongs.map(s => s.id)} strategy={verticalListSortingStrategy}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {songs.map((song, index) => <SortableRow key={song.id} song={song} index={index} onDelete={handleDelete} onTap={handleRowTap} />)}
+                  {confirmedSongs.map((song, index) => <SortableRow key={song.id} song={song} index={index} onDelete={handleDelete} onTap={handleRowTap} />)}
                 </div>
               </SortableContext>
             </DndContext>
           </div>
         ) : null}
 
+        {/* ── PLANNED PENDING — did you play these? ── */}
+        {plannedPending.length > 0 && (
+          <div style={{ marginTop: confirmedSongs.length > 0 ? 20 : 0, animation: 'fadeUp 0.4s 0.12s ease both' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, margin: 0 }}>
+                On your setlist · did you play these?
+              </p>
+              <span style={{ fontSize: 10, color: C.muted, fontFamily: '"DM Mono", monospace' }}>{plannedPending.length}</span>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {plannedPending.map(song => (
+                <PlannedSongRow
+                  key={song.id}
+                  song={song}
+                  onPlayed={markPlannedAsPlayed}
+                  onRemove={removePlannedSong}
+                />
+              ))}
+            </div>
+            <p style={{ fontSize: 11, color: C.muted, margin: '8px 0 0', lineHeight: 1.5 }}>
+              "Played" adds them to your setlist. "✕" removes them — they won't count toward royalties.
+            </p>
+          </div>
+        )}
+
+        {/* Export */}
         <div style={{ marginTop: 20, background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, overflow: 'hidden', animation: 'fadeUp 0.4s 0.15s ease both' }}>
           <button onClick={() => setShowExport(!showExport)}
             style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
@@ -736,12 +739,15 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
           ) : null}
         </div>
 
+        {/* Save */}
         <div style={{ paddingTop: 14, paddingBottom: 40, display: 'flex', flexDirection: 'column', gap: 10, animation: 'fadeUp 0.4s 0.2s ease both' }}>
-          {songs.length > 0 ? (
+          {confirmedSongs.length > 0 ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: allClean ? 'rgba(74,222,128,0.07)' : C.goldDim, border: `1px solid ${allClean ? 'rgba(74,222,128,0.2)' : C.borderGold}`, borderRadius: 10 }}>
               {allClean ? <Check size={13} color={C.green} strokeWidth={2.5} /> : <span style={{ fontSize: 12 }}>!</span>}
               <span style={{ fontSize: 12, fontWeight: 600, color: allClean ? C.green : C.gold }}>
-                {allClean ? 'All songs added — ready to report' : `${needsReviewCount} song${needsReviewCount === 1 ? '' : 's'} need${needsReviewCount === 1 ? 's' : ''} attention`}
+                {allClean
+                  ? `${confirmedSongs.length} songs confirmed${plannedPending.length > 0 ? ` · ${plannedPending.length} setlist song${plannedPending.length !== 1 ? 's' : ''} still need a response` : ' — ready to report'}`
+                  : `${needsReviewCount} song${needsReviewCount === 1 ? '' : 's'} need${needsReviewCount === 1 ? 's' : ''} attention`}
               </span>
             </div>
           ) : null}
@@ -757,7 +763,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
       </div>
 
       {editSheet ? <EditSheet song={editSheet} onSave={handleEdit} onClose={() => setEditSheet(null)} /> : null}
-      {assignSheet ? <AssignSheet assignSheet={assignSheet} onAssign={assignSong} onClose={closeAssignSheet} onCatalogSelect={assignFromCatalog} userId={userId} currentSongs={songs.filter(s => s.id !== assignSheet.songId).map(s => s.title)} /> : null}
+      {assignSheet ? <AssignSheet assignSheet={assignSheet} onAssign={assignSong} onClose={closeAssignSheet} onCatalogSelect={assignFromCatalog} userId={userId} currentSongs={confirmedSongs.filter(s => s.id !== assignSheet.songId).map(s => s.title)} /> : null}
 
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500;700&display=swap');
