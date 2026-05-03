@@ -96,12 +96,10 @@ export default function DashboardPage() {
   const [upcomingShows, setUpcomingShows]     = useState<BitEvent[]>([])
   const [todayShow, setTodayShow]             = useState<BitEvent | null>(null)
 
-  // Delegation
   const [managedArtists, setManagedArtists]   = useState<ManagedArtist[]>([])
   const [actingAs, setActingAs]               = useState<ActingAs>(null)
   const [switcherOpen, setSwitcherOpen]       = useState(false)
 
-  // ── Load ──────────────────────────────────────────────────────────────────
   useEffect(() => {
     const supabase = createClient()
     async function load() {
@@ -267,7 +265,6 @@ export default function DashboardPage() {
     fetchUpcoming()
   }, [lookupName])
 
-  // ── Derived values ────────────────────────────────────────────────────────
   const aggregate          = aggregateUnclaimedEarnings(showEstimates)
   const submittedAggregate = aggregateUnclaimedEarnings(submittedEstimates)
   const lifetimeTotal      = aggregate.totalExpected + submittedAggregate.totalExpected
@@ -306,6 +303,9 @@ export default function DashboardPage() {
 
         {/* ── NAV ── */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 0 24px' }}>
+          <span style={{ fontSize: 14, fontWeight: 700, color: C.text, letterSpacing: '-0.01em' }}>
+            {actingAs ? actingAs.artist_name : artistName || 'Setlistr'}
+          </span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             {submittedCount > 0 && (
               <span style={{ fontSize: 11, color: C.green, background: C.greenDim, border: '1px solid rgba(74,222,128,0.2)', borderRadius: 20, padding: '3px 10px', display: 'flex', alignItems: 'center', gap: 4 }}>
