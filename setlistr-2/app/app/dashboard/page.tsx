@@ -306,7 +306,6 @@ export default function DashboardPage() {
 
         {/* ── NAV ── */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 0 24px' }}>
-          <span style={{ fontSize: 13, fontWeight: 800, color: C.gold, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Setlistr</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             {submittedCount > 0 && (
               <span style={{ fontSize: 11, color: C.green, background: C.greenDim, border: '1px solid rgba(74,222,128,0.2)', borderRadius: 20, padding: '3px 10px', display: 'flex', alignItems: 'center', gap: 4 }}>
