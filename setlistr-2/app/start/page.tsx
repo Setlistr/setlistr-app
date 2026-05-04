@@ -22,8 +22,8 @@ export default function StartPage() {
       minHeight: '100svh',
       background: '#0a0908',
       fontFamily: '"DM Sans", system-ui, sans-serif',
-      display: 'flex', flexDirection: 'column', alignItems: 'center',
-      padding: '0 20px 60px',
+      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+      padding: '40px 20px',
       boxSizing: 'border-box',
     }}>
 
@@ -33,7 +33,7 @@ export default function StartPage() {
       }}>
 
         {/* Hero */}
-        <div style={{ paddingTop: 64, paddingBottom: 40 }}>
+        <div style={{ paddingBottom: 40 }}>
           <h1 style={{
             fontSize: 'clamp(28px, 8vw, 40px)',
             fontWeight: 800, color: '#f0ece3',
@@ -112,7 +112,7 @@ export default function StartPage() {
           background: 'rgba(201,168,76,0.05)',
           border: '1px solid rgba(201,168,76,0.2)',
           borderRadius: 16, padding: '28px 24px',
-          marginBottom: 12,
+          marginBottom: 20,
           textAlign: 'center',
         }}>
           <p style={{
@@ -134,28 +134,10 @@ export default function StartPage() {
 
           <p style={{
             fontSize: 13, color: '#6a6050',
-            margin: '0 0 20px', lineHeight: 1.6,
+            margin: 0, lineHeight: 1.6,
           }}>
             Every venue pays a licensing fee on your behalf. Your PRO can't distribute it without a setlist submission.
           </p>
-
-          <div style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            gap: 8, padding: '12px 16px',
-            background: 'rgba(255,255,255,0.03)',
-            border: '1px solid rgba(255,255,255,0.06)',
-            borderRadius: 10,
-          }}>
-            <span style={{ fontSize: 12, color: '#3a3028', letterSpacing: '0.04em' }}>
-              You've likely claimed:
-            </span>
-            <span style={{
-              fontSize: 18, fontWeight: 700, color: '#3a3028',
-              fontFamily: '"DM Mono", monospace',
-            }}>
-              $0
-            </span>
-          </div>
         </div>
 
         {/* CTA */}
