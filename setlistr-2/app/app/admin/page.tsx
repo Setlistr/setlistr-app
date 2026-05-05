@@ -6,6 +6,7 @@ import AdminDashboard from './AdminView'
 const ADMIN_EMAILS = [
   'jesse.slack.music@gmail.com',
   'darylscottsongs@gmail.com',
+  'srclarke7@gmail.com',
 ]
 
 // Service role client — bypasses RLS, sees ALL users' data
