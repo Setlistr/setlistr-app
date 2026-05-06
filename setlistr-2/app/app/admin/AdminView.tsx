@@ -420,6 +420,27 @@ export default function AdminDashboard({
                 {t.label}
               </button>
             ))}
+            <a href="/app/admin/rd-log" style={{
+              padding: '10px 14px',
+              background: 'none',
+              border: 'none',
+              borderBottom: '2px solid transparent',
+              color: C.muted,
+              fontSize: 11,
+              fontWeight: 700,
+              letterSpacing: '0.06em',
+              textTransform: 'uppercase',
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+              marginBottom: -1,
+              whiteSpace: 'nowrap',
+              textDecoration: 'none',
+              display: 'inline-flex',
+              alignItems: 'center',
+              WebkitTapHighlightColor: 'transparent',
+            }}>
+              R&D Log
+            </a>
           </div>
         </div>
       </div>
