@@ -199,7 +199,7 @@ export default function HomePage() {
             textTransform: 'uppercase',
           }}>
             <div className="sl-pulse" />
-            Live Performance Infrastructure
+            Verified Performance Intelligence
           </div>
 
           {/* Headline */}
