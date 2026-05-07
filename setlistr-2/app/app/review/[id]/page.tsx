@@ -63,6 +63,13 @@ type Performance = {
 type PRO = 'SOCAN' | 'ASCAP' | 'BMI'
 type RecentSong = { id: string; title: string; artist: string; play_count: number; last_played: string }
 
+type ShowIntelligence = {
+  totalShows: number
+  venueVisits: number
+  songDebuts: string[]
+  milestone: number | null
+}
+
 async function writeUserSongFromReview(
   supabase: ReturnType<typeof import('@/lib/supabase/client').createClient>,
   title: string, artist: string, userId: string, performanceId: string
@@ -276,7 +283,6 @@ function AssignSheet({ assignSheet, onAssign, onClose, onCatalogSelect, userId, 
   )
 }
 
-// ── Planned song row — binary yes/no, no drag ─────────────────────────────────
 function PlannedSongRow({ song, onPlayed, onRemove }: {
   song: Song
   onPlayed: (id: string) => void
@@ -289,16 +295,12 @@ function PlannedSongRow({ song, onPlayed, onRemove }: {
       border: '1px dashed rgba(255,255,255,0.1)',
       borderRadius: 12, opacity: 0.75,
     }}>
-      {/* Empty circle — waiting state */}
       <div style={{ width: 18, height: 18, borderRadius: '50%', border: '1.5px solid rgba(255,255,255,0.15)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ width: 5, height: 5, borderRadius: '50%', background: 'rgba(255,255,255,0.2)' }} />
       </div>
-
       <p style={{ fontSize: 14, fontWeight: 500, color: C.secondary, margin: 0, flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
         {song.title}
       </p>
-
-      {/* Actions */}
       <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
         <button
           onClick={() => onPlayed(song.id)}
@@ -311,6 +313,22 @@ function PlannedSongRow({ song, onPlayed, onRemove }: {
           ✕
         </button>
       </div>
+    </div>
+  )
+}
+
+// ── Intelligence insight pill ─────────────────────────────────────────────────
+function InsightPill({ emoji, label, highlight }: { emoji: string; label: string; highlight?: boolean }) {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 8,
+      padding: '10px 14px',
+      background: highlight ? 'rgba(201,168,76,0.08)' : 'rgba(255,255,255,0.03)',
+      border: `1px solid ${highlight ? 'rgba(201,168,76,0.2)' : 'rgba(255,255,255,0.07)'}`,
+      borderRadius: 10,
+    }}>
+      <span style={{ fontSize: 15, flexShrink: 0 }}>{emoji}</span>
+      <span style={{ fontSize: 13, fontWeight: 500, color: highlight ? C.gold : C.secondary, lineHeight: 1.4 }}>{label}</span>
     </div>
   )
 }
@@ -332,6 +350,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
   const [editSheet, setEditSheet]       = useState<Song | null>(null)
   const [assignSheet, setAssignSheet]   = useState<{ songId: string; currentTitle: string } | null>(null)
   const [userId, setUserId]             = useState<string | null>(null)
+  const [intelligence, setIntelligence] = useState<ShowIntelligence | null>(null)
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -378,7 +397,6 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
     else setEditSheet(song)
   }
 
-  // Mark a planned song as played — moves it into confirmed
   function markPlannedAsPlayed(songId: string) {
     setSongs(prev => prev.map(s => s.id === songId
       ? { ...s, source: 'manual', was_planned: true, reviewState: 'clean' }
@@ -386,9 +404,50 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
     ))
   }
 
-  // Remove a planned song entirely
   function removePlannedSong(songId: string) {
     setSongs(prev => prev.filter(s => s.id !== songId))
+  }
+
+  // ── Fetch post-show intelligence after save ───────────────────────────────
+  async function fetchIntelligence(uid: string, venueName: string, songTitles: string[]) {
+    try {
+      const supabase = createClient()
+      const MILESTONES = [5, 10, 25, 50, 100, 250, 500]
+
+      const [totalResult, venueResult, debutResult] = await Promise.all([
+        // Total completed shows
+        supabase
+          .from('performances')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', uid)
+          .eq('status', 'completed'),
+
+        // Visits to this specific venue
+        supabase
+          .from('performances')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', uid)
+          .eq('venue_name', venueName)
+          .eq('status', 'completed'),
+
+        // Song debuts — confirmed_count === 1 means performed for first time tonight
+        supabase
+          .from('user_songs')
+          .select('song_title')
+          .eq('user_id', uid)
+          .eq('confirmed_count', 1)
+          .in('song_title', songTitles),
+      ])
+
+      const totalShows = totalResult.count || 0
+      const venueVisits = venueResult.count || 0
+      const songDebuts = debutResult.data?.map((r: { song_title: string }) => r.song_title) || []
+      const milestone = MILESTONES.find(m => m === totalShows) || null
+
+      setIntelligence({ totalShows, venueVisits, songDebuts, milestone })
+    } catch (err) {
+      console.error('[Intelligence] fetch failed:', err)
+    }
   }
 
   useEffect(() => {
@@ -448,7 +507,6 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
     if (!performance) return
     setSaving(true)
     const supabase = createClient()
-    // Only save confirmed songs — drop planned-but-unconfirmed
     const songsToSave = songs.filter(s => s.source !== 'planned')
     if (setlistId) {
       await supabase.from('setlist_items').delete().eq('setlist_id', setlistId)
@@ -467,7 +525,14 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
     if (performance.show_id) await supabase.from('shows').update({ status: 'completed' }).eq('id', performance.show_id)
     try {
       const { data: { user } } = await supabase.auth.getUser()
-      if (user) { for (const song of songsToSave) { if (!song.title?.trim()) continue; writeUserSongFromReview(supabase, song.title, song.artist || '', user.id, performance.id) } }
+      if (user) {
+        for (const song of songsToSave) {
+          if (!song.title?.trim()) continue
+          await writeUserSongFromReview(supabase, song.title, song.artist || '', user.id, performance.id)
+        }
+        // Fire intelligence fetch after user_songs are written (debuts depend on it)
+        fetchIntelligence(user.id, performance.venue_name, songsToSave.map(s => s.title).filter(Boolean))
+      }
     } catch (err) { console.error('[ReviewSave]', err) }
     setSaving(false); setSaved(true); setShowComplete(true)
   }, [performance, songs, setlistId])
@@ -511,7 +576,6 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
     </div>
   )
 
-  // ── Split songs into confirmed and planned-unverified ─────────────────────
   const confirmedSongs    = songs.filter(s => s.source !== 'planned')
   const plannedPending    = songs.filter(s => s.source === 'planned')
   const autoCount         = confirmedSongs.filter(s => s.source === 'recognized' || s.source === 'detected' || s.source === 'fingerprint' || s.source === 'humming').length
@@ -528,10 +592,33 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
     const durMins   = performance?.started_at && performance?.ended_at ? Math.round((new Date(performance.ended_at).getTime() - new Date(performance.started_at).getTime()) / 60000) : null
     const manualCount = confirmedSongs.filter(s => s.source === 'manual' && !s.was_planned).length
 
+    // Build intelligence insights
+    const insights: Array<{ emoji: string; label: string; highlight: boolean }> = []
+    if (intelligence) {
+      if (intelligence.milestone) {
+        insights.push({ emoji: '🎉', label: `Show #${intelligence.milestone} — verified milestone`, highlight: true })
+      }
+      if (intelligence.venueVisits === 1) {
+        insights.push({ emoji: '📍', label: `First verified show at ${performance?.venue_name}`, highlight: false })
+      } else if (intelligence.venueVisits > 1) {
+        insights.push({ emoji: '📍', label: `${intelligence.venueVisits}${intelligence.venueVisits === 2 ? 'nd' : intelligence.venueVisits === 3 ? 'rd' : 'th'} time at ${performance?.venue_name}`, highlight: false })
+      }
+      if (intelligence.songDebuts.length === 1) {
+        insights.push({ emoji: '⭐', label: `Live debut: "${intelligence.songDebuts[0]}"`, highlight: true })
+      } else if (intelligence.songDebuts.length > 1) {
+        insights.push({ emoji: '⭐', label: `${intelligence.songDebuts.length} live debuts tonight`, highlight: true })
+      }
+      if (intelligence.totalShows > 0 && !intelligence.milestone) {
+        insights.push({ emoji: '📊', label: `Show #${intelligence.totalShows} in your verified record`, highlight: false })
+      }
+    }
+
     return (
       <div style={{ minHeight: '100svh', background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif', overflowY: 'auto' }}>
         <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '70vh', pointerEvents: 'none', zIndex: 0, background: 'radial-gradient(ellipse at 50% 10%, rgba(201,168,76,0.12) 0%, transparent 65%)' }} />
         <div style={{ maxWidth: 420, margin: '0 auto', padding: '0 20px 60px', position: 'relative', zIndex: 1 }}>
+
+          {/* Header */}
           <div style={{ paddingTop: 56, paddingBottom: 40, textAlign: 'center', animation: 'fadeUp 0.5s ease' }}>
             <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginBottom: 28 }}>
               <div style={{ width: 72, height: 72, borderRadius: '50%', background: 'radial-gradient(circle at 38% 32%, rgba(201,168,76,0.9), rgba(180,140,50,0.7))', boxShadow: `0 0 40px rgba(201,168,76,0.3), 0 0 80px rgba(201,168,76,0.12)`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -560,14 +647,11 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
                 <span style={{ fontSize: 10, fontWeight: 700, color: C.green, letterSpacing: '0.06em' }}>Saved</span>
               </div>
             </div>
-
-            {/* Capture breakdown */}
             <div style={{ padding: '10px 20px', borderBottom: `1px solid ${C.border}`, display: 'flex', gap: 16, flexWrap: 'wrap' as const }}>
               {verifiedCount > 0 && <span style={{ fontSize: 11, color: C.green }}>✓ {verifiedCount} verified from setlist</span>}
               {autoCount > verifiedCount && <span style={{ fontSize: 11, color: C.gold }}>✦ {autoCount - verifiedCount} auto-detected</span>}
               {manualCount > 0 && <span style={{ fontSize: 11, color: C.muted }}>+ {manualCount} added manually</span>}
             </div>
-
             <div style={{ padding: '12px 0' }}>
               {confirmedSongs.map((s, i) => (
                 <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 20px' }}>
@@ -582,8 +666,30 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
             </div>
           </div>
 
+          {/* Intelligence insights */}
+          {intelligence && insights.length > 0 && (
+            <div style={{ marginBottom: 12, animation: 'fadeUp 0.5s 0.12s ease both' }}>
+              <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.muted, margin: '0 0 8px' }}>Tonight's Intelligence</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {insights.map((insight, i) => (
+                  <InsightPill key={i} emoji={insight.emoji} label={insight.label} highlight={insight.highlight} />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Intelligence loading state */}
+          {!intelligence && (
+            <div style={{ marginBottom: 12, animation: 'fadeUp 0.5s 0.12s ease both' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 14px', background: 'rgba(255,255,255,0.02)', border: `1px solid ${C.border}`, borderRadius: 10 }}>
+                <div style={{ width: 10, height: 10, borderRadius: '50%', border: `1.5px solid rgba(201,168,76,0.3)`, borderTopColor: C.gold, animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />
+                <span style={{ fontSize: 12, color: C.muted }}>Calculating your performance intelligence...</span>
+              </div>
+            </div>
+          )}
+
           {/* Royalty estimate */}
-          <div style={{ background: 'rgba(201,168,76,0.06)', border: `1px solid rgba(201,168,76,0.18)`, borderRadius: 16, padding: '18px 20px', marginBottom: 12, animation: 'fadeUp 0.5s 0.14s ease both' }}>
+          <div style={{ background: 'rgba(201,168,76,0.06)', border: `1px solid rgba(201,168,76,0.18)`, borderRadius: 16, padding: '18px 20px', marginBottom: 12, animation: 'fadeUp 0.5s 0.16s ease both' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
               <p style={{ fontSize: 13, color: C.secondary, margin: 0 }}>Estimated royalties</p>
               <p style={{ fontSize: 22, fontWeight: 800, color: C.gold, margin: 0, fontFamily: '"DM Mono", monospace', letterSpacing: '-0.02em' }}>~${estimate.expected}</p>
@@ -595,7 +701,8 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
             </button>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, animation: 'fadeUp 0.5s 0.18s ease both' }}>
+          {/* Actions */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, animation: 'fadeUp 0.5s 0.2s ease both' }}>
             <button onClick={() => router.push('/app/dashboard')}
               style={{ width: '100%', padding: '15px', background: C.gold, border: 'none', borderRadius: 12, color: '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'inherit' }}>
               Done
@@ -609,6 +716,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
         <style>{`
           @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500;700&display=swap');
           @keyframes fadeUp { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:translateY(0)} }
+          @keyframes spin { to{transform:rotate(360deg)} }
           * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
         `}</style>
       </div>
@@ -645,7 +753,6 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
           </div>
         </div>
 
-        {/* Confirmed songs header + add */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, animation: 'fadeUp 0.4s 0.05s ease both' }}>
           <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.muted }}>Setlist</span>
           <button onClick={() => setShowAdd(!showAdd)}
@@ -667,7 +774,6 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
           </div>
         ) : null}
 
-        {/* Confirmed songs — drag/drop */}
         {confirmedSongs.length === 0 && plannedPending.length === 0 ? (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '64px 0', animation: 'fadeUp 0.4s ease' }}>
             <div style={{ width: 56, height: 56, borderRadius: '50%', background: C.card, border: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
@@ -691,7 +797,6 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
           </div>
         ) : null}
 
-        {/* ── PLANNED PENDING — did you play these? ── */}
         {plannedPending.length > 0 && (
           <div style={{ marginTop: confirmedSongs.length > 0 ? 20 : 0, animation: 'fadeUp 0.4s 0.12s ease both' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
@@ -716,7 +821,6 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
           </div>
         )}
 
-        {/* Export */}
         <div style={{ marginTop: 20, background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, overflow: 'hidden', animation: 'fadeUp 0.4s 0.15s ease both' }}>
           <button onClick={() => setShowExport(!showExport)}
             style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
@@ -739,7 +843,6 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
           ) : null}
         </div>
 
-        {/* Save */}
         <div style={{ paddingTop: 14, paddingBottom: 40, display: 'flex', flexDirection: 'column', gap: 10, animation: 'fadeUp 0.4s 0.2s ease both' }}>
           {confirmedSongs.length > 0 ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: allClean ? 'rgba(74,222,128,0.07)' : C.goldDim, border: `1px solid ${allClean ? 'rgba(74,222,128,0.2)' : C.borderGold}`, borderRadius: 10 }}>
