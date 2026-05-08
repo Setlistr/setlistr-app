@@ -523,6 +523,24 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
     }))
     await supabase.from('performances').update({ status: 'completed' }).eq('id', performance.id)
     if (performance.show_id) await supabase.from('shows').update({ status: 'completed' }).eq('id', performance.show_id)
+
+    // Geocode city → lat/lng silently, non-blocking
+    if (performance.city) {
+      fetch(
+        `https://nominatim.openstreetmap.org/search?city=${encodeURIComponent(performance.city)}&country=${encodeURIComponent(performance.country || '')}&format=json&limit=1`,
+        { headers: { 'User-Agent': 'Setlistr/1.0 (info@setlistr.ai)' } }
+      )
+        .then(r => r.json())
+        .then(geoData => {
+          if (geoData?.[0]) {
+            supabase.from('performances').update({
+              latitude: parseFloat(geoData[0].lat),
+              longitude: parseFloat(geoData[0].lon),
+            }).eq('id', performance.id).then(() => {})
+          }
+        })
+        .catch(() => {})
+    }
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
