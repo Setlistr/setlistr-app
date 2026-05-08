@@ -1,15 +1,17 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Music2, MapPin, Calendar, TrendingUp, Mic2 } from 'lucide-react'
+import { Music2, MapPin, Calendar, TrendingUp, Mic2, AlertCircle } from 'lucide-react'
 import MySongsTab from '@/components/MySongsTab'
 
 const C = {
   bg: '#0a0908', card: '#141210',
   border: 'rgba(255,255,255,0.07)', borderGold: 'rgba(201,168,76,0.25)',
   text: '#f0ece3', secondary: '#b8a888', muted: '#8a7a68',
-  gold: '#c9a84c', goldDim: 'rgba(201,168,76,0.1)',
+  gold: '#c9a84c', goldDim: 'rgba(201,168,76,0.1)', green: '#4ade80',
 }
+
+const BASE_ROYALTY = 1.20
 
 type Song        = { title: string; artist: string }
 type Performance = { id: string; venue_name: string; city: string; country: string; started_at: string; set_duration_minutes: number }
@@ -67,12 +69,26 @@ export default function StatsPage() {
     load()
   }, [])
 
-  // ── Stats ─────────────────────────────────────────────────────────────────
+  // ── Derived stats ─────────────────────────────────────────────────────────
   const totalShows   = performances.length
   const totalSongs   = allSongs.length
   const totalCities  = new Set(performances.map(p => p.city).filter(Boolean)).size
   const totalMinutes = performances.reduce((s, p) => s + (p.set_duration_minutes ?? 0), 0)
   const totalHours   = Math.round(totalMinutes / 60 * 10) / 10
+
+  const lastShow     = performances.length > 0 ? performances[0] : null
+  const daysSinceLastShow = lastShow
+    ? Math.floor((Date.now() - new Date(lastShow.started_at).getTime()) / 86400000)
+    : null
+
+  const dormantSongs = userSongs.filter(s => {
+    if (!s.last_confirmed_at || s.confirmed_count === 0) return false
+    const days = Math.floor((Date.now() - new Date(s.last_confirmed_at).getTime()) / 86400000)
+    return days > 45
+  }).length
+
+  const totalConfirmedPerformances = userSongs.reduce((sum, s) => sum + (s.confirmed_count || 0), 0)
+  const estimatedLifetimeRoyalty   = Math.round(totalConfirmedPerformances * BASE_ROYALTY)
 
   const songCounts: Record<string, { title: string; artist: string; count: number }> = {}
   allSongs.forEach(s => {
@@ -103,7 +119,6 @@ export default function StatsPage() {
     return d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
   })
   const maxMonthCount = Math.max(...last6Months.map(m => monthCounts[m] ?? 0), 1)
-
   const totalUniqueSongs = userSongs.length
 
   if (loading) {
@@ -118,12 +133,10 @@ export default function StatsPage() {
   return (
     <div style={{ minHeight: '100svh', background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif' }}>
 
-      {/* Header */}
       <div style={{ padding: '32px 20px 0', maxWidth: 520, margin: '0 auto' }}>
         <p style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.28em', color: C.gold + '90', margin: '0 0 4px', fontWeight: 600 }}>Your Career</p>
         <h1 style={{ fontSize: 28, fontWeight: 800, color: C.text, margin: '0 0 20px', letterSpacing: '-0.02em' }}>Stats</h1>
 
-        {/* Tab switcher */}
         <div style={{ display: 'flex', gap: 4, background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: 4, marginBottom: 20 }}>
           {([['stats', 'Overview'], ['songs', 'My Songs']] as const).map(([key, label]) => (
             <button key={key} onClick={() => setTab(key)}
@@ -147,6 +160,7 @@ export default function StatsPage() {
             </div>
           ) : (
             <>
+              {/* Primary stat grid */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                 {[
                   { icon: Calendar,   label: 'Shows Played',   value: totalShows },
@@ -162,6 +176,63 @@ export default function StatsPage() {
                 ))}
               </div>
 
+              {/* Lifetime royalty estimate */}
+              {estimatedLifetimeRoyalty > 0 && (
+                <div style={{ background: 'rgba(201,168,76,0.07)', border: `1px solid rgba(201,168,76,0.2)`, borderRadius: 14, padding: '18px 20px' }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+                    <div>
+                      <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: C.muted, margin: '0 0 4px' }}>Estimated Lifetime Royalties</p>
+                      <p style={{ fontSize: 36, fontWeight: 800, color: C.gold, margin: 0, fontFamily: '"DM Mono", monospace', letterSpacing: '-0.02em', lineHeight: 1 }}>
+                        ~${estimatedLifetimeRoyalty.toLocaleString()}
+                      </p>
+                      <p style={{ fontSize: 11, color: C.muted, margin: '6px 0 0', lineHeight: 1.5 }}>
+                        Based on {totalConfirmedPerformances} verified song performances across {totalShows} shows
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Intelligence row — last show + dormant */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '14px' }}>
+                  <p style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: C.muted, margin: '0 0 6px' }}>Last Show</p>
+                  {daysSinceLastShow !== null ? (
+                    <>
+                      <p style={{ fontSize: 22, fontWeight: 800, color: daysSinceLastShow > 14 ? C.gold : C.text, margin: 0, fontFamily: '"DM Mono", monospace', letterSpacing: '-0.02em' }}>
+                        {daysSinceLastShow === 0 ? 'Today' : `${daysSinceLastShow}d`}
+                      </p>
+                      <p style={{ fontSize: 10, color: C.muted, margin: '3px 0 0' }}>
+                        {daysSinceLastShow === 0 ? 'just performed' : daysSinceLastShow === 1 ? 'yesterday' : 'since last show'}
+                      </p>
+                    </>
+                  ) : (
+                    <p style={{ fontSize: 13, color: C.muted, margin: 0 }}>—</p>
+                  )}
+                </div>
+
+                <div style={{ background: C.card, border: `1px solid ${dormantSongs > 0 ? 'rgba(201,168,76,0.2)' : C.border}`, borderRadius: 14, padding: '14px' }}>
+                  <p style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: C.muted, margin: '0 0 6px' }}>Dormant Songs</p>
+                  <p style={{ fontSize: 22, fontWeight: 800, color: dormantSongs > 0 ? C.gold : C.text, margin: 0, fontFamily: '"DM Mono", monospace', letterSpacing: '-0.02em' }}>
+                    {dormantSongs}
+                  </p>
+                  <p style={{ fontSize: 10, color: C.muted, margin: '3px 0 0' }}>
+                    {dormantSongs === 0 ? 'all active' : `not played in 45d+`}
+                  </p>
+                </div>
+              </div>
+
+              {/* Dormant song callout */}
+              {dormantSongs > 0 && (
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '12px 14px', background: 'rgba(201,168,76,0.05)', border: `1px solid rgba(201,168,76,0.15)`, borderRadius: 12 }}>
+                  <AlertCircle size={14} color={C.gold} style={{ marginTop: 1, flexShrink: 0 }} />
+                  <p style={{ fontSize: 12, color: C.secondary, margin: 0, lineHeight: 1.6 }}>
+                    You have {dormantSongs} song{dormantSongs !== 1 ? 's' : ''} that {dormantSongs !== 1 ? 'haven\'t' : 'hasn\'t'} been played in over 45 days. Check My Songs to see which ones.
+                  </p>
+                </div>
+              )}
+
+              {/* Shows per month */}
               <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '16px' }}>
                 <p style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.12em', color: C.secondary, margin: '0 0 16px', fontWeight: 600 }}>Shows per Month</p>
                 <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, height: 80 }}>
@@ -179,6 +250,7 @@ export default function StatsPage() {
                 </div>
               </div>
 
+              {/* Top songs */}
               {topSongs.length > 0 && (
                 <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '16px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
@@ -207,6 +279,7 @@ export default function StatsPage() {
                 </div>
               )}
 
+              {/* Top venues */}
               {topVenues.length > 0 && (
                 <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '16px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
@@ -236,7 +309,7 @@ export default function StatsPage() {
         </div>
       )}
 
-      {/* ── My Songs tab — full catalog management ── */}
+      {/* ── My Songs tab ── */}
       {tab === 'songs' && userId && (
         <div style={{ padding: '0 20px 40px', maxWidth: 520, margin: '0 auto' }}>
           <MySongsTab userId={userId} />
