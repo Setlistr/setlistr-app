@@ -3,6 +3,7 @@ import { useState, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import Image from 'next/image'
+import Link from 'next/link'
 
 const C = {
   bg: '#0a0908', card: '#141210',
@@ -19,13 +20,14 @@ function LoginPageInner() {
   const searchParams = useSearchParams()
   const fromStart    = searchParams.get('from') === 'start'
 
-  const [mode, setMode]         = useState<Mode>('signin')
-  const [email, setEmail]       = useState('')
-  const [password, setPassword] = useState('')
-  const [confirm, setConfirm]   = useState('')
-  const [loading, setLoading]   = useState(false)
-  const [error, setError]       = useState('')
-  const [success, setSuccess]   = useState('')
+  const [mode, setMode]             = useState<Mode>('signin')
+  const [email, setEmail]           = useState('')
+  const [password, setPassword]     = useState('')
+  const [confirm, setConfirm]       = useState('')
+  const [loading, setLoading]       = useState(false)
+  const [error, setError]           = useState('')
+  const [success, setSuccess]       = useState('')
+  const [termsAccepted, setTermsAccepted] = useState(false)
 
   const [showWaitlist, setShowWaitlist]       = useState(false)
   const [waitlistName, setWaitlistName]       = useState('')
@@ -40,6 +42,7 @@ function LoginPageInner() {
     setSuccess('')
     setPassword('')
     setConfirm('')
+    setTermsAccepted(false)
   }
 
   async function handleSignIn(e?: React.FormEvent) {
@@ -60,15 +63,25 @@ function LoginPageInner() {
   async function handleSignUp(e?: React.FormEvent) {
     e?.preventDefault()
     if (!email.trim() || !password.trim()) return
+    if (!termsAccepted) { setError('You must agree to the Terms of Service and Privacy Policy to create an account.'); return }
     if (password !== confirm) { setError("Passwords don't match"); return }
     if (password.length < 6)  { setError('Password must be at least 6 characters'); return }
     setLoading(true)
     setError('')
     const supabase = createClient()
+    const termsAcceptedAt = new Date().toISOString()
     const { error } = await supabase.auth.signUp({
       email: email.trim(),
       password,
-      options: { emailRedirectTo: `${window.location.origin}/app/dashboard` },
+      options: {
+        emailRedirectTo: `${window.location.origin}/app/dashboard`,
+        data: {
+          terms_accepted: true,
+          terms_accepted_at: termsAcceptedAt,
+          terms_version: 'v1-2026-05-06',
+          privacy_version: 'v1-2026-05-06',
+        },
+      },
     })
     if (error) {
       if (error.message.toLowerCase().includes('already')) {
@@ -130,6 +143,9 @@ function LoginPageInner() {
     <div style={{ width: 13, height: 13, borderRadius: '50%', border: '2px solid #0a090840', borderTopColor: '#0a0908', animation: 'spin 0.7s linear infinite' }} />
   )
 
+  const signUpDisabled = loading || !email.trim() || !password.trim() || !confirm.trim() || password !== confirm || !termsAccepted
+  const signInDisabled = loading || !email.trim() || !password.trim()
+
   return (
     <div style={{ minHeight: '100svh', background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px 20px' }}>
 
@@ -186,21 +202,70 @@ function LoginPageInner() {
                 </div>
 
                 {mode === 'signup' && (
-                  <div>
-                    <label style={lbl}>Confirm Password</label>
-                    <input type="password" value={confirm} onChange={e => setConfirm(e.target.value)}
-                      onKeyDown={e => e.key === 'Enter' && handleSignUp()}
-                      placeholder="••••••••" autoComplete="new-password"
-                      style={{ ...inp(confirm), borderColor: confirm && confirm !== password ? 'rgba(248,113,113,0.4)' : confirm && confirm === password ? 'rgba(74,222,128,0.4)' : confirm.trim() ? C.borderGold : C.border }}
-                      onFocus={e => (e.target.style.borderColor = 'rgba(201,168,76,0.4)')}
-                      onBlur={e => (e.target.style.borderColor = confirm && confirm !== password ? 'rgba(248,113,113,0.4)' : confirm && confirm === password ? 'rgba(74,222,128,0.4)' : C.border)} />
-                    {confirm && password && confirm === password && (
-                      <p style={{ fontSize: 11, color: C.green, margin: '4px 0 0' }}>✓ Passwords match</p>
-                    )}
-                    {confirm && password && confirm !== password && (
-                      <p style={{ fontSize: 11, color: C.red, margin: '4px 0 0' }}>Passwords don't match</p>
-                    )}
-                  </div>
+                  <>
+                    <div>
+                      <label style={lbl}>Confirm Password</label>
+                      <input type="password" value={confirm} onChange={e => setConfirm(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && handleSignUp()}
+                        placeholder="••••••••" autoComplete="new-password"
+                        style={{ ...inp(confirm), borderColor: confirm && confirm !== password ? 'rgba(248,113,113,0.4)' : confirm && confirm === password ? 'rgba(74,222,128,0.4)' : confirm.trim() ? C.borderGold : C.border }}
+                        onFocus={e => (e.target.style.borderColor = 'rgba(201,168,76,0.4)')}
+                        onBlur={e => (e.target.style.borderColor = confirm && confirm !== password ? 'rgba(248,113,113,0.4)' : confirm && confirm === password ? 'rgba(74,222,128,0.4)' : C.border)} />
+                      {confirm && password && confirm === password && (
+                        <p style={{ fontSize: 11, color: C.green, margin: '4px 0 0' }}>✓ Passwords match</p>
+                      )}
+                      {confirm && password && confirm !== password && (
+                        <p style={{ fontSize: 11, color: C.red, margin: '4px 0 0' }}>Passwords don&apos;t match</p>
+                      )}
+                    </div>
+
+                    {/* ── Terms & Privacy consent ── */}
+                    <div
+                      onClick={() => setTermsAccepted(v => !v)}
+                      style={{
+                        display: 'flex', alignItems: 'flex-start', gap: 10,
+                        background: termsAccepted ? 'rgba(201,168,76,0.06)' : 'rgba(255,255,255,0.02)',
+                        border: `1px solid ${termsAccepted ? C.borderGold : C.border}`,
+                        borderRadius: 10, padding: '12px 14px',
+                        cursor: 'pointer', transition: 'all 0.15s ease',
+                        marginTop: 2,
+                      }}
+                    >
+                      <div style={{
+                        width: 16, height: 16, borderRadius: 4, flexShrink: 0, marginTop: 1,
+                        background: termsAccepted ? C.gold : 'transparent',
+                        border: `1.5px solid ${termsAccepted ? C.gold : C.muted}`,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        transition: 'all 0.15s ease',
+                      }}>
+                        {termsAccepted && (
+                          <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
+                            <path d="M1 3.5L4 6.5L9 1" stroke="#0a0908" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        )}
+                      </div>
+                      <p style={{ fontSize: 12, color: C.secondary, margin: 0, lineHeight: 1.55 }}>
+                        I agree to the{' '}
+                        <Link
+                          href="/terms"
+                          target="_blank"
+                          onClick={e => e.stopPropagation()}
+                          style={{ color: C.gold, textDecoration: 'none', fontWeight: 600 }}
+                        >
+                          Terms of Service
+                        </Link>
+                        {' '}and{' '}
+                        <Link
+                          href="/privacy"
+                          target="_blank"
+                          onClick={e => e.stopPropagation()}
+                          style={{ color: C.gold, textDecoration: 'none', fontWeight: 600 }}
+                        >
+                          Privacy Policy
+                        </Link>
+                      </p>
+                    </div>
+                  </>
                 )}
 
                 {error && (
@@ -217,8 +282,8 @@ function LoginPageInner() {
 
                 <button
                   onClick={mode === 'signin' ? handleSignIn : handleSignUp}
-                  disabled={loading || !email.trim() || !password.trim() || (mode === 'signup' && (!confirm.trim() || password !== confirm))}
-                  style={{ width: '100%', padding: '13px', background: C.gold, border: 'none', borderRadius: 10, color: '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: loading ? 'not-allowed' : 'pointer', opacity: loading || !email.trim() || !password.trim() ? 0.6 : 1, transition: 'opacity 0.2s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit', marginTop: 4 }}>
+                  disabled={mode === 'signin' ? signInDisabled : signUpDisabled}
+                  style={{ width: '100%', padding: '13px', background: C.gold, border: 'none', borderRadius: 10, color: '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: (mode === 'signin' ? signInDisabled : signUpDisabled) ? 'not-allowed' : 'pointer', opacity: (mode === 'signin' ? signInDisabled : signUpDisabled) ? 0.6 : 1, transition: 'opacity 0.2s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit', marginTop: 4 }}>
                   {loading ? <><Spinner />{mode === 'signin' ? 'Signing in...' : 'Creating account...'}</> : mode === 'signin' ? 'Sign In' : 'Create Account'}
                 </button>
               </div>
@@ -229,7 +294,7 @@ function LoginPageInner() {
               <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '20px 24px', textAlign: 'center', marginBottom: 20 }}>
                 <p style={{ fontSize: 13, fontWeight: 600, color: C.secondary, margin: '0 0 5px' }}>Not invited yet?</p>
                 <p style={{ fontSize: 12, color: C.muted, margin: '0 0 16px', lineHeight: 1.5 }}>
-                  Setlistr is in private beta. Join the waitlist and we'll reach out when we open access.
+                  Setlistr is in private beta. Join the waitlist and we&apos;ll reach out when we open access.
                 </p>
                 <button onClick={() => setShowWaitlist(true)}
                   style={{ width: '100%', padding: '11px', background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 10, color: C.gold, fontSize: 12, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer', transition: 'all 0.15s ease', fontFamily: 'inherit' }}
@@ -251,15 +316,15 @@ function LoginPageInner() {
               {waitlistDone ? (
                 <div style={{ textAlign: 'center', padding: '16px 0' }}>
                   <div style={{ width: 56, height: 56, borderRadius: '50%', margin: '0 auto 18px', background: C.goldDim, border: `1px solid ${C.borderGold}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24 }}>🎸</div>
-                  <h2 style={{ fontSize: 20, fontWeight: 800, color: C.text, margin: '0 0 8px', letterSpacing: '-0.02em' }}>You're on the list!</h2>
+                  <h2 style={{ fontSize: 20, fontWeight: 800, color: C.text, margin: '0 0 8px', letterSpacing: '-0.02em' }}>You&apos;re on the list!</h2>
                   <p style={{ fontSize: 13, color: C.secondary, margin: 0, lineHeight: 1.6 }}>
-                    We'll reach out when we open access. Keep playing shows.
+                    We&apos;ll reach out when we open access. Keep playing shows.
                   </p>
                 </div>
               ) : (
                 <>
                   <h1 style={{ fontSize: 20, fontWeight: 800, color: C.text, margin: '0 0 4px', letterSpacing: '-0.02em' }}>Join the Waitlist</h1>
-                  <p style={{ fontSize: 13, color: C.muted, margin: '0 0 24px', lineHeight: 1.5 }}>We're onboarding artists in waves. Drop your info and we'll be in touch.</p>
+                  <p style={{ fontSize: 13, color: C.muted, margin: '0 0 24px', lineHeight: 1.5 }}>We&apos;re onboarding artists in waves. Drop your info and we&apos;ll be in touch.</p>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                     <div>
                       <label style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.13em', textTransform: 'uppercase', color: C.muted, display: 'block', marginBottom: 6 }}>Your Name</label>
