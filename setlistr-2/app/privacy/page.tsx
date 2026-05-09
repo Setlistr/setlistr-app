@@ -1,236 +1,169 @@
-import type { Metadata } from 'next'
-import Link from 'next/link'
-import Image from 'next/image'
+// setlistr-2/app/privacy/page.tsx
 
-export const metadata: Metadata = {
-  title: 'Privacy Policy | Setlistr',
-  description: 'Privacy Policy for Setlistr — how we collect, use, and protect your data.',
-  alternates: { canonical: 'https://setlistr.ai/privacy' },
-}
+export const metadata = {
+  title: 'Privacy Policy — Setlistr',
+  description: 'Setlistr Privacy Policy',
+};
 
-const C = {
-  bg: '#0a0908', card: '#141210', border: 'rgba(255,255,255,0.07)',
-  borderGold: 'rgba(201,168,76,0.25)', text: '#f0ece3', secondary: '#b8a888',
-  muted: '#8a7a68', gold: '#c9a84c', goldDim: 'rgba(201,168,76,0.08)',
-  green: '#4ade80', greenDim: 'rgba(74,222,128,0.06)',
+export default function PrivacyPage() {
+  return (
+    <div style={{
+      background: '#0a0908',
+      minHeight: '100vh',
+      color: '#f2f1f0',
+      fontFamily: '"DM Sans", sans-serif',
+      padding: '60px 24px',
+    }}>
+      <div style={{ maxWidth: 720, margin: '0 auto' }}>
+
+        {/* Header */}
+        <div style={{ marginBottom: 48, borderBottom: '1px solid #2a2520', paddingBottom: 32 }}>
+          <p style={{ color: '#c9a84c', fontSize: 11, fontFamily: '"DM Mono", monospace', letterSpacing: 2, textTransform: 'uppercase', marginBottom: 12 }}>
+            Legal
+          </p>
+          <h1 style={{ fontSize: 32, fontWeight: 700, color: '#f2f1f0', marginBottom: 12 }}>
+            Privacy Policy
+          </h1>
+          <p style={{ color: '#888', fontSize: 13 }}>Last Updated: May 6, 2026</p>
+        </div>
+
+        <Section title="Introduction">
+          <P>Setlistr, Inc. (&ldquo;Setlistr,&rdquo; &ldquo;we,&rdquo; &ldquo;us,&rdquo; or &ldquo;our&rdquo;) is committed to protecting your privacy. This Privacy Policy explains how we collect, use, process, store, share, transfer, protect, and retain information when you access or use Setlistr, including our mobile application, website, software, tools, features, data services, and related services (collectively, the &ldquo;Service&rdquo;).</P>
+          <P>By accessing or using the Service, you agree to the collection and use of information in accordance with this Privacy Policy. If you do not agree to this Privacy Policy, you may not access or use the Service.</P>
+          <P>This Privacy Policy is incorporated into and forms part of our Terms of Service. Capitalized terms not defined in this Privacy Policy have the meanings given to them in the Terms of Service.</P>
+        </Section>
+
+        <Section title="Information We Collect">
+          <SubSection title="Information You Provide Directly">
+            <P>When you create an account, use the Service, or contact us, you may provide us with information including: name, email address, username, password, artist name, band name, songwriter name, PRO membership information, IPI or CAE numbers, publisher information, label information, manager information, venue information, payment information, billing address, tax information, and any other information you choose to provide.</P>
+            <P>You may also provide performance information, setlist information, song information, venue details, performance dates and times, expected cover songs, setlist corrections, catalogue information, metadata, submission information, account preferences, feedback, support requests, and other information you enter or upload through the Service.</P>
+          </SubSection>
+          <SubSection title="Information We Collect Automatically">
+            <P>When you use the Service, we may automatically collect certain information, including: device type, device identifiers, operating system, browser type, app version, IP address, approximate location (city or region level), language settings, time zone, access times and dates, pages or features viewed, session duration, feature usage patterns, crash reports, error logs, performance data, and other diagnostic or usage information.</P>
+            <P>We may use cookies, pixel tags, web beacons, local storage, mobile device identifiers, and similar tracking technologies to collect this information and to support Service functionality, analytics, fraud prevention, security, and personalization.</P>
+          </SubSection>
+          <SubSection title="Audio Processing and Song Identification Data">
+            <P>Setlistr does not store live performance audio or full audio recordings of performances.</P>
+            <P>When you use song identification features, Setlistr temporarily processes short portions of audio solely for the purpose of generating audio fingerprints and matching those fingerprints against third-party or internal music identification databases. This audio is not stored by Setlistr.</P>
+            <P>Setlistr may store information generated from or related to the song identification process, including song match results, confidence scores, timestamps, performance dates, venue information, artist information, user-confirmed setlists, user corrections, missing song indicators, possible song matches, and related metadata.</P>
+            <P>If third-party audio recognition providers are used, limited audio fingerprinting or identification-related data may be transmitted to those providers as necessary to identify songs and return match results. Use of third-party providers is governed by their own terms and privacy policies.</P>
+          </SubSection>
+          <SubSection title="Information from Third-Party Services">
+            <P>If you connect third-party services to your Setlistr account, such as Spotify or other music platforms, we may receive information from those services, including artist catalogue information, track metadata, album information, playlist data, and related music data.</P>
+            <P>We may also receive information from performing rights organizations, collection societies, royalty administrators, publishers, labels, distributors, venues, industry databases, analytics providers, fraud prevention providers, payment processors, app marketplaces, and other third-party sources in connection with the Service.</P>
+          </SubSection>
+          <SubSection title="Payment and Billing Information">
+            <P>If you access paid features, payment and billing information may be collected by Setlistr or by third-party payment processors or app marketplaces on our behalf. Setlistr does not store full payment card numbers. We may retain limited billing information such as the last four digits of a card, billing address, transaction records, and payment history for account management and legal compliance purposes.</P>
+          </SubSection>
+        </Section>
+
+        <Section title="How We Use Your Information">
+          <P>We use the information we collect to: create and manage your account; enable song identification, audio fingerprinting, and music recognition features; generate, display, organize, and manage setlists, performance records, and submission data; prepare, organize, support, transmit, or submit performance information to performing rights organizations, collection societies, royalty administrators, publishers, venues, or other authorized third parties; display royalty estimates, submission status, performance history, and related information; verify your identity and authority; process payments and manage billing; provide customer support and respond to inquiries; send service-related notices, security alerts, account updates, billing notices, and legal notices; investigate, detect, prevent, and respond to fraud, abuse, unauthorized access, security incidents, rights disputes, and violations of our Terms of Service; comply with applicable legal obligations; enforce our Terms of Service and other agreements; improve the accuracy of song identification and other features; analyze usage, performance, and trends to improve the Service; and develop new features, products, and services.</P>
+        </Section>
+
+        <Section title="Aggregated and De-Identified Data">
+          <P>We may use aggregated, anonymized, or de-identified data derived from use of the Service for analytics, product improvement, research, reporting, benchmarking, fraud prevention, music industry insights, market insights, and development of new features or services. Aggregated or de-identified data does not identify you personally as an individual user.</P>
+          <P>This does not permit us to sell individual artist-level User Content in a personally identifiable form unless separately authorized by you or permitted by applicable law.</P>
+        </Section>
+
+        <Section title="How We Share Your Information">
+          <P>We do not sell your personal information to third parties for their own marketing purposes.</P>
+          <P>We may share your information with: trusted third-party service providers that help us operate, provide, maintain, protect, and improve the Service (including hosting providers, audio recognition providers, metadata providers, payment processors, analytics providers, fraud prevention providers, customer support providers, and legal advisors); performing rights organizations, collection societies, royalty administrators, publishers, labels, venues, distributors, or other third parties where you authorize or request us to submit performance information; third-party integrations such as Spotify or other music platforms you connect to your account; app marketplaces such as Apple or Google in connection with app distribution, billing, and marketplace requirements; authorities where required by applicable law, legal process, court order, governmental or regulatory authority, or law enforcement request; and successors in connection with a merger, acquisition, financing, sale of assets, corporate reorganization, change of control, or similar transaction.</P>
+        </Section>
+
+        <Section title="Cookies and Tracking Technologies">
+          <P>We may use cookies, pixel tags, web beacons, local storage, mobile device identifiers, and similar tracking technologies to collect information, support Service functionality, remember your preferences, analyze usage, support fraud prevention and security, and enable certain features.</P>
+          <P>You may be able to control certain cookies through your browser settings, device settings, or other tools. However, disabling certain cookies or tracking technologies may affect your ability to use parts of the Service.</P>
+        </Section>
+
+        <Section title="Data Retention">
+          <P>We retain your information for as long as reasonably necessary to provide the Service, maintain accurate records, comply with legal obligations, resolve disputes, prevent fraud, enforce our Terms of Service, and support legitimate business purposes.</P>
+          <P>We may retain certain information after you delete your account or request deletion, including where retention is required or permitted by law, necessary for fraud prevention, needed to complete transactions or submissions, required to resolve disputes, needed to maintain audit trails or business records, or maintained in backup systems for a limited period.</P>
+        </Section>
+
+        <Section title="Your Privacy Rights and Choices">
+          <P>Depending on where you live, you may have certain rights regarding your personal information, including the right to: access the personal information we hold about you; correct inaccurate or incomplete information; request deletion of your personal information, subject to legal limitations; request restriction of processing of your personal information; object to certain processing of your personal information; request a copy of your personal information in a portable format; withdraw consent where processing is based on consent; and lodge a complaint with a supervisory authority or data protection regulator.</P>
+          <P>To exercise any of these rights, please contact us at info@setlistr.ai. We may require identity verification or account verification before responding to certain requests.</P>
+        </Section>
+
+        <Section title="California Privacy Rights">
+          <P>If you are a California resident, you may have additional rights under the California Consumer Privacy Act (CCPA) and California Privacy Rights Act (CPRA), including the right to know what personal information we collect, use, disclose, or sell about you; the right to request deletion of your personal information; the right to opt out of the sale or sharing of your personal information; the right to non-discrimination for exercising your privacy rights; and the right to correct inaccurate personal information.</P>
+          <P>Setlistr does not sell your personal information to third parties for their own marketing purposes as defined under the CCPA/CPRA. To exercise your California privacy rights, please contact us at info@setlistr.ai.</P>
+        </Section>
+
+        <Section title="Canadian Privacy Rights">
+          <P>If you are located in Canada, your personal information is handled in accordance with applicable Canadian privacy legislation, including PIPEDA and applicable provincial privacy laws. You may have the right to access the personal information we hold about you, to request correction of inaccurate information, and to withdraw consent to certain uses of your information, subject to legal and contractual restrictions.</P>
+          <P>To exercise your Canadian privacy rights, please contact us at info@setlistr.ai.</P>
+        </Section>
+
+        <Section title="International Data Transfers">
+          <P>Setlistr is based in the United States. If you access or use the Service from outside the United States, your information may be transferred to, processed in, and stored in the United States or other countries where we or our service providers operate. By using the Service, you understand and consent to the transfer of your information to the United States and other countries as described in this Privacy Policy.</P>
+        </Section>
+
+        <Section title="Children's Privacy">
+          <P>Setlistr is not directed to children under the age of 13. We do not knowingly collect personal information from children under 13 without required parental consent. If we learn that we have collected personal information from a child under 13 without required parental consent, we will take steps to delete that information, restrict the account, suspend access, or take other steps required by applicable law.</P>
+          <P>If you are a parent or legal guardian and believe that a child under 13 has provided personal information to Setlistr without required consent, please contact us at info@setlistr.ai.</P>
+        </Section>
+
+        <Section title="Security">
+          <P>We implement reasonable administrative, technical, and physical safeguards designed to protect your information from unauthorized access, use, disclosure, alteration, loss, or destruction. However, no method of transmission over the internet or method of electronic storage is completely secure. If you believe your account or information has been compromised, please contact us immediately at info@setlistr.ai.</P>
+        </Section>
+
+        <Section title="Changes to This Privacy Policy">
+          <P>We may update or modify this Privacy Policy from time to time. If we make material changes, we may provide notice through the Service, by email, in-app message, or another reasonable method. Your continued access to or use of the Service after the updated Privacy Policy becomes effective means you accept the updated Privacy Policy.</P>
+        </Section>
+
+        <Section title="Contact Information">
+          <P>If you have questions, concerns, or requests regarding this Privacy Policy, your personal information, your privacy rights, data access, correction, deletion, portability, or other privacy matters, please contact us at:</P>
+          <div style={{ background: '#141210', border: '1px solid #2a2520', borderRadius: 8, padding: '20px 24px', marginTop: 8, fontFamily: '"DM Mono", monospace', fontSize: 13, lineHeight: 2, color: '#c9a84c' }}>
+            <div>Setlistr, Inc.</div>
+            <div>Attn: Privacy</div>
+            <div>517 E Campbell Road</div>
+            <div>Madison, TN 37115</div>
+            <div>Email: info@setlistr.ai</div>
+            <div>Website: https://setlistr.ai</div>
+            <div>Privacy Policy: https://setlistr.ai/privacy</div>
+          </div>
+        </Section>
+
+      </div>
+    </div>
+  );
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section style={{ marginBottom: 40 }}>
-      <h2 style={{ fontSize: 18, fontWeight: 800, color: C.text, margin: '0 0 12px', letterSpacing: '-0.01em' }}>{title}</h2>
-      <div style={{ fontSize: 15, color: C.secondary, lineHeight: 1.75 }}>{children}</div>
-    </section>
-  )
+    <div style={{ marginBottom: 36 }}>
+      <h2 style={{
+        fontSize: 16,
+        fontWeight: 700,
+        color: '#f2f1f0',
+        marginBottom: 12,
+        paddingBottom: 8,
+        borderBottom: '1px solid #2a2520',
+      }}>
+        {title}
+      </h2>
+      {children}
+    </div>
+  );
+}
+
+function SubSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <h3 style={{ fontSize: 13, fontWeight: 700, color: '#c9a84c', marginBottom: 8, fontFamily: '"DM Mono", monospace', letterSpacing: 0.5 }}>
+        {title}
+      </h3>
+      {children}
+    </div>
+  );
 }
 
 function P({ children }: { children: React.ReactNode }) {
-  return <p style={{ margin: '0 0 12px' }}>{children}</p>
-}
-
-function DataRow({ what, why, how }: { what: string; why: string; how: string }) {
   return (
-    <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: '14px 18px', marginBottom: 8 }}>
-      <p style={{ fontSize: 14, fontWeight: 700, color: C.text, margin: '0 0 4px' }}>{what}</p>
-      <p style={{ fontSize: 13, color: C.muted, margin: '0 0 2px' }}><strong style={{ color: C.secondary }}>Why:</strong> {why}</p>
-      <p style={{ fontSize: 13, color: C.muted, margin: 0 }}><strong style={{ color: C.secondary }}>Stored:</strong> {how}</p>
-    </div>
-  )
-}
-
-export default function PrivacyPage() {
-  return (
-    <div style={{ minHeight: '100vh', background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif' }}>
-      <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '40vh', pointerEvents: 'none', zIndex: 0, background: 'radial-gradient(ellipse at 50% 0%, rgba(201,168,76,0.05) 0%, transparent 65%)' }} />
-
-      {/* Nav */}
-      <header style={{ position: 'sticky', top: 0, zIndex: 50, background: 'rgba(10,9,8,0.92)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', borderBottom: `1px solid ${C.border}` }}>
-        <div style={{ maxWidth: 800, margin: '0 auto', padding: '0 20px', height: 56, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Link href="/" style={{ textDecoration: 'none' }}>
-            <Image src="/logo-white.png" alt="Setlistr" width={130} height={34} priority style={{ objectFit: 'contain' }} />
-          </Link>
-          <Link href="/app/show/new" style={{ textDecoration: 'none', fontSize: 13, fontWeight: 700, color: '#0a0908', background: C.gold, borderRadius: 8, padding: '8px 16px' }}>
-            Start Free →
-          </Link>
-        </div>
-      </header>
-
-      <main style={{ position: 'relative', zIndex: 1, maxWidth: 720, margin: '0 auto', padding: '48px 24px 80px' }}>
-
-        {/* Header */}
-        <div style={{ marginBottom: 48 }}>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 20, padding: '4px 12px', marginBottom: 16 }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: C.gold, letterSpacing: '0.1em', textTransform: 'uppercase' as const }}>Legal</span>
-          </div>
-          <h1 style={{ fontSize: 36, fontWeight: 800, color: C.text, margin: '0 0 12px', letterSpacing: '-0.03em' }}>Privacy Policy</h1>
-          <p style={{ fontSize: 14, color: C.muted, margin: 0 }}>Last updated: April 3, 2026 · Effective immediately</p>
-        </div>
-
-        {/* Plain English summary */}
-        <div style={{ background: C.greenDim, border: '1px solid rgba(74,222,128,0.2)', borderRadius: 12, padding: '20px 24px', marginBottom: 40 }}>
-          <p style={{ fontSize: 13, fontWeight: 700, color: C.green, margin: '0 0 8px', textTransform: 'uppercase' as const, letterSpacing: '0.08em' }}>Plain English Summary</p>
-          <ul style={{ paddingLeft: 18, margin: 0 }}>
-            {[
-              'We collect only what we need to run the service',
-              'We never sell your data to anyone',
-              'Audio is processed for song detection only — we don\'t store recordings',
-              'You can delete your account and data at any time',
-              'We use Supabase to store data securely in Canada/US',
-            ].map(item => (
-              <li key={item} style={{ fontSize: 14, color: C.secondary, marginBottom: 6, lineHeight: 1.5 }}>{item}</li>
-            ))}
-          </ul>
-        </div>
-
-        <Section title="1. Who This Applies To">
-          <P>This Privacy Policy applies to all users of Setlistr, including visitors to setlistr.ai and users of our mobile and web applications. Setlistr is operated by Jesse Slack (doing business as Setlistr), based in Canada.</P>
-          <P>We comply with the Personal Information Protection and Electronic Documents Act (PIPEDA) in Canada. For users in the European Economic Area, we comply with the General Data Protection Regulation (GDPR) to the extent applicable.</P>
-        </Section>
-
-        <Section title="2. What Data We Collect">
-          <P>Here is exactly what we collect and why:</P>
-          <DataRow
-            what="Account information"
-            why="To create and manage your account"
-            how="Email address, artist name, PRO affiliation, IPI number — stored securely in Supabase"
-          />
-          <DataRow
-            what="Performance data"
-            why="To build your setlist history and submission records"
-            how="Venue names, dates, song titles, cities — stored in your account"
-          />
-          <DataRow
-            what="Audio fingerprints"
-            why="To identify songs during live capture"
-            how="Short audio samples are sent to ACRCloud for matching. We do not store audio recordings. ACRCloud's privacy policy applies to their processing."
-          />
-          <DataRow
-            what="Song catalog data"
-            why="To populate your song library and suggestions"
-            how="Song titles, artists, ISRCs, composer names — sourced from Spotify public API and your manual entries"
-          />
-          <DataRow
-            what="Usage data"
-            why="To improve the service and fix bugs"
-            how="Page views, feature usage, error logs — anonymized where possible"
-          />
-          <DataRow
-            what="Device and location data"
-            why="To optimize the mobile experience"
-            how="Device type, OS version, approximate location (city level) for venue suggestions — not precise GPS"
-          />
-        </Section>
-
-        <Section title="3. Audio Recording — Special Notice">
-          <P><strong style={{ color: C.text }}>Setlistr uses your device's microphone during live show capture.</strong></P>
-          <P>When you start a live show in Setlistr, the app requests microphone access to detect songs being performed. Here is exactly what happens with that audio:</P>
-          <ul style={{ paddingLeft: 20, margin: '0 0 12px' }}>
-            {[
-              'Short audio segments are captured and sent to ACRCloud, our song recognition provider',
-              'ACRCloud matches the audio fingerprint against their database and returns a result',
-              'We do not store the audio recording on our servers',
-              'The audio fingerprint (not the raw audio) may be briefly cached during processing',
-              'You can revoke microphone access at any time in your device settings',
-            ].map(item => (
-              <li key={item} style={{ marginBottom: 6, color: C.secondary }}>{item}</li>
-            ))}
-          </ul>
-          <P>ACRCloud's privacy policy is available at <a href="https://www.acrcloud.com/privacy" target="_blank" rel="noopener noreferrer" style={{ color: C.gold }}>acrcloud.com/privacy</a>.</P>
-        </Section>
-
-        <Section title="4. How We Use Your Data">
-          <P>We use your data exclusively to:</P>
-          <ul style={{ paddingLeft: 20, margin: '0 0 12px' }}>
-            {[
-              'Provide and improve the Setlistr service',
-              'Generate your setlist history and royalty submission exports',
-              'Show you your performance statistics and royalty estimates',
-              'Send product updates and important account notifications (you can opt out)',
-              'Debug errors and improve detection accuracy',
-            ].map(item => (
-              <li key={item} style={{ marginBottom: 6, color: C.secondary }}>{item}</li>
-            ))}
-          </ul>
-          <P><strong style={{ color: C.text }}>We never sell your data. We never use your data for advertising. We never share your setlist data with PROs, labels, or any third party without your explicit action.</strong></P>
-        </Section>
-
-        <Section title="5. Data Sharing">
-          <P>We share data with the following third parties only as necessary to operate the service:</P>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, margin: '12px 0' }}>
-            {[
-              { name: 'Supabase', role: 'Database and authentication', link: 'supabase.com/privacy' },
-              { name: 'ACRCloud', role: 'Audio fingerprint recognition', link: 'acrcloud.com/privacy' },
-              { name: 'Vercel', role: 'Web hosting and deployment', link: 'vercel.com/legal/privacy-policy' },
-              { name: 'Spotify', role: 'Public catalog data (no user OAuth)', link: 'spotify.com/privacy' },
-            ].map(({ name, role, link }) => (
-              <div key={name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', background: C.card, border: `1px solid ${C.border}`, borderRadius: 8 }}>
-                <div>
-                  <span style={{ fontSize: 14, fontWeight: 600, color: C.text }}>{name}</span>
-                  <span style={{ fontSize: 12, color: C.muted, marginLeft: 8 }}>{role}</span>
-                </div>
-                <a href={`https://${link}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: C.gold, textDecoration: 'none' }}>Privacy policy ↗</a>
-              </div>
-            ))}
-          </div>
-          <P>We may disclose data if required by law, court order, or to protect the rights and safety of Setlistr or its users.</P>
-        </Section>
-
-        <Section title="6. Data Storage and Security">
-          <P>Your data is stored on Supabase servers located in Canada and the United States. We use industry-standard encryption in transit (TLS) and at rest. Access to your data is restricted by row-level security policies — your data is only accessible to your authenticated account.</P>
-          <P>We cannot guarantee 100% security of any data transmitted over the internet, but we take reasonable precautions to protect your information.</P>
-        </Section>
-
-        <Section title="7. Your Rights">
-          <P>Depending on your jurisdiction, you have the right to:</P>
-          <ul style={{ paddingLeft: 20, margin: '0 0 12px' }}>
-            {[
-              'Access the personal data we hold about you',
-              'Correct inaccurate data',
-              'Delete your account and associated data',
-              'Export your setlist and performance data',
-              'Opt out of non-essential communications',
-              'Withdraw consent for audio processing (by disabling microphone access)',
-            ].map(item => (
-              <li key={item} style={{ marginBottom: 6, color: C.secondary }}>{item}</li>
-            ))}
-          </ul>
-          <P>To exercise any of these rights, email us at <a href="mailto:info@setlistr.ai" style={{ color: C.gold }}>info@setlistr.ai</a>. We will respond within 30 days.</P>
-          <P>You can delete your account at any time from Settings → Account → Delete Account. Deletion removes all your personal data from our systems within 30 days, except where retention is required by law.</P>
-        </Section>
-
-        <Section title="8. Cookies">
-          <P>Setlistr uses essential cookies for authentication (keeping you logged in) and session management. We do not use advertising or tracking cookies. We do not use Google Analytics or similar third-party tracking services.</P>
-          <P>You can disable cookies in your browser settings, but this will prevent you from logging into the service.</P>
-        </Section>
-
-        <Section title="9. Children's Privacy">
-          <P>Setlistr is not directed at children under the age of 13. We do not knowingly collect personal information from children under 13. If you believe a child has provided us with personal information, contact us at <a href="mailto:info@setlistr.ai" style={{ color: C.gold }}>info@setlistr.ai</a> and we will delete it promptly.</P>
-        </Section>
-
-        <Section title="10. Changes to This Policy">
-          <P>We may update this Privacy Policy from time to time. We will notify registered users of material changes by email or in-app notification at least 14 days before changes take effect. Continued use of the Service after changes take effect constitutes acceptance of the updated Policy.</P>
-        </Section>
-
-        <Section title="11. Contact">
-          <P>
-            For privacy questions or to exercise your rights:<br />
-            Email: <a href="mailto:info@setlistr.ai" style={{ color: C.gold }}>info@setlistr.ai</a><br />
-            Response time: within 30 days
-          </P>
-        </Section>
-
-        {/* Footer links */}
-        <div style={{ paddingTop: 32, borderTop: `1px solid ${C.border}`, display: 'flex', gap: 16, flexWrap: 'wrap' as const }}>
-          <Link href="/terms" style={{ fontSize: 13, color: C.muted, textDecoration: 'none' }}>Terms of Service</Link>
-          <Link href="/get-paid" style={{ fontSize: 13, color: C.muted, textDecoration: 'none' }}>Get Paid</Link>
-          <Link href="/" style={{ fontSize: 13, color: C.muted, textDecoration: 'none' }}>Home</Link>
-        </div>
-      </main>
-
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap');
-        * { box-sizing: border-box; } body { margin: 0; }
-      `}</style>
-    </div>
-  )
+    <p style={{ fontSize: 14, lineHeight: 1.75, color: '#b8b0a8', marginBottom: 12 }}>
+      {children}
+    </p>
+  );
 }
