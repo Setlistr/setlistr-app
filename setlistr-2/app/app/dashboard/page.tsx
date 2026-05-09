@@ -629,10 +629,15 @@ export default function DashboardPage() {
                   {actingAs ? `${actingAs.artist_name}'s Numbers` : 'Your Numbers'}
                 </p>
                 {!actingAs && userId && (
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <button onClick={() => router.push('/app/proof')} style={{ background: 'none', border: 'none', color: C.gold, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', opacity: 0.8 }}>
+                    Proof file →
+                  </button>
                   <button onClick={() => router.push(`/app/artist/${userId}`)} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>
                     Full profile →
                   </button>
-                )}
+                </div>
+              )}
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 12 }}>
                 {[
