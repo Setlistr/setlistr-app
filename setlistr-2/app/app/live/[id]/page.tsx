@@ -539,7 +539,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
       <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '70vh', background: isListening ? `radial-gradient(ellipse at 50% 35%, rgba(201,168,76,0.08) 0%, transparent 65%)` : `radial-gradient(ellipse at 50% 35%, rgba(201,168,76,0.03) 0%, transparent 55%)`, pointerEvents: 'none', transition: 'background 1.8s ease', zIndex: 0 }} />
 
       {/* Header */}
-      <div style={{ position: 'relative', zIndex: 10, height: 46, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', borderBottom: '1px solid rgba(255,255,255,0.05)', flexShrink: 0 }}>
+      <div style={{ position: 'relative', zIndex: 10, minHeight: 46, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', padding: '0 16px 12px', paddingTop: 'calc(env(safe-area-inset-top) + 12px)', borderBottom: '1px solid rgba(255,255,255,0.05)', flexShrink: 0 }}>
         <p style={{ fontSize: 14, fontWeight: 700, color: C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1, letterSpacing: '-0.01em' }}>{performance.venue_name}</p>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0, marginLeft: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
@@ -812,6 +812,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         input:focus { border-color: rgba(201,168,76,0.3) !important; outline: none; }
         ::-webkit-scrollbar { display: none; }
         html, body { overscroll-behavior: none; }
+        :root { --sat: env(safe-area-inset-top); }
       `}</style>
     </div>
   )
