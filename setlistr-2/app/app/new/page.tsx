@@ -2,18 +2,43 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { Calendar, ArrowRight, Music4, RefreshCw, Check, MapPin, Search } from 'lucide-react'
+import { Calendar, ArrowRight, RefreshCw, Check, MapPin, Search, X, Plus } from 'lucide-react'
 
 const C = {
   bg: '#0a0908', card: '#141210', cardHover: '#181614',
   border: 'rgba(255,255,255,0.07)', borderGold: 'rgba(201,168,76,0.3)',
   input: '#0f0e0c', text: '#f0ece3', secondary: '#b8a888', muted: '#8a7a68',
   gold: '#c9a84c', goldDim: 'rgba(201,168,76,0.1)',
+  green: '#4ade80', greenDim: 'rgba(74,222,128,0.08)',
+  red: '#f87171', redDim: 'rgba(248,113,113,0.08)',
 }
+
+const ALLOWED_MIME_TYPES = [
+  'image/jpeg', 'image/jpg', 'image/png', 'image/webp',
+  'image/heic', 'image/heif',
+  'application/pdf', 'text/plain',
+]
+const MAX_FILE_SIZE = 10 * 1024 * 1024
 
 type Venue = { id: string; name: string; city: string; country: string }
 type PastPerformance = { id: string; venue_name: string; artist_name: string; started_at: string; song_count: number }
-type VenueMemory = { lastDate: string; songCount: number; showCount: number }
+type VenueMemory = { lastDate: string; songCount: number; showCount: number; songs?: { title: string; artist: string }[] }
+type PlannedSong = { title: string; artist: string; position: number }
+type SetlistMode = null | 'photo' | 'quick'
+
+function ordinal(n: number): string {
+  const s = ['th', 'st', 'nd', 'rd']
+  const v = n % 100
+  return n + (s[(v - 20) % 10] || s[v] || s[0])
+}
+
+function formatDate(d: string) {
+  return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+function daysSince(d: string): number {
+  return Math.floor((Date.now() - new Date(d).getTime()) / 86400000)
+}
 
 export default function NewShowPage() {
   const router       = useRouter()
@@ -36,6 +61,7 @@ export default function NewShowPage() {
   const [showDropdown, setShowDropdown]     = useState(false)
   const [venueMemory, setVenueMemory]       = useState<VenueMemory | null>(null)
   const [venueCapacity, setVenueCapacity]   = useState<string>('')
+  const [showLastSongs, setShowLastSongs]   = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const searchTimer = useRef<NodeJS.Timeout | null>(null)
 
@@ -45,10 +71,23 @@ export default function NewShowPage() {
   const [selectedPast, setSelectedPast] = useState<PastPerformance | null>(null)
   const [cloning, setCloning]           = useState(false)
 
+  const [setlistMode, setSetlistMode]   = useState<SetlistMode>(null)
+  const [plannedSongs, setPlannedSongs] = useState<PlannedSong[]>([])
+  const [recentSongs, setRecentSongs]   = useState<{ title: string; artist: string }[]>([])
+  const [quickSearch, setQuickSearch]   = useState('')
+  const [uploading, setUploading]       = useState(false)
+  const [uploadError, setUploadError]   = useState('')
+
+  const cameraInputRef = useRef<HTMLInputElement>(null)
+  const fileInputRef   = useRef<HTMLInputElement>(null)
+
   const effectiveName = venueQuery.trim() || 'Show'
   const isValid = venueQuery.trim().length > 0
 
-  // Load profile once — pre-fills artist name only if field is still empty
+  useEffect(() => {
+    if (searchParams.get('mode') === 'upload') setSetlistMode('photo')
+  }, [])
+
   useEffect(() => {
     const supabase = createClient()
     supabase.auth.getUser().then(({ data: { user } }) => {
@@ -60,6 +99,41 @@ export default function NewShowPage() {
         })
     })
   }, [])
+
+  useEffect(() => {
+    const supabase = createClient()
+    async function loadLastVenue() {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      const { data: lastPerf } = await supabase
+        .from('performances')
+        .select('venue_id, venue_name, city, country')
+        .eq('user_id', user.id)
+        .in('status', ['review', 'complete', 'completed', 'exported'])
+        .not('venue_name', 'is', null)
+        .order('started_at', { ascending: false })
+        .limit(1)
+        .single()
+      if (!lastPerf?.venue_name || lastPerf.venue_name.trim() === '.') return
+      setVenueQuery(lastPerf.venue_name)
+      setVenueCity(lastPerf.city || '')
+      setVenueCountry(lastPerf.country || '')
+      if (lastPerf.venue_id) {
+        setVenueId(lastPerf.venue_id)
+        setVenueSelected(true)
+        fetchVenueMemory(lastPerf.venue_id)
+      }
+    }
+    loadLastVenue()
+  }, [])
+
+  useEffect(() => {
+    if (setlistMode !== 'quick') return
+    fetch('/api/recent-songs?limit=20')
+      .then(r => r.json())
+      .then(data => setRecentSongs(data?.songs || []))
+      .catch(() => {})
+  }, [setlistMode])
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -81,6 +155,7 @@ export default function NewShowPage() {
 
   async function fetchVenueMemory(selectedVenueId: string) {
     setVenueMemory(null)
+    setShowLastSongs(false)
     try {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
@@ -90,16 +165,28 @@ export default function NewShowPage() {
         .in('status', ['review', 'complete', 'completed', 'exported'])
         .order('started_at', { ascending: false }).limit(10)
       if (!perfs || perfs.length === 0) return
-      const { data: songs } = await supabase.from('performance_songs').select('performance_id')
+      const { data: songs } = await supabase.from('performance_songs')
+        .select('performance_id, title, artist')
         .in('performance_id', perfs.map(p => p.id))
       const countMap: Record<string, number> = {}
-      songs?.forEach(s => { countMap[s.performance_id] = (countMap[s.performance_id] || 0) + 1 })
-      setVenueMemory({ lastDate: perfs[0].started_at, songCount: countMap[perfs[0].id] || 0, showCount: perfs.length })
-    } catch { /* non-blocking */ }
+      const songMap: Record<string, { title: string; artist: string }[]> = {}
+      songs?.forEach(s => {
+        countMap[s.performance_id] = (countMap[s.performance_id] || 0) + 1
+        if (!songMap[s.performance_id]) songMap[s.performance_id] = []
+        songMap[s.performance_id].push({ title: s.title, artist: s.artist || '' })
+      })
+      setVenueMemory({
+        lastDate: perfs[0].started_at,
+        songCount: countMap[perfs[0].id] || 0,
+        showCount: perfs.length,
+        songs: songMap[perfs[0].id] || [],
+      })
+    } catch {}
   }
 
   function handleVenueInput(val: string) {
     setVenueQuery(val); setVenueId(null); setVenueSelected(false); setVenueMemory(null); setVenueCapacity('')
+    setShowLastSongs(false)
     if (searchTimer.current) clearTimeout(searchTimer.current)
     searchTimer.current = setTimeout(() => searchVenues(val), 280)
   }
@@ -111,9 +198,86 @@ export default function NewShowPage() {
     fetchVenueMemory(v.id)
   }
 
-  function formatDate(d: string) {
-    return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  function addPlannedSong(title: string, artist: string = '') {
+    if (!title.trim()) return
+    if (plannedSongs.some(s => s.title.toLowerCase() === title.toLowerCase())) return
+    setPlannedSongs(prev => [...prev, { title: title.trim(), artist: artist.trim(), position: prev.length }])
   }
+
+  function removePlannedSong(index: number) {
+    setPlannedSongs(prev => prev.filter((_, i) => i !== index).map((s, i) => ({ ...s, position: i })))
+  }
+
+  function loadFromVenueMemory() {
+    if (!venueMemory?.songs?.length) return
+    setPlannedSongs(venueMemory.songs.map((s, i) => ({ ...s, position: i })))
+  }
+
+  function songWord(n: number) { return n === 1 ? 'song' : 'songs' }
+
+  async function compressImage(file: File): Promise<File> {
+    return new Promise((resolve) => {
+      const img = new Image()
+      const url = URL.createObjectURL(file)
+      img.onload = () => {
+        const MAX = 1600
+        let { width, height } = img
+        if (width > MAX || height > MAX) {
+          if (width > height) { height = Math.round(height * MAX / width); width = MAX }
+          else { width = Math.round(width * MAX / height); height = MAX }
+        }
+        const canvas = document.createElement('canvas')
+        canvas.width = width; canvas.height = height
+        canvas.getContext('2d')?.drawImage(img, 0, 0, width, height)
+        canvas.toBlob(blob => {
+          URL.revokeObjectURL(url)
+          if (blob) resolve(new File([blob], 'setlist.jpg', { type: 'image/jpeg' }))
+          else resolve(file)
+        }, 'image/jpeg', 0.85)
+      }
+      img.onerror = () => { URL.revokeObjectURL(url); resolve(file) }
+      img.src = url
+    })
+  }
+
+  async function handleFileUpload(file: File) {
+    setUploadError('')
+    if (file.size > MAX_FILE_SIZE) { setUploadError('File is too large. Maximum size is 10MB.'); return }
+    const fileName = (file.name || '').toLowerCase()
+    const isHEIC = fileName.endsWith('.heic') || fileName.endsWith('.heif') || file.type === 'image/heic' || file.type === 'image/heif'
+    const isAllowed = ALLOWED_MIME_TYPES.includes(file.type) || isHEIC
+    if (!isAllowed) { setUploadError('Unsupported file type. Please upload a JPG, PNG, PDF, or TXT file.'); return }
+    setUploading(true)
+    try {
+      let uploadFile = file
+      if (file.type.startsWith('image/') || isHEIC) uploadFile = await compressImage(file)
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      const formData = new FormData()
+      formData.append('file', uploadFile)
+      if (user?.id) formData.append('userId', user.id)
+      const res = await fetch('/api/parse-setlist', { method: 'POST', body: formData })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Upload failed')
+      const existing = new Set(plannedSongs.map(s => s.title.toLowerCase()))
+      const newSongs = (data.songs as PlannedSong[]).filter(s => !existing.has(s.title.toLowerCase()))
+      setPlannedSongs(prev => [...prev, ...newSongs.map((s, i) => ({ ...s, position: prev.length + i }))])
+    } catch (err: any) {
+      setUploadError(err.message || 'Could not read the setlist. Try a clearer photo.')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0]
+    if (f) handleFileUpload(f)
+    e.target.value = ''
+  }
+
+  const filteredRecent = recentSongs
+    .filter(s => !quickSearch.trim() || s.title.toLowerCase().includes(quickSearch.toLowerCase()))
+    .filter(s => !plannedSongs.some(p => p.title.toLowerCase() === s.title.toLowerCase()))
 
   useEffect(() => {
     if (!showReuse || pastPerfs.length > 0) return
@@ -140,37 +304,66 @@ export default function NewShowPage() {
     loadPast()
   }, [showReuse])
 
+  async function savePlannedSetlist(performanceId: string, userId: string, resolvedVenueId: string | null) {
+    if (plannedSongs.length === 0) return
+    const supabase = createClient()
+    const { data: ps } = await supabase.from('planned_setlists').insert({
+      user_id: userId, performance_id: performanceId,
+      venue_id: resolvedVenueId, venue_name: venueQuery.trim(),
+      date: new Date().toISOString().split('T')[0],
+    }).select().single()
+    if (!ps) return
+    await supabase.from('planned_setlist_songs').insert(
+      plannedSongs.map((s, i) => ({ planned_setlist_id: ps.id, title: s.title, artist: s.artist, position: i }))
+    )
+    await supabase.from('performance_songs').insert(
+      plannedSongs.map((s, i) => ({
+        performance_id: performanceId, title: s.title, artist: s.artist,
+        position: i, was_planned: true, source: 'planned',
+      }))
+    )
+  }
+
   async function handleSubmit() {
     if (!isValid || loading) return
     setLoading(true); setError('')
     try {
       const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
+      const { data: { user }, error: userError } = await supabase.auth.getUser()
+      if (userError || !user) throw new Error('Not authenticated')
       let resolvedVenueId = venueId
       if (!resolvedVenueId && venueQuery.trim()) {
-        const capacityMap: Record<string,number> = { small: 150, medium: 500, large: 2000, festival: 10000 }
-        const { data: nv } = await supabase.from('venues').insert({
+        const capacityMap: Record<string, number> = { small: 150, medium: 500, large: 2000, festival: 10000 }
+        const { data: nv, error: venueError } = await supabase.from('venues').insert({
           name: venueQuery.trim(), city: venueCity.trim() || null,
           country: venueCountry.trim() || null,
           capacity: venueCapacity ? capacityMap[venueCapacity] : null
         }).select().single()
+        if (venueError) throw new Error('Venue insert failed: ' + venueError.message)
         if (nv) resolvedVenueId = nv.id
       }
       const scheduledIso = showSchedule && scheduledAt ? new Date(scheduledAt).toISOString() : null
       const { data: show, error: showError } = await supabase.from('shows').insert({
         name: effectiveName, show_type: showType, scheduled_at: scheduledIso,
-        started_at: new Date().toISOString(), status: 'live', created_by: user?.id || null
+        started_at: new Date().toISOString(), status: 'live', created_by: user.id,
       }).select().single()
-      if (showError) throw showError
+      if (showError) throw new Error('Show insert failed: ' + showError.message)
+      const actingAsRaw = localStorage.getItem('setlistr_acting_as')
+      const actingAsCtx = actingAsRaw ? JSON.parse(actingAsRaw) : null
+      const { data: selfProfile } = await supabase.from('profiles').select('artist_name, full_name').eq('id', user.id).single()
+      const selfName = selfProfile?.artist_name || selfProfile?.full_name || null
       const { data: performance, error: perfError } = await supabase.from('performances').insert({
         show_id: show.id, performance_date: scheduledIso || new Date().toISOString(),
         artist_name: artistName.trim() || venueQuery.trim(),
         venue_name: venueQuery.trim(), venue_id: resolvedVenueId || null,
-        city: venueCity.trim() || '', country: venueCountry.trim() || '',
+        city: venueCity.trim() || null, country: venueCountry.trim() || null,
         status: 'live', set_duration_minutes: 60, auto_close_buffer_minutes: 5,
-        started_at: new Date().toISOString(), user_id: user?.id || null
+        started_at: new Date().toISOString(), user_id: user.id,
+        captured_by: actingAsCtx ? user.id : null,
+        captured_by_name: actingAsCtx ? selfName : null,
       }).select().single()
-      if (perfError) throw perfError
+      if (perfError) throw new Error('Performance insert failed: ' + perfError.message)
+      if (plannedSongs.length > 0) await savePlannedSetlist(performance.id, user.id, resolvedVenueId)
       router.push(`/app/live/${performance.id}`)
     } catch (err: any) {
       setError(err?.message || 'Something went wrong. Please try again.')
@@ -183,10 +376,11 @@ export default function NewShowPage() {
     setCloning(true); setError('')
     try {
       const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
+      const { data: { user }, error: userError } = await supabase.auth.getUser()
+      if (userError || !user) throw new Error('Not authenticated')
       let resolvedVenueId = venueId
       if (!resolvedVenueId && venueQuery.trim()) {
-        const capacityMap: Record<string,number> = { small: 150, medium: 500, large: 2000, festival: 10000 }
+        const capacityMap: Record<string, number> = { small: 150, medium: 500, large: 2000, festival: 10000 }
         const { data: nv } = await supabase.from('venues').insert({
           name: venueQuery.trim(), city: venueCity.trim() || null,
           country: venueCountry.trim() || null,
@@ -197,19 +391,25 @@ export default function NewShowPage() {
       const scheduledIso = showSchedule && scheduledAt ? new Date(scheduledAt).toISOString() : null
       const { data: show, error: showError } = await supabase.from('shows').insert({
         name: effectiveName, show_type: showType, scheduled_at: scheduledIso,
-        started_at: new Date().toISOString(), status: 'completed', created_by: user?.id || null
+        started_at: new Date().toISOString(), status: 'completed', created_by: user.id
       }).select().single()
-      if (showError) throw showError
+      if (showError) throw new Error('Show insert failed: ' + showError.message)
+      const actingAsRaw2 = localStorage.getItem('setlistr_acting_as')
+      const actingAsCtx2 = actingAsRaw2 ? JSON.parse(actingAsRaw2) : null
+      const { data: selfProfile2 } = await supabase.from('profiles').select('artist_name, full_name').eq('id', user.id).single()
+      const selfName2 = selfProfile2?.artist_name || selfProfile2?.full_name || null
       const { data: performance, error: perfError } = await supabase.from('performances').insert({
         show_id: show.id, performance_date: scheduledIso || new Date().toISOString(),
         artist_name: artistName.trim() || venueQuery.trim(),
         venue_name: venueQuery.trim(), venue_id: resolvedVenueId || null,
-        city: venueCity.trim() || '', country: venueCountry.trim() || '',
+        city: venueCity.trim() || null, country: venueCountry.trim() || null,
         status: 'review', set_duration_minutes: 60, auto_close_buffer_minutes: 5,
         started_at: new Date().toISOString(), ended_at: new Date().toISOString(),
-        user_id: user?.id || null
+        user_id: user.id,
+        captured_by: actingAsCtx2 ? user.id : null,
+        captured_by_name: actingAsCtx2 ? selfName2 : null,
       }).select().single()
-      if (perfError) throw perfError
+      if (perfError) throw new Error('Performance insert failed: ' + perfError.message)
       const { data: sourceSongs } = await supabase.from('performance_songs')
         .select('title, artist, position').eq('performance_id', selectedPast.id)
         .order('position', { ascending: true })
@@ -225,69 +425,48 @@ export default function NewShowPage() {
     }
   }
 
+  const daysAgo = venueMemory ? daysSince(venueMemory.lastDate) : null
+
   return (
     <div style={{ minHeight: '100svh', background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px 20px' }}>
       <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '50vh', pointerEvents: 'none', zIndex: 0, background: 'radial-gradient(ellipse at 50% 0%, rgba(201,168,76,0.07) 0%, transparent 65%)' }} />
 
+      <input ref={cameraInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" capture="environment" style={{ display: 'none' }} onChange={handleFileChange} />
+      <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp,application/pdf,text/plain" style={{ display: 'none' }} onChange={handleFileChange} />
+
       <div style={{ width: '100%', maxWidth: 440, position: 'relative', zIndex: 1, animation: 'fadeUp 0.4s ease' }}>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 32 }}>
-          <div style={{ width: 36, height: 36, borderRadius: '50%', background: C.goldDim, border: `1px solid ${C.borderGold}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Music4 size={16} color={C.gold} />
-          </div>
-          <p style={{ fontSize: 14, fontWeight: 700, color: C.text, margin: 0 }}>New Show</p>
-        </div>
+        <h1 style={{ fontSize: 30, fontWeight: 800, color: C.text, margin: '0 0 6px', letterSpacing: '-0.025em' }}>Where tonight?</h1>
+        <p style={{ fontSize: 13, color: C.muted, margin: '0 0 20px' }}>
+          {venueMemory
+            ? `${ordinal(venueMemory.showCount + 1)} time here · last played ${daysAgo === 0 ? 'today' : daysAgo === 1 ? 'yesterday' : `${daysAgo}d ago`}`
+            : 'Your show. Verified. Documented.'}
+        </p>
 
-        <h1 style={{ fontSize: 28, fontWeight: 800, color: C.text, margin: '0 0 6px', letterSpacing: '-0.025em' }}>Where are you playing?</h1>
-        <p style={{ fontSize: 14, color: C.secondary, margin: '0 0 28px' }}>Type your venue and tap Start. That's it.</p>
+        {/* ── VENUE CARD ── */}
+        <div style={{ background: C.card, border: `1px solid ${venueMemory ? 'rgba(201,168,76,0.2)' : C.border}`, borderRadius: 16, padding: '20px', display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 12, transition: 'border-color 0.3s ease' }}>
 
-        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '24px', display: 'flex', flexDirection: 'column', gap: 20, marginBottom: 16 }}>
-
-          {/* Artist name — always a plain editable input, pre-filled from profile */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <label style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' as const, color: C.muted }}>Your Artist Name</label>
-            <input
-              type="text"
-              value={artistName}
-              onChange={e => setArtistName(e.target.value)}
-              placeholder="Your artist name"
-              style={{ background: C.input, border: `1px solid ${artistName.trim() ? C.borderGold : C.border}`, borderRadius: 10, padding: '13px 14px', color: C.text, fontSize: 15, fontFamily: 'inherit', width: '100%', outline: 'none', transition: 'border-color 0.15s ease' }}
-            />
-          </div>
-
-          {/* Venue */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, position: 'relative' }} ref={dropdownRef}>
             <label style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' as const, color: C.muted, display: 'flex', alignItems: 'center', gap: 5 }}>
               <MapPin size={10} />Venue
             </label>
             <div style={{ position: 'relative' }}>
-              <input
-                type="text" value={venueQuery}
+              <input type="text" value={venueQuery}
                 onChange={e => handleVenueInput(e.target.value)}
                 onFocus={() => { if (venueResults.length > 0) setShowDropdown(true) }}
                 placeholder="Search or type venue name..."
-                style={{ background: C.input, border: `1px solid ${venueSelected ? C.borderGold : venueQuery.trim() ? C.borderGold : C.border}`, borderRadius: 10, padding: '12px 40px 12px 14px', color: C.text, fontSize: 14, fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' as const, outline: 'none' }}
-              />
+                style={{ background: C.input, border: `1px solid ${venueSelected ? C.borderGold : venueQuery.trim() ? C.borderGold : C.border}`, borderRadius: 10, padding: '12px 40px 12px 14px', color: C.text, fontSize: 14, fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' as const, outline: 'none' }} />
               <div style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}>
                 {venueSearching
                   ? <div style={{ width: 13, height: 13, borderRadius: '50%', border: `2px solid ${C.muted}`, borderTopColor: C.gold, animation: 'spin 0.7s linear infinite' }} />
-                  : venueSelected
-                    ? <span style={{ fontSize: 13, color: C.gold }}>✓</span>
-                    : <Search size={13} color={C.muted} />}
+                  : venueSelected ? <span style={{ fontSize: 13, color: C.gold }}>✓</span>
+                  : <Search size={13} color={C.muted} />}
               </div>
             </div>
 
-            {venueMemory && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 8 }}>
-                <p style={{ fontSize: 12, color: C.gold, margin: 0, lineHeight: 1.4 }}>
-                  Last time here: <strong>{venueMemory.songCount} {venueMemory.songCount === 1 ? 'song' : 'songs'}</strong> on {formatDate(venueMemory.lastDate)}
-                  {venueMemory.showCount > 1 && <span style={{ color: C.secondary, fontWeight: 400 }}> · {venueMemory.showCount} shows total</span>}
-                </p>
-              </div>
-            )}
-
             {showDropdown && venueResults.length > 0 && (
-              <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#1a1816', border: `1px solid ${C.borderGold}`, borderRadius: 10, marginTop: 4, zIndex: 50, overflow: 'hidden', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
+              <div onMouseDown={e => e.preventDefault()}
+                style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#1a1816', border: `1px solid ${C.borderGold}`, borderRadius: 10, marginTop: 4, zIndex: 50, overflow: 'hidden', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
                 {venueResults.map((v, i) => (
                   <button key={v.id} onMouseDown={() => selectVenue(v)}
                     style={{ width: '100%', padding: '11px 14px', background: 'transparent', border: 'none', borderBottom: i < venueResults.length - 1 ? `1px solid ${C.border}` : 'none', cursor: 'pointer', textAlign: 'left', display: 'flex', flexDirection: 'column', gap: 2, fontFamily: 'inherit' }}
@@ -310,7 +489,7 @@ export default function NewShowPage() {
               </div>
             )}
 
-            {venueQuery.trim().length >= 2 && !venueSelected && !venueSearching && (
+            {venueQuery.trim().length >= 2 && !venueSelected && !venueSearching && !showDropdown && (
               <div style={{ marginTop: 8 }}>
                 <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, color: C.muted, margin: '0 0 6px' }}>Venue size <span style={{ fontWeight: 400, textTransform: 'none' as const, letterSpacing: 0 }}>(helps estimate royalties)</span></p>
                 <div style={{ display: 'flex', gap: 6 }}>
@@ -332,9 +511,7 @@ export default function NewShowPage() {
             )}
           </div>
 
-          {/* Writer's Round toggle */}
-          <button type="button"
-            onClick={() => setShowType(showType === 'single' ? 'writers_round' : 'single')}
+          <button type="button" onClick={() => setShowType(showType === 'single' ? 'writers_round' : 'single')}
             style={{ display: 'flex', alignItems: 'center', gap: 8, background: showType === 'writers_round' ? C.goldDim : 'transparent', border: `1px solid ${showType === 'writers_round' ? C.borderGold : 'rgba(255,255,255,0.06)'}`, borderRadius: 10, padding: '10px 14px', cursor: 'pointer', fontFamily: 'inherit', width: '100%' }}>
             <span style={{ fontSize: 14, color: showType === 'writers_round' ? C.gold : C.muted }}>{showType === 'writers_round' ? '✓' : '○'}</span>
             <div>
@@ -354,6 +531,202 @@ export default function NewShowPage() {
           )}
         </div>
 
+        {/* ── PRE-SHOW INTELLIGENCE CARD ── */}
+        {venueMemory && venueMemory.showCount > 0 && (
+          <div style={{ background: 'rgba(201,168,76,0.05)', border: `1px solid rgba(201,168,76,0.2)`, borderRadius: 16, padding: '16px 20px', marginBottom: 12, animation: 'fadeUp 0.3s ease' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 12 }}>
+              <div>
+                <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.gold, margin: '0 0 3px', opacity: 0.8 }}>Venue Intelligence</p>
+                <p style={{ fontSize: 16, fontWeight: 800, color: C.text, margin: '0 0 2px', letterSpacing: '-0.01em' }}>
+                  {ordinal(venueMemory.showCount + 1)} time here
+                </p>
+                <p style={{ fontSize: 12, color: C.secondary, margin: 0 }}>
+                  Last show {daysAgo === 0 ? 'today' : daysAgo === 1 ? 'yesterday' : `${daysAgo} days ago`} · {venueMemory.songCount} {songWord(venueMemory.songCount)}
+                </p>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 44, height: 44, borderRadius: '50%', background: C.goldDim, border: `1px solid rgba(201,168,76,0.2)`, flexShrink: 0 }}>
+                <span style={{ fontSize: 18 }}>📍</span>
+              </div>
+            </div>
+
+            {venueMemory.songs && venueMemory.songs.length > 0 && (
+              <>
+                <button onClick={() => setShowLastSongs(v => !v)}
+                  style={{ background: 'none', border: 'none', color: C.gold, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', padding: 0, display: 'flex', alignItems: 'center', gap: 5, marginBottom: showLastSongs ? 10 : 0, WebkitTapHighlightColor: 'transparent' }}>
+                  {showLastSongs ? '▲ Hide' : '▼ See'} last setlist
+                </button>
+
+                {showLastSongs && (
+                  <div style={{ marginBottom: 10, animation: 'slideUp 0.15s ease' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 10 }}>
+                      {venueMemory.songs.slice(0, 8).map((s, i) => (
+                        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 10px', background: 'rgba(255,255,255,0.03)', borderRadius: 8 }}>
+                          <span style={{ fontSize: 10, color: C.muted, minWidth: 16, fontFamily: '"DM Mono", monospace', fontWeight: 700 }}>{i + 1}</span>
+                          <p style={{ fontSize: 13, fontWeight: 500, color: C.text, margin: 0, flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.title}</p>
+                        </div>
+                      ))}
+                      {venueMemory.songs.length > 8 && (
+                        <p style={{ fontSize: 11, color: C.muted, margin: '2px 0 0', textAlign: 'center' }}>+{venueMemory.songs.length - 8} more</p>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                <button onClick={loadFromVenueMemory}
+                  style={{ width: '100%', padding: '10px', background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 10, color: C.gold, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', letterSpacing: '0.04em', WebkitTapHighlightColor: 'transparent' }}>
+                  Load last setlist → {venueMemory.songCount} songs
+                </button>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* ── SETLIST SECTION ── */}
+        <div style={{ background: C.card, border: `1px solid ${plannedSongs.length > 0 ? C.borderGold : C.border}`, borderRadius: 16, marginBottom: 12, overflow: 'hidden', transition: 'border-color 0.2s ease' }}>
+
+          <div style={{ padding: '16px 20px 14px' }}>
+            <p style={{ fontSize: 14, fontWeight: 700, color: plannedSongs.length > 0 ? C.gold : C.text, margin: '0 0 3px', transition: 'color 0.2s ease' }}>
+              {plannedSongs.length > 0
+                ? `✓ ${plannedSongs.length} ${songWord(plannedSongs.length)} loaded`
+                : 'Have a setlist?'}
+            </p>
+            <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>
+              {plannedSongs.length > 0
+                ? 'Songs will auto-confirm during capture · tap to add more'
+                : 'A photo speeds up capture and improves accuracy'}
+            </p>
+          </div>
+
+          {setlistMode === null && plannedSongs.length === 0 && (
+            <div style={{ padding: '0 16px 16px', display: 'flex', gap: 8 }}>
+              <button
+                onClick={() => { setUploadError(''); setSetlistMode('photo'); setTimeout(() => cameraInputRef.current?.click(), 50) }}
+                style={{ flex: 2, padding: '16px 12px', background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 12, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, WebkitTapHighlightColor: 'transparent' }}>
+                <span style={{ fontSize: 22 }}>📸</span>
+                <span style={{ fontSize: 12, fontWeight: 800, color: C.gold, textAlign: 'center' as const }}>Photo setlist</span>
+                <span style={{ fontSize: 10, color: C.muted, textAlign: 'center' as const }}>Scan paper or screen</span>
+              </button>
+              <button
+                onClick={() => setSetlistMode('quick')}
+                style={{ flex: 1, padding: '16px 12px', background: 'rgba(255,255,255,0.02)', border: `1px solid ${C.border}`, borderRadius: 12, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, WebkitTapHighlightColor: 'transparent' }}>
+                <span style={{ fontSize: 22 }}>🎵</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: C.secondary, textAlign: 'center' as const }}>Add songs</span>
+                <span style={{ fontSize: 10, color: C.muted, textAlign: 'center' as const }}>From catalog</span>
+              </button>
+            </div>
+          )}
+
+          {setlistMode === 'photo' && (
+            <div style={{ padding: '0 16px 16px', borderTop: `1px solid ${C.border}` }}>
+              <div style={{ paddingTop: 14, display: 'flex', gap: 8 }}>
+                <button onClick={() => { setUploadError(''); cameraInputRef.current?.click() }} disabled={uploading}
+                  style={{ flex: 1, padding: '14px 10px', background: uploading ? 'transparent' : C.goldDim, border: `1px solid ${uploading ? C.border : C.borderGold}`, borderRadius: 10, cursor: uploading ? 'default' : 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, opacity: uploading ? 0.5 : 1, WebkitTapHighlightColor: 'transparent' }}>
+                  <span style={{ fontSize: 20 }}>📷</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: C.gold }}>{plannedSongs.length > 0 ? 'Add page 2' : 'Take photo'}</span>
+                </button>
+                <button onClick={() => { setUploadError(''); fileInputRef.current?.click() }} disabled={uploading}
+                  style={{ flex: 1, padding: '14px 10px', background: 'rgba(255,255,255,0.02)', border: `1px solid ${C.border}`, borderRadius: 10, cursor: uploading ? 'default' : 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, opacity: uploading ? 0.5 : 1, WebkitTapHighlightColor: 'transparent' }}>
+                  <span style={{ fontSize: 20 }}>📁</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: C.secondary }}>Gallery / file</span>
+                </button>
+                <button onClick={() => setSetlistMode('quick')}
+                  style={{ flex: 1, padding: '14px 10px', background: 'rgba(255,255,255,0.02)', border: `1px solid ${C.border}`, borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, WebkitTapHighlightColor: 'transparent' }}>
+                  <span style={{ fontSize: 20 }}>✏️</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: C.secondary }}>Type it</span>
+                </button>
+              </div>
+
+              {uploading && (
+                <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, padding: '14px', background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 10 }}>
+                  <div style={{ width: 16, height: 16, borderRadius: '50%', border: `2px solid ${C.muted}`, borderTopColor: C.gold, animation: 'spin 0.7s linear infinite' }} />
+                  <span style={{ fontSize: 13, color: C.gold, fontWeight: 600 }}>Reading your setlist...</span>
+                </div>
+              )}
+
+              {uploadError && (
+                <div style={{ marginTop: 8, padding: '10px 12px', background: C.redDim, border: '1px solid rgba(248,113,113,0.2)', borderRadius: 8 }}>
+                  <p style={{ fontSize: 12, color: C.red, margin: 0 }}>{uploadError}</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {setlistMode === 'quick' && (
+            <div style={{ padding: '0 16px 16px', borderTop: `1px solid ${C.border}` }}>
+              <div style={{ paddingTop: 14 }}>
+                <div style={{ position: 'relative', marginBottom: 10 }}>
+                  <Search size={12} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: C.muted, pointerEvents: 'none' }} />
+                  <input value={quickSearch} onChange={e => setQuickSearch(e.target.value)} placeholder="Search your songs..." autoFocus
+                    style={{ width: '100%', background: C.input, border: `1px solid ${C.border}`, borderRadius: 8, padding: '9px 12px 9px 30px', color: C.text, fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' as const }} />
+                </div>
+
+                {filteredRecent.length > 0 && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: 6, marginBottom: 12 }}>
+                    {filteredRecent.slice(0, 20).map((song, i) => (
+                      <button key={i} onClick={() => addPlannedSong(song.title, song.artist)}
+                        style={{ padding: '6px 12px', background: 'rgba(255,255,255,0.04)', border: `1px solid ${C.border}`, borderRadius: 20, color: C.secondary, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 5 }}>
+                        <Plus size={10} />{song.title}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {filteredRecent.length === 0 && quickSearch && (
+                  <div style={{ marginBottom: 12 }}>
+                    <button onClick={() => { addPlannedSong(quickSearch); setQuickSearch('') }}
+                      style={{ padding: '8px 14px', background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 20, color: C.gold, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                      + Add "{quickSearch}"
+                    </button>
+                  </div>
+                )}
+
+                {recentSongs.length === 0 && !quickSearch && (
+                  <p style={{ fontSize: 12, color: C.muted, margin: '0 0 12px', fontStyle: 'italic' }}>No recent songs yet — type a song name above</p>
+                )}
+
+                <button onClick={() => { setSetlistMode('photo'); setTimeout(() => cameraInputRef.current?.click(), 50) }}
+                  style={{ fontSize: 12, color: C.muted, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>
+                  📸 Scan a photo instead →
+                </button>
+              </div>
+            </div>
+          )}
+
+          {plannedSongs.length > 0 && (
+            <div style={{ padding: '0 16px 16px', borderTop: setlistMode !== null ? `1px solid ${C.border}` : 'none' }}>
+              {setlistMode !== null && <div style={{ height: 12 }} />}
+              <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, color: C.muted, margin: '0 0 8px' }}>
+                Loaded · {plannedSongs.length} {songWord(plannedSongs.length)}
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {plannedSongs.map((song, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', background: 'rgba(255,255,255,0.02)', border: `1px solid ${C.border}`, borderRadius: 8 }}>
+                    <span style={{ fontSize: 11, color: C.muted, minWidth: 18, fontFamily: '"DM Mono", monospace', fontWeight: 700 }}>{i + 1}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontSize: 13, fontWeight: 600, color: C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{song.title}</p>
+                      {song.artist && <p style={{ fontSize: 11, color: C.muted, margin: '1px 0 0' }}>{song.artist}</p>}
+                    </div>
+                    <button onClick={() => removePlannedSong(i)} style={{ background: 'none', border: 'none', color: C.muted, cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                      <X size={13} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <div style={{ marginTop: 10, padding: '10px 12px', background: C.greenDim, border: '1px solid rgba(74,222,128,0.2)', borderRadius: 8 }}>
+                <p style={{ fontSize: 12, color: C.green, margin: 0, lineHeight: 1.4 }}>
+                  ✓ Songs will auto-confirm during detection · review shows planned vs played
+                </p>
+              </div>
+              {setlistMode === null && (
+                <button onClick={() => { setSetlistMode('photo'); setTimeout(() => cameraInputRef.current?.click(), 50) }}
+                  style={{ marginTop: 10, fontSize: 12, color: C.muted, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>
+                  📸 Add another page →
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+
         {error && (
           <div style={{ background: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.2)', borderRadius: 10, padding: '12px 14px', marginBottom: 14 }}>
             <p style={{ fontSize: 13, color: '#f87171', margin: 0 }}>{error}</p>
@@ -365,7 +738,7 @@ export default function NewShowPage() {
             style={{ width: '100%', padding: '15px', background: isValid ? C.gold : C.muted, border: 'none', borderRadius: 12, color: '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' as const, cursor: isValid && !loading ? 'pointer' : 'not-allowed', opacity: loading ? 0.7 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit' }}>
             {loading
               ? <><div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid #0a090840', borderTopColor: '#0a0908', animation: 'spin 0.7s linear infinite' }} />Starting...</>
-              : <>Start Listening <ArrowRight size={15} strokeWidth={2.5} /></>}
+              : <>{plannedSongs.length > 0 ? `Start · ${plannedSongs.length} ${songWord(plannedSongs.length)} loaded` : 'Start Capturing'} <ArrowRight size={15} strokeWidth={2.5} /></>}
           </button>
         )}
 
@@ -391,9 +764,7 @@ export default function NewShowPage() {
                   const isSelected = selectedPast?.id === perf.id
                   return (
                     <button key={perf.id} onClick={() => setSelectedPast(isSelected ? null : perf)}
-                      style={{ background: isSelected ? C.goldDim : C.card, border: `1px solid ${isSelected ? C.borderGold : C.border}`, borderRadius: 10, padding: '12px 14px', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 12 }}
-                      onMouseEnter={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = C.cardHover }}
-                      onMouseLeave={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = C.card }}>
+                      style={{ background: isSelected ? C.goldDim : C.card, border: `1px solid ${isSelected ? C.borderGold : C.border}`, borderRadius: 10, padding: '12px 14px', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 12 }}>
                       <div style={{ width: 20, height: 20, borderRadius: '50%', flexShrink: 0, background: isSelected ? C.gold : 'transparent', border: `1px solid ${isSelected ? C.gold : C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         {isSelected && <Check size={11} color="#0a0908" strokeWidth={3} />}
                       </div>
@@ -401,9 +772,7 @@ export default function NewShowPage() {
                         <p style={{ fontSize: 13, fontWeight: 600, color: isSelected ? C.gold : C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{perf.venue_name}</p>
                         <p style={{ fontSize: 11, color: C.secondary, margin: '2px 0 0' }}>{perf.artist_name} · {formatDate(perf.started_at)}</p>
                       </div>
-                      <span style={{ fontSize: 11, fontWeight: 700, color: isSelected ? C.gold : C.muted, flexShrink: 0 }}>
-                        {perf.song_count} {perf.song_count === 1 ? 'song' : 'songs'}
-                      </span>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: isSelected ? C.gold : C.muted, flexShrink: 0 }}>{perf.song_count} {songWord(perf.song_count)}</span>
                     </button>
                   )
                 })}
@@ -415,7 +784,7 @@ export default function NewShowPage() {
                   style={{ width: '100%', padding: '15px', background: isValid ? C.gold : C.muted, border: 'none', borderRadius: 12, color: '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' as const, cursor: isValid && !cloning ? 'pointer' : 'not-allowed', opacity: cloning ? 0.7 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit' }}>
                   {cloning
                     ? <><div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid #0a090840', borderTopColor: '#0a0908', animation: 'spin 0.7s linear infinite' }} />Cloning...</>
-                    : <><RefreshCw size={14} />Clone {selectedPast.song_count} {selectedPast.song_count === 1 ? 'Song' : 'Songs'} → Review</>}
+                    : <><RefreshCw size={14} />Clone {selectedPast.song_count} {songWord(selectedPast.song_count)} → Review</>}
                 </button>
               </div>
             )}
