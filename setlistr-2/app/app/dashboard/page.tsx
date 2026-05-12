@@ -457,7 +457,7 @@ export default function DashboardPage() {
               <p style={{ fontSize: 13, color: C.secondary, margin: '0 0 16px', fontWeight: 500 }}>
                 {totalShows > 0
                   ? `${totalShows} show${totalShows !== 1 ? 's' : ''} on record${submittedCount > 0 ? ` · ${submittedCount} submitted` : ''}`
-                  : 'Ready for the first show.'}
+                  : 'Every career starts with one show.'}
               </p>
             )}
             <button onClick={() => router.push('/app/show/new')}
@@ -600,8 +600,8 @@ export default function DashboardPage() {
           {recentPerfs.length === 0 ? (
             <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '36px 20px', textAlign: 'center' }}>
               <Mic size={24} color={C.muted} style={{ marginBottom: 12 }} />
-              <p style={{ fontSize: 14, color: C.secondary, margin: '0 0 4px', fontWeight: 600 }}>No shows yet.</p>
-              <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>Start a show to get started.</p>
+              <p style={{ fontSize: 14, color: C.secondary, margin: '0 0 4px', fontWeight: 600 }}>The stage is quiet for now.</p>
+              <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>Your record starts with your first show.</p>
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
