@@ -62,6 +62,12 @@ type Performance = {
 
 type PRO = 'SOCAN' | 'ASCAP' | 'BMI'
 type RecentSong = { id: string; title: string; artist: string; play_count: number; last_played: string }
+type ShowIntelligence = {
+  totalShows: number
+  venueVisits: number
+  songDebuts: string[]
+  milestone: number | null
+}
 
 async function writeUserSongFromReview(
   supabase: ReturnType<typeof import('@/lib/supabase/client').createClient>,
@@ -332,6 +338,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
   const [editSheet, setEditSheet]       = useState<Song | null>(null)
   const [assignSheet, setAssignSheet]   = useState<{ songId: string; currentTitle: string } | null>(null)
   const [userId, setUserId]             = useState<string | null>(null)
+  const [intelligence, setIntelligence] = useState<ShowIntelligence | null>(null)
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -444,6 +451,25 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
   function handleDelete(id: string) { setSongs(prev => prev.filter(s => s.id !== id).map((s, i) => ({ ...s, position: i + 1 }))) }
   function handleEdit(id: string, title: string, artist: string) { setSongs(prev => prev.map(s => s.id === id ? { ...s, title, artist, reviewState: 'clean' } : s)) }
 
+  async function fetchIntelligence(uid: string, venueName: string, songTitles: string[]) {
+    try {
+      const supabase = createClient()
+      const MILESTONES = [5, 10, 25, 50, 100, 250, 500]
+      const [totalResult, venueResult, debutResult] = await Promise.all([
+        supabase.from('performances').select('*', { count: 'exact', head: true }).eq('user_id', uid).eq('status', 'completed'),
+        supabase.from('performances').select('*', { count: 'exact', head: true }).eq('user_id', uid).eq('venue_name', venueName).eq('status', 'completed'),
+        supabase.from('user_songs').select('song_title').eq('user_id', uid).eq('confirmed_count', 1).in('song_title', songTitles),
+      ])
+      const totalShows = totalResult.count || 0
+      const venueVisits = venueResult.count || 0
+      const songDebuts = debutResult.data?.map((r: { song_title: string }) => r.song_title) || []
+      const milestone = MILESTONES.find(m => m === totalShows) || null
+      setIntelligence({ totalShows, venueVisits, songDebuts, milestone })
+    } catch (err) {
+      console.error('[Intelligence] fetch failed:', err)
+    }
+  }
+
   const handleSave = useCallback(async () => {
     if (!performance) return
     setSaving(true)
@@ -467,7 +493,9 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
     if (performance.show_id) await supabase.from('shows').update({ status: 'completed' }).eq('id', performance.show_id)
     try {
       const { data: { user } } = await supabase.auth.getUser()
-      if (user) { for (const song of songsToSave) { if (!song.title?.trim()) continue; writeUserSongFromReview(supabase, song.title, song.artist || '', user.id, performance.id) } }
+      if (user) { for (const song of songsToSave) { if (!song.title?.trim()) continue; writeUserSongFromReview(supabase, song.title, song.artist || '', user.id, performance.id) }
+        fetchIntelligence(user.id, performance.venue_name, songsToSave.map(s => s.title).filter(Boolean))
+      }
     } catch (err) { console.error('[ReviewSave]', err) }
     setSaving(false); setSaved(true); setShowComplete(true)
   }, [performance, songs, setlistId])
@@ -525,90 +553,143 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
     const songCount = confirmedSongs.length > 0 ? confirmedSongs.length : 8
     const estimate  = estimateRoyalties({ songCount, venueCapacityBand: capacityToBand(performance?.venue_capacity), showType: (performance?.show_type as any) || 'single', territory })
     const showDate  = performance?.started_at ? new Date(performance.started_at).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : ''
+    const showYear  = performance?.started_at ? new Date(performance.started_at).getFullYear() : ''
     const durMins   = performance?.started_at && performance?.ended_at ? Math.round((new Date(performance.ended_at).getTime() - new Date(performance.started_at).getTime()) / 60000) : null
     const manualCount = confirmedSongs.filter(s => s.source === 'manual' && !s.was_planned).length
 
+    const insights: Array<{ label: string; highlight: boolean }> = []
+    if (intelligence) {
+      if (intelligence.milestone) {
+        const milestoneWords: Record<number, string> = { 5: 'Five', 10: 'Ten', 25: 'Twenty-five', 50: 'Fifty', 100: 'One hundred', 250: 'Two fifty', 500: 'Five hundred' }
+        const word = milestoneWords[intelligence.milestone] || `${intelligence.milestone}`
+        insights.push({ label: `Show ${word.toLowerCase()}. That's not nothing.`, highlight: true })
+      }
+      if (intelligence.songDebuts.length === 1) {
+        insights.push({ label: `'${intelligence.songDebuts[0]}' played live for the first time tonight.`, highlight: true })
+      } else if (intelligence.songDebuts.length > 1) {
+        insights.push({ label: `${intelligence.songDebuts.length} songs played live for the first time tonight.`, highlight: true })
+      }
+      if (intelligence.venueVisits === 1) {
+        insights.push({ label: `First time on record here.`, highlight: false })
+      } else if (intelligence.venueVisits === 2) {
+        insights.push({ label: `Second time at ${performance?.venue_name}. A pattern forming.`, highlight: false })
+      } else if (intelligence.venueVisits > 2) {
+        insights.push({ label: `${performance?.venue_name} knows your name now. ${intelligence.venueVisits === 3 ? 'Third' : intelligence.venueVisits === 4 ? 'Fourth' : intelligence.venueVisits === 5 ? 'Fifth' : `${intelligence.venueVisits}th`} time.`, highlight: false })
+      }
+      if (intelligence.totalShows > 0 && !intelligence.milestone) {
+        const roadLines: Record<number, string> = {
+          2: 'Two shows on record. The road remembers.',
+          3: 'Three shows. Keep going.',
+          7: 'Seven shows. This is becoming something.',
+          15: 'Fifteen shows on record.',
+          20: 'Twenty shows. You\'re building something real.',
+          30: 'Thirty shows. The road remembers all of them.',
+        }
+        const line = roadLines[intelligence.totalShows] || `${intelligence.totalShows} shows on record. The road remembers.`
+        insights.push({ label: line, highlight: false })
+      }
+    }
+
     return (
       <div style={{ minHeight: '100svh', background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif', overflowY: 'auto' }}>
-        <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '70vh', pointerEvents: 'none', zIndex: 0, background: 'radial-gradient(ellipse at 50% 10%, rgba(201,168,76,0.12) 0%, transparent 65%)' }} />
-        <div style={{ maxWidth: 420, margin: '0 auto', padding: '0 20px 60px', position: 'relative', zIndex: 1 }}>
-          <div style={{ paddingTop: 56, paddingBottom: 40, textAlign: 'center', animation: 'fadeUp 0.5s ease' }}>
-            <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginBottom: 28 }}>
-              <div style={{ width: 72, height: 72, borderRadius: '50%', background: 'radial-gradient(circle at 38% 32%, rgba(201,168,76,0.9), rgba(180,140,50,0.7))', boxShadow: `0 0 40px rgba(201,168,76,0.3), 0 0 80px rgba(201,168,76,0.12)`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Check size={28} color="#0a0908" strokeWidth={2.5} />
-              </div>
-              <div style={{ position: 'absolute', inset: -8, borderRadius: '50%', border: '1px solid rgba(201,168,76,0.2)' }} />
-            </div>
-            <h1 style={{ fontSize: 32, fontWeight: 800, color: C.text, margin: '0 0 8px', letterSpacing: '-0.025em', lineHeight: 1.1 }}>{performance?.venue_name}</h1>
-            <p style={{ fontSize: 13, color: C.secondary, margin: '0 0 16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, flexWrap: 'wrap' as const }}>
-              {showDate && <span>{showDate}</span>}
-              {performance?.city && <><span style={{ opacity: 0.4 }}>·</span><span>{performance.city}</span></>}
-              {durMins && <><span style={{ opacity: 0.4 }}>·</span><span>{durMins} min</span></>}
+        <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '80vh', pointerEvents: 'none', zIndex: 0, background: 'radial-gradient(ellipse at 50% 0%, rgba(201,168,76,0.09) 0%, transparent 60%)' }} />
+
+        <div style={{ maxWidth: 420, margin: '0 auto', padding: '0 24px 80px', position: 'relative', zIndex: 1 }}>
+
+          {/* ── TITLE CARD ── */}
+          <div style={{ paddingTop: 80, paddingBottom: 48, textAlign: 'center', animation: 'fadeUp 0.7s ease both' }}>
+            <h1 style={{ fontSize: 42, fontWeight: 800, color: C.text, margin: '0 0 16px', letterSpacing: '-0.03em', lineHeight: 1.05 }}>
+              {performance?.venue_name}
+            </h1>
+            <p style={{ fontSize: 13, color: C.muted, margin: '0 0 32px', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+              {performance?.city && <span>{performance.city}</span>}
+              {showDate && <><span style={{ opacity: 0.35, margin: '0 8px' }}>·</span><span>{showDate}</span></>}
+              {durMins && <><span style={{ opacity: 0.35, margin: '0 8px' }}>·</span><span>{durMins} min</span></>}
             </p>
-            <p style={{ fontSize: 18, fontWeight: 700, color: C.gold, margin: 0, letterSpacing: '-0.01em' }}>That one's on record.</p>
+            <p style={{ fontSize: 22, fontWeight: 700, color: C.gold, margin: 0, letterSpacing: '-0.01em', animation: 'fadeUp 0.7s 0.2s ease both', opacity: 0 }}>
+              That one's on record.
+            </p>
           </div>
 
-          {/* Setlist card */}
-          <div style={{ background: C.card, border: `1px solid rgba(201,168,76,0.2)`, borderRadius: 20, overflow: 'hidden', marginBottom: 12, animation: 'fadeUp 0.5s 0.08s ease both' }}>
-            <div style={{ padding: '16px 20px 12px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div>
-                <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.gold, margin: '0 0 1px', opacity: 0.8 }}>Setlistr</p>
-                <p style={{ fontSize: 13, fontWeight: 700, color: C.text, margin: 0 }}>{confirmedSongs.length} song{confirmedSongs.length !== 1 ? 's' : ''} performed</p>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.2)', borderRadius: 20, padding: '5px 10px' }}>
-                <div style={{ width: 5, height: 5, borderRadius: '50%', background: C.green }} />
-                <span style={{ fontSize: 10, fontWeight: 700, color: C.green, letterSpacing: '0.06em' }}>Saved</span>
-              </div>
+          {/* ── SETLIST — program energy ── */}
+          <div style={{ background: C.card, border: `1px solid rgba(255,255,255,0.06)`, borderRadius: 20, overflow: 'hidden', marginBottom: 12, animation: 'fadeUp 0.6s 0.15s ease both', opacity: 0 }}>
+            <div style={{ padding: '20px 24px 16px', borderBottom: `1px solid rgba(255,255,255,0.05)` }}>
+              <p style={{ fontSize: 15, fontWeight: 700, color: C.text, margin: '0 0 3px', letterSpacing: '-0.01em' }}>
+                {confirmedSongs.length} {confirmedSongs.length === 1 ? 'song' : 'songs'}. That's a show.
+              </p>
+              <p style={{ fontSize: 11, color: C.muted, margin: 0, letterSpacing: '0.04em' }}>
+                Captured live · {showDate}{showYear ? `, ${showYear}` : ''}
+              </p>
             </div>
 
-            {/* Capture breakdown */}
-            <div style={{ padding: '10px 20px', borderBottom: `1px solid ${C.border}`, display: 'flex', gap: 16, flexWrap: 'wrap' as const }}>
-              {verifiedCount > 0 && <span style={{ fontSize: 11, color: C.green }}>✓ {verifiedCount} verified from setlist</span>}
-              {autoCount > verifiedCount && <span style={{ fontSize: 11, color: C.gold }}>✦ {autoCount - verifiedCount} auto-detected</span>}
-              {manualCount > 0 && <span style={{ fontSize: 11, color: C.muted }}>+ {manualCount} added manually</span>}
-            </div>
-
-            <div style={{ padding: '12px 0' }}>
+            <div style={{ padding: '16px 0 8px' }}>
               {confirmedSongs.map((s, i) => (
-                <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 20px' }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: C.muted, minWidth: 20, textAlign: 'right', fontFamily: '"DM Mono", monospace', flexShrink: 0, opacity: 0.5 }}>{i + 1}</span>
-                  <p style={{ fontSize: 14, fontWeight: 500, color: C.text, margin: 0, flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.title}</p>
-                  {s.was_planned && <span style={{ fontSize: 10, color: C.green, opacity: 0.7, flexShrink: 0 }}>✓</span>}
+                <div key={s.id} style={{ display: 'flex', alignItems: 'baseline', gap: 14, padding: '7px 24px' }}>
+                  <span style={{ fontSize: 11, color: C.muted, minWidth: 18, textAlign: 'right', fontFamily: '"DM Mono", monospace', opacity: 0.4, flexShrink: 0 }}>{i + 1}</span>
+                  <p style={{ fontSize: 14, fontWeight: s.was_planned ? 600 : 400, color: s.was_planned ? C.text : C.secondary, margin: 0, flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', letterSpacing: '-0.005em' }}>{s.title}</p>
                 </div>
               ))}
             </div>
-            <div style={{ padding: '10px 20px 14px', borderTop: `1px solid ${C.border}` }}>
-              <p style={{ fontSize: 11, color: C.muted, margin: 0, textAlign: 'center', letterSpacing: '0.04em' }}>Saved to your Setlistr · {showDate}</p>
+
+            <div style={{ padding: '12px 24px 18px', borderTop: `1px solid rgba(255,255,255,0.04)`, display: 'flex', gap: 16, flexWrap: 'wrap' as const }}>
+              {verifiedCount > 0 && <span style={{ fontSize: 11, color: C.muted, opacity: 0.7 }}>✓ {verifiedCount} from setlist</span>}
+              {autoCount > verifiedCount && <span style={{ fontSize: 11, color: C.muted, opacity: 0.7 }}>◈ {autoCount - verifiedCount} detected</span>}
+              {manualCount > 0 && <span style={{ fontSize: 11, color: C.muted, opacity: 0.7 }}>+ {manualCount} added</span>}
             </div>
           </div>
 
-          {/* Royalty estimate */}
-          <div style={{ background: 'rgba(201,168,76,0.06)', border: `1px solid rgba(201,168,76,0.18)`, borderRadius: 16, padding: '18px 20px', marginBottom: 12, animation: 'fadeUp 0.5s 0.14s ease both' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-              <p style={{ fontSize: 13, color: C.secondary, margin: 0 }}>Estimated royalties</p>
-              <p style={{ fontSize: 22, fontWeight: 800, color: C.gold, margin: 0, fontFamily: '"DM Mono", monospace', letterSpacing: '-0.02em' }}>~${estimate.expected}</p>
+          {/* ── INTELLIGENCE — 1 or 2 insights, warm and specific ── */}
+          {intelligence && insights.length > 0 && (
+            <div style={{ marginBottom: 12, animation: 'fadeUp 0.6s 0.25s ease both', opacity: 0 }}>
+              {insights.slice(0, 2).map((insight, i) => (
+                <div key={i} style={{ padding: '14px 20px', background: insight.highlight ? 'rgba(201,168,76,0.07)' : 'rgba(255,255,255,0.02)', border: `1px solid ${insight.highlight ? 'rgba(201,168,76,0.18)' : 'rgba(255,255,255,0.05)'}`, borderRadius: 12, marginBottom: 6 }}>
+                  <p style={{ fontSize: 14, fontWeight: insight.highlight ? 600 : 400, color: insight.highlight ? C.gold : C.secondary, margin: 0, lineHeight: 1.5, letterSpacing: '-0.005em' }}>{insight.label}</p>
+                </div>
+              ))}
             </div>
-            <p style={{ fontSize: 11, color: C.muted, margin: '0 0 14px' }}>${estimate.low}–${estimate.high} range · {confirmedSongs.length} songs tracked</p>
+          )}
+
+          {/* ── INTELLIGENCE LOADING ── */}
+          {!intelligence && (
+            <div style={{ marginBottom: 12, padding: '14px 20px', background: 'rgba(255,255,255,0.02)', border: `1px solid rgba(255,255,255,0.05)`, borderRadius: 12, animation: 'fadeUp 0.6s 0.25s ease both', opacity: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ width: 10, height: 10, borderRadius: '50%', border: `1.5px solid rgba(201,168,76,0.3)`, borderTopColor: C.gold, animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />
+                <span style={{ fontSize: 13, color: C.muted }}>Reading the night...</span>
+              </div>
+            </div>
+          )}
+
+          {/* ── ROYALTY — understated ── */}
+          <div style={{ background: 'rgba(201,168,76,0.05)', border: `1px solid rgba(201,168,76,0.14)`, borderRadius: 16, padding: '18px 22px', marginBottom: 12, animation: 'fadeUp 0.6s 0.32s ease both', opacity: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 6 }}>
+              <p style={{ fontSize: 12, color: C.muted, margin: 0, letterSpacing: '0.06em', textTransform: 'uppercase' }}>What tonight's worth</p>
+              <p style={{ fontSize: 24, fontWeight: 800, color: C.gold, margin: 0, fontFamily: '"DM Mono", monospace', letterSpacing: '-0.02em', lineHeight: 1 }}>~${estimate.expected}</p>
+            </div>
+            <p style={{ fontSize: 11, color: C.muted, margin: '0 0 14px', opacity: 0.7 }}>${estimate.low}–${estimate.high} estimated range</p>
             <button onClick={() => router.push(`/app/submit/${params.id}`)}
-              style={{ width: '100%', padding: '11px', background: 'transparent', border: `1px solid rgba(201,168,76,0.3)`, borderRadius: 10, color: C.gold, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', letterSpacing: '0.04em' }}>
-              Submit to get paid →
+              style={{ width: '100%', padding: '11px', background: 'transparent', border: `1px solid rgba(201,168,76,0.25)`, borderRadius: 10, color: C.gold, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', letterSpacing: '0.04em' }}>
+              Claim what you earned →
             </button>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, animation: 'fadeUp 0.5s 0.18s ease both' }}>
+          {/* ── ACTIONS ── */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, animation: 'fadeUp 0.6s 0.38s ease both', opacity: 0 }}>
             <button onClick={() => router.push('/app/dashboard')}
               style={{ width: '100%', padding: '15px', background: C.gold, border: 'none', borderRadius: 12, color: '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'inherit' }}>
-              Done
+              Back to your record
             </button>
             <button onClick={() => setShowComplete(false)}
-              style={{ width: '100%', padding: '12px', background: 'transparent', border: `1px solid ${C.border}`, borderRadius: 10, color: C.muted, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-              Review setlist
+              style={{ width: '100%', padding: '12px', background: 'transparent', border: 'none', borderRadius: 10, color: C.muted, fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', letterSpacing: '0.02em' }}>
+              Review the night
             </button>
           </div>
+
         </div>
+
         <style>{`
           @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500;700&display=swap');
-          @keyframes fadeUp { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:translateY(0)} }
+          @keyframes fadeUp { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
+          @keyframes spin { to{transform:rotate(360deg)} }
           * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
         `}</style>
       </div>
