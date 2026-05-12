@@ -165,10 +165,10 @@ export default function OnboardingPage() {
         {step === 1 && (
           <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 20, padding: '28px 24px', animation: 'fadeUp 0.35s ease' }}>
             <h1 style={{ fontSize: 22, fontWeight: 800, color: C.text, margin: '0 0 6px', letterSpacing: '-0.02em' }}>
-              Set up your profile.
+              Let's begin your record.
             </h1>
             <p style={{ fontSize: 13, color: C.secondary, margin: '0 0 24px', lineHeight: 1.5 }}>
-              30 seconds. You'll load your first set right after.
+              This takes a minute. Your career will take longer.
             </p>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -178,7 +178,7 @@ export default function OnboardingPage() {
                   autoFocus type="text" value={fullName}
                   onChange={e => setFullName(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && fullName.trim() && document.getElementById('artist-input')?.focus()}
-                  placeholder="e.g. Jesse Slack"
+                  placeholder="Your name"
                   style={{ width: '100%', boxSizing: 'border-box', background: C.input, border: `1px solid ${fullName.trim() ? C.borderGold : C.border}`, borderRadius: 10, padding: '12px 14px', color: C.text, fontSize: 14, fontFamily: 'inherit', outline: 'none' }}
                   onFocus={e => (e.target.style.borderColor = 'rgba(201,168,76,0.4)')}
                   onBlur={e => (e.target.style.borderColor = fullName.trim() ? C.borderGold : C.border)}
@@ -196,7 +196,7 @@ export default function OnboardingPage() {
                   onFocus={e => (e.target.style.borderColor = 'rgba(201,168,76,0.4)')}
                   onBlur={e => (e.target.style.borderColor = artistName.trim() ? C.borderGold : C.border)}
                 />
-                <p style={{ fontSize: 11, color: C.muted, margin: '5px 0 0' }}>Appears on setlists and PRO exports</p>
+                <p style={{ fontSize: 11, color: C.muted, margin: '5px 0 0' }}>This is how you'll appear in your performance record.</p>
               </div>
 
               <div>
@@ -218,7 +218,7 @@ export default function OnboardingPage() {
                 style={{ width: '100%', padding: '14px', background: isStep1Valid ? C.gold : C.muted, border: 'none', borderRadius: 12, color: '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: isStep1Valid && !saving ? 'pointer' : 'not-allowed', opacity: saving ? 0.7 : isStep1Valid ? 1 : 0.4, transition: 'all 0.2s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit', marginTop: 4 }}>
                 {saving
                   ? <><div style={{ width: 13, height: 13, borderRadius: '50%', border: '2px solid #0a090840', borderTopColor: '#0a0908', animation: 'spin 0.7s linear infinite' }} />Saving...</>
-                  : <>Continue <ArrowRight size={15} strokeWidth={2.5} /></>}
+                  : <>Start my record <ArrowRight size={15} strokeWidth={2.5} /></>}
               </button>
             </div>
           </div>
@@ -236,17 +236,17 @@ export default function OnboardingPage() {
                     ✓
                   </div>
                   <h2 style={{ fontSize: 20, fontWeight: 800, color: C.text, margin: '0 0 6px', letterSpacing: '-0.02em' }}>
-                    {importCount} songs imported
+                    {importCount} songs ready.
                   </h2>
                   <p style={{ fontSize: 13, color: C.secondary, margin: '0 0 6px', lineHeight: 1.5 }}>
-                    From {selectedArtist?.name}. These will appear in your quick-add list during shows.
+                    Your catalog is loaded. The first time you play one of these live, it joins your record.
                   </p>
                   <p style={{ fontSize: 12, color: C.muted, margin: '0 0 24px' }}>
-                    Real show data always ranks above imported songs.
+                    Songs you actually perform will always rank first.
                   </p>
                   <button onClick={finish}
                     style={{ width: '100%', padding: '14px', background: C.gold, border: 'none', borderRadius: 12, color: '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-                    Load Your First Set <ArrowRight size={15} strokeWidth={2.5} />
+                    Let's play a show <ArrowRight size={15} strokeWidth={2.5} />
                   </button>
                 </div>
               ) : (
@@ -257,13 +257,13 @@ export default function OnboardingPage() {
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="#1ed760"><path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/></svg>
                     </div>
                     <div>
-                      <h2 style={{ fontSize: 17, fontWeight: 800, color: C.text, margin: 0, letterSpacing: '-0.01em' }}>Seed your catalog</h2>
-                      <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>Import your Spotify tracks for quick-add during shows</p>
+                      <h2 style={{ fontSize: 17, fontWeight: 800, color: C.text, margin: 0, letterSpacing: '-0.01em' }}>Your songs, ready to go.</h2>
+                      <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>Connect Spotify and your catalog is ready before your first show.</p>
                     </div>
                   </div>
 
                   <p style={{ fontSize: 12, color: C.secondary, margin: '0 0 20px', lineHeight: 1.5 }}>
-                    Find yourself on Spotify — we'll pull your top tracks so they appear in the quick-add list during live capture.
+                    Find yourself on Spotify. We'll pull your tracks so they're ready the moment you step on stage.
                   </p>
 
                   {/* Search */}
@@ -289,7 +289,7 @@ export default function OnboardingPage() {
                   {/* Results */}
                   {spotifyResults.length > 0 && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                      <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, margin: '0 0 4px' }}>Select your profile</p>
+                      <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, margin: '0 0 4px' }}>Is this you?</p>
                       {spotifyResults.map(artist => (
                         <button key={artist.id} onClick={() => importFromSpotify(artist)} disabled={importing}
                           style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', background: selectedArtist?.id === artist.id ? C.goldDim : 'rgba(255,255,255,0.02)', border: `1px solid ${selectedArtist?.id === artist.id ? C.borderGold : C.border}`, borderRadius: 12, cursor: importing ? 'wait' : 'pointer', textAlign: 'left', fontFamily: 'inherit', width: '100%', transition: 'all 0.15s ease', WebkitTapHighlightColor: 'transparent' }}
@@ -307,7 +307,7 @@ export default function OnboardingPage() {
                           </div>
                           {importing && selectedArtist?.id === artist.id
                             ? <div style={{ width: 16, height: 16, borderRadius: '50%', border: `1.5px solid ${C.gold}40`, borderTopColor: C.gold, animation: 'spin 0.8s linear infinite', flexShrink: 0 }} />
-                            : <span style={{ fontSize: 12, color: C.muted, flexShrink: 0 }}>Import →</span>}
+                            : <span style={{ fontSize: 12, color: C.muted, flexShrink: 0 }}>That's me →</span>}
                         </button>
                       ))}
                     </div>
@@ -320,14 +320,14 @@ export default function OnboardingPage() {
             {!importDone && (
               <button onClick={finish}
                 style={{ width: '100%', background: 'none', border: 'none', color: C.muted, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', padding: '10px', textAlign: 'center' }}>
-                Skip for now — I'll add songs during my show
+                I'll add songs during my first show
               </button>
             )}
           </div>
         )}
 
         <p style={{ textAlign: 'center', fontSize: 10, color: C.muted, letterSpacing: '0.18em', textTransform: 'uppercase', opacity: 0.4, marginTop: 16 }}>
-          Free forever · No credit card
+          {step === 2 ? 'Your record starts tonight.' : 'Free forever · No credit card'}
         </p>
       </div>
 
