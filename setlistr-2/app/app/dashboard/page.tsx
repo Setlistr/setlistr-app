@@ -391,10 +391,10 @@ export default function DashboardPage() {
               style={{ width: '100%', background: 'rgba(201,168,76,0.07)', border: `1px solid ${C.borderGold}`, borderRadius: 14, padding: '14px 18px', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 14 }}>
               <span style={{ fontSize: 20, flexShrink: 0 }}>🌅</span>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.gold, margin: '0 0 2px' }}>
+                <p style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.gold, margin: '0 0 2px' }}>
                   {actingAs ? `${actingAs.artist_name}'s Last Show` : "Last Night's Show"}
                 </p>
-                <p style={{ fontSize: 14, fontWeight: 700, color: C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{morningAfterPerf.venue_name} — review & claim →</p>
+                <p style={{ fontSize: 16, fontWeight: 700, color: C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{morningAfterPerf.venue_name} — review & claim →</p>
               </div>
             </button>
           </div>
@@ -490,10 +490,10 @@ export default function DashboardPage() {
               </p>
               <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12 }}>
                 <div>
-                  <p style={{ fontSize: 32, fontWeight: 800, color: C.gold, margin: 0, fontFamily: '"DM Mono", monospace', letterSpacing: '-0.03em', lineHeight: 1 }}>
+                  <p style={{ fontSize: 38, fontWeight: 800, color: C.gold, margin: 0, fontFamily: '"DM Mono", monospace', letterSpacing: '-0.03em', lineHeight: 1 }}>
                     ~${lifetimeTotal.toLocaleString()}
                   </p>
-                  <p style={{ fontSize: 11, color: C.muted, margin: '4px 0 0' }}>across {totalShows} show{totalShows !== 1 ? 's' : ''} on record</p>
+                  <p style={{ fontSize: 14, color: C.muted, margin: '4px 0 0' }}>across {totalShows} show{totalShows !== 1 ? 's' : ''} on record</p>
                 </div>
                 {submittedCount > 0 && (
                   <div style={{ textAlign: 'right', flexShrink: 0 }}>
@@ -533,8 +533,8 @@ export default function DashboardPage() {
           return (
             <div style={{ marginBottom: 16, animation: 'fadeUp 0.35s ease' }}>
               <div style={{ padding: '14px 18px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 12 }}>
-                <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, margin: '0 0 5px' }}>From your record</p>
-                <p style={{ fontSize: 14, color: C.secondary, margin: 0, lineHeight: 1.5, fontWeight: 400 }}>{insightLine}</p>
+                <p style={{ fontSize: 13, fontWeight: 600, letterSpacing: '0.04em', color: C.muted, margin: '0 0 5px' }}>From your record</p>
+                <p style={{ fontSize: 17, color: C.text, margin: 0, lineHeight: 1.5, fontWeight: 500 }}>{insightLine}</p>
               </div>
             </div>
           )
@@ -548,8 +548,8 @@ export default function DashboardPage() {
               onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'rgba(201,168,76,0.13)'}
               onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'rgba(201,168,76,0.08)'}>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ fontSize: 20, fontWeight: 800, color: C.gold, margin: '0 0 2px', fontFamily: '"DM Mono", monospace', letterSpacing: '-0.02em' }}>~${aggregate.unclaimedExpected.toLocaleString()} waiting</p>
-                <p style={{ fontSize: 12, color: C.secondary, margin: 0 }}>{aggregate.unclaimedCount} night{aggregate.unclaimedCount !== 1 ? 's' : ''} not yet filed · {totalSongs} songs tracked</p>
+                <p style={{ fontSize: 26, fontWeight: 800, color: C.gold, margin: '0 0 2px', fontFamily: '"DM Mono", monospace', letterSpacing: '-0.02em' }}>~${aggregate.unclaimedExpected.toLocaleString()} waiting</p>
+                <p style={{ fontSize: 14, color: C.secondary, margin: 0 }}>{aggregate.unclaimedCount} night{aggregate.unclaimedCount !== 1 ? 's' : ''} not yet filed · {totalSongs} songs tracked</p>
               </div>
               <span style={{ fontSize: 13, color: C.gold, flexShrink: 0, fontWeight: 700 }}>File them →</span>
             </button>
@@ -592,7 +592,7 @@ export default function DashboardPage() {
         {/* ── RECENT SHOWS ── */}
         <div style={{ animation: 'fadeUp 0.42s ease', paddingBottom: 32 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-            <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.muted, margin: 0 }}>Recent Shows</p>
+            <p style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', color: C.muted, margin: 0 }}>Recent shows</p>
             {performances.length > 5 && (
               <button onClick={() => router.push('/app/history')} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>All →</button>
             )}
@@ -624,8 +624,8 @@ export default function DashboardPage() {
                     </div>
                     <div style={{ width: 1, height: 28, background: C.border, flexShrink: 0 }} />
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <p style={{ fontSize: 13, fontWeight: 600, color: C.text, margin: '0 0 1px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{perf.venue_name}</p>
-                      <p style={{ fontSize: 11, color: C.secondary, margin: 0 }}>{perf.city ? `${perf.city} · ` : ''}{songCount > 0 ? `${songCount} songs` : timeAgo(perf.created_at)}</p>
+                      <p style={{ fontSize: 15, fontWeight: 600, color: C.text, margin: '0 0 1px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{perf.venue_name}</p>
+                      <p style={{ fontSize: 13, color: C.secondary, margin: 0 }}>{perf.city ? `${perf.city} · ` : ''}{songCount > 0 ? `${songCount} songs` : timeAgo(perf.created_at)}</p>
                       {perf.captured_by_name && <p style={{ fontSize: 10, color: C.muted, margin: '2px 0 0' }}>Captured by {perf.captured_by_name}</p>}
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3, flexShrink: 0 }}>

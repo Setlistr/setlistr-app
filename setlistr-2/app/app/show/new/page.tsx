@@ -466,7 +466,7 @@ export default function NewShowPage() {
                 onChange={e => handleVenueInput(e.target.value)}
                 onFocus={() => { if (venueResults.length > 0) setShowDropdown(true) }}
                 placeholder="Venue or room name..."
-                style={{ background: C.input, border: `1px solid ${venueSelected ? C.borderGold : venueQuery.trim() ? C.borderGold : C.border}`, borderRadius: 10, padding: '12px 40px 12px 14px', color: C.text, fontSize: 14, fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' as const, outline: 'none' }} />
+                style={{ background: C.input, border: `1px solid ${venueSelected ? C.borderGold : venueQuery.trim() ? C.borderGold : C.border}`, borderRadius: 10, padding: '14px 40px 14px 16px', color: C.text, fontSize: 16, fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' as const, outline: 'none' }} />
               <div style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}>
                 {venueSearching
                   ? <div style={{ width: 13, height: 13, borderRadius: '50%', border: `2px solid ${C.muted}`, borderTopColor: C.gold, animation: 'spin 0.7s linear infinite' }} />
@@ -477,12 +477,12 @@ export default function NewShowPage() {
 
             {venueMemory && (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '9px 12px', background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 8 }}>
-                <p style={{ fontSize: 12, color: C.gold, margin: 0, lineHeight: 1.4 }}>
+                <p style={{ fontSize: 14, color: C.gold, margin: 0, lineHeight: 1.4 }}>
                   Last time here: <strong>{venueMemory.songCount} {songWord(venueMemory.songCount)}</strong> on {formatDate(venueMemory.lastDate)}
                 </p>
                 {venueMemory.songs && venueMemory.songs.length > 0 && (
                   <button onClick={loadFromVenueMemory}
-                    style={{ fontSize: 11, fontWeight: 700, color: C.gold, background: 'rgba(201,168,76,0.15)', border: `1px solid ${C.borderGold}`, borderRadius: 6, padding: '4px 8px', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' as const }}>
+                    style={{ fontSize: 13, fontWeight: 700, color: C.gold, background: 'rgba(201,168,76,0.15)', border: `1px solid ${C.borderGold}`, borderRadius: 6, padding: '6px 14px', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' as const }}>
                     Load that set →
                   </button>
                 )}
@@ -561,12 +561,12 @@ export default function NewShowPage() {
 
           {/* Header */}
           <div style={{ padding: '16px 20px 14px' }}>
-            <p style={{ fontSize: 14, fontWeight: 700, color: plannedSongs.length > 0 ? C.gold : C.text, margin: '0 0 3px', transition: 'color 0.2s ease' }}>
+            <p style={{ fontSize: 17, fontWeight: 700, color: plannedSongs.length > 0 ? C.gold : C.text, margin: '0 0 3px', transition: 'color 0.2s ease' }}>
               {plannedSongs.length > 0
                 ? `✓ ${plannedSongs.length} ${songWord(plannedSongs.length)} ready`
                 : 'Have a setlist tonight?'}
             </p>
-            <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>
+            <p style={{ fontSize: 14, color: C.muted, margin: 0 }}>
               {plannedSongs.length > 0
                 ? "We'll listen for these first. Tap to add more."
                 : 'A photo helps us catch every song.'}
@@ -586,16 +586,16 @@ export default function NewShowPage() {
                 }}
                 style={{ flex: 2, padding: '16px 12px', background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 12, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, WebkitTapHighlightColor: 'transparent' }}>
                 <span style={{ fontSize: 22 }}>📸</span>
-                <span style={{ fontSize: 12, fontWeight: 800, color: C.gold, textAlign: 'center' as const }}>Photo setlist</span>
-                <span style={{ fontSize: 10, color: C.muted, textAlign: 'center' as const }}>Scan paper or screen</span>
+                <span style={{ fontSize: 14, fontWeight: 800, color: C.gold, textAlign: 'center' as const }}>Photo setlist</span>
+                <span style={{ fontSize: 12, color: C.muted, textAlign: 'center' as const }}>Scan paper or screen</span>
               </button>
               {/* Secondary: manual add */}
               <button
                 onClick={() => setSetlistMode('quick')}
                 style={{ flex: 1, padding: '16px 12px', background: 'rgba(255,255,255,0.02)', border: `1px solid ${C.border}`, borderRadius: 12, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, WebkitTapHighlightColor: 'transparent' }}>
                 <span style={{ fontSize: 22 }}>🎵</span>
-                <span style={{ fontSize: 12, fontWeight: 700, color: C.secondary, textAlign: 'center' as const }}>Add songs</span>
-                <span style={{ fontSize: 10, color: C.muted, textAlign: 'center' as const }}>From catalog</span>
+                <span style={{ fontSize: 14, fontWeight: 700, color: C.secondary, textAlign: 'center' as const }}>Add songs</span>
+                <span style={{ fontSize: 12, color: C.muted, textAlign: 'center' as const }}>From catalog</span>
               </button>
             </div>
           )}
@@ -702,7 +702,7 @@ export default function NewShowPage() {
           {plannedSongs.length > 0 && (
             <div style={{ padding: '0 16px 16px', borderTop: setlistMode !== null ? `1px solid ${C.border}` : 'none' }}>
               {setlistMode !== null && <div style={{ height: 12 }} />}
-              <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, color: C.muted, margin: '0 0 8px' }}>
+              <p style={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.1em', color: C.muted, margin: '0 0 8px' }}>
                 Tonight's set · {plannedSongs.length} {songWord(plannedSongs.length)}
               </p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -721,7 +721,7 @@ export default function NewShowPage() {
                 ))}
               </div>
               <div style={{ marginTop: 10, padding: '10px 12px', background: C.greenDim, border: '1px solid rgba(74,222,128,0.2)', borderRadius: 8 }}>
-                <p style={{ fontSize: 12, color: C.green, margin: 0, lineHeight: 1.4 }}>
+                <p style={{ fontSize: 14, color: C.green, margin: 0, lineHeight: 1.4 }}>
                   ✓ We'll listen for these. Review what was played vs planned after the show.
                 </p>
               </div>

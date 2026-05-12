@@ -205,9 +205,9 @@ function SortableRow({ song, index, onDelete, onTap }: {
             </div>
           ) : (
             <div>
-              <p style={{ fontSize: 14, fontWeight: 600, color: C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{song.title}</p>
+              <p style={{ fontSize: 16, fontWeight: 600, color: C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{song.title}</p>
               {isVerified
-                ? <p style={{ fontSize: 10, color: C.green, margin: '2px 0 0', fontWeight: 600, opacity: 0.85 }}>Verified ✓</p>
+                ? <p style={{ fontSize: 12, color: C.green, margin: '2px 0 0', fontWeight: 600, opacity: 0.85 }}>Verified ✓</p>
                 : song.isrc
                 ? <p style={{ fontSize: 10, color: C.muted, margin: '2px 0 0', fontFamily: '"DM Mono", monospace', letterSpacing: '0.04em' }}>{song.isrc}</p>
                 : null
@@ -634,8 +634,8 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
         <div style={{ maxWidth: 420, margin: '0 auto', padding: '0 24px 80px', position: 'relative', zIndex: 1 }}>
 
           {/* ── TITLE CARD ── */}
-          <div style={{ paddingTop: 80, paddingBottom: 48, textAlign: 'center', animation: 'fadeUp 0.7s ease both' }}>
-            <h1 style={{ fontSize: 42, fontWeight: 800, color: C.text, margin: '0 0 16px', letterSpacing: '-0.03em', lineHeight: 1.05 }}>
+          <div style={{ paddingTop: 96, paddingBottom: 48, textAlign: 'center', animation: 'fadeUp 0.7s ease both' }}>
+            <h1 style={{ fontSize: 48, fontWeight: 800, color: C.text, margin: '0 0 16px', letterSpacing: '-0.03em', lineHeight: 1.05 }}>
               {performance?.venue_name}
             </h1>
             <p style={{ fontSize: 13, color: C.muted, margin: '0 0 32px', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
@@ -651,7 +651,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
           {/* ── SETLIST — program energy ── */}
           <div style={{ background: C.card, border: `1px solid rgba(255,255,255,0.06)`, borderRadius: 20, overflow: 'hidden', marginBottom: 12, animation: 'fadeUp 0.6s 0.15s ease both', opacity: 0 }}>
             <div style={{ padding: '20px 24px 16px', borderBottom: `1px solid rgba(255,255,255,0.05)` }}>
-              <p style={{ fontSize: 15, fontWeight: 700, color: C.text, margin: '0 0 3px', letterSpacing: '-0.01em' }}>
+              <p style={{ fontSize: 17, fontWeight: 700, color: C.text, margin: '0 0 3px', letterSpacing: '-0.01em' }}>
                 {confirmedSongs.length} {confirmedSongs.length === 1 ? 'song' : 'songs'}. That's a show.
               </p>
               <p style={{ fontSize: 11, color: C.muted, margin: 0, letterSpacing: '0.04em' }}>
@@ -663,7 +663,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
               {confirmedSongs.map((s, i) => (
                 <div key={s.id} style={{ display: 'flex', alignItems: 'baseline', gap: 14, padding: '7px 24px' }}>
                   <span style={{ fontSize: 11, color: C.muted, minWidth: 18, textAlign: 'right', fontFamily: '"DM Mono", monospace', opacity: 0.4, flexShrink: 0 }}>{i + 1}</span>
-                  <p style={{ fontSize: 14, fontWeight: s.was_planned ? 600 : 400, color: s.was_planned ? C.text : C.secondary, margin: 0, flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', letterSpacing: '-0.005em' }}>{s.title}</p>
+                  <p style={{ fontSize: 15, fontWeight: s.was_planned ? 600 : 500, color: C.text, margin: 0, flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', letterSpacing: '-0.005em' }}>{s.title}</p>
                 </div>
               ))}
             </div>
@@ -743,7 +743,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
             <div style={{ width: 5, height: 5, borderRadius: '50%', background: C.gold }} />
             <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.gold }}>This Show</span>
           </div>
-          <h1 style={{ fontSize: 26, fontWeight: 800, color: C.text, margin: '0 0 8px', letterSpacing: '-0.025em', lineHeight: 1.15 }}>{performance?.venue_name}</h1>
+          <h1 style={{ fontSize: 34, fontWeight: 800, color: C.text, margin: '0 0 8px', letterSpacing: '-0.025em', lineHeight: 1.15 }}>{performance?.venue_name}</h1>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
             <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: C.secondary }}><MapPin size={11} />{performance?.city}, {performance?.country}</span>
             {performance?.started_at ? <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: C.secondary }}><Calendar size={11} />{formatDate(performance.started_at)}</span> : null}
@@ -756,15 +756,15 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
               { label: 'Need Fix', value: needsReviewCount },
             ].map(stat => (
               <div key={stat.label} style={{ flex: 1, padding: '10px 12px', background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, textAlign: 'center' }}>
-                <p style={{ fontSize: 20, fontWeight: 800, color: C.gold, margin: 0, fontFamily: '"DM Mono", monospace', fontVariantNumeric: 'tabular-nums' }}>{stat.value}</p>
-                <p style={{ fontSize: 9, color: C.muted, margin: '2px 0 0', letterSpacing: '0.08em', textTransform: 'uppercase' }}>{stat.label}</p>
+                <p style={{ fontSize: 30, fontWeight: 800, color: C.gold, margin: 0, fontFamily: '"DM Mono", monospace', fontVariantNumeric: 'tabular-nums' }}>{stat.value}</p>
+                <p style={{ fontSize: 11, color: C.muted, margin: '2px 0 0', letterSpacing: '0.08em', textTransform: 'uppercase' }}>{stat.label}</p>
               </div>
             ))}
           </div>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, animation: 'fadeUp 0.4s 0.05s ease both' }}>
-          <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.muted }}>Setlist</span>
+          <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', color: C.muted }}>Setlist</span>
           <button onClick={() => setShowAdd(!showAdd)}
             style={{ display: 'flex', alignItems: 'center', gap: 6, background: showAdd ? 'transparent' : C.goldDim, border: `1px solid ${showAdd ? C.border : C.borderGold}`, borderRadius: 10, padding: '9px 16px', color: showAdd ? C.muted : C.gold, fontSize: 13, fontWeight: 700, cursor: 'pointer', letterSpacing: '0.04em', transition: 'all 0.15s ease', fontFamily: 'inherit', minHeight: 40, WebkitTapHighlightColor: 'transparent' }}>
             <span style={{ display: 'inline-block', transform: showAdd ? 'rotate(45deg)' : 'rotate(0)', transition: 'transform 0.2s ease', fontSize: 16, lineHeight: 1, fontWeight: 400 }}>+</span>
@@ -796,7 +796,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
 
         {confirmedSongs.length > 0 ? (
           <div style={{ animation: 'fadeUp 0.4s 0.1s ease both' }}>
-            {confirmedSongs.length > 0 ? <p style={{ fontSize: 12, color: C.secondary, margin: '0 0 10px' }}>Tap any song to edit · swipe to delete</p> : null}
+            {confirmedSongs.length > 0 ? <p style={{ fontSize: 14, color: C.muted, margin: '0 0 10px' }}>Tap any song to edit · swipe to delete</p> : null}
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
               <SortableContext items={confirmedSongs.map(s => s.id)} strategy={verticalListSortingStrategy}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
