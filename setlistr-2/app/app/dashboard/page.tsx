@@ -411,11 +411,11 @@ export default function DashboardPage() {
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.green, margin: '0 0 2px' }}>
-                  {actingAs ? `${actingAs.artist_name} Plays Tonight` : "You're Playing Tonight"}
+                  {actingAs ? `${actingAs.artist_name} Plays Tonight` : "Tonight."}
                 </p>
                 <p style={{ fontSize: 14, fontWeight: 700, color: C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{todayShow.venueName} · {formatShowTime(todayShow.datetime)}</p>
               </div>
-              <span style={{ fontSize: 12, color: C.green, fontWeight: 700, flexShrink: 0 }}>Start →</span>
+              <span style={{ fontSize: 12, color: C.green, fontWeight: 700, flexShrink: 0 }}>Let's go →</span>
             </button>
           </div>
         )}
@@ -484,16 +484,16 @@ export default function DashboardPage() {
         {/* ── LIFETIME ROYALTY COUNTER ── */}
         {lifetimeTotal > 0 && (
           <div style={{ marginBottom: 16, animation: 'fadeUp 0.34s ease' }}>
-            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '16px 18px' }}>
+            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderLeft: '2px solid rgba(201,168,76,0.3)', borderRadius: 14, padding: '16px 18px' }}>
               <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, margin: '0 0 8px' }}>
-                {actingAs ? `${actingAs.artist_name}'s` : 'Your'} Live Performance Value
+
               </p>
               <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12 }}>
                 <div>
                   <p style={{ fontSize: 32, fontWeight: 800, color: C.gold, margin: 0, fontFamily: '"DM Mono", monospace', letterSpacing: '-0.03em', lineHeight: 1 }}>
                     ~${lifetimeTotal.toLocaleString()}
                   </p>
-                  <p style={{ fontSize: 11, color: C.muted, margin: '4px 0 0' }}>documented across {totalShows} show{totalShows !== 1 ? 's' : ''}</p>
+                  <p style={{ fontSize: 11, color: C.muted, margin: '4px 0 0' }}>across {totalShows} show{totalShows !== 1 ? 's' : ''} on record</p>
                 </div>
                 {submittedCount > 0 && (
                   <div style={{ textAlign: 'right', flexShrink: 0 }}>
@@ -518,6 +518,28 @@ export default function DashboardPage() {
           </div>
         )}
 
+        {totalShows >= 3 && recentPerfs.length > 0 && (() => {
+          const lastPerf = recentPerfs[0]
+          const daysSince = Math.floor((Date.now() - new Date(lastPerf.started_at || lastPerf.created_at).getTime()) / 86400000)
+          const insightLine = daysSince === 0
+            ? `You played tonight. The record is up to date.`
+            : daysSince === 1
+            ? `Last night at ${lastPerf.venue_name}. Still fresh.`
+            : daysSince < 7
+            ? `${daysSince} days since ${lastPerf.venue_name}. ${totalShows} shows on record.`
+            : daysSince < 30
+            ? `${daysSince} days since your last show. The stage is waiting.`
+            : `${daysSince} days since your last show. When's the next one?`
+          return (
+            <div style={{ marginBottom: 16, animation: 'fadeUp 0.35s ease' }}>
+              <div style={{ padding: '14px 18px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 12 }}>
+                <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, margin: '0 0 5px' }}>From your record</p>
+                <p style={{ fontSize: 14, color: C.secondary, margin: 0, lineHeight: 1.5, fontWeight: 400 }}>{insightLine}</p>
+              </div>
+            </div>
+          )
+        })()}
+
         {/* ── UNCLAIMED EARNINGS ── */}
         {aggregate.unclaimedCount > 0 && (
           <div style={{ marginBottom: 16, animation: 'fadeUp 0.36s ease' }}>
@@ -526,10 +548,10 @@ export default function DashboardPage() {
               onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'rgba(201,168,76,0.13)'}
               onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'rgba(201,168,76,0.08)'}>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ fontSize: 20, fontWeight: 800, color: C.gold, margin: '0 0 2px', fontFamily: '"DM Mono", monospace', letterSpacing: '-0.02em' }}>~${aggregate.unclaimedExpected.toLocaleString()} unclaimed</p>
-                <p style={{ fontSize: 12, color: C.secondary, margin: 0 }}>{aggregate.unclaimedCount} show{aggregate.unclaimedCount !== 1 ? 's' : ''} not yet submitted · {totalSongs} songs tracked</p>
+                <p style={{ fontSize: 20, fontWeight: 800, color: C.gold, margin: '0 0 2px', fontFamily: '"DM Mono", monospace', letterSpacing: '-0.02em' }}>~${aggregate.unclaimedExpected.toLocaleString()} waiting</p>
+                <p style={{ fontSize: 12, color: C.secondary, margin: 0 }}>{aggregate.unclaimedCount} night{aggregate.unclaimedCount !== 1 ? 's' : ''} not yet filed · {totalSongs} songs tracked</p>
               </div>
-              <span style={{ fontSize: 13, color: C.gold, flexShrink: 0, fontWeight: 700 }}>Claim →</span>
+              <span style={{ fontSize: 13, color: C.gold, flexShrink: 0, fontWeight: 700 }}>File them →</span>
             </button>
           </div>
         )}
@@ -538,7 +560,7 @@ export default function DashboardPage() {
         {upcomingShows.length > 0 && (
           <div style={{ marginBottom: 16, animation: 'fadeUp 0.38s ease' }}>
             <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.muted, margin: '0 0 8px', display: 'flex', alignItems: 'center', gap: 6 }}>
-              <Calendar size={10} />Upcoming
+              <Calendar size={10} />Coming up
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {upcomingShows.map(event => {
