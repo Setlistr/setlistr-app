@@ -453,7 +453,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
     <div style={{ minHeight: '100svh', background: C.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
         <div style={{ width: 48, height: 48, borderRadius: '50%', border: `2px solid ${C.gold}`, animation: 'breathe 1.8s ease-in-out infinite', opacity: 0.6 }} />
-        <span style={{ color: C.muted, fontSize: 12, letterSpacing: '0.15em', textTransform: 'uppercase' }}>Loading</span>
+        <span style={{ color: C.muted, fontSize: 12, letterSpacing: '0.15em', textTransform: 'uppercase' }}>Getting ready...</span>
       </div>
       <style>{`@keyframes breathe { 0%,100%{transform:scale(1);opacity:.4} 50%{transform:scale(1.15);opacity:.9} }`}</style>
     </div>
@@ -466,7 +466,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
 
   const ringState   = catchFlash ? 'catch' : isDetecting ? 'detect' : isListening ? 'listen' : 'idle'
   const engineDot   = engineState === 'listening' ? C.green : engineState === 'slow' ? C.amber : engineState === 'stalled' ? '#f87171' : C.muted
-  const engineLabel = engineState === 'listening' ? 'LISTENING' : engineState === 'slow' ? 'SLOW' : engineState === 'stalled' ? 'STALLED' : 'IDLE'
+  const engineLabel = engineState === 'listening' ? 'ON' : engineState === 'slow' ? 'SLOW' : engineState === 'stalled' ? 'STALLED' : 'IDLE'
 
   function renderTrustSignal() {
     if (lastCaught) {
@@ -476,14 +476,14 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
             <span style={{ fontSize: 16, color: C.gold }}>✦</span>
             <span style={{ fontSize: 15, fontWeight: 700, color: C.text, letterSpacing: '-0.01em' }}>{lastCaught}</span>
           </div>
-          <span style={{ fontSize: 11, color: C.green, fontWeight: 600, letterSpacing: '0.06em' }}>CAUGHT</span>
+          <span style={{ fontSize: 11, color: C.green, fontWeight: 600, letterSpacing: '0.06em' }}>captured</span>
         </div>
       )
     }
     if (engineState === 'stalled' && isListening) {
       return (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, animation: 'fadeIn 0.2s ease' }}>
-          <span style={{ fontSize: 13, color: '#f87171', fontWeight: 600 }}>Engine stalled — tap to restart</span>
+          <span style={{ fontSize: 13, color: '#f87171', fontWeight: 600 }}>Lost the signal. Tap to reconnect.</span>
           <button onClick={restartListening} disabled={restarting}
             style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', background: 'rgba(220,38,38,0.12)', border: '1px solid rgba(220,38,38,0.3)', borderRadius: 20, color: '#f87171', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', opacity: restarting ? 0.6 : 1, WebkitTapHighlightColor: 'transparent' }}>
             <RefreshCw size={12} style={{ animation: restarting ? 'spin 0.7s linear infinite' : 'none' }} />
@@ -495,7 +495,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
     if (engineState === 'slow' && isListening) {
       return (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, animation: 'fadeIn 0.2s ease' }}>
-          <span style={{ fontSize: 12, color: C.amber, fontWeight: 500, textAlign: 'center' as const }}>Having trouble hearing — move closer to the speakers</span>
+          <span style={{ fontSize: 12, color: C.amber, fontWeight: 500, textAlign: 'center' as const }}>Having trouble hearing. Move closer to the speakers.</span>
           <button onClick={restartListening} disabled={restarting}
             style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '7px 14px', background: 'transparent', border: `1px solid rgba(245,158,11,0.35)`, borderRadius: 20, color: C.amber, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent' }}>
             <RefreshCw size={11} style={{ animation: restarting ? 'spin 0.7s linear infinite' : 'none' }} />{restarting ? 'Restarting...' : 'Restart'}
@@ -508,7 +508,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
       return (
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, animation: 'fadeIn 0.2s ease' }}>
           <div style={{ width: 6, height: 6, borderRadius: '50%', background: C.amber, animation: 'pulse-dot 1s ease-in-out infinite' }} />
-          <span style={{ fontSize: 13, color: C.secondary, fontWeight: 500 }}>Hearing something...</span>
+          <span style={{ fontSize: 13, color: C.secondary, fontWeight: 500 }}>Picking something up...</span>
         </div>
       )
     }
@@ -560,14 +560,14 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
             <div style={{ height: '100%', background: C.green, borderRadius: 2, width: `${Math.min((verifiedCount / plannedCount) * 100, 100)}%`, transition: 'width 0.6s ease' }} />
           </div>
           <span style={{ fontSize: 11, color: C.green, fontWeight: 700, flexShrink: 0, fontFamily: '"DM Mono", monospace' }}>{verifiedCount}/{plannedCount}</span>
-          <span style={{ fontSize: 11, color: C.muted, flexShrink: 0 }}>verified</span>
+          <span style={{ fontSize: 11, color: C.muted, flexShrink: 0 }}>confirmed</span>
         </div>
       )}
 
       {/* Silence warning */}
       {showSilenceWarning && !ending && (
         <div style={{ position: 'relative', zIndex: 10, background: 'rgba(201,168,76,0.08)', borderBottom: `1px solid rgba(201,168,76,0.2)`, padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexShrink: 0, animation: 'slideDown 0.2s ease' }}>
-          <p style={{ fontSize: 12, color: C.gold, margin: 0 }}>No songs in a while · auto-closing soon</p>
+          <p style={{ fontSize: 12, color: C.gold, margin: 0 }}>Quiet for a while. Still playing?</p>
           <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
             <button onClick={() => { setShowSilenceWarning(false); lastSongRef.current = Date.now() }} style={{ padding: '6px 12px', background: C.goldDim, border: `1px solid rgba(201,168,76,0.3)`, borderRadius: 8, color: C.gold, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent' }}>Keep Going</button>
             <button onClick={handleEnd} style={{ padding: '6px 12px', background: 'transparent', border: `1px solid ${C.border}`, borderRadius: 8, color: C.muted, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent' }}>End Now</button>
@@ -601,7 +601,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
             )}
           </div>
           <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: isListening ? '#0a0908' : C.gold }}>
-            {isDetecting ? 'catching' : isListening ? 'tap to stop' : 'tap to listen'}
+            {isDetecting ? 'catching' : isListening ? 'listening' : 'tap to start'}
           </span>
         </button>
 
@@ -612,7 +612,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         {showPlacementCard && (
           <div style={{ marginTop: 8, maxWidth: 300, width: '100%', background: 'rgba(255,255,255,0.03)', border: `1px solid rgba(255,255,255,0.09)`, borderRadius: 12, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10, animation: 'fadeUp 0.3s ease' }}>
             <span style={{ fontSize: 16, flexShrink: 0 }}>📍</span>
-            <span style={{ fontSize: 12, color: C.secondary, lineHeight: 1.4, flex: 1 }}>Best results at front of house or near the PA</span>
+            <span style={{ fontSize: 12, color: C.secondary, lineHeight: 1.4, flex: 1 }}>For best results, set your phone near the PA or monitor.</span>
             <button onClick={dismissPlacementCard} style={{ background: 'none', border: 'none', color: C.muted, cursor: 'pointer', padding: '2px', flexShrink: 0, display: 'flex', alignItems: 'center', WebkitTapHighlightColor: 'transparent' }}><X size={13} /></button>
           </div>
         )}
@@ -623,7 +623,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         <div style={{ position: 'relative', zIndex: 1, maxWidth: 480, width: '100%', margin: '0 auto', padding: '0 16px 12px', animation: 'slideUp 0.2s ease' }}>
           <div style={{ background: '#161310', border: `1px solid rgba(201,168,76,0.22)`, borderRadius: 14, padding: '14px 16px' }}>
             <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: C.muted, margin: '0 0 8px' }}>
-              Hearing something{pendingCandidate.matchCount > 1 ? ` · ${pendingCandidate.matchCount}×` : ''}
+              Picking something up{pendingCandidate.matchCount > 1 ? ` · ${pendingCandidate.matchCount}×` : ''}
             </p>
             <p style={{ fontSize: 15, fontWeight: 700, color: C.text, margin: '0 0 2px', letterSpacing: '-0.01em' }}>{pendingCandidate.title}</p>
             <p style={{ fontSize: 12, color: C.secondary, margin: '0 0 12px' }}>{pendingCandidate.artist}</p>
@@ -705,7 +705,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         {waitingSongs.length > 0 && (
           <div style={{ marginTop: confirmedSongs.length > 0 ? 4 : 0 }}>
             <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, margin: '0 0 6px', paddingLeft: 2 }}>
-              On your setlist · waiting to be heard
+              On your setlist
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
               {waitingSongs.map((song, i) => {
@@ -732,7 +732,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
           <div>
             <button onClick={() => setShowUnknowns(v => !v)}
               style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: 'rgba(255,255,255,0.02)', border: `1px solid ${C.border}`, borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent' }}>
-              <span style={{ fontSize: 12, color: C.muted }}>○ {unknownSongs.length} moment{unknownSongs.length > 1 ? 's' : ''} couldn't be identified</span>
+              <span style={{ fontSize: 12, color: C.muted }}>{unknownSongs.length} moment{unknownSongs.length > 1 ? 's' : ''} we didn't catch</span>
               <span style={{ fontSize: 10, color: C.muted, opacity: 0.6 }}>{showUnknowns ? '▲' : '▼'}</span>
             </button>
             {showUnknowns && (
@@ -741,7 +741,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
                   const realIdx = songs.indexOf(song)
                   return (
                     <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: 'rgba(245,158,11,0.04)', border: `1px solid rgba(245,158,11,0.12)`, borderRadius: 8, cursor: 'pointer', WebkitTapHighlightColor: 'transparent' }} onClick={() => startEdit(realIdx)}>
-                      <span style={{ fontSize: 12, color: C.amber, fontStyle: 'italic', flex: 1 }}>Unknown — tap to fill</span>
+                      <span style={{ fontSize: 12, color: C.amber, fontStyle: 'italic', flex: 1 }}>What was this one?</span>
                       <button onClick={e => handleDeleteTap(e, realIdx)} style={{ background: 'none', border: 'none', color: C.muted, cursor: 'pointer', padding: '4px', opacity: 0.5, WebkitTapHighlightColor: 'transparent' }}>✕</button>
                     </div>
                   )
@@ -754,7 +754,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         <button onClick={() => setShowManual(v => !v)}
           style={{ width: '100%', padding: '13px', background: showManual ? 'transparent' : 'rgba(201,168,76,0.08)', border: `1px solid ${showManual ? C.border : 'rgba(201,168,76,0.25)'}`, borderRadius: 10, color: showManual ? C.muted : C.gold, fontSize: 13, fontWeight: 700, letterSpacing: '0.06em', cursor: 'pointer', fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent', transition: 'all 0.15s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
           <span style={{ fontSize: 16, lineHeight: 1, fontWeight: 400 }}>{showManual ? '✕' : '+'}</span>
-          {showManual ? 'cancel' : 'Add a Song'}
+          {showManual ? 'cancel' : 'Add a song'}
         </button>
 
         {showManual && (
@@ -765,7 +765,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
             {songInput.trim() && <button onClick={addSong} style={{ padding: '11px', background: C.gold, border: 'none', borderRadius: 8, color: '#0a0908', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent' }}>Add "{songInput.trim()}"</button>}
             {recentSongs.length > 0 && !songInput.trim() && (
               <div>
-                <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, margin: '0 0 8px' }}>Recent songs</p>
+                <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, margin: '0 0 8px' }}>Songs you know</p>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                   {recentSongs.map(s => (
                     <button key={s.id} onClick={() => { setSongs(prev => [...prev, { title: s.title, artist: s.artist || performance?.artist_name || '', source: 'manual', was_planned: false }]); setShowManual(false) }}
