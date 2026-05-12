@@ -265,7 +265,7 @@ export default function NewShowPage() {
       const newSongs = (data.songs as PlannedSong[]).filter(s => !existing.has(s.title.toLowerCase()))
       setPlannedSongs(prev => [...prev, ...newSongs.map((s, i) => ({ ...s, position: prev.length + i }))])
     } catch (err: any) {
-      setUploadError(err.message || 'Could not read the setlist. Try a clearer photo.')
+      setUploadError(err.message || "Couldn't read that one. Try a clearer photo.")
     } finally {
       setUploading(false)
     }
@@ -465,7 +465,7 @@ export default function NewShowPage() {
               <input type="text" value={venueQuery}
                 onChange={e => handleVenueInput(e.target.value)}
                 onFocus={() => { if (venueResults.length > 0) setShowDropdown(true) }}
-                placeholder="Search or type venue name..."
+                placeholder="Venue or room name..."
                 style={{ background: C.input, border: `1px solid ${venueSelected ? C.borderGold : venueQuery.trim() ? C.borderGold : C.border}`, borderRadius: 10, padding: '12px 40px 12px 14px', color: C.text, fontSize: 14, fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' as const, outline: 'none' }} />
               <div style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}>
                 {venueSearching
@@ -478,12 +478,12 @@ export default function NewShowPage() {
             {venueMemory && (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '9px 12px', background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 8 }}>
                 <p style={{ fontSize: 12, color: C.gold, margin: 0, lineHeight: 1.4 }}>
-                  Last time: <strong>{venueMemory.songCount} {songWord(venueMemory.songCount)}</strong> on {formatDate(venueMemory.lastDate)}
+                  Last time here: <strong>{venueMemory.songCount} {songWord(venueMemory.songCount)}</strong> on {formatDate(venueMemory.lastDate)}
                 </p>
                 {venueMemory.songs && venueMemory.songs.length > 0 && (
                   <button onClick={loadFromVenueMemory}
                     style={{ fontSize: 11, fontWeight: 700, color: C.gold, background: 'rgba(201,168,76,0.15)', border: `1px solid ${C.borderGold}`, borderRadius: 6, padding: '4px 8px', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' as const }}>
-                    Load Set →
+                    Load that set →
                   </button>
                 )}
               </div>
@@ -510,13 +510,13 @@ export default function NewShowPage() {
 
             {showDropdown && venueResults.length === 0 && venueQuery.trim().length >= 2 && !venueSearching && (
               <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#1a1816', border: `1px solid ${C.border}`, borderRadius: 10, marginTop: 4, zIndex: 50, padding: '12px 14px' }}>
-                <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>No venues found — will be saved as new.</p>
+                <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>New venue — we'll remember it.</p>
               </div>
             )}
 
             {venueQuery.trim().length >= 2 && !venueSelected && !venueSearching && !showDropdown && (
               <div style={{ marginTop: 8 }}>
-                <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, color: C.muted, margin: '0 0 6px' }}>Venue size <span style={{ fontWeight: 400, textTransform: 'none' as const, letterSpacing: 0 }}>(helps estimate royalties)</span></p>
+                <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, color: C.muted, margin: '0 0 6px' }}>Room size</p>
                 <div style={{ display: 'flex', gap: 6 }}>
                   {([
                     { key: 'small', label: 'Small', sub: '<300' },
@@ -541,7 +541,7 @@ export default function NewShowPage() {
             <span style={{ fontSize: 14, color: showType === 'writers_round' ? C.gold : C.muted }}>{showType === 'writers_round' ? '✓' : '○'}</span>
             <div>
               <p style={{ fontSize: 13, fontWeight: 600, color: showType === 'writers_round' ? C.gold : C.secondary, margin: 0 }}>Writer's Round</p>
-              <p style={{ fontSize: 11, color: C.muted, margin: '1px 0 0' }}>Multiple songwriters sharing the stage</p>
+              <p style={{ fontSize: 11, color: C.muted, margin: '1px 0 0' }}>Multiple writers on the bill</p>
             </div>
           </button>
 
@@ -563,13 +563,13 @@ export default function NewShowPage() {
           <div style={{ padding: '16px 20px 14px' }}>
             <p style={{ fontSize: 14, fontWeight: 700, color: plannedSongs.length > 0 ? C.gold : C.text, margin: '0 0 3px', transition: 'color 0.2s ease' }}>
               {plannedSongs.length > 0
-                ? `✓ ${plannedSongs.length} ${songWord(plannedSongs.length)} loaded`
-                : 'Have a setlist?'}
+                ? `✓ ${plannedSongs.length} ${songWord(plannedSongs.length)} ready`
+                : 'Have a setlist tonight?'}
             </p>
             <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>
               {plannedSongs.length > 0
-                ? 'Songs will auto-confirm during capture · tap to add more'
-                : 'A photo speeds up capture and improves accuracy'}
+                ? "We'll listen for these first. Tap to add more."
+                : 'A photo helps us catch every song.'}
             </p>
           </div>
 
@@ -611,7 +611,7 @@ export default function NewShowPage() {
                   style={{ flex: 1, padding: '14px 10px', background: uploading ? 'transparent' : C.goldDim, border: `1px solid ${uploading ? C.border : C.borderGold}`, borderRadius: 10, cursor: uploading ? 'default' : 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, opacity: uploading ? 0.5 : 1, WebkitTapHighlightColor: 'transparent' }}>
                   <span style={{ fontSize: 20 }}>📷</span>
                   <span style={{ fontSize: 11, fontWeight: 700, color: C.gold }}>
-                    {plannedSongs.length > 0 ? 'Add page 2' : 'Take photo'}
+                    {plannedSongs.length > 0 ? 'Add page 2' : 'Scan setlist'}
                   </span>
                 </button>
                 {/* Gallery / file picker */}
@@ -684,7 +684,7 @@ export default function NewShowPage() {
 
                 {recentSongs.length === 0 && !quickSearch && (
                   <p style={{ fontSize: 12, color: C.muted, margin: '0 0 12px', fontStyle: 'italic' }}>
-                    No recent songs yet — type a song name above
+                    Type a song name to add it
                   </p>
                 )}
 
@@ -692,7 +692,7 @@ export default function NewShowPage() {
                 <button
                   onClick={() => { setSetlistMode('photo'); setTimeout(() => cameraInputRef.current?.click(), 50) }}
                   style={{ fontSize: 12, color: C.muted, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>
-                  📸 Scan a photo instead →
+                  📸 Scan a setlist instead →
                 </button>
               </div>
             </div>
@@ -703,7 +703,7 @@ export default function NewShowPage() {
             <div style={{ padding: '0 16px 16px', borderTop: setlistMode !== null ? `1px solid ${C.border}` : 'none' }}>
               {setlistMode !== null && <div style={{ height: 12 }} />}
               <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, color: C.muted, margin: '0 0 8px' }}>
-                Loaded · {plannedSongs.length} {songWord(plannedSongs.length)}
+                Tonight's set · {plannedSongs.length} {songWord(plannedSongs.length)}
               </p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 {plannedSongs.map((song, i) => (
@@ -722,7 +722,7 @@ export default function NewShowPage() {
               </div>
               <div style={{ marginTop: 10, padding: '10px 12px', background: C.greenDim, border: '1px solid rgba(74,222,128,0.2)', borderRadius: 8 }}>
                 <p style={{ fontSize: 12, color: C.green, margin: 0, lineHeight: 1.4 }}>
-                  ✓ Songs will auto-confirm during detection · review shows planned vs played
+                  ✓ We'll listen for these. Review what was played vs planned after the show.
                 </p>
               </div>
 
@@ -752,7 +752,7 @@ export default function NewShowPage() {
             {loading
               ? <><div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid #0a090840', borderTopColor: '#0a0908', animation: 'spin 0.7s linear infinite' }} />Starting...</>
               : <>{plannedSongs.length > 0
-                  ? `Start · ${plannedSongs.length} ${songWord(plannedSongs.length)} loaded`
+                  ? `Start · ${plannedSongs.length} ${songWord(plannedSongs.length)} ready`
                   : 'Start Capturing'} <ArrowRight size={15} strokeWidth={2.5} /></>}
           </button>
         )}
@@ -760,7 +760,7 @@ export default function NewShowPage() {
         {/* ── REUSE SETLIST ── */}
         <button onClick={() => { setShowReuse(v => !v); setSelectedPast(null) }}
           style={{ width: '100%', padding: '11px 16px', background: showReuse ? C.goldDim : 'transparent', border: `1px solid ${showReuse ? C.borderGold : C.border}`, borderRadius: 10, color: showReuse ? C.gold : C.muted, fontSize: 12, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' as const, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit', marginTop: showReuse ? 0 : 10 }}>
-          <RefreshCw size={12} />{showReuse ? 'Cancel' : 'Reuse a Previous Setlist'}
+          <RefreshCw size={12} />{showReuse ? 'Cancel' : 'Use a past setlist'}
         </button>
 
         {showReuse && (
@@ -771,11 +771,11 @@ export default function NewShowPage() {
               </div>
             ) : pastPerfs.length === 0 ? (
               <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: '20px', textAlign: 'center' }}>
-                <p style={{ fontSize: 13, color: C.muted, margin: 0 }}>No past performances with songs yet.</p>
+                <p style={{ fontSize: 13, color: C.muted, margin: 0 }}>No past shows with songs yet.</p>
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' as const, color: C.muted, margin: '0 0 4px' }}>Select a set to reuse</p>
+                <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' as const, color: C.muted, margin: '0 0 4px' }}>Pick a night to repeat</p>
                 {pastPerfs.map(perf => {
                   const isSelected = selectedPast?.id === perf.id
                   return (
@@ -804,7 +804,7 @@ export default function NewShowPage() {
                   style={{ width: '100%', padding: '15px', background: isValid ? C.gold : C.muted, border: 'none', borderRadius: 12, color: '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' as const, cursor: isValid && !cloning ? 'pointer' : 'not-allowed', opacity: cloning ? 0.7 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit' }}>
                   {cloning
                     ? <><div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid #0a090840', borderTopColor: '#0a0908', animation: 'spin 0.7s linear infinite' }} />Cloning...</>
-                    : <><RefreshCw size={14} />Clone {selectedPast.song_count} {songWord(selectedPast.song_count)} → Review</>}
+                    : <><RefreshCw size={14} />Use this set →</>}
                 </button>
               </div>
             )}
@@ -813,7 +813,7 @@ export default function NewShowPage() {
 
         <button onClick={() => setShowSchedule(v => !v)}
           style={{ background: 'none', border: 'none', color: showSchedule ? C.gold : C.muted, fontSize: 12, cursor: 'pointer', letterSpacing: '0.04em', fontFamily: 'inherit', padding: '12px', width: '100%', marginTop: 4 }}>
-          {showSchedule ? '× Cancel scheduling' : '+ Schedule for later'}
+          {showSchedule ? '× Cancel scheduling' : '+ Schedule ahead'}
         </button>
 
         <button onClick={() => router.push('/app/dashboard')}
