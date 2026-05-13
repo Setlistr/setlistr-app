@@ -134,10 +134,10 @@ export default function StatsPage() {
     <div style={{ minHeight: '100svh', background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif' }}>
 
       <div style={{ padding: '32px 20px 0', maxWidth: 520, margin: '0 auto' }}>
-        <p style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.28em', color: C.gold + '90', margin: '0 0 4px', fontWeight: 600 }}>Your Career</p>
-        <h1 style={{ fontSize: 28, fontWeight: 800, color: C.text, margin: '0 0 20px', letterSpacing: '-0.02em' }}>Stats</h1>
+        <p style={{ fontSize: 12, letterSpacing: '0.12em', color: C.gold + '90', margin: '0 0 4px', fontWeight: 600 }}>Your career</p>
+        <h1 style={{ fontSize: 36, fontWeight: 800, color: C.text, margin: '0 0 20px', letterSpacing: '-0.02em' }}>Stats</h1>
 
-        <div style={{ display: 'flex', gap: 4, background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: 4, marginBottom: 20 }}>
+        <div style={{ display: 'flex', gap: 4, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.04)', borderRadius: 12, padding: 4, marginBottom: 20 }}>
           {([['stats', 'Overview'], ['songs', 'My Songs']] as const).map(([key, label]) => (
             <button key={key} onClick={() => setTab(key)}
               style={{ flex: 1, padding: '9px', border: 'none', borderRadius: 9, background: tab === key ? C.goldDim : 'transparent', color: tab === key ? C.gold : C.muted, fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', cursor: 'pointer', transition: 'all 0.15s ease', fontFamily: 'inherit' }}>
@@ -168,24 +168,24 @@ export default function StatsPage() {
                   { icon: MapPin,     label: 'Cities',         value: totalCities },
                   { icon: TrendingUp, label: 'Hours on Stage', value: totalHours },
                 ].map(({ icon: Icon, label, value }) => (
-                  <div key={label} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '14px' }}>
+                  <div key={label} style={{ background: C.card, border: '1px solid rgba(255,255,255,0.04)', borderRadius: 14, padding: '14px' }}>
                     <Icon size={16} color={C.gold} style={{ marginBottom: 8 }} />
-                    <p style={{ fontSize: 26, fontWeight: 800, color: C.text, margin: 0, letterSpacing: '-0.02em' }}>{value}</p>
-                    <p style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.1em', color: C.muted, margin: '3px 0 0' }}>{label}</p>
+                    <p style={{ fontSize: 32, fontWeight: 800, color: C.text, margin: 0, letterSpacing: '-0.02em' }}>{value}</p>
+                    <p style={{ fontSize: 11, letterSpacing: '0.04em', color: C.muted, margin: '3px 0 0' }}>{label}</p>
                   </div>
                 ))}
               </div>
 
               {/* Lifetime royalty estimate */}
               {estimatedLifetimeRoyalty > 0 && (
-                <div style={{ background: 'rgba(201,168,76,0.07)', border: `1px solid rgba(201,168,76,0.2)`, borderRadius: 14, padding: '18px 20px' }}>
+                <div style={{ background: 'rgba(201,168,76,0.07)', border: '1px solid rgba(201,168,76,0.12)', borderRadius: 14, padding: '18px 20px' }}>
                   <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
                     <div>
                       <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: C.muted, margin: '0 0 4px' }}>Estimated Lifetime Royalties</p>
-                      <p style={{ fontSize: 36, fontWeight: 800, color: C.gold, margin: 0, fontFamily: '"DM Mono", monospace', letterSpacing: '-0.02em', lineHeight: 1 }}>
+                      <p style={{ fontSize: 42, fontWeight: 800, color: C.gold, margin: 0, fontFamily: '"DM Mono", monospace', letterSpacing: '-0.02em', lineHeight: 1 }}>
                         ~${estimatedLifetimeRoyalty.toLocaleString()}
                       </p>
-                      <p style={{ fontSize: 11, color: C.muted, margin: '6px 0 0', lineHeight: 1.5 }}>
+                      <p style={{ fontSize: 14, color: C.muted, margin: '6px 0 0', lineHeight: 1.5 }}>
                         Based on {totalConfirmedPerformances} verified song performances across {totalShows} shows
                       </p>
                     </div>
@@ -195,14 +195,14 @@ export default function StatsPage() {
 
               {/* Intelligence row — last show + dormant */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '14px' }}>
-                  <p style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: C.muted, margin: '0 0 6px' }}>Last Show</p>
+                <div style={{ background: C.card, border: '1px solid rgba(255,255,255,0.04)', borderRadius: 14, padding: '14px' }}>
+                  <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', color: C.muted, margin: '0 0 6px' }}>Last Show</p>
                   {daysSinceLastShow !== null ? (
                     <>
-                      <p style={{ fontSize: 22, fontWeight: 800, color: daysSinceLastShow > 14 ? C.gold : C.text, margin: 0, fontFamily: '"DM Mono", monospace', letterSpacing: '-0.02em' }}>
+                      <p style={{ fontSize: 28, fontWeight: 800, color: daysSinceLastShow > 14 ? C.gold : C.text, margin: 0, fontFamily: '"DM Mono", monospace', letterSpacing: '-0.02em' }}>
                         {daysSinceLastShow === 0 ? 'Today' : `${daysSinceLastShow}d`}
                       </p>
-                      <p style={{ fontSize: 10, color: C.muted, margin: '3px 0 0' }}>
+                      <p style={{ fontSize: 13, color: C.muted, margin: '3px 0 0' }}>
                         {daysSinceLastShow === 0 ? 'just performed' : daysSinceLastShow === 1 ? 'yesterday' : 'since last show'}
                       </p>
                     </>
@@ -211,12 +211,12 @@ export default function StatsPage() {
                   )}
                 </div>
 
-                <div style={{ background: C.card, border: `1px solid ${dormantSongs > 0 ? 'rgba(201,168,76,0.2)' : C.border}`, borderRadius: 14, padding: '14px' }}>
-                  <p style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: C.muted, margin: '0 0 6px' }}>Dormant Songs</p>
-                  <p style={{ fontSize: 22, fontWeight: 800, color: dormantSongs > 0 ? C.gold : C.text, margin: 0, fontFamily: '"DM Mono", monospace', letterSpacing: '-0.02em' }}>
+                <div style={{ background: C.card, border: '1px solid rgba(255,255,255,0.04)', borderRadius: 14, padding: '14px' }}>
+                  <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', color: C.muted, margin: '0 0 6px' }}>Dormant Songs</p>
+                  <p style={{ fontSize: 28, fontWeight: 800, color: dormantSongs > 0 ? C.gold : C.text, margin: 0, fontFamily: '"DM Mono", monospace', letterSpacing: '-0.02em' }}>
                     {dormantSongs}
                   </p>
-                  <p style={{ fontSize: 10, color: C.muted, margin: '3px 0 0' }}>
+                  <p style={{ fontSize: 13, color: C.muted, margin: '3px 0 0' }}>
                     {dormantSongs === 0 ? 'all active' : `not played in 45d+`}
                   </p>
                 </div>
@@ -224,26 +224,26 @@ export default function StatsPage() {
 
               {/* Dormant song callout */}
               {dormantSongs > 0 && (
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '12px 14px', background: 'rgba(201,168,76,0.05)', border: `1px solid rgba(201,168,76,0.15)`, borderRadius: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '12px 14px', background: 'rgba(201,168,76,0.05)', border: '1px solid rgba(201,168,76,0.12)', borderRadius: 12 }}>
                   <AlertCircle size={14} color={C.gold} style={{ marginTop: 1, flexShrink: 0 }} />
-                  <p style={{ fontSize: 12, color: C.secondary, margin: 0, lineHeight: 1.6 }}>
+                  <p style={{ fontSize: 14, color: C.secondary, margin: 0, lineHeight: 1.6 }}>
                     You have {dormantSongs} song{dormantSongs !== 1 ? 's' : ''} that {dormantSongs !== 1 ? 'haven\'t' : 'hasn\'t'} been played in over 45 days. Check My Songs to see which ones.
                   </p>
                 </div>
               )}
 
               {/* Shows per month */}
-              <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '16px' }}>
-                <p style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.12em', color: C.secondary, margin: '0 0 16px', fontWeight: 600 }}>Shows per Month</p>
+              <div style={{ background: C.card, border: '1px solid rgba(255,255,255,0.04)', borderRadius: 14, padding: '16px' }}>
+                <p style={{ fontSize: 13, letterSpacing: '0.04em', color: C.secondary, margin: '0 0 16px', fontWeight: 600 }}>Shows per Month</p>
                 <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, height: 80 }}>
                   {last6Months.map(month => {
                     const count  = monthCounts[month] ?? 0
                     const height = count === 0 ? 4 : Math.max(12, (count / maxMonthCount) * 80)
                     return (
                       <div key={month} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-                        <span style={{ fontSize: 10, color: count > 0 ? C.text : C.muted }}>{count || ''}</span>
+                        <span style={{ fontSize: 12, color: count > 0 ? C.text : C.muted }}>{count || ''}</span>
                         <div style={{ width: '100%', borderRadius: '3px 3px 0 0', height: `${height}px`, background: count > 0 ? C.gold : 'rgba(255,255,255,0.05)' }} />
-                        <span style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.06em', color: C.muted }}>{month.split(' ')[0]}</span>
+                        <span style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', color: C.muted }}>{month.split(' ')[0]}</span>
                       </div>
                     )
                   })}
@@ -252,10 +252,10 @@ export default function StatsPage() {
 
               {/* Top songs */}
               {topSongs.length > 0 && (
-                <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '16px' }}>
+                <div style={{ background: C.card, border: '1px solid rgba(255,255,255,0.04)', borderRadius: 14, padding: '16px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
                     <Mic2 size={14} color={C.gold} />
-                    <p style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.12em', color: C.secondary, margin: 0, fontWeight: 600 }}>Most Played Songs</p>
+                    <p style={{ fontSize: 13, letterSpacing: '0.04em', color: C.secondary, margin: 0, fontWeight: 600 }}>Most Played Songs</p>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                     {topSongs.map((song, i) => (
@@ -264,10 +264,10 @@ export default function StatsPage() {
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
                             <div style={{ minWidth: 0 }}>
-                              <p style={{ fontSize: 13, color: C.text, margin: 0, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{song.title}</p>
-                              {song.artist && <p style={{ fontSize: 11, color: C.secondary, margin: '1px 0 0' }}>{song.artist}</p>}
+                              <p style={{ fontSize: 15, color: C.text, margin: 0, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{song.title}</p>
+                              {song.artist && <p style={{ fontSize: 13, color: C.secondary, margin: '1px 0 0' }}>{song.artist}</p>}
                             </div>
-                            <span style={{ fontSize: 11, color: C.gold, background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 20, padding: '2px 8px', flexShrink: 0, fontFamily: '"DM Mono", monospace' }}>{song.count}×</span>
+                            <span style={{ fontSize: 12, color: C.gold, background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.15)', borderRadius: 20, padding: '2px 8px', flexShrink: 0, fontFamily: '"DM Mono", monospace' }}>{song.count}×</span>
                           </div>
                           <div style={{ marginTop: 6, height: 2, borderRadius: 1, background: 'rgba(255,255,255,0.05)' }}>
                             <div style={{ height: '100%', borderRadius: 1, width: `${(song.count / topSongs[0].count) * 100}%`, background: i === 0 ? C.gold : 'rgba(201,168,76,0.4)' }} />
@@ -281,10 +281,10 @@ export default function StatsPage() {
 
               {/* Top venues */}
               {topVenues.length > 0 && (
-                <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '16px' }}>
+                <div style={{ background: C.card, border: '1px solid rgba(255,255,255,0.04)', borderRadius: 14, padding: '16px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
                     <MapPin size={14} color={C.gold} />
-                    <p style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.12em', color: C.secondary, margin: 0, fontWeight: 600 }}>Top Venues</p>
+                    <p style={{ fontSize: 13, letterSpacing: '0.04em', color: C.secondary, margin: 0, fontWeight: 600 }}>Top Venues</p>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                     {topVenues.map((venue, i) => (
@@ -292,11 +292,11 @@ export default function StatsPage() {
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
                           <span style={{ fontSize: 11, fontWeight: 700, color: C.gold, minWidth: 16, textAlign: 'right', fontFamily: '"DM Mono", monospace' }}>{i + 1}</span>
                           <div style={{ minWidth: 0 }}>
-                            <p style={{ fontSize: 13, color: C.text, margin: 0, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{venue.name}</p>
-                            {venue.city && <p style={{ fontSize: 11, color: C.secondary, margin: '1px 0 0' }}>{venue.city}</p>}
+                            <p style={{ fontSize: 15, color: C.text, margin: 0, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{venue.name}</p>
+                            {venue.city && <p style={{ fontSize: 13, color: C.secondary, margin: '1px 0 0' }}>{venue.city}</p>}
                           </div>
                         </div>
-                        <span style={{ fontSize: 11, color: C.gold, background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 20, padding: '2px 8px', flexShrink: 0 }}>
+                        <span style={{ fontSize: 12, color: C.gold, background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.15)', borderRadius: 20, padding: '2px 8px', flexShrink: 0 }}>
                           {venue.count} {venue.count === 1 ? 'show' : 'shows'}
                         </span>
                       </div>
