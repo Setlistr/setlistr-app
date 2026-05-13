@@ -388,7 +388,7 @@ export default function DashboardPage() {
         {morningAfterPerf && !livePerf && (
           <div style={{ marginBottom: 16, animation: 'fadeUp 0.3s ease' }}>
             <button onClick={() => navigateToPerformance(morningAfterPerf)}
-              style={{ width: '100%', background: 'rgba(201,168,76,0.07)', border: `1px solid ${C.borderGold}`, borderRadius: 14, padding: '14px 18px', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 14 }}>
+              style={{ width: '100%', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)', borderRadius: 14, padding: '14px 18px', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 14 }}>
               <span style={{ fontSize: 20, flexShrink: 0 }}>🌅</span>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <p style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.gold, margin: '0 0 2px' }}>
@@ -484,7 +484,7 @@ export default function DashboardPage() {
         {/* ── LIFETIME ROYALTY COUNTER ── */}
         {lifetimeTotal > 0 && (
           <div style={{ marginBottom: 16, animation: 'fadeUp 0.34s ease' }}>
-            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderLeft: '2px solid rgba(201,168,76,0.3)', borderRadius: 14, padding: '16px 18px' }}>
+            <div style={{ borderLeft: '2px solid rgba(201,168,76,0.4)', border: 'none', borderRadius: 0, background: 'transparent', padding: '16px 0' }}>
               <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, margin: '0 0 8px' }}>
 
               </p>
@@ -532,7 +532,7 @@ export default function DashboardPage() {
             : `${daysSince} days since your last show. When's the next one?`
           return (
             <div style={{ marginBottom: 16, animation: 'fadeUp 0.35s ease' }}>
-              <div style={{ padding: '14px 18px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 12 }}>
+              <div style={{ padding: '14px 0', background: 'transparent', borderRadius: 12 }}>
                 <p style={{ fontSize: 13, fontWeight: 600, letterSpacing: '0.04em', color: C.muted, margin: '0 0 5px' }}>From your record</p>
                 <p style={{ fontSize: 17, color: C.text, margin: 0, lineHeight: 1.5, fontWeight: 500 }}>{insightLine}</p>
               </div>
@@ -544,9 +544,9 @@ export default function DashboardPage() {
         {aggregate.unclaimedCount > 0 && (
           <div style={{ marginBottom: 16, animation: 'fadeUp 0.36s ease' }}>
             <button onClick={() => router.push('/app/history')}
-              style={{ width: '100%', background: 'rgba(201,168,76,0.08)', border: `1px solid ${C.borderGold}`, borderRadius: 14, padding: '16px 18px', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 14 }}
+              style={{ width: '100%', background: 'rgba(201,168,76,0.06)', border: '1px solid rgba(201,168,76,0.15)', borderRadius: 14, padding: '16px 18px', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 14 }}
               onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'rgba(201,168,76,0.13)'}
-              onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'rgba(201,168,76,0.08)'}>
+              onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'rgba(201,168,76,0.06)'}>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <p style={{ fontSize: 26, fontWeight: 800, color: C.gold, margin: '0 0 2px', fontFamily: '"DM Mono", monospace', letterSpacing: '-0.02em' }}>~${aggregate.unclaimedExpected.toLocaleString()} waiting</p>
                 <p style={{ fontSize: 14, color: C.secondary, margin: 0 }}>{aggregate.unclaimedCount} night{aggregate.unclaimedCount !== 1 ? 's' : ''} not yet filed · {totalSongs} songs tracked</p>
@@ -615,9 +615,9 @@ export default function DashboardPage() {
                   : null
                 return (
                   <button key={perf.id} onClick={() => navigateToPerformance(perf)}
-                    style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: '13px 16px', cursor: 'pointer', textAlign: 'left', transition: 'background 0.15s ease', display: 'flex', alignItems: 'center', gap: 12, fontFamily: 'inherit' }}
+                    style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)', borderRadius: 12, padding: '13px 16px', cursor: 'pointer', textAlign: 'left', transition: 'background 0.15s ease', display: 'flex', alignItems: 'center', gap: 12, fontFamily: 'inherit' }}
                     onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.background = C.cardHover; el.style.borderColor = 'rgba(255,255,255,0.12)' }}
-                    onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.background = C.card; el.style.borderColor = C.border }}>
+                    onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.background = 'rgba(255,255,255,0.02)'; el.style.borderColor = 'rgba(255,255,255,0.04)' }}>
                     <div style={{ minWidth: 32, textAlign: 'center', flexShrink: 0 }}>
                       <p style={{ fontSize: 15, fontWeight: 800, color: C.text, margin: 0, fontFamily: '"DM Mono", monospace', lineHeight: 1 }}>{new Date(dateStr).getDate()}</p>
                       <p style={{ fontSize: 9, color: C.muted, margin: '1px 0 0', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{new Date(dateStr).toLocaleDateString('en-US', { month: 'short' })}</p>
@@ -629,7 +629,7 @@ export default function DashboardPage() {
                       {perf.captured_by_name && <p style={{ fontSize: 10, color: C.muted, margin: '2px 0 0' }}>Captured by {perf.captured_by_name}</p>}
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3, flexShrink: 0 }}>
-                      <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: displayStatus.color, background: displayStatus.bg, border: `1px solid ${displayStatus.color}40`, borderRadius: 20, padding: '2px 7px' }}>{displayStatus.label}</span>
+                      <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: displayStatus.color, background: displayStatus.bg.replace('0.08', '0.05').replace(', 0.1)', ', 0.05)'), border: `1px solid ${displayStatus.color}25`, borderRadius: 20, padding: '2px 8px' }}>{displayStatus.label}</span>
                       {perfEst && perfEst.expected > 0 && (
                         <span style={{ fontSize: 10, color: C.muted, fontFamily: '"DM Mono", monospace' }}>~${perfEst.expected}</span>
                       )}

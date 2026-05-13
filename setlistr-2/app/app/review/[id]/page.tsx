@@ -192,7 +192,7 @@ function SortableRow({ song, index, onDelete, onTap }: {
         onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}
         onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
         onClick={() => { if (swipeX < -10) { closeSwipe(); return } onTap(song.id) }}
-        style={{ transform: `translateX(${swipeX}px)`, transition: swiping ? 'none' : 'transform 0.22s cubic-bezier(0.25,1,0.5,1)', background: isDragging ? C.cardHover : C.card, border: `1px solid ${isDragging ? C.gold + '50' : C.border}`, borderLeft: `3px solid ${leftBorder}`, borderRadius: 12, display: 'flex', alignItems: 'center', gap: 12, padding: '14px 14px 14px 12px', minHeight: 64, cursor: 'pointer', WebkitTapHighlightColor: 'transparent', userSelect: 'none' }}>
+        style={{ transform: `translateX(${swipeX}px)`, transition: swiping ? 'none' : 'transform 0.22s cubic-bezier(0.25,1,0.5,1)', background: isDragging ? C.cardHover : C.card, border: '1px solid rgba(255,255,255,0.04)', borderLeft: `3px solid ${leftBorder}`, borderRadius: 12, display: 'flex', alignItems: 'center', gap: 12, padding: '14px 14px 14px 12px', minHeight: 64, cursor: 'pointer', WebkitTapHighlightColor: 'transparent', userSelect: 'none' }}>
         <div {...attributes} {...listeners} onClick={e => e.stopPropagation()} style={{ color: C.muted, cursor: 'grab', flexShrink: 0, display: 'flex', alignItems: 'center', padding: '4px 2px', touchAction: 'none' }}>
           <GripVertical size={15} />
         </div>
@@ -739,27 +739,16 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
       <div style={{ position: 'relative', zIndex: 1, flex: 1, display: 'flex', flexDirection: 'column', maxWidth: 480, width: '100%', margin: '0 auto', padding: '0 16px', boxSizing: 'border-box' }}>
 
         <div style={{ paddingTop: 28, paddingBottom: 20, animation: 'fadeUp 0.4s ease' }}>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 20, padding: '4px 10px', marginBottom: 14 }}>
-            <div style={{ width: 5, height: 5, borderRadius: '50%', background: C.gold }} />
-            <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.gold }}>This Show</span>
-          </div>
           <h1 style={{ fontSize: 34, fontWeight: 800, color: C.text, margin: '0 0 8px', letterSpacing: '-0.025em', lineHeight: 1.15 }}>{performance?.venue_name}</h1>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
             <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: C.secondary }}><MapPin size={11} />{performance?.city}, {performance?.country}</span>
             {performance?.started_at ? <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: C.secondary }}><Calendar size={11} />{formatDate(performance.started_at)}</span> : null}
             {dur ? <span style={{ fontSize: 12, color: C.secondary }}>· {dur}</span> : null}
           </div>
-          <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
-            {[
-              { label: 'Confirmed', value: confirmedSongs.length },
-              { label: 'Auto', value: autoCount },
-              { label: 'Need Fix', value: needsReviewCount },
-            ].map(stat => (
-              <div key={stat.label} style={{ flex: 1, padding: '10px 12px', background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, textAlign: 'center' }}>
-                <p style={{ fontSize: 30, fontWeight: 800, color: C.gold, margin: 0, fontFamily: '"DM Mono", monospace', fontVariantNumeric: 'tabular-nums' }}>{stat.value}</p>
-                <p style={{ fontSize: 11, color: C.muted, margin: '2px 0 0', letterSpacing: '0.08em', textTransform: 'uppercase' }}>{stat.label}</p>
-              </div>
-            ))}
+          <div style={{ marginTop: 12, display: 'flex', gap: 6, alignItems: 'center' }}>
+            <span style={{ fontSize: 14, color: C.secondary }}>{confirmedSongs.length} songs</span>
+            {autoCount > 0 && <><span style={{ color: C.muted, opacity: 0.4 }}>·</span><span style={{ fontSize: 14, color: C.muted }}>{autoCount} detected</span></>}
+            {needsReviewCount > 0 && <><span style={{ color: C.muted, opacity: 0.4 }}>·</span><span style={{ fontSize: 14, color: '#f87171' }}>{needsReviewCount} need attention</span></>}
           </div>
         </div>
 
@@ -831,10 +820,10 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
           </div>
         )}
 
-        <div style={{ marginTop: 20, background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, overflow: 'hidden', animation: 'fadeUp 0.4s 0.15s ease both' }}>
+        <div style={{ marginTop: 12, background: 'transparent', border: 'none', borderRadius: 14, overflow: 'hidden', animation: 'fadeUp 0.4s 0.15s ease both' }}>
           <button onClick={() => setShowExport(!showExport)}
             style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 600, color: C.text }}><Download size={14} color={C.gold} />Export for PRO Submission</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 600, color: C.muted }}><Download size={14} color={C.gold} />Export for PRO Submission</span>
             <span style={{ fontSize: 10, color: C.muted, transform: showExport ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s ease', display: 'inline-block' }}>▼</span>
           </button>
           {showExport ? (
@@ -854,16 +843,6 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
         </div>
 
         <div style={{ paddingTop: 14, paddingBottom: 40, display: 'flex', flexDirection: 'column', gap: 10, animation: 'fadeUp 0.4s 0.2s ease both' }}>
-          {confirmedSongs.length > 0 ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: allClean ? 'rgba(74,222,128,0.07)' : C.goldDim, border: `1px solid ${allClean ? 'rgba(74,222,128,0.2)' : C.borderGold}`, borderRadius: 10 }}>
-              {allClean ? <Check size={13} color={C.green} strokeWidth={2.5} /> : <span style={{ fontSize: 12 }}>!</span>}
-              <span style={{ fontSize: 12, fontWeight: 600, color: allClean ? C.green : C.gold }}>
-                {allClean
-                  ? `${confirmedSongs.length} songs confirmed${plannedPending.length > 0 ? ` · ${plannedPending.length} setlist song${plannedPending.length !== 1 ? 's' : ''} still need a response` : ' — ready to report'}`
-                  : `${needsReviewCount} song${needsReviewCount === 1 ? '' : 's'} need${needsReviewCount === 1 ? 's' : ''} attention`}
-              </span>
-            </div>
-          ) : null}
           <button onClick={handleSave} disabled={saving || saved}
             style={{ width: '100%', padding: '15px', background: saved ? '#16a34a' : C.gold, border: 'none', borderRadius: 12, color: saved ? '#fff' : '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: saving || saved ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1, transition: 'all 0.25s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit' }}>
             {saved ? <><Check size={16} strokeWidth={2.5} /> Saved</> : saving ? <><div style={{ width: 14, height: 14, borderRadius: '50%', border: `2px solid #0a090840`, borderTopColor: '#0a0908', animation: 'spin 0.7s linear infinite' }} />Saving...</> : 'Save & Complete'}
