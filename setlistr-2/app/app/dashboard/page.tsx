@@ -450,43 +450,9 @@ export default function DashboardPage() {
           )
         })()}
 
-        {/* ── HERO CTA ── */}
-        {!livePerf && (
-          <div style={{ marginBottom: 24, animation: 'fadeUp 0.3s ease' }}>
-            {artistName && (
-              <p style={{ fontSize: 13, color: C.secondary, margin: '0 0 16px', fontWeight: 500 }}>
-                {totalShows > 0
-                  ? `${totalShows} show${totalShows !== 1 ? 's' : ''} on record${submittedCount > 0 ? ` · ${submittedCount} submitted` : ''}`
-                  : 'Every career starts with one show.'}
-              </p>
-            )}
-            <button onClick={() => router.push('/app/show/new')}
-              style={{ width: '100%', background: `linear-gradient(135deg, #c9a84c 0%, #a8872d 100%)`, border: 'none', borderRadius: 20, padding: '28px 24px', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 20, position: 'relative', overflow: 'hidden', WebkitTapHighlightColor: 'transparent' }}>
-              <div style={{ position: 'absolute', top: '-40%', right: '-10%', width: '60%', height: '180%', background: 'radial-gradient(ellipse, rgba(255,255,255,0.12) 0%, transparent 70%)', pointerEvents: 'none' }} />
-              <div style={{ position: 'relative', flexShrink: 0 }}>
-                <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'rgba(10,9,8,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <div style={{ width: 18, height: 18, borderRadius: '50%', background: '#0a0908', opacity: 0.85 }} />
-                </div>
-                <div style={{ position: 'absolute', inset: -6, borderRadius: '50%', border: '1.5px solid rgba(10,9,8,0.2)', animation: 'orb-pulse 2s ease-in-out infinite' }} />
-                <div style={{ position: 'absolute', inset: -14, borderRadius: '50%', border: '1px solid rgba(10,9,8,0.1)', animation: 'orb-pulse 2s ease-in-out 0.4s infinite' }} />
-              </div>
-              <div style={{ flex: 1, minWidth: 0, position: 'relative', zIndex: 1 }}>
-                <p style={{ fontSize: 22, fontWeight: 800, color: '#0a0908', margin: '0 0 4px', letterSpacing: '-0.02em', lineHeight: 1.1 }}>Start a Show</p>
-                <p style={{ fontSize: 13, color: 'rgba(10,9,8,0.6)', margin: 0, fontWeight: 500 }}>
-                  {actingAs ? `Capturing for ${actingAs.artist_name}` : 'Venue · setlist · automatic capture'}
-                </p>
-              </div>
-              <div style={{ fontSize: 20, color: 'rgba(10,9,8,0.4)', flexShrink: 0, position: 'relative', zIndex: 1 }}>→</div>
-            </button>
-          </div>
-        )}
-
         {/* ── LIFETIME ROYALTY COUNTER ── */}
         {lifetimeTotal > 0 && (
           <div style={{ marginBottom: 32, animation: 'fadeUp 0.34s ease', paddingLeft: 0 }}>
-            <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', color: C.muted, margin: '0 0 8px', textTransform: 'uppercase' }}>
-              {actingAs ? `${actingAs.artist_name}'s record` : 'Your record'}
-            </p>
             <p style={{ fontSize: 72, fontWeight: 800, color: C.text, margin: 0, fontFamily: '"DM Mono", monospace', letterSpacing: '-0.04em', lineHeight: 0.9 }}>
               {totalShows}
             </p>
@@ -541,6 +507,30 @@ export default function DashboardPage() {
           </button>
         )}
 
+        {/* ── HERO CTA ── */}
+        {!livePerf && (
+          <div style={{ marginBottom: 24, animation: 'fadeUp 0.3s ease' }}>
+            <button onClick={() => router.push('/app/show/new')}
+              style={{ width: '100%', background: `linear-gradient(135deg, #c9a84c 0%, #a8872d 100%)`, border: 'none', borderRadius: 20, padding: '28px 24px', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 20, position: 'relative', overflow: 'hidden', WebkitTapHighlightColor: 'transparent' }}>
+              <div style={{ position: 'absolute', top: '-40%', right: '-10%', width: '60%', height: '180%', background: 'radial-gradient(ellipse, rgba(255,255,255,0.12) 0%, transparent 70%)', pointerEvents: 'none' }} />
+              <div style={{ position: 'relative', flexShrink: 0 }}>
+                <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'rgba(10,9,8,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <div style={{ width: 18, height: 18, borderRadius: '50%', background: '#0a0908', opacity: 0.85 }} />
+                </div>
+                <div style={{ position: 'absolute', inset: -6, borderRadius: '50%', border: '1.5px solid rgba(10,9,8,0.2)', animation: 'orb-pulse 2s ease-in-out infinite' }} />
+                <div style={{ position: 'absolute', inset: -14, borderRadius: '50%', border: '1px solid rgba(10,9,8,0.1)', animation: 'orb-pulse 2s ease-in-out 0.4s infinite' }} />
+              </div>
+              <div style={{ flex: 1, minWidth: 0, position: 'relative', zIndex: 1 }}>
+                <p style={{ fontSize: 22, fontWeight: 800, color: '#0a0908', margin: '0 0 4px', letterSpacing: '-0.02em', lineHeight: 1.1 }}>Start a Show</p>
+                <p style={{ fontSize: 13, color: 'rgba(10,9,8,0.6)', margin: 0, fontWeight: 500 }}>
+                  {actingAs ? `Capturing for ${actingAs.artist_name}` : 'Venue · setlist · automatic capture'}
+                </p>
+              </div>
+              <div style={{ fontSize: 20, color: 'rgba(10,9,8,0.4)', flexShrink: 0, position: 'relative', zIndex: 1 }}>→</div>
+            </button>
+          </div>
+        )}
+
         {/* ── UPCOMING SHOWS ── */}
         {upcomingShows.length > 0 && (
           <div style={{ marginBottom: 16, animation: 'fadeUp 0.38s ease' }}>
@@ -572,6 +562,20 @@ export default function DashboardPage() {
               })}
             </div>
           </div>
+        )}
+
+        {/* ── PROOF FILE LINK ── */}
+        {totalShows >= 3 && (
+          <button onClick={() => router.push('/app/proof')}
+            style={{ width: '100%', background: 'transparent', border: 'none', padding: '14px 0', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid rgba(255,255,255,0.05)', marginBottom: 8, WebkitTapHighlightColor: 'transparent' }}
+            onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.7'}
+            onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}>
+            <div>
+              <p style={{ fontSize: 15, fontWeight: 600, color: C.secondary, margin: 0 }}>Performance Proof File</p>
+              <p style={{ fontSize: 13, color: C.muted, margin: '2px 0 0' }}>Your verified career record</p>
+            </div>
+            <span style={{ fontSize: 13, color: C.muted }}>→</span>
+          </button>
         )}
 
         {/* ── RECENT SHOWS ── */}
