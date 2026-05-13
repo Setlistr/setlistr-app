@@ -629,49 +629,49 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
 
     return (
       <div style={{ minHeight: '100svh', background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif', overflowY: 'auto' }}>
-        <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '80vh', pointerEvents: 'none', zIndex: 0, background: 'radial-gradient(ellipse at 50% 0%, rgba(201,168,76,0.09) 0%, transparent 60%)' }} />
+        <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '80vh', pointerEvents: 'none', zIndex: 0, background: 'radial-gradient(ellipse at 50% 0%, rgba(201,168,76,0.07) 0%, transparent 55%)' }} />
 
         <div style={{ maxWidth: 420, margin: '0 auto', padding: '0 24px 80px', position: 'relative', zIndex: 1 }}>
 
           {/* ── TITLE CARD ── */}
-          <div style={{ paddingTop: 96, paddingBottom: 48, textAlign: 'center', animation: 'fadeUp 0.7s ease both' }}>
-            <h1 style={{ fontSize: 48, fontWeight: 800, color: C.text, margin: '0 0 16px', letterSpacing: '-0.03em', lineHeight: 1.05 }}>
+          <div style={{ paddingTop: 72, paddingBottom: 80, textAlign: 'center', animation: 'fadeUp 0.7s ease both' }}>
+            <h1 style={{ fontSize: 52, fontWeight: 800, color: C.text, margin: '0 0 16px', letterSpacing: '-0.04em', lineHeight: 1.05 }}>
               {performance?.venue_name}
             </h1>
-            <p style={{ fontSize: 13, color: C.muted, margin: '0 0 32px', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+            <p style={{ fontSize: 15, color: C.secondary, margin: '0 0 24px' }}>
               {performance?.city && <span>{performance.city}</span>}
               {showDate && <><span style={{ opacity: 0.35, margin: '0 8px' }}>·</span><span>{showDate}</span></>}
               {durMins && <><span style={{ opacity: 0.35, margin: '0 8px' }}>·</span><span>{durMins} min</span></>}
             </p>
-            <p style={{ fontSize: 22, fontWeight: 700, color: C.gold, margin: 0, letterSpacing: '-0.01em', animation: 'fadeUp 0.7s 0.2s ease both', opacity: 0 }}>
+            <p style={{ fontSize: 26, fontWeight: 700, color: C.gold, margin: 0, letterSpacing: '-0.02em', animation: 'fadeUp 0.7s 0.2s ease both', opacity: 0 }}>
               That one's on record.
             </p>
           </div>
 
           {/* ── SETLIST — program energy ── */}
-          <div style={{ background: C.card, border: `1px solid rgba(255,255,255,0.06)`, borderRadius: 20, overflow: 'hidden', marginBottom: 12, animation: 'fadeUp 0.6s 0.15s ease both', opacity: 0 }}>
+          <div style={{ background: C.card, border: '1px solid rgba(255,255,255,0.04)', borderRadius: 24, overflow: 'hidden', marginBottom: 12, animation: 'fadeUp 0.6s 0.15s ease both', opacity: 0 }}>
             <div style={{ padding: '20px 24px 16px', borderBottom: `1px solid rgba(255,255,255,0.05)` }}>
-              <p style={{ fontSize: 17, fontWeight: 700, color: C.text, margin: '0 0 3px', letterSpacing: '-0.01em' }}>
+              <p style={{ fontSize: 19, fontWeight: 700, color: C.text, margin: '0 0 3px', letterSpacing: '-0.01em' }}>
                 {confirmedSongs.length} {confirmedSongs.length === 1 ? 'song' : 'songs'}. That's a show.
               </p>
-              <p style={{ fontSize: 11, color: C.muted, margin: 0, letterSpacing: '0.04em' }}>
+              <p style={{ fontSize: 13, color: C.muted, margin: 0, letterSpacing: '0.04em' }}>
                 Captured live · {showDate}{showYear ? `, ${showYear}` : ''}
               </p>
             </div>
 
             <div style={{ padding: '16px 0 8px' }}>
               {confirmedSongs.map((s, i) => (
-                <div key={s.id} style={{ display: 'flex', alignItems: 'baseline', gap: 14, padding: '7px 24px' }}>
+                <div key={s.id} style={{ display: 'flex', alignItems: 'baseline', gap: 14, padding: '9px 24px' }}>
                   <span style={{ fontSize: 11, color: C.muted, minWidth: 18, textAlign: 'right', fontFamily: '"DM Mono", monospace', opacity: 0.4, flexShrink: 0 }}>{i + 1}</span>
-                  <p style={{ fontSize: 15, fontWeight: s.was_planned ? 600 : 500, color: C.text, margin: 0, flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', letterSpacing: '-0.005em' }}>{s.title}</p>
+                  <p style={{ fontSize: 16, fontWeight: s.was_planned ? 600 : 500, color: C.text, margin: 0, flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', letterSpacing: '-0.005em' }}>{s.title}</p>
                 </div>
               ))}
             </div>
 
             <div style={{ padding: '12px 24px 18px', borderTop: `1px solid rgba(255,255,255,0.04)`, display: 'flex', gap: 16, flexWrap: 'wrap' as const }}>
-              {verifiedCount > 0 && <span style={{ fontSize: 11, color: C.muted, opacity: 0.7 }}>✓ {verifiedCount} from setlist</span>}
-              {autoCount > verifiedCount && <span style={{ fontSize: 11, color: C.muted, opacity: 0.7 }}>◈ {autoCount - verifiedCount} detected</span>}
-              {manualCount > 0 && <span style={{ fontSize: 11, color: C.muted, opacity: 0.7 }}>+ {manualCount} added</span>}
+              {verifiedCount > 0 && <span style={{ fontSize: 13, color: C.muted, opacity: 0.7 }}>✓ {verifiedCount} from setlist</span>}
+              {autoCount > verifiedCount && <span style={{ fontSize: 13, color: C.muted, opacity: 0.7 }}>◈ {autoCount - verifiedCount} detected</span>}
+              {manualCount > 0 && <span style={{ fontSize: 13, color: C.muted, opacity: 0.7 }}>+ {manualCount} added</span>}
             </div>
           </div>
 
@@ -679,8 +679,8 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
           {intelligence && insights.length > 0 && (
             <div style={{ marginBottom: 12, animation: 'fadeUp 0.6s 0.25s ease both', opacity: 0 }}>
               {insights.slice(0, 2).map((insight, i) => (
-                <div key={i} style={{ padding: '14px 20px', background: insight.highlight ? 'rgba(201,168,76,0.07)' : 'rgba(255,255,255,0.02)', border: `1px solid ${insight.highlight ? 'rgba(201,168,76,0.18)' : 'rgba(255,255,255,0.05)'}`, borderRadius: 12, marginBottom: 6 }}>
-                  <p style={{ fontSize: 14, fontWeight: insight.highlight ? 600 : 400, color: insight.highlight ? C.gold : C.secondary, margin: 0, lineHeight: 1.5, letterSpacing: '-0.005em' }}>{insight.label}</p>
+                <div key={i} style={{ padding: '14px 20px', background: insight.highlight ? 'rgba(201,168,76,0.07)' : 'transparent', border: `1px solid ${insight.highlight ? 'rgba(201,168,76,0.2)' : 'rgba(255,255,255,0.04)'}`, borderRadius: 14, marginBottom: 6 }}>
+                  <p style={{ fontSize: 16, fontWeight: insight.highlight ? 500 : 400, color: insight.highlight ? C.gold : C.secondary, margin: 0, lineHeight: 1.5, letterSpacing: '-0.005em' }}>{insight.label}</p>
                 </div>
               ))}
             </div>
@@ -697,14 +697,14 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
           )}
 
           {/* ── ROYALTY — understated ── */}
-          <div style={{ background: 'rgba(201,168,76,0.05)', border: `1px solid rgba(201,168,76,0.14)`, borderRadius: 16, padding: '18px 22px', marginBottom: 12, animation: 'fadeUp 0.6s 0.32s ease both', opacity: 0 }}>
+          <div style={{ background: 'rgba(201,168,76,0.05)', border: `1px solid rgba(201,168,76,0.14)`, borderRadius: 20, padding: '18px 22px', marginBottom: 12, animation: 'fadeUp 0.6s 0.32s ease both', opacity: 0 }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 6 }}>
-              <p style={{ fontSize: 12, color: C.muted, margin: 0, letterSpacing: '0.06em', textTransform: 'uppercase' }}>What tonight's worth</p>
-              <p style={{ fontSize: 24, fontWeight: 800, color: C.gold, margin: 0, fontFamily: '"DM Mono", monospace', letterSpacing: '-0.02em', lineHeight: 1 }}>~${estimate.expected}</p>
+              <p style={{ fontSize: 13, color: C.muted, margin: 0, letterSpacing: '0.06em' }}>What tonight's worth</p>
+              <p style={{ fontSize: 32, fontWeight: 800, color: C.gold, margin: 0, fontFamily: '"DM Mono", monospace', letterSpacing: '-0.02em', lineHeight: 1 }}>~${estimate.expected}</p>
             </div>
-            <p style={{ fontSize: 11, color: C.muted, margin: '0 0 14px', opacity: 0.7 }}>${estimate.low}–${estimate.high} estimated range</p>
+            <p style={{ fontSize: 13, color: C.muted, margin: '0 0 14px', opacity: 0.7 }}>${estimate.low}–${estimate.high} estimated range</p>
             <button onClick={() => router.push(`/app/submit/${params.id}`)}
-              style={{ width: '100%', padding: '11px', background: 'transparent', border: `1px solid rgba(201,168,76,0.25)`, borderRadius: 10, color: C.gold, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', letterSpacing: '0.04em' }}>
+              style={{ width: '100%', padding: '13px', background: 'transparent', border: `1px solid rgba(201,168,76,0.25)`, borderRadius: 12, color: C.gold, fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', letterSpacing: '0.04em' }}>
               Claim what you earned →
             </button>
           </div>
@@ -712,11 +712,11 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
           {/* ── ACTIONS ── */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, animation: 'fadeUp 0.6s 0.38s ease both', opacity: 0 }}>
             <button onClick={() => router.push('/app/dashboard')}
-              style={{ width: '100%', padding: '15px', background: C.gold, border: 'none', borderRadius: 12, color: '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'inherit' }}>
+              style={{ width: '100%', padding: '17px', background: C.gold, border: 'none', borderRadius: 14, color: '#0a0908', fontSize: 15, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'inherit' }}>
               Back to your record
             </button>
             <button onClick={() => setShowComplete(false)}
-              style={{ width: '100%', padding: '12px', background: 'transparent', border: 'none', borderRadius: 10, color: C.muted, fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', letterSpacing: '0.02em' }}>
+              style={{ width: '100%', padding: '14px', background: 'transparent', border: 'none', borderRadius: 10, color: C.muted, fontSize: 14, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', letterSpacing: '0.02em' }}>
               Review the night
             </button>
           </div>
