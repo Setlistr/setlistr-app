@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { TrendingUp, Mic, Check, Calendar, ChevronDown, Users, X } from 'lucide-react'
+import { Check, Calendar, ChevronDown, Users, X } from 'lucide-react'
 import {
   estimateRoyalties, aggregateUnclaimedEarnings,
   capacityToBand, type ShowEstimateInput,
@@ -303,7 +303,7 @@ export default function DashboardPage() {
 
         {/* ── NAV ── */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 0 24px' }}>
-          <span style={{ fontSize: 14, fontWeight: 700, color: C.text, letterSpacing: '-0.01em' }}>
+          <span style={{ fontSize: 17, fontWeight: 800, color: C.text, letterSpacing: '-0.01em' }}>
             {actingAs ? actingAs.artist_name : artistName || 'Setlistr'}
           </span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -483,38 +483,28 @@ export default function DashboardPage() {
 
         {/* ── LIFETIME ROYALTY COUNTER ── */}
         {lifetimeTotal > 0 && (
-          <div style={{ marginBottom: 16, animation: 'fadeUp 0.34s ease' }}>
-            <div style={{ borderLeft: '2px solid rgba(201,168,76,0.4)', border: 'none', borderRadius: 0, background: 'transparent', padding: '16px 0' }}>
-              <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, margin: '0 0 8px' }}>
-
+          <div style={{ marginBottom: 32, animation: 'fadeUp 0.34s ease', paddingLeft: 0 }}>
+            <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', color: C.muted, margin: '0 0 8px', textTransform: 'uppercase' }}>
+              {actingAs ? `${actingAs.artist_name}'s record` : 'Your record'}
+            </p>
+            <p style={{ fontSize: 72, fontWeight: 800, color: C.text, margin: 0, fontFamily: '"DM Mono", monospace', letterSpacing: '-0.04em', lineHeight: 0.9 }}>
+              {totalShows}
+            </p>
+            <p style={{ fontSize: 15, color: C.muted, margin: '10px 0 0', fontWeight: 400 }}>
+              shows on record
+              {submittedCount > 0 && <span style={{ color: C.green, marginLeft: 8, fontSize: 13 }}>· {submittedCount} filed</span>}
+            </p>
+            {lifetimeTotal > 0 && (
+              <p style={{ fontSize: 22, fontWeight: 700, color: C.gold, margin: '16px 0 0', fontFamily: '"DM Mono", monospace', letterSpacing: '-0.02em' }}>
+                ~${lifetimeTotal.toLocaleString()}
+                <span style={{ fontSize: 14, fontWeight: 400, color: C.muted, marginLeft: 8, fontFamily: '"DM Sans", system-ui, sans-serif', letterSpacing: 0 }}>documented</span>
               </p>
-              <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12 }}>
-                <div>
-                  <p style={{ fontSize: 38, fontWeight: 800, color: C.gold, margin: 0, fontFamily: '"DM Mono", monospace', letterSpacing: '-0.03em', lineHeight: 1 }}>
-                    ~${lifetimeTotal.toLocaleString()}
-                  </p>
-                  <p style={{ fontSize: 14, color: C.muted, margin: '4px 0 0' }}>across {totalShows} show{totalShows !== 1 ? 's' : ''} on record</p>
-                </div>
-                {submittedCount > 0 && (
-                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                    <p style={{ fontSize: 13, fontWeight: 700, color: C.green, margin: 0, fontFamily: '"DM Mono", monospace' }}>
-                      ~${submittedAggregate.totalExpected.toLocaleString()}
-                    </p>
-                    <p style={{ fontSize: 10, color: C.muted, margin: '2px 0 0' }}>filed with PRO</p>
-                  </div>
-                )}
+            )}
+            {submittedCount > 0 && lifetimeTotal > 0 && (
+              <div style={{ marginTop: 12, height: 2, background: 'rgba(255,255,255,0.06)', borderRadius: 1, overflow: 'hidden', maxWidth: 200 }}>
+                <div style={{ height: '100%', borderRadius: 1, background: C.green, width: `${Math.min(100, Math.round((submittedAggregate.totalExpected / lifetimeTotal) * 100))}%`, transition: 'width 0.8s ease' }} />
               </div>
-              {submittedCount > 0 && lifetimeTotal > 0 && (
-                <div style={{ marginTop: 12 }}>
-                  <div style={{ height: 3, background: 'rgba(255,255,255,0.06)', borderRadius: 2, overflow: 'hidden' }}>
-                    <div style={{ height: '100%', borderRadius: 2, background: C.green, width: `${Math.min(100, Math.round((submittedAggregate.totalExpected / lifetimeTotal) * 100))}%`, transition: 'width 0.8s ease' }} />
-                  </div>
-                  <p style={{ fontSize: 10, color: C.muted, margin: '4px 0 0' }}>
-                    {Math.round((submittedAggregate.totalExpected / lifetimeTotal) * 100)}% filed · {100 - Math.round((submittedAggregate.totalExpected / lifetimeTotal) * 100)}% unclaimed
-                  </p>
-                </div>
-              )}
-            </div>
+            )}
           </div>
         )}
 
@@ -526,34 +516,29 @@ export default function DashboardPage() {
             : daysSince === 1
             ? `Last night at ${lastPerf.venue_name}. Still fresh.`
             : daysSince < 7
-            ? `${daysSince} days since ${lastPerf.venue_name}. ${totalShows} shows on record.`
+            ? `${daysSince} days since ${lastPerf.venue_name}.`
             : daysSince < 30
             ? `${daysSince} days since your last show. The stage is waiting.`
             : `${daysSince} days since your last show. When's the next one?`
           return (
-            <div style={{ marginBottom: 16, animation: 'fadeUp 0.35s ease' }}>
-              <div style={{ padding: '14px 0', background: 'transparent', borderRadius: 12 }}>
-                <p style={{ fontSize: 13, fontWeight: 600, letterSpacing: '0.04em', color: C.muted, margin: '0 0 5px' }}>From your record</p>
-                <p style={{ fontSize: 17, color: C.text, margin: 0, lineHeight: 1.5, fontWeight: 500 }}>{insightLine}</p>
-              </div>
+            <div style={{ marginBottom: 24, animation: 'fadeUp 0.35s ease', borderLeft: '2px solid rgba(201,168,76,0.3)', paddingLeft: 16 }}>
+              <p style={{ fontSize: 15, color: C.secondary, margin: 0, lineHeight: 1.5, fontWeight: 400, fontStyle: 'italic' }}>{insightLine}</p>
             </div>
           )
         })()}
 
         {/* ── UNCLAIMED EARNINGS ── */}
         {aggregate.unclaimedCount > 0 && (
-          <div style={{ marginBottom: 16, animation: 'fadeUp 0.36s ease' }}>
-            <button onClick={() => router.push('/app/history')}
-              style={{ width: '100%', background: 'rgba(201,168,76,0.06)', border: '1px solid rgba(201,168,76,0.15)', borderRadius: 14, padding: '16px 18px', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 14 }}
-              onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'rgba(201,168,76,0.13)'}
-              onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'rgba(201,168,76,0.06)'}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ fontSize: 26, fontWeight: 800, color: C.gold, margin: '0 0 2px', fontFamily: '"DM Mono", monospace', letterSpacing: '-0.02em' }}>~${aggregate.unclaimedExpected.toLocaleString()} waiting</p>
-                <p style={{ fontSize: 14, color: C.secondary, margin: 0 }}>{aggregate.unclaimedCount} night{aggregate.unclaimedCount !== 1 ? 's' : ''} not yet filed · {totalSongs} songs tracked</p>
-              </div>
-              <span style={{ fontSize: 13, color: C.gold, flexShrink: 0, fontWeight: 700 }}>File them →</span>
-            </button>
-          </div>
+          <button onClick={() => router.push('/app/history')}
+            style={{ width: '100%', background: 'transparent', border: 'none', borderRadius: 0, padding: '16px 0', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid rgba(255,255,255,0.05)', borderBottom: '1px solid rgba(255,255,255,0.05)', marginBottom: 32, animation: 'fadeUp 0.36s ease' }}
+            onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.8'}
+            onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}>
+            <div>
+              <p style={{ fontSize: 20, fontWeight: 700, color: C.gold, margin: 0, fontFamily: '"DM Mono", monospace', letterSpacing: '-0.01em' }}>~${aggregate.unclaimedExpected.toLocaleString()} waiting</p>
+              <p style={{ fontSize: 13, color: C.muted, margin: '3px 0 0' }}>{aggregate.unclaimedCount} nights not yet filed</p>
+            </div>
+            <span style={{ fontSize: 13, color: C.gold, fontWeight: 600 }}>File them →</span>
+          </button>
         )}
 
         {/* ── UPCOMING SHOWS ── */}
@@ -591,48 +576,43 @@ export default function DashboardPage() {
 
         {/* ── RECENT SHOWS ── */}
         <div style={{ animation: 'fadeUp 0.42s ease', paddingBottom: 32 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-            <p style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', color: C.muted, margin: 0 }}>Recent shows</p>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+            <p style={{ fontSize: 13, fontWeight: 600, color: C.muted, margin: 0, letterSpacing: '0.04em' }}>Recent shows</p>
             {performances.length > 5 && (
-              <button onClick={() => router.push('/app/history')} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>All →</button>
+              <button onClick={() => router.push('/app/history')} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>All →</button>
             )}
           </div>
           {recentPerfs.length === 0 ? (
-            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '36px 20px', textAlign: 'center' }}>
-              <Mic size={24} color={C.muted} style={{ marginBottom: 12 }} />
-              <p style={{ fontSize: 14, color: C.secondary, margin: '0 0 4px', fontWeight: 600 }}>The stage is quiet for now.</p>
-              <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>Your record starts with your first show.</p>
+            <div style={{ padding: '40px 0', textAlign: 'center' }}>
+              <p style={{ fontSize: 16, color: C.secondary, margin: '0 0 6px', fontWeight: 500 }}>The stage is quiet for now.</p>
+              <p style={{ fontSize: 14, color: C.muted, margin: 0 }}>Your record starts with your first show.</p>
             </div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {recentPerfs.map(perf => {
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              {recentPerfs.map((perf, idx) => {
                 const displayStatus = getDisplayStatus(perf)
-                const dateStr       = perf.started_at || perf.created_at
-                const songCount     = songCountMap[perf.id] || 0
-                const isFinished    = perf.status !== 'live' && perf.status !== 'pending'
-                const perfEst       = isFinished && songCount > 0
+                const dateStr = perf.started_at || perf.created_at
+                const songCount = songCountMap[perf.id] || 0
+                const isFinished = perf.status !== 'live' && perf.status !== 'pending'
+                const perfEst = isFinished && songCount > 0
                   ? estimateRoyalties({ songCount, venueCapacityBand: capacityToBand(perf.venue_capacity), showType: (perf.show_type as any) || 'single', territory: isCanadian(perf.country, perf.city) ? 'CA' : 'US' })
                   : null
                 return (
                   <button key={perf.id} onClick={() => navigateToPerformance(perf)}
-                    style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)', borderRadius: 12, padding: '13px 16px', cursor: 'pointer', textAlign: 'left', transition: 'background 0.15s ease', display: 'flex', alignItems: 'center', gap: 12, fontFamily: 'inherit' }}
-                    onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.background = C.cardHover; el.style.borderColor = 'rgba(255,255,255,0.12)' }}
-                    onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.background = 'rgba(255,255,255,0.02)'; el.style.borderColor = 'rgba(255,255,255,0.04)' }}>
-                    <div style={{ minWidth: 32, textAlign: 'center', flexShrink: 0 }}>
-                      <p style={{ fontSize: 15, fontWeight: 800, color: C.text, margin: 0, fontFamily: '"DM Mono", monospace', lineHeight: 1 }}>{new Date(dateStr).getDate()}</p>
-                      <p style={{ fontSize: 9, color: C.muted, margin: '1px 0 0', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{new Date(dateStr).toLocaleDateString('en-US', { month: 'short' })}</p>
+                    style={{ background: 'transparent', border: 'none', borderTop: idx === 0 ? '1px solid rgba(255,255,255,0.05)' : 'none', borderBottom: '1px solid rgba(255,255,255,0.05)', padding: '14px 0', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 16, WebkitTapHighlightColor: 'transparent' }}
+                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.7'}
+                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}>
+                    <div style={{ minWidth: 36, flexShrink: 0, textAlign: 'center' }}>
+                      <p style={{ fontSize: 18, fontWeight: 700, color: C.text, margin: 0, fontFamily: '"DM Mono", monospace', lineHeight: 1 }}>{new Date(dateStr).getDate()}</p>
+                      <p style={{ fontSize: 10, color: C.muted, margin: '1px 0 0', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{new Date(dateStr).toLocaleDateString('en-US', { month: 'short' })}</p>
                     </div>
-                    <div style={{ width: 1, height: 28, background: C.border, flexShrink: 0 }} />
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <p style={{ fontSize: 15, fontWeight: 600, color: C.text, margin: '0 0 1px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{perf.venue_name}</p>
-                      <p style={{ fontSize: 13, color: C.secondary, margin: 0 }}>{perf.city ? `${perf.city} · ` : ''}{songCount > 0 ? `${songCount} songs` : timeAgo(perf.created_at)}</p>
-                      {perf.captured_by_name && <p style={{ fontSize: 10, color: C.muted, margin: '2px 0 0' }}>Captured by {perf.captured_by_name}</p>}
+                      <p style={{ fontSize: 15, fontWeight: 600, color: C.text, margin: '0 0 2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{perf.venue_name}</p>
+                      <p style={{ fontSize: 13, color: C.muted, margin: 0 }}>{perf.city ? `${perf.city}` : ''}{songCount > 0 ? ` · ${songCount} songs` : ''}</p>
                     </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3, flexShrink: 0 }}>
-                      <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: displayStatus.color, background: displayStatus.bg.replace('0.08', '0.05').replace(', 0.1)', ', 0.05)'), border: `1px solid ${displayStatus.color}25`, borderRadius: 20, padding: '2px 8px' }}>{displayStatus.label}</span>
-                      {perfEst && perfEst.expected > 0 && (
-                        <span style={{ fontSize: 10, color: C.muted, fontFamily: '"DM Mono", monospace' }}>~${perfEst.expected}</span>
-                      )}
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, flexShrink: 0 }}>
+                      <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.06em', color: displayStatus.color, opacity: 0.8 }}>{displayStatus.label}</span>
+                      {perfEst && perfEst.expected > 0 && <span style={{ fontSize: 12, color: C.muted, fontFamily: '"DM Mono", monospace' }}>~${perfEst.expected}</span>}
                     </div>
                   </button>
                 )
@@ -641,50 +621,6 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {/* ── STATS ── */}
-        {totalShows > 0 && (
-          <div style={{ paddingBottom: 48, animation: 'fadeUp 0.5s ease' }}>
-            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '16px 20px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, margin: 0, display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <TrendingUp size={10} />
-                  {actingAs ? `${actingAs.artist_name}'s Numbers` : 'Your Numbers'}
-                </p>
-                {!actingAs && userId && (
-                <div style={{ display: 'flex', gap: 10 }}>
-                  <button onClick={() => router.push('/app/proof')} style={{ background: 'none', border: 'none', color: C.gold, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', opacity: 0.8 }}>
-                    Proof file →
-                  </button>
-                  <button onClick={() => router.push(`/app/artist/${userId}`)} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>
-                    Full profile →
-                  </button>
-                </div>
-              )}
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 12 }}>
-                {[
-                  { label: 'Shows',     value: totalShows,     color: C.gold },
-                  { label: 'Songs',     value: totalSongs,     color: C.gold },
-                  { label: 'Submitted', value: submittedCount, color: submittedCount > 0 ? C.green : C.muted },
-                ].map(stat => (
-                  <div key={stat.label} style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid ${C.border}`, borderRadius: 8, padding: '8px 10px', textAlign: 'center' }}>
-                    <p style={{ fontSize: 18, fontWeight: 800, color: stat.color, margin: 0, fontFamily: '"DM Mono", monospace' }}>{stat.value}</p>
-                    <p style={{ fontSize: 9, color: C.muted, margin: '2px 0 0', letterSpacing: '0.08em', textTransform: 'uppercase' }}>{stat.label}</p>
-                  </div>
-                ))}
-              </div>
-              {showEstimates.length > 0 && (
-                <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 12 }}>
-                  <p style={{ fontSize: 12, color: C.secondary, margin: '0 0 2px' }}>Unclaimed royalty range</p>
-                  <p style={{ fontSize: 20, fontWeight: 800, color: C.gold, margin: 0, fontFamily: '"DM Mono", monospace', letterSpacing: '-0.02em' }}>
-                    ${aggregate.totalLow.toLocaleString()} – ${aggregate.totalHigh.toLocaleString()}
-                  </p>
-                  <p style={{ fontSize: 11, color: C.muted, margin: '3px 0 0' }}>expected ~${aggregate.totalExpected.toLocaleString()}</p>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
 
       </div>
 
