@@ -144,16 +144,16 @@ export default function OnboardingPage() {
 
         {/* Wordmark */}
         <div style={{ textAlign: 'center', marginBottom: 32, animation: 'fadeUp 0.3s ease' }}>
-          <p style={{ fontSize: 14, fontWeight: 800, color: C.gold, letterSpacing: '0.16em', textTransform: 'uppercase', margin: '0 0 5px' }}>Setlistr</p>
-          <p style={{ fontSize: 11, color: C.muted, letterSpacing: '0.08em', margin: 0 }}>Your verified live career starts here.</p>
+          <p style={{ fontSize: 16, fontWeight: 800, color: C.gold, letterSpacing: '0.12em', textTransform: 'uppercase', margin: '0 0 5px' }}>Setlistr</p>
+          <p style={{ fontSize: 13, color: C.muted, letterSpacing: '0.08em', margin: 0 }}>Your verified live career starts here.</p>
         </div>
 
         {/* Step dots */}
-        <div style={{ display: 'flex', justifyContent: 'center', gap: 6, marginBottom: 24 }}>
+        <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginBottom: 24 }}>
           {[1, 2].map(s => (
             <div key={s} style={{
               height: 3, borderRadius: 2,
-              width: step === s ? 24 : 8,
+              width: step === s ? 32 : 10,
               background: step === s ? C.gold : C.muted,
               opacity: step === s ? 1 : 0.35,
               transition: 'all 0.3s ease',
@@ -163,11 +163,11 @@ export default function OnboardingPage() {
 
         {/* ── STEP 1: Profile ── */}
         {step === 1 && (
-          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 20, padding: '28px 24px', animation: 'fadeUp 0.35s ease' }}>
-            <h1 style={{ fontSize: 22, fontWeight: 800, color: C.text, margin: '0 0 6px', letterSpacing: '-0.02em' }}>
+          <div style={{ background: C.card, border: '1px solid rgba(255,255,255,0.04)', borderRadius: 20, padding: '32px 28px', animation: 'fadeUp 0.35s ease' }}>
+            <h1 style={{ fontSize: 28, fontWeight: 800, color: C.text, margin: '0 0 6px', letterSpacing: '-0.02em' }}>
               Let's begin your record.
             </h1>
-            <p style={{ fontSize: 13, color: C.secondary, margin: '0 0 24px', lineHeight: 1.5 }}>
+            <p style={{ fontSize: 15, color: C.secondary, margin: '0 0 32px', lineHeight: 1.5 }}>
               This takes a minute. Your career will take longer.
             </p>
 
@@ -179,7 +179,7 @@ export default function OnboardingPage() {
                   onChange={e => setFullName(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && fullName.trim() && document.getElementById('artist-input')?.focus()}
                   placeholder="Your name"
-                  style={{ width: '100%', boxSizing: 'border-box', background: C.input, border: `1px solid ${fullName.trim() ? C.borderGold : C.border}`, borderRadius: 10, padding: '12px 14px', color: C.text, fontSize: 14, fontFamily: 'inherit', outline: 'none' }}
+                  style={{ width: '100%', boxSizing: 'border-box', background: C.input, border: `1px solid ${fullName.trim() ? C.borderGold : C.border}`, borderRadius: 12, padding: '14px 16px', color: C.text, fontSize: 16, fontFamily: 'inherit', outline: 'none' }}
                   onFocus={e => (e.target.style.borderColor = 'rgba(201,168,76,0.4)')}
                   onBlur={e => (e.target.style.borderColor = fullName.trim() ? C.borderGold : C.border)}
                 />
@@ -192,22 +192,22 @@ export default function OnboardingPage() {
                   onChange={e => setArtistName(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && isStep1Valid && handleStep1()}
                   placeholder="Your stage or band name"
-                  style={{ width: '100%', boxSizing: 'border-box', background: C.input, border: `1px solid ${artistName.trim() ? C.borderGold : C.border}`, borderRadius: 10, padding: '12px 14px', color: C.text, fontSize: 14, fontFamily: 'inherit', outline: 'none' }}
+                  style={{ width: '100%', boxSizing: 'border-box', background: C.input, border: `1px solid ${artistName.trim() ? C.borderGold : C.border}`, borderRadius: 12, padding: '14px 16px', color: C.text, fontSize: 16, fontFamily: 'inherit', outline: 'none' }}
                   onFocus={e => (e.target.style.borderColor = 'rgba(201,168,76,0.4)')}
                   onBlur={e => (e.target.style.borderColor = artistName.trim() ? C.borderGold : C.border)}
                 />
-                <p style={{ fontSize: 11, color: C.muted, margin: '5px 0 0' }}>This is how you'll appear in your performance record.</p>
+                <p style={{ fontSize: 13, color: C.muted, margin: '5px 0 0' }}>This is how you'll appear in your performance record.</p>
               </div>
 
               <div>
-                <label style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.13em', textTransform: 'uppercase', color: C.muted, display: 'block', marginBottom: 8 }}>
+                <label style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.04em', color: C.muted, display: 'block', marginBottom: 12 }}>
                   PRO <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional)</span>
                 </label>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                   {PRO_OPTIONS.map(pro => (
                     <button key={pro} type="button"
                       onClick={() => setProAffiliation(pro === proAffiliation ? '' : pro)}
-                      style={{ padding: '6px 11px', borderRadius: 8, border: `1px solid ${proAffiliation === pro ? C.borderGold : C.border}`, background: proAffiliation === pro ? C.goldDim : 'transparent', color: proAffiliation === pro ? C.gold : C.secondary, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s ease' }}>
+                      style={{ padding: '8px 14px', borderRadius: 20, border: `1px solid ${proAffiliation === pro ? C.borderGold : C.border}`, background: proAffiliation === pro ? C.goldDim : 'transparent', color: proAffiliation === pro ? C.gold : C.secondary, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s ease' }}>
                       {pro}
                     </button>
                   ))}
@@ -215,7 +215,7 @@ export default function OnboardingPage() {
               </div>
 
               <button onClick={handleStep1} disabled={!isStep1Valid || saving}
-                style={{ width: '100%', padding: '14px', background: isStep1Valid ? C.gold : C.muted, border: 'none', borderRadius: 12, color: '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: isStep1Valid && !saving ? 'pointer' : 'not-allowed', opacity: saving ? 0.7 : isStep1Valid ? 1 : 0.4, transition: 'all 0.2s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit', marginTop: 4 }}>
+                style={{ width: '100%', padding: '16px', background: isStep1Valid ? C.gold : C.muted, border: 'none', borderRadius: 14, color: '#0a0908', fontSize: 15, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: isStep1Valid && !saving ? 'pointer' : 'not-allowed', opacity: saving ? 0.7 : isStep1Valid ? 1 : 0.4, transition: 'all 0.2s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit', marginTop: 4 }}>
                 {saving
                   ? <><div style={{ width: 13, height: 13, borderRadius: '50%', border: '2px solid #0a090840', borderTopColor: '#0a0908', animation: 'spin 0.7s linear infinite' }} />Saving...</>
                   : <>Start my record <ArrowRight size={15} strokeWidth={2.5} /></>}
@@ -227,7 +227,7 @@ export default function OnboardingPage() {
         {/* ── STEP 2: Spotify ── */}
         {step === 2 && (
           <div style={{ animation: 'fadeUp 0.3s ease' }}>
-            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 20, padding: '28px 24px', marginBottom: 10 }}>
+            <div style={{ background: C.card, border: '1px solid rgba(255,255,255,0.04)', borderRadius: 20, padding: '32px 28px', marginBottom: 10 }}>
 
               {importDone ? (
                 /* Success state */
@@ -257,7 +257,7 @@ export default function OnboardingPage() {
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="#1ed760"><path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/></svg>
                     </div>
                     <div>
-                      <h2 style={{ fontSize: 17, fontWeight: 800, color: C.text, margin: 0, letterSpacing: '-0.01em' }}>Your songs, ready to go.</h2>
+                      <h2 style={{ fontSize: 28, fontWeight: 800, color: C.text, margin: 0, letterSpacing: '-0.02em' }}>Your songs, ready to go.</h2>
                       <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>Connect Spotify and your catalog is ready before your first show.</p>
                     </div>
                   </div>
@@ -273,12 +273,12 @@ export default function OnboardingPage() {
                       onChange={e => setSpotifyQuery(e.target.value)}
                       onKeyDown={e => e.key === 'Enter' && searchSpotify()}
                       placeholder="Search your artist name..."
-                      style={{ flex: 1, background: C.input, border: `1px solid ${spotifyQuery.trim() ? C.borderGold : C.border}`, borderRadius: 10, padding: '11px 14px', color: C.text, fontSize: 14, fontFamily: 'inherit', outline: 'none' }}
+                      style={{ flex: 1, background: C.input, border: `1px solid ${spotifyQuery.trim() ? C.borderGold : C.border}`, borderRadius: 12, padding: '14px 16px', color: C.text, fontSize: 16, fontFamily: 'inherit', outline: 'none' }}
                       onFocus={e => (e.target.style.borderColor = 'rgba(201,168,76,0.4)')}
                       onBlur={e => (e.target.style.borderColor = spotifyQuery.trim() ? C.borderGold : C.border)}
                     />
                     <button onClick={searchSpotify} disabled={spotifySearching || !spotifyQuery.trim()}
-                      style={{ padding: '11px 16px', background: C.gold, border: 'none', borderRadius: 10, color: '#0a0908', cursor: spotifySearching ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'inherit', fontWeight: 700, fontSize: 13, flexShrink: 0, opacity: spotifySearching ? 0.7 : 1 }}>
+                      style={{ padding: '14px 18px', background: C.gold, border: 'none', borderRadius: 12, color: '#0a0908', cursor: spotifySearching ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'inherit', fontWeight: 700, fontSize: 15, flexShrink: 0, opacity: spotifySearching ? 0.7 : 1 }}>
                       <Search size={14} />
                       {spotifySearching ? '...' : 'Search'}
                     </button>
@@ -292,15 +292,15 @@ export default function OnboardingPage() {
                       <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, margin: '0 0 4px' }}>Is this you?</p>
                       {spotifyResults.map(artist => (
                         <button key={artist.id} onClick={() => importFromSpotify(artist)} disabled={importing}
-                          style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', background: selectedArtist?.id === artist.id ? C.goldDim : 'rgba(255,255,255,0.02)', border: `1px solid ${selectedArtist?.id === artist.id ? C.borderGold : C.border}`, borderRadius: 12, cursor: importing ? 'wait' : 'pointer', textAlign: 'left', fontFamily: 'inherit', width: '100%', transition: 'all 0.15s ease', WebkitTapHighlightColor: 'transparent' }}
+                          style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', background: selectedArtist?.id === artist.id ? C.goldDim : 'rgba(255,255,255,0.02)', border: `1px solid ${selectedArtist?.id === artist.id ? C.borderGold : 'rgba(255,255,255,0.04)'}`, borderRadius: 14, cursor: importing ? 'wait' : 'pointer', textAlign: 'left', fontFamily: 'inherit', width: '100%', transition: 'all 0.15s ease', WebkitTapHighlightColor: 'transparent' }}
                           onMouseEnter={e => { if (!importing) (e.currentTarget as HTMLElement).style.background = 'rgba(201,168,76,0.06)' }}
                           onMouseLeave={e => { if (selectedArtist?.id !== artist.id) (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.02)' }}>
                           {artist.image
                             ? <img src={artist.image} alt={artist.name} style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
                             : <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Music2 size={18} color={C.muted} /></div>}
                           <div style={{ flex: 1, minWidth: 0 }}>
-                            <p style={{ fontSize: 14, fontWeight: 700, color: C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{artist.name}</p>
-                            <p style={{ fontSize: 11, color: C.muted, margin: '2px 0 0' }}>
+                            <p style={{ fontSize: 16, fontWeight: 700, color: C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{artist.name}</p>
+                            <p style={{ fontSize: 13, color: C.muted, margin: '2px 0 0' }}>
                               {artist.followers.toLocaleString()} followers
                               {artist.genres.length > 0 && ` · ${artist.genres.slice(0, 2).join(', ')}`}
                             </p>
@@ -319,14 +319,14 @@ export default function OnboardingPage() {
             {/* Skip */}
             {!importDone && (
               <button onClick={finish}
-                style={{ width: '100%', background: 'none', border: 'none', color: C.muted, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', padding: '10px', textAlign: 'center' }}>
+                style={{ width: '100%', background: 'none', border: 'none', color: C.muted, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit', padding: '14px', textAlign: 'center' }}>
                 I'll add songs during my first show
               </button>
             )}
           </div>
         )}
 
-        <p style={{ textAlign: 'center', fontSize: 10, color: C.muted, letterSpacing: '0.18em', textTransform: 'uppercase', opacity: 0.4, marginTop: 16 }}>
+        <p style={{ textAlign: 'center', fontSize: 13, color: C.muted, letterSpacing: '0.06em', textTransform: 'uppercase', opacity: 0.4, marginTop: 16 }}>
           {step === 2 ? 'Your record starts tonight.' : 'Free forever · No credit card'}
         </p>
       </div>
