@@ -191,35 +191,35 @@ export default function HistoryPage() {
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '20px 0 24px' }}>
           <button onClick={() => router.push('/app/dashboard')}
-            style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, padding: '7px 10px', color: C.secondary, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
+            style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, padding: '7px 10px', color: C.secondary, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 4, fontSize: 14 }}>
             <ChevronLeft size={14} /> Back
           </button>
-          <h1 style={{ fontSize: 20, fontWeight: 800, color: C.text, margin: 0, letterSpacing: '-0.02em', flex: 1 }}>
-            Performance History
+          <h1 style={{ fontSize: 28, fontWeight: 800, color: C.text, margin: 0, letterSpacing: '-0.02em', flex: 1 }}>
+            Show history
           </h1>
-          <div style={{ fontSize: 11, color: C.muted, background: C.card, border: `1px solid ${C.border}`, borderRadius: 20, padding: '5px 10px' }}>
+          <div style={{ fontSize: 13, color: C.muted, background: C.card, border: `1px solid ${C.border}`, borderRadius: 20, padding: '5px 10px' }}>
             {performances.length} shows
           </div>
         </div>
 
         {/* ── Unclaimed earnings banner ── */}
         {unclaimedShows.length > 0 && (
-          <div style={{ marginBottom: 16, background: 'rgba(201,168,76,0.08)', border: `1px solid ${C.borderGold}`, borderRadius: 14, padding: '16px 18px', display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div style={{ marginBottom: 16, background: 'rgba(201,168,76,0.05)', border: '1px solid rgba(201,168,76,0.15)', borderRadius: 14, padding: '16px 18px', display: 'flex', alignItems: 'center', gap: 14 }}>
             <div style={{ width: 40, height: 40, borderRadius: '50%', background: C.goldDim, border: `1px solid ${C.borderGold}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               <AlertCircle size={18} color={C.gold} />
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <p style={{ fontSize: 14, fontWeight: 800, color: C.gold, margin: '0 0 2px' }}>
+              <p style={{ fontSize: 20, fontWeight: 800, color: C.gold, margin: '0 0 2px' }}>
                 ~${totalUnclaimed.toLocaleString()} unclaimed
               </p>
-              <p style={{ fontSize: 12, color: C.secondary, margin: 0 }}>
+              <p style={{ fontSize: 14, color: C.secondary, margin: 0 }}>
                 {unclaimedShows.length} show{unclaimedShows.length !== 1 ? 's' : ''} ready to submit to your PRO
               </p>
             </div>
             <button
               onClick={() => setStatusFilter('complete')}
-              style={{ flexShrink: 0, padding: '10px 16px', background: C.gold, border: 'none', borderRadius: 10, color: '#0a0908', fontSize: 12, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' as const, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
-              Get Paid →
+              style={{ flexShrink: 0, padding: '10px 16px', background: C.gold, border: 'none', borderRadius: 10, color: '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' as const, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
+              File them →
             </button>
           </div>
         )}
@@ -229,7 +229,7 @@ export default function HistoryPage() {
           <div style={{ position: 'relative', marginBottom: 10 }}>
             <Search size={14} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: C.muted, pointerEvents: 'none' }} />
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search venue, artist, or city..."
-              style={{ width: '100%', background: C.card, border: `1px solid ${search ? C.borderGold : C.border}`, borderRadius: 10, padding: '11px 14px 11px 36px', color: C.text, fontSize: 14, fontFamily: 'inherit', transition: 'border-color 0.15s ease', boxSizing: 'border-box' as const }} />
+              style={{ width: '100%', background: C.card, border: `1px solid ${search ? C.borderGold : C.border}`, borderRadius: 12, padding: '13px 16px 13px 44px', color: C.text, fontSize: 16, fontFamily: 'inherit', transition: 'border-color 0.15s ease', boxSizing: 'border-box' as const }} />
           </div>
 
           {/* Status tabs */}
@@ -243,10 +243,10 @@ export default function HistoryPage() {
               const active = statusFilter === tab.key
               return (
                 <button key={tab.key} onClick={() => setStatusFilter(tab.key)}
-                  style={{ flexShrink: 0, padding: '6px 12px', borderRadius: 20, border: `1px solid ${active ? tab.color + '60' : C.border}`, background: active ? tab.color + '15' : 'transparent', color: active ? tab.color : C.muted, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 5, transition: 'all 0.15s ease', letterSpacing: '0.04em' }}>
+                  style={{ flexShrink: 0, padding: '8px 16px', borderRadius: 20, border: `1px solid ${active ? tab.color + '60' : C.border}`, background: active ? tab.color + '15' : 'transparent', color: active ? tab.color : C.muted, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 5, transition: 'all 0.15s ease', letterSpacing: '0.04em' }}>
                   {tab.label}
                   {tab.count > 0 && (
-                    <span style={{ fontSize: 10, background: active ? tab.color + '25' : 'rgba(255,255,255,0.06)', borderRadius: 10, padding: '1px 5px', color: active ? tab.color : C.muted }}>
+                    <span style={{ fontSize: 12, background: active ? tab.color + '25' : 'rgba(255,255,255,0.06)', borderRadius: 10, padding: '1px 5px', color: active ? tab.color : C.muted }}>
                       {tab.count}
                     </span>
                   )}
@@ -257,7 +257,7 @@ export default function HistoryPage() {
 
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <button onClick={() => setShowFilters(!showFilters)}
-              style={{ background: showFilters ? C.goldDim : 'transparent', border: `1px solid ${showFilters ? C.borderGold : C.border}`, borderRadius: 8, padding: '7px 12px', color: showFilters ? C.gold : C.muted, fontSize: 11, fontWeight: 700, cursor: 'pointer', letterSpacing: '0.06em', textTransform: 'uppercase' as const, fontFamily: 'inherit' }}>
+              style={{ background: showFilters ? C.goldDim : 'transparent', border: `1px solid ${showFilters ? C.borderGold : C.border}`, borderRadius: 8, padding: '7px 12px', color: showFilters ? C.gold : C.muted, fontSize: 13, fontWeight: 700, cursor: 'pointer', letterSpacing: '0.06em', textTransform: 'uppercase' as const, fontFamily: 'inherit' }}>
               Date Range {showFilters ? '▲' : '▼'}
             </button>
             {hasFilters && <button onClick={clearFilters} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>Clear ×</button>}
@@ -284,15 +284,15 @@ export default function HistoryPage() {
               <div style={{ width: 52, height: 52, borderRadius: '50%', background: C.goldDim, border: `1px solid ${C.borderGold}`, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px' }}>
                 <Music2 size={20} color={C.gold} />
               </div>
-              <p style={{ fontSize: 15, fontWeight: 600, color: C.text, margin: '0 0 6px' }}>
+              <p style={{ fontSize: 17, fontWeight: 600, color: C.text, margin: '0 0 6px' }}>
                 {hasFilters ? 'No shows match your filters' : 'No past performances yet'}
               </p>
-              <p style={{ fontSize: 13, color: C.muted, margin: '0 0 18px' }}>
+              <p style={{ fontSize: 15, color: C.muted, margin: '0 0 18px' }}>
                 {hasFilters ? 'Try adjusting your search or filters' : 'Completed shows will appear here'}
               </p>
               {!hasFilters && (
                 <button onClick={() => router.push('/app/show/new')}
-                  style={{ background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 10, padding: '10px 20px', color: C.gold, fontSize: 12, fontWeight: 700, cursor: 'pointer', letterSpacing: '0.06em', textTransform: 'uppercase' as const, fontFamily: 'inherit' }}>
+                  style={{ background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 10, padding: '13px 24px', color: C.gold, fontSize: 15, fontWeight: 700, cursor: 'pointer', letterSpacing: '0.06em', textTransform: 'uppercase' as const, fontFamily: 'inherit' }}>
                   Start First Show
                 </button>
               )}
@@ -313,34 +313,34 @@ export default function HistoryPage() {
 
                 return (
                   <button key={perf.id} onClick={() => navigateTo(perf)}
-                    style={{ background: C.card, border: `1px solid ${isClaimable ? C.borderGold : C.border}`, borderRadius: 12, padding: '14px 16px', cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 12, fontFamily: 'inherit', width: '100%', transition: 'background 0.12s ease, border-color 0.12s ease' }}
+                    style={{ background: C.card, border: `1px solid ${isClaimable ? 'rgba(201,168,76,0.15)' : 'rgba(255,255,255,0.04)'}`, borderRadius: 14, padding: '16px', cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 12, fontFamily: 'inherit', width: '100%', transition: 'background 0.12s ease, border-color 0.12s ease' }}
                     onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.background = C.cardHover }}
                     onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.background = C.card }}>
 
                     {/* Date */}
                     <div style={{ minWidth: 36, textAlign: 'center', flexShrink: 0 }}>
-                      <p style={{ fontSize: 17, fontWeight: 800, color: C.text, margin: 0, fontFamily: '"DM Mono", monospace', lineHeight: 1 }}>{date.getDate()}</p>
-                      <p style={{ fontSize: 9, color: C.muted, margin: '2px 0 0', textTransform: 'uppercase' as const, letterSpacing: '0.08em' }}>{date.toLocaleDateString('en-US', { month: 'short' })}</p>
+                      <p style={{ fontSize: 20, fontWeight: 800, color: C.text, margin: 0, fontFamily: '"DM Mono", monospace', lineHeight: 1 }}>{date.getDate()}</p>
+                      <p style={{ fontSize: 11, color: C.muted, margin: '2px 0 0', textTransform: 'uppercase' as const, letterSpacing: '0.08em' }}>{date.toLocaleDateString('en-US', { month: 'short' })}</p>
                     </div>
 
                     <div style={{ width: 1, height: 30, background: C.border, flexShrink: 0 }} />
 
                     {/* Venue + artist */}
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <p style={{ fontSize: 14, fontWeight: 600, color: C.text, margin: '0 0 2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{perf.venue_name}</p>
-                      <p style={{ fontSize: 11, color: C.secondary, margin: 0 }}>
+                      <p style={{ fontSize: 16, fontWeight: 600, color: C.text, margin: '0 0 2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{perf.venue_name}</p>
+                      <p style={{ fontSize: 13, color: C.secondary, margin: 0 }}>
                         {perf.artist_name}{perf.city ? ` · ${perf.city}` : ''}{perf.country ? `, ${perf.country}` : ''}
                       </p>
-                      {perf.captured_by_name && <p style={{ fontSize: 10, color: C.muted, margin: '2px 0 0' }}>Captured by {perf.captured_by_name}</p>}
+                      {perf.captured_by_name && <p style={{ fontSize: 12, color: C.muted, margin: '2px 0 0' }}>Captured by {perf.captured_by_name}</p>}
                     </div>
 
                     {/* Right side — estimate + status or just status */}
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, flexShrink: 0 }}>
-                      <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, color: displayStatus.color, background: displayStatus.color + '18', border: `1px solid ${displayStatus.color}35`, borderRadius: 20, padding: '3px 8px' }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, color: displayStatus.color, background: displayStatus.color + '18', border: `1px solid ${displayStatus.color}35`, borderRadius: 20, padding: '3px 10px' }}>
                         {displayStatus.label}
                       </span>
                       {est && est.expected > 0 && (
-                        <span style={{ fontSize: 11, fontWeight: 700, color: C.gold, fontFamily: '"DM Mono", monospace' }}>
+                        <span style={{ fontSize: 14, fontWeight: 700, color: C.gold, fontFamily: '"DM Mono", monospace' }}>
                           ~${est.expected}
                         </span>
                       )}
