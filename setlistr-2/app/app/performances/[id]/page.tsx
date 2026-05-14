@@ -35,7 +35,7 @@ export default async function PerformanceDetailPage({ params }: { params: { id: 
   return (
     <div className="px-4 py-6 max-w-lg mx-auto">
       <div className="flex items-center gap-3 mb-6">
-        <Link href="/app/performances/history" className="text-ink-light hover:text-ink">
+        <Link href="/app/history" className="text-ink-light hover:text-ink">
           <ChevronLeft size={22} />
         </Link>
         <div className="flex-1">

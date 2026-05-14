@@ -15,7 +15,7 @@ const ADMIN_EMAILS = [
 const NAV = [
   { href: '/app/dashboard', icon: LayoutDashboard, label: 'Home' },
   { href: '/app/performances/new', icon: PlusCircle, label: 'New Show' },
-  { href: '/app/performances/history', icon: Clock, label: 'History' },
+  { href: '/app/history', icon: Clock, label: 'History' },
   { href: '/app/stats', icon: BarChart2, label: 'Stats' },
 ]
 
