@@ -41,13 +41,19 @@ export function AppShell({ children, profile }: { children: React.ReactNode; pro
   useEffect(() => {
     if (!profile?.id) return
     const supabase = createClient()
-    supabase
-      .from('performances')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', profile.id)
-      .eq('status', 'needs_review')
-      .then(({ count }) => setNeedsReviewCount(count ?? 0))
-      .catch(() => setNeedsReviewCount(0))
+    async function fetchCount() {
+      try {
+        const { count } = await supabase
+          .from('performances')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', profile.id)
+          .eq('status', 'needs_review')
+        setNeedsReviewCount(count ?? 0)
+      } catch {
+        setNeedsReviewCount(0)
+      }
+    }
+    fetchCount()
   }, [pathname, profile?.id])
 
   async function signOut() {
