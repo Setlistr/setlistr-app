@@ -12,19 +12,13 @@ const ADMIN_EMAILS = [
   'darylscottsongs@gmail.com',
 ]
 
-const NAV = [
-  { href: '/app/dashboard', icon: LayoutDashboard, label: 'Home' },
-  { href: '/app/performances/new', icon: PlusCircle, label: 'New Show' },
-  { href: '/app/history', icon: Clock, label: 'History' },
-  { href: '/app/stats', icon: BarChart2, label: 'Stats' },
-]
-
 const FULLSCREEN_ROUTES = ['/app/live/']
 
 export function AppShell({ children, profile }: { children: React.ReactNode; profile: Profile }) {
   const pathname  = usePathname()
   const isAdmin   = ADMIN_EMAILS.includes(profile.email)
   const [profileOpen, setProfileOpen] = useState(false)
+  const [needsReviewCount, setNeedsReviewCount] = useState(0)
   const modalRef  = useRef<HTMLDivElement>(null)
 
   const isFullscreen = FULLSCREEN_ROUTES.some(r => pathname.startsWith(r))
@@ -44,6 +38,18 @@ export function AppShell({ children, profile }: { children: React.ReactNode; pro
     }
   }, [profileOpen])
 
+  useEffect(() => {
+    if (!profile?.id) return
+    const supabase = createClient()
+    supabase
+      .from('performances')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', profile.id)
+      .eq('status', 'needs_review')
+      .then(({ count }) => setNeedsReviewCount(count ?? 0))
+      .catch(() => setNeedsReviewCount(0))
+  }, [pathname, profile?.id])
+
   async function signOut() {
     const supabase = createClient()
     await supabase.auth.signOut()
@@ -54,6 +60,13 @@ export function AppShell({ children, profile }: { children: React.ReactNode; pro
 
   const initials = (profile.full_name || profile.email)
     .split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2)
+
+  const NAV = [
+    { href: '/app/dashboard',  icon: LayoutDashboard, label: 'Home',     badge: 0 },
+    { href: '/app/show/new',   icon: PlusCircle,      label: 'New Show', badge: 0 },
+    { href: '/app/history',    icon: Clock,           label: 'History',  badge: needsReviewCount },
+    { href: '/app/stats',      icon: BarChart2,       label: 'Stats',    badge: 0 },
+  ]
 
   return (
     <div style={{ minHeight: '100svh', display: 'flex', flexDirection: 'column', background: '#0a0908' }}>
@@ -91,42 +104,35 @@ export function AppShell({ children, profile }: { children: React.ReactNode; pro
       {/* ── Main content ── */}
       <main style={{ flex: 1, paddingBottom: 80 }}>{children}</main>
 
-      {/* ── Bottom nav — inactive icons bumped to #7a6e64 for readability ── */}
+      {/* ── Bottom nav ── */}
       <nav style={{
         position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 40,
+        minHeight: 64,
         background: 'rgba(10,9,8,0.96)',
         backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)',
-        borderTop: '1px solid rgba(255,255,255,0.08)',
-        paddingBottom: 'env(safe-area-inset-bottom)',
+        borderTop: '1px solid rgba(255,255,255,0.05)',
+        paddingBottom: 'calc(env(safe-area-inset-bottom) + 8px)',
       }}>
         <div style={{ display: 'flex', maxWidth: 480, margin: '0 auto' }}>
-          {NAV.map(({ href, icon: Icon, label }) => {
-            const active = pathname === href || (href !== '/app/dashboard' && pathname.startsWith(href))
+          {NAV.map((tab) => {
+            const isActive = pathname === tab.href || (tab.href !== '/app/dashboard' && pathname.startsWith(tab.href))
             return (
-              <Link
-                key={href}
-                href={href}
-                style={{
-                  flex: 1, display: 'flex', flexDirection: 'column',
-                  alignItems: 'center', gap: 4, padding: '10px 0 8px',
-                  // ── KEY FIX: inactive was #3a3530 (invisible), now #7a6e64 ──
-                  color: active ? '#c9a84c' : '#7a6e64',
-                  textDecoration: 'none', position: 'relative',
-                  transition: 'color 0.15s ease',
-                  WebkitTapHighlightColor: 'transparent',
-                }}>
-                <Icon size={22} strokeWidth={active ? 2.5 : 1.8} />
-                <span style={{
-                  fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.12em',
-                  fontWeight: active ? 700 : 500,
-                  fontFamily: '"DM Sans", system-ui, sans-serif',
-                }}>{label}</span>
-                {active && (
-                  <div style={{
-                    position: 'absolute', bottom: 0, width: 24, height: 2,
-                    borderRadius: 1, background: '#c9a84c',
-                  }} />
+              <Link key={tab.href} href={tab.href} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '8px 4px 10px', textDecoration: 'none', position: 'relative', WebkitTapHighlightColor: 'transparent', minHeight: 56 }}>
+
+                {tab.badge > 0 && (
+                  <div style={{ position: 'absolute', top: 6, right: '50%', transform: 'translateX(14px)', width: 7, height: 7, borderRadius: '50%', background: '#c9a84c', border: '1.5px solid #0a0908' }} />
                 )}
+
+                <tab.icon size={22} strokeWidth={isActive ? 2.5 : 1.8} color={isActive ? '#c9a84c' : '#5a5040'} />
+
+                <span style={{ fontSize: 10, fontWeight: isActive ? 700 : 500, color: isActive ? '#c9a84c' : '#5a5040', marginTop: 4, letterSpacing: '0.06em', textTransform: 'uppercase', lineHeight: 1 }}>
+                  {tab.label}
+                </span>
+
+                {isActive && (
+                  <div style={{ position: 'absolute', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: 24, height: 2, borderRadius: 1, background: '#c9a84c' }} />
+                )}
+
               </Link>
             )
           })}
