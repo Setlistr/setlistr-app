@@ -421,9 +421,9 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
         <div style={{ width: 64, height: 64, borderRadius: '50%', background: C.greenDim, border: '1px solid rgba(74,222,128,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 20 }}>
           <Check size={28} color={C.green} strokeWidth={2.5} />
         </div>
-        <h1 style={{ fontSize: 28, fontWeight: 800, color: C.text, margin: '0 0 8px', letterSpacing: '-0.025em' }}>Filed with {pro}</h1>
-        <p style={{ fontSize: 14, color: C.secondary, margin: '0 0 6px' }}>{performance.venue_name}{performance.city ? ` · ${performance.city}` : ''}</p>
-        <p style={{ fontSize: 13, color: C.muted, margin: '0 0 28px' }}>{showDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
+        <h1 style={{ fontSize: 36, fontWeight: 800, color: C.text, margin: '0 0 8px', letterSpacing: '-0.02em' }}>Filed with {pro}</h1>
+        <p style={{ fontSize: 17, color: C.secondary, margin: '0 0 6px' }}>{performance.venue_name}{performance.city ? ` · ${performance.city}` : ''}</p>
+        <p style={{ fontSize: 15, color: C.muted, margin: '0 0 28px' }}>{showDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
 
         <div style={{ width: '100%', background: C.greenDim, border: '1px solid rgba(74,222,128,0.2)', borderRadius: 16, padding: '20px', marginBottom: 14 }}>
           <p style={{ fontSize: 13, color: C.green, margin: '0 0 4px', fontWeight: 600 }}>~${estimate.expected} on its way</p>
@@ -431,7 +431,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
         </div>
 
         {/* What happens next */}
-        <div style={{ width: '100%', background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '16px 18px', marginBottom: 14, textAlign: 'left' }}>
+        <div style={{ width: '100%', background: C.card, border: '1px solid rgba(255,255,255,0.04)', borderRadius: 14, padding: '16px 18px', marginBottom: 14, textAlign: 'left' }}>
           <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' as const, color: C.gold, margin: '0 0 12px' }}>What Happens Next</p>
           {[
             { icon: '📋', label: 'PRO reviews your claim', when: 'Now – 4 weeks' },
@@ -441,7 +441,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
             <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0', borderBottom: label !== 'Royalty payment issued' ? `1px solid ${C.border}` : 'none' }}>
               <span style={{ fontSize: 18, flexShrink: 0 }}>{icon}</span>
               <div style={{ flex: 1 }}>
-                <p style={{ fontSize: 12, color: C.text, margin: 0, fontWeight: 600 }}>{label}</p>
+                <p style={{ fontSize: 14, color: C.text, margin: 0, fontWeight: 600 }}>{label}</p>
               </div>
               <span style={{ fontSize: 11, color: C.muted, fontFamily: '"DM Mono", monospace', flexShrink: 0 }}>{when}</span>
             </div>
@@ -475,7 +475,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
         </div>
 
         <button onClick={() => router.push('/app/dashboard')}
-          style={{ width: '100%', padding: '15px', background: C.gold, border: 'none', borderRadius: 12, color: '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' as const, cursor: 'pointer', fontFamily: 'inherit', marginBottom: 10 }}>
+          style={{ width: '100%', padding: '16px', background: C.gold, border: 'none', borderRadius: 12, color: '#0a0908', fontSize: 15, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' as const, cursor: 'pointer', fontFamily: 'inherit', marginBottom: 10 }}>
           Back to Dashboard
         </button>
         <button onClick={() => setSubmitted(false)} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
@@ -491,16 +491,16 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
       <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '50vh', pointerEvents: 'none', zIndex: 0, background: 'radial-gradient(ellipse at 50% 0%, rgba(201,168,76,0.06) 0%, transparent 65%)' }} />
       <div style={{ position: 'relative', zIndex: 1, maxWidth: 480, width: '100%', margin: '0 auto', padding: '28px 16px 80px', boxSizing: 'border-box' as const }}>
 
-        <button onClick={() => router.back()} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', padding: '0 0 20px', letterSpacing: '0.04em' }}>← Back</button>
+        <button onClick={() => router.back()} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit', padding: '0 0 20px', letterSpacing: '0.04em' }}>← Back</button>
 
         {/* Hero */}
-        <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: C.gold, margin: '0 0 6px', opacity: 0.8 }}>
+        <p style={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.06em', color: C.gold, margin: '0 0 6px', opacity: 0.8 }}>
           {performance.venue_name}{performance.city ? ` · ${performance.city}` : ''}
         </p>
-        <h1 style={{ fontSize: 32, fontWeight: 800, color: C.text, margin: '0 0 4px', letterSpacing: '-0.03em', lineHeight: 1.1 }}>
-          Claim Your<br /><span style={{ color: C.gold }}>Royalties</span>
+        <h1 style={{ fontSize: 36, fontWeight: 800, color: C.text, margin: '0 0 4px', letterSpacing: '-0.02em', lineHeight: 1.1 }}>
+          Claim Your Royalties
         </h1>
-        <p style={{ fontSize: 13, color: C.secondary, margin: '0 0 24px' }}>
+        <p style={{ fontSize: 15, color: C.secondary, margin: '0 0 24px' }}>
           {showDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
         </p>
 
@@ -523,26 +523,26 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
 
         {/* Money + deadline */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
-          <div style={{ background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 14, padding: '16px' }}>
-            <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' as const, color: C.gold, margin: '0 0 6px' }}>You're owed</p>
-            <p style={{ fontSize: 28, fontWeight: 800, color: C.gold, margin: 0, fontFamily: '"DM Mono", monospace', letterSpacing: '-0.02em' }}>~${estimate.expected}</p>
-            <p style={{ fontSize: 11, color: C.secondary, margin: '2px 0 0' }}>est. ${estimate.low}–${estimate.high}</p>
+          <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)', borderRadius: 14, padding: '16px' }}>
+            <p style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.12em', color: C.gold, margin: '0 0 6px' }}>You're owed</p>
+            <p style={{ fontSize: 32, fontWeight: 800, color: C.gold, margin: 0, fontFamily: '"DM Mono", monospace', letterSpacing: '-0.02em' }}>~${estimate.expected}</p>
+            <p style={{ fontSize: 13, color: C.secondary, margin: '2px 0 0' }}>est. ${estimate.low}–${estimate.high}</p>
           </div>
-          <div style={{ background: daysLeft <= 30 ? C.redDim : daysLeft <= 60 ? C.goldDim : C.greenDim, border: `1px solid ${daysLeft <= 30 ? 'rgba(248,113,113,0.25)' : daysLeft <= 60 ? C.borderGold : 'rgba(74,222,128,0.25)'}`, borderRadius: 14, padding: '16px' }}>
-            <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' as const, color: daysLeft <= 30 ? C.red : daysLeft <= 60 ? C.gold : C.green, margin: '0 0 6px' }}>
+          <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)', borderRadius: 14, padding: '16px' }}>
+            <p style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.12em', color: daysLeft <= 30 ? C.red : daysLeft <= 60 ? C.gold : C.green, margin: '0 0 6px' }}>
               {daysLeft <= 60 ? 'Deadline!' : 'Submit by'}
             </p>
-            <p style={{ fontSize: 28, fontWeight: 800, color: daysLeft <= 30 ? C.red : daysLeft <= 60 ? C.gold : C.green, margin: 0, fontFamily: '"DM Mono", monospace' }}>
+            <p style={{ fontSize: 32, fontWeight: 800, color: daysLeft <= 30 ? C.red : daysLeft <= 60 ? C.gold : C.green, margin: 0, fontFamily: '"DM Mono", monospace' }}>
               {daysLeft <= 365 ? `${daysLeft}d` : '1yr'}
             </p>
-            <p style={{ fontSize: 11, color: C.secondary, margin: '2px 0 0' }}>{proConfig?.deadline || '1 year from show date'}</p>
+            <p style={{ fontSize: 13, color: C.secondary, margin: '2px 0 0' }}>{proConfig?.deadline || '1 year from show date'}</p>
           </div>
         </div>
 
         {/* No PRO warning */}
         {!hasPRO && (
-          <div style={{ background: C.redDim, border: '1px solid rgba(248,113,113,0.2)', borderRadius: 12, padding: '14px 16px', marginBottom: 12 }}>
-            <p style={{ fontSize: 13, color: C.red, margin: '0 0 4px', fontWeight: 700 }}>No PRO selected</p>
+          <div style={{ background: 'rgba(220,38,38,0.04)', border: '1px solid rgba(220,38,38,0.15)', borderRadius: 12, padding: '14px 16px', marginBottom: 12 }}>
+            <p style={{ fontSize: 15, color: C.red, margin: '0 0 4px', fontWeight: 700 }}>No PRO selected</p>
             <p style={{ fontSize: 12, color: C.secondary, margin: '0 0 10px' }}>Set your PRO affiliation in Settings to use the guided submission flow.</p>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' as const }}>
               <button onClick={() => router.push('/app/settings')}
@@ -646,10 +646,10 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
 
         {/* Step 1 — Setlist title */}
         <div style={{ background: C.card, border: `1px solid ${C.borderGold}`, borderRadius: 14, padding: '16px 18px', marginBottom: 12 }}>
-          <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' as const, color: C.gold, margin: '0 0 6px' }}>Step 1 — Set List Title</p>
+          <p style={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.12em', color: C.gold, margin: '0 0 6px' }}>Your set title</p>
           <p style={{ fontSize: 11, color: C.muted, margin: '0 0 12px', lineHeight: 1.5 }}>Use this as your title when creating the setlist in the {pro || 'PRO'} portal.</p>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#0a0908', border: `1px solid rgba(255,255,255,0.07)`, borderRadius: 10, padding: '12px 14px' }}>
-            <span style={{ flex: 1, fontSize: 15, fontWeight: 700, color: C.text, fontFamily: '"DM Mono", monospace', letterSpacing: '-0.01em' }}>{suggestedTitle}</span>
+            <span style={{ flex: 1, fontSize: 16, fontWeight: 700, color: C.text, fontFamily: '"DM Mono", monospace', letterSpacing: '-0.01em' }}>{suggestedTitle}</span>
             <button onClick={() => copyText(suggestedTitle, 'title')}
               style={{ flexShrink: 0, background: copied === 'title' ? C.greenDim : 'rgba(255,255,255,0.04)', border: `1px solid ${copied === 'title' ? 'rgba(74,222,128,0.3)' : C.border}`, borderRadius: 8, padding: '7px 12px', color: copied === 'title' ? C.green : C.muted, fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, fontFamily: 'inherit' }}>
               {copied === 'title' ? <><Check size={11} strokeWidth={3} /> Copied</> : <><Copy size={11} /> Copy</>}
@@ -661,28 +661,28 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
             <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 4 }}>
               {profile?.legal_name && (
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: 11, color: C.muted }}>Legal Name</span>
+                  <span style={{ fontSize: 13, color: C.muted }}>Legal Name</span>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ fontSize: 11, color: C.secondary, fontFamily: '"DM Mono", monospace' }}>{profile.legal_name}</span>
-                    <button onClick={() => copyText(profile.legal_name!, 'legal')} style={{ background: 'none', border: 'none', color: copied === 'legal' ? C.green : C.muted, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>{copied === 'legal' ? '✓' : 'copy'}</button>
+                    <span style={{ fontSize: 13, color: C.secondary, fontFamily: '"DM Mono", monospace' }}>{profile.legal_name}</span>
+                    <button onClick={() => copyText(profile.legal_name!, 'legal')} style={{ background: 'none', border: 'none', color: copied === 'legal' ? C.green : C.muted, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>{copied === 'legal' ? '✓' : 'copy'}</button>
                   </div>
                 </div>
               )}
               {profile?.ipi_number && (
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: 11, color: C.muted }}>IPI Number</span>
+                  <span style={{ fontSize: 13, color: C.muted }}>IPI Number</span>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ fontSize: 11, color: C.secondary, fontFamily: '"DM Mono", monospace' }}>{profile.ipi_number}</span>
-                    <button onClick={() => copyText(profile.ipi_number!, 'ipi')} style={{ background: 'none', border: 'none', color: copied === 'ipi' ? C.green : C.muted, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>{copied === 'ipi' ? '✓' : 'copy'}</button>
+                    <span style={{ fontSize: 13, color: C.secondary, fontFamily: '"DM Mono", monospace' }}>{profile.ipi_number}</span>
+                    <button onClick={() => copyText(profile.ipi_number!, 'ipi')} style={{ background: 'none', border: 'none', color: copied === 'ipi' ? C.green : C.muted, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>{copied === 'ipi' ? '✓' : 'copy'}</button>
                   </div>
                 </div>
               )}
               {profile?.publisher_name && (
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: 11, color: C.muted }}>Publisher</span>
+                  <span style={{ fontSize: 13, color: C.muted }}>Publisher</span>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ fontSize: 11, color: C.secondary, fontFamily: '"DM Mono", monospace' }}>{profile.publisher_name}</span>
-                    <button onClick={() => copyText(profile.publisher_name!, 'pub')} style={{ background: 'none', border: 'none', color: copied === 'pub' ? C.green : C.muted, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>{copied === 'pub' ? '✓' : 'copy'}</button>
+                    <span style={{ fontSize: 13, color: C.secondary, fontFamily: '"DM Mono", monospace' }}>{profile.publisher_name}</span>
+                    <button onClick={() => copyText(profile.publisher_name!, 'pub')} style={{ background: 'none', border: 'none', color: copied === 'pub' ? C.green : C.muted, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>{copied === 'pub' ? '✓' : 'copy'}</button>
                   </div>
                 </div>
               )}
@@ -694,8 +694,8 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
         <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, marginBottom: 12, overflow: 'hidden' }}>
           <div style={{ padding: '14px 18px 10px', borderBottom: `1px solid ${C.border}` }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-              <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' as const, color: C.muted, margin: 0 }}>
-                Step 2 — Add Songs ({songs.length} total)
+              <p style={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.12em', color: C.muted, margin: 0 }}>
+                Songs performed ({songs.length} total)
               </p>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 {matchedCount > 0 && <span style={{ fontSize: 10, color: C.green }}>●&nbsp;{matchedCount} matched</span>}
@@ -707,8 +707,8 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
               <button onClick={copyAllSongs}
                 style={{ display: 'flex', alignItems: 'center', gap: 7, background: copied === 'all-songs' ? C.greenDim : 'rgba(255,255,255,0.03)', border: `1px solid ${copied === 'all-songs' ? 'rgba(74,222,128,0.3)' : C.border}`, borderRadius: 8, padding: '8px 12px', cursor: 'pointer', fontFamily: 'inherit', marginBottom: 8 }}>
                 {copied === 'all-songs'
-                  ? <><Check size={11} color={C.green} strokeWidth={3} /><span style={{ fontSize: 11, fontWeight: 700, color: C.green }}>All {songs.length} titles copied</span></>
-                  : <><Copy size={11} color={C.muted} /><span style={{ fontSize: 11, fontWeight: 600, color: C.secondary }}>Copy all song titles</span></>}
+                  ? <><Check size={11} color={C.green} strokeWidth={3} /><span style={{ fontSize: 13, fontWeight: 700, color: C.green }}>All {songs.length} titles copied</span></>
+                  : <><Copy size={11} color={C.muted} /><span style={{ fontSize: 13, fontWeight: 600, color: C.secondary }}>Copy all song titles</span></>}
               </button>
             )}
             <p style={{ fontSize: 11, color: C.muted, margin: 0, lineHeight: 1.5 }}>
@@ -733,17 +733,17 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
                 return (
                   <button key={i} onClick={() => copyText(song.title, key)}
                     style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 18px', background: isCopied ? 'rgba(74,222,128,0.04)' : 'transparent', border: 'none', borderBottom: i < songs.length - 1 ? `1px solid ${C.border}` : 'none', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', width: '100%' }}>
-                    <span style={{ fontSize: 11, color: C.muted, minWidth: 20, textAlign: 'right', fontFamily: '"DM Mono", monospace', flexShrink: 0 }}>{i + 1}</span>
+                    <span style={{ fontSize: 13, color: C.muted, minWidth: 20, textAlign: 'right', fontFamily: '"DM Mono", monospace', flexShrink: 0 }}>{i + 1}</span>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <p style={{ fontSize: 14, fontWeight: 600, color: isCopied ? C.green : C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{song.title}</p>
+                        <p style={{ fontSize: 16, fontWeight: 600, color: isCopied ? C.green : C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{song.title}</p>
                         {song.is_cover && <span style={{ fontSize: 9, fontWeight: 700, color: C.gold, background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 4, padding: '1px 5px', flexShrink: 0 }}>COVER</span>}
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2, flexWrap: 'wrap' as const }}>
-                        {song.composer && <span style={{ fontSize: 10, color: C.muted }}>Writer: <span style={{ color: C.secondary }}>{song.composer}</span></span>}
-                        {song.work_number && <span style={{ fontSize: 10, color: C.muted, fontFamily: '"DM Mono", monospace' }}>Work #: <span style={{ color: C.gold }}>{song.work_number}</span></span>}
-                        {song.isrc && !song.work_number && <span style={{ fontSize: 10, color: C.muted, fontFamily: '"DM Mono", monospace' }}>ISRC: <span style={{ color: C.secondary }}>{song.isrc}</span></span>}
-                        {!song.composer && !song.isrc && !song.work_number && <span style={{ fontSize: 10, color: C.muted, fontStyle: 'italic' }}>no metadata — search by title</span>}
+                        {song.composer && <span style={{ fontSize: 12, color: C.muted }}>Writer: <span style={{ color: C.secondary }}>{song.composer}</span></span>}
+                        {song.work_number && <span style={{ fontSize: 12, color: C.muted, fontFamily: '"DM Mono", monospace' }}>Work #: <span style={{ color: C.gold }}>{song.work_number}</span></span>}
+                        {song.isrc && !song.work_number && <span style={{ fontSize: 12, color: C.muted, fontFamily: '"DM Mono", monospace' }}>ISRC: <span style={{ color: C.secondary }}>{song.isrc}</span></span>}
+                        {!song.composer && !song.isrc && !song.work_number && <span style={{ fontSize: 12, color: C.muted, fontStyle: 'italic' }}>no metadata — search by title</span>}
                       </div>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
@@ -769,7 +769,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
             <button onClick={() => setStepsOpen(v => !v)}
               style={{ width: '100%', padding: '14px 18px', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontFamily: 'inherit' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span style={{ fontSize: 13, fontWeight: 700, color: C.text }}>Step-by-step: {pro} portal</span>
+                <span style={{ fontSize: 15, fontWeight: 700, color: C.text }}>Step-by-step: {pro} portal</span>
                 {stepsCompleted > 0
                   ? <span style={{ fontSize: 11, color: C.green, background: C.greenDim, border: '1px solid rgba(74,222,128,0.2)', borderRadius: 20, padding: '2px 8px' }}>{stepsCompleted}/{totalSteps} done</span>
                   : <span style={{ fontSize: 11, color: C.muted }}>{proConfig.steps.length} steps</span>}
@@ -794,7 +794,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
                       <div style={{ width: 22, height: 22, borderRadius: '50%', flexShrink: 0, marginTop: 1, background: stepsDone[i] ? C.green : 'rgba(255,255,255,0.06)', border: `1px solid ${stepsDone[i] ? C.green : C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         {stepsDone[i] ? <Check size={11} color="#0a0908" strokeWidth={3} /> : <span style={{ fontSize: 10, color: C.muted, fontFamily: '"DM Mono", monospace', fontWeight: 700 }}>{i + 1}</span>}
                       </div>
-                      <span style={{ fontSize: 13, color: stepsDone[i] ? C.green : C.text, lineHeight: 1.4, textDecoration: stepsDone[i] ? 'line-through' : 'none', opacity: stepsDone[i] ? 0.7 : 1 }}>{step}</span>
+                      <span style={{ fontSize: 15, color: stepsDone[i] ? C.green : C.text, lineHeight: 1.4, textDecoration: stepsDone[i] ? 'line-through' : 'none', opacity: stepsDone[i] ? 0.7 : 1 }}>{step}</span>
                     </button>
                   ))}
                 </div>
@@ -820,7 +820,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
           {songs.length > 0 && (
             <button
               onClick={() => downloadSubmissionBrief({ performance, songs, profile, proConfig: proConfig || null, pro, estimate, suggestedTitle, effectiveCapacity: effectiveCapacity ?? null, promoter, ticketPrice, attendanceEstimate })}
-              style={{ width: '100%', padding: '14px', background: 'rgba(201,168,76,0.06)', border: `1px solid ${C.borderGold}`, borderRadius: 12, color: C.gold, fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit' }}>
+              style={{ width: '100%', padding: '14px', background: 'rgba(201,168,76,0.06)', border: `1px solid ${C.borderGold}`, borderRadius: 12, color: C.gold, fontSize: 15, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit' }}>
               <FileText size={14} strokeWidth={2} />
               Download Submission Brief
             </button>
@@ -829,12 +829,12 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
           {hasPRO && proConfig && (
             !portalOpened ? (
               <button onClick={() => handleOpenPortal(proConfig.submitUrl)}
-                style={{ width: '100%', padding: '16px', background: C.gold, border: 'none', borderRadius: 12, color: '#0a0908', fontSize: 14, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' as const, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit' }}>
+                style={{ width: '100%', padding: '16px', background: C.gold, border: 'none', borderRadius: 12, color: '#0a0908', fontSize: 16, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' as const, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit' }}>
                 <ExternalLink size={15} strokeWidth={2.5} />{proConfig.portalLabel}
               </button>
             ) : (
               <button onClick={markSubmitted} disabled={markingDone}
-                style={{ width: '100%', padding: '16px', background: markingDone ? C.greenDim : C.green, border: 'none', borderRadius: 12, color: markingDone ? C.green : '#0a0908', fontSize: 14, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' as const, cursor: markingDone ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit', animation: 'fadeUp 0.3s ease' }}>
+                style={{ width: '100%', padding: '16px', background: markingDone ? C.greenDim : C.green, border: 'none', borderRadius: 12, color: markingDone ? C.green : '#0a0908', fontSize: 16, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' as const, cursor: markingDone ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit', animation: 'fadeUp 0.3s ease' }}>
                 <Check size={15} strokeWidth={2.5} />
                 {markingDone ? 'Recording...' : "I've Filed It"}
               </button>
@@ -843,22 +843,20 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
 
           {!hasPRO && (
             <button onClick={markSubmitted} disabled={markingDone}
-              style={{ width: '100%', padding: '14px', background: 'transparent', border: `1px solid ${C.green}40`, borderRadius: 12, color: C.green, fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, fontFamily: 'inherit', opacity: markingDone ? 0.6 : 1 }}>
+              style={{ width: '100%', padding: '14px', background: 'transparent', border: `1px solid ${C.green}40`, borderRadius: 12, color: C.green, fontSize: 15, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, fontFamily: 'inherit', opacity: markingDone ? 0.6 : 1 }}>
               <Check size={14} strokeWidth={2.5} />{markingDone ? 'Recording...' : 'Mark as Submitted'}
             </button>
           )}
 
           <button onClick={() => router.push('/app/dashboard')}
-            style={{ background: 'none', border: 'none', color: C.muted, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', padding: '8px', width: '100%' }}>
+            style={{ background: 'none', border: 'none', color: C.muted, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit', padding: '8px', width: '100%' }}>
             Back to Dashboard
           </button>
         </div>
 
-        <div style={{ marginTop: 24, padding: '14px 16px', background: 'rgba(255,255,255,0.02)', border: `1px solid rgba(255,255,255,0.04)`, borderRadius: 12 }}>
-          <p style={{ fontSize: 11, color: C.muted, margin: 0, lineHeight: 1.6 }}>
-            💡 <strong style={{ color: C.secondary }}>Why this matters:</strong> Your venue paid {pro || 'your PRO'} a licensing fee for this show. That money is sitting unclaimed until you submit your setlist. Royalties typically arrive 6–9 months after filing.
-          </p>
-        </div>
+        <p style={{ fontSize: 14, color: C.muted, paddingTop: 24, lineHeight: 1.6, margin: 0 }}>
+          💡 <strong style={{ color: C.secondary }}>Why this matters:</strong> Your venue paid {pro || 'your PRO'} a licensing fee for this show. That money is sitting unclaimed until you submit your setlist. Royalties typically arrive 6–9 months after filing.
+        </p>
       </div>
 
       <style>{`
