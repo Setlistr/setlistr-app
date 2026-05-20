@@ -40,9 +40,9 @@ export async function POST(req: NextRequest) {
     })
 
     if (!notionRes.ok) {
-      const err = await notionRes.text()
+      const err = await notionRes.json()
       console.error('Notion error:', err)
-      return NextResponse.json({ error: 'Notion API failed' }, { status: 500 })
+      return NextResponse.json({ error: 'Notion API failed', details: err }, { status: 500 })
     }
 
     return NextResponse.json({ success: true })
