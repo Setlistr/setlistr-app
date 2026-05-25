@@ -1,6 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 
+async function getGoogleAccessToken(): Promise<string> {
+  const res = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id: process.env.GOOGLE_CLIENT_ID!,
+      client_secret: process.env.GOOGLE_CLIENT_SECRET!,
+      refresh_token: process.env.GOOGLE_REFRESH_TOKEN!,
+      grant_type: 'refresh_token',
+    }),
+  })
+  const data = await res.json()
+  if (!data.access_token) throw new Error('Failed to get Google access token')
+  return data.access_token
+}
+
 export async function POST(req: NextRequest) {
   const authHeader = req.headers.get('authorization')
   if (authHeader !== `Bearer ${process.env.DIGEST_WEBHOOK_SECRET}`) {
@@ -8,6 +24,8 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    const accessToken = await getGoogleAccessToken()
+
     const { fileId, fileName } = await req.json()
 
     // Fetch doc content from Google Docs API
@@ -15,7 +33,7 @@ export async function POST(req: NextRequest) {
       `https://docs.googleapis.com/v1/documents/${fileId}`,
       {
         headers: {
-          Authorization: `Bearer ${process.env.GOOGLE_ACCESS_TOKEN}`,
+          Authorization: `Bearer ${accessToken}`,
         },
       }
     )
