@@ -38,6 +38,8 @@ export async function POST(req: NextRequest) {
       }
     )
 
+    console.log('Doc fetch status:', docRes.status)
+
     if (!docRes.ok) {
       throw new Error(`Google Docs API error: ${docRes.status}`)
     }
@@ -56,6 +58,8 @@ export async function POST(req: NextRequest) {
       })
       .join('')
       .trim()
+
+    console.log('Extracted text length:', text.length, 'Preview:', text.slice(0, 200))
 
     if (!text || text.length < 100) {
       return NextResponse.json({ skipped: true, reason: 'Doc too short' })
@@ -82,8 +86,10 @@ ${text.slice(0, 8000)}`
     })
 
     const raw = (message.content[0] as any).text.trim()
+    console.log('Claude raw response:', raw)
     const clean = raw.replace(/```json|```/g, '').trim()
     const items = JSON.parse(clean)
+    console.log('Parsed items:', items.length)
 
     // Push each action item to Notion Dev Board
     const notionResults = await Promise.all(
