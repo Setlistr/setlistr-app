@@ -1,0 +1,99 @@
+import { NextRequest, NextResponse } from 'next/server'
+import Anthropic from '@anthropic-ai/sdk'
+
+export async function POST(req: NextRequest) {
+  const authHeader = req.headers.get('authorization')
+  if (authHeader !== `Bearer ${process.env.DIGEST_WEBHOOK_SECRET}`) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  try {
+    const { fileId, fileName } = await req.json()
+
+    // Fetch doc content from Google Docs API
+    const docRes = await fetch(
+      `https://docs.googleapis.com/v1/documents/${fileId}`,
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.GOOGLE_ACCESS_TOKEN}`,
+        },
+      }
+    )
+
+    if (!docRes.ok) {
+      throw new Error(`Google Docs API error: ${docRes.status}`)
+    }
+
+    const doc = await docRes.json()
+
+    // Extract plain text from doc
+    const text = doc.body.content
+      .map((block: any) => {
+        if (block.paragraph) {
+          return block.paragraph.elements
+            .map((el: any) => el.textRun?.content || '')
+            .join('')
+        }
+        return ''
+      })
+      .join('')
+      .trim()
+
+    if (!text || text.length < 100) {
+      return NextResponse.json({ skipped: true, reason: 'Doc too short' })
+    }
+
+    // Send to Claude
+    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+    const message = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1024,
+      messages: [{
+        role: 'user',
+        content: `You are reviewing a meeting transcript for Setlistr Inc., a live performance royalty infrastructure startup. Extract action items and key decisions only. Be concise. Format as a JSON array like this:
+[
+  { "task": "Follow up with Doug re: SAFE note", "owner": "Jesse", "priority": "High" },
+  { "task": "Spencer to fix Android camera bug", "owner": "Spencer", "priority": "High" }
+]
+
+Return ONLY the JSON array, no other text.
+
+Transcript:
+${text.slice(0, 8000)}`
+      }]
+    })
+
+    const raw = (message.content[0] as any).text.trim()
+    const clean = raw.replace(/```json|```/g, '').trim()
+    const items = JSON.parse(clean)
+
+    // Push each action item to Notion Dev Board
+    const notionResults = await Promise.all(
+      items.map((item: any) =>
+        fetch('https://api.notion.com/v1/pages', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${process.env.NOTION_API_KEY}`,
+            'Content-Type': 'application/json',
+            'Notion-Version': '2022-06-28',
+          },
+          body: JSON.stringify({
+            parent: { database_id: '335ee8bbfa154215a620e2875741d099' },
+            properties: {
+              Task: { title: [{ text: { content: item.task } }] },
+              Notes: { rich_text: [{ text: { content: `From: ${fileName}` } }] },
+              Owner: { rich_text: [{ text: { content: item.owner || '' } }] },
+              Priority: { select: { name: item.priority || 'Medium' } },
+              Status: { status: { name: 'Todo' } },
+            },
+          }),
+        })
+      )
+    )
+
+    return NextResponse.json({ success: true, tasksCreated: items.length })
+  } catch (error) {
+    console.error('Transcript sync error:', error)
+    return NextResponse.json({ error: 'Sync failed' }, { status: 500 })
+  }
+}
