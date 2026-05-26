@@ -102,12 +102,12 @@ ${text.slice(0, 8000)}`
             'Notion-Version': '2022-06-28',
           },
           body: JSON.stringify({
-            parent: { database_id: '335ee8bbfa154215a620e2875741d099' },
+            parent: { database_id: '36c4519246488091a1fee60fa50eb896' },
             properties: {
               Task: { title: [{ text: { content: item.task } }] },
-              Notes: { rich_text: [{ text: { content: `From: ${fileName}` } }] },
               Owner: { rich_text: [{ text: { content: item.owner || '' } }] },
               Priority: { select: { name: item.priority || 'Medium' } },
+              Meeting: { rich_text: [{ text: { content: fileName } }] },
               Status: { status: { name: 'Todo' } },
             },
           }),
