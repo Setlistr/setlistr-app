@@ -29,6 +29,42 @@ function extractText(prop: any): string {
   return ''
 }
 
+async function updateWeeklyPulse(digest: string) {
+  const pageId = 'cbb15a5bbb9f453398e19e4d947ef939'
+
+  await fetch(`https://api.notion.com/v1/blocks/${pageId}/children`, {
+    method: 'PATCH',
+    headers: {
+      'Authorization': `Bearer ${process.env.NOTION_API_KEY}`,
+      'Content-Type': 'application/json',
+      'Notion-Version': '2022-06-28',
+    },
+    body: JSON.stringify({
+      children: [
+        {
+          object: 'block',
+          type: 'heading_2',
+          heading_2: {
+            rich_text: [{ type: 'text', text: { content: `Monday Digest — ${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}` } }]
+          }
+        },
+        {
+          object: 'block',
+          type: 'paragraph',
+          paragraph: {
+            rich_text: [{ type: 'text', text: { content: digest } }]
+          }
+        },
+        {
+          object: 'block',
+          type: 'divider',
+          divider: {}
+        }
+      ]
+    })
+  })
+}
+
 export async function POST(req: NextRequest) {
   const authHeader = req.headers.get('authorization')
   if (authHeader !== `Bearer ${process.env.DIGEST_WEBHOOK_SECRET}`) {
@@ -109,6 +145,12 @@ ${context}`
 
     if (!emailRes.ok) {
       throw new Error(`Resend error: ${emailRes.status}`)
+    }
+
+    try {
+      await updateWeeklyPulse(digest)
+    } catch (notionError) {
+      console.error('Weekly Pulse Notion update failed:', notionError)
     }
 
     return NextResponse.json({ success: true })
