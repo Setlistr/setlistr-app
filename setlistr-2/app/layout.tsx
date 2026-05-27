@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import './globals.css'
 import GoogleAnalytics from '@/components/GoogleAnalytics'
+import Script from 'next/script'
 
 export const metadata: Metadata = {
   title: 'Setlistr',
@@ -23,6 +24,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body>
         <GoogleAnalytics />
+        <Script
+          id="warmly-script-loader"
+          src="https://opps-widget.getwarmly.com/warmly.js?clientId=6ec093d4295038808bea7174bdab7ee6"
+          strategy="afterInteractive"
+        />
         {children}
       </body>
     </html>
