@@ -28,6 +28,8 @@ const ACR_STRONG     = 80
 const ACR_SUGGEST    = 55  // raised from 40 — prevents low-confidence wrong detections
 const FLAP_MIN_COUNT = 3  // raised from 2 — live shows have natural candidate noise between songs
 
+const CATALOGUE_FALLBACK_ENABLED = process.env.CATALOGUE_FALLBACK_ENABLED === 'true'
+
 // ─── Canonical artist map ─────────────────────────────────────────────────────
 const CANONICAL_SONG_ARTISTS: Record<string, string[]> = {
   'carrying your love with me': ['george strait'],
@@ -116,6 +118,27 @@ async function checkMemoryBias(
   } catch (err) {
     console.error('[MemoryBias] check failed (non-blocking):', err)
     return { biased: false, confirmedCount: 0 }
+  }
+}
+
+// ─── Catalogue fallback check ─────────────────────────────────────────────────
+async function checkCatalogueFallback(
+  title: string
+): Promise<{ matched: boolean }> {
+  if (!CATALOGUE_FALLBACK_ENABLED) return { matched: false }
+  try {
+    const supabase = getSupabase()
+    const normalizedTitle = normalizeSongKey(title)
+    if (!normalizedTitle || normalizedTitle.length < 3) return { matched: false }
+    const { data } = await supabase
+      .from('catalogue_fallback')
+      .select('id')
+      .eq('normalized_title', normalizedTitle)
+      .limit(1)
+    return { matched: !!(data && data.length > 0) }
+  } catch (err) {
+    console.error('[CatalogueFallback] check failed (non-blocking):', err)
+    return { matched: false }
   }
 }
 
@@ -387,6 +410,7 @@ export async function POST(req: NextRequest) {
     let confidenceLevel: ConfidenceLevel | undefined = undefined
     let sanityPassed  = true
     let failureReason = ''
+    let catalogueFallbackTriggered = false
 
     // ── Catalog-first check: if song is in user's catalog with score >= 60, auto-confirm
     // This runs BEFORE flip/strong checks so catalog songs aren't penalized by noise
@@ -398,6 +422,15 @@ export async function POST(req: NextRequest) {
         sanityPassed    = true
         failureReason   = `catalog_boost: score=${acrScore} count=${bias.confirmedCount}`
         console.log(`[CatalogBoost] "${title}" auto-confirmed via catalog, score=${acrScore}`)
+      } else {
+        const fallback = await checkCatalogueFallback(title)
+        if (fallback.matched) {
+          confidenceLevel = 'auto'
+          sanityPassed    = true
+          failureReason   = `catalogue_fallback: score=${acrScore}`
+          catalogueFallbackTriggered = true
+          console.log(`[CatalogueFallback] "${title}" auto-confirmed via catalogue_fallback, score=${acrScore}`)
+        }
       }
     }
 
@@ -426,6 +459,19 @@ export async function POST(req: NextRequest) {
           confidenceLevel = 'auto'
           sanityPassed    = true
           failureReason   = `memory_bias_upgrade: score=${acrScore} count=${bias.confirmedCount}`
+        } else if (!bias.biased && acrScore >= 60) {
+          const fallback = await checkCatalogueFallback(title)
+          if (fallback.matched) {
+            confidenceLevel = 'auto'
+            sanityPassed    = true
+            failureReason   = `catalogue_fallback_upgrade: score=${acrScore}`
+            catalogueFallbackTriggered = true
+            console.log(`[CatalogueFallback] "${title}" upgraded to auto via catalogue_fallback, score=${acrScore}`)
+          } else {
+            confidenceLevel = 'suggest'
+            sanityPassed    = false
+            failureReason   = `unknown_song_suggest: ${effectiveScore}`
+          }
         } else {
           confidenceLevel = 'suggest'
           sanityPassed    = false
@@ -460,7 +506,7 @@ export async function POST(req: NextRequest) {
       final_source:          source,
       confidence_level:      resolvedLevel,
       auto_confirmed:        resolvedLevel === 'auto',
-      fallback_triggered:    false,
+      fallback_triggered:    catalogueFallbackTriggered,
       flip_count:            flipCount,
       artist_name:           artistName,
       venue_name:            venueName,     // ← was always null before
