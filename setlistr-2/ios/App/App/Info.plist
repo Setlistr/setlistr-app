@@ -26,6 +26,10 @@
 	<true/>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Setlistr uses your microphone to identify songs during live performances.</string>
+	<key>UIBackgroundModes</key> 
+	<array>
+	<string>audio</string>
+	</array>
 	<key>NSCameraUsageDescription</key>
 	<string>Setlistr uses your camera to capture photo setlists.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
