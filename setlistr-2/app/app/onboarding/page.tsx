@@ -102,22 +102,17 @@ export default function OnboardingPage() {
       let cities: string[] = []
       let shows: any[] = []
       let lastfmListeners = 0
+      let careerStartYear: number | null = null
 
       if (setlistRes.status === 'fulfilled' && setlistRes.value.ok) {
         const data = await setlistRes.value.json()
         totalShows = data.totalShows || 0
         cities = data.cities || []
         shows = data.shows || []
+        careerStartYear = data.earliestYear || null
 
         // Save to Supabase in the background — don't await, don't block the reveal
         if (shows.length > 0) {
-          const careerStartYear = shows.length > 0
-            ? Math.min(...shows.map((s: any) => {
-                const parts = (s.date || '').split('-')
-                return parts.length === 3 ? parseInt(parts[2]) : new Date().getFullYear()
-              }))
-            : null
-
           fetch('/api/setlistfm', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

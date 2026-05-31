@@ -68,7 +68,17 @@ export async function GET(req: NextRequest) {
       source: 'setlistfm' as const,
     }))
 
-    return NextResponse.json({ artistName: match.name, totalShows, shows, cities, mbid })
+    // Find earliest year from the shows we have
+    const earliestYear = shows.reduce((earliest: number, s: any) => {
+      const parts = (s.date || '').split('-')
+      if (parts.length === 3) {
+        const year = parseInt(parts[2])
+        if (!isNaN(year) && year < earliest) return year
+      }
+      return earliest
+    }, new Date().getFullYear())
+
+    return NextResponse.json({ artistName: match.name, totalShows, shows, cities, mbid, earliestYear })
   } catch (err) {
     console.error('Setlist.fm error:', err)
     return NextResponse.json({ shows: [], cities: [], totalShows: 0 })
