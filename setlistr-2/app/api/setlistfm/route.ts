@@ -56,11 +56,11 @@ export async function GET(req: NextRequest) {
     }
 
     // Extract cities and shows
-    const cities = [...new Set(
+    const cities = Array.from(new Set(
       allSetlists
         .map((s: any) => s.venue?.city?.name)
         .filter(Boolean)
-    )] as string[]
+    )) as string[]
 
     const shows = allSetlists.map((s: any) => ({
       date: s.eventDate,
