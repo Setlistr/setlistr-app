@@ -18,7 +18,8 @@ const C = {
   blue: '#60a5fa', blueDim: 'rgba(96,165,250,0.1)',
 }
 
-const ACTING_AS_KEY  = 'setlistr_acting_as'
+const ACTING_AS_KEY = 'setlistr_acting_as'
+
 type Performance = {
   id: string; venue_name: string; artist_name: string
   city: string; country: string; status: string
@@ -26,6 +27,8 @@ type Performance = {
   created_at: string; ended_at?: string
   show_type?: string; venue_capacity?: number | null
   captured_by_name?: string | null
+  data_source?: string | null
+  performance_date?: string | null
 }
 
 type BitEvent = {
@@ -37,6 +40,7 @@ type ManagedArtist = { artist_id: string; artist_name: string; role: string }
 type ActingAs      = { artist_id: string; artist_name: string } | null
 
 function getDisplayStatus(p: Performance): { label: string; color: string; bg: string } {
+  if (p.data_source === 'setlistfm_imported') return { label: 'Imported', color: C.muted, bg: 'rgba(255,255,255,0.04)' }
   if (p.submission_status === 'submitted') return { label: 'Submitted', color: C.green, bg: C.greenDim }
   const map: Record<string, { label: string; color: string; bg: string }> = {
     live:      { label: 'Live',         color: C.red,   bg: C.redDim  },
@@ -81,24 +85,23 @@ function isCanadian(country?: string | null, city?: string | null) {
 export default function DashboardPage() {
   const router = useRouter()
 
-  const [performances, setPerformances]       = useState<Performance[]>([])
-  const [loading, setLoading]                 = useState(true)
-  const [livePerf, setLivePerf]               = useState<Performance | null>(null)
+  const [performances, setPerformances]         = useState<Performance[]>([])
+  const [loading, setLoading]                   = useState(true)
+  const [livePerf, setLivePerf]                 = useState<Performance | null>(null)
   const [morningAfterPerf, setMorningAfterPerf] = useState<Performance | null>(null)
-  const [totalSongs, setTotalSongs]           = useState(0)
-  const [userId, setUserId]                   = useState<string | null>(null)
-  const [ownArtistName, setOwnArtistName]     = useState<string | null>(null)
-  const [artistName, setArtistName]           = useState<string | null>(null)
-  const [showEstimates, setShowEstimates]     = useState<ShowEstimateInput[]>([])
+  const [totalSongs, setTotalSongs]             = useState(0)
+  const [userId, setUserId]                     = useState<string | null>(null)
+  const [ownArtistName, setOwnArtistName]       = useState<string | null>(null)
+  const [artistName, setArtistName]             = useState<string | null>(null)
+  const [showEstimates, setShowEstimates]       = useState<ShowEstimateInput[]>([])
   const [submittedEstimates, setSubmittedEstimates] = useState<ShowEstimateInput[]>([])
-  const [songCountMap, setSongCountMap]       = useState<Record<string, number>>({})
-  const [lookupName, setLookupName]           = useState<string | null>(null)
-  const [upcomingShows, setUpcomingShows]     = useState<BitEvent[]>([])
-  const [todayShow, setTodayShow]             = useState<BitEvent | null>(null)
-
-  const [managedArtists, setManagedArtists]   = useState<ManagedArtist[]>([])
-  const [actingAs, setActingAs]               = useState<ActingAs>(null)
-  const [switcherOpen, setSwitcherOpen]       = useState(false)
+  const [songCountMap, setSongCountMap]         = useState<Record<string, number>>({})
+  const [lookupName, setLookupName]             = useState<string | null>(null)
+  const [upcomingShows, setUpcomingShows]       = useState<BitEvent[]>([])
+  const [todayShow, setTodayShow]               = useState<BitEvent | null>(null)
+  const [managedArtists, setManagedArtists]     = useState<ManagedArtist[]>([])
+  const [actingAs, setActingAs]                 = useState<ActingAs>(null)
+  const [switcherOpen, setSwitcherOpen]         = useState(false)
 
   useEffect(() => {
     const supabase = createClient()
@@ -147,7 +150,7 @@ export default function DashboardPage() {
   async function loadOwnPerformances(supabase: any) {
     const { data } = await supabase
       .from('performances')
-      .select(`id, venue_name, artist_name, city, country, status, submission_status, started_at, ended_at, created_at, captured_by_name, shows ( show_type ), venues ( capacity )`)
+      .select(`id, venue_name, artist_name, city, country, status, submission_status, started_at, ended_at, created_at, captured_by_name, data_source, performance_date, shows ( show_type ), venues ( capacity )`)
       .order('created_at', { ascending: false })
     if (data) processPerformances(data)
   }
@@ -170,20 +173,30 @@ export default function DashboardPage() {
       show_type: p.shows?.show_type || p.show_type || 'single',
       venue_capacity: p.venues?.capacity || p.venue_capacity || null,
       captured_by_name: p.captured_by_name || null,
+      data_source: p.data_source || 'captured',
+      performance_date: p.performance_date || null,
     }))
     setPerformances(perfs)
 
-    const live = perfs.find(p => (p.status === 'live' || p.status === 'pending') && minutesSince(p.started_at || p.created_at) < 360)
+    // Only captured shows feed operational flows
+    const capturedPerfs = perfs.filter(p => p.data_source !== 'setlistfm_imported')
+
+    const live = capturedPerfs.find(p =>
+      (p.status === 'live' || p.status === 'pending') &&
+      minutesSince(p.started_at || p.created_at) < 360
+    )
     setLivePerf(live || null)
 
-    const morningAfter = perfs.find(p => {
+    const morningAfter = capturedPerfs.find(p => {
       const hoursAgo = hoursSince(p.ended_at || p.started_at)
-      return hoursAgo > 0 && hoursAgo <= 18 && p.status !== 'live' && p.status !== 'pending' && p.submission_status !== 'submitted'
+      return hoursAgo > 0 && hoursAgo <= 18 &&
+        p.status !== 'live' && p.status !== 'pending' &&
+        p.submission_status !== 'submitted'
     })
     setMorningAfterPerf(morningAfter || null)
 
     const buildEstimates = (countMap: Record<string, number>) => {
-      const unclaimed: ShowEstimateInput[] = perfs
+      const unclaimed: ShowEstimateInput[] = capturedPerfs
         .filter(p => p.status !== 'live' && p.status !== 'pending' && p.submission_status !== 'submitted')
         .map(p => ({
           performanceId: p.id, status: p.status,
@@ -193,7 +206,7 @@ export default function DashboardPage() {
           territory: isCanadian(p.country, p.city) ? 'CA' : 'US',
         })).filter(e => e.songCount > 0)
 
-      const submitted: ShowEstimateInput[] = perfs
+      const submitted: ShowEstimateInput[] = capturedPerfs
         .filter(p => p.submission_status === 'submitted')
         .map(p => ({
           performanceId: p.id, status: 'complete',
@@ -214,7 +227,7 @@ export default function DashboardPage() {
     } else {
       const supabase = createClient()
       supabase.from('performance_songs').select('performance_id')
-        .in('performance_id', perfs.map(p => p.id))
+        .in('performance_id', capturedPerfs.map(p => p.id))
         .then(({ data: songData }) => {
           const countMap: Record<string, number> = {}
           songData?.forEach((s: any) => { countMap[s.performance_id] = (countMap[s.performance_id] || 0) + 1 })
@@ -265,14 +278,35 @@ export default function DashboardPage() {
     fetchUpcoming()
   }, [lookupName])
 
+  // ── DERIVED CAREER DATA ──
   const aggregate          = aggregateUnclaimedEarnings(showEstimates)
   const submittedAggregate = aggregateUnclaimedEarnings(submittedEstimates)
   const lifetimeTotal      = aggregate.totalExpected + submittedAggregate.totalExpected
-  const totalShows         = performances.filter(p => p.status !== 'live' && p.status !== 'pending').length
-  const submittedCount     = performances.filter(p => p.submission_status === 'submitted').length
-  const recentPerfs        = performances.slice(0, 5)
+
+  const capturedPerfs    = performances.filter(p => p.data_source !== 'setlistfm_imported')
+  const importedPerfs    = performances.filter(p => p.data_source === 'setlistfm_imported')
+  const totalCareerShows = performances.length
+  const capturedCount    = capturedPerfs.filter(p => p.status !== 'live' && p.status !== 'pending').length
+  const submittedCount   = capturedPerfs.filter(p => p.submission_status === 'submitted').length
+  const recentPerfs      = capturedPerfs.slice(0, 5)
+
+  const uniqueCities = Array.from(new Set(
+    performances.map(p => p.city).filter(Boolean)
+  ))
+
+  const careerStartDate = performances.length > 0
+    ? performances.reduce((earliest, p) => {
+        const d = p.performance_date || p.started_at || p.created_at
+        return d < earliest ? d : earliest
+      }, performances[0].performance_date || performances[0].started_at || performances[0].created_at)
+    : null
+
+  const careerYears = careerStartDate
+    ? Math.max(1, new Date().getFullYear() - new Date(careerStartDate).getFullYear())
+    : 0
 
   function navigateToPerformance(p: Performance) {
+    if (p.data_source === 'setlistfm_imported') return
     if (p.status === 'live' || p.status === 'pending') router.push(`/app/live/${p.id}`)
     else if (p.submission_status === 'submitted') router.push(`/app/submit/${p.id}`)
     else router.push(`/app/review/${p.id}`)
@@ -384,6 +418,96 @@ export default function DashboardPage() {
 
         {switcherOpen && <div onClick={() => setSwitcherOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 40 }} />}
 
+        {/* ── CAREER LEDGER ── */}
+        {totalCareerShows > 0 && (
+          <div style={{ marginBottom: 32, animation: 'fadeUp 0.3s ease' }}>
+            <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.13em', textTransform: 'uppercase', color: C.muted, margin: '0 0 16px' }}>Your career</p>
+
+            {/* Big career number */}
+            <p style={{ fontSize: 72, fontWeight: 800, color: C.text, margin: 0, fontFamily: '"DM Mono", monospace', letterSpacing: '-0.04em', lineHeight: 0.9 }}>
+              {totalCareerShows.toLocaleString()}
+            </p>
+            <p style={{ fontSize: 15, color: C.muted, margin: '8px 0 0', fontWeight: 400 }}>
+              shows on record
+              {capturedCount > 0 && importedPerfs.length > 0 && (
+                <span style={{ color: C.gold, marginLeft: 8, fontSize: 13 }}>
+                  · {capturedCount} captured
+                </span>
+              )}
+            </p>
+
+            {/* Career stat pills */}
+            {(uniqueCities.length > 0 || careerYears > 0) && (
+              <div style={{ display: 'flex', gap: 8, marginTop: 16, flexWrap: 'wrap' }}>
+                {uniqueCities.length > 0 && (
+                  <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 20, padding: '6px 14px', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: C.text, fontFamily: '"DM Mono", monospace' }}>{uniqueCities.length}</span>
+                    <span style={{ fontSize: 12, color: C.muted }}>cities</span>
+                  </div>
+                )}
+                {careerYears > 0 && (
+                  <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 20, padding: '6px 14px', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: C.text, fontFamily: '"DM Mono", monospace' }}>{careerYears}</span>
+                    <span style={{ fontSize: 12, color: C.muted }}>{careerYears === 1 ? 'year' : 'years'} performing</span>
+                  </div>
+                )}
+                {submittedCount > 0 && (
+                  <div style={{ background: C.greenDim, border: '1px solid rgba(74,222,128,0.2)', borderRadius: 20, padding: '6px 14px', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <Check size={10} color={C.green} strokeWidth={2.5} />
+                    <span style={{ fontSize: 12, color: C.green, fontWeight: 600 }}>{submittedCount} filed</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Royalty line */}
+            {lifetimeTotal > 0 && (
+              <p style={{ fontSize: 22, fontWeight: 700, color: C.gold, margin: '16px 0 0', fontFamily: '"DM Mono", monospace', letterSpacing: '-0.02em' }}>
+                ~${lifetimeTotal.toLocaleString()}
+                <span style={{ fontSize: 14, fontWeight: 400, color: C.muted, marginLeft: 8, fontFamily: '"DM Sans", system-ui, sans-serif', letterSpacing: 0 }}>documented</span>
+              </p>
+            )}
+
+            {/* Submitted progress bar */}
+            {submittedCount > 0 && lifetimeTotal > 0 && (
+              <div style={{ marginTop: 12, height: 2, background: 'rgba(255,255,255,0.06)', borderRadius: 1, overflow: 'hidden', maxWidth: 200 }}>
+                <div style={{ height: '100%', borderRadius: 1, background: C.green, width: `${Math.min(100, Math.round((submittedAggregate.totalExpected / lifetimeTotal) * 100))}%`, transition: 'width 0.8s ease' }} />
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Empty career state */}
+        {totalCareerShows === 0 && !loading && (
+          <div style={{ marginBottom: 32, animation: 'fadeUp 0.3s ease' }}>
+            <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.13em', textTransform: 'uppercase', color: C.muted, margin: '0 0 12px' }}>Your career</p>
+            <div style={{ padding: '32px 0' }}>
+              <p style={{ fontSize: 16, color: C.secondary, margin: '0 0 6px', fontWeight: 500 }}>The stage is quiet for now.</p>
+              <p style={{ fontSize: 14, color: C.muted, margin: 0 }}>Your record starts with your first show.</p>
+            </div>
+          </div>
+        )}
+
+        {/* ── INSIGHT LINE ── */}
+        {capturedCount >= 3 && recentPerfs.length > 0 && (() => {
+          const lastPerf = recentPerfs[0]
+          const daysSince = Math.floor((Date.now() - new Date(lastPerf.started_at || lastPerf.created_at).getTime()) / 86400000)
+          const insightLine = daysSince === 0
+            ? `You played tonight. The record is up to date.`
+            : daysSince === 1
+            ? `Last night at ${lastPerf.venue_name}. Still fresh.`
+            : daysSince < 7
+            ? `${daysSince} days since ${lastPerf.venue_name}.`
+            : daysSince < 30
+            ? `${daysSince} days since your last show. The stage is waiting.`
+            : `${daysSince} days since your last show. When's the next one?`
+          return (
+            <div style={{ marginBottom: 24, animation: 'fadeUp 0.35s ease', borderLeft: '2px solid rgba(201,168,76,0.3)', paddingLeft: 16 }}>
+              <p style={{ fontSize: 15, color: C.secondary, margin: 0, lineHeight: 1.5, fontWeight: 400, fontStyle: 'italic' }}>{insightLine}</p>
+            </div>
+          )
+        })()}
+
         {/* ── MORNING-AFTER NUDGE ── */}
         {morningAfterPerf && !livePerf && (
           <div style={{ marginBottom: 16, animation: 'fadeUp 0.3s ease' }}>
@@ -422,7 +546,7 @@ export default function DashboardPage() {
 
         {/* ── RESUME LIVE SESSION ── */}
         {livePerf && (() => {
-          const minsSinceStart    = minutesSince(livePerf.started_at || livePerf.created_at)
+          const minsSinceStart     = minutesSince(livePerf.started_at || livePerf.created_at)
           const mightBeInterrupted = minsSinceStart > 5
           return (
             <div style={{ marginBottom: 24, animation: 'fadeUp 0.3s ease' }}>
@@ -446,49 +570,6 @@ export default function DashboardPage() {
                   {mightBeInterrupted ? 'Resume →' : 'Continue →'}
                 </div>
               </button>
-            </div>
-          )
-        })()}
-
-        {/* ── LIFETIME ROYALTY COUNTER ── */}
-        {lifetimeTotal > 0 && (
-          <div style={{ marginBottom: 32, animation: 'fadeUp 0.34s ease', paddingLeft: 0 }}>
-            <p style={{ fontSize: 72, fontWeight: 800, color: C.text, margin: 0, fontFamily: '"DM Mono", monospace', letterSpacing: '-0.04em', lineHeight: 0.9 }}>
-              {totalShows}
-            </p>
-            <p style={{ fontSize: 15, color: C.muted, margin: '10px 0 0', fontWeight: 400 }}>
-              shows on record
-              {submittedCount > 0 && <span style={{ color: C.green, marginLeft: 8, fontSize: 13 }}>· {submittedCount} filed</span>}
-            </p>
-            {lifetimeTotal > 0 && (
-              <p style={{ fontSize: 22, fontWeight: 700, color: C.gold, margin: '16px 0 0', fontFamily: '"DM Mono", monospace', letterSpacing: '-0.02em' }}>
-                ~${lifetimeTotal.toLocaleString()}
-                <span style={{ fontSize: 14, fontWeight: 400, color: C.muted, marginLeft: 8, fontFamily: '"DM Sans", system-ui, sans-serif', letterSpacing: 0 }}>documented</span>
-              </p>
-            )}
-            {submittedCount > 0 && lifetimeTotal > 0 && (
-              <div style={{ marginTop: 12, height: 2, background: 'rgba(255,255,255,0.06)', borderRadius: 1, overflow: 'hidden', maxWidth: 200 }}>
-                <div style={{ height: '100%', borderRadius: 1, background: C.green, width: `${Math.min(100, Math.round((submittedAggregate.totalExpected / lifetimeTotal) * 100))}%`, transition: 'width 0.8s ease' }} />
-              </div>
-            )}
-          </div>
-        )}
-
-        {totalShows >= 3 && recentPerfs.length > 0 && (() => {
-          const lastPerf = recentPerfs[0]
-          const daysSince = Math.floor((Date.now() - new Date(lastPerf.started_at || lastPerf.created_at).getTime()) / 86400000)
-          const insightLine = daysSince === 0
-            ? `You played tonight. The record is up to date.`
-            : daysSince === 1
-            ? `Last night at ${lastPerf.venue_name}. Still fresh.`
-            : daysSince < 7
-            ? `${daysSince} days since ${lastPerf.venue_name}.`
-            : daysSince < 30
-            ? `${daysSince} days since your last show. The stage is waiting.`
-            : `${daysSince} days since your last show. When's the next one?`
-          return (
-            <div style={{ marginBottom: 24, animation: 'fadeUp 0.35s ease', borderLeft: '2px solid rgba(201,168,76,0.3)', paddingLeft: 16 }}>
-              <p style={{ fontSize: 15, color: C.secondary, margin: 0, lineHeight: 1.5, fontWeight: 400, fontStyle: 'italic' }}>{insightLine}</p>
             </div>
           )
         })()}
@@ -565,7 +646,7 @@ export default function DashboardPage() {
         )}
 
         {/* ── PROOF FILE LINK ── */}
-        {totalShows >= 3 && (
+        {capturedCount >= 3 && (
           <button onClick={() => router.push('/app/proof')}
             style={{ width: '100%', background: 'transparent', border: 'none', padding: '14px 0', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid rgba(255,255,255,0.05)', marginBottom: 8, WebkitTapHighlightColor: 'transparent' }}
             onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.7'}
@@ -578,15 +659,34 @@ export default function DashboardPage() {
           </button>
         )}
 
-        {/* ── RECENT SHOWS ── */}
+        {/* ── RECENT CAPTURED SHOWS ── */}
         <div style={{ animation: 'fadeUp 0.42s ease', paddingBottom: 32 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-            <p style={{ fontSize: 13, fontWeight: 600, color: C.muted, margin: 0, letterSpacing: '0.04em' }}>Recent shows</p>
-            {performances.length > 5 && (
+            <p style={{ fontSize: 13, fontWeight: 600, color: C.muted, margin: 0, letterSpacing: '0.04em' }}>
+              Recent shows
+              {importedPerfs.length > 0 && capturedCount === 0 && (
+                <span style={{ color: C.muted, fontWeight: 400, marginLeft: 6 }}>· history imported</span>
+              )}
+            </p>
+            {capturedPerfs.length > 5 && (
               <button onClick={() => router.push('/app/history')} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>All →</button>
             )}
           </div>
-          {recentPerfs.length === 0 ? (
+
+          {recentPerfs.length === 0 && importedPerfs.length > 0 ? (
+            // Has imported history but no captured shows yet
+            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '24px 20px', textAlign: 'center' }}>
+              <p style={{ fontSize: 28, fontWeight: 800, color: C.gold, margin: '0 0 4px', fontFamily: '"DM Mono", monospace' }}>{importedPerfs.length}</p>
+              <p style={{ fontSize: 14, color: C.secondary, margin: '0 0 4px', fontWeight: 500 }}>shows in your history</p>
+              <p style={{ fontSize: 13, color: C.muted, margin: '0 0 20px', lineHeight: 1.5 }}>
+                Your first captured show starts the verified record.<br />Everything before tonight is history. Make tonight count.
+              </p>
+              <button onClick={() => router.push('/app/show/new')}
+                style={{ background: C.gold, border: 'none', borderRadius: 10, padding: '12px 20px', fontSize: 13, fontWeight: 800, color: '#0a0908', cursor: 'pointer', fontFamily: 'inherit', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                Capture Tonight →
+              </button>
+            </div>
+          ) : recentPerfs.length === 0 ? (
             <div style={{ padding: '40px 0', textAlign: 'center' }}>
               <p style={{ fontSize: 16, color: C.secondary, margin: '0 0 6px', fontWeight: 500 }}>The stage is quiet for now.</p>
               <p style={{ fontSize: 14, color: C.muted, margin: 0 }}>Your record starts with your first show.</p>
@@ -598,14 +698,17 @@ export default function DashboardPage() {
                 const dateStr = perf.started_at || perf.created_at
                 const songCount = songCountMap[perf.id] || 0
                 const isFinished = perf.status !== 'live' && perf.status !== 'pending'
-                const perfEst = isFinished && songCount > 0
+                const isImported = perf.data_source === 'setlistfm_imported'
+                const perfEst = isFinished && songCount > 0 && !isImported
                   ? estimateRoyalties({ songCount, venueCapacityBand: capacityToBand(perf.venue_capacity), showType: (perf.show_type as any) || 'single', territory: isCanadian(perf.country, perf.city) ? 'CA' : 'US' })
                   : null
                 return (
-                  <button key={perf.id} onClick={() => navigateToPerformance(perf)}
-                    style={{ background: 'transparent', border: 'none', borderTop: idx === 0 ? '1px solid rgba(255,255,255,0.05)' : 'none', borderBottom: '1px solid rgba(255,255,255,0.05)', padding: '14px 0', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 16, WebkitTapHighlightColor: 'transparent' }}
-                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.7'}
-                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}>
+                  <button key={perf.id}
+                    onClick={() => navigateToPerformance(perf)}
+                    disabled={isImported}
+                    style={{ background: 'transparent', border: 'none', borderTop: idx === 0 ? '1px solid rgba(255,255,255,0.05)' : 'none', borderBottom: '1px solid rgba(255,255,255,0.05)', padding: '14px 0', cursor: isImported ? 'default' : 'pointer', textAlign: 'left', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 16, WebkitTapHighlightColor: 'transparent', opacity: isImported ? 0.6 : 1 }}
+                    onMouseEnter={e => { if (!isImported) (e.currentTarget as HTMLElement).style.opacity = '0.7' }}
+                    onMouseLeave={e => { if (!isImported) (e.currentTarget as HTMLElement).style.opacity = '1' }}>
                     <div style={{ minWidth: 36, flexShrink: 0, textAlign: 'center' }}>
                       <p style={{ fontSize: 18, fontWeight: 700, color: C.text, margin: 0, fontFamily: '"DM Mono", monospace', lineHeight: 1 }}>{new Date(dateStr).getDate()}</p>
                       <p style={{ fontSize: 10, color: C.muted, margin: '1px 0 0', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{new Date(dateStr).toLocaleDateString('en-US', { month: 'short' })}</p>
@@ -624,7 +727,6 @@ export default function DashboardPage() {
             </div>
           )}
         </div>
-
 
       </div>
 
