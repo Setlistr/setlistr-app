@@ -689,7 +689,7 @@ export default function DashboardPage() {
           {recentPerfs.length === 0 && importedPerfs.length > 0 ? (
             // Has imported history but no captured shows yet
             <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '24px 20px', textAlign: 'center' }}>
-              <p style={{ fontSize: 28, fontWeight: 800, color: C.gold, margin: '0 0 4px', fontFamily: '"DM Mono", monospace' }}>{importedPerfs.length}</p>
+              <p style={{ fontSize: 28, fontWeight: 800, color: C.gold, margin: '0 0 4px', fontFamily: '"DM Mono", monospace' }}>{careerTotalShows > 0 ? careerTotalShows.toLocaleString() : importedPerfs.length}</p>
               <p style={{ fontSize: 14, color: C.secondary, margin: '0 0 4px', fontWeight: 500 }}>shows in your history</p>
               <p style={{ fontSize: 13, color: C.muted, margin: '0 0 20px', lineHeight: 1.5 }}>
                 Your first captured show starts the verified record.<br />Everything before tonight is history. Make tonight count.
