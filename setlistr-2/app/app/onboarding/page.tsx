@@ -232,7 +232,6 @@ export default function OnboardingPage() {
 
         {/* Wordmark */}
         <div style={{ textAlign: 'center', marginBottom: 32, animation: 'fadeUp 0.3s ease' }}>
-          <p style={{ fontSize: 16, fontWeight: 800, color: C.gold, letterSpacing: '0.12em', textTransform: 'uppercase', margin: '0 0 5px' }}>Setlistr</p>
           <p style={{ fontSize: 13, color: C.muted, letterSpacing: '0.08em', margin: 0 }}>Your verified live career starts here.</p>
         </div>
 
