@@ -108,6 +108,15 @@ export default function OnboardingPage() {
         totalShows = data.totalShows || 0
         cities = data.cities || []
         shows = data.shows || []
+
+        // Save to Supabase in the background — don't await, don't block the reveal
+        if (shows.length > 0) {
+          fetch('/api/setlistfm', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ shows, artistName: name }),
+          }).catch(err => console.error('Background save failed:', err))
+        }
       }
 
       if (lastfmRes.status === 'fulfilled' && lastfmRes.value.ok) {

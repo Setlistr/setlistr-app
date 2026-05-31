@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@/lib/supabase/server'
 
 const BASE = 'https://api.setlist.fm/rest/1.0'
 const HEADERS = {
@@ -12,7 +13,6 @@ export async function GET(req: NextRequest) {
   if (!artist) return NextResponse.json({ error: 'artist required' }, { status: 400 })
 
   try {
-    // Step 1: search for artist to get mbid
     const searchRes = await fetch(
       `${BASE}/search/artists?artistName=${encodeURIComponent(artist)}&sort=relevance`,
       { headers: HEADERS, next: { revalidate: 3600 } }
@@ -22,7 +22,6 @@ export async function GET(req: NextRequest) {
     const artists = searchData?.artist
     if (!artists?.length) return NextResponse.json({ shows: [], cities: [], totalShows: 0 })
 
-    // Pick best match — exact name match first, fallback to first result
     const match = artists.find((a: any) =>
       a.name.toLowerCase() === artist.toLowerCase()
     ) || artists[0]
@@ -30,7 +29,6 @@ export async function GET(req: NextRequest) {
     const mbid = match.mbid
     if (!mbid) return NextResponse.json({ shows: [], cities: [], totalShows: 0 })
 
-    // Step 2: get setlists for this artist (last 3 pages = up to 60 shows)
     const [page1, page2, page3] = await Promise.allSettled([
       fetch(`${BASE}/artist/${mbid}/setlists?p=1`, { headers: HEADERS, next: { revalidate: 3600 } }),
       fetch(`${BASE}/artist/${mbid}/setlists?p=2`, { headers: HEADERS, next: { revalidate: 3600 } }),
@@ -45,21 +43,17 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Get total from first page
-    let totalShows = 0
-    if (page1.status === 'fulfilled' && page1.value.ok) {
-      const data = await (await fetch(
-        `${BASE}/artist/${mbid}/setlists?p=1`,
-        { headers: HEADERS, next: { revalidate: 3600 } }
-      )).json()
-      totalShows = data?.total || allSetlists.length
-    }
+    let totalShows = allSetlists.length
+    try {
+      if (page1.status === 'fulfilled' && page1.value.ok) {
+        const freshRes = await fetch(`${BASE}/artist/${mbid}/setlists?p=1`, { headers: HEADERS })
+        const freshData = await freshRes.json()
+        totalShows = freshData?.total || allSetlists.length
+      }
+    } catch {}
 
-    // Extract cities and shows
     const cities = Array.from(new Set(
-      allSetlists
-        .map((s: any) => s.venue?.city?.name)
-        .filter(Boolean)
+      allSetlists.map((s: any) => s.venue?.city?.name).filter(Boolean)
     )) as string[]
 
     const shows = allSetlists.map((s: any) => ({
@@ -70,18 +64,82 @@ export async function GET(req: NextRequest) {
       songCount: s.sets?.set?.reduce(
         (acc: number, set: any) => acc + (set.song?.length || 0), 0
       ) || 0,
+      songs: s.sets?.set?.flatMap((set: any) => set.song?.map((song: any) => song.name) || []) || [],
       source: 'setlistfm' as const,
     }))
 
-    return NextResponse.json({
-      artistName: match.name,
-      totalShows,
-      shows,
-      cities,
-      mbid,
-    })
+    return NextResponse.json({ artistName: match.name, totalShows, shows, cities, mbid })
   } catch (err) {
     console.error('Setlist.fm error:', err)
     return NextResponse.json({ shows: [], cities: [], totalShows: 0 })
   }
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
+
+    const { shows, artistName } = await req.json()
+    if (!shows?.length) return NextResponse.json({ saved: 0 })
+
+    // Check which dates already exist to avoid duplicates
+    const { data: existing } = await supabase
+      .from('performances')
+      .select('performance_date, venue_name')
+      .eq('user_id', user.id)
+      .eq('data_source', 'setlistfm_imported')
+
+    const existingKeys = new Set(
+      (existing || []).map((p: any) => `${p.performance_date}|${p.venue_name}`)
+    )
+
+    const toInsert = shows
+      .filter((s: any) => {
+        const key = `${s.date}|${s.venue}`
+        return !existingKeys.has(key)
+      })
+      .map((s: any) => ({
+        user_id: user.id,
+        artist_name: artistName,
+        venue_name: s.venue || 'Unknown Venue',
+        city: s.city || '',
+        country: s.country || '',
+        performance_date: parseSetlistDate(s.date),
+        start_time: '20:00',
+        set_duration_minutes: Math.max(30, (s.songCount || 8) * 4),
+        status: 'complete',
+        data_source: 'setlistfm_imported',
+        notes: `Imported from Setlist.fm · ${s.songCount || 0} songs`,
+      }))
+
+    if (!toInsert.length) return NextResponse.json({ saved: 0 })
+
+    const { data: inserted, error } = await supabase
+      .from('performances')
+      .insert(toInsert)
+      .select('id')
+
+    if (error) {
+      console.error('Supabase insert error:', error)
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    return NextResponse.json({ saved: inserted?.length || 0 })
+  } catch (err) {
+    console.error('POST setlistfm error:', err)
+    return NextResponse.json({ error: 'failed' }, { status: 500 })
+  }
+}
+
+function parseSetlistDate(dateStr: string): string {
+  // Setlist.fm format: DD-MM-YYYY
+  if (!dateStr) return new Date().toISOString().split('T')[0]
+  const parts = dateStr.split('-')
+  if (parts.length === 3) {
+    const [day, month, year] = parts
+    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`
+  }
+  return dateStr
 }
