@@ -102,6 +102,8 @@ export default function DashboardPage() {
   const [managedArtists, setManagedArtists]     = useState<ManagedArtist[]>([])
   const [actingAs, setActingAs]                 = useState<ActingAs>(null)
   const [switcherOpen, setSwitcherOpen]         = useState(false)
+  const [careerTotalShows, setCareerTotalShows] = useState<number>(0)
+  const [careerStartYear, setCareerStartYear]   = useState<number>(0)
 
   useEffect(() => {
     const supabase = createClient()
@@ -148,10 +150,19 @@ export default function DashboardPage() {
   }, [])
 
   async function loadOwnPerformances(supabase: any) {
-    const { data } = await supabase
-      .from('performances')
-      .select(`id, venue_name, artist_name, city, country, status, submission_status, started_at, ended_at, created_at, captured_by_name, data_source, performance_date, shows ( show_type ), venues ( capacity )`)
-      .order('created_at', { ascending: false })
+    const [{ data }, { data: profileCareer }] = await Promise.all([
+      supabase
+        .from('performances')
+        .select(`id, venue_name, artist_name, city, country, status, submission_status, started_at, ended_at, created_at, captured_by_name, data_source, performance_date, shows ( show_type ), venues ( capacity )`)
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('profiles')
+        .select('career_total_shows, career_start_year')
+        .eq('id', (await supabase.auth.getUser()).data.user?.id || '')
+        .single()
+    ])
+    if (profileCareer?.career_total_shows) setCareerTotalShows(profileCareer.career_total_shows)
+    if (profileCareer?.career_start_year) setCareerStartYear(profileCareer.career_start_year)
     if (data) processPerformances(data)
   }
 
@@ -285,7 +296,7 @@ export default function DashboardPage() {
 
   const capturedPerfs    = performances.filter(p => p.data_source !== 'setlistfm_imported')
   const importedPerfs    = performances.filter(p => p.data_source === 'setlistfm_imported')
-  const totalCareerShows = performances.length
+  const totalCareerShows = careerTotalShows > 0 ? careerTotalShows : performances.length
   const capturedCount    = capturedPerfs.filter(p => p.status !== 'live' && p.status !== 'pending').length
   const submittedCount   = capturedPerfs.filter(p => p.submission_status === 'submitted').length
   const recentPerfs      = capturedPerfs.slice(0, 5)
@@ -301,7 +312,9 @@ export default function DashboardPage() {
       }, performances[0].performance_date || performances[0].started_at || performances[0].created_at)
     : null
 
-  const careerYears = careerStartDate
+  const careerYears = careerStartYear > 0
+    ? new Date().getFullYear() - careerStartYear
+    : careerStartDate
     ? Math.max(1, new Date().getFullYear() - new Date(careerStartDate).getFullYear())
     : 0
 

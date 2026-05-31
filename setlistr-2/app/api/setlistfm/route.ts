@@ -81,7 +81,7 @@ export async function POST(req: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
 
-    const { shows, artistName } = await req.json()
+    const { shows, artistName, totalShows, careerStartYear } = await req.json()
     if (!shows?.length) return NextResponse.json({ saved: 0 })
 
     // Check which dates already exist to avoid duplicates
@@ -124,6 +124,14 @@ export async function POST(req: NextRequest) {
     if (error) {
       console.error('Supabase insert error:', error)
       return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    // Update profile with real career totals
+    if (totalShows || careerStartYear) {
+      const updateData: any = {}
+      if (totalShows) updateData.career_total_shows = totalShows
+      if (careerStartYear) updateData.career_start_year = careerStartYear
+      await supabase.from('profiles').update(updateData).eq('id', user.id)
     }
 
     return NextResponse.json({ saved: inserted?.length || 0 })

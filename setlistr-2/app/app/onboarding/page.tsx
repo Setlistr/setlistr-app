@@ -111,10 +111,22 @@ export default function OnboardingPage() {
 
         // Save to Supabase in the background — don't await, don't block the reveal
         if (shows.length > 0) {
+          const careerStartYear = shows.length > 0
+            ? Math.min(...shows.map((s: any) => {
+                const parts = (s.date || '').split('-')
+                return parts.length === 3 ? parseInt(parts[2]) : new Date().getFullYear()
+              }))
+            : null
+
           fetch('/api/setlistfm', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ shows, artistName: name }),
+            body: JSON.stringify({
+              shows,
+              artistName: name,
+              totalShows: data.totalShows,
+              careerStartYear,
+            }),
           }).catch(err => console.error('Background save failed:', err))
         }
       }
