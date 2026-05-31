@@ -96,6 +96,11 @@ export default function SettingsPage() {
   const [copiedInvite, setCopiedInvite]       = useState(false)
   const [revoking, setRevoking]               = useState<string | null>(null)
 
+  // Career history
+  const [careerStartYear, setCareerStartYear]         = useState<number | ''>('')
+  const [careerStartYearSaving, setCareerStartYearSaving] = useState(false)
+  const [careerStartYearSaved, setCareerStartYearSaved]   = useState(false)
+
   useEffect(() => {
     async function load() {
       const supabase = createClient()
@@ -106,7 +111,7 @@ export default function SettingsPage() {
 
       const { data: profile } = await supabase
         .from('profiles')
-        .select('full_name, artist_name, pro_affiliation, ipi_number, publisher_name, legal_name, bandsintown_artist_name')
+        .select('full_name, artist_name, pro_affiliation, ipi_number, publisher_name, legal_name, bandsintown_artist_name, career_start_year, career_total_shows')
         .eq('id', user.id)
         .single()
 
@@ -118,6 +123,7 @@ export default function SettingsPage() {
         setPublisherName(profile.publisher_name ?? '')
         setLegalName(profile.legal_name ?? '')
         setBandsintownName(profile.bandsintown_artist_name ?? '')
+        if (profile.career_start_year) setCareerStartYear(profile.career_start_year)
         if (profile.artist_name) setSpotifyQuery(profile.artist_name)
       }
 
@@ -203,6 +209,23 @@ export default function SettingsPage() {
     setBandsintownSaving(false)
     setBandsintownSaved(true)
     setTimeout(() => setBandsintownSaved(false), 2000)
+  }
+
+  async function saveCareerStartYear() {
+    if (!careerStartYear) return
+    const year = Number(careerStartYear)
+    if (isNaN(year) || year < 1900 || year > new Date().getFullYear()) return
+    setCareerStartYearSaving(true)
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    await supabase.from('profiles').update({
+      career_start_year: year,
+      updated_at: new Date().toISOString(),
+    }).eq('id', user.id)
+    setCareerStartYearSaving(false)
+    setCareerStartYearSaved(true)
+    setTimeout(() => setCareerStartYearSaved(false), 2000)
   }
 
   async function testBandsintown() {
@@ -526,6 +549,38 @@ export default function SettingsPage() {
               {bandsintownSaved ? <><Check size={14} strokeWidth={2.5} />Saved</> : bandsintownSaving ? 'Saving...' : 'Save'}
             </button>
           </div>
+        </div>
+
+        {/* ── Career History ── */}
+        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Clock size={15} color={C.gold} />
+            <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.secondary, margin: 0 }}>Career History</p>
+          </div>
+          <p style={{ fontSize: 12, color: C.muted, margin: 0, lineHeight: 1.6 }}>
+            We estimate your career start year from your Setlist.fm history. If it's wrong, correct it here — this affects how your career timeline is displayed.
+          </p>
+          <div>
+            <label style={labelStyle}>Year you started performing live</label>
+            <input
+              type="number"
+              value={careerStartYear}
+              onChange={e => setCareerStartYear(e.target.value === '' ? '' : Number(e.target.value))}
+              placeholder={`e.g. ${new Date().getFullYear() - 5}`}
+              min="1900"
+              max={new Date().getFullYear()}
+              style={{ ...inputStyle, fontFamily: '"DM Mono", monospace', letterSpacing: '0.05em' }}
+              onFocus={e => (e.target as HTMLInputElement).style.borderColor = C.borderGold}
+              onBlur={e => (e.target as HTMLInputElement).style.borderColor = C.inputBorder}
+            />
+            <p style={{ fontSize: 11, color: C.muted, margin: '6px 0 0' }}>
+              Your entry overrides our estimate. This is shown as "X years performing" on your career record.
+            </p>
+          </div>
+          <button onClick={saveCareerStartYear} disabled={careerStartYearSaving || careerStartYearSaved || !careerStartYear}
+            style={{ width: '100%', padding: '13px', background: careerStartYearSaved ? '#16a34a' : C.gold, border: 'none', borderRadius: 10, color: careerStartYearSaved ? '#fff' : '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontFamily: 'inherit', opacity: careerStartYearSaving || !careerStartYear ? 0.7 : 1 }}>
+            {careerStartYearSaved ? <><Check size={14} strokeWidth={2.5} />Saved</> : careerStartYearSaving ? 'Saving...' : 'Update Career Start'}
+          </button>
         </div>
 
         {/* ── PRO Information ── */}
