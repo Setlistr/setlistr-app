@@ -39,6 +39,28 @@ type BitEvent = {
 type ManagedArtist = { artist_id: string; artist_name: string; role: string }
 type ActingAs      = { artist_id: string; artist_name: string } | null
 
+function useCountUp(target: number, duration: number = 1400, delay: number = 0): number {
+  const [count, setCount] = useState(0)
+  useEffect(() => {
+    if (target === 0) { setCount(0); return }
+    let startTime: number | null = null
+    let animFrame: number
+    const delayTimer = setTimeout(() => {
+      function step(timestamp: number) {
+        if (!startTime) startTime = timestamp
+        const progress = Math.min((timestamp - startTime) / duration, 1)
+        const eased = 1 - Math.pow(1 - progress, 3)
+        setCount(Math.floor(eased * target))
+        if (progress < 1) animFrame = requestAnimationFrame(step)
+        else setCount(target)
+      }
+      animFrame = requestAnimationFrame(step)
+    }, delay)
+    return () => { clearTimeout(delayTimer); cancelAnimationFrame(animFrame) }
+  }, [target, duration, delay])
+  return count
+}
+
 function getDisplayStatus(p: Performance): { label: string; color: string; bg: string } {
   if (p.data_source === 'setlistfm_imported') return { label: 'Imported', color: C.muted, bg: 'rgba(255,255,255,0.04)' }
   if (p.submission_status === 'submitted') return { label: 'Submitted', color: C.green, bg: C.greenDim }
@@ -294,6 +316,9 @@ export default function DashboardPage() {
   const submittedAggregate = aggregateUnclaimedEarnings(submittedEstimates)
   const lifetimeTotal      = aggregate.totalExpected + submittedAggregate.totalExpected
 
+  const animatedCareerShows = useCountUp(totalCareerShows, 1400, 200)
+  const animatedRoyalties   = useCountUp(lifetimeTotal, 1600, 400)
+
   const capturedPerfs    = performances.filter(p => p.data_source !== 'setlistfm_imported')
   const importedPerfs    = performances.filter(p => p.data_source === 'setlistfm_imported')
   const totalCareerShows = careerTotalShows > 0 ? careerTotalShows : performances.length
@@ -437,8 +462,8 @@ export default function DashboardPage() {
             <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.13em', textTransform: 'uppercase', color: C.muted, margin: '0 0 16px' }}>Your career</p>
 
             {/* Big career number */}
-            <p style={{ fontSize: 72, fontWeight: 800, color: C.text, margin: 0, fontFamily: '"DM Mono", monospace', letterSpacing: '-0.04em', lineHeight: 0.9 }}>
-              {totalCareerShows.toLocaleString()}
+            <p style={{ fontSize: 72, fontWeight: 800, color: C.text, margin: 0, fontFamily: '"DM Mono", monospace', letterSpacing: '-0.04em', lineHeight: 0.9, transition: 'all 0.1s ease' }}>
+              {animatedCareerShows.toLocaleString()}
             </p>
             <p style={{ fontSize: 15, color: C.muted, margin: '8px 0 0', fontWeight: 400 }}>
               shows on record
@@ -476,7 +501,7 @@ export default function DashboardPage() {
             {/* Royalty line */}
             {lifetimeTotal > 0 && (
               <p style={{ fontSize: 22, fontWeight: 700, color: C.gold, margin: '16px 0 0', fontFamily: '"DM Mono", monospace', letterSpacing: '-0.02em' }}>
-                ~${lifetimeTotal.toLocaleString()}
+                ~${animatedRoyalties.toLocaleString()}
                 <span style={{ fontSize: 14, fontWeight: 400, color: C.muted, marginLeft: 8, fontFamily: '"DM Sans", system-ui, sans-serif', letterSpacing: 0 }}>documented</span>
               </p>
             )}
