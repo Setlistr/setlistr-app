@@ -5,13 +5,11 @@ import { NextRequest } from 'next/server'
 
 export const runtime = 'nodejs'
 
-const FONT_BASE = 'https://raw.githubusercontent.com/google/fonts/main/ofl'
-
 async function getFonts() {
   const [bebas, dmSans, dmSansBold] = await Promise.all([
-    fetch(`${FONT_BASE}/bebasneue/BebasNeue-Regular.ttf`).then(r => r.arrayBuffer()),
-    fetch(`${FONT_BASE}/dmsans/DMSans%5Bopsz%2Cwght%5D.ttf`).then(r => r.arrayBuffer()),
-    fetch(`${FONT_BASE}/dmsans/DMSans-Italic%5Bopsz%2Cwght%5D.ttf`).then(r => r.arrayBuffer()),
+    fetch('https://raw.githubusercontent.com/google/fonts/main/ofl/bebasneue/BebasNeue-Regular.ttf').then(r => r.arrayBuffer()),
+    fetch('https://raw.githubusercontent.com/google/fonts/main/apache/roboto/static/Roboto-Regular.ttf').then(r => r.arrayBuffer()),
+    fetch('https://raw.githubusercontent.com/google/fonts/main/apache/roboto/static/Roboto-Bold.ttf').then(r => r.arrayBuffer()),
   ])
   return [
     { name: 'BebasNeue', data: bebas, weight: 400 as const, style: 'normal' as const },
