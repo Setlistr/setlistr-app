@@ -425,13 +425,12 @@ export async function GET(req: NextRequest) {
       height: H,
       fonts,
     })
-  } catch (err) {
-    console.error('Card render error:', err)
-    return new ImageResponse(
-      <div style={{ width: W, height: H, background: BG, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <span style={{ fontSize: 48, color: GOLD, fontFamily: 'sans-serif' }}>SETLISTR.</span>
-      </div>,
-      { width: W, height: H }
-    )
+  } catch (err: any) {
+    const message = err?.message || String(err)
+    console.error('Card render error:', message)
+    return new Response(JSON.stringify({ error: message, stack: err?.stack }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    })
   }
 }
