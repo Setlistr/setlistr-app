@@ -6,15 +6,7 @@ import { NextRequest } from 'next/server'
 export const runtime = 'nodejs'
 
 async function getFonts() {
-  const [inter, interBold] = await Promise.all([
-    fetch('https://raw.githubusercontent.com/google/fonts/main/ofl/inter/Inter%5Bslnt%2Cwght%5D.ttf').then(r => r.arrayBuffer()),
-    fetch('https://raw.githubusercontent.com/google/fonts/main/ofl/inter/Inter%5Bslnt%2Cwght%5D.ttf').then(r => r.arrayBuffer()),
-  ])
-  return [
-    { name: 'BebasNeue', data: inter, weight: 400 as const, style: 'normal' as const },
-    { name: 'DMSans', data: inter, weight: 400 as const, style: 'normal' as const },
-    { name: 'DMSans', data: interBold, weight: 700 as const, style: 'normal' as const },
-  ]
+  return []
 }
 
 const W = 1080
