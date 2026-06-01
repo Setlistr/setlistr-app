@@ -9,7 +9,7 @@ export const runtime = 'nodejs'
 async function loadFont(filename: string): Promise<ArrayBuffer> {
   const fontPath = join(process.cwd(), 'public', 'fonts', filename)
   const data = await readFile(fontPath)
-  return data.buffer as ArrayBuffer
+  return data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) as ArrayBuffer
 }
 
 async function getFonts() {
