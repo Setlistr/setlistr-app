@@ -341,7 +341,9 @@ export async function GET(req: NextRequest) {
   const perfId       = searchParams.get('perf_id') || ''
 
   try {
+    console.log('Card route started, type:', type, 'perf_id:', perfId)
     const fonts = await getFonts()
+    console.log('Fonts loaded successfully')
 
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -355,6 +357,8 @@ export async function GET(req: NextRequest) {
       .eq('id', perfId)
       .single()
 
+    console.log('Perf fetched:', perf?.id, 'error if null:', !perf)
+
     const { data: songs } = await supabase
       .from('performance_songs')
       .select('title, position')
@@ -366,6 +370,8 @@ export async function GET(req: NextRequest) {
       .select('artist_name, career_total_shows')
       .eq('id', perf?.user_id || '')
       .single()
+
+    console.log('Profile fetched:', profile?.artist_name)
 
     const artistName  = profile?.artist_name || perf?.artist_name || 'Artist'
     const venueName   = perf?.venue_name || ''
