@@ -1,22 +1,16 @@
 import { ImageResponse } from 'next/og'
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest } from 'next/server'
-import { readFile } from 'fs/promises'
-import { join } from 'path'
 
 export const runtime = 'nodejs'
 
-async function loadFont(filename: string): Promise<ArrayBuffer> {
-  const fontPath = join(process.cwd(), 'public', 'fonts', filename)
-  const data = await readFile(fontPath)
-  return data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) as ArrayBuffer
-}
+const FONT_BASE = 'https://raw.githubusercontent.com/google/fonts/main/ofl'
 
 async function getFonts() {
   const [bebas, dmSans, dmSansBold] = await Promise.all([
-    loadFont('BebasNeue-Regular.ttf'),
-    loadFont('DMSans-Regular.ttf'),
-    loadFont('DMSans-Bold.ttf'),
+    fetch(`${FONT_BASE}/bebasneue/BebasNeue-Regular.ttf`).then(r => r.arrayBuffer()),
+    fetch(`${FONT_BASE}/dmsans/DMSans%5Bopsz%2Cwght%5D.ttf`).then(r => r.arrayBuffer()),
+    fetch(`${FONT_BASE}/dmsans/DMSans-Italic%5Bopsz%2Cwght%5D.ttf`).then(r => r.arrayBuffer()),
   ])
   return [
     { name: 'BebasNeue', data: bebas, weight: 400 as const, style: 'normal' as const },
