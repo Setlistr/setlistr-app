@@ -316,12 +316,11 @@ export default function DashboardPage() {
   const submittedAggregate = aggregateUnclaimedEarnings(submittedEstimates)
   const lifetimeTotal      = aggregate.totalExpected + submittedAggregate.totalExpected
 
-  const animatedCareerShows = useCountUp(totalCareerShows, 1400, 200)
-  const animatedRoyalties   = useCountUp(lifetimeTotal, 1600, 400)
-
   const capturedPerfs    = performances.filter(p => p.data_source !== 'setlistfm_imported')
   const importedPerfs    = performances.filter(p => p.data_source === 'setlistfm_imported')
   const totalCareerShows = careerTotalShows > 0 ? careerTotalShows : performances.length
+  const animatedCareerShows = useCountUp(totalCareerShows, 1400, 200)
+  const animatedRoyalties   = useCountUp(lifetimeTotal, 1600, 400)
   const capturedCount    = capturedPerfs.filter(p => p.status !== 'live' && p.status !== 'pending').length
   const submittedCount   = capturedPerfs.filter(p => p.submission_status === 'submitted').length
   const recentPerfs      = capturedPerfs.slice(0, 5)
