@@ -24,6 +24,28 @@ const C = {
   gold: '#c9a84c', goldDim: 'rgba(201,168,76,0.1)', green: '#4ade80', red: '#ef4444',
 }
 
+function useCountUp(target: number, duration: number = 1200, delay: number = 0): number {
+  const [count, setCount] = useState(0)
+  useEffect(() => {
+    if (target === 0) return
+    let startTime: number | null = null
+    let animFrame: number
+    const delayTimer = setTimeout(() => {
+      function step(timestamp: number) {
+        if (!startTime) startTime = timestamp
+        const progress = Math.min((timestamp - startTime) / duration, 1)
+        const eased = 1 - Math.pow(1 - progress, 3)
+        setCount(Math.floor(eased * target))
+        if (progress < 1) animFrame = requestAnimationFrame(step)
+        else setCount(target)
+      }
+      animFrame = requestAnimationFrame(step)
+    }, delay)
+    return () => { clearTimeout(delayTimer); cancelAnimationFrame(animFrame) }
+  }, [target, duration, delay])
+  return count
+}
+
 function getMatchConfidence(song: {
   source?: string; isrc?: string; composer?: string; reviewState?: string
 }): 'matched' | 'partial' | 'unverified' | 'none' {
@@ -317,6 +339,70 @@ function PlannedSongRow({ song, onPlayed, onRemove }: {
 }
 
 
+function CeremonyCountCard({ songCount, showDate, showYear, verifiedCount, autoCount, manualCount, songs }: {
+  songCount: number; showDate: string; showYear: string
+  verifiedCount: number; autoCount: number; manualCount: number
+  songs: Song[]
+}) {
+  const count = useCountUp(songCount, 1000, 500)
+  return (
+    <div style={{ background: '#141210', border: '1px solid rgba(255,255,255,0.04)', borderRadius: 24, overflow: 'hidden', marginBottom: 12, opacity: 0, animation: 'fadeUp 0.6s 0.5s ease forwards' }}>
+      <div style={{ padding: '20px 24px 16px', borderBottom: `1px solid rgba(255,255,255,0.05)` }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 4 }}>
+          <span style={{ fontSize: 64, fontWeight: 800, color: '#f0ece3', fontFamily: '"DM Mono", monospace', letterSpacing: '-0.04em', lineHeight: 1, animation: count === songCount ? 'countPulse 0.4s ease' : 'none' }}>
+            {count}
+          </span>
+          <span style={{ fontSize: 20, fontWeight: 700, color: '#b8a888', letterSpacing: '-0.01em' }}>
+            {songCount === 1 ? 'song' : 'songs'}
+          </span>
+        </div>
+        <p style={{ fontSize: 13, color: '#8a7a68', margin: 0, letterSpacing: '0.04em' }}>
+          Captured live · {showDate}{showYear ? `, ${showYear}` : ''}
+        </p>
+      </div>
+      <div style={{ padding: '16px 0 8px' }}>
+        {songs.map((s, i) => (
+          <div key={s.id} style={{ display: 'flex', alignItems: 'baseline', gap: 14, padding: '9px 24px', opacity: 0, animation: `fadeUp 0.4s ${0.55 + i * 0.04}s ease forwards` }}>
+            <span style={{ fontSize: 11, color: '#8a7a68', minWidth: 18, textAlign: 'right', fontFamily: '"DM Mono", monospace', opacity: 0.4, flexShrink: 0 }}>{i + 1}</span>
+            <p style={{ fontSize: 16, fontWeight: s.was_planned ? 600 : 500, color: '#f0ece3', margin: 0, flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', letterSpacing: '-0.005em' }}>{s.title}</p>
+          </div>
+        ))}
+      </div>
+      <div style={{ padding: '12px 24px 18px', borderTop: `1px solid rgba(255,255,255,0.04)`, display: 'flex', gap: 16, flexWrap: 'wrap' as const }}>
+        {verifiedCount > 0 && <span style={{ fontSize: 13, color: '#8a7a68', opacity: 0.7 }}>✓ {verifiedCount} from setlist</span>}
+        {autoCount > verifiedCount && <span style={{ fontSize: 13, color: '#8a7a68', opacity: 0.7 }}>◈ {autoCount - verifiedCount} detected</span>}
+        {manualCount > 0 && <span style={{ fontSize: 13, color: '#8a7a68', opacity: 0.7 }}>+ {manualCount} added</span>}
+      </div>
+    </div>
+  )
+}
+
+function CeremonyRoyaltyCard({ expected, low, high, performanceId, onClaim }: {
+  expected: number; low: number; high: number
+  performanceId: string; onClaim: () => void
+}) {
+  const count = useCountUp(expected, 1200, 800)
+  return (
+    <div style={{ background: 'rgba(201,168,76,0.05)', border: `1px solid rgba(201,168,76,0.14)`, borderRadius: 20, padding: '20px 22px', marginBottom: 12, opacity: 0, animation: 'fadeUp 0.6s 0.85s ease forwards' }}>
+      <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#8a7a68', margin: '0 0 8px' }}>
+        What tonight's worth
+      </p>
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, marginBottom: 6 }}>
+        <span style={{ fontSize: 52, fontWeight: 800, color: '#c9a84c', fontFamily: '"DM Mono", monospace', letterSpacing: '-0.03em', lineHeight: 1 }}>
+          ~${count.toLocaleString()}
+        </span>
+      </div>
+      <p style={{ fontSize: 13, color: '#8a7a68', margin: '0 0 16px', opacity: 0.7 }}>${low}–${high} estimated range · <span style={{ color: '#c9a84c' }}>because you tracked it</span></p>
+      <button onClick={onClaim}
+        style={{ width: '100%', padding: '13px', background: 'transparent', border: `1px solid rgba(201,168,76,0.25)`, borderRadius: 12, color: '#c9a84c', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', letterSpacing: '0.04em', transition: 'all 0.2s ease' }}
+        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(201,168,76,0.08)' }}
+        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}>
+        Claim what you earned →
+      </button>
+    </div>
+  )
+}
+
 export default function ReviewPage({ params }: { params: { id: string } }) {
   const router = useRouter()
   const [performance, setPerformance]   = useState<Performance | null>(null)
@@ -601,94 +687,65 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
         const word = milestoneWords[intelligence.milestone] || `${intelligence.milestone}`
         insights.push({ label: `Show ${word.toLowerCase()}. That's not nothing.`, highlight: true })
       }
-      if (intelligence.songDebuts.length === 1) {
-        insights.push({ label: `'${intelligence.songDebuts[0]}' played live for the first time tonight.`, highlight: true })
-      } else if (intelligence.songDebuts.length > 1) {
-        insights.push({ label: `${intelligence.songDebuts.length} songs played live for the first time tonight.`, highlight: true })
-      }
-      if (intelligence.venueVisits === 1) {
-        insights.push({ label: `First time on record here.`, highlight: false })
-      } else if (intelligence.venueVisits === 2) {
-        insights.push({ label: `Second time at ${performance?.venue_name}. A pattern forming.`, highlight: false })
-      } else if (intelligence.venueVisits > 2) {
-        insights.push({ label: `${performance?.venue_name} knows your name now. ${intelligence.venueVisits === 3 ? 'Third' : intelligence.venueVisits === 4 ? 'Fourth' : intelligence.venueVisits === 5 ? 'Fifth' : `${intelligence.venueVisits}th`} time.`, highlight: false })
-      }
+      if (intelligence.songDebuts.length === 1) insights.push({ label: `'${intelligence.songDebuts[0]}' played live for the first time tonight.`, highlight: true })
+      else if (intelligence.songDebuts.length > 1) insights.push({ label: `${intelligence.songDebuts.length} songs played live for the first time tonight.`, highlight: true })
+      if (intelligence.venueVisits === 1) insights.push({ label: `First time on record here.`, highlight: false })
+      else if (intelligence.venueVisits === 2) insights.push({ label: `Second time at ${performance?.venue_name}. A pattern forming.`, highlight: false })
+      else if (intelligence.venueVisits > 2) insights.push({ label: `${performance?.venue_name} knows your name now. ${intelligence.venueVisits}th time.`, highlight: false })
       if (intelligence.totalShows > 0 && !intelligence.milestone) {
-        const roadLines: Record<number, string> = {
-          2: 'Two shows on record. The road remembers.',
-          3: 'Three shows. Keep going.',
-          7: 'Seven shows. This is becoming something.',
-          15: 'Fifteen shows on record.',
-          20: 'Twenty shows. You\'re building something real.',
-          30: 'Thirty shows. The road remembers all of them.',
-        }
-        const line = roadLines[intelligence.totalShows] || `${intelligence.totalShows} shows on record. The road remembers.`
-        insights.push({ label: line, highlight: false })
+        insights.push({ label: `${intelligence.totalShows} shows on record. The road remembers.`, highlight: false })
       }
     }
 
     return (
       <div style={{ minHeight: '100svh', background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif', overflowY: 'auto' }}>
-        <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '80vh', pointerEvents: 'none', zIndex: 0, background: 'radial-gradient(ellipse at 50% 0%, rgba(201,168,76,0.07) 0%, transparent 55%)' }} />
+        {/* Gold flare on entry */}
+        <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '80vh', pointerEvents: 'none', zIndex: 0, background: 'radial-gradient(ellipse at 50% 0%, rgba(201,168,76,0.10) 0%, transparent 55%)', animation: 'goldFlare 2s ease forwards' }} />
 
         <div style={{ maxWidth: 420, margin: '0 auto', padding: '0 24px 80px', position: 'relative', zIndex: 1 }}>
 
-          {/* ── TITLE CARD ── */}
-          <div style={{ paddingTop: 72, paddingBottom: 80, textAlign: 'center', animation: 'fadeUp 0.7s ease both' }}>
-            <h1 style={{ fontSize: 52, fontWeight: 800, color: C.text, margin: '0 0 16px', letterSpacing: '-0.04em', lineHeight: 1.05 }}>
+          {/* ── CEREMONY HEADER ── */}
+          <div style={{ paddingTop: 72, paddingBottom: 56, textAlign: 'center' }}>
+            <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: C.gold, margin: '0 0 16px', opacity: 0, animation: 'fadeUp 0.5s 0.1s ease forwards' }}>
+              Show complete
+            </p>
+            <h1 style={{ fontSize: 48, fontWeight: 800, color: C.text, margin: '0 0 12px', letterSpacing: '-0.035em', lineHeight: 1.05, opacity: 0, animation: 'fadeUp 0.6s 0.2s ease forwards' }}>
               {performance?.venue_name}
             </h1>
-            <p style={{ fontSize: 15, color: C.secondary, margin: '0 0 24px' }}>
+            <p style={{ fontSize: 15, color: C.secondary, margin: '0 0 28px', opacity: 0, animation: 'fadeUp 0.5s 0.3s ease forwards' }}>
               {performance?.city && <span>{performance.city}</span>}
               {showDate && <><span style={{ opacity: 0.35, margin: '0 8px' }}>·</span><span>{showDate}</span></>}
               {durMins && <><span style={{ opacity: 0.35, margin: '0 8px' }}>·</span><span>{durMins} min</span></>}
             </p>
-            <p style={{ fontSize: 26, fontWeight: 700, color: C.gold, margin: 0, letterSpacing: '-0.02em', animation: 'fadeUp 0.7s 0.2s ease both', opacity: 0 }}>
-              That one's on record.
+            <p style={{ fontSize: 22, fontWeight: 700, color: C.gold, margin: 0, letterSpacing: '-0.01em', fontStyle: 'italic', opacity: 0, animation: 'fadeUp 0.6s 0.45s ease forwards' }}>
+              Another one. In the books.
             </p>
           </div>
 
-          {/* ── SETLIST — program energy ── */}
-          <div style={{ background: C.card, border: '1px solid rgba(255,255,255,0.04)', borderRadius: 24, overflow: 'hidden', marginBottom: 12, animation: 'fadeUp 0.6s 0.15s ease both', opacity: 0 }}>
-            <div style={{ padding: '20px 24px 16px', borderBottom: `1px solid rgba(255,255,255,0.05)` }}>
-              <p style={{ fontSize: 19, fontWeight: 700, color: C.text, margin: '0 0 3px', letterSpacing: '-0.01em' }}>
-                {confirmedSongs.length} {confirmedSongs.length === 1 ? 'song' : 'songs'}. That's a show.
-              </p>
-              <p style={{ fontSize: 13, color: C.muted, margin: 0, letterSpacing: '0.04em' }}>
-                Captured live · {showDate}{showYear ? `, ${showYear}` : ''}
-              </p>
-            </div>
+          {/* ── SONG COUNT — counted up ── */}
+          <CeremonyCountCard
+            songCount={confirmedSongs.length}
+            showDate={showDate}
+            showYear={String(showYear)}
+            verifiedCount={verifiedCount}
+            autoCount={autoCount}
+            manualCount={manualCount}
+            songs={confirmedSongs}
+          />
 
-            <div style={{ padding: '16px 0 8px' }}>
-              {confirmedSongs.map((s, i) => (
-                <div key={s.id} style={{ display: 'flex', alignItems: 'baseline', gap: 14, padding: '9px 24px' }}>
-                  <span style={{ fontSize: 11, color: C.muted, minWidth: 18, textAlign: 'right', fontFamily: '"DM Mono", monospace', opacity: 0.4, flexShrink: 0 }}>{i + 1}</span>
-                  <p style={{ fontSize: 16, fontWeight: s.was_planned ? 600 : 500, color: C.text, margin: 0, flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', letterSpacing: '-0.005em' }}>{s.title}</p>
-                </div>
-              ))}
-            </div>
-
-            <div style={{ padding: '12px 24px 18px', borderTop: `1px solid rgba(255,255,255,0.04)`, display: 'flex', gap: 16, flexWrap: 'wrap' as const }}>
-              {verifiedCount > 0 && <span style={{ fontSize: 13, color: C.muted, opacity: 0.7 }}>✓ {verifiedCount} from setlist</span>}
-              {autoCount > verifiedCount && <span style={{ fontSize: 13, color: C.muted, opacity: 0.7 }}>◈ {autoCount - verifiedCount} detected</span>}
-              {manualCount > 0 && <span style={{ fontSize: 13, color: C.muted, opacity: 0.7 }}>+ {manualCount} added</span>}
-            </div>
-          </div>
-
-          {/* ── INTELLIGENCE — 1 or 2 insights, warm and specific ── */}
+          {/* ── INTELLIGENCE ── */}
           {intelligence && insights.length > 0 && (
-            <div style={{ marginBottom: 12, animation: 'fadeUp 0.6s 0.25s ease both', opacity: 0 }}>
+            <div style={{ marginBottom: 12, opacity: 0, animation: 'fadeUp 0.6s 0.7s ease forwards' }}>
               {insights.slice(0, 2).map((insight, i) => (
                 <div key={i} style={{ padding: '14px 20px', background: insight.highlight ? 'rgba(201,168,76,0.07)' : 'transparent', border: `1px solid ${insight.highlight ? 'rgba(201,168,76,0.2)' : 'rgba(255,255,255,0.04)'}`, borderRadius: 14, marginBottom: 6 }}>
-                  <p style={{ fontSize: 16, fontWeight: insight.highlight ? 500 : 400, color: insight.highlight ? C.gold : C.secondary, margin: 0, lineHeight: 1.5, letterSpacing: '-0.005em' }}>{insight.label}</p>
+                  <p style={{ fontSize: 16, fontWeight: insight.highlight ? 600 : 400, color: insight.highlight ? C.gold : C.secondary, margin: 0, lineHeight: 1.5, letterSpacing: '-0.005em' }}>{insight.label}</p>
                 </div>
               ))}
             </div>
           )}
 
-          {/* ── INTELLIGENCE LOADING ── */}
           {!intelligence && (
-            <div style={{ marginBottom: 12, padding: '14px 20px', background: 'rgba(255,255,255,0.02)', border: `1px solid rgba(255,255,255,0.05)`, borderRadius: 12, animation: 'fadeUp 0.6s 0.25s ease both', opacity: 0 }}>
+            <div style={{ marginBottom: 12, padding: '14px 20px', background: 'rgba(255,255,255,0.02)', border: `1px solid rgba(255,255,255,0.05)`, borderRadius: 12, opacity: 0, animation: 'fadeUp 0.6s 0.7s ease forwards' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <div style={{ width: 10, height: 10, borderRadius: '50%', border: `1.5px solid rgba(201,168,76,0.3)`, borderTopColor: C.gold, animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />
                 <span style={{ fontSize: 13, color: C.muted }}>Reading the night...</span>
@@ -696,27 +753,30 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
             </div>
           )}
 
-          {/* ── ROYALTY — understated ── */}
-          <div style={{ background: 'rgba(201,168,76,0.05)', border: `1px solid rgba(201,168,76,0.14)`, borderRadius: 20, padding: '18px 22px', marginBottom: 12, animation: 'fadeUp 0.6s 0.32s ease both', opacity: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 6 }}>
-              <p style={{ fontSize: 13, color: C.muted, margin: 0, letterSpacing: '0.06em' }}>What tonight's worth</p>
-              <p style={{ fontSize: 32, fontWeight: 800, color: C.gold, margin: 0, fontFamily: '"DM Mono", monospace', letterSpacing: '-0.02em', lineHeight: 1 }}>~${estimate.expected}</p>
-            </div>
-            <p style={{ fontSize: 13, color: C.muted, margin: '0 0 14px', opacity: 0.7 }}>${estimate.low}–${estimate.high} estimated range</p>
-            <button onClick={() => router.push(`/app/submit/${params.id}`)}
-              style={{ width: '100%', padding: '13px', background: 'transparent', border: `1px solid rgba(201,168,76,0.25)`, borderRadius: 12, color: C.gold, fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', letterSpacing: '0.04em' }}>
-              Claim what you earned →
-            </button>
+          {/* ── ROYALTY — counted up ── */}
+          <CeremonyRoyaltyCard
+            expected={estimate.expected}
+            low={estimate.low}
+            high={estimate.high}
+            performanceId={params.id}
+            onClaim={() => router.push(`/app/submit/${params.id}`)}
+          />
+
+          {/* ── SHARE CARD ── */}
+          <div style={{ marginBottom: 12, opacity: 0, animation: 'fadeUp 0.6s 1.0s ease forwards' }}>
+            <ShareCardButton performanceId={params.id} artistName={performance?.artist_name} venueName={performance?.venue_name} />
           </div>
 
           {/* ── ACTIONS ── */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, animation: 'fadeUp 0.6s 0.38s ease both', opacity: 0 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, opacity: 0, animation: 'fadeUp 0.6s 1.1s ease forwards' }}>
             <button onClick={() => router.push('/app/dashboard')}
-              style={{ width: '100%', padding: '17px', background: C.gold, border: 'none', borderRadius: 14, color: '#0a0908', fontSize: 15, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'inherit' }}>
+              style={{ width: '100%', padding: '17px', background: C.gold, border: 'none', borderRadius: 14, color: '#0a0908', fontSize: 15, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'inherit', transition: 'transform 0.15s ease' }}
+              onMouseEnter={e => (e.currentTarget as HTMLElement).style.transform = 'scale(1.01)'}
+              onMouseLeave={e => (e.currentTarget as HTMLElement).style.transform = 'scale(1)'}>
               Back to your record
             </button>
             <button onClick={() => setShowComplete(false)}
-              style={{ width: '100%', padding: '14px', background: 'transparent', border: 'none', borderRadius: 10, color: C.muted, fontSize: 14, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', letterSpacing: '0.02em' }}>
+              style={{ width: '100%', padding: '14px', background: 'transparent', border: 'none', borderRadius: 10, color: C.muted, fontSize: 14, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>
               Review the night
             </button>
           </div>
@@ -727,6 +787,8 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
           @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500;700&display=swap');
           @keyframes fadeUp { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
           @keyframes spin { to{transform:rotate(360deg)} }
+          @keyframes goldFlare { 0%{opacity:0} 30%{opacity:1} 100%{opacity:0.6} }
+          @keyframes countPulse { 0%{transform:scale(1)} 50%{transform:scale(1.04)} 100%{transform:scale(1)} }
           * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
         `}</style>
       </div>
