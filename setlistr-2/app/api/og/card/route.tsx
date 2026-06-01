@@ -1,3 +1,4 @@
+import React from 'react'
 import { ImageResponse } from 'next/og'
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest } from 'next/server'
@@ -402,7 +403,7 @@ export async function GET(req: NextRequest) {
 
     const uniqueCities = new Set(allPerfs?.map(p => p.city).filter(Boolean)).size
 
-    let card: JSX.Element
+    let card: React.ReactElement
 
     if (type === 'milestone' && showNumber > 0) {
       const MILESTONES = [1, 10, 25, 50, 100, 250, 500]
