@@ -494,7 +494,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
           .from('performances')
           .select('*', { count: 'exact', head: true })
           .eq('user_id', uid)
-          .eq('status', 'completed'),
+          .in('status', ['complete', 'completed']),
 
         // Visits to this specific venue
         supabase
@@ -502,7 +502,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
           .select('*', { count: 'exact', head: true })
           .eq('user_id', uid)
           .eq('venue_name', venueName)
-          .eq('status', 'completed'),
+          .in('status', ['complete', 'completed']),
 
         // Song debuts — confirmed_count === 1 means performed for first time tonight
         supabase
@@ -770,7 +770,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
           {(() => {
               const SPECIAL_MILESTONES = [1, 5, 10, 25, 50, 75, 100, 150, 200, 250]
               const showNumber = intelligence?.totalShows || 0
-              const isMilestone = SPECIAL_MILESTONES.includes(showNumber)
+              const isMilestone = showNumber > 0 && SPECIAL_MILESTONES.includes(showNumber)
               const royaltyAmount = estimate.expected
 
               const cards = [
@@ -789,9 +789,9 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
                     />
                   )
                 },
-                ...(isMilestone ? [{
+                ...(showNumber > 0 ? [{
                   id: 'milestone',
-                  label: 'Milestone',
+                  label: `Show #${showNumber}`,
                   component: (
                     <MilestoneCard
                       showNumber={showNumber}
