@@ -90,7 +90,7 @@ export default function TonightsRunCard({
         {/* Middle — hero text */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', paddingTop: '8%' }}>
           <div style={{
-            fontSize: 'clamp(24px, 7.5vw, 52px)',
+            fontSize: 'clamp(22px, 6.8vw, 48px)',
             fontWeight: 800,
             color: '#f0ece3',
             lineHeight: 0.9,
