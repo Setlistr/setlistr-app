@@ -90,6 +90,7 @@ type PRO = 'SOCAN' | 'ASCAP' | 'BMI'
 type RecentSong = { id: string; title: string; artist: string; play_count: number; last_played: string }
 type ShowIntelligence = {
   totalShows: number
+  capturedShows: number
   venueVisits: number
   songDebuts: string[]
   milestone: number | null
@@ -490,12 +491,13 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
       const MILESTONES = [5, 10, 25, 50, 100, 250, 500]
 
       const [totalResult, venueResult, debutResult, profileResult] = await Promise.all([
-        // Total completed shows
+        // Total completed captured shows (excludes Setlist.fm imports)
         supabase
           .from('performances')
           .select('*', { count: 'exact', head: true })
           .eq('user_id', uid)
-          .in('status', ['complete', 'completed']),
+          .in('status', ['complete', 'completed'])
+          .neq('data_source', 'setlistfm_imported'),
 
         // Visits to this specific venue
         supabase
@@ -521,14 +523,13 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
           .single(),
       ])
 
-      const careerTotal = profileResult.data?.career_total_shows || 0
-      const capturedTotal = totalResult.count || 0
-      const totalShows = careerTotal > 0 ? careerTotal : capturedTotal
+      const capturedShows = totalResult.count || 0
+      const totalShows = capturedShows
       const venueVisits = venueResult.count || 0
       const songDebuts = debutResult.data?.map((r: { song_title: string }) => r.song_title) || []
       const milestone = MILESTONES.find(m => m === totalShows) || null
 
-      setIntelligence({ totalShows, venueVisits, songDebuts, milestone })
+      setIntelligence({ totalShows, venueVisits, songDebuts, milestone, capturedShows })
     } catch (err) {
       console.error('[Intelligence] fetch failed:', err)
     }
@@ -606,27 +607,6 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
       return { performance_id: performance.id, title: n.title, artist: n.artist, position: i + 1, isrc: s.isrc || null, composer: s.composer || null, publisher: s.publisher || null, was_planned: s.was_planned || false }
     }))
     await supabase.from('performances').update({ status: 'completed' }).eq('id', performance.id)
-    // Recount completed captured shows and update career_total_shows
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (user) {
-        const { count } = await supabase
-          .from('performances')
-          .select('*', { count: 'exact', head: true })
-          .eq('user_id', user.id)
-          .in('status', ['complete', 'completed'])
-          .neq('data_source', 'setlistfm_imported')
-
-        if (count !== null) {
-          await supabase
-            .from('profiles')
-            .update({ career_total_shows: count })
-            .eq('id', user.id)
-        }
-      }
-    } catch (err) {
-      console.error('[Career total] recount failed:', err)
-    }
     if (performance.show_id) await supabase.from('shows').update({ status: 'completed' }).eq('id', performance.show_id)
 
     // Geocode city → lat/lng silently, non-blocking
@@ -800,7 +780,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
           {/* ── SHARE CARDS ── */}
           {(() => {
               const SPECIAL_MILESTONES = [1, 5, 10, 25, 50, 75, 100, 150, 200, 250]
-              const showNumber = intelligence?.totalShows || 0
+              const showNumber = intelligence?.capturedShows || 0
               const isMilestone = showNumber > 0 && SPECIAL_MILESTONES.includes(showNumber)
               const royaltyAmount = estimate.expected
 
