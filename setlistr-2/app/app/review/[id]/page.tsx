@@ -828,8 +828,26 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
                     Your cards
                   </p>
 
-                  {/* Card display */}
-                  <div style={{ marginBottom: 12 }}>
+                  {/* Card display with swipe support */}
+                  <div
+                    style={{ marginBottom: 12, touchAction: 'pan-y' }}
+                    onTouchStart={(e) => {
+                      const touch = e.touches[0]
+                      ;(e.currentTarget as any)._touchStartX = touch.clientX
+                    }}
+                    onTouchEnd={(e) => {
+                      const startX = (e.currentTarget as any)._touchStartX
+                      if (startX === undefined) return
+                      const endX = e.changedTouches[0].clientX
+                      const diff = startX - endX
+                      if (Math.abs(diff) < 50) return
+                      if (diff > 0 && activeCardIndex < cards.length - 1) {
+                        setActiveCardIndex(activeCardIndex + 1)
+                      } else if (diff < 0 && activeCardIndex > 0) {
+                        setActiveCardIndex(activeCardIndex - 1)
+                      }
+                    }}
+                  >
                     {cards[activeCardIndex].component}
                   </div>
 
