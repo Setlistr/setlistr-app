@@ -16,6 +16,9 @@ import { estimateRoyalties, capacityToBand } from '@/lib/royalty-estimate'
 import CatalogSearch, { type CatalogSong } from '@/components/CatalogSearch'
 import { normalizeSong } from '@/lib/song-utils'
 import { PlannedVsPlayed } from '@/components/PlannedVsPlayed'
+import TonightsRunCard from '@/components/share-cards/TonightsRunCard'
+import RoyaltyMomentCard from '@/components/share-cards/RoyaltyMomentCard'
+import MilestoneCard from '@/components/share-cards/MilestoneCard'
 
 const C = {
   bg: '#0a0908', card: '#141210', cardHover: '#181614',
@@ -412,6 +415,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
   const [saving, setSaving]             = useState(false)
   const [saved, setSaved]               = useState(false)
   const [showComplete, setShowComplete] = useState(false)
+  const [activeCardIndex, setActiveCardIndex] = useState(0)
   const [newTitle, setNewTitle]         = useState('')
   const [newArtist, setNewArtist]       = useState('')
   const [showAdd, setShowAdd]           = useState(false)
@@ -762,10 +766,115 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
             onClaim={() => router.push(`/app/submit/${params.id}`)}
           />
 
-          {/* ── SHARE CARD ── */}
-          <div style={{ marginBottom: 12, opacity: 0, animation: 'fadeUp 0.6s 1.0s ease forwards' }}>
-            <ShareCardButton performanceId={params.id} artistName={performance?.artist_name} venueName={performance?.venue_name} />
-          </div>
+          {/* ── SHARE CARDS ── */}
+          {(() => {
+              const SPECIAL_MILESTONES = [1, 5, 10, 25, 50, 75, 100, 150, 200, 250]
+              const showNumber = intelligence?.totalShows || 0
+              const isMilestone = SPECIAL_MILESTONES.includes(showNumber)
+              const royaltyAmount = estimate.expected
+
+              const cards = [
+                {
+                  id: 'tonights_run',
+                  label: "Tonight's Run",
+                  component: (
+                    <TonightsRunCard
+                      artistName={performance?.artist_name || ''}
+                      venueName={performance?.venue_name || ''}
+                      city={performance?.city || ''}
+                      date={showDate}
+                      songCount={confirmedSongs.length}
+                      minutes={durMins || 60}
+                      showNumber={showNumber}
+                    />
+                  )
+                },
+                ...(isMilestone ? [{
+                  id: 'milestone',
+                  label: 'Milestone',
+                  component: (
+                    <MilestoneCard
+                      showNumber={showNumber}
+                      artistName={performance?.artist_name || ''}
+                    />
+                  )
+                }] : []),
+                {
+                  id: 'royalty_moment',
+                  label: 'Royalty Moment',
+                  component: (
+                    <RoyaltyMomentCard
+                      artistName={performance?.artist_name || ''}
+                      venueName={performance?.venue_name || ''}
+                      date={showDate}
+                      amount={royaltyAmount}
+                    />
+                  )
+                },
+              ]
+
+              return (
+                <div style={{ marginBottom: 16, opacity: 0, animation: 'fadeUp 0.6s 1.0s ease forwards' }}>
+                  <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.muted, margin: '0 0 12px' }}>
+                    Your cards
+                  </p>
+
+                  {/* Card display */}
+                  <div style={{ marginBottom: 12 }}>
+                    {cards[activeCardIndex].component}
+                  </div>
+
+                  {/* Card selector dots */}
+                  {cards.length > 1 && (
+                    <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginBottom: 12 }}>
+                      {cards.map((card, i) => (
+                        <button
+                          key={card.id}
+                          onClick={() => setActiveCardIndex(i)}
+                          style={{
+                            width: activeCardIndex === i ? 24 : 8,
+                            height: 8,
+                            borderRadius: 4,
+                            background: activeCardIndex === i ? C.gold : 'rgba(255,255,255,0.2)',
+                            border: 'none',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s ease',
+                            padding: 0,
+                          }}
+                        />
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Share button */}
+                  <button
+                    onClick={async () => {
+                      try {
+                        if (navigator.share) {
+                          await navigator.share({
+                            title: `${performance?.artist_name} at ${performance?.venue_name}`,
+                            text: `Check out my show on Setlistr`,
+                            url: `https://setlistr.ai/s/${params.id}`,
+                          })
+                        }
+                      } catch {}
+                    }}
+                    style={{
+                      width: '100%', padding: '14px',
+                      background: 'transparent',
+                      border: `1px solid ${C.borderGold}`,
+                      borderRadius: 12, color: C.gold,
+                      fontSize: 14, fontWeight: 700,
+                      cursor: 'pointer', fontFamily: 'inherit',
+                      display: 'flex', alignItems: 'center',
+                      justifyContent: 'center', gap: 8,
+                      letterSpacing: '0.04em',
+                    }}>
+                    ✦ Share this card
+                  </button>
+                </div>
+              )
+            })()}
 
           {/* ── ACTIONS ── */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, opacity: 0, animation: 'fadeUp 0.6s 1.1s ease forwards' }}>
