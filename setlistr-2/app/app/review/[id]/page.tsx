@@ -605,6 +605,25 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
       return { performance_id: performance.id, title: n.title, artist: n.artist, position: i + 1, isrc: s.isrc || null, composer: s.composer || null, publisher: s.publisher || null, was_planned: s.was_planned || false }
     }))
     await supabase.from('performances').update({ status: 'completed' }).eq('id', performance.id)
+    // Increment career_total_shows on profile
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('career_total_shows')
+          .eq('id', user.id)
+          .single()
+
+        const currentTotal = profile?.career_total_shows || 0
+        await supabase
+          .from('profiles')
+          .update({ career_total_shows: currentTotal + 1 })
+          .eq('id', user.id)
+      }
+    } catch (err) {
+      console.error('[Career total] increment failed:', err)
+    }
     if (performance.show_id) await supabase.from('shows').update({ status: 'completed' }).eq('id', performance.show_id)
 
     // Geocode city → lat/lng silently, non-blocking
