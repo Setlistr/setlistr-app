@@ -75,28 +75,29 @@ export default function TonightsRunCard({
             TONIGHT'S RUN
           </span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <svg width="16" height="12" viewBox="0 0 16 12" fill="none">
-                <rect y="0" width="16" height="2" rx="1" fill="#c9a84c"/>
-                <rect y="5" width="12" height="2" rx="1" fill="#c9a84c"/>
-                <rect y="10" width="8" height="2" rx="1" fill="#c9a84c"/>
-              </svg>
-              <span style={{ fontSize: 'clamp(9px, 2vw, 12px)', fontWeight: 800, color: '#c9a84c', letterSpacing: '0.2em', textTransform: 'uppercase' }}>
-                SETLISTR.
-              </span>
-            </div>
+            <img
+              src="/logo-white.png"
+              alt="Setlistr"
+              style={{
+                height: 'clamp(14px, 3vw, 20px)',
+                width: 'auto',
+                objectFit: 'contain',
+                filter: 'brightness(0) saturate(100%) invert(72%) sepia(55%) saturate(400%) hue-rotate(5deg) brightness(95%)',
+              }}
+            />
           </div>
         </div>
 
         {/* Middle — hero text */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', paddingTop: '8%' }}>
           <div style={{
-            fontSize: 'clamp(36px, 11vw, 72px)',
             fontWeight: 800,
             color: '#f0ece3',
-            lineHeight: 0.9,
+            lineHeight: 0.88,
             letterSpacing: '-0.03em',
             marginBottom: '6%',
+            fontSize: 'clamp(28px, 8.5vw, 60px)',
+            whiteSpace: 'nowrap',
           }}>
             ANOTHER<br />ONE.
           </div>

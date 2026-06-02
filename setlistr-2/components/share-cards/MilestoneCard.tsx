@@ -90,16 +90,16 @@ export default function MilestoneCard({ showNumber, artistName }: MilestoneCardP
             {special ? 'MILESTONE' : 'SHOW'}
           </span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <svg width="16" height="12" viewBox="0 0 16 12" fill="none">
-                <rect y="0" width="16" height="2" rx="1" fill="#c9a84c"/>
-                <rect y="5" width="12" height="2" rx="1" fill="#c9a84c"/>
-                <rect y="10" width="8" height="2" rx="1" fill="#c9a84c"/>
-              </svg>
-              <span style={{ fontSize: 'clamp(9px, 2vw, 12px)', fontWeight: 800, color: '#c9a84c', letterSpacing: '0.2em', textTransform: 'uppercase' }}>
-                SETLISTR.
-              </span>
-            </div>
+            <img
+              src="/logo-white.png"
+              alt="Setlistr"
+              style={{
+                height: 'clamp(14px, 3vw, 20px)',
+                width: 'auto',
+                objectFit: 'contain',
+                filter: 'brightness(0) saturate(100%) invert(72%) sepia(55%) saturate(400%) hue-rotate(5deg) brightness(95%)',
+              }}
+            />
           </div>
         </div>
 
