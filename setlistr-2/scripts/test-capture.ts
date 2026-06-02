@@ -8,16 +8,16 @@ import { createClient } from '@supabase/supabase-js'
 
 dotenv.config({ path: path.resolve(__dirname, '../.env.local') })
 
-// run script: npm run test-capture scripts/test-audio/riley_taylor_acoutic1.m4a "initial test as is"
-
+// run script: npm run test-capture scripts/test-audio/city_and_colour1.mp3 "city and colour yt to mp3 test"
+// run script: npm run test-capture scripts/test-audio/zach_bryan1.mp3 "zach bryan test1"
 // ─── CONFIG — edit between runs ───────────────────────────────────────────────
 const TEST_CONFIG = {
-  testId:                   'test_002',
+  testId:                   'test_006',
   catalogueFallbackEnabled: true,
   acrStrong:                80,
   acrSuggest:               55,
   flapMinCount:             3,
-  chunkDurationSeconds:     12,
+  chunkDurationSeconds:     14,
   chunkIntervalSeconds:     20,
 }
 
@@ -213,27 +213,22 @@ function formatTime(seconds: number): string {
 const RUN_HEADERS = [
   'testId', 'date', 'audio_file', 'notes',
   'catalogueFallbackEnabled', 'acrStrong', 'acrSuggest',
-  'flapMinCount', 'chunkDurationSeconds', 'chunkIntervalSeconds',
+  'chunkDurationSeconds', 'chunkIntervalSeconds',
 ]
 
 const DETECTION_HEADERS = [
-  'testId', 'chunk_number', 'chunk_start_seconds', 'raw_title',
-  'cleaned_title', 'artist', 'acr_score', 'effective_score',
-  'confidence_level', 'source', 'catalogue_fallback_triggered', 'failure_reason',
+  'testId', 'audio_file', 'chunk_number', 'chunk_start_seconds',
+  'cleaned_title', 'artist', 'acr_score', 'source', 'catalogue_fallback_triggered',
 ]
 
 interface DetectionRow {
   chunk_number:               number
   chunk_start_seconds:        number
-  raw_title:                  string
   cleaned_title:              string
   artist:                     string
   acr_score:                  number
-  effective_score:            number
-  confidence_level:           string
   source:                     string
   catalogue_fallback_triggered: boolean
-  failure_reason:             string
 }
 
 function writeExcel(detectionRows: DetectionRow[]): void {
@@ -249,12 +244,11 @@ function writeExcel(detectionRows: DetectionRow[]): void {
   existingRuns.push([
     TEST_CONFIG.testId,
     new Date().toISOString(),
-    AUDIO_FILE,
+    path.basename(AUDIO_FILE),
     NOTES,
     TEST_CONFIG.catalogueFallbackEnabled,
     TEST_CONFIG.acrStrong,
     TEST_CONFIG.acrSuggest,
-    TEST_CONFIG.flapMinCount,
     TEST_CONFIG.chunkDurationSeconds,
     TEST_CONFIG.chunkIntervalSeconds,
   ])
@@ -271,17 +265,14 @@ function writeExcel(detectionRows: DetectionRow[]): void {
   for (const row of detectionRows) {
     existingDetections.push([
       TEST_CONFIG.testId,
+      path.basename(AUDIO_FILE),
       row.chunk_number,
       row.chunk_start_seconds,
-      row.raw_title,
       row.cleaned_title,
       row.artist,
       row.acr_score,
-      row.effective_score,
-      row.confidence_level,
       row.source,
       row.catalogue_fallback_triggered,
-      row.failure_reason,
     ])
   }
 
@@ -326,15 +317,11 @@ async function main(): Promise<void> {
       detectionRows.push({
         chunk_number:               i + 1,
         chunk_start_seconds:        startSeconds,
-        raw_title:                  acr.rawTitle,
         cleaned_title:              acr.cleanedTitle,
         artist:                     acr.artist,
         acr_score:                  acr.acrScore,
-        effective_score:            acr.effectiveScore,
-        confidence_level:           decision.confidenceLevel,
         source:                     acr.source,
         catalogue_fallback_triggered: decision.catalogueFallbackTriggered,
-        failure_reason:             decision.failureReason,
       })
     } catch (err) {
       if (fs.existsSync(chunkPath)) fs.unlinkSync(chunkPath)
@@ -342,11 +329,9 @@ async function main(): Promise<void> {
       detectionRows.push({
         chunk_number:               i + 1,
         chunk_start_seconds:        startSeconds,
-        raw_title: '', cleaned_title: '', artist: '',
-        acr_score: 0, effective_score: 0,
-        confidence_level: 'no_result', source: 'fingerprint',
+        cleaned_title: '', artist: '',
+        acr_score: 0, source: 'fingerprint',
         catalogue_fallback_triggered: false,
-        failure_reason: `error: ${String(err)}`,
       })
     }
   }
