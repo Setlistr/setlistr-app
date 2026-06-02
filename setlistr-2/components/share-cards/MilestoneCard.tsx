@@ -90,34 +90,15 @@ export default function MilestoneCard({ showNumber, artistName }: MilestoneCardP
             {special ? 'MILESTONE' : 'SHOW'}
           </span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              background: 'rgba(10,9,8,0.5)',
-              borderRadius: 6,
-              padding: '4px 8px',
-            }}>
-              <img
-                src="/logo-white.png"
-                alt="Setlistr"
-                style={{
-                  width: 20,
-                  height: 20,
-                  objectFit: 'contain',
-                }}
-              />
-              <span style={{
-                fontSize: 11,
-                fontWeight: 800,
-                color: '#f0ece3',
-                letterSpacing: '0.15em',
-                textTransform: 'uppercase',
-                whiteSpace: 'nowrap',
-              }}>
-                SETLISTR
-              </span>
-            </div>
+            <img
+              src="/logo-horizontal.png"
+              alt="Setlistr"
+              style={{
+                height: 'clamp(16px, 3.5vw, 24px)',
+                width: 'auto',
+                objectFit: 'contain',
+              }}
+            />
           </div>
         </div>
 
