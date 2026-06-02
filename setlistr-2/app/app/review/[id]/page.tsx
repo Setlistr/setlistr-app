@@ -83,6 +83,7 @@ type Performance = {
   country: string; started_at: string; ended_at: string
   set_duration_minutes: number; setlist_id?: string | null
   show_id?: string | null; show_type?: string | null; venue_capacity?: number | null
+  status?: string | null
 }
 
 type PRO = 'SOCAN' | 'ASCAP' | 'BMI'
@@ -536,7 +537,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
   useEffect(() => {
     const supabase = createClient()
     supabase.auth.getUser().then(({ data: { user } }) => { if (user) setUserId(user.id) })
-    supabase.from('performances').select('*, shows(show_type), venues(capacity)').eq('id', params.id).single()
+    supabase.from('performances').select('*, status, shows(show_type), venues(capacity)').eq('id', params.id).single()
       .then(async ({ data: perf }) => {
         if (!perf) { setLoading(false); return }
         setPerformance({ ...perf, show_type: perf.shows?.show_type || null, venue_capacity: perf.venues?.capacity || null })
@@ -609,12 +610,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (user && performance) {
-        const { data: currentPerf } = await supabase
-          .from('performances')
-          .select('status')
-          .eq('id', performance.id)
-          .single()
-        const wasAlreadyComplete = currentPerf?.status === 'complete' || currentPerf?.status === 'completed'
+        const wasAlreadyComplete = performance.status === 'complete' || performance.status === 'completed'
         if (!wasAlreadyComplete) {
           const { data: profile } = await supabase
             .from('profiles')
