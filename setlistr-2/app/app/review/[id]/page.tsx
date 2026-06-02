@@ -488,7 +488,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
       const supabase = createClient()
       const MILESTONES = [5, 10, 25, 50, 100, 250, 500]
 
-      const [totalResult, venueResult, debutResult] = await Promise.all([
+      const [totalResult, venueResult, debutResult, profileResult] = await Promise.all([
         // Total completed shows
         supabase
           .from('performances')
@@ -511,9 +511,18 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
           .eq('user_id', uid)
           .eq('confirmed_count', 1)
           .in('song_title', songTitles),
+
+        // Career total from profile (includes Setlist.fm imported shows)
+        supabase
+          .from('profiles')
+          .select('career_total_shows')
+          .eq('id', uid)
+          .single(),
       ])
 
-      const totalShows = totalResult.count || 0
+      const careerTotal = profileResult.data?.career_total_shows || 0
+      const capturedTotal = totalResult.count || 0
+      const totalShows = careerTotal > 0 ? careerTotal : capturedTotal
       const venueVisits = venueResult.count || 0
       const songDebuts = debutResult.data?.map((r: { song_title: string }) => r.song_title) || []
       const milestone = MILESTONES.find(m => m === totalShows) || null
