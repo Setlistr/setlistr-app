@@ -7,14 +7,14 @@ interface MilestoneCardProps {
 }
 
 const SPECIAL_MILESTONES: Record<number, string> = {
-  1: 'The first of many.',
+  1: 'Your record starts here.',
   5: 'The habit begins.',
   10: 'Getting serious.',
   25: 'Quarter Century Club.',
-  50: 'Now we\'re cooking.',
+  50: 'Now we\'re talking.',
   75: 'Three quarters to 100.',
   100: 'The Run Continues.',
-  150: '150 nights on stage.',
+  150: '150 verified nights.',
   200: 'Two hundred. Still standing.',
   250: 'A quarter thousand shows.',
 }
@@ -22,7 +22,7 @@ const SPECIAL_MILESTONES: Record<number, string> = {
 const SPECIAL_NUMBERS = [1, 5, 10, 25, 50, 75, 100, 150, 200, 250]
 
 function getTagline(showNumber: number): string {
-  return SPECIAL_MILESTONES[showNumber] || 'The road remembers.'
+  return SPECIAL_MILESTONES[showNumber] || 'Another verified show.'
 }
 
 function isSpecial(showNumber: number): boolean {
@@ -136,7 +136,7 @@ export default function MilestoneCard({ showNumber, artistName }: MilestoneCardP
             textTransform: 'uppercase',
             marginBottom: '6%',
           }}>
-            {showNumber === 1 ? 'SHOW' : 'SHOWS'}
+            {showNumber === 1 ? 'VERIFIED SHOW' : 'VERIFIED SHOWS'}
           </div>
           {special && (
             <div style={{
