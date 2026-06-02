@@ -94,7 +94,7 @@ export default function MilestoneCard({ showNumber, artistName }: MilestoneCardP
               src="/logo-horizontal.png"
               alt="Setlistr"
               style={{
-                height: 'clamp(16px, 3.5vw, 24px)',
+                height: 'clamp(22px, 5vw, 32px)',
                 width: 'auto',
                 objectFit: 'contain',
               }}

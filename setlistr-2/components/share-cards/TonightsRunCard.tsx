@@ -79,7 +79,7 @@ export default function TonightsRunCard({
               src="/logo-horizontal.png"
               alt="Setlistr"
               style={{
-                height: 'clamp(16px, 3.5vw, 24px)',
+                height: 'clamp(22px, 5vw, 32px)',
                 width: 'auto',
                 objectFit: 'contain',
               }}
@@ -90,13 +90,12 @@ export default function TonightsRunCard({
         {/* Middle — hero text */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', paddingTop: '8%' }}>
           <div style={{
+            fontSize: 'clamp(24px, 7.5vw, 52px)',
             fontWeight: 800,
             color: '#f0ece3',
-            lineHeight: 0.88,
-            letterSpacing: '-0.03em',
+            lineHeight: 0.9,
+            letterSpacing: '-0.02em',
             marginBottom: '6%',
-            fontSize: 'clamp(28px, 8.5vw, 60px)',
-            whiteSpace: 'nowrap',
           }}>
             ANOTHER<br />ONE.
           </div>
