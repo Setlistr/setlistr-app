@@ -25,8 +25,9 @@ export default function RoyaltyMomentCard({
       backgroundColor: '#0a0908',
     }}>
       <img
-        src="/share-cards/royalty-moment-bg.png"
+        src={`${typeof window !== 'undefined' ? window.location.origin : ''}/share-cards/royalty-moment-bg.png`}
         alt=""
+        onError={(e) => { console.error('Image failed to load:', (e.target as HTMLImageElement).src) }}
         style={{
           position: 'absolute',
           inset: 0,

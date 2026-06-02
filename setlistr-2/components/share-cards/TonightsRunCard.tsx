@@ -32,8 +32,9 @@ export default function TonightsRunCard({
     }}>
       {/* Background image */}
       <img
-        src="/share-cards/show-complete-bg.png"
+        src={`${typeof window !== 'undefined' ? window.location.origin : ''}/share-cards/show-complete-bg.png`}
         alt=""
+        onError={(e) => { console.error('Image failed to load:', (e.target as HTMLImageElement).src) }}
         style={{
           position: 'absolute',
           inset: 0,
@@ -90,7 +91,7 @@ export default function TonightsRunCard({
         {/* Middle — hero text */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', paddingTop: '8%' }}>
           <div style={{
-            fontSize: 'clamp(56px, 18vw, 112px)',
+            fontSize: 'clamp(40px, 13vw, 88px)',
             fontWeight: 800,
             color: '#f0ece3',
             lineHeight: 0.88,

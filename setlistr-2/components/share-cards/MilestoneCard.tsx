@@ -32,7 +32,9 @@ function isSpecial(showNumber: number): boolean {
 export default function MilestoneCard({ showNumber, artistName }: MilestoneCardProps) {
   const special = isSpecial(showNumber)
   const tagline = getTagline(showNumber)
-  const bgImage = special ? '/share-cards/milestone-special-bg.png' : '/share-cards/milestone-standard-bg.png'
+  const bgImage = special
+    ? `${typeof window !== 'undefined' ? window.location.origin : ''}/share-cards/milestone-special-bg.png`
+    : `${typeof window !== 'undefined' ? window.location.origin : ''}/share-cards/milestone-standard-bg.png`
 
   return (
     <div style={{
@@ -47,6 +49,7 @@ export default function MilestoneCard({ showNumber, artistName }: MilestoneCardP
       <img
         src={bgImage}
         alt=""
+        onError={(e) => { console.error('Image failed to load:', (e.target as HTMLImageElement).src) }}
         style={{
           position: 'absolute',
           inset: 0,
