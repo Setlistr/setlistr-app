@@ -606,26 +606,26 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
       return { performance_id: performance.id, title: n.title, artist: n.artist, position: i + 1, isrc: s.isrc || null, composer: s.composer || null, publisher: s.publisher || null, was_planned: s.was_planned || false }
     }))
     await supabase.from('performances').update({ status: 'completed' }).eq('id', performance.id)
-    // Only increment career_total_shows if this show wasn't already complete
+    // Recount completed captured shows and update career_total_shows
     try {
       const { data: { user } } = await supabase.auth.getUser()
-      if (user && performance) {
-        const wasAlreadyComplete = performance.status === 'complete' || performance.status === 'completed'
-        if (!wasAlreadyComplete) {
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('career_total_shows')
-            .eq('id', user.id)
-            .single()
-          const currentTotal = profile?.career_total_shows || 0
+      if (user) {
+        const { count } = await supabase
+          .from('performances')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', user.id)
+          .in('status', ['complete', 'completed'])
+          .neq('data_source', 'setlistfm_imported')
+
+        if (count !== null) {
           await supabase
             .from('profiles')
-            .update({ career_total_shows: currentTotal + 1 })
+            .update({ career_total_shows: count })
             .eq('id', user.id)
         }
       }
     } catch (err) {
-      console.error('[Career total] increment failed:', err)
+      console.error('[Career total] recount failed:', err)
     }
     if (performance.show_id) await supabase.from('shows').update({ status: 'completed' }).eq('id', performance.show_id)
 
