@@ -75,16 +75,34 @@ export default function TonightsRunCard({
             TONIGHT'S RUN
           </span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <img
-              src="/logo-white.png"
-              alt="Setlistr"
-              style={{
-                height: 'clamp(18px, 4vw, 28px)',
-                width: 'auto',
-                objectFit: 'contain',
-                opacity: 0.95,
-              }}
-            />
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              background: 'rgba(10,9,8,0.5)',
+              borderRadius: 6,
+              padding: '4px 8px',
+            }}>
+              <img
+                src="/logo-white.png"
+                alt="Setlistr"
+                style={{
+                  width: 20,
+                  height: 20,
+                  objectFit: 'contain',
+                }}
+              />
+              <span style={{
+                fontSize: 11,
+                fontWeight: 800,
+                color: '#f0ece3',
+                letterSpacing: '0.15em',
+                textTransform: 'uppercase',
+                whiteSpace: 'nowrap',
+              }}>
+                SETLISTR
+              </span>
+            </div>
           </div>
         </div>
 
