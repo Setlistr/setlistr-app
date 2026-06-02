@@ -609,7 +609,12 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (user && performance) {
-        const wasAlreadyComplete = performance.status === 'complete' || performance.status === 'completed'
+        const { data: currentPerf } = await supabase
+          .from('performances')
+          .select('status')
+          .eq('id', performance.id)
+          .single()
+        const wasAlreadyComplete = currentPerf?.status === 'complete' || currentPerf?.status === 'completed'
         if (!wasAlreadyComplete) {
           const { data: profile } = await supabase
             .from('profiles')
