@@ -70,10 +70,10 @@ export default function RoyaltyMomentCard({
               src="/logo-white.png"
               alt="Setlistr"
               style={{
-                height: 'clamp(14px, 3vw, 20px)',
+                height: 'clamp(18px, 4vw, 28px)',
                 width: 'auto',
                 objectFit: 'contain',
-                filter: 'brightness(0) saturate(100%) invert(72%) sepia(55%) saturate(400%) hue-rotate(5deg) brightness(95%)',
+                opacity: 0.95,
               }}
             />
           </div>
