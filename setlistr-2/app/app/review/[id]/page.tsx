@@ -19,6 +19,7 @@ import { PlannedVsPlayed } from '@/components/PlannedVsPlayed'
 import TonightsRunCard from '@/components/share-cards/TonightsRunCard'
 import RoyaltyMomentCard from '@/components/share-cards/RoyaltyMomentCard'
 import MilestoneCard from '@/components/share-cards/MilestoneCard'
+import html2canvas from 'html2canvas'
 
 const C = {
   bg: '#0a0908', card: '#141210', cardHover: '#181614',
@@ -181,6 +182,7 @@ function SortableRow({ song, index, onDelete, onTap }: {
   const [swiping, setSwiping] = useState(false)
   const [hovered, setHovered] = useState(false)
   const touchStart             = useRef<{ x: number; y: number } | null>(null)
+  const shareCardRef           = useRef<HTMLDivElement>(null)
   const ACTION_W = 140; const THRESHOLD = 60
   const isOpen = swipeX <= -THRESHOLD
   const isUnknown = song.source === 'unidentified'
@@ -588,6 +590,39 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
   function handleDelete(id: string) { setSongs(prev => prev.filter(s => s.id !== id).map((s, i) => ({ ...s, position: i + 1 }))) }
   function handleEdit(id: string, title: string, artist: string) { setSongs(prev => prev.map(s => s.id === id ? { ...s, title, artist, reviewState: 'clean' } : s)) }
 
+  async function shareCard() {
+    if (!shareCardRef.current) return
+    try {
+      const canvas = await html2canvas(shareCardRef.current, {
+        scale: 3,
+        backgroundColor: null,
+        useCORS: true,
+        allowTaint: true,
+        logging: false,
+      })
+      canvas.toBlob(async (blob) => {
+        if (!blob) return
+        const file = new File([blob], 'setlistr-card.png', { type: 'image/png' })
+        if (navigator.share && navigator.canShare({ files: [file] })) {
+          await navigator.share({
+            files: [file],
+            title: `${performance?.artist_name} at ${performance?.venue_name}`,
+          })
+        } else {
+          // Fallback — download the image
+          const url = URL.createObjectURL(blob)
+          const a = document.createElement('a')
+          a.href = url
+          a.download = 'setlistr-card.png'
+          a.click()
+          URL.revokeObjectURL(url)
+        }
+      }, 'image/png')
+    } catch (err) {
+      console.error('Share failed:', err)
+    }
+  }
+
   const handleSave = useCallback(async () => {
     if (!performance) return
     setSaving(true)
@@ -853,6 +888,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
 
                   {/* Card display with swipe support */}
                   <div
+                    ref={shareCardRef}
                     style={{ marginBottom: 12, touchAction: 'pan-y' }}
                     onTouchStart={(e) => {
                       const touch = e.touches[0]
@@ -898,17 +934,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
 
                   {/* Share button */}
                   <button
-                    onClick={async () => {
-                      try {
-                        if (navigator.share) {
-                          await navigator.share({
-                            title: `${performance?.artist_name} at ${performance?.venue_name}`,
-                            text: `Check out my show on Setlistr`,
-                            url: `https://setlistr.ai/s/${params.id}`,
-                          })
-                        }
-                      } catch {}
-                    }}
+                    onClick={shareCard}
                     style={{
                       width: '100%', padding: '14px',
                       background: 'transparent',
