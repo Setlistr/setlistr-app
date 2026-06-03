@@ -17,6 +17,7 @@ import CatalogSearch, { type CatalogSong } from '@/components/CatalogSearch'
 import { normalizeSong } from '@/lib/song-utils'
 import { PlannedVsPlayed } from '@/components/PlannedVsPlayed'
 import TonightsRunCard from '@/components/share-cards/TonightsRunCard'
+import SongDebutCard from '@/components/share-cards/SongDebutCard'
 import RoyaltyMomentCard from '@/components/share-cards/RoyaltyMomentCard'
 import MilestoneCard from '@/components/share-cards/MilestoneCard'
 import html2canvas from 'html2canvas'
@@ -809,8 +810,6 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
         const word = milestoneWords[intelligence.milestone] || `${intelligence.milestone}`
         insights.push({ label: `Show ${word.toLowerCase()}. That's not nothing.`, highlight: true })
       }
-      if (intelligence.songDebuts.length === 1) insights.push({ label: `'${intelligence.songDebuts[0]}' played live for the first time tonight.`, highlight: true })
-      else if (intelligence.songDebuts.length > 1) insights.push({ label: `${intelligence.songDebuts.length} songs played live for the first time tonight.`, highlight: true })
       if (intelligence.venueVisits === 1) insights.push({ label: `First time on record here.`, highlight: false })
       else if (intelligence.venueVisits === 2) insights.push({ label: `Second time at ${performance?.venue_name}. A pattern forming.`, highlight: false })
       else if (intelligence.venueVisits > 2) insights.push({ label: `${performance?.venue_name} knows your name now. ${intelligence.venueVisits}th time.`, highlight: false })
@@ -856,6 +855,34 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
           />
 
           {/* ── INTELLIGENCE ── */}
+            {/* ── SONG DEBUTS ── */}
+            {intelligence && intelligence.songDebuts.length > 0 && (
+              <div style={{ marginBottom: 12, opacity: 0, animation: 'fadeUp 0.6s 0.65s ease forwards' }}>
+                {intelligence.songDebuts.map((song, i) => (
+                  <div key={i} style={{
+                    padding: '16px 20px', marginBottom: 6,
+                    background: 'rgba(201,168,76,0.08)',
+                    border: '1px solid rgba(201,168,76,0.25)',
+                    borderRadius: 14,
+                    display: 'flex', alignItems: 'center', gap: 12,
+                  }}>
+                    <div style={{
+                      width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
+                      background: 'rgba(201,168,76,0.15)',
+                      border: '1px solid rgba(201,168,76,0.3)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 16,
+                    }}>★</div>
+                    <div>
+                      <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#c9a84c', margin: '0 0 3px' }}>Live Debut</p>
+                      <p style={{ fontSize: 17, fontWeight: 700, color: '#f0ece3', margin: 0, letterSpacing: '-0.01em' }}>{song}</p>
+                      <p style={{ fontSize: 12, color: '#8a7a68', margin: '2px 0 0' }}>First time played live. It counts.</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
           {intelligence && insights.length > 0 && (
             <div style={{ marginBottom: 12, opacity: 0, animation: 'fadeUp 0.6s 0.7s ease forwards' }}>
               {insights.slice(0, 2).map((insight, i) => (
@@ -908,6 +935,19 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
                     />
                   )
                 },
+                ...(intelligence && intelligence.songDebuts.length > 0 ? [{
+                  id: 'song_debut',
+                  label: `Live Debut`,
+                  component: (
+                    <SongDebutCard
+                      songTitle={intelligence!.songDebuts[0]}
+                      artistName={performance?.artist_name || ''}
+                      venueName={performance?.venue_name || ''}
+                      date={showDate}
+                      totalDebuts={intelligence!.songDebuts.length}
+                    />
+                  )
+                }] : []),
                 ...(showNumber > 0 ? [{
                   id: 'milestone',
                   label: `Show #${showNumber}`,
