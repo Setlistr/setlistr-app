@@ -593,12 +593,18 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
   async function shareCard() {
     if (!shareCardRef.current) return
     try {
-      const canvas = await html2canvas(shareCardRef.current, {
+      const element = shareCardRef.current
+      const rect = element.getBoundingClientRect()
+      const canvas = await html2canvas(element, {
         scale: 3,
-        backgroundColor: null,
+        backgroundColor: '#0a0908',
         useCORS: true,
         allowTaint: true,
         logging: false,
+        width: rect.width,
+        height: rect.width * (16 / 9),
+        windowWidth: rect.width,
+        windowHeight: rect.width * (16 / 9),
       })
       canvas.toBlob(async (blob) => {
         if (!blob) return
@@ -609,7 +615,6 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
             title: `${performance?.artist_name} at ${performance?.venue_name}`,
           })
         } else {
-          // Fallback — download the image
           const url = URL.createObjectURL(blob)
           const a = document.createElement('a')
           a.href = url
