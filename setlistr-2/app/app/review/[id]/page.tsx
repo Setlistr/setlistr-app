@@ -83,7 +83,7 @@ type Performance = {
   country: string; started_at: string; ended_at: string
   set_duration_minutes: number; setlist_id?: string | null
   show_id?: string | null; show_type?: string | null; venue_capacity?: number | null
-  status?: string | null
+  status?: string | null; show_number?: number | null
 }
 
 type PRO = 'SOCAN' | 'ASCAP' | 'BMI'
@@ -538,7 +538,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
   useEffect(() => {
     const supabase = createClient()
     supabase.auth.getUser().then(({ data: { user } }) => { if (user) setUserId(user.id) })
-    supabase.from('performances').select('*, status, shows(show_type), venues(capacity)').eq('id', params.id).single()
+    supabase.from('performances').select('*, status, show_number, shows(show_type), venues(capacity)').eq('id', params.id).single()
       .then(async ({ data: perf }) => {
         if (!perf) { setLoading(false); return }
         setPerformance({ ...perf, show_type: perf.shows?.show_type || null, venue_capacity: perf.venues?.capacity || null })
@@ -607,6 +607,27 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
       return { performance_id: performance.id, title: n.title, artist: n.artist, position: i + 1, isrc: s.isrc || null, composer: s.composer || null, publisher: s.publisher || null, was_planned: s.was_planned || false }
     }))
     await supabase.from('performances').update({ status: 'completed' }).eq('id', performance.id)
+    // Stamp show_number if not already set
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user && !performance.show_number) {
+        const { count } = await supabase
+          .from('performances')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', user.id)
+          .in('status', ['complete', 'completed', 'review'])
+          .neq('data_source', 'setlistfm_imported')
+
+        if (count !== null) {
+          await supabase
+            .from('performances')
+            .update({ show_number: count })
+            .eq('id', performance.id)
+        }
+      }
+    } catch (err) {
+      console.error('[show_number] stamp failed:', err)
+    }
     if (performance.show_id) await supabase.from('shows').update({ status: 'completed' }).eq('id', performance.show_id)
 
     // Geocode city → lat/lng silently, non-blocking
@@ -780,7 +801,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
           {/* ── SHARE CARDS ── */}
           {(() => {
               const SPECIAL_MILESTONES = [1, 5, 10, 25, 50, 75, 100, 150, 200, 250]
-              const showNumber = intelligence?.capturedShows || 0
+              const showNumber = performance?.show_number || intelligence?.capturedShows || 0
               const isMilestone = showNumber > 0 && SPECIAL_MILESTONES.includes(showNumber)
               const royaltyAmount = estimate.expected
 
