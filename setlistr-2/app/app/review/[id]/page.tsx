@@ -182,7 +182,6 @@ function SortableRow({ song, index, onDelete, onTap }: {
   const [swiping, setSwiping] = useState(false)
   const [hovered, setHovered] = useState(false)
   const touchStart             = useRef<{ x: number; y: number } | null>(null)
-  const shareCardRef           = useRef<HTMLDivElement>(null)
   const ACTION_W = 140; const THRESHOLD = 60
   const isOpen = swipeX <= -THRESHOLD
   const isUnknown = song.source === 'unidentified'
@@ -429,6 +428,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
   const [assignSheet, setAssignSheet]   = useState<{ songId: string; currentTitle: string } | null>(null)
   const [userId, setUserId]             = useState<string | null>(null)
   const [intelligence, setIntelligence] = useState<ShowIntelligence | null>(null)
+  const shareCardRef = useRef<HTMLDivElement>(null)
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
