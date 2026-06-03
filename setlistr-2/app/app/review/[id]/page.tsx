@@ -496,7 +496,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
           .from('performances')
           .select('*', { count: 'exact', head: true })
           .eq('user_id', uid)
-          .in('status', ['complete', 'completed'])
+          .in('status', ['complete', 'completed', 'review'])
           .neq('data_source', 'setlistfm_imported'),
 
         // Visits to this specific venue
