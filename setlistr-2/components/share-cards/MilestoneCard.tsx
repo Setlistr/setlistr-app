@@ -21,161 +21,76 @@ const SPECIAL_MILESTONES: Record<number, string> = {
 
 const SPECIAL_NUMBERS = [1, 5, 10, 25, 50, 75, 100, 150, 200, 250]
 
-function getTagline(showNumber: number): string {
-  return SPECIAL_MILESTONES[showNumber] || 'Another verified show.'
-}
-
-function isSpecial(showNumber: number): boolean {
-  return SPECIAL_NUMBERS.includes(showNumber)
-}
-
 export default function MilestoneCard({ showNumber, artistName }: MilestoneCardProps) {
-  const special = isSpecial(showNumber)
-  const tagline = getTagline(showNumber)
-  const bgImage = special
-    ? `${typeof window !== 'undefined' ? window.location.origin : ''}/share-cards/milestone-special-bg.png`
-    : `${typeof window !== 'undefined' ? window.location.origin : ''}/share-cards/milestone-standard-bg.png`
+  const special = SPECIAL_NUMBERS.includes(showNumber)
+  const tagline = SPECIAL_MILESTONES[showNumber] || 'Another verified show.'
+  const bgImage = special ? '/share-cards/milestone-special-bg.png' : '/share-cards/milestone-standard-bg.png'
 
   return (
     <div style={{
-      width: '100%',
-      aspectRatio: '9/16',
-      position: 'relative',
-      overflow: 'hidden',
-      borderRadius: 16,
+      width: '100%', aspectRatio: '9/16', position: 'relative',
+      overflow: 'hidden', borderRadius: 16,
       fontFamily: '"DM Sans", system-ui, sans-serif',
       backgroundColor: '#0a0908',
     }}>
-      <img
-        src={bgImage}
-        alt=""
-        onError={(e) => { console.error('Image failed to load:', (e.target as HTMLImageElement).src) }}
-        style={{
-          position: 'absolute',
-          inset: 0,
-          width: '100%',
-          height: '100%',
-          objectFit: 'cover',
-          objectPosition: 'center',
-        }}
-      />
-
+      <img src={bgImage} alt=""
+        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center' }} />
       <div style={{
-        position: 'absolute',
-        inset: 0,
+        position: 'absolute', inset: 0,
         background: special
-          ? 'linear-gradient(to bottom, rgba(10,9,8,0.5) 0%, rgba(10,9,8,0.2) 40%, rgba(10,9,8,0.8) 80%, rgba(10,9,8,0.97) 100%)'
-          : 'linear-gradient(to bottom, rgba(10,9,8,0.6) 0%, rgba(10,9,8,0.3) 40%, rgba(10,9,8,0.85) 80%, rgba(10,9,8,0.97) 100%)',
+          ? 'linear-gradient(to bottom, rgba(10,9,8,0.4) 0%, rgba(10,9,8,0.15) 35%, rgba(10,9,8,0.7) 70%, rgba(10,9,8,0.97) 100%)'
+          : 'linear-gradient(to bottom, rgba(10,9,8,0.5) 0%, rgba(10,9,8,0.25) 35%, rgba(10,9,8,0.8) 70%, rgba(10,9,8,0.97) 100%)',
       }} />
-
       <div style={{
-        position: 'relative',
-        zIndex: 1,
-        height: '100%',
-        display: 'flex',
-        flexDirection: 'column',
-        padding: '7% 8%',
-        justifyContent: 'space-between',
+        position: 'relative', zIndex: 1, height: '100%',
+        display: 'flex', flexDirection: 'column',
+        padding: '6% 7%', justifyContent: 'space-between',
       }}>
-
-        {/* Top */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        {/* Top bar */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span style={{
-            fontSize: 'clamp(10px, 2.2vw, 14px)',
-            fontWeight: 700,
+            fontSize: 'clamp(13px, 3.5vw, 22px)', fontWeight: 800,
             color: special ? '#c9a84c' : '#8a7a68',
-            letterSpacing: '0.18em',
-            textTransform: 'uppercase',
-          }}>
-            {special ? 'MILESTONE' : 'SHOW'}
-          </span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <img
-              src="/logo-horizontal.png"
-              alt="Setlistr"
-              style={{
-                height: 'clamp(28px, 7vw, 44px)',
-                width: 'auto',
-                objectFit: 'contain',
-              }}
-            />
-          </div>
+            letterSpacing: '0.2em', textTransform: 'uppercase',
+          }}>{special ? 'MILESTONE' : 'VERIFIED SHOW'}</span>
+          <img src="/logo-horizontal.png" alt="Setlistr"
+            style={{ height: 'clamp(24px, 6vw, 40px)', width: 'auto', objectFit: 'contain' }} />
         </div>
 
-        {/* Middle — big number */}
-        <div style={{
-          flex: 1,
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'center',
-          alignItems: 'flex-start',
-        }}>
+        {/* Hero */}
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
           {special && (
-            <div style={{
-              width: '100%',
-              height: 2,
-              background: 'linear-gradient(90deg, #c9a84c, transparent)',
-              marginBottom: '6%',
-            }} />
+            <div style={{ width: '60%', height: 3, background: 'linear-gradient(90deg, #c9a84c, transparent)', marginBottom: '5%' }} />
           )}
+
           <div style={{
-            fontSize: 'clamp(80px, 26vw, 160px)',
-            fontWeight: 800,
-            color: special ? '#f0ece3' : '#f0ece3',
-            lineHeight: 0.85,
-            letterSpacing: '-0.04em',
-            marginBottom: '4%',
-          }}>
-            {showNumber}
-          </div>
+            fontSize: 'clamp(80px, 24vw, 172px)', fontWeight: 800,
+            color: '#f0ece3', lineHeight: 0.85, letterSpacing: '-0.04em',
+            marginBottom: '3%',
+          }}>{showNumber}</div>
+
           <div style={{
-            fontSize: 'clamp(20px, 5.5vw, 36px)',
-            fontWeight: 800,
-            color: '#c9a84c',
-            letterSpacing: '0.06em',
-            textTransform: 'uppercase',
-            marginBottom: '6%',
-          }}>
-            {showNumber === 1 ? 'VERIFIED SHOW' : 'VERIFIED SHOWS'}
-          </div>
+            fontSize: 'clamp(22px, 6vw, 44px)', fontWeight: 800,
+            color: '#c9a84c', letterSpacing: '0.08em',
+            textTransform: 'uppercase', marginBottom: '6%',
+          }}>{showNumber === 1 ? 'VERIFIED SHOW' : 'VERIFIED SHOWS'}</div>
+
           {special && (
-            <div style={{
-              width: '100%',
-              height: 2,
-              background: 'linear-gradient(90deg, #c9a84c, transparent)',
-              marginBottom: '6%',
-            }} />
+            <div style={{ width: '60%', height: 3, background: 'linear-gradient(90deg, #c9a84c, transparent)', marginBottom: '6%' }} />
           )}
-        </div>
 
-        {/* Bottom — tagline + artist */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '3%' }}>
-          <div style={{
-            fontSize: 'clamp(18px, 4.5vw, 30px)',
-            color: special ? '#f0ece3' : '#b8a888',
-            fontStyle: 'italic',
-            fontWeight: special ? 600 : 400,
-            lineHeight: 1.3,
-          }}>
-            {tagline}
+          <div style={{ height: 1, backgroundColor: 'rgba(255,255,255,0.15)', marginBottom: '5%' }} />
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2%' }}>
+            <span style={{
+              fontSize: 'clamp(20px, 5vw, 36px)', color: special ? '#f0ece3' : '#b8a888',
+              fontStyle: 'italic', fontWeight: special ? 700 : 400, lineHeight: 1.3,
+            }}>{tagline}</span>
+            <span style={{ fontSize: 'clamp(13px, 3vw, 20px)', color: '#8a7a68', letterSpacing: '0.04em' }}>{artistName}</span>
           </div>
-          <span style={{
-            fontSize: 'clamp(11px, 2.5vw, 16px)',
-            color: '#8a7a68',
-            letterSpacing: '0.06em',
-          }}>
-            {artistName}
-          </span>
         </div>
-
       </div>
-
-      <div style={{
-        position: 'absolute',
-        bottom: 0, left: 0, right: 0,
-        height: 3,
-        background: 'linear-gradient(90deg, transparent, #c9a84c, transparent)',
-      }} />
+      <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 4, background: 'linear-gradient(90deg, transparent, #c9a84c, transparent)' }} />
     </div>
   )
 }
