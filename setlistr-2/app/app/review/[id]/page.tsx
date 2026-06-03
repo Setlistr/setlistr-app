@@ -428,6 +428,8 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
   const [assignSheet, setAssignSheet]   = useState<{ songId: string; currentTitle: string } | null>(null)
   const [userId, setUserId]             = useState<string | null>(null)
   const [intelligence, setIntelligence] = useState<ShowIntelligence | null>(null)
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null)
+  const [photoUploading, setPhotoUploading] = useState(false)
   const shareCardRef = useRef<HTMLDivElement>(null)
 
   const sensors = useSensors(
@@ -544,6 +546,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
       .then(async ({ data: perf }) => {
         if (!perf) { setLoading(false); return }
         setPerformance({ ...perf, show_type: perf.shows?.show_type || null, venue_capacity: perf.venues?.capacity || null })
+        if (perf.photo_url) setPhotoUrl(perf.photo_url)
         const resolvedSetlistId = perf.setlist_id || null
         setSetlistId(resolvedSetlistId)
         if (resolvedSetlistId) {
@@ -589,6 +592,30 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
   }
   function handleDelete(id: string) { setSongs(prev => prev.filter(s => s.id !== id).map((s, i) => ({ ...s, position: i + 1 }))) }
   function handleEdit(id: string, title: string, artist: string) { setSongs(prev => prev.map(s => s.id === id ? { ...s, title, artist, reviewState: 'clean' } : s)) }
+
+  async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file || !performance) return
+    setPhotoUploading(true)
+    try {
+      const supabase = createClient()
+      const ext = file.name.split('.').pop()
+      const path = `${performance.id}.${ext}`
+      const { error: uploadError } = await supabase.storage
+        .from('performance-photos')
+        .upload(path, file, { upsert: true })
+      if (uploadError) throw uploadError
+      const { data: { publicUrl } } = supabase.storage
+        .from('performance-photos')
+        .getPublicUrl(path)
+      await supabase.from('performances').update({ photo_url: publicUrl }).eq('id', performance.id)
+      setPhotoUrl(publicUrl)
+    } catch (err) {
+      console.error('Photo upload failed:', err)
+    } finally {
+      setPhotoUploading(false)
+    }
+  }
 
   async function shareCard() {
     if (!shareCardRef.current) return
@@ -1021,6 +1048,53 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
             {autoCount > 0 && <><span style={{ color: C.muted, opacity: 0.4 }}>·</span><span style={{ fontSize: 14, color: C.muted }}>{autoCount} detected</span></>}
             {needsReviewCount > 0 && <><span style={{ color: C.muted, opacity: 0.4 }}>·</span><span style={{ fontSize: 14, color: '#f87171' }}>{needsReviewCount} need attention</span></>}
           </div>
+        </div>
+
+        {/* ── SHOW PHOTO ── */}
+        <div style={{ marginBottom: 16 }}>
+          {photoUrl ? (
+            <div style={{ position: 'relative', borderRadius: 12, overflow: 'hidden', marginBottom: 8 }}>
+              <img
+                src={photoUrl}
+                alt="Show photo"
+                style={{ width: '100%', aspectRatio: '16/9', objectFit: 'cover', display: 'block' }}
+              />
+              <label style={{
+                position: 'absolute', bottom: 10, right: 10,
+                background: 'rgba(10,9,8,0.8)', border: '1px solid rgba(255,255,255,0.15)',
+                borderRadius: 8, padding: '6px 12px', cursor: 'pointer',
+                fontSize: 12, color: '#b8a888', fontFamily: 'inherit', fontWeight: 600,
+              }}>
+                Change photo
+                <input type="file" accept="image/*" onChange={handlePhotoUpload} style={{ display: 'none' }} />
+              </label>
+            </div>
+          ) : (
+            <label style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              gap: 8, width: '100%', padding: '14px',
+              background: 'rgba(255,255,255,0.02)',
+              border: '1px dashed rgba(255,255,255,0.12)',
+              borderRadius: 12, cursor: 'pointer',
+              fontSize: 13, color: '#8a7a68', fontFamily: 'inherit',
+            }}>
+              {photoUploading ? (
+                <>
+                  <div style={{ width: 14, height: 14, borderRadius: '50%', border: '1.5px solid rgba(201,168,76,0.3)', borderTopColor: '#c9a84c', animation: 'spin 0.7s linear infinite' }} />
+                  Uploading...
+                </>
+              ) : (
+                <>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8a7a68" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/>
+                    <polyline points="21 15 16 10 5 21"/>
+                  </svg>
+                  Add a photo from tonight
+                </>
+              )}
+              <input type="file" accept="image/*" onChange={handlePhotoUpload} style={{ display: 'none' }} />
+            </label>
+          )}
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, animation: 'fadeUp 0.4s 0.05s ease both' }}>
