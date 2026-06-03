@@ -28,7 +28,7 @@ export default function MilestoneCard({ showNumber, artistName }: MilestoneCardP
 
   return (
     <div style={{
-      width: '100%', aspectRatio: '9/16', position: 'relative',
+      width: '100%', aspectRatio: '9/16', height: '100%', position: 'relative',
       overflow: 'hidden', borderRadius: 16,
       fontFamily: '"DM Sans", system-ui, sans-serif',
       backgroundColor: '#0a0908',

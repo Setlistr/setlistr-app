@@ -594,17 +594,20 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
     if (!shareCardRef.current) return
     try {
       const element = shareCardRef.current
-      const rect = element.getBoundingClientRect()
-      const canvas = await html2canvas(element, {
+      const cardDiv = element.firstElementChild as HTMLElement
+      if (!cardDiv) return
+      const width = cardDiv.offsetWidth
+      const height = cardDiv.offsetHeight
+      const canvas = await html2canvas(cardDiv, {
         scale: 3,
         backgroundColor: '#0a0908',
         useCORS: true,
         allowTaint: true,
         logging: false,
-        width: rect.width,
-        height: rect.width * (16 / 9),
-        windowWidth: rect.width,
-        windowHeight: rect.width * (16 / 9),
+        width,
+        height,
+        scrollX: 0,
+        scrollY: 0,
       })
       canvas.toBlob(async (blob) => {
         if (!blob) return
