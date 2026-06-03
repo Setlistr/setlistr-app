@@ -40,14 +40,15 @@ export default function TonightsRunCard({
             letterSpacing: '0.18em', textTransform: 'uppercase', whiteSpace: 'nowrap',
           }}>TONIGHT'S RUN</span>
           <img src="/logo-horizontal.png" alt="Setlistr"
-            style={{ height: 20, width: 'auto', objectFit: 'contain' }} />
+            style={{ height: 36, width: 'auto', objectFit: 'contain' }} />
         </div>
 
         {/* Hero */}
         <div style={{ display: 'flex', flexDirection: 'column' }}>
           <div style={{
-            fontSize: 72, fontWeight: 800, color: '#f0ece3',
+            fontSize: 58, fontWeight: 800, color: '#f0ece3',
             lineHeight: 0.88, letterSpacing: '-0.03em', marginBottom: '4%',
+            whiteSpace: 'nowrap',
           }}>ANOTHER<br />ONE.</div>
           <div style={{
             fontSize: 28, fontWeight: 700, color: '#c9a84c',

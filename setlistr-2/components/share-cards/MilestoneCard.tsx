@@ -55,7 +55,7 @@ export default function MilestoneCard({ showNumber, artistName }: MilestoneCardP
             letterSpacing: '0.18em', textTransform: 'uppercase',
           }}>{special ? 'MILESTONE' : 'VERIFIED SHOW'}</span>
           <img src="/logo-horizontal.png" alt="Setlistr"
-            style={{ height: 20, width: 'auto', objectFit: 'contain' }} />
+            style={{ height: 36, width: 'auto', objectFit: 'contain' }} />
         </div>
 
         {/* Hero */}

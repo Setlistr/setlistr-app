@@ -35,7 +35,7 @@ export default function RoyaltyMomentCard({ amount, venueName, date, artistName 
             letterSpacing: '0.18em', textTransform: 'uppercase', whiteSpace: 'nowrap',
           }}>ROYALTY MOMENT</span>
           <img src="/logo-horizontal.png" alt="Setlistr"
-            style={{ height: 20, width: 'auto', objectFit: 'contain' }} />
+            style={{ height: 36, width: 'auto', objectFit: 'contain' }} />
         </div>
 
         {/* Hero */}
