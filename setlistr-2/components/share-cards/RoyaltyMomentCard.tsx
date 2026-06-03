@@ -70,7 +70,7 @@ export default function RoyaltyMomentCard({
               src="/logo-horizontal.png"
               alt="Setlistr"
               style={{
-                height: 'clamp(22px, 5vw, 32px)',
+                height: 'clamp(28px, 7vw, 44px)',
                 width: 'auto',
                 objectFit: 'contain',
               }}

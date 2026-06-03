@@ -66,8 +66,8 @@ export default function TonightsRunCard({
         {/* Top — label + logo */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <span style={{
-            fontSize: 'clamp(10px, 2.2vw, 14px)',
-            fontWeight: 700,
+            fontSize: 'clamp(14px, 3.2vw, 20px)',
+            fontWeight: 800,
             color: '#c9a84c',
             letterSpacing: '0.18em',
             textTransform: 'uppercase',
@@ -79,7 +79,7 @@ export default function TonightsRunCard({
               src="/logo-horizontal.png"
               alt="Setlistr"
               style={{
-                height: 'clamp(22px, 5vw, 32px)',
+                height: 'clamp(28px, 7vw, 44px)',
                 width: 'auto',
                 objectFit: 'contain',
               }}
@@ -90,17 +90,17 @@ export default function TonightsRunCard({
         {/* Middle — hero text */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', paddingTop: '8%' }}>
           <div style={{
-            fontSize: 'clamp(22px, 6.8vw, 48px)',
+            fontSize: 'clamp(48px, 14vw, 96px)',
             fontWeight: 800,
             color: '#f0ece3',
-            lineHeight: 0.9,
-            letterSpacing: '-0.02em',
+            lineHeight: 0.88,
+            letterSpacing: '-0.03em',
             marginBottom: '6%',
           }}>
             ANOTHER<br />ONE.
           </div>
           <div style={{
-            fontSize: 'clamp(16px, 4.5vw, 28px)',
+            fontSize: 'clamp(22px, 6vw, 38px)',
             fontWeight: 700,
             color: '#c9a84c',
             letterSpacing: '0.04em',
@@ -127,17 +127,17 @@ export default function TonightsRunCard({
           {/* Stats row */}
           <div style={{ display: 'flex', gap: '8%', alignItems: 'flex-end' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <span style={{ fontSize: 'clamp(28px, 8vw, 52px)', fontWeight: 800, color: '#f0ece3', lineHeight: 1, letterSpacing: '-0.02em' }}>{songCount}</span>
-              <span style={{ fontSize: 'clamp(9px, 2vw, 13px)', color: '#8a7a68', letterSpacing: '0.12em', textTransform: 'uppercase' }}>SONGS</span>
+              <span style={{ fontSize: 'clamp(36px, 10vw, 64px)', fontWeight: 800, color: '#f0ece3', lineHeight: 1, letterSpacing: '-0.02em' }}>{songCount}</span>
+              <span style={{ fontSize: 'clamp(12px, 2.8vw, 18px)', color: '#8a7a68', letterSpacing: '0.12em', textTransform: 'uppercase' }}>SONGS</span>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <span style={{ fontSize: 'clamp(28px, 8vw, 52px)', fontWeight: 800, color: '#f0ece3', lineHeight: 1, letterSpacing: '-0.02em' }}>{minutes}</span>
-              <span style={{ fontSize: 'clamp(9px, 2vw, 13px)', color: '#8a7a68', letterSpacing: '0.12em', textTransform: 'uppercase' }}>MINUTES</span>
+              <span style={{ fontSize: 'clamp(36px, 10vw, 64px)', fontWeight: 800, color: '#f0ece3', lineHeight: 1, letterSpacing: '-0.02em' }}>{minutes}</span>
+              <span style={{ fontSize: 'clamp(12px, 2.8vw, 18px)', color: '#8a7a68', letterSpacing: '0.12em', textTransform: 'uppercase' }}>MINUTES</span>
             </div>
             {showNumber > 0 && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                 <span style={{ fontSize: 'clamp(28px, 8vw, 52px)', fontWeight: 800, color: '#c9a84c', lineHeight: 1, letterSpacing: '-0.02em' }}>#{showNumber}</span>
-                <span style={{ fontSize: 'clamp(9px, 2vw, 13px)', color: '#8a7a68', letterSpacing: '0.12em', textTransform: 'uppercase' }}>SHOW</span>
+                <span style={{ fontSize: 'clamp(12px, 2.8vw, 18px)', color: '#8a7a68', letterSpacing: '0.12em', textTransform: 'uppercase' }}>SHOW</span>
               </div>
             )}
           </div>
