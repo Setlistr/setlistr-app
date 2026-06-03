@@ -596,8 +596,19 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
       const element = shareCardRef.current
       const cardDiv = element.firstElementChild as HTMLElement
       if (!cardDiv) return
+
+      // Force explicit dimensions before capture
       const width = cardDiv.offsetWidth
-      const height = cardDiv.offsetHeight
+      const height = Math.round(width * (16 / 9))
+
+      // Temporarily set explicit height so html2canvas captures correctly
+      const originalHeight = cardDiv.style.height
+      const originalAspectRatio = cardDiv.style.aspectRatio
+      cardDiv.style.height = `${height}px`
+      cardDiv.style.aspectRatio = 'unset'
+
+      await new Promise(r => setTimeout(r, 100)) // let browser reflow
+
       const canvas = await html2canvas(cardDiv, {
         scale: 3,
         backgroundColor: '#0a0908',
@@ -609,6 +620,11 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
         scrollX: 0,
         scrollY: 0,
       })
+
+      // Restore original styles
+      cardDiv.style.height = originalHeight
+      cardDiv.style.aspectRatio = originalAspectRatio
+
       canvas.toBlob(async (blob) => {
         if (!blob) return
         const file = new File([blob], 'setlistr-card.png', { type: 'image/png' })
