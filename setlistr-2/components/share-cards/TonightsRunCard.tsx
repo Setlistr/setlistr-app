@@ -9,10 +9,11 @@ interface TonightsRunCardProps {
   songCount: number
   minutes: number
   showNumber: number
+  photoUrl?: string | null
 }
 
 export default function TonightsRunCard({
-  artistName, venueName, city, date, songCount, minutes, showNumber,
+  artistName, venueName, city, date, songCount, minutes, showNumber, photoUrl,
 }: TonightsRunCardProps) {
   return (
     <div style={{
@@ -21,7 +22,7 @@ export default function TonightsRunCard({
       fontFamily: '"DM Sans", system-ui, sans-serif',
       backgroundColor: '#0a0908',
     }}>
-      <img src="/share-cards/show-complete-bg.png" alt=""
+      <img src={photoUrl || '/share-cards/show-complete-bg.png'} alt=""
         style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center' }} />
       <div style={{
         position: 'absolute', inset: 0,

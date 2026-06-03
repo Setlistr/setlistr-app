@@ -904,6 +904,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
                       songCount={confirmedSongs.length}
                       minutes={durMins || 60}
                       showNumber={showNumber}
+                      photoUrl={photoUrl}
                     />
                   )
                 },
