@@ -329,6 +329,39 @@ export default function DashboardPage() {
     performances.map(p => p.city).filter(Boolean)
   ))
 
+  // Annual trajectory
+  const currentYear = new Date().getFullYear()
+  const lastYear = currentYear - 1
+  const dayOfYear = Math.floor((Date.now() - new Date(currentYear, 0, 0).getTime()) / 86400000)
+  const daysInYear = 365
+
+  const capturedPerfsThisYear = performances.filter(p =>
+    p.data_source !== 'setlistfm_imported' &&
+    new Date(p.started_at).getFullYear() === currentYear
+  ).length
+
+  const capturedPerfsLastYear = performances.filter(p =>
+    p.data_source !== 'setlistfm_imported' &&
+    new Date(p.started_at).getFullYear() === lastYear
+  ).length
+
+  const paceThisYear = dayOfYear > 0 ? Math.round((capturedPerfsThisYear / dayOfYear) * daysInYear) : 0
+  const paceLastYear = capturedPerfsLastYear
+
+  const trajectoryPct = paceLastYear > 0
+    ? Math.round(((paceThisYear - paceLastYear) / paceLastYear) * 100)
+    : null
+
+  const trajectoryLabel = (() => {
+    if (capturedPerfsThisYear === 0) return null
+    if (paceLastYear === 0) return `On pace for ${paceThisYear} shows this year.`
+    if (trajectoryPct === null) return null
+    const ahead = trajectoryPct > 0
+    const pct = Math.abs(trajectoryPct)
+    if (pct < 5) return `On pace to match last year.`
+    return `${pct}% ${ahead ? 'ahead of' : 'behind'} last year's pace.`
+  })()
+
   const careerStartDate = performances.length > 0
     ? performances.reduce((earliest, p) => {
         const d = p.performance_date || p.started_at || p.created_at
@@ -495,6 +528,15 @@ export default function DashboardPage() {
                   </div>
                 )}
               </div>
+            )}
+            {trajectoryLabel && (
+              <p style={{
+                fontSize: 13, color: trajectoryPct !== null && trajectoryPct > 0 ? '#4ade80' : trajectoryPct !== null && trajectoryPct < -4 ? '#f87171' : '#8a7a68',
+                margin: '4px 0 0', letterSpacing: '0.01em',
+                opacity: 0, animation: 'fadeUp 0.5s 0.8s ease forwards',
+              }}>
+                {trajectoryPct !== null && trajectoryPct > 4 ? '↑ ' : trajectoryPct !== null && trajectoryPct < -4 ? '↓ ' : ''}{trajectoryLabel}
+              </p>
             )}
 
             {/* Royalty line */}
