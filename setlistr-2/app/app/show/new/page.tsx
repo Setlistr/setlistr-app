@@ -55,8 +55,6 @@ export default function NewShowPage() {
   const dropdownRef = useRef<HTMLDivElement>(null)
   const searchTimer = useRef<NodeJS.Timeout | null>(null)
 
-  const [lastShow, setLastShow]         = useState<PastPerformance | null>(null)
-  const [repeatLoading, setRepeatLoading] = useState(false)
   const [showReuse, setShowReuse]       = useState(searchParams.get('reuse') === 'true')
   const [pastPerfs, setPastPerfs]       = useState<PastPerformance[]>([])
   const [pastLoading, setPastLoading]   = useState(false)
@@ -115,39 +113,8 @@ export default function NewShowPage() {
         .limit(1)
         .single()
       if (!lastPerf?.venue_name || lastPerf.venue_name.trim() === '.') return
-      setVenueQuery(lastPerf.venue_name)
-      setVenueCity(lastPerf.city || '')
-      setVenueCountry(lastPerf.country || '')
       if (lastPerf.venue_id) {
-        setVenueId(lastPerf.venue_id)
-        setVenueSelected(true)
         fetchVenueMemory(lastPerf.venue_id)
-      }
-
-      // Also load last show with songs for one-tap repeat
-      const { data: lastPerfFull } = await supabase
-        .from('performances')
-        .select('id, venue_name, artist_name, started_at')
-        .eq('user_id', user.id)
-        .in('status', ['review', 'complete', 'completed', 'exported'])
-        .not('venue_name', 'is', null)
-        .order('started_at', { ascending: false })
-        .limit(1)
-        .single()
-      if (lastPerfFull?.venue_name && lastPerfFull.venue_name.trim() !== '.') {
-        const { count } = await supabase
-          .from('performance_songs')
-          .select('*', { count: 'exact', head: true })
-          .eq('performance_id', lastPerfFull.id)
-        if ((count || 0) > 0) {
-          setLastShow({
-            id: lastPerfFull.id,
-            venue_name: lastPerfFull.venue_name,
-            artist_name: lastPerfFull.artist_name,
-            started_at: lastPerfFull.started_at,
-            song_count: count || 0,
-          })
-        }
       }
     }
     loadLastVenue()
@@ -481,101 +448,6 @@ export default function NewShowPage() {
       <div style={{ width: '100%', maxWidth: 440, position: 'relative', zIndex: 1, animation: 'fadeUp 0.4s ease' }}>
 
         <h1 style={{ fontSize: 30, fontWeight: 800, color: C.text, margin: '0 0 16px', letterSpacing: '-0.025em' }}>Where tonight?</h1>
-
-        {/* ── ONE-TAP REPEAT ── */}
-        {lastShow && !showReuse && (
-          <button
-            onClick={async () => {
-              if (repeatLoading) return
-              setRepeatLoading(true)
-              setSelectedPast(lastShow)
-              // Pre-fill venue from last show
-              if (!venueQuery.trim()) {
-                setVenueQuery(lastShow.venue_name)
-                setVenueSelected(false)
-              }
-              try {
-                const supabase = createClient()
-                const { data: { user } } = await supabase.auth.getUser()
-                if (!user) throw new Error('Not authenticated')
-                let resolvedVenueId = venueId
-                const venueName = venueQuery.trim() || lastShow.venue_name
-                if (!resolvedVenueId && venueName) {
-                  const { data: existing } = await supabase
-                    .from('venues')
-                    .select('id')
-                    .ilike('name', venueName)
-                    .limit(1)
-                    .single()
-                  if (existing) resolvedVenueId = existing.id
-                  else {
-                    const { data: nv } = await supabase
-                      .from('venues')
-                      .insert({ name: venueName, city: venueCity || null, country: venueCountry || null })
-                      .select()
-                      .single()
-                    if (nv) resolvedVenueId = nv.id
-                  }
-                }
-                const { data: show } = await supabase.from('shows').insert({
-                  name: venueName, show_type: showType,
-                  started_at: new Date().toISOString(), status: 'completed', created_by: user.id,
-                }).select().single()
-                if (!show) throw new Error('Show insert failed')
-                const { data: performance } = await supabase.from('performances').insert({
-                  show_id: show.id, performance_date: new Date().toISOString(),
-                  artist_name: artistName.trim() || venueName,
-                  venue_name: venueName, venue_id: resolvedVenueId || null,
-                  city: venueCity || null, country: venueCountry || null,
-                  status: 'review', set_duration_minutes: 60, auto_close_buffer_minutes: 5,
-                  started_at: new Date().toISOString(), ended_at: new Date().toISOString(),
-                  user_id: user.id,
-                }).select().single()
-                if (!performance) throw new Error('Performance insert failed')
-                const { data: sourceSongs } = await supabase
-                  .from('performance_songs')
-                  .select('title, artist, position')
-                  .eq('performance_id', lastShow.id)
-                  .order('position', { ascending: true })
-                if (sourceSongs && sourceSongs.length > 0) {
-                  await supabase.from('performance_songs').insert(
-                    sourceSongs.map((s, i) => ({
-                      performance_id: performance.id,
-                      title: s.title, artist: s.artist,
-                      position: s.position || i + 1,
-                    }))
-                  )
-                }
-                router.push(`/app/review/${performance.id}`)
-              } catch (err: any) {
-                setError(err?.message || 'Something went wrong.')
-                setRepeatLoading(false)
-              }
-            }}
-            style={{
-              width: '100%', padding: '14px 16px', marginBottom: 12,
-              background: 'rgba(201,168,76,0.07)',
-              border: '1px solid rgba(201,168,76,0.25)',
-              borderRadius: 12, cursor: repeatLoading ? 'not-allowed' : 'pointer',
-              fontFamily: 'inherit', display: 'flex', alignItems: 'center',
-              gap: 12, textAlign: 'left',
-            }}
-          >
-            <div style={{ fontSize: 20, flexShrink: 0 }}>🔁</div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <p style={{ fontSize: 13, fontWeight: 700, color: '#c9a84c', margin: '0 0 2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                Repeat last show
-              </p>
-              <p style={{ fontSize: 12, color: '#8a7a68', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {lastShow.venue_name} · {lastShow.song_count} songs · {formatDate(lastShow.started_at)}
-              </p>
-            </div>
-            {repeatLoading
-              ? <div style={{ width: 16, height: 16, borderRadius: '50%', border: '2px solid rgba(201,168,76,0.3)', borderTopColor: '#c9a84c', animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />
-              : <span style={{ fontSize: 16, flexShrink: 0 }}>→</span>
-            }
-          </button>
-        )}
 
         {/* ── VENUE CARD ── */}
         <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '20px', display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 16 }}>
