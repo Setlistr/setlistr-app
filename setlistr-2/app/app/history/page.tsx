@@ -29,6 +29,7 @@ type Performance = {
   show_type?:        string | null
   song_count?:       number
   captured_by_name?: string | null
+  venue_id?:         string | null
 }
 
 function getDisplayStatus(p: Performance): { label: string; color: string } {
@@ -77,7 +78,7 @@ export default function HistoryPage() {
 
       const { data, error } = await supabase
         .from('performances')
-        .select('id, venue_name, artist_name, city, country, status, submission_status, started_at, created_at, captured_by_name, shows(show_type), venues(capacity)')
+        .select('id, venue_name, venue_id, artist_name, city, country, status, submission_status, started_at, created_at, captured_by_name, shows(show_type), venues(capacity)')
         .eq('user_id', user.id)
         .not('status', 'in', '("live","pending")')
         .order('started_at', { ascending: false })
@@ -327,7 +328,21 @@ export default function HistoryPage() {
 
                     {/* Venue + artist */}
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <p style={{ fontSize: 16, fontWeight: 600, color: C.text, margin: '0 0 2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{perf.venue_name}</p>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                        <p style={{ fontSize: 16, fontWeight: 600, color: C.text, margin: 0,
+                            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>
+                            {perf.venue_name}
+                        </p>
+                        {perf.venue_id && (
+                          <button
+                            onClick={e => { e.stopPropagation(); router.push(`/app/venue/${perf.venue_id}`) }}
+                            style={{ fontSize: 11, color: C.gold, background: 'none', border: 'none',
+                              cursor: 'pointer', fontFamily: 'inherit', padding: 0, flexShrink: 0,
+                              fontWeight: 600, letterSpacing: '0.04em' }}>
+                            History →
+                          </button>
+                        )}
+                      </div>
                       <p style={{ fontSize: 13, color: C.secondary, margin: 0 }}>
                         {perf.artist_name}{perf.city ? ` · ${perf.city}` : ''}{perf.country ? `, ${perf.country}` : ''}
                       </p>
