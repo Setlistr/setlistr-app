@@ -106,6 +106,7 @@ export default function HistoryPage() {
             show_type: p.shows?.show_type || 'single',
             song_count: countMap[p.id] || 0,
             captured_by_name: p.captured_by_name || null,
+            venue_id: p.venue_id || null,
           }))
 
         setPerformances(clean)
