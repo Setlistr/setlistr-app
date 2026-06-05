@@ -209,7 +209,7 @@ export default function CareerMapPage() {
             </p>
           </div>
         ) : (
-          <div ref={mapContainer} style={{ width: '100%', height: '100%', borderRadius: 16, overflow: 'hidden' }} />
+          <div ref={mapContainer} style={{ width: '100%', height: '100%', borderRadius: 16 }} />
         )}
       </div>
 
@@ -219,6 +219,8 @@ export default function CareerMapPage() {
         .mapboxgl-ctrl-bottom-left, .mapboxgl-ctrl-bottom-right { display: none !important; }
         .setlistr-popup .mapboxgl-popup-content { background: transparent; padding: 0; box-shadow: none; }
         .setlistr-popup .mapboxgl-popup-tip { display: none; }
+        .mapboxgl-canvas { border-radius: 16px; }
+        .mapboxgl-map { background: #0a0908 !important; }
       `}</style>
     </div>
   )
