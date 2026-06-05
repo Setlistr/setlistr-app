@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Music2, MapPin, Calendar, TrendingUp, Mic2, AlertCircle } from 'lucide-react'
 import MySongsTab from '@/components/MySongsTab'
@@ -14,7 +15,7 @@ const C = {
 const BASE_ROYALTY = 1.20
 
 type Song        = { title: string; artist: string }
-type Performance = { id: string; venue_name: string; city: string; country: string; started_at: string; set_duration_minutes: number }
+type Performance = { id: string; venue_name: string; venue_id: string | null; city: string; country: string; started_at: string; set_duration_minutes: number }
 type UserSong    = { id: string; song_title: string; canonical_artist: string; confirmed_count: number; last_confirmed_at: string }
 
 function formatRelative(dateStr: string): string {
@@ -29,6 +30,7 @@ function formatRelative(dateStr: string): string {
 }
 
 export default function StatsPage() {
+  const router = useRouter()
   const [tab, setTab]                   = useState<'stats' | 'songs'>('stats')
   const [performances, setPerformances] = useState<Performance[]>([])
   const [allSongs, setAllSongs]         = useState<Song[]>([])
@@ -45,7 +47,7 @@ export default function StatsPage() {
 
       const [{ data: perfs }, { data: uSongs }] = await Promise.all([
         supabase.from('performances')
-          .select('id, venue_name, city, country, started_at, set_duration_minutes')
+          .select('id, venue_name, venue_id, city, country, started_at, set_duration_minutes')
           .eq('user_id', user.id)
           .in('status', ['completed', 'complete', 'exported', 'review'])
           .order('started_at', { ascending: false }),
@@ -98,12 +100,12 @@ export default function StatsPage() {
   })
   const topSongs = Object.values(songCounts).sort((a, b) => b.count - a.count).slice(0, 10)
 
-  const venueCounts: Record<string, { name: string; city: string; count: number }> = {}
+  const venueCounts: Record<string, { name: string; city: string; count: number; id: string | null }> = {}
   performances.forEach(p => {
     const v = p.venue_name?.trim()
     if (!v || !v.includes(' ')) return
     const key = v.toLowerCase()
-    if (!venueCounts[key]) venueCounts[key] = { name: v, city: p.city, count: 0 }
+    if (!venueCounts[key]) venueCounts[key] = { name: v, city: p.city, count: 0, id: p.venue_id || null }
     venueCounts[key].count++
   })
   const topVenues = Object.values(venueCounts).sort((a, b) => b.count - a.count).slice(0, 5)
@@ -250,6 +252,31 @@ export default function StatsPage() {
                 </div>
               </div>
 
+              {topSongs.length > 0 && (
+                <div style={{
+                  background: 'rgba(201,168,76,0.07)',
+                  border: '1px solid rgba(201,168,76,0.25)',
+                  borderRadius: 16, padding: '20px',
+                  marginBottom: 12,
+                }}>
+                  <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: C.gold, margin: '0 0 12px' }}>
+                    Most Played Live
+                  </p>
+                  <p style={{ fontSize: 28, fontWeight: 800, color: C.text, margin: '0 0 4px', letterSpacing: '-0.02em', lineHeight: 1.1 }}>
+                    {topSongs[0].title}
+                  </p>
+                  <p style={{ fontSize: 14, color: C.secondary, margin: '0 0 16px' }}>{topSongs[0].artist}</p>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <span style={{ fontSize: 36, fontWeight: 800, color: C.gold, letterSpacing: '-0.02em', fontFamily: '"DM Mono", monospace' }}>
+                      {topSongs[0].count}×
+                    </span>
+                    <span style={{ fontSize: 13, color: C.muted, lineHeight: 1.4 }}>
+                      times played live.<br />Your signature song.
+                    </span>
+                  </div>
+                </div>
+              )}
+
               {/* Top songs */}
               {topSongs.length > 0 && (
                 <div style={{ background: C.card, border: '1px solid rgba(255,255,255,0.04)', borderRadius: 14, padding: '16px' }}>
@@ -288,7 +315,7 @@ export default function StatsPage() {
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                     {topVenues.map((venue, i) => (
-                      <div key={venue.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                      <div key={venue.name} onClick={() => { if (venue.id) router.push(`/app/venue/${venue.id}`) }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, cursor: venue.id ? 'pointer' : 'default' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
                           <span style={{ fontSize: 11, fontWeight: 700, color: C.gold, minWidth: 16, textAlign: 'right', fontFamily: '"DM Mono", monospace' }}>{i + 1}</span>
                           <div style={{ minWidth: 0 }}>
