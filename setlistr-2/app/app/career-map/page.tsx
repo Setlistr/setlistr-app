@@ -204,9 +204,14 @@ export default function CareerMapPage() {
           </div>
         ) : locations.length === 0 ? (
           <div style={{ height: '100%', background: C.card, borderRadius: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <p style={{ fontSize: 14, color: C.muted, textAlign: 'center', padding: '0 40px' }}>
-              No shows with location data yet. Start capturing shows to build your map.
-            </p>
+            <div style={{ textAlign: 'center', padding: '0 40px' }}>
+              <p style={{ fontSize: 15, fontWeight: 700, color: C.secondary, margin: '0 0 8px' }}>
+                No location data yet.
+              </p>
+              <p style={{ fontSize: 13, color: C.muted, margin: 0, lineHeight: 1.5 }}>
+                Make sure to add a city when starting a show. Your map builds automatically from there.
+              </p>
+            </div>
           </div>
         ) : (
           <div ref={mapContainer} style={{ width: '100%', height: '100%', borderRadius: 16 }} />
@@ -219,8 +224,9 @@ export default function CareerMapPage() {
         .mapboxgl-ctrl-bottom-left, .mapboxgl-ctrl-bottom-right { display: none !important; }
         .setlistr-popup .mapboxgl-popup-content { background: transparent; padding: 0; box-shadow: none; }
         .setlistr-popup .mapboxgl-popup-tip { display: none; }
-        .mapboxgl-canvas { border-radius: 16px; }
-        .mapboxgl-map { background: #0a0908 !important; }
+        .mapboxgl-canvas { border-radius: 12px !important; }
+        .mapboxgl-map { background: #0a0908 !important; border-radius: 12px !important; }
+        .mapboxgl-canvas-container { border-radius: 12px !important; overflow: hidden !important; }
       `}</style>
     </div>
   )
