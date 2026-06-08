@@ -735,6 +735,15 @@ export default function DashboardPage() {
           </button>
         )}
 
+        <button onClick={() => router.push('/app/show/upload')}
+          style={{ width: '100%', padding: '16px 20px', background: 'transparent', border: `1px solid ${C.border}`, borderRadius: 14, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+          <div style={{ textAlign: 'left' }}>
+            <p style={{ fontSize: 15, fontWeight: 600, color: C.secondary, margin: '0 0 2px' }}>Upload a Show</p>
+            <p style={{ fontSize: 13, color: C.muted, margin: 0 }}>Board mix, GoPro, or any recording</p>
+          </div>
+          <span style={{ fontSize: 18, color: C.muted }}>→</span>
+        </button>
+
         {/* ── PROOF FILE LINK ── */}
         {capturedCount >= 3 && (
           <button onClick={() => router.push('/app/proof')}
