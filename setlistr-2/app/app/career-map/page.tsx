@@ -21,6 +21,8 @@ type ShowLocation = {
   lng: number
   count: number
   venues: string[]
+  firstShow: string | null
+  lastShow: string | null
 }
 
 export default function CareerMapPage() {
@@ -80,10 +82,20 @@ export default function CareerMapPage() {
             lng: geocodeCache[key].lng,
             count: 0,
             venues: [],
+            firstShow: perf.started_at || null,
+            lastShow: perf.started_at || null,
           }
         }
 
         cityMap[key].count++
+        if (perf.started_at) {
+          if (!cityMap[key].firstShow || perf.started_at < cityMap[key].firstShow) {
+            cityMap[key].firstShow = perf.started_at
+          }
+          if (!cityMap[key].lastShow || perf.started_at > cityMap[key].lastShow) {
+            cityMap[key].lastShow = perf.started_at
+          }
+        }
         if (perf.venue_name && !cityMap[key].venues.includes(perf.venue_name)) {
           cityMap[key].venues.push(perf.venue_name)
         }
@@ -138,10 +150,13 @@ export default function CareerMapPage() {
           closeOnClick: false,
           className: 'setlistr-popup',
         }).setHTML(`
-          <div style="background:#141210;border:1px solid rgba(201,168,76,0.3);border-radius:8px;padding:10px 14px;font-family:'DM Sans',sans-serif;">
-            <p style="font-size:14px;font-weight:700;color:#f0ece3;margin:0 0 2px">${loc.city}</p>
-            <p style="font-size:12px;color:#c9a84c;margin:0 0 4px">${loc.count} show${loc.count > 1 ? 's' : ''}</p>
-            ${loc.venues.slice(0, 2).map(v => `<p style="font-size:11px;color:#8a7a68;margin:0">${v}</p>`).join('')}
+          <div style="background:#141210;border:1px solid rgba(201,168,76,0.3);border-radius:10px;padding:12px 16px;font-family:'DM Sans',sans-serif;min-width:160px;">
+            <p style="font-size:15px;font-weight:800;color:#f0ece3;margin:0 0 6px;letter-spacing:-0.01em">${loc.city}${loc.country && loc.country !== 'United States' ? `<span style="font-size:11px;color:#8a7a68;font-weight:400;margin-left:6px">${loc.country}</span>` : ''}</p>
+            <p style="font-size:22px;font-weight:800;color:#c9a84c;margin:0 0 2px;letter-spacing:-0.02em;line-height:1">${loc.count}<span style="font-size:12px;font-weight:600;color:#8a7a68;margin-left:4px">${loc.count === 1 ? 'show' : 'shows'}</span></p>
+            ${loc.firstShow ? `<p style="font-size:11px;color:#8a7a68;margin:0 0 8px">First show ${new Date(loc.firstShow).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}</p>` : '<div style="margin-bottom:8px"></div>'}
+            <div style="border-top:1px solid rgba(255,255,255,0.07);padding-top:8px">
+              ${loc.venues.slice(0, 3).map(v => `<p style="font-size:11px;color:#b8a888;margin:0 0 2px">· ${v}</p>`).join('')}
+            </div>
           </div>
         `)
 
