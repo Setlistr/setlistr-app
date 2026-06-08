@@ -26,6 +26,9 @@ export const metadata: Metadata = {
     'SESAC live', 'GMR royalties', 'unclaimed music royalties',
     'how to submit setlist to PRO', 'live music royalty tracking',
     'performance rights submission', 'songwriter live royalties',
+    'setlister', 'setlist app for musicians', 'setlist submission app',
+    'live performance tracking app', 'music performance royalties',
+    'performing rights organization submission',
   ],
 }
 

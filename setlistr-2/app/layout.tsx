@@ -4,8 +4,36 @@ import GoogleAnalytics from '@/components/GoogleAnalytics'
 import Script from 'next/script'
 
 export const metadata: Metadata = {
-  title: 'Setlistr',
-  description: 'Live Performance Registry',
+  title: {
+    default: 'Setlistr',
+    template: '%s | Setlistr',
+  },
+  description: 'Track every show. Submit every setlist. Collect every royalty. The verified live performance record for independent artists.',
+  keywords: ['setlistr', 'setlister', 'setlist app', 'live performance royalties', 'setlist tracker', 'music royalty submission', 'SOCAN submission', 'ASCAP submission', 'BMI submission', 'live music tracking', 'artist royalties', 'performance rights'],
+  authors: [{ name: 'Setlistr', url: 'https://setlistr.ai' }],
+  creator: 'Setlistr',
+  metadataBase: new URL('https://setlistr.ai'),
+  openGraph: {
+    type: 'website',
+    siteName: 'Setlistr',
+    title: 'Setlistr — Track Every Show. Collect Every Royalty.',
+    description: 'The verified live performance record for independent artists.',
+    url: 'https://setlistr.ai',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Setlistr — Track Every Show. Collect Every Royalty.',
+    description: 'The verified live performance record for independent artists.',
+    creator: '@setlistr',
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+    },
+  },
   manifest: '/manifest.json',
 }
 
