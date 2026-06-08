@@ -75,6 +75,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               s.parentNode.insertBefore(b, s);})(window.lintrk);
           `}
         </Script>
+        <Script
+          id="contentsquare"
+          src="https://t.contentsquare.net/uxa/a119ec66d2a69.js"
+          strategy="afterInteractive"
+        />
       </body>
     </html>
   )
