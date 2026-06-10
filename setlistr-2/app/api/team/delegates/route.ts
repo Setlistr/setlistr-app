@@ -26,15 +26,15 @@ export async function GET(req: NextRequest) {
       .filter(d => d.delegate_id !== artistId && d.accepted_at)
       .map(d => d.delegate_id)
 
-    let profiles: Record<string, { artist_name: string | null; full_name: string | null }> = {}
+    let profiles: Record<string, { artist_name: string | null; full_name: string | null; avatar_url: string | null }> = {}
     if (realDelegateIds.length > 0) {
       const { data: profileData } = await supabase
         .from('profiles')
-        .select('id, artist_name, full_name')
+        .select('id, artist_name, full_name, avatar_url')
         .in('id', realDelegateIds)
 
       profileData?.forEach(p => {
-        profiles[p.id] = { artist_name: p.artist_name, full_name: p.full_name }
+        profiles[p.id] = { artist_name: p.artist_name, full_name: p.full_name, avatar_url: p.avatar_url }
       })
     }
 
@@ -55,6 +55,7 @@ export async function GET(req: NextRequest) {
         invited_at: d.invited_at,
         invite_url: isPending ? `${BASE_URL}/app/accept-invite?token=${d.invite_token}` : null,
         invite_token: isPending ? d.invite_token : null,
+        avatar_url: profile?.avatar_url || null,
       }
     })
 
