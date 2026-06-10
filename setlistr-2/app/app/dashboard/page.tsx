@@ -151,19 +151,6 @@ export default function DashboardPage() {
         const managedData = await managedRes.json()
         const managed: ManagedArtist[] = managedData.managed || []
 
-        // Fetch avatars for managed artists
-        if (managed.length > 0) {
-          const supabaseInner = createClient()
-          const { data: avatars } = await supabaseInner
-            .from('profiles')
-            .select('id, avatar_url')
-            .in('id', managed.map(m => m.artist_id))
-          if (avatars) {
-            const avatarMap: Record<string, string | null> = {}
-            avatars.forEach((a: any) => { avatarMap[a.id] = a.avatar_url })
-            managed.forEach(m => { m.avatar_url = avatarMap[m.artist_id] || null })
-          }
-        }
         setManagedArtists(managed)
 
         const savedActingAs = localStorage.getItem(ACTING_AS_KEY)
