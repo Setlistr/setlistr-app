@@ -70,8 +70,8 @@ export function AppShell({ children, profile }: { children: React.ReactNode; pro
   const NAV = [
     { href: '/app/dashboard',  icon: LayoutDashboard, label: 'Home',     badge: 0 },
     { href: '/app/show/new',   icon: PlusCircle,      label: 'New Show', badge: 0 },
-    { href: '/app/history',    icon: Clock,           label: 'History',  badge: needsReviewCount },
-    { href: '/app/stats',      icon: BarChart2,       label: 'Stats',    badge: 0 },
+    { href: '/app/history',    icon: Clock,           label: 'Submissions',  badge: needsReviewCount },
+    { href: '/app/stats',      icon: BarChart2,       label: 'Career',       badge: 0 },
   ]
 
   return (
