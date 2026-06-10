@@ -52,6 +52,9 @@ export default function SettingsPage() {
   const [profileSaving, setProfileSaving] = useState(false)
   const [profileSaved, setProfileSaved]   = useState(false)
   const [profileError, setProfileError]   = useState('')
+  const [avatarUrl, setAvatarUrl]           = useState<string | null>(null)
+  const [avatarUploading, setAvatarUploading] = useState(false)
+  const [avatarSaved, setAvatarSaved]         = useState(false)
 
   // Password
   const [newPassword, setNewPassword]         = useState('')
@@ -111,13 +114,14 @@ export default function SettingsPage() {
 
       const { data: profile } = await supabase
         .from('profiles')
-        .select('full_name, artist_name, pro_affiliation, ipi_number, publisher_name, legal_name, bandsintown_artist_name, career_start_year, career_total_shows')
+        .select('full_name, artist_name, avatar_url, pro_affiliation, ipi_number, publisher_name, legal_name, bandsintown_artist_name, career_start_year, career_total_shows')
         .eq('id', user.id)
         .single()
 
       if (profile) {
         setFullName(profile.full_name ?? '')
         setArtistName(profile.artist_name ?? '')
+        setAvatarUrl(profile.avatar_url ?? null)
         setProAffiliation(profile.pro_affiliation ?? '')
         setIpiNumber(profile.ipi_number ?? '')
         setPublisherName(profile.publisher_name ?? '')
@@ -146,6 +150,37 @@ export default function SettingsPage() {
       const data = await res.json()
       setDelegates(data.delegates || [])
     } catch { /* silently fail */ }
+  }
+
+  async function handleAvatarUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setAvatarUploading(true)
+    try {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      const ext = file.name.split('.').pop()
+      const path = `${user.id}/avatar.${ext}`
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(path, file, { upsert: true })
+      if (uploadError) throw uploadError
+      const { data: { publicUrl } } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(path)
+      await supabase.from('profiles').update({
+        avatar_url: publicUrl,
+        updated_at: new Date().toISOString(),
+      }).eq('id', user.id)
+      setAvatarUrl(publicUrl)
+      setAvatarSaved(true)
+      setTimeout(() => setAvatarSaved(false), 2000)
+    } catch (err) {
+      console.error('Avatar upload failed:', err)
+    } finally {
+      setAvatarUploading(false)
+    }
   }
 
   async function saveProfile() {
@@ -362,6 +397,50 @@ export default function SettingsPage() {
             <User size={15} color={C.gold} />
             <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.secondary, margin: 0 }}>Profile</p>
           </div>
+
+          {/* Avatar upload */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <div style={{
+              width: 64, height: 64, borderRadius: '50%', flexShrink: 0,
+              background: 'rgba(201,168,76,0.1)',
+              border: `2px solid ${avatarUrl ? 'rgba(201,168,76,0.4)' : 'rgba(255,255,255,0.07)'}`,
+              overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              {avatarUrl ? (
+                <img src={avatarUrl} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              ) : (
+                <span style={{ fontSize: 22, fontWeight: 800, color: '#c9a84c' }}>
+                  {(fullName || email).split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2) || '?'}
+                </span>
+              )}
+            </div>
+            <div style={{ flex: 1 }}>
+              <p style={{ fontSize: 13, fontWeight: 600, color: C.text, margin: '0 0 4px' }}>
+                {avatarSaved ? '✓ Photo updated' : avatarUploading ? 'Uploading...' : 'Profile Photo'}
+              </p>
+              <p style={{ fontSize: 11, color: C.muted, margin: '0 0 10px', lineHeight: 1.4 }}>
+                Appears in the app header and delegation switcher.
+              </p>
+              <label style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                padding: '7px 14px', borderRadius: 8, cursor: 'pointer',
+                background: 'rgba(201,168,76,0.08)',
+                border: '1px solid rgba(201,168,76,0.25)',
+                fontSize: 12, fontWeight: 700, color: '#c9a84c',
+                opacity: avatarUploading ? 0.6 : 1,
+              }}>
+                {avatarUploading ? 'Uploading...' : avatarUrl ? 'Change photo' : 'Upload photo'}
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleAvatarUpload}
+                  style={{ display: 'none' }}
+                  disabled={avatarUploading}
+                />
+              </label>
+            </div>
+          </div>
+
           <div>
             <label style={labelStyle}>Email</label>
             <input value={email} disabled style={{ ...inputStyle, opacity: 0.5, cursor: 'not-allowed' }} />
