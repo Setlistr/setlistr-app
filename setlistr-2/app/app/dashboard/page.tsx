@@ -36,7 +36,7 @@ type BitEvent = {
   venueCity: string; venueRegion: string; venueCountry: string; url: string
 }
 
-type ManagedArtist = { artist_id: string; artist_name: string; role: string }
+type ManagedArtist = { artist_id: string; artist_name: string; role: string; avatar_url?: string | null }
 type ActingAs      = { artist_id: string; artist_name: string } | null
 
 function useCountUp(target: number, duration: number = 1400, delay: number = 0): number {
@@ -114,6 +114,7 @@ export default function DashboardPage() {
   const [totalSongs, setTotalSongs]             = useState(0)
   const [userId, setUserId]                     = useState<string | null>(null)
   const [ownArtistName, setOwnArtistName]       = useState<string | null>(null)
+  const [ownAvatarUrl, setOwnAvatarUrl]         = useState<string | null>(null)
   const [artistName, setArtistName]             = useState<string | null>(null)
   const [showEstimates, setShowEstimates]       = useState<ShowEstimateInput[]>([])
   const [submittedEstimates, setSubmittedEstimates] = useState<ShowEstimateInput[]>([])
@@ -136,18 +137,33 @@ export default function DashboardPage() {
       if (user) {
         const { data: profile } = await supabase
           .from('profiles')
-          .select('bandsintown_artist_name, artist_name, full_name')
+          .select('bandsintown_artist_name, artist_name, full_name, avatar_url')
           .eq('id', user.id).single()
 
         if (!profile?.artist_name?.trim()) { router.replace('/app/onboarding'); return }
 
         const name = profile?.artist_name || profile?.full_name || null
         setOwnArtistName(name)
+        setOwnAvatarUrl(profile?.avatar_url ?? null)
         if (profile?.bandsintown_artist_name) setLookupName(profile.bandsintown_artist_name)
 
         const managedRes  = await fetch('/api/team/managed-artists')
         const managedData = await managedRes.json()
         const managed: ManagedArtist[] = managedData.managed || []
+
+        // Fetch avatars for managed artists
+        if (managed.length > 0) {
+          const supabaseInner = createClient()
+          const { data: avatars } = await supabaseInner
+            .from('profiles')
+            .select('id, avatar_url')
+            .in('id', managed.map(m => m.artist_id))
+          if (avatars) {
+            const avatarMap: Record<string, string | null> = {}
+            avatars.forEach((a: any) => { avatarMap[a.id] = a.avatar_url })
+            managed.forEach(m => { m.avatar_url = avatarMap[m.artist_id] || null })
+          }
+        }
         setManagedArtists(managed)
 
         const savedActingAs = localStorage.getItem(ACTING_AS_KEY)
@@ -442,10 +458,15 @@ export default function DashboardPage() {
             <button onClick={() => setSwitcherOpen(v => !v)}
               style={{ width: '100%', background: C.card, border: `1px solid ${actingAs ? C.borderGold : C.border}`, borderRadius: 12, padding: '10px 16px', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <div style={{ width: 28, height: 28, borderRadius: '50%', background: actingAs ? C.goldDim : 'rgba(255,255,255,0.04)', border: `1px solid ${actingAs ? C.borderGold : C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <span style={{ fontSize: 11, fontWeight: 800, color: actingAs ? C.gold : C.secondary }}>
-                    {(actingAs ? actingAs.artist_name : ownArtistName || 'Y')?.charAt(0).toUpperCase()}
-                  </span>
+                <div style={{ width: 28, height: 28, borderRadius: '50%', background: actingAs ? C.goldDim : 'rgba(255,255,255,0.04)', border: `1px solid ${actingAs ? C.borderGold : C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
+                  {actingAs
+                    ? (managedArtists.find(m => m.artist_id === actingAs.artist_id)?.avatar_url
+                        ? <img src={managedArtists.find(m => m.artist_id === actingAs.artist_id)!.avatar_url!} alt={actingAs.artist_name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        : <span style={{ fontSize: 11, fontWeight: 800, color: C.gold }}>{actingAs.artist_name.charAt(0).toUpperCase()}</span>)
+                    : (ownAvatarUrl
+                        ? <img src={ownAvatarUrl} alt={ownArtistName || 'Y'} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        : <span style={{ fontSize: 11, fontWeight: 800, color: C.secondary }}>{(ownArtistName || 'Y').charAt(0).toUpperCase()}</span>)
+                  }
                 </div>
                 <div style={{ textAlign: 'left' }}>
                   <p style={{ fontSize: 13, fontWeight: 700, color: C.text, margin: 0 }}>{actingAs ? actingAs.artist_name : ownArtistName || 'Your Account'}</p>
@@ -471,8 +492,11 @@ export default function DashboardPage() {
                 {managedArtists.map(artist => (
                   <button key={artist.artist_id} onClick={() => switchToArtist(artist)}
                     style={{ width: '100%', padding: '12px 16px', background: actingAs?.artist_id === artist.artist_id ? C.goldDim : 'transparent', border: 'none', borderBottom: `1px solid ${C.border}`, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left' }}>
-                    <div style={{ width: 28, height: 28, borderRadius: '50%', background: C.goldDim, border: `1px solid ${C.borderGold}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <span style={{ fontSize: 11, fontWeight: 800, color: C.gold }}>{artist.artist_name.charAt(0).toUpperCase()}</span>
+                    <div style={{ width: 28, height: 28, borderRadius: '50%', background: C.goldDim, border: `1px solid ${C.borderGold}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
+                      {artist.avatar_url
+                        ? <img src={artist.avatar_url} alt={artist.artist_name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        : <span style={{ fontSize: 11, fontWeight: 800, color: C.gold }}>{artist.artist_name.charAt(0).toUpperCase()}</span>
+                      }
                     </div>
                     <div style={{ flex: 1 }}>
                       <p style={{ fontSize: 13, fontWeight: 600, color: C.text, margin: 0 }}>{artist.artist_name}</p>
