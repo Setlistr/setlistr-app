@@ -63,7 +63,7 @@ export default function StatsPage() {
 
       if (perfList.length > 0) {
         const { data: songs } = await supabase.from('performance_songs')
-          .select('title, artist').in('performance_id', perfList.map(p => p.id))
+          .select('title, artist, position').in('performance_id', perfList.map(p => p.id))
         setAllSongs(songs || [])
       }
       setLoading(false)
@@ -92,13 +92,22 @@ export default function StatsPage() {
   const totalConfirmedPerformances = userSongs.reduce((sum, s) => sum + (s.confirmed_count || 0), 0)
   const estimatedLifetimeRoyalty   = Math.round(totalConfirmedPerformances * BASE_ROYALTY)
 
-  const songCounts: Record<string, { title: string; artist: string; count: number }> = {}
-  allSongs.forEach(s => {
+  const songCounts: Record<string, { title: string; artist: string; count: number; positions: number[] }> = {}
+  allSongs.forEach((s: any) => {
     const key = s.title.toLowerCase()
-    if (!songCounts[key]) songCounts[key] = { title: s.title, artist: s.artist, count: 0 }
+    if (!songCounts[key]) songCounts[key] = { title: s.title, artist: s.artist, count: 0, positions: [] }
     songCounts[key].count++
+    if (s.position && s.position > 0) songCounts[key].positions.push(s.position)
   })
-  const topSongs = Object.values(songCounts).sort((a, b) => b.count - a.count).slice(0, 10)
+  const topSongs = Object.values(songCounts)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 10)
+    .map(s => ({
+      ...s,
+      avgPosition: s.positions.length >= 3
+        ? Math.round(s.positions.reduce((a, b) => a + b, 0) / s.positions.length)
+        : null,
+    }))
 
   const venueCounts: Record<string, { name: string; city: string; count: number; id: string | null }> = {}
   performances.forEach(p => {
@@ -292,7 +301,14 @@ export default function StatsPage() {
                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
                             <div style={{ minWidth: 0 }}>
                               <p style={{ fontSize: 15, color: C.text, margin: 0, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{song.title}</p>
-                              {song.artist && <p style={{ fontSize: 13, color: C.secondary, margin: '1px 0 0' }}>{song.artist}</p>}
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 1, flexWrap: 'wrap' }}>
+                                {song.artist && <p style={{ fontSize: 13, color: C.secondary, margin: 0 }}>{song.artist}</p>}
+                                {(song as any).avgPosition && (
+                                  <span style={{ fontSize: 11, color: C.muted, background: 'rgba(255,255,255,0.04)', borderRadius: 4, padding: '1px 6px', whiteSpace: 'nowrap' }}>
+                                    usually #{(song as any).avgPosition}
+                                  </span>
+                                )}
+                              </div>
                             </div>
                             <span style={{ fontSize: 12, color: C.gold, background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.15)', borderRadius: 20, padding: '2px 8px', flexShrink: 0, fontFamily: '"DM Mono", monospace' }}>{song.count}×</span>
                           </div>
