@@ -41,6 +41,7 @@ type Delegate = {
   invited_at: string
   invite_url: string | null
   invite_token: string | null
+  avatar_url: string | null
 }
 
 export default function SettingsPage() {
@@ -510,8 +511,8 @@ export default function SettingsPage() {
                 <div key={d.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px', background: 'rgba(255,255,255,0.02)', border: `1px solid ${d.accepted ? 'rgba(74,222,128,0.15)' : C.border}`, borderRadius: 10 }}>
                   {/* Avatar */}
                   <div style={{ width: 32, height: 32, borderRadius: '50%', background: d.accepted ? C.greenDim : C.goldDim, border: `1px solid ${d.accepted ? 'rgba(74,222,128,0.2)' : C.borderGold}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
-                    {delegateAvatars[d.delegate_id]
-                      ? <img src={delegateAvatars[d.delegate_id]!} alt={d.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    {d.avatar_url
+                      ? <img src={d.avatar_url} alt={d.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                       : <span style={{ fontSize: 12, fontWeight: 800, color: d.accepted ? C.green : C.gold }}>{d.name.charAt(0).toUpperCase()}</span>
                     }
                   </div>
