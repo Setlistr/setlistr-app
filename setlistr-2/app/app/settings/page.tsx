@@ -92,6 +92,7 @@ export default function SettingsPage() {
 
   // Team / delegation
   const [delegates, setDelegates]             = useState<Delegate[]>([])
+  const [delegateAvatars, setDelegateAvatars] = useState<Record<string, string | null>>({})
   const [delegateEmail, setDelegateEmail]     = useState('')
   const [inviting, setInviting]               = useState(false)
   const [inviteResult, setInviteResult]       = useState<{ invite_url: string; invite_message: string; delegate_name: string | null; delegate_found: boolean; email_sent: boolean } | null>(null)
@@ -148,7 +149,22 @@ export default function SettingsPage() {
     try {
       const res = await fetch(`/api/team/delegates?artist_id=${artistId}`)
       const data = await res.json()
-      setDelegates(data.delegates || [])
+      const delegates: Delegate[] = data.delegates || []
+      setDelegates(delegates)
+
+      // Fetch avatars for delegates
+      if (delegates.length > 0) {
+        const supabase = createClient()
+        const { data: avatars } = await supabase
+          .from('profiles')
+          .select('id, avatar_url')
+          .in('id', delegates.map(d => d.delegate_id))
+        if (avatars) {
+          const map: Record<string, string | null> = {}
+          avatars.forEach((a: any) => { map[a.id] = a.avatar_url })
+          setDelegateAvatars(map)
+        }
+      }
     } catch { /* silently fail */ }
   }
 
@@ -493,10 +509,11 @@ export default function SettingsPage() {
               {delegates.map(d => (
                 <div key={d.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px', background: 'rgba(255,255,255,0.02)', border: `1px solid ${d.accepted ? 'rgba(74,222,128,0.15)' : C.border}`, borderRadius: 10 }}>
                   {/* Avatar */}
-                  <div style={{ width: 32, height: 32, borderRadius: '50%', background: d.accepted ? C.greenDim : C.goldDim, border: `1px solid ${d.accepted ? 'rgba(74,222,128,0.2)' : C.borderGold}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <span style={{ fontSize: 12, fontWeight: 800, color: d.accepted ? C.green : C.gold }}>
-                      {d.name.charAt(0).toUpperCase()}
-                    </span>
+                  <div style={{ width: 32, height: 32, borderRadius: '50%', background: d.accepted ? C.greenDim : C.goldDim, border: `1px solid ${d.accepted ? 'rgba(74,222,128,0.2)' : C.borderGold}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
+                    {delegateAvatars[d.delegate_id]
+                      ? <img src={delegateAvatars[d.delegate_id]!} alt={d.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      : <span style={{ fontSize: 12, fontWeight: 800, color: d.accepted ? C.green : C.gold }}>{d.name.charAt(0).toUpperCase()}</span>
+                    }
                   </div>
 
                   <div style={{ flex: 1, minWidth: 0 }}>
