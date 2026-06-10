@@ -44,6 +44,17 @@ export async function POST(req: NextRequest) {
 
     const token = await getSpotifyToken()
 
+    // Fetch artist data for avatar
+    let artistImage: string | null = null
+    const artistRes = await fetch(
+      `https://api.spotify.com/v1/artists/${artistId}`,
+      { headers: { 'Authorization': `Bearer ${token}` } }
+    )
+    if (artistRes.ok) {
+      const artistData = await artistRes.json()
+      artistImage = artistData.images?.[0]?.url || null
+    }
+
     // Fetch top tracks — try multiple markets to maximize results
     let topTracks: any[] = []
     for (const market of ['US', 'CA', 'GB']) {
@@ -164,6 +175,13 @@ export async function POST(req: NextRequest) {
     }
 
     const imported = inserted?.length ?? 0
+
+    // Save artist image to profile
+    if (artistImage) {
+      await supabase.from('profiles').update({
+        avatar_url: artistImage
+      }).eq('id', user.id)
+    }
 
     console.log(`[SpotifyImport] user=${user.id} artist=${artistName} tracks_found=${tracks.length} imported=${imported}`)
     return NextResponse.json({ imported, total: tracks.length })

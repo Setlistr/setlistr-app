@@ -1,7 +1,7 @@
 'use client'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, PlusCircle, Clock, BarChart2, X, Settings, LogOut, Shield } from 'lucide-react'
+import { LayoutDashboard, PlusCircle, Send, TrendingUp, X, Settings, LogOut, Shield } from 'lucide-react'
 import Image from 'next/image'
 import type { Profile } from '@/types'
 import { createClient } from '@/lib/supabase/client'
@@ -68,10 +68,10 @@ export function AppShell({ children, profile }: { children: React.ReactNode; pro
     .split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2)
 
   const NAV = [
-    { href: '/app/dashboard',  icon: LayoutDashboard, label: 'Home',     badge: 0 },
-    { href: '/app/show/new',   icon: PlusCircle,      label: 'New Show', badge: 0 },
-    { href: '/app/history',    icon: Clock,           label: 'Submissions',  badge: needsReviewCount },
-    { href: '/app/stats',      icon: BarChart2,       label: 'Career',       badge: 0 },
+    { href: '/app/dashboard',  icon: LayoutDashboard, label: 'Home',        badge: 0 },
+    { href: '/app/show/new',   icon: PlusCircle,      label: 'New Show',    badge: 0 },
+    { href: '/app/history',    icon: Send,            label: 'Submissions', badge: needsReviewCount },
+    { href: '/app/stats',      icon: TrendingUp,      label: 'Career',      badge: 0 },
   ]
 
   return (
@@ -99,11 +99,14 @@ export function AppShell({ children, profile }: { children: React.ReactNode; pro
             fontSize: 11, fontWeight: 700, letterSpacing: '0.04em',
             fontFamily: '"DM Sans", system-ui, sans-serif',
             WebkitTapHighlightColor: 'transparent', transition: 'background 0.15s ease',
+            overflow: 'hidden', padding: 0,
           }}
           onTouchStart={e => (e.currentTarget.style.background = 'rgba(201,168,76,0.25)')}
           onTouchEnd={e => (e.currentTarget.style.background = 'rgba(201,168,76,0.15)')}
         >
-          {initials}
+          {profile.avatar_url ? (
+            <img src={profile.avatar_url} alt={initials} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+          ) : initials}
         </button>
       </header>
 
@@ -175,7 +178,12 @@ export function AppShell({ children, profile }: { children: React.ReactNode; pro
                 background: 'rgba(201,168,76,0.15)', border: '1px solid rgba(201,168,76,0.25)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontSize: 15, fontWeight: 700, color: '#c9a84c',
-              }}>{initials}</div>
+                overflow: 'hidden', flexShrink: 0,
+              }}>
+                {profile.avatar_url ? (
+                  <img src={profile.avatar_url} alt={initials} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : initials}
+              </div>
               <div>
                 <p style={{ fontSize: 15, fontWeight: 700, color: '#f0ece3', margin: 0, letterSpacing: '-0.01em' }}>
                   {profile.full_name || 'Your Profile'}
