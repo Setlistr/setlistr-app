@@ -28,7 +28,7 @@ export async function GET() {
 
     const { data: profiles } = await service
       .from('profiles')
-      .select('id, artist_name, full_name')
+      .select('id, artist_name, full_name, avatar_url')
       .in('id', artistIds)
 
     const managed = delegations.map(d => {
@@ -37,6 +37,7 @@ export async function GET() {
         artist_id: d.artist_id,
         artist_name: profile?.artist_name || profile?.full_name || 'Unknown Artist',
         role: d.role,
+        avatar_url: profile?.avatar_url || null,
       }
     })
 
