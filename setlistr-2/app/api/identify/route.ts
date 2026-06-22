@@ -28,7 +28,7 @@ const ACR_STRONG     = 80
 const ACR_SUGGEST    = 55  // raised from 40 — prevents low-confidence wrong detections
 const FLAP_MIN_COUNT = 3  // raised from 2 — live shows have natural candidate noise between songs
 
-const CATALOGUE_FALLBACK_ENABLED = process.env.CATALOGUE_FALLBACK_ENABLED === 'true'
+const CATALOGUE_FALLBACK_ENABLED = process.env.CATALOGUE_FALLBACK_ENABLED === 'true' // SC - ENABLE OR DISABLE CATALOGUE FALLBACK FEATURE
 
 // ─── Canonical artist map ─────────────────────────────────────────────────────
 const CANONICAL_SONG_ARTISTS: Record<string, string[]> = {

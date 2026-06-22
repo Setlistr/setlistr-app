@@ -9,17 +9,25 @@ import { createClient } from '@supabase/supabase-js'
 dotenv.config({ path: path.resolve(__dirname, '../.env.local') })
 
 // run script: npm run test-capture scripts/test-audio/city_and_colour1.mp3 "city and colour yt to mp3 test"
-// run script: npm run test-capture scripts/test-audio/zach_bryan1.mp3 "zach bryan test1"
+// run script: npm run test-capture scripts/test-audio/tyler_childers_tiny_desk.mp3 "tyler childers"
+// run script: npm run test-capture scripts/test-audio/robyn1.m4a "robyn cma fest"
+// run script: npm run test-capture scripts/test-audio/owen1.m4a "owen1 cma"
+// run script: npm run test-capture scripts/test-audio/bradcox1.m4a "brad cox1"
+
 // ─── CONFIG — edit between runs ───────────────────────────────────────────────
 const TEST_CONFIG = {
-  testId:                   'test_006',
   catalogueFallbackEnabled: true,
-  acrStrong:                80,
-  acrSuggest:               55,
-  flapMinCount:             3,
   chunkDurationSeconds:     14,
   chunkIntervalSeconds:     20,
 }
+
+// Run timestamp — 'yyyy-mm-dd, hh:mm'
+function runTimestamp(): string {
+  const d   = new Date()
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}, ${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+const RUN_DATETIME = runTimestamp()
 
 // ─── CLI args ─────────────────────────────────────────────────────────────────
 const AUDIO_FILE = process.argv[2]
@@ -114,18 +122,17 @@ function extractChunk(inputPath: string, startSeconds: number, chunkPath: string
 
 // ─── ACRCloud identify ────────────────────────────────────────────────────────
 interface ACRResult {
-  detected:       boolean
-  rawTitle:       string
-  cleanedTitle:   string
-  artist:         string
-  acrScore:       number
-  effectiveScore: number
-  source:         'humming' | 'fingerprint'
+  detected:     boolean
+  rawTitle:     string
+  cleanedTitle: string
+  artist:       string
+  acrScore:     number
+  source:       'humming' | 'fingerprint'
 }
 
 const NO_DETECT: ACRResult = {
   detected: false, rawTitle: '', cleanedTitle: '', artist: '',
-  acrScore: 0, effectiveScore: 0, source: 'fingerprint',
+  acrScore: 0, source: 'fingerprint',
 }
 
 async function identifyChunk(chunkPath: string): Promise<ACRResult> {
@@ -156,50 +163,13 @@ async function identifyChunk(chunkPath: string): Promise<ACRResult> {
   if (!acrDetected) return NO_DETECT
 
   const source: 'humming' | 'fingerprint' = humming ? 'humming' : 'fingerprint'
-  const rawScore       = acrMatch.score ? parseFloat(acrMatch.score) : 0
-  const acrScore       = humming ? rawScore * 100 : rawScore
-  const HUMMING_BOOST_MIN = 45
-  const effectiveScore = (humming && acrScore >= HUMMING_BOOST_MIN) ? Math.max(acrScore, 85) : acrScore
-  const rawTitle       = acrMatch.title as string
-  const cleanedTitle   = cleanTitle(rawTitle)
-  const artist         = (acrMatch.artists?.[0]?.name as string) || ''
+  const rawScore     = acrMatch.score ? parseFloat(acrMatch.score) : 0
+  const acrScore     = humming ? rawScore * 100 : rawScore
+  const rawTitle     = acrMatch.title as string
+  const cleanedTitle = cleanTitle(rawTitle)
+  const artist       = (acrMatch.artists?.[0]?.name as string) || ''
 
-  return { detected: true, rawTitle, cleanedTitle, artist, acrScore, effectiveScore, source }
-}
-
-// ─── Decision logic ───────────────────────────────────────────────────────────
-interface DecisionResult {
-  confidenceLevel:            'auto' | 'suggest' | 'no_result'
-  catalogueFallbackTriggered: boolean
-  failureReason:              string
-}
-
-async function decide(acr: ACRResult): Promise<DecisionResult> {
-  if (!acr.detected) {
-    return { confidenceLevel: 'no_result', catalogueFallbackTriggered: false, failureReason: 'no_detection' }
-  }
-
-  const { cleanedTitle, acrScore, effectiveScore } = acr
-
-  // ── Catalogue-first check (mirrors /api/identify catalog-first block) ──────
-  if (effectiveScore >= 60) {
-    const fallback = await checkCatalogueFallback(cleanedTitle)
-    if (fallback.matched) {
-      return {
-        confidenceLevel: 'auto', catalogueFallbackTriggered: true,
-        failureReason: `catalogue_fallback: score=${acrScore}`,
-      }
-    }
-  }
-
-  // ── Standard confidence tiers ─────────────────────────────────────────────
-  if (effectiveScore >= TEST_CONFIG.acrStrong) {
-    return { confidenceLevel: 'auto', catalogueFallbackTriggered: false, failureReason: 'strong_match' }
-  }
-  if (effectiveScore >= TEST_CONFIG.acrSuggest) {
-    return { confidenceLevel: 'suggest', catalogueFallbackTriggered: false, failureReason: `suggest: score=${effectiveScore}` }
-  }
-  return { confidenceLevel: 'no_result', catalogueFallbackTriggered: false, failureReason: `score_too_low: ${effectiveScore}` }
+  return { detected: true, rawTitle, cleanedTitle, artist, acrScore, source }
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -211,24 +181,23 @@ function formatTime(seconds: number): string {
 
 // ─── Excel output ─────────────────────────────────────────────────────────────
 const RUN_HEADERS = [
-  'testId', 'date', 'audio_file', 'notes',
-  'catalogueFallbackEnabled', 'acrStrong', 'acrSuggest',
-  'chunkDurationSeconds', 'chunkIntervalSeconds',
+  'datetime', 'audio_file', 'notes',
+  'catalogueFallbackEnabled', 'chunkDurationSeconds', 'chunkIntervalSeconds',
 ]
 
 const DETECTION_HEADERS = [
-  'testId', 'audio_file', 'chunk_number', 'chunk_start_seconds',
-  'cleaned_title', 'artist', 'acr_score', 'source', 'catalogue_fallback_triggered',
+  'datetime', 'audio_file', 'chunk_number', 'chunk_start_seconds',
+  'cleaned_title', 'artist', 'acr_score', 'source', 'fallback',
 ]
 
 interface DetectionRow {
-  chunk_number:               number
-  chunk_start_seconds:        number
-  cleaned_title:              string
-  artist:                     string
-  acr_score:                  number
-  source:                     string
-  catalogue_fallback_triggered: boolean
+  chunk_number:        number
+  chunk_start_seconds: number
+  cleaned_title:       string
+  artist:              string
+  acr_score:           number
+  source:              string
+  fallback:            boolean
 }
 
 function writeExcel(detectionRows: DetectionRow[]): void {
@@ -242,13 +211,10 @@ function writeExcel(detectionRows: DetectionRow[]): void {
     : [RUN_HEADERS]
 
   existingRuns.push([
-    TEST_CONFIG.testId,
-    new Date().toISOString(),
+    RUN_DATETIME,
     path.basename(AUDIO_FILE),
     NOTES,
     TEST_CONFIG.catalogueFallbackEnabled,
-    TEST_CONFIG.acrStrong,
-    TEST_CONFIG.acrSuggest,
     TEST_CONFIG.chunkDurationSeconds,
     TEST_CONFIG.chunkIntervalSeconds,
   ])
@@ -264,7 +230,7 @@ function writeExcel(detectionRows: DetectionRow[]): void {
 
   for (const row of detectionRows) {
     existingDetections.push([
-      TEST_CONFIG.testId,
+      RUN_DATETIME,
       path.basename(AUDIO_FILE),
       row.chunk_number,
       row.chunk_start_seconds,
@@ -272,7 +238,7 @@ function writeExcel(detectionRows: DetectionRow[]): void {
       row.artist,
       row.acr_score,
       row.source,
-      row.catalogue_fallback_triggered,
+      row.fallback,
     ])
   }
 
@@ -290,8 +256,7 @@ async function main(): Promise<void> {
 
   console.log(`\nAudio: ${path.basename(AUDIO_FILE_PATH)} (${Math.round(duration)}s)`)
   console.log(`Chunks: ${totalChunks} × ${TEST_CONFIG.chunkDurationSeconds}s every ${TEST_CONFIG.chunkIntervalSeconds}s`)
-  console.log(`Catalogue fallback: ${TEST_CONFIG.catalogueFallbackEnabled ? 'ON' : 'OFF'}`)
-  console.log(`Thresholds: auto=${TEST_CONFIG.acrStrong} suggest=${TEST_CONFIG.acrSuggest}\n`)
+  console.log(`Catalogue fallback: ${TEST_CONFIG.catalogueFallbackEnabled ? 'ON' : 'OFF'}\n`)
 
   const detectionRows: DetectionRow[] = []
   let detectionCount = 0
@@ -304,34 +269,37 @@ async function main(): Promise<void> {
       extractChunk(AUDIO_FILE_PATH, startSeconds, chunkPath)
       const acr = await identifyChunk(chunkPath)
       if (fs.existsSync(chunkPath)) fs.unlinkSync(chunkPath)
-      const decision = await decide(acr)
 
-      if (acr.detected && decision.confidenceLevel !== 'no_result') {
+      const fallback = acr.detected
+        ? (await checkCatalogueFallback(acr.cleanedTitle)).matched
+        : false
+
+      if (acr.detected) {
         detectionCount++
-        const via = decision.catalogueFallbackTriggered ? ' via catalogue_fallback' : ''
-        console.log(`[${i + 1}/${totalChunks}] ${formatTime(startSeconds)} — "${acr.cleanedTitle}" by ${acr.artist} (${decision.confidenceLevel}${via}, ${acr.effectiveScore.toFixed(1)})`)
+        const tag = fallback ? ' — FALLBACK' : ''
+        console.log(`${formatTime(startSeconds)} — ${acr.artist} — ${acr.cleanedTitle} — ${acr.source} — ${acr.acrScore.toFixed(1)}${tag}`)
       } else {
-        console.log(`[${i + 1}/${totalChunks}] ${formatTime(startSeconds)} — no detection`)
+        console.log(`${formatTime(startSeconds)} — no detection`)
       }
 
       detectionRows.push({
-        chunk_number:               i + 1,
-        chunk_start_seconds:        startSeconds,
-        cleaned_title:              acr.cleanedTitle,
-        artist:                     acr.artist,
-        acr_score:                  acr.acrScore,
-        source:                     acr.source,
-        catalogue_fallback_triggered: decision.catalogueFallbackTriggered,
+        chunk_number:        i + 1,
+        chunk_start_seconds: startSeconds,
+        cleaned_title:       acr.cleanedTitle,
+        artist:              acr.artist,
+        acr_score:           acr.acrScore,
+        source:              acr.source,
+        fallback,
       })
     } catch (err) {
       if (fs.existsSync(chunkPath)) fs.unlinkSync(chunkPath)
-      console.error(`[${i + 1}/${totalChunks}] error at ${formatTime(startSeconds)}:`, err)
+      console.error(`${formatTime(startSeconds)} — error:`, err)
       detectionRows.push({
-        chunk_number:               i + 1,
-        chunk_start_seconds:        startSeconds,
+        chunk_number:        i + 1,
+        chunk_start_seconds: startSeconds,
         cleaned_title: '', artist: '',
         acr_score: 0, source: 'fingerprint',
-        catalogue_fallback_triggered: false,
+        fallback: false,
       })
     }
   }
