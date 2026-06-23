@@ -726,7 +726,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
           <input
             ref={uploadInputRef}
             type="file"
-            accept="audio/*"
+            accept="audio/*,audio/mp4,audio/x-m4a,audio/aac,.m4a,.mp3,.wav,.aac,.m4b,.aiff,.caf,.flac,.ogg"
             style={{ display: 'none' }}
             onChange={e => { const f = e.target.files?.[0]; if (f) processUploadedFile(f); e.target.value = '' }}
           />
