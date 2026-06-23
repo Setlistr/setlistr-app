@@ -565,7 +565,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
         // the DB but are hidden here.
         const { data: songData } = await supabase.from('performance_songs').select('*').eq('performance_id', params.id).order('position')
         if (songData && songData.length > 0) {
-          setSongs(songData.filter(s => s.artist_removed !== 1).map(s => {
+          setSongs(songData.filter(s => !s.artist_removed).map(s => {
             const isUnidentified = s.source === 'unidentified' || !s.title
             const isPlanned = s.source === 'planned'
             const n = normalizeSong({ title: s.title || 'Unknown Song', artist: s.artist || '' })
@@ -579,7 +579,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
               was_planned: s.was_planned || isPlanned || false,
               origTitle: n.title, origArtist: n.artist,
               inclusion_reason: s.inclusion_reason ?? null, threshold: s.threshold ?? null, score: s.score ?? null,
-              confusion_matrix_result: s.confusion_matrix_result ?? 'TP',
+              confusion_matrix_result: s.confusion_matrix_result ?? 'TBD',
             }
           }))
           setLoading(false); return
@@ -730,14 +730,14 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
           performance_id: performance.id, title: n.title, artist: n.artist, position,
           isrc: s.isrc || null, composer: s.composer || null, publisher: s.publisher || null,
           was_planned: s.was_planned || false,
-          inclusion_reason: 'manually added', confusion_matrix_result: 'FN', artist_modified: 1,
+          inclusion_reason: 'manually added post-show', confusion_matrix_result: 'FN', artist_modified: true,
         })
       } else if (s.isModified) {
         // Artist corrected a detection → keep the record, log what it was
         await supabase.from('performance_songs').update({
           title: n.title, artist: n.artist, position,
           isrc: s.isrc || null, composer: s.composer || null, publisher: s.publisher || null,
-          artist_modified: 1, notes: `was ${s.origArtist || ''}-${s.origTitle || ''}`,
+          artist_modified: true, notes: `was ${s.origArtist || ''}-${s.origTitle || ''}`,
         }).eq('id', s.id)
       } else {
         // Unchanged detection → just keep ordering current
@@ -745,17 +745,27 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
       }
     }
 
-    // Removed rows stay in the DB: a removed detection is a false positive; a removed
-    // planned-not-detected row (FN) becomes a true negative.
+    // Removed rows stay in the DB: a removed never-detected song is a true negative,
+    // a removed detected song is a false positive.
     for (const s of removed) {
-      const wasFalseNegative = s.confusion_matrix_result === 'FN' || s.inclusion_reason === 'planned_setlist_not_detected'
+      const undetected = s.inclusion_reason === 'planned setlist - not detected' || s.inclusion_reason === 'added mid-show - not detected'
       await supabase.from('performance_songs').update({
-        artist_removed: 1, confusion_matrix_result: wasFalseNegative ? 'TN' : 'FP',
+        artist_removed: true, confusion_matrix_result: undetected ? 'TN' : 'FP',
       }).eq('id', s.id)
     }
 
+    // Resolve the kept rows still pending (TBD): never-detected songs the artist kept
+    // are false negatives (system missed a played song); everything else is a true positive.
+    await supabase.from('performance_songs')
+      .update({ confusion_matrix_result: 'FN' })
+      .eq('performance_id', performance.id).eq('confusion_matrix_result', 'TBD')
+      .in('inclusion_reason', ['planned setlist - not detected', 'added mid-show - not detected'])
+    await supabase.from('performance_songs')
+      .update({ confusion_matrix_result: 'TP' })
+      .eq('performance_id', performance.id).eq('confusion_matrix_result', 'TBD')
+
     // Mark every row for this performance artist-reviewed
-    await supabase.from('performance_songs').update({ artist_save_complete: 1 }).eq('performance_id', performance.id)
+    await supabase.from('performance_songs').update({ artist_save_complete: true }).eq('performance_id', performance.id)
     await supabase.from('performances').update({ status: 'completed' }).eq('id', performance.id)
     // Stamp show_number if not already set
     try {

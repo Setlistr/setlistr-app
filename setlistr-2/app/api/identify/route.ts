@@ -28,10 +28,10 @@ function getSupabase() {
 // recorded on the detection ("threshold"), so changing a number here updates the
 // gate and the recorded value together.
 //
-//   planned_setlist     — song is on this show's planned setlist
-//   artist_catalogue    — song is already in the artist's catalogue (user_songs)
-//   fallback_catalogue  — song is in the global catalogue_fallback table
-//   multiple_detections — unknown song heard this many separate times → add once
+//   planned setlist     — song is on this show's planned setlist
+//   artist catalogue    — song is already in the artist's catalogue (user_songs)
+//   fallback catalogue  — song is in the global catalogue_fallback table
+//   multiple detections — unknown song heard this many separate times → add once
 const PLANNED_SETLIST_THRESHOLD     = 1
 const ARTIST_CATALOGUE_THRESHOLD    = 30
 const FALLBACK_CATALOGUE_THRESHOLD  = 30
@@ -414,19 +414,19 @@ export async function POST(req: NextRequest) {
     let inclusionScore = 0
 
     if (plannedTitles.has(normalizedTitle) && score >= PLANNED_SETLIST_THRESHOLD) {
-      inclusionReason    = 'planned_setlist'
+      inclusionReason    = 'planned setlist'
       inclusionThreshold = PLANNED_SETLIST_THRESHOLD
       inclusionScore     = score
     } else if (artistCatalogueTitles.has(normalizedTitle) && score >= ARTIST_CATALOGUE_THRESHOLD) {
-      inclusionReason    = 'artist_catalogue'
+      inclusionReason    = 'artist catalogue'
       inclusionThreshold = ARTIST_CATALOGUE_THRESHOLD
       inclusionScore     = score
     } else if (inFallback && score >= FALLBACK_CATALOGUE_THRESHOLD) {
-      inclusionReason    = 'fallback_catalogue'
+      inclusionReason    = 'fallback catalogue'
       inclusionThreshold = FALLBACK_CATALOGUE_THRESHOLD
       inclusionScore     = score
     } else if (thisDetectionCount >= MULTIPLE_DETECTIONS_THRESHOLD) {
-      inclusionReason    = 'multiple_detections'
+      inclusionReason    = 'multiple detections'
       inclusionThreshold = MULTIPLE_DETECTIONS_THRESHOLD
       inclusionScore     = thisDetectionCount   // score = number of detections
     }
@@ -447,7 +447,7 @@ export async function POST(req: NextRequest) {
       final_title: title, final_artist: artist, final_source: source,
       confidence_level: added ? 'auto' : 'no_result',
       auto_confirmed: added,
-      fallback_triggered: inclusionReason === 'fallback_catalogue',
+      fallback_triggered: inclusionReason === 'fallback catalogue',
       flip_count: 0,
       artist_name: artistName, venue_name: venueName, show_type: showType,
       audio_duration_seconds: durationSeconds,

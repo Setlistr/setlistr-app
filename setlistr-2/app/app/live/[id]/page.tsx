@@ -567,16 +567,17 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         let inclusion_reason: string | null = song.inclusion_reason ?? null
         let threshold: number | null        = song.threshold ?? null
         let score: number | null            = song.score ?? null
-        let confusion_matrix_result         = 'TP'
+        // Confusion result is left undetermined until the artist reviews & saves.
+        const confusion_matrix_result       = 'TBD'
 
         if (song.source === 'planned') {
-          // On the plan but never detected → false negative
-          inclusion_reason = 'planned_setlist_not_detected'; confusion_matrix_result = 'FN'; threshold = null; score = null
+          // On the plan but never detected
+          inclusion_reason = 'planned setlist - not detected'; threshold = null; score = null
         } else if (song.source === 'manual' && !song.was_planned) {
-          // Manual mid-show add: TP if ACR independently caught it, else FN
+          // Manual mid-show add: did ACR independently catch it?
           const det = detectedMap.get(normalizeSongKey(song.title))
-          if (det) { inclusion_reason = det.inclusion_reason; threshold = det.threshold; score = det.score; confusion_matrix_result = 'TP' }
-          else      { inclusion_reason = 'manual_add_mid-show'; threshold = null; score = null; confusion_matrix_result = 'FN' }
+          if (det) { inclusion_reason = 'added mid-show - detected'; threshold = det.threshold; score = det.score }
+          else      { inclusion_reason = 'added mid-show - not detected'; threshold = null; score = null }
         }
 
         return {
