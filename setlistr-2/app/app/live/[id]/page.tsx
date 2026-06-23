@@ -393,7 +393,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         // Temporary single line for the current chunk (time — artist — title — score — status — reason)
         const c = data?.chunk
         if (c) {
-          setUploadLine(`${fmtClock(startSec)} — ${c.artist || ''} — ${c.title || ''} — ${c.score ?? ''} — ${c.status}${c.inclusion_reason ? ` — ${c.inclusion_reason}` : ''}`)
+          setUploadLine(`${fmtClock(startSec)} — ${c.artist || ''} — ${c.title || ''} — ${c.score != null ? Math.round(c.score) : ''} — ${c.status}${c.inclusion_reason ? ` — ${c.inclusion_reason}` : ''}`)
         }
         setUploadProgress((i + 1) / totalChunks)
       }
@@ -795,7 +795,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
 
           {/* Temporary: last chunk's line — mirrors the old console prints */}
           {uploadLine && (
-            <div style={{ width: '100%', maxWidth: 340, marginTop: 12, fontFamily: '"DM Mono", monospace', fontSize: 10, textAlign: 'center', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: uploadLine.includes('— ADD') ? C.green : uploadLine.includes('ALREADY ADDED') ? C.gold : C.muted }}>
+            <div style={{ width: '100%', maxWidth: 340, marginTop: 12, fontFamily: '"DM Mono", monospace', fontSize: 10, lineHeight: 1.5, textAlign: 'center', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word', color: uploadLine.includes('— ADD') ? C.green : uploadLine.includes('ALREADY ADDED') ? C.gold : C.muted }}>
               {uploadLine}
             </div>
           )}
