@@ -23,46 +23,30 @@ function getSupabase() {
   )
 }
 
-// ─── Thresholds ───────────────────────────────────────────────────────────────
-const ACR_STRONG     = 80
-const ACR_SUGGEST    = 55  // raised from 40 — prevents low-confidence wrong detections
-const FLAP_MIN_COUNT = 3  // raised from 2 — live shows have natural candidate noise between songs
-
-// ─── Canonical artist map ─────────────────────────────────────────────────────
-const CANONICAL_SONG_ARTISTS: Record<string, string[]> = {
-  'carrying your love with me': ['george strait'],
-  'check yes or no': ['george strait'],
-  'tennessee whiskey': ['chris stapleton', 'david allan coe'],
-  'friends in low places': ['garth brooks'],
-  'i will always love you': ['dolly parton', 'whitney houston'],
-  'drift away': ['dobie gray', 'uncle kracker'],
-  'fast car': ['tracy chapman', 'luke combs'],
-  'jolene': ['dolly parton'],
-  'wagon wheel': ['old crow medicine show', 'darius rucker'],
-  'take me home country roads': ['john denver'],
-  'sweet home alabama': ['lynyrd skynyrd'],
-  'brown eyed girl': ['van morrison'],
-  'wonderwall': ['oasis'],
-  'hotel california': ['eagles'],
-  'piano man': ['billy joel'],
-  'redemption song': ['bob marley'],
-  'hallelujah': ['leonard cohen', 'jeff buckley'],
-  'blackbird': ['beatles', 'the beatles'],
-  'landslide': ['fleetwood mac', 'stevie nicks'],
-  'ring of fire': ['johnny cash'],
-  'folsom prison blues': ['johnny cash'],
-  'hurt': ['nine inch nails', 'johnny cash'],
-}
+// ─── Inclusion thresholds — adjust all gating in ONE place ───────────────────
+// Each constant is used BOTH as the score gate for its branch AND as the value
+// recorded on the detection ("threshold"), so changing a number here updates the
+// gate and the recorded value together.
+//
+//   planned_setlist     — song is on this show's planned setlist
+//   artist_catalogue    — song is already in the artist's catalogue (user_songs)
+//   fallback_catalogue  — song is in the global catalogue_fallback table
+//   multiple_detections — unknown song heard this many separate times → add once
+const PLANNED_SETLIST_THRESHOLD     = 1
+const ARTIST_CATALOGUE_THRESHOLD    = 30
+const FALLBACK_CATALOGUE_THRESHOLD  = 30
+const MULTIPLE_DETECTIONS_THRESHOLD = 2
 
 // ─── Title normalization ──────────────────────────────────────────────────────
 // Strip common version suffixes ACRCloud adds that pollute song titles.
-// Applied before writing to performance_songs AND before displaying to users.
+// Applied before any matching AND before displaying to users.
 const VERSION_SUFFIX_RE = /\s*[\(\[](alternate|alternative|live|edit|radio edit|radio|album version|acoustic|acoustic version|remaster|remastered|instrumental|original mix|original|extended|extended mix|deluxe|explicit|clean|single|mono|stereo|demo|bonus track|remix|mixed|mix|re-mix|part \d+|teil \d+|vol\.?\s*\d+|version|ver\.?)[^\)\]]*[\)\]]/gi
 
 function cleanTitle(raw: string): string {
   return raw.replace(VERSION_SUFFIX_RE, '').replace(/\s+/g, ' ').trim()
 }
 
+// Aggressive key used for matching titles across catalogues + detection history.
 function normalizeSongKey(title: string): string {
   return title.toLowerCase().trim()
     .replace(/\(.*?\)/g, '').replace(/\[.*?\]/g, '')
@@ -70,92 +54,109 @@ function normalizeSongKey(title: string): string {
     .replace(/\s+/g, ' ').trim()
 }
 
-type ConfidenceLevel = 'auto' | 'suggest' | 'no_result'
 type DetectionSource = 'fingerprint' | 'humming'
-
-interface CandidateHistoryEntry {
-  title: string; artist: string; score: number; timestamp: number
-}
 interface EnrichedSongData { isrc: string; composer: string; publisher: string }
 
-// ─── Memory bias check ────────────────────────────────────────────────────────
-async function checkMemoryBias(
-  title: string,
-  userId: string | null
-): Promise<{ biased: boolean; confirmedCount: number }> {
-  if (!userId) return { biased: false, confirmedCount: 0 }
+// ─── Planned setlist lookup ───────────────────────────────────────────────────
+// Returns the set of normalized titles on this performance's planned setlist.
+// planned_setlists is keyed by performance_id; its songs live in planned_setlist_songs.
+async function getPlannedSetlistTitles(performanceId: string | null): Promise<Set<string>> {
+  const titles = new Set<string>()
+  if (!performanceId) return titles
   try {
     const supabase = getSupabase()
-    const normalizedTitle = normalizeSongKey(title)
-    if (!normalizedTitle || normalizedTitle.length < 3) return { biased: false, confirmedCount: 0 }
-
-    const { data } = await supabase
-      .from('user_songs')
-      .select('song_title, confirmed_count')
-      .eq('user_id', userId)
-      .gte('confirmed_count', 2)
-      .limit(100)
-
-    if (!data || data.length === 0) return { biased: false, confirmedCount: 0 }
-
-    for (const row of data) {
-      const rowKey = normalizeSongKey(row.song_title)
-      if (!rowKey) continue
-      if (rowKey === normalizedTitle) {
-        return { biased: true, confirmedCount: row.confirmed_count }
-      }
-      const titleWords = normalizedTitle.split(' ').length
-      const rowWords   = rowKey.split(' ').length
-      if (titleWords >= 4 && rowWords >= 4) {
-        if (normalizedTitle.includes(rowKey) || rowKey.includes(normalizedTitle)) {
-          return { biased: true, confirmedCount: row.confirmed_count }
-        }
-      }
+    const { data: planned } = await supabase
+      .from('planned_setlists').select('id').eq('performance_id', performanceId).maybeSingle()
+    if (!planned?.id) return titles
+    const { data: songs } = await supabase
+      .from('planned_setlist_songs').select('title').eq('planned_setlist_id', planned.id)
+    for (const s of songs || []) {
+      const key = normalizeSongKey(s.title || '')
+      if (key) titles.add(key)
     }
-    return { biased: false, confirmedCount: 0 }
   } catch (err) {
-    console.error('[MemoryBias] check failed (non-blocking):', err)
-    return { biased: false, confirmedCount: 0 }
+    console.error('[PlannedSetlist] lookup failed (non-blocking):', err)
   }
+  return titles
 }
 
-function countCandidateFlips(history: CandidateHistoryEntry[]): number {
-  if (history.length < 2) return 0
-  let flips = 0
-  for (let i = 1; i < history.length; i++) {
-    if (normalizeSongKey(history[i].title) !== normalizeSongKey(history[i - 1].title)) flips++
-  }
-  return flips
-}
-
-function sanityCheck(title: string, artist: string, previousSongs: string[]): { pass: boolean; reason: string } {
-  const normalizedTitle  = normalizeSongKey(title)
-  const normalizedArtist = artist.toLowerCase().trim()
-
-  if (previousSongs.some(s => normalizeSongKey(s) === normalizedTitle)) {
-    return { pass: false, reason: 'duplicate: already in setlist' }
-  }
-
-  const canonicalArtists = CANONICAL_SONG_ARTISTS[normalizedTitle]
-  if (canonicalArtists && canonicalArtists.length > 0) {
-    const isCanonical = canonicalArtists.some(ca =>
-      normalizedArtist.includes(ca) || ca.includes(normalizedArtist.split(' ')[0])
-    )
-    if (!isCanonical) {
-      return { pass: false, reason: `wrong_artist: expected [${canonicalArtists.join(', ')}], got "${artist}"` }
+// ─── Artist catalogue lookup ──────────────────────────────────────────────────
+// The artist's catalogue = the user's user_songs rows. Membership alone qualifies
+// (no confirmed_count requirement). Returns the set of normalized titles.
+async function getArtistCatalogueTitles(userId: string | null): Promise<Set<string>> {
+  const titles = new Set<string>()
+  if (!userId) return titles
+  try {
+    const supabase = getSupabase()
+    const { data } = await supabase
+      .from('user_songs').select('song_title').eq('user_id', userId).limit(500)
+    for (const row of data || []) {
+      const key = normalizeSongKey(row.song_title || '')
+      if (key) titles.add(key)
     }
+  } catch (err) {
+    console.error('[ArtistCatalogue] lookup failed (non-blocking):', err)
   }
+  return titles
+}
 
-  return { pass: true, reason: 'ok' }
+// ─── Fallback catalogue lookup ────────────────────────────────────────────────
+// Global catalogue_fallback table, keyed by normalized_title. Returns whether the
+// given normalized title is present.
+async function isInFallbackCatalogue(normalizedTitle: string): Promise<boolean> {
+  if (!normalizedTitle || normalizedTitle.length < 3) return false
+  try {
+    const { data } = await getSupabase()
+      .from('catalogue_fallback').select('id').eq('normalized_title', normalizedTitle).limit(1)
+    return !!(data && data.length > 0)
+  } catch (err) {
+    console.error('[FallbackCatalogue] lookup failed (non-blocking):', err)
+    return false
+  }
+}
+
+// ─── Cross-chunk detection state ──────────────────────────────────────────────
+// This route runs once per audio chunk and is stateless, so "already added" and
+// "detected N times" are reconstructed from detection_events, which logs one row
+// per chunk. We mark a row's auto_confirmed = true when the song is added, so:
+//   priorDetections = how many earlier chunks detected this title
+//   alreadyAdded    = an earlier chunk already added it (auto_confirmed = true)
+async function getDetectionStats(
+  performanceId: string | null,
+  normalizedTitle: string
+): Promise<{ priorDetections: number; alreadyAdded: boolean }> {
+  if (!performanceId || !normalizedTitle) return { priorDetections: 0, alreadyAdded: false }
+  try {
+    const supabase = getSupabase()
+    const { data } = await supabase
+      .from('detection_events')
+      .select('final_title, auto_confirmed')
+      .eq('performance_id', performanceId)
+      .limit(1000)
+    let priorDetections = 0
+    let alreadyAdded = false
+    for (const row of data || []) {
+      if (!row.final_title) continue
+      // Normalize in JS so casing / cleaning differences still match.
+      if (normalizeSongKey(row.final_title) !== normalizedTitle) continue
+      priorDetections++
+      if (row.auto_confirmed) alreadyAdded = true
+    }
+    return { priorDetections, alreadyAdded }
+  } catch (err) {
+    console.error('[DetectionStats] lookup failed (non-blocking):', err)
+    return { priorDetections: 0, alreadyAdded: false }
+  }
 }
 
 // ─── user_songs write ─────────────────────────────────────────────────────────
+// Grows the artist's catalogue + memory whenever a song is added. The guard table
+// (user_song_performances) makes this idempotent per performance.
 async function writeToUserSongs(
   title: string,
   artist: string,
   userId: string,
-  performanceId: string,
-  source: 'auto' | 'manual_confirm' | 'review_save'
+  performanceId: string
 ): Promise<void> {
   try {
     const supabase        = getSupabase()
@@ -242,13 +243,8 @@ async function logDetectionEvent(event: Record<string, any>): Promise<void> {
     const supabase = getSupabase()
     const { error } = await supabase.from('detection_events').insert(event)
     if (error) {
-      // Now we'll actually see errors instead of silently swallowing them
+      // Surface insert errors instead of silently swallowing them.
       console.error('[DetectionEvent] insert failed:', error.message, error.code)
-    } else {
-      console.log('[Detection]', JSON.stringify({
-        title: event.final_title, score: event.acr_score,
-        confidence: event.confidence_level, auto: event.auto_confirmed,
-      }))
     }
   } catch (err) {
     console.error('[DetectionEvent] log failed:', err)
@@ -262,6 +258,7 @@ export async function POST(req: NextRequest) {
   let performanceId: string | null = null
 
   try {
+    // ── Parse the incoming request ────────────────────────────────────────────
     const incoming     = await req.formData()
     const audio        = incoming.get('audio')
     performanceId      = incoming.get('performance_id') as string | null
@@ -272,20 +269,17 @@ export async function POST(req: NextRequest) {
     const venueName    = incoming.get('venue_name') as string | null
     const showType     = (incoming.get('show_type') as string | null) || 'single'
     const prevRaw      = incoming.get('previous_songs') as string | null
-    const historyRaw   = incoming.get('candidate_history') as string | null
-    const previousSongs: string[]                   = prevRaw    ? JSON.parse(prevRaw)    : []
-    const candidateHistory: CandidateHistoryEntry[] = historyRaw ? JSON.parse(historyRaw) : []
+    const previousSongs: string[] = prevRaw ? JSON.parse(prevRaw) : []
 
     if (!(audio instanceof File)) return NextResponse.json({ error: 'No audio file' }, { status: 400 })
 
-    const mimeType    = audio.type || 'audio/webm'
     const audioBuffer = Buffer.from(await audio.arrayBuffer())
     audioBytes        = audioBuffer.length
 
-    // Get current user for user_songs writes
-    // Primary: Authorization header (when sent)
-    // Fallback: look up user_id from the performance record using service role key
-    // This ensures memory writes work even when the live capture page doesn't send auth headers
+    // ── Resolve the current user (for catalogue lookup + user_songs writes) ────
+    // Primary: Authorization header (when sent).
+    // Fallback: look up user_id from the performance record using the service role key,
+    // so memory writes work even when the live capture page doesn't send auth headers.
     let userId: string | null = null
     try {
       const authHeader = req.headers.get('authorization')
@@ -297,7 +291,6 @@ export async function POST(req: NextRequest) {
         const { data: { user } } = await anonClient.auth.getUser(authHeader.replace('Bearer ', ''))
         userId = user?.id || null
       }
-      // Fallback: read user_id directly from performances table
       if (!userId && performanceId) {
         const { data: perfRow } = await supabase
           .from('performances')
@@ -305,13 +298,13 @@ export async function POST(req: NextRequest) {
           .eq('id', performanceId)
           .single()
         userId = perfRow?.user_id || null
-        if (userId) console.log('[Auth] userId resolved from performance record:', userId)
       }
     } catch { /* non-blocking */ }
 
+    // ── Pre-flight forensic rows (one capture + one job per chunk) ─────────────
     const { data: capture } = await supabase.from('audio_captures').insert({
       show_id: showId, artist_id: artistId, captured_by: null,
-      duration_seconds: 12, file_size_bytes: audioBytes,
+      duration_seconds: 14, file_size_bytes: audioBytes,
       mime_type: 'audio/webm', captured_at: new Date().toISOString(),
     }).select().single()
 
@@ -321,6 +314,7 @@ export async function POST(req: NextRequest) {
       raw_request: { host: HOST, audio_bytes: audioBytes, performance_id: performanceId },
     }).select().single()
 
+    // ── Call ACRCloud ─────────────────────────────────────────────────────────
     const timestamp    = Math.floor(Date.now() / 1000).toString()
     const stringToSign = ['POST', '/v1/identify', ACCESS_KEY, 'audio', '1', timestamp].join('\n')
     const signature    = crypto.createHmac('sha1', ACCESS_SECRET).update(stringToSign).digest('base64')
@@ -342,149 +336,144 @@ export async function POST(req: NextRequest) {
       status: 'completed', completed_at: new Date().toISOString(), raw_response: payload,
     }).eq('id', job.id)
 
+    // ── Read the ACR match + score (humming scores are scaled ×100) ───────────
     const humming     = payload?.metadata?.humming?.[0]
     const music       = payload?.metadata?.music?.[0]
     const acrMatch    = humming || music
     const acrDetected = payload.status?.code === 0 && !!acrMatch
     const source: DetectionSource = humming ? 'humming' : 'fingerprint'
 
-    const rawScore    = acrMatch?.score ? parseFloat(acrMatch.score) : 0
-    const acrScore    = humming ? rawScore * 100 : rawScore
-    const HUMMING_BOOST_MIN = 45
-    const effectiveScore = (humming && acrScore >= HUMMING_BOOST_MIN)
-      ? Math.max(acrScore, 85)
-      : acrScore
+    const rawScore = acrMatch?.score ? parseFloat(acrMatch.score) : 0
+    const score    = humming ? rawScore * 100 : rawScore   // keep humming ×100
 
-    const flipCount = countCandidateFlips(candidateHistory)
+    // Wall-clock stamp for the per-chunk console line (route has no chunk offset).
+    const now   = new Date()
+    const clock = now.toTimeString().slice(0, 8)  // HH:MM:SS
 
+    // ── No ACR match → log a failed detection event and bail ──────────────────
     if (!acrDetected) {
       await logDetectionEvent({
         performance_id: performanceId,
         acr_score: 0, acr_state: 'failed',
-        confidence_level: 'no_result',
-        auto_confirmed: false,
+        confidence_level: 'no_result', auto_confirmed: false,
         fallback_triggered: false, flip_count: 0,
         artist_name: artistName, venue_name: venueName, show_type: showType,
         audio_duration_seconds: durationSeconds,
-        detected_at: new Date().toISOString(),
+        detected_at: now.toISOString(),
       })
+      console.log(`${clock} — — — 0 — IGNORE — no_detection`)
       return NextResponse.json({ detected: false, job_id: job?.id })
     }
 
-    // ── Clean title before any processing ────────────────────────────────────
-    // Strip "(Alternate Version)", "(Live)", "(Edit)" etc from ACRCloud results
-    const rawTitle = acrMatch.title
-    const title    = cleanTitle(rawTitle)
-    const artist   = acrMatch.artists?.[0]?.name || ''
-    const isrc     = acrMatch.external_ids?.isrc || ''
+    // ── Clean the ACR title (strip "(Live)", "(Remix)", etc.) ─────────────────
+    const rawTitle        = acrMatch.title
+    const title           = cleanTitle(rawTitle)
+    const artist          = acrMatch.artists?.[0]?.name || ''
+    const isrc            = acrMatch.external_ids?.isrc || ''
+    const normalizedTitle = normalizeSongKey(title)
 
+    // Keep the per-job recognition result row (rank 1).
     await supabase.from('recognition_results').insert({
       job_id: job?.id || null, rank: 1, title, artist_name: artist,
-      score: acrScore, raw_data: acrMatch,
+      score, raw_data: acrMatch,
     })
 
-    // ─── Decision logic ───────────────────────────────────────────────────────
-    let confidenceLevel: ConfidenceLevel | undefined = undefined
-    let sanityPassed  = true
-    let failureReason = ''
+    // ── Gather everything the inclusion cascade needs (in parallel) ───────────
+    const [plannedTitles, artistCatalogueTitles, inFallback, stats] = await Promise.all([
+      getPlannedSetlistTitles(performanceId),
+      getArtistCatalogueTitles(userId),
+      isInFallbackCatalogue(normalizedTitle),
+      getDetectionStats(performanceId, normalizedTitle),
+    ])
+    const thisDetectionCount = stats.priorDetections + 1   // includes the current chunk
 
-    // ── Catalog-first check: if song is in user's catalog with score >= 60, auto-confirm
-    // This runs BEFORE flip/strong checks so catalog songs aren't penalized by noise
-    const isDuplicateFirst = previousSongs.some(s => normalizeSongKey(s) === normalizeSongKey(title))
-    if (!isDuplicateFirst && effectiveScore >= 60) {
-      const bias = await checkMemoryBias(title, userId)
-      if (bias.biased) {
-        confidenceLevel = 'auto'
-        sanityPassed    = true
-        failureReason   = `catalog_boost: score=${acrScore} count=${bias.confirmedCount}`
-        console.log(`[CatalogBoost] "${title}" auto-confirmed via catalog, score=${acrScore}`)
-      }
+    // ── ALREADY ADDED: an earlier chunk already added this song → never twice ──
+    if (stats.alreadyAdded) {
+      console.log(`${clock} — ${artist} — ${title} — ${score} — ALREADY ADDED`)
+      await logDetectionEvent({
+        performance_id: performanceId,
+        acr_title: rawTitle, acr_artist: artist, acr_score: score,
+        acr_state: 'unstable',
+        final_title: title, final_artist: artist, final_source: source,
+        confidence_level: 'no_result', auto_confirmed: false,
+        fallback_triggered: false, flip_count: 0,
+        artist_name: artistName, venue_name: venueName, show_type: showType,
+        audio_duration_seconds: durationSeconds,
+        previous_song: previousSongs[previousSongs.length - 1] || null,
+        detected_at: now.toISOString(),
+        candidate_pool: [{ title, artist, source, score, status: 'already_added' }],
+      })
+      return NextResponse.json({ detected: false, job_id: job?.id, debug: { status: 'already_added' } })
     }
 
-    // ── Standard decision logic (only runs if catalog boost didn't resolve it)
-    if (!confidenceLevel) {
-    if (effectiveScore >= ACR_STRONG && flipCount < FLAP_MIN_COUNT) {
-      const sanity = sanityCheck(title, artist, previousSongs)
-      sanityPassed  = sanity.pass
-      failureReason = sanity.reason
-      if (sanity.pass) {
-        confidenceLevel = 'auto'
-      } else if (sanity.reason.startsWith('duplicate')) {
-        confidenceLevel = 'no_result'
-      } else {
-        confidenceLevel = 'suggest'
-      }
-    } else if (effectiveScore >= ACR_SUGGEST) {
-      const isDuplicate = previousSongs.some(s => normalizeSongKey(s) === normalizeSongKey(title))
-      if (isDuplicate) {
-        confidenceLevel = 'no_result'
-        sanityPassed    = false
-        failureReason   = 'duplicate: already in setlist'
-      } else {
-        const bias = await checkMemoryBias(title, userId)
-        if (bias.biased && acrScore >= 60) {
-          confidenceLevel = 'auto'
-          sanityPassed    = true
-          failureReason   = `memory_bias_upgrade: score=${acrScore} count=${bias.confirmedCount}`
-        } else {
-          confidenceLevel = 'suggest'
-          sanityPassed    = false
-          failureReason   = bias.biased
-            ? `memory_bias_score_too_low: ${acrScore}`
-            : `unknown_song_suggest: ${effectiveScore}`
-        }
-      }
-    } else {
-      confidenceLevel = 'no_result'
-      sanityPassed    = false
-      failureReason   = `score_too_low: ${effectiveScore}`
-    }
-    } // end standard decision block
+    // ── Inclusion cascade (first branch that matches wins) ────────────────────
+    // inclusionReason stays null when the song should be IGNORED. Each branch
+    // records the constant that allowed the add as its threshold.
+    let inclusionReason: string | null = null
+    let inclusionThreshold = 0
+    let inclusionScore = 0
 
-    // Safety fallback — should never reach here but satisfies TypeScript strict assignment
-    if (!confidenceLevel) {
-      confidenceLevel = 'no_result'
-      failureReason   = 'unresolved_confidence'
+    if (plannedTitles.has(normalizedTitle) && score >= PLANNED_SETLIST_THRESHOLD) {
+      inclusionReason    = 'planned_setlist'
+      inclusionThreshold = PLANNED_SETLIST_THRESHOLD
+      inclusionScore     = score
+    } else if (artistCatalogueTitles.has(normalizedTitle) && score >= ARTIST_CATALOGUE_THRESHOLD) {
+      inclusionReason    = 'artist_catalogue'
+      inclusionThreshold = ARTIST_CATALOGUE_THRESHOLD
+      inclusionScore     = score
+    } else if (inFallback && score >= FALLBACK_CATALOGUE_THRESHOLD) {
+      inclusionReason    = 'fallback_catalogue'
+      inclusionThreshold = FALLBACK_CATALOGUE_THRESHOLD
+      inclusionScore     = score
+    } else if (thisDetectionCount >= MULTIPLE_DETECTIONS_THRESHOLD) {
+      inclusionReason    = 'multiple_detections'
+      inclusionThreshold = MULTIPLE_DETECTIONS_THRESHOLD
+      inclusionScore     = thisDetectionCount   // score = number of detections
     }
-    const resolvedLevel = confidenceLevel as ConfidenceLevel
 
-    // ── Log detection event (now with venue_name and cleaned title) ───────────
+    const added = inclusionReason !== null
+
+    // ── Per-chunk console line ────────────────────────────────────────────────
+    // time — artist — song — score — ADD|IGNORE — inclusion_reason (if added)
+    console.log(`${clock} — ${artist} — ${title} — ${score} — ${added ? 'ADD' : 'IGNORE'}${inclusionReason ? ` — ${inclusionReason}` : ''}`)
+
+    // ── Log the detection event (auto_confirmed marks it as added) ────────────
+    // inclusion_reason/threshold/score ride in the existing candidate_pool JSONB
+    // column — no schema change needed.
     await logDetectionEvent({
-      performance_id:        performanceId,
-      acr_title:             rawTitle,      // raw from ACR for debugging
-      acr_artist:            artist,
-      acr_score:             acrScore,
-      acr_state:             effectiveScore >= ACR_STRONG ? 'stable' : 'unstable',
-      final_title:           title,         // cleaned title
-      final_artist:          artist,
-      final_source:          source,
-      confidence_level:      resolvedLevel,
-      auto_confirmed:        resolvedLevel === 'auto',
-      fallback_triggered:    false,
-      flip_count:            flipCount,
-      artist_name:           artistName,
-      venue_name:            venueName,     // ← was always null before
-      show_type:             showType,
+      performance_id: performanceId,
+      acr_title: rawTitle, acr_artist: artist, acr_score: score,
+      acr_state: added ? 'stable' : 'unstable',
+      final_title: title, final_artist: artist, final_source: source,
+      confidence_level: added ? 'auto' : 'no_result',
+      auto_confirmed: added,
+      fallback_triggered: inclusionReason === 'fallback_catalogue',
+      flip_count: 0,
+      artist_name: artistName, venue_name: venueName, show_type: showType,
       audio_duration_seconds: durationSeconds,
-      previous_song:         previousSongs[previousSongs.length - 1] || null,
-      detected_at:           new Date().toISOString(),
-      candidate_pool:        [{ title, artist, source, acrScore, effectiveScore }],
+      previous_song: previousSongs[previousSongs.length - 1] || null,
+      detected_at: now.toISOString(),
+      candidate_pool: [{
+        title, artist, source, score,
+        inclusion_reason: inclusionReason, threshold: inclusionThreshold,
+        detections: thisDetectionCount,
+      }],
     })
 
-    if (resolvedLevel === 'no_result') {
+    // ── Not added → return a non-detection so the (unchanged) live page ignores ─
+    if (!added) {
       return NextResponse.json({
         detected: false, job_id: job?.id,
-        debug: { score: effectiveScore, reason: failureReason }
+        debug: { score, reason: 'below_thresholds', detections: thisDetectionCount }
       })
     }
 
-    let enriched: EnrichedSongData = { isrc, composer: '', publisher: '' }
-    if (resolvedLevel === 'auto') {
-      enriched = await enrichFromMusicBrainz(title, artist, isrc)
-    }
+    // ── Added → enrich + preserve the existing add-time side effects ──────────
+    const enriched = await enrichFromMusicBrainz(title, artist, isrc)
 
+    // Legacy setlist mirror (unchanged behaviour from the old 'auto' path).
     let setlistItemId: string | null = null
-    if (resolvedLevel === 'auto' && setlistId) {
+    if (setlistId) {
       const { data: existing } = await supabase.from('setlist_items').select('id')
         .eq('setlist_id', setlistId).ilike('title', title).single()
       if (!existing) {
@@ -498,33 +487,39 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    if (resolvedLevel === 'auto' && userId && performanceId) {
-      writeToUserSongs(title, artist, userId, performanceId, 'auto')
+    // Grow the artist catalogue / memory (unchanged from the old 'auto' path).
+    if (userId && performanceId) {
+      writeToUserSongs(title, artist, userId, performanceId)
     }
 
+    // Keep the recognition_logs row for added songs.
     await supabase.from('recognition_logs').insert({
       performance_id: performanceId || null,
       audio_bytes: audioBytes, duration_seconds: durationSeconds,
       acr_status_code: payload.status?.code ?? null,
       detected: true, title, artist,
-      isrc: enriched.isrc || null, score: acrScore,
+      isrc: enriched.isrc || null, score,
       source, raw_response: payload,
       user_agent: req.headers.get('user-agent') ?? null,
     })
 
+    // ── Response ──────────────────────────────────────────────────────────────
+    // confidence_level:'auto' keeps the current (unchanged) live page working;
+    // inclusion_reason/threshold/score are the new fields the live page will
+    // eventually carry into performance_songs.
     return NextResponse.json({
       detected: true, title, artist,
-      confidence_level: resolvedLevel, source,
-      acr_score: acrScore,
+      confidence_level: 'auto', source,
+      acr_score: score,
+      inclusion_reason: inclusionReason,
+      threshold: inclusionThreshold,
+      score: inclusionScore,
       isrc: enriched.isrc, composer: enriched.composer, publisher: enriched.publisher,
       setlist_item_id: setlistItemId, job_id: job?.id,
       debug: {
-        raw_title: rawTitle,
-        cleaned_title: title,
-        effective_score: effectiveScore,
-        sanity_passed: sanityPassed,
-        failure_reason: failureReason,
-        final_state: resolvedLevel,
+        raw_title: rawTitle, cleaned_title: title,
+        inclusion_reason: inclusionReason, threshold: inclusionThreshold,
+        detections: thisDetectionCount,
       }
     })
 

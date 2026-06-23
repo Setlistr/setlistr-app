@@ -21,6 +21,10 @@ const AUTO_CLOSE_SILENCE_MS = 60 * 60 * 1000
 const HARD_CEILING_MS = 4 * 60 * 60 * 1000
 const SILENCE_WARNING_MS = 45 * 60 * 1000
 
+// Upload mode: how the route is fed an uploaded file (mirrors live capture cadence)
+const UPLOAD_CHUNK_SECONDS      = 14   // length of each sample POSTed to /api/identify
+const UPLOAD_CHUNK_STEP_SECONDS = 20   // advance this far through the file between samples
+
 type AcrCandidate = { title: string; artist: string; score: number }
 type DetectedSong = {
   title: string; artist: string
@@ -54,6 +58,47 @@ function timeAgo(ms: number): string {
   const sec = Math.floor((Date.now() - ms) / 1000)
   if (sec < 60) return `${sec}s ago`
   return `${Math.floor(sec / 60)} min ago`
+}
+
+// m:ss formatter for the upload progress label.
+function fmtClock(sec: number): string {
+  const m = Math.floor(sec / 60)
+  const s = Math.floor(sec % 60)
+  return `${m}:${String(s).padStart(2, '0')}`
+}
+
+// Extract one [startSec, startSec+durSec] window from a decoded AudioBuffer,
+// downmix to mono, and encode it as a 16-bit PCM WAV Blob. WAV is what we POST
+// to /api/identify for each uploaded-file sample (ACR accepts it fine).
+function sliceToMonoWav(audioBuffer: AudioBuffer, startSec: number, durSec: number): Blob {
+  const sampleRate  = audioBuffer.sampleRate
+  const startSample = Math.floor(startSec * sampleRate)
+  const endSample   = Math.min(audioBuffer.length, Math.floor((startSec + durSec) * sampleRate))
+  const len         = Math.max(0, endSample - startSample)
+  const channels    = audioBuffer.numberOfChannels
+
+  // Downmix every channel into one mono track.
+  const mono = new Float32Array(len)
+  for (let c = 0; c < channels; c++) {
+    const data = audioBuffer.getChannelData(c)
+    for (let i = 0; i < len; i++) mono[i] += data[startSample + i] / channels
+  }
+
+  // 44-byte WAV header + 16-bit samples.
+  const buffer = new ArrayBuffer(44 + len * 2)
+  const view   = new DataView(buffer)
+  const writeStr = (offset: number, s: string) => { for (let i = 0; i < s.length; i++) view.setUint8(offset + i, s.charCodeAt(i)) }
+  writeStr(0, 'RIFF'); view.setUint32(4, 36 + len * 2, true); writeStr(8, 'WAVE')
+  writeStr(12, 'fmt '); view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true)
+  view.setUint32(24, sampleRate, true); view.setUint32(28, sampleRate * 2, true); view.setUint16(32, 2, true); view.setUint16(34, 16, true)
+  writeStr(36, 'data'); view.setUint32(40, len * 2, true)
+  let offset = 44
+  for (let i = 0; i < len; i++) {
+    const s = Math.max(-1, Math.min(1, mono[i]))
+    view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true)
+    offset += 2
+  }
+  return new Blob([view], { type: 'audio/wav' })
 }
 
 async function writeUserSong(supabase: ReturnType<typeof createClient>, title: string, artist: string, userId: string, performanceId: string): Promise<void> {
@@ -98,6 +143,12 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   const [restarting, setRestarting]     = useState(false)
   const [plannedCount, setPlannedCount] = useState<number>(0)
   const plannedSongsRef = useRef<{ title: string; normalizedTitle: string; artist: string }[]>([])
+
+  // Upload mode (process an audio file through the route instead of live capture)
+  const [uploadProcessing, setUploadProcessing] = useState(false)
+  const [uploadProgress, setUploadProgress]     = useState(0)   // 0..1
+  const [uploadLabel, setUploadLabel]           = useState('')
+  const uploadInputRef = useRef<HTMLInputElement | null>(null)
 
   const [deletePending, setDeletePending] = useState<number | null>(null)
   const deletePendingTimerRef = useRef<NodeJS.Timeout | null>(null)
@@ -281,6 +332,71 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   const confirmPending = useCallback(() => { if (!pendingCandidateRef.current) return; confirmCandidate(pendingCandidateRef.current) }, [confirmCandidate])
   const dismissPending = useCallback(() => { setPendingCandidate(null); setDetectStatus('') }, [])
 
+  // ── Upload mode ──────────────────────────────────────────────────────────────
+  // Lets a user pick an audio file instead of live-miking. We decode the file,
+  // walk it in UPLOAD_CHUNK_SECONDS samples every UPLOAD_CHUNK_STEP_SECONDS, and
+  // POST each sample to the real /api/identify for THIS performance — the route
+  // decides inclusion exactly as it would for a live chunk. We add whatever the
+  // route reports as added (trusting the server's decision, so the live-capture
+  // timing gates don't apply).
+  const processUploadedFile = useCallback(async (file: File) => {
+    setUploadProcessing(true)
+    setUploadProgress(0)
+    setUploadLabel('Reading file…')
+    try {
+      // 1. Decode the whole file to PCM via Web Audio.
+      const arrayBuffer = await file.arrayBuffer()
+      const AudioCtx    = window.AudioContext || (window as any).webkitAudioContext
+      const ctx         = new AudioCtx()
+      const audioBuffer = await ctx.decodeAudioData(arrayBuffer)
+      ctx.close()
+
+      const duration    = audioBuffer.duration
+      const totalChunks = Math.max(1, Math.floor((duration - UPLOAD_CHUNK_SECONDS) / UPLOAD_CHUNK_STEP_SECONDS) + 1)
+
+      // 2. Feed each sample to the route, in order, for the current performance.
+      for (let i = 0; i < totalChunks; i++) {
+        const startSec = i * UPLOAD_CHUNK_STEP_SECONDS
+        setUploadLabel(`Scanning ${fmtClock(startSec)} / ${fmtClock(duration)}`)
+        const wav = sliceToMonoWav(audioBuffer, startSec, UPLOAD_CHUNK_SECONDS)
+
+        const form = new FormData()
+        form.append('audio', wav, 'sample.wav')
+        form.append('performance_id', params.id)
+        form.append('previous_songs', JSON.stringify(
+          confirmedSongsRef.current.filter(s => s.source !== 'planned').map(s => s.title)
+        ))
+
+        let data: any = null
+        try {
+          const res = await fetch('/api/identify', { method: 'POST', body: form })
+          data = await res.json()
+        } catch { /* skip a failed chunk, keep going */ }
+
+        // 3. If the route added the song, drop it into the setlist.
+        if (data?.detected && data.confidence_level === 'auto') {
+          const already = confirmedSongsRef.current.some(s => isSameSong(s, { title: data.title }))
+          if (!already) {
+            const now = Date.now()
+            confirmCandidate(
+              { title: data.title, artist: data.artist, source: data.source, confidence_level: 'auto', firstDetectedAt: now, lastDetectedAt: now, matchCount: 1 },
+              data.setlist_item_id,
+              { isrc: data.isrc, composer: data.composer, publisher: data.publisher }
+            )
+          }
+        }
+        setUploadProgress((i + 1) / totalChunks)
+      }
+      setUploadLabel('Done — review and end when ready')
+    } catch (err) {
+      console.error('[Upload] processing failed:', err)
+      setUploadLabel('Could not read that audio file')
+    } finally {
+      setUploadProcessing(false)
+      setTimeout(() => { setUploadLabel(''); setUploadProgress(0) }, 3000)
+    }
+  }, [params.id, confirmCandidate])
+
   const detectSong = useCallback(async (audioBlob: Blob) => {
     setIsDetecting(true)
     const pingTime = Date.now(); lastPingRef.current = pingTime; setEngineState('listening')
@@ -388,7 +504,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         const recorder = new MediaRecorder(stream, { mimeType }); mediaRecorderRef.current = recorder
         recorder.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data) }
         recorder.onstop = () => detectSong(new Blob(chunksRef.current, { type: mimeType }))
-        recorder.start(); setTimeout(() => { if (recorder.state === 'recording') recorder.stop() }, 12000)
+        recorder.start(); setTimeout(() => { if (recorder.state === 'recording') recorder.stop() }, 14000)
       }
       recordAndDetect(); listenIntervalRef.current = setInterval(recordAndDetect, 20000)
     } catch { setIsListening(false) }
@@ -584,8 +700,8 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
             ))}
           </>
         )}
-        <button onClick={isListening ? stopListening : startListening} disabled={isDetecting && !isListening}
-          style={{ width: 160, height: 160, borderRadius: '50%', border: 'none', cursor: isDetecting && !isListening ? 'wait' : 'pointer', position: 'relative', zIndex: 2, background: catchFlash ? `radial-gradient(circle at 40% 35%, #e8c76a, ${C.gold} 55%, #a07828)` : isListening ? `radial-gradient(circle at 40% 35%, ${C.gold}cc, ${C.gold} 55%, #8a6520)` : `radial-gradient(circle at 40% 35%, #2a2520, #1a1610 55%, #0f0e0c)`, boxShadow: catchFlash ? `0 0 60px ${C.gold}80, 0 0 120px ${C.gold}30, inset 0 1px 0 rgba(255,255,255,0.25)` : isListening ? `0 0 40px ${C.gold}40, 0 0 80px ${C.gold}18, inset 0 1px 0 rgba(255,255,255,0.12)` : `0 8px 40px rgba(0,0,0,0.6), 0 2px 8px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06)`, transform: catchFlash ? 'scale(1.05)' : 'scale(1)', transition: 'background 0.4s ease, box-shadow 0.4s ease, transform 0.2s ease', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6, WebkitTapHighlightColor: 'transparent', outline: 'none', touchAction: 'manipulation' }}>
+        <button onClick={isListening ? stopListening : startListening} disabled={(isDetecting && !isListening) || uploadProcessing}
+          style={{ width: 160, height: 160, borderRadius: '50%', border: 'none', cursor: uploadProcessing ? 'not-allowed' : isDetecting && !isListening ? 'wait' : 'pointer', position: 'relative', zIndex: 2, opacity: uploadProcessing ? 0.4 : 1, background: catchFlash ? `radial-gradient(circle at 40% 35%, #e8c76a, ${C.gold} 55%, #a07828)` : isListening ? `radial-gradient(circle at 40% 35%, ${C.gold}cc, ${C.gold} 55%, #8a6520)` : `radial-gradient(circle at 40% 35%, #2a2520, #1a1610 55%, #0f0e0c)`, boxShadow: catchFlash ? `0 0 60px ${C.gold}80, 0 0 120px ${C.gold}30, inset 0 1px 0 rgba(255,255,255,0.25)` : isListening ? `0 0 40px ${C.gold}40, 0 0 80px ${C.gold}18, inset 0 1px 0 rgba(255,255,255,0.12)` : `0 8px 40px rgba(0,0,0,0.6), 0 2px 8px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06)`, transform: catchFlash ? 'scale(1.05)' : 'scale(1)', transition: 'background 0.4s ease, box-shadow 0.4s ease, transform 0.2s ease', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6, WebkitTapHighlightColor: 'transparent', outline: 'none', touchAction: 'manipulation' }}>
           <div style={{ width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             {isDetecting ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: 3, height: 28 }}>
@@ -604,6 +720,33 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
             {isDetecting ? 'catching' : isListening ? 'listening' : 'tap to start'}
           </span>
         </button>
+
+        {/* ── Upload a recording instead of live capture ──────────────────────── */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
+          <input
+            ref={uploadInputRef}
+            type="file"
+            accept="audio/*"
+            style={{ display: 'none' }}
+            onChange={e => { const f = e.target.files?.[0]; if (f) processUploadedFile(f); e.target.value = '' }}
+          />
+          <button
+            onClick={() => uploadInputRef.current?.click()}
+            disabled={uploadProcessing || isListening || isDetecting}
+            style={{ marginTop: 16, padding: '11px 22px', background: 'transparent', border: `1px solid ${C.border}`, borderRadius: 10, color: (uploadProcessing || isListening || isDetecting) ? C.muted : C.gold, fontSize: 12, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: (uploadProcessing || isListening || isDetecting) ? 'default' : 'pointer', fontFamily: 'inherit', opacity: (uploadProcessing || isListening || isDetecting) ? 0.45 : 1, WebkitTapHighlightColor: 'transparent' }}>
+            Upload Performance
+          </button>
+          {(uploadProcessing || uploadProgress > 0) && (
+            <div style={{ width: 220, marginTop: 14 }}>
+              <div style={{ height: 6, background: 'rgba(255,255,255,0.08)', borderRadius: 3, overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: `${Math.round(uploadProgress * 100)}%`, background: C.gold, borderRadius: 3, transition: 'width 0.3s ease' }} />
+              </div>
+              <div style={{ marginTop: 6, fontSize: 11, color: C.secondary, textAlign: 'center', fontFamily: '"DM Mono", monospace' }}>
+                {uploadLabel || `${Math.round(uploadProgress * 100)}%`}
+              </div>
+            </div>
+          )}
+        </div>
 
         <div style={{ marginTop: 22, minHeight: 44, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
           {renderTrustSignal()}

@@ -32,3 +32,6 @@ next-env.d.ts
 # iOS / Capacitor
 ios/App/App/public/
 setlistr-2/ios/App/App/public/
+
+# Local test scripts (not shipped)
+setlistr-2/scripts/
