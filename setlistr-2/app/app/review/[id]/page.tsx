@@ -78,6 +78,11 @@ type Song = {
   isrc?: string; composer?: string; publisher?: string
   reviewState?: 'clean' | 'needs_review'
   was_planned?: boolean
+  // Confusion-matrix tracking (in-place, no delete/reinsert on save)
+  origTitle?: string; origArtist?: string            // detected values, for the "was …" note
+  isModified?: boolean; isRemoved?: boolean; isNew?: boolean
+  inclusion_reason?: string | null; threshold?: number | null; score?: number | null
+  confusion_matrix_result?: string
 }
 
 type Performance = {
@@ -447,7 +452,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
   function assignSong(recent: RecentSong) {
     if (!assignSheet) return
     setSongs(prev => prev.map(s => s.id === assignSheet.songId
-      ? { ...s, title: recent.title, artist: recent.artist, source: 'manual', reviewState: 'clean' } : s))
+      ? { ...s, title: recent.title, artist: recent.artist, source: 'manual', reviewState: 'clean', isModified: true } : s))
     closeAssignSheet()
   }
 
@@ -455,7 +460,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
     if (!catalogSong.title?.trim()) return
     const isNewSong = catalogSong.source === 'new' || catalogSong.id?.startsWith('new-')
     setSongs(prev => prev.map(s => s.id === songId
-      ? { ...s, title: catalogSong.title.trim(), artist: catalogSong.artist || s.artist, isrc: catalogSong.isrc || '', composer: catalogSong.composer || '', publisher: catalogSong.publisher || '', source: 'manual', reviewState: 'clean' }
+      ? { ...s, title: catalogSong.title.trim(), artist: catalogSong.artist || s.artist, isrc: catalogSong.isrc || '', composer: catalogSong.composer || '', publisher: catalogSong.publisher || '', source: 'manual', reviewState: 'clean', isModified: true }
       : s))
     closeAssignSheet()
     if (isNewSong && catalogSong.title.trim()) {
@@ -486,7 +491,11 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
   }
 
   function removePlannedSong(songId: string) {
-    setSongs(prev => prev.filter(s => s.id !== songId))
+    setSongs(prev => {
+      const t = prev.find(s => s.id === songId)
+      if (t?.isNew) return prev.filter(s => s.id !== songId)
+      return prev.map(s => s.id === songId ? { ...s, isRemoved: true } : s)  // planned & not played → TN at save
+    })
   }
 
   // ── Fetch post-show intelligence after save ───────────────────────────────
@@ -550,19 +559,13 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
         if (perf.photo_url) setPhotoUrl(perf.photo_url)
         const resolvedSetlistId = perf.setlist_id || null
         setSetlistId(resolvedSetlistId)
-        if (resolvedSetlistId) {
-          const { data: items } = await supabase.from('setlist_items').select('*').eq('setlist_id', resolvedSetlistId).order('position')
-          if (items && items.length > 0) {
-            setSongs(items.map(s => {
-              const n = normalizeSong({ title: s.title, artist: s.artist_name || '' })
-              return { id: s.id, title: n.title, artist: n.artist, position: s.position, source: s.source, recognition_decision_id: s.recognition_decision_id, isrc: s.isrc || '', composer: s.composer || '', publisher: s.publisher || '', reviewState: (s.source === 'unidentified' ? 'needs_review' : 'clean') as 'clean' | 'needs_review', was_planned: s.was_planned || false }
-            }))
-            setLoading(false); return
-          }
-        }
+
+        // Primary source: performance_songs — holds the row ids we update in place
+        // plus the confusion-matrix columns. Rows the artist already removed stay in
+        // the DB but are hidden here.
         const { data: songData } = await supabase.from('performance_songs').select('*').eq('performance_id', params.id).order('position')
-        if (songData) {
-          setSongs(songData.map(s => {
+        if (songData && songData.length > 0) {
+          setSongs(songData.filter(s => s.artist_removed !== 1).map(s => {
             const isUnidentified = s.source === 'unidentified' || !s.title
             const isPlanned = s.source === 'planned'
             const n = normalizeSong({ title: s.title || 'Unknown Song', artist: s.artist || '' })
@@ -574,8 +577,24 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
               isrc: s.isrc || '', composer: s.composer || '', publisher: s.publisher || '',
               reviewState: (isUnidentified ? 'needs_review' : 'clean') as 'clean' | 'needs_review',
               was_planned: s.was_planned || isPlanned || false,
+              origTitle: n.title, origArtist: n.artist,
+              inclusion_reason: s.inclusion_reason ?? null, threshold: s.threshold ?? null, score: s.score ?? null,
+              confusion_matrix_result: s.confusion_matrix_result ?? 'TP',
             }
           }))
+          setLoading(false); return
+        }
+
+        // Fallback (legacy): setlist_items, only when there are no performance_songs rows.
+        if (resolvedSetlistId) {
+          const { data: items } = await supabase.from('setlist_items').select('*').eq('setlist_id', resolvedSetlistId).order('position')
+          if (items && items.length > 0) {
+            setSongs(items.map(s => {
+              const n = normalizeSong({ title: s.title, artist: s.artist_name || '' })
+              return { id: s.id, title: n.title, artist: n.artist, position: s.position, source: s.source, recognition_decision_id: s.recognition_decision_id, isrc: s.isrc || '', composer: s.composer || '', publisher: s.publisher || '', reviewState: (s.source === 'unidentified' ? 'needs_review' : 'clean') as 'clean' | 'needs_review', was_planned: s.was_planned || false }
+            }))
+            setLoading(false); return
+          }
         }
         setLoading(false)
       })
@@ -591,8 +610,14 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
       })
     }
   }
-  function handleDelete(id: string) { setSongs(prev => prev.filter(s => s.id !== id).map((s, i) => ({ ...s, position: i + 1 }))) }
-  function handleEdit(id: string, title: string, artist: string) { setSongs(prev => prev.map(s => s.id === id ? { ...s, title, artist, reviewState: 'clean' } : s)) }
+  function handleDelete(id: string) {
+    setSongs(prev => {
+      const t = prev.find(s => s.id === id)
+      if (t?.isNew) return prev.filter(s => s.id !== id)                 // never persisted → just drop
+      return prev.map(s => s.id === id ? { ...s, isRemoved: true } : s)  // keep the record, flag removed (→ FP/TN on save)
+    })
+  }
+  function handleEdit(id: string, title: string, artist: string) { setSongs(prev => prev.map(s => s.id === id ? { ...s, title, artist, reviewState: 'clean', isModified: true } : s)) }
 
   async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -679,20 +704,58 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
     if (!performance) return
     setSaving(true)
     const supabase = createClient()
-    const songsToSave = songs.filter(s => s.source !== 'planned')
+    // Kept songs (visible, non-removed, non-planned) in display order, plus the
+    // existing rows the artist removed. No delete/reinsert — we update in place.
+    const kept    = songs.filter(s => !s.isRemoved && s.source !== 'planned')
+    const removed = songs.filter(s => s.isRemoved && !s.isNew)
+
+    // Legacy setlist_items mirror — rebuilt from the kept songs (unchanged behaviour)
     if (setlistId) {
       await supabase.from('setlist_items').delete().eq('setlist_id', setlistId)
-      await supabase.from('setlist_items').insert(songsToSave.map((s, i) => {
+      await supabase.from('setlist_items').insert(kept.map((s, i) => {
         const n = normalizeSong({ title: s.title, artist: s.artist })
         return { setlist_id: setlistId, title: n.title, artist_name: n.artist, position: i + 1, source: s.source || 'manual', recognition_decision_id: s.recognition_decision_id || null }
       }))
       await supabase.from('setlists').update({ status: 'confirmed', confirmed_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', setlistId)
     }
-    await supabase.from('performance_songs').delete().eq('performance_id', performance.id)
-    await supabase.from('performance_songs').insert(songsToSave.map((s, i) => {
+
+    // ── performance_songs: in-place updates, no delete/reinsert ───────────────
+    for (let i = 0; i < kept.length; i++) {
+      const s = kept[i]
       const n = normalizeSong({ title: s.title, artist: s.artist })
-      return { performance_id: performance.id, title: n.title, artist: n.artist, position: i + 1, isrc: s.isrc || null, composer: s.composer || null, publisher: s.publisher || null, was_planned: s.was_planned || false }
-    }))
+      const position = i + 1
+      if (s.isNew) {
+        // Artist added a song the system missed → false negative
+        await supabase.from('performance_songs').insert({
+          performance_id: performance.id, title: n.title, artist: n.artist, position,
+          isrc: s.isrc || null, composer: s.composer || null, publisher: s.publisher || null,
+          was_planned: s.was_planned || false,
+          inclusion_reason: 'manually added', confusion_matrix_result: 'FN', artist_modified: 1,
+        })
+      } else if (s.isModified) {
+        // Artist corrected a detection → keep the record, log what it was
+        await supabase.from('performance_songs').update({
+          title: n.title, artist: n.artist, position,
+          isrc: s.isrc || null, composer: s.composer || null, publisher: s.publisher || null,
+          artist_modified: 1, notes: `was ${s.origArtist || ''}-${s.origTitle || ''}`,
+        }).eq('id', s.id)
+      } else {
+        // Unchanged detection → just keep ordering current
+        await supabase.from('performance_songs').update({ position }).eq('id', s.id)
+      }
+    }
+
+    // Removed rows stay in the DB: a removed detection is a false positive; a removed
+    // planned-not-detected row (FN) becomes a true negative.
+    for (const s of removed) {
+      const wasFalseNegative = s.confusion_matrix_result === 'FN' || s.inclusion_reason === 'planned_setlist_not_detected'
+      await supabase.from('performance_songs').update({
+        artist_removed: 1, confusion_matrix_result: wasFalseNegative ? 'TN' : 'FP',
+      }).eq('id', s.id)
+    }
+
+    // Mark every row for this performance artist-reviewed
+    await supabase.from('performance_songs').update({ artist_save_complete: 1 }).eq('performance_id', performance.id)
     await supabase.from('performances').update({ status: 'completed' }).eq('id', performance.id)
     // Stamp show_number if not already set
     try {
@@ -737,11 +800,11 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
-        for (const song of songsToSave) {
+        for (const song of kept) {
           if (!song.title?.trim()) continue
           await writeUserSongFromReview(supabase, song.title, song.artist || '', user.id, performance.id)
         }
-        fetchIntelligence(user.id, performance.venue_name, songsToSave.map(s => s.title).filter(Boolean))
+        fetchIntelligence(user.id, performance.venue_name, kept.map(s => s.title).filter(Boolean))
       }
     } catch (err) { console.error('[ReviewSave]', err) }
     setSaving(false); setSaved(true); setShowComplete(true)
@@ -750,7 +813,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
   function generateExportCSV(pro: PRO) {
     if (!performance) return
     const date = new Date(performance.started_at).toLocaleDateString()
-    const confirmedSongs = songs.filter(s => s.source !== 'planned')
+    const confirmedSongs = songs.filter(s => s.source !== 'planned' && !s.isRemoved)
     const headers: Record<PRO, string[]> = {
       SOCAN: ['Title', 'Artist', 'Composer', 'Publisher', 'ISRC', 'Duration', 'Date', 'Venue', 'City'],
       ASCAP: ['Title', 'Performer', 'Composer/Author', 'Publisher', 'ISRC', 'Venue', 'Date', 'City', 'State'],
@@ -786,8 +849,8 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
     </div>
   )
 
-  const confirmedSongs    = songs.filter(s => s.source !== 'planned')
-  const plannedPending    = songs.filter(s => s.source === 'planned')
+  const confirmedSongs    = songs.filter(s => s.source !== 'planned' && !s.isRemoved)
+  const plannedPending    = songs.filter(s => s.source === 'planned' && !s.isRemoved)
   const autoCount         = confirmedSongs.filter(s => s.source === 'recognized' || s.source === 'detected' || s.source === 'fingerprint' || s.source === 'humming').length
   const verifiedCount     = confirmedSongs.filter(s => s.was_planned).length
   const needsReviewCount  = confirmedSongs.filter(s => s.source === 'unidentified' || s.reviewState === 'needs_review').length
@@ -1152,7 +1215,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
             <CatalogSearch userId={userId} placeholder="Search or add a song..." autoFocus showEmpty currentSongs={confirmedSongs.map(s => s.title)}
               onSelect={(catalogSong) => {
                 const normalized = normalizeSong({ title: catalogSong.title, artist: catalogSong.artist || performance?.artist_name || '' })
-                setSongs(prev => [...prev, { id: `manual-${Date.now()}`, title: normalized.title, artist: normalized.artist, position: songs.length + 1, source: 'manual', recognition_decision_id: null, isrc: catalogSong.isrc || '', composer: catalogSong.composer || '', publisher: catalogSong.publisher || '', reviewState: 'clean' }])
+                setSongs(prev => [...prev, { id: `manual-${Date.now()}`, title: normalized.title, artist: normalized.artist, position: songs.length + 1, source: 'manual', recognition_decision_id: null, isrc: catalogSong.isrc || '', composer: catalogSong.composer || '', publisher: catalogSong.publisher || '', reviewState: 'clean', isNew: true }])
                 setShowAdd(false)
               }} />
             <button onClick={() => setShowAdd(false)} style={{ width: '100%', marginTop: 8, padding: '8px', background: 'transparent', border: 'none', color: C.muted, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>

@@ -317,6 +317,8 @@ export default function NewShowPage() {
       plannedSongs.map((s, i) => ({
         performance_id: performanceId, title: s.title, artist: s.artist,
         position: i, was_planned: true, source: 'planned',
+        // Planned-but-not-yet-detected → false negative until capture proves otherwise
+        inclusion_reason: 'planned_setlist_not_detected', confusion_matrix_result: 'FN',
       }))
     )
   }

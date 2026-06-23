@@ -33,6 +33,8 @@ type DetectedSong = {
   confidence_level?: 'auto' | 'suggest' | 'manual_review'
   isrc?: string; composer?: string; publisher?: string
   was_planned?: boolean
+  // Inclusion metadata returned by /api/identify (for the confusion-matrix dataset)
+  inclusion_reason?: string | null; threshold?: number | null; score?: number | null
 }
 type PendingCandidate = {
   title: string; artist: string
@@ -303,7 +305,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
     setTimeout(() => setLastCaught(null), 4000)
   }
 
-  const confirmCandidate = useCallback((candidate: PendingCandidate, setlist_item_id?: string, enriched?: { isrc?: string; composer?: string; publisher?: string }) => {
+  const confirmCandidate = useCallback((candidate: PendingCandidate, setlist_item_id?: string, enriched?: { isrc?: string; composer?: string; publisher?: string; inclusion_reason?: string | null; threshold?: number | null; score?: number | null }) => {
     const normalizedIncoming = normalizeSongKey(candidate.title)
     const plannedMatch = plannedSongsRef.current.find(p => p.normalizedTitle === normalizedIncoming)
     if (plannedMatch) {
@@ -311,13 +313,13 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         const existingIdx = prev.findIndex(s => normalizeSongKey(s.title) === plannedMatch.normalizedTitle)
         if (existingIdx !== -1) {
           return prev.map((s, i) => i === existingIdx
-            ? { ...s, source: candidate.source, confidence_level: candidate.confidence_level, was_planned: true, isrc: enriched?.isrc || s.isrc || '', composer: enriched?.composer || s.composer || '', publisher: enriched?.publisher || s.publisher || '' }
+            ? { ...s, source: candidate.source, confidence_level: candidate.confidence_level, was_planned: true, isrc: enriched?.isrc || s.isrc || '', composer: enriched?.composer || s.composer || '', publisher: enriched?.publisher || s.publisher || '', inclusion_reason: enriched?.inclusion_reason ?? s.inclusion_reason ?? null, threshold: enriched?.threshold ?? s.threshold ?? null, score: enriched?.score ?? s.score ?? null }
             : s)
         }
-        return [...prev, { title: plannedMatch.title, artist: plannedMatch.artist || candidate.artist, source: candidate.source, setlist_item_id, confidence_level: candidate.confidence_level, was_planned: true, isrc: enriched?.isrc || '', composer: enriched?.composer || '', publisher: enriched?.publisher || '' }]
+        return [...prev, { title: plannedMatch.title, artist: plannedMatch.artist || candidate.artist, source: candidate.source, setlist_item_id, confidence_level: candidate.confidence_level, was_planned: true, isrc: enriched?.isrc || '', composer: enriched?.composer || '', publisher: enriched?.publisher || '', inclusion_reason: enriched?.inclusion_reason ?? null, threshold: enriched?.threshold ?? null, score: enriched?.score ?? null }]
       })
     } else {
-      setSongs(prev => [...prev, { title: candidate.title, artist: candidate.artist, source: candidate.source, setlist_item_id, confidence_level: candidate.confidence_level, was_planned: false, isrc: enriched?.isrc || '', composer: enriched?.composer || '', publisher: enriched?.publisher || '' }])
+      setSongs(prev => [...prev, { title: candidate.title, artist: candidate.artist, source: candidate.source, setlist_item_id, confidence_level: candidate.confidence_level, was_planned: false, isrc: enriched?.isrc || '', composer: enriched?.composer || '', publisher: enriched?.publisher || '', inclusion_reason: enriched?.inclusion_reason ?? null, threshold: enriched?.threshold ?? null, score: enriched?.score ?? null }])
     }
     const now = Date.now()
     lastConfirmedAtRef.current = now; lastSongRef.current = now; setLastSongAt(now); setShowSilenceWarning(false)
@@ -381,7 +383,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
             confirmCandidate(
               { title: data.title, artist: data.artist, source: data.source, confidence_level: 'auto', firstDetectedAt: now, lastDetectedAt: now, matchCount: 1 },
               data.setlist_item_id,
-              { isrc: data.isrc, composer: data.composer, publisher: data.publisher }
+              { isrc: data.isrc, composer: data.composer, publisher: data.publisher, inclusion_reason: data.inclusion_reason, threshold: data.threshold, score: data.score }
             )
           }
         }
@@ -436,7 +438,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
           confirmCandidate(
             { title, artist, source, confidence_level: 'auto', firstDetectedAt: now, lastDetectedAt: now, matchCount: 1 },
             setlist_item_id,
-            { isrc: data.isrc, composer: data.composer, publisher: data.publisher }
+            { isrc: data.isrc, composer: data.composer, publisher: data.publisher, inclusion_reason: data.inclusion_reason, threshold: data.threshold, score: data.score }
           )
         }
         return
@@ -448,7 +450,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         const isFirstSong      = confirmed.length === 0 && lastConfirmedAtRef.current === 0
         const cooldownPassed   = secondsSinceLast >= MIN_SONG_GAP_SECONDS
         if (isFirstSong) {
-          confirmCandidate({ title, artist, source, confidence_level, firstDetectedAt: now, lastDetectedAt: now, matchCount: 1 }, setlist_item_id, { isrc: data.isrc, composer: data.composer, publisher: data.publisher })
+          confirmCandidate({ title, artist, source, confidence_level, firstDetectedAt: now, lastDetectedAt: now, matchCount: 1 }, setlist_item_id, { isrc: data.isrc, composer: data.composer, publisher: data.publisher, inclusion_reason: data.inclusion_reason, threshold: data.threshold, score: data.score })
           return
         }
         if (!cooldownPassed) {
@@ -460,7 +462,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
           setDetectStatus(`hearing "${title}"...`); return
         }
         if (pending && normalizeSongKey(pending.title) === normalizeSongKey(title)) {
-          confirmCandidate({ ...pending, lastDetectedAt: now, matchCount: pending.matchCount + 1 }, setlist_item_id, { isrc: data.isrc, composer: data.composer, publisher: data.publisher })
+          confirmCandidate({ ...pending, lastDetectedAt: now, matchCount: pending.matchCount + 1 }, setlist_item_id, { isrc: data.isrc, composer: data.composer, publisher: data.publisher, inclusion_reason: data.inclusion_reason, threshold: data.threshold, score: data.score })
         } else {
           setPendingCandidate({ title, artist, source, confidence_level, firstDetectedAt: now, lastDetectedAt: now, matchCount: 1 })
           setDetectStatus(`hearing "${title}"...`)
@@ -472,7 +474,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         if (pending && normalizeSongKey(pending.title) === normalizeSongKey(title)) {
           const updated: PendingCandidate = { ...pending, lastDetectedAt: now, matchCount: pending.matchCount + 1, source }
           const withinWindow = (now - pending.firstDetectedAt) / 1000 <= CANDIDATE_WINDOW_SECONDS
-          if (withinWindow && updated.matchCount >= 2) { confirmCandidate(updated, setlist_item_id, { isrc: data.isrc, composer: data.composer, publisher: data.publisher }) } else { setPendingCandidate(updated); setDetectStatus(`hearing "${title}"... (${updated.matchCount}×)`) }
+          if (withinWindow && updated.matchCount >= 2) { confirmCandidate(updated, setlist_item_id, { isrc: data.isrc, composer: data.composer, publisher: data.publisher, inclusion_reason: data.inclusion_reason, threshold: data.threshold, score: data.score }) } else { setPendingCandidate(updated); setDetectStatus(`hearing "${title}"... (${updated.matchCount}×)`) }
           return
         }
         const secondsSinceLast = (now - lastConfirmedAtRef.current) / 1000
@@ -541,17 +543,52 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
       await supabase.from('setlists').update({ status: 'review', updated_at: new Date().toISOString() }).eq('id', setlistId)
     }
     await supabase.from('performance_songs').delete().eq('performance_id', performance.id)
+
+    // Which titles did ACR actually detect this show? Used to label manual mid-show
+    // adds: if ACR also caught a manual add it's a TP, otherwise it's an FN.
+    const { data: detEvents } = await supabase.from('detection_events')
+      .select('final_title, auto_confirmed, candidate_pool').eq('performance_id', performance.id)
+    const detectedMap = new Map<string, { inclusion_reason: string | null; threshold: number | null; score: number | null }>()
+    for (const e of detEvents || []) {
+      if (!e.final_title) continue
+      const key  = normalizeSongKey(e.final_title)
+      const pool = Array.isArray(e.candidate_pool) ? e.candidate_pool[0] : null
+      const info = { inclusion_reason: pool?.inclusion_reason ?? null, threshold: pool?.threshold ?? null, score: pool?.score ?? null }
+      if (!detectedMap.has(key) || e.auto_confirmed) detectedMap.set(key, info)
+    }
+
     // Save all songs — planned (unverified) included so artist can confirm on review
     const songsToSave = confirmedSongsRef.current.filter(s => !(s.source === 'unidentified' && s.title === 'Unknown Song'))
     if (songsToSave.length > 0) {
-      await supabase.from('performance_songs').insert(songsToSave.map((song, i) => ({
-        performance_id: performance.id,
-        title: song.source === 'unidentified' ? (song.title === 'Unknown Song' ? null : song.title) : song.title,
-        artist: song.artist || performance.artist_name || null,
-        position: i + 1, isrc: song.isrc || null, composer: song.composer || null,
-        publisher: song.publisher || null, source: song.source || 'manual',
-        was_planned: song.was_planned || false,
-      })))
+      await supabase.from('performance_songs').insert(songsToSave.map((song, i) => {
+        const cleanedTitle = song.source === 'unidentified' ? (song.title === 'Unknown Song' ? null : song.title) : song.title
+
+        // ── Confusion-matrix label for this row ────────────────────────────────
+        let inclusion_reason: string | null = song.inclusion_reason ?? null
+        let threshold: number | null        = song.threshold ?? null
+        let score: number | null            = song.score ?? null
+        let confusion_matrix_result         = 'TP'
+
+        if (song.source === 'planned') {
+          // On the plan but never detected → false negative
+          inclusion_reason = 'planned_setlist_not_detected'; confusion_matrix_result = 'FN'; threshold = null; score = null
+        } else if (song.source === 'manual' && !song.was_planned) {
+          // Manual mid-show add: TP if ACR independently caught it, else FN
+          const det = detectedMap.get(normalizeSongKey(song.title))
+          if (det) { inclusion_reason = det.inclusion_reason; threshold = det.threshold; score = det.score; confusion_matrix_result = 'TP' }
+          else      { inclusion_reason = 'manual_add_mid-show'; threshold = null; score = null; confusion_matrix_result = 'FN' }
+        }
+
+        return {
+          performance_id: performance.id,
+          title: cleanedTitle,
+          artist: song.artist || performance.artist_name || null,
+          position: i + 1, isrc: song.isrc || null, composer: song.composer || null,
+          publisher: song.publisher || null, source: song.source || 'manual',
+          was_planned: song.was_planned || false,
+          inclusion_reason, threshold, score, confusion_matrix_result,
+        }
+      }))
     }
     router.push(`/app/review/${performance.id}`)
   }, [performance, songs, router, stopListening, showId, setlistId])

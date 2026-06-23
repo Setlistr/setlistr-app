@@ -513,7 +513,7 @@ export async function POST(req: NextRequest) {
       acr_score: score,
       inclusion_reason: inclusionReason,
       threshold: inclusionThreshold,
-      score: inclusionScore,
+      score: Math.round(inclusionScore),
       isrc: enriched.isrc, composer: enriched.composer, publisher: enriched.publisher,
       setlist_item_id: setlistItemId, job_id: job?.id,
       debug: {
