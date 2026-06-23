@@ -150,6 +150,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   const [uploadProcessing, setUploadProcessing] = useState(false)
   const [uploadProgress, setUploadProgress]     = useState(0)   // 0..1
   const [uploadLabel, setUploadLabel]           = useState('')
+  const [uploadLine, setUploadLine]             = useState('')   // temporary: last chunk's line
   const uploadInputRef = useRef<HTMLInputElement | null>(null)
 
   const [deletePending, setDeletePending] = useState<number | null>(null)
@@ -344,6 +345,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   const processUploadedFile = useCallback(async (file: File) => {
     setUploadProcessing(true)
     setUploadProgress(0)
+    setUploadLine('')
     setUploadLabel('Reading file…')
     try {
       // 1. Decode the whole file to PCM via Web Audio.
@@ -386,6 +388,12 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
               { isrc: data.isrc, composer: data.composer, publisher: data.publisher, inclusion_reason: data.inclusion_reason, threshold: data.threshold, score: data.score }
             )
           }
+        }
+
+        // Temporary single line for the current chunk (time — artist — title — score — status — reason)
+        const c = data?.chunk
+        if (c) {
+          setUploadLine(`${fmtClock(startSec)} — ${c.artist || ''} — ${c.title || ''} — ${c.score ?? ''} — ${c.status}${c.inclusion_reason ? ` — ${c.inclusion_reason}` : ''}`)
         }
         setUploadProgress((i + 1) / totalChunks)
       }
@@ -782,6 +790,13 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
               <div style={{ marginTop: 6, fontSize: 11, color: C.secondary, textAlign: 'center', fontFamily: '"DM Mono", monospace' }}>
                 {uploadLabel || `${Math.round(uploadProgress * 100)}%`}
               </div>
+            </div>
+          )}
+
+          {/* Temporary: last chunk's line — mirrors the old console prints */}
+          {uploadLine && (
+            <div style={{ width: '100%', maxWidth: 340, marginTop: 12, fontFamily: '"DM Mono", monospace', fontSize: 10, textAlign: 'center', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: uploadLine.includes('— ADD') ? C.green : uploadLine.includes('ALREADY ADDED') ? C.gold : C.muted }}>
+              {uploadLine}
             </div>
           )}
         </div>

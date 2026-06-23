@@ -101,14 +101,25 @@ async function getArtistCatalogueTitles(userId: string | null): Promise<Set<stri
 }
 
 // ─── Fallback catalogue lookup ────────────────────────────────────────────────
-// Global catalogue_fallback table, keyed by normalized_title. Returns whether the
-// given normalized title is present.
-async function isInFallbackCatalogue(normalizedTitle: string): Promise<boolean> {
+// Global catalogue_fallback table. Requires BOTH a normalized-title match AND an
+// artist match — the stored `artist` field is raw and may list several artists
+// (e.g. "Old Crow Medicine Show / Darius Rucker"), so we split + normalize in JS.
+async function isInFallbackCatalogue(normalizedTitle: string, artist: string): Promise<boolean> {
   if (!normalizedTitle || normalizedTitle.length < 3) return false
   try {
     const { data } = await getSupabase()
-      .from('catalogue_fallback').select('id').eq('normalized_title', normalizedTitle).limit(1)
-    return !!(data && data.length > 0)
+      .from('catalogue_fallback').select('artist').eq('normalized_title', normalizedTitle).limit(20)
+    if (!data || data.length === 0) return false
+
+    const detectedArtist = normalizeSongKey(artist)
+    if (!detectedArtist) return false
+
+    return data.some(row =>
+      String(row.artist || '')
+        .split(/\s*(?:\/|,|;|&|feat\.?|ft\.?)\s*/i)   // one fallback row may list multiple artists
+        .map(a => normalizeSongKey(a))
+        .some(a => a && (a === detectedArtist || a.includes(detectedArtist) || detectedArtist.includes(a)))
+    )
   } catch (err) {
     console.error('[FallbackCatalogue] lookup failed (non-blocking):', err)
     return false
@@ -362,7 +373,7 @@ export async function POST(req: NextRequest) {
         detected_at: now.toISOString(),
       })
       console.log(`${clock} — — — 0 — IGNORE — no_detection`)
-      return NextResponse.json({ detected: false, job_id: job?.id })
+      return NextResponse.json({ detected: false, job_id: job?.id, chunk: { artist: '', title: '', score: 0, status: 'no detection', inclusion_reason: null } })
     }
 
     // ── Clean the ACR title (strip "(Live)", "(Remix)", etc.) ─────────────────
@@ -382,7 +393,7 @@ export async function POST(req: NextRequest) {
     const [plannedTitles, artistCatalogueTitles, inFallback, stats] = await Promise.all([
       getPlannedSetlistTitles(performanceId),
       getArtistCatalogueTitles(userId),
-      isInFallbackCatalogue(normalizedTitle),
+      isInFallbackCatalogue(normalizedTitle, artist),
       getDetectionStats(performanceId, normalizedTitle),
     ])
     const thisDetectionCount = stats.priorDetections + 1   // includes the current chunk
@@ -403,7 +414,7 @@ export async function POST(req: NextRequest) {
         detected_at: now.toISOString(),
         candidate_pool: [{ title, artist, source, score, status: 'already_added' }],
       })
-      return NextResponse.json({ detected: false, job_id: job?.id, debug: { status: 'already_added' } })
+      return NextResponse.json({ detected: false, job_id: job?.id, debug: { status: 'already_added' }, chunk: { artist, title, score, status: 'ALREADY ADDED', inclusion_reason: null } })
     }
 
     // ── Inclusion cascade (first branch that matches wins) ────────────────────
@@ -464,7 +475,8 @@ export async function POST(req: NextRequest) {
     if (!added) {
       return NextResponse.json({
         detected: false, job_id: job?.id,
-        debug: { score, reason: 'below_thresholds', detections: thisDetectionCount }
+        debug: { score, reason: 'below_thresholds', detections: thisDetectionCount },
+        chunk: { artist, title, score, status: 'IGNORE', inclusion_reason: null }
       })
     }
 
@@ -520,7 +532,8 @@ export async function POST(req: NextRequest) {
         raw_title: rawTitle, cleaned_title: title,
         inclusion_reason: inclusionReason, threshold: inclusionThreshold,
         detections: thisDetectionCount,
-      }
+      },
+      chunk: { artist, title, score, status: 'ADD', inclusion_reason: inclusionReason }
     })
 
   } catch (err: any) {
