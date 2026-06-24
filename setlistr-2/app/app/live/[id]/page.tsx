@@ -13,8 +13,6 @@ const C = {
   green: '#4ade80', greenDim: 'rgba(74,222,128,0.08)',
 }
 
-const MIN_SONG_GAP_SECONDS     = 30
-const CANDIDATE_WINDOW_SECONDS = 60
 const HEARTBEAT_SLOW_MS  = 3 * 60 * 1000
 const HEARTBEAT_STALL_MS = 5 * 60 * 1000
 const AUTO_CLOSE_SILENCE_MS = 60 * 60 * 1000
@@ -43,7 +41,6 @@ type PendingCandidate = {
   confidence_level?: 'auto' | 'suggest' | 'manual_review'
   candidates?: AcrCandidate[]; downgraded_reason?: string
 }
-type CandidateHistoryEntry = { title: string; artist: string; score: number; timestamp: number }
 type RecentSong = { id: string; title: string; artist: string; play_count: number }
 type EngineState = 'idle' | 'listening' | 'slow' | 'stalled'
 
@@ -167,7 +164,6 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   const lastConfirmedAtRef  = useRef<number>(0)
   const pendingCandidateRef = useRef<PendingCandidate | null>(null)
   const confirmedSongsRef   = useRef<DetectedSong[]>([])
-  const candidateHistoryRef = useRef<CandidateHistoryEntry[]>([])
   const showStartRef        = useRef<number>(Date.now())
   const lastPingRef         = useRef<number>(0)
   const lastSongRef         = useRef<number>(0)
@@ -379,7 +375,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
 
         // 3. If the route added the song, drop it into the setlist.
         if (data?.detected && data.confidence_level === 'auto') {
-          const already = confirmedSongsRef.current.some(s => isSameSong(s, { title: data.title }))
+          const already = confirmedSongsRef.current.filter(s => s.source !== 'planned').some(s => isSameSong(s, { title: data.title }))
           if (!already) {
             const now = Date.now()
             confirmCandidate(
@@ -417,84 +413,26 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
       if (performance?.artist_name) formData.append('artist_name', performance.artist_name); if (performance?.venue_name) formData.append('venue_name', performance.venue_name)
       formData.append('show_type', (performance as any).show_type || 'single')
       formData.append('previous_songs', JSON.stringify(confirmedSongsRef.current.filter(s => s.source !== 'planned').map(s => s.title)))
-      formData.append('candidate_history', JSON.stringify(candidateHistoryRef.current))
       const res = await fetch('/api/identify', { method: 'POST', body: formData })
       const data = await res.json()
-      if (data.acr_score) { candidateHistoryRef.current = [{ title: data.title || '', artist: data.artist || '', score: data.acr_score, timestamp: Date.now() }, ...candidateHistoryRef.current].slice(0, 3) }
+
+      // Trust the route's verdict — same as upload mode. No client-side cooldown,
+      // pending card, or multi-hit gating; the route already decided.
+      if (!data.detected || data.confidence_level !== 'auto') { setDetectStatus(''); return }
+
+      // Exclude planned-but-unverified rows from the dedup so a detected planned
+      // song can be upgraded in place (→ confirmCandidate's planned match).
+      const already = confirmedSongsRef.current
+        .filter(s => s.source !== 'planned')
+        .some(s => isSameSong(s, { title: data.title }))
+      if (already) { setDetectStatus(''); return }
+
       const now = Date.now()
-      const confirmed = confirmedSongsRef.current.filter(s => s.source !== 'planned')
-      const pending = pendingCandidateRef.current
-      if (!data.detected) { setDetectStatus(''); return }
-      const { title, artist, setlist_item_id, source, confidence_level } = data
-      if (confirmed.some(s => isSameSong(s, { title }))) { setDetectStatus(''); return }
-
-      // ── Is this song on the preloaded setlist? ────────────────────────────
-      const isOnSetlist = plannedSongsRef.current.some(
-        p => p.normalizedTitle === normalizeSongKey(title)
+      confirmCandidate(
+        { title: data.title, artist: data.artist, source: data.source, confidence_level: 'auto', firstDetectedAt: now, lastDetectedAt: now, matchCount: 1 },
+        data.setlist_item_id,
+        { isrc: data.isrc, composer: data.composer, publisher: data.publisher, inclusion_reason: data.inclusion_reason, threshold: data.threshold, score: data.score }
       )
-
-      // ── SETLIST SONG: confirm immediately on first hit ─────────────────
-      // No cooldown, no pending card, no multi-hit requirement.
-      // The pre-load is the first vote; one detection is enough.
-      if (isOnSetlist && confidence_level !== 'manual_review') {
-        // Only skip if already confirmed (duplicate guard above handles this,
-        // but also check the planned slot isn't already verified)
-        const alreadyVerified = confirmedSongsRef.current.some(
-          s => s.was_planned && normalizeSongKey(s.title) === normalizeSongKey(title) && s.source !== 'planned'
-        )
-        if (!alreadyVerified) {
-          confirmCandidate(
-            { title, artist, source, confidence_level: 'auto', firstDetectedAt: now, lastDetectedAt: now, matchCount: 1 },
-            setlist_item_id,
-            { isrc: data.isrc, composer: data.composer, publisher: data.publisher, inclusion_reason: data.inclusion_reason, threshold: data.threshold, score: data.score }
-          )
-        }
-        return
-      }
-
-      // ── NON-SETLIST SONG: existing cooldown + multi-hit logic ──────────
-      if (confidence_level === 'auto') {
-        const secondsSinceLast = (now - lastConfirmedAtRef.current) / 1000
-        const isFirstSong      = confirmed.length === 0 && lastConfirmedAtRef.current === 0
-        const cooldownPassed   = secondsSinceLast >= MIN_SONG_GAP_SECONDS
-        if (isFirstSong) {
-          confirmCandidate({ title, artist, source, confidence_level, firstDetectedAt: now, lastDetectedAt: now, matchCount: 1 }, setlist_item_id, { isrc: data.isrc, composer: data.composer, publisher: data.publisher, inclusion_reason: data.inclusion_reason, threshold: data.threshold, score: data.score })
-          return
-        }
-        if (!cooldownPassed) {
-          if (pending && normalizeSongKey(pending.title) === normalizeSongKey(title)) {
-            setPendingCandidate({ ...pending, lastDetectedAt: now, matchCount: pending.matchCount + 1 })
-          } else if (!pending) {
-            setPendingCandidate({ title, artist, source, confidence_level, firstDetectedAt: now, lastDetectedAt: now, matchCount: 1 })
-          }
-          setDetectStatus(`hearing "${title}"...`); return
-        }
-        if (pending && normalizeSongKey(pending.title) === normalizeSongKey(title)) {
-          confirmCandidate({ ...pending, lastDetectedAt: now, matchCount: pending.matchCount + 1 }, setlist_item_id, { isrc: data.isrc, composer: data.composer, publisher: data.publisher, inclusion_reason: data.inclusion_reason, threshold: data.threshold, score: data.score })
-        } else {
-          setPendingCandidate({ title, artist, source, confidence_level, firstDetectedAt: now, lastDetectedAt: now, matchCount: 1 })
-          setDetectStatus(`hearing "${title}"...`)
-        }
-        return
-      }
-
-      if (confidence_level === 'suggest') {
-        if (pending && normalizeSongKey(pending.title) === normalizeSongKey(title)) {
-          const updated: PendingCandidate = { ...pending, lastDetectedAt: now, matchCount: pending.matchCount + 1, source }
-          const withinWindow = (now - pending.firstDetectedAt) / 1000 <= CANDIDATE_WINDOW_SECONDS
-          if (withinWindow && updated.matchCount >= 2) { confirmCandidate(updated, setlist_item_id, { isrc: data.isrc, composer: data.composer, publisher: data.publisher, inclusion_reason: data.inclusion_reason, threshold: data.threshold, score: data.score }) } else { setPendingCandidate(updated); setDetectStatus(`hearing "${title}"... (${updated.matchCount}×)`) }
-          return
-        }
-        const secondsSinceLast = (now - lastConfirmedAtRef.current) / 1000
-        const cooldownPassed   = secondsSinceLast >= MIN_SONG_GAP_SECONDS
-        const isFirstSong      = confirmed.length === 0 && lastConfirmedAtRef.current === 0
-        if (!pending || cooldownPassed || isFirstSong) {
-          setPendingCandidate({ title, artist, source, confidence_level, firstDetectedAt: now, lastDetectedAt: now, matchCount: 1 })
-          setDetectStatus(`hearing "${title}"...`)
-        } else {
-          setDetectStatus(`hearing "${pending.title}"...`)
-        }
-      }
     } catch { setDetectStatus('') } finally { setIsDetecting(false) }
   }, [params.id, showId, setlistId, artistId, confirmCandidate, performance])
 

@@ -28,7 +28,7 @@ function getSupabase() {
 // recorded on the detection ("threshold"), so changing a number here updates the
 // gate and the recorded value together.
 //
-//   planned setlist     — song is on this show's planned setlist
+//   planned setlist - detected — song is on this show's planned setlist and detected
 //   artist catalogue    — song is already in the artist's catalogue (user_songs)
 //   fallback catalogue  — song is in the global catalogue_fallback table
 //   multiple detections — unknown song heard this many separate times → add once
@@ -425,7 +425,7 @@ export async function POST(req: NextRequest) {
     let inclusionScore = 0
 
     if (plannedTitles.has(normalizedTitle) && score >= PLANNED_SETLIST_THRESHOLD) {
-      inclusionReason    = 'planned setlist'
+      inclusionReason    = 'planned setlist - detected'
       inclusionThreshold = PLANNED_SETLIST_THRESHOLD
       inclusionScore     = score
     } else if (artistCatalogueTitles.has(normalizedTitle) && score >= ARTIST_CATALOGUE_THRESHOLD) {
