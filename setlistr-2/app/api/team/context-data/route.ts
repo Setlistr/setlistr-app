@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
     // Get artist profile
     const { data: profile } = await service
       .from('profiles')
-      .select('artist_name, full_name, bandsintown_artist_name, pro_affiliation')
+      .select('artist_name, full_name, bandsintown_artist_name, pro_affiliation, career_total_shows, career_start_year')
       .eq('id', artistId)
       .single()
 
@@ -71,6 +71,8 @@ export async function GET(req: NextRequest) {
       artist_name: profile?.artist_name || profile?.full_name || 'Unknown',
       bandsintown_artist_name: profile?.bandsintown_artist_name || null,
       pro_affiliation: profile?.pro_affiliation || null,
+      career_total_shows: profile?.career_total_shows || null,
+      career_start_year: profile?.career_start_year || null,
       role: delegation.role,
       performances,
       songCountMap,

@@ -197,6 +197,8 @@ export default function DashboardPage() {
     if (data.error) return
     setArtistName(data.artist_name)
     if (data.bandsintown_artist_name) setLookupName(data.bandsintown_artist_name)
+    if (data.career_total_shows) setCareerTotalShows(data.career_total_shows)
+    if (data.career_start_year) setCareerStartYear(data.career_start_year)
     processPerformances(data.performances, data.songCountMap)
   }
 
