@@ -12,6 +12,8 @@ const C = {
   gold: '#c9a84c', goldDim: 'rgba(201,168,76,0.1)', green: '#4ade80',
 }
 
+const ACTING_AS_KEY = 'setlistr_acting_as'
+
 const BASE_ROYALTY = 1.20
 
 type Song        = { title: string; artist: string }
@@ -43,23 +45,47 @@ export default function StatsPage() {
     async function load() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
-      setUserId(user.id)
 
-      const [{ data: perfs }, { data: uSongs }] = await Promise.all([
-        supabase.from('performances')
-          .select('id, venue_name, venue_id, city, country, started_at, set_duration_minutes')
-          .eq('user_id', user.id)
-          .in('status', ['completed', 'complete', 'exported', 'review'])
-          .order('started_at', { ascending: false }),
-        supabase.from('user_songs')
-          .select('id, song_title, canonical_artist, confirmed_count, last_confirmed_at')
-          .eq('user_id', user.id)
-          .order('confirmed_count', { ascending: false }),
-      ])
+      let actingAsArtistId: string | null = null
+      try {
+        const saved = localStorage.getItem(ACTING_AS_KEY)
+        if (saved) {
+          const parsed = JSON.parse(saved)
+          if (parsed?.artist_id) actingAsArtistId = parsed.artist_id
+        }
+      } catch {}
 
-      const perfList = perfs || []
-      setPerformances(perfList)
-      setUserSongs(uSongs || [])
+      const targetUserId = actingAsArtistId || user.id
+      setUserId(targetUserId)
+
+      let perfList: Performance[] = []
+
+      if (actingAsArtistId) {
+        const res = await fetch(`/api/team/context-data?artist_id=${actingAsArtistId}`)
+        const ctxData = await res.json()
+        if (!ctxData.error) {
+          perfList = (ctxData.performances || []).filter((p: any) =>
+            ['completed', 'complete', 'exported', 'review'].includes(p.status)
+          )
+          setPerformances(perfList)
+          setUserSongs([])
+        }
+      } else {
+        const [{ data: perfs }, { data: uSongs }] = await Promise.all([
+          supabase.from('performances')
+            .select('id, venue_name, venue_id, city, country, started_at, set_duration_minutes')
+            .eq('user_id', user.id)
+            .in('status', ['completed', 'complete', 'exported', 'review'])
+            .order('started_at', { ascending: false }),
+          supabase.from('user_songs')
+            .select('id, song_title, canonical_artist, confirmed_count, last_confirmed_at')
+            .eq('user_id', user.id)
+            .order('confirmed_count', { ascending: false }),
+        ])
+        perfList = perfs || []
+        setPerformances(perfList)
+        setUserSongs(uSongs || [])
+      }
 
       if (perfList.length > 0) {
         const { data: songs } = await supabase.from('performance_songs')
