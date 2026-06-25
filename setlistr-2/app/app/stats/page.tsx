@@ -19,6 +19,12 @@ const BASE_ROYALTY = 1.20
 type Song        = { title: string; artist: string }
 type Performance = { id: string; venue_name: string; venue_id: string | null; city: string; country: string; started_at: string; set_duration_minutes: number }
 type UserSong    = { id: string; song_title: string; canonical_artist: string; confirmed_count: number; last_confirmed_at: string }
+type SongDebut   = { title: string; artist: string | null; first_performed_at: string }
+
+function formatDebutDate(d: string): string {
+  const [y, m, day] = d.split('-').map(Number)
+  return new Date(y, m - 1, day).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
 
 function formatRelative(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime()
@@ -38,6 +44,7 @@ export default function StatsPage() {
   const [allSongs, setAllSongs]         = useState<Song[]>([])
   const [userSongs, setUserSongs]       = useState<UserSong[]>([])
   const [userId, setUserId]             = useState<string | null>(null)
+  const [songDebuts, setSongDebuts]     = useState<SongDebut[]>([])
   const [loading, setLoading]           = useState(true)
 
   useEffect(() => {
@@ -61,8 +68,12 @@ export default function StatsPage() {
       let perfList: Performance[] = []
 
       if (actingAsArtistId) {
-        const res = await fetch(`/api/team/context-data?artist_id=${actingAsArtistId}`)
-        const ctxData = await res.json()
+        const [ctxRes, debutRes] = await Promise.all([
+          fetch(`/api/team/context-data?artist_id=${actingAsArtistId}`),
+          fetch(`/api/song-debuts?userId=${actingAsArtistId}`),
+        ])
+        const ctxData   = await ctxRes.json()
+        const debutData = await debutRes.json()
         if (!ctxData.error) {
           perfList = (ctxData.performances || []).filter((p: any) =>
             ['completed', 'complete', 'exported', 'review'].includes(p.status)
@@ -70,8 +81,9 @@ export default function StatsPage() {
           setPerformances(perfList)
           setUserSongs([])
         }
+        if (!debutData.error) setSongDebuts(debutData.debuts || [])
       } else {
-        const [{ data: perfs }, { data: uSongs }] = await Promise.all([
+        const [perfsResult, uSongsResult, debutRes] = await Promise.all([
           supabase.from('performances')
             .select('id, venue_name, venue_id, city, country, started_at, set_duration_minutes')
             .eq('user_id', user.id)
@@ -81,10 +93,13 @@ export default function StatsPage() {
             .select('id, song_title, canonical_artist, confirmed_count, last_confirmed_at')
             .eq('user_id', user.id)
             .order('confirmed_count', { ascending: false }),
+          fetch('/api/song-debuts'),
         ])
-        perfList = perfs || []
+        const debutData = await debutRes.json()
+        perfList = perfsResult.data || []
         setPerformances(perfList)
-        setUserSongs(uSongs || [])
+        setUserSongs(uSongsResult.data || [])
+        if (!debutData.error) setSongDebuts(debutData.debuts || [])
       }
 
       if (perfList.length > 0) {
@@ -367,6 +382,29 @@ export default function StatsPage() {
                         </div>
                         <span style={{ fontSize: 12, color: C.gold, background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.15)', borderRadius: 20, padding: '2px 8px', flexShrink: 0 }}>
                           {venue.count} {venue.count === 1 ? 'show' : 'shows'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Song Debuts */}
+              {songDebuts.length > 0 && (
+                <div style={{ background: C.card, border: '1px solid rgba(255,255,255,0.04)', borderRadius: 14, padding: '16px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+                    <Calendar size={14} color={C.gold} />
+                    <p style={{ fontSize: 13, letterSpacing: '0.04em', color: C.secondary, margin: 0, fontWeight: 600 }}>Song Debuts</p>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {songDebuts.map((debut, i) => (
+                      <div key={`${debut.title}-${i}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                        <div style={{ minWidth: 0 }}>
+                          <p style={{ fontSize: 15, color: C.text, margin: 0, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{debut.title}</p>
+                          {debut.artist && <p style={{ fontSize: 13, color: C.secondary, margin: '1px 0 0' }}>{debut.artist}</p>}
+                        </div>
+                        <span style={{ fontSize: 12, color: C.muted, whiteSpace: 'nowrap', flexShrink: 0, fontFamily: '"DM Mono", monospace' }}>
+                          {formatDebutDate(debut.first_performed_at)}
                         </span>
                       </div>
                     ))}
