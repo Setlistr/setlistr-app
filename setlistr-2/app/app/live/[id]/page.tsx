@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { Check, X, RefreshCw } from 'lucide-react'
+import { Check, X, RefreshCw, Upload } from 'lucide-react'
 import type { Performance } from '@/types'
 
 const C = {
@@ -717,7 +717,8 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
           <button
             onClick={() => uploadInputRef.current?.click()}
             disabled={uploadProcessing || isListening || isDetecting}
-            style={{ marginTop: 16, padding: '11px 22px', background: 'transparent', border: `1px solid ${C.border}`, borderRadius: 10, color: (uploadProcessing || isListening || isDetecting) ? C.muted : C.gold, fontSize: 12, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: (uploadProcessing || isListening || isDetecting) ? 'default' : 'pointer', fontFamily: 'inherit', opacity: (uploadProcessing || isListening || isDetecting) ? 0.45 : 1, WebkitTapHighlightColor: 'transparent' }}>
+            style={{ marginTop: 20, padding: '12px 24px', background: 'rgba(255,255,255,0.03)', border: `1px solid ${C.border}`, borderRadius: 12, color: (uploadProcessing || isListening || isDetecting) ? C.muted : C.secondary, fontSize: 13, fontWeight: 700, cursor: (uploadProcessing || isListening || isDetecting) ? 'default' : 'pointer', fontFamily: 'inherit', opacity: (uploadProcessing || isListening || isDetecting) ? 0.45 : 1, WebkitTapHighlightColor: 'transparent', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Upload size={14} color={C.muted} />
             Upload Performance
           </button>
           {(uploadProcessing || uploadProgress > 0) && (

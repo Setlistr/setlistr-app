@@ -406,9 +406,9 @@ function CeremonyRoyaltyCard({ expected, low, high, performanceId, onClaim }: {
       </div>
       <p style={{ fontSize: 13, color: '#8a7a68', margin: '0 0 16px', opacity: 0.7 }}>${low}–${high} estimated range · <span style={{ color: '#c9a84c' }}>because you tracked it</span></p>
       <button onClick={onClaim}
-        style={{ width: '100%', padding: '13px', background: 'transparent', border: `1px solid rgba(201,168,76,0.25)`, borderRadius: 12, color: '#c9a84c', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', letterSpacing: '0.04em', transition: 'all 0.2s ease' }}
-        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(201,168,76,0.08)' }}
-        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}>
+        style={{ width: '100%', padding: '13px', background: C.gold, border: 'none', borderRadius: 12, color: '#0a0908', fontSize: 15, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', letterSpacing: '0.06em', transition: 'transform 0.15s ease' }}
+        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = 'scale(1.01)' }}
+        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = 'scale(1)' }}>
         Claim what you earned →
       </button>
     </div>

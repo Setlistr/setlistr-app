@@ -270,6 +270,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
   const [stepsOpen, setStepsOpen]         = useState(false)
   const [submitted, setSubmitted]         = useState(false)
   const [markingDone, setMarkingDone]     = useState(false)
+  const [filedPulse, setFiledPulse]       = useState(false)
   const [stepsDone, setStepsDone]         = useState<boolean[]>([])
   const [venueSizePick, setVenueSizePick] = useState<VenueSizePick | null>(null)
   const [portalOpened, setPortalOpened]   = useState(false)
@@ -362,6 +363,8 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
     await supabase.from('performances').update({
       submission_status: 'submitted', submitted_at: new Date().toISOString(),
     }).eq('id', params.id)
+    setFiledPulse(true)
+    await new Promise(r => setTimeout(r, 400))
     setSubmitted(true)
     setMarkingDone(false)
   }
@@ -834,7 +837,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
               </button>
             ) : (
               <button onClick={markSubmitted} disabled={markingDone}
-                style={{ width: '100%', padding: '16px', background: markingDone ? C.greenDim : C.green, border: 'none', borderRadius: 12, color: markingDone ? C.green : '#0a0908', fontSize: 16, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' as const, cursor: markingDone ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit', animation: 'fadeUp 0.3s ease' }}>
+                style={{ width: '100%', padding: '16px', background: filedPulse ? C.green : markingDone ? C.greenDim : C.green, border: 'none', borderRadius: 12, color: filedPulse ? '#0a0908' : markingDone ? C.green : '#0a0908', fontSize: 16, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' as const, cursor: markingDone ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit', animation: 'fadeUp 0.3s ease', transform: filedPulse ? 'scale(1.03)' : 'scale(1)', transition: 'all 0.3s ease' }}>
                 <Check size={15} strokeWidth={2.5} />
                 {markingDone ? 'Recording...' : "I've Filed It"}
               </button>
@@ -854,9 +857,6 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
           </button>
         </div>
 
-        <p style={{ fontSize: 14, color: C.muted, paddingTop: 24, lineHeight: 1.6, margin: 0 }}>
-          💡 <strong style={{ color: C.secondary }}>Why this matters:</strong> Your venue paid {pro || 'your PRO'} a licensing fee for this show. That money is sitting unclaimed until you submit your setlist. Royalties typically arrive 6–9 months after filing.
-        </p>
       </div>
 
       <style>{`
