@@ -14,6 +14,8 @@ const C = {
   gold: '#c9a84c', goldDim: 'rgba(201,168,76,0.1)',
 }
 
+const ACTING_AS_KEY = 'setlistr_acting_as'
+
 type ShowLocation = {
   city: string
   country: string
@@ -39,29 +41,55 @@ export default function CareerMapPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.replace('/auth/login'); return }
 
-      const { data: perfs } = await supabase
-        .from('performances')
-        .select('city, country, venue_name, started_at')
-        .eq('user_id', user.id)
-        .in('status', ['complete', 'completed', 'review'])
-        .neq('data_source', 'setlistfm_imported')
-        .not('city', 'is', null)
+      // Check for delegate context
+      let actingAsArtistId: string | null = null
+      try {
+        const saved = localStorage.getItem(ACTING_AS_KEY)
+        if (saved) {
+          const parsed = JSON.parse(saved)
+          if (parsed?.artist_id) actingAsArtistId = parsed.artist_id
+        }
+      } catch {}
 
-      if (!perfs) { setLoading(false); return }
+      let rawPerfs: Array<{ city: string | null; country: string | null; venue_name: string | null; started_at: string | null }> = []
+
+      if (actingAsArtistId) {
+        const res = await fetch(`/api/team/context-data?artist_id=${actingAsArtistId}`)
+        const ctxData = await res.json()
+        if (!ctxData.error) {
+          rawPerfs = (ctxData.performances || []).filter((p: any) =>
+            ['complete', 'completed', 'review'].includes(p.status)
+          )
+        }
+      } else {
+        const { data } = await supabase
+          .from('performances')
+          .select('city, country, venue_name, started_at')
+          .eq('user_id', user.id)
+          .in('status', ['complete', 'completed', 'review'])
+          .neq('data_source', 'setlistfm_imported')
+
+        rawPerfs = data || []
+      }
+
+      // Only process performances that have a city or venue_name to geocode
+      const perfs = rawPerfs.filter(p => p.city || p.venue_name)
+
+      if (perfs.length === 0) { setLoading(false); return }
 
       // Geocode cities using Mapbox Geocoding API
       const cityMap: Record<string, ShowLocation> = {}
       const geocodeCache: Record<string, { lat: number; lng: number }> = {}
 
       for (const perf of perfs) {
-        if (!perf.city) continue
-        const key = `${perf.city}__${perf.country || ''}`
+        const label = perf.city || perf.venue_name!
+        const key   = `${label}__${perf.country || ''}`
 
         if (!cityMap[key]) {
-          // Geocode this city
+          // Geocode this city/venue
           if (!geocodeCache[key]) {
             try {
-              const query = [perf.city, perf.country].filter(Boolean).join(', ')
+              const query = [label, perf.country].filter(Boolean).join(', ')
               const res = await fetch(
                 `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?types=place&limit=1&access_token=${mapboxgl.accessToken}`
               )
@@ -76,7 +104,7 @@ export default function CareerMapPage() {
           if (!geocodeCache[key]) continue
 
           cityMap[key] = {
-            city: perf.city,
+            city: label,
             country: perf.country || '',
             lat: geocodeCache[key].lat,
             lng: geocodeCache[key].lng,
@@ -219,14 +247,9 @@ export default function CareerMapPage() {
           </div>
         ) : locations.length === 0 ? (
           <div style={{ height: '100%', background: C.card, borderRadius: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <div style={{ textAlign: 'center', padding: '0 40px' }}>
-              <p style={{ fontSize: 15, fontWeight: 700, color: C.secondary, margin: '0 0 8px' }}>
-                No location data yet.
-              </p>
-              <p style={{ fontSize: 13, color: C.muted, margin: 0, lineHeight: 1.5 }}>
-                Make sure to add a city when starting a show. Your map builds automatically from there.
-              </p>
-            </div>
+            <p style={{ fontSize: 15, fontWeight: 700, color: C.gold, margin: 0, fontFamily: '"DM Sans", sans-serif' }}>
+              No show locations on record yet.
+            </p>
           </div>
         ) : (
           <div ref={mapContainer} style={{ width: '100%', height: '100%', borderRadius: 16 }} />
