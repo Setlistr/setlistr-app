@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { Music2, MapPin, Calendar, TrendingUp, Mic2, AlertCircle, Shield } from 'lucide-react'
+import { Music2, MapPin, Calendar, TrendingUp, Mic2, AlertCircle, Shield, ChevronDown } from 'lucide-react'
 import MySongsTab from '@/components/MySongsTab'
 
 const C = {
@@ -46,6 +46,9 @@ export default function StatsPage() {
   const [userId, setUserId]             = useState<string | null>(null)
   const [songDebuts, setSongDebuts]     = useState<SongDebut[]>([])
   const [loading, setLoading]           = useState(true)
+  const [showTopSongs, setShowTopSongs]   = useState(false)
+  const [showTopVenues, setShowTopVenues] = useState(false)
+  const [showDebuts, setShowDebuts]       = useState(false)
 
   useEffect(() => {
     const supabase = createClient()
@@ -330,11 +333,15 @@ export default function StatsPage() {
               {/* Top songs */}
               {topSongs.length > 0 && (
                 <div style={{ background: C.card, border: '1px solid rgba(255,255,255,0.04)', borderRadius: 14, padding: '16px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-                    <Mic2 size={14} color={C.gold} />
-                    <p style={{ fontSize: 13, letterSpacing: '0.04em', color: C.secondary, margin: 0, fontWeight: 600 }}>Most Played Songs</p>
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <button onClick={() => setShowTopSongs(v => !v)}
+                    style={{ width: '100%', background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: showTopSongs ? 16 : 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <Mic2 size={14} color={C.gold} />
+                      <p style={{ fontSize: 13, letterSpacing: '0.04em', color: C.secondary, margin: 0, fontWeight: 600 }}>Most Played Songs</p>
+                    </div>
+                    <ChevronDown size={14} color={C.muted} style={{ transition: 'transform 0.2s ease', transform: showTopSongs ? 'rotate(180deg)' : 'rotate(0deg)' }} />
+                  </button>
+                  {showTopSongs && <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                     {topSongs.map((song, i) => (
                       <div key={song.title} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                         <span style={{ fontSize: 11, fontWeight: 700, color: C.gold, minWidth: 16, textAlign: 'right', fontFamily: '"DM Mono", monospace' }}>{i + 1}</span>
@@ -359,18 +366,22 @@ export default function StatsPage() {
                         </div>
                       </div>
                     ))}
-                  </div>
+                  </div>}
                 </div>
               )}
 
               {/* Top venues */}
               {topVenues.length > 0 && (
                 <div style={{ background: C.card, border: '1px solid rgba(255,255,255,0.04)', borderRadius: 14, padding: '16px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-                    <MapPin size={14} color={C.gold} />
-                    <p style={{ fontSize: 13, letterSpacing: '0.04em', color: C.secondary, margin: 0, fontWeight: 600 }}>Top Venues</p>
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <button onClick={() => setShowTopVenues(v => !v)}
+                    style={{ width: '100%', background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: showTopVenues ? 16 : 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <MapPin size={14} color={C.gold} />
+                      <p style={{ fontSize: 13, letterSpacing: '0.04em', color: C.secondary, margin: 0, fontWeight: 600 }}>Top Venues</p>
+                    </div>
+                    <ChevronDown size={14} color={C.muted} style={{ transition: 'transform 0.2s ease', transform: showTopVenues ? 'rotate(180deg)' : 'rotate(0deg)' }} />
+                  </button>
+                  {showTopVenues && <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                     {topVenues.map((venue, i) => (
                       <div key={venue.name} onClick={() => { if (venue.id) router.push(`/app/venue/${venue.id}`) }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, cursor: venue.id ? 'pointer' : 'default' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
@@ -385,18 +396,22 @@ export default function StatsPage() {
                         </span>
                       </div>
                     ))}
-                  </div>
+                  </div>}
                 </div>
               )}
 
               {/* Song Debuts */}
               {songDebuts.length > 0 && (
                 <div style={{ background: C.card, border: '1px solid rgba(255,255,255,0.04)', borderRadius: 14, padding: '16px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-                    <Calendar size={14} color={C.gold} />
-                    <p style={{ fontSize: 13, letterSpacing: '0.04em', color: C.secondary, margin: 0, fontWeight: 600 }}>Song Debuts</p>
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <button onClick={() => setShowDebuts(v => !v)}
+                    style={{ width: '100%', background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: showDebuts ? 16 : 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <Calendar size={14} color={C.gold} />
+                      <p style={{ fontSize: 13, letterSpacing: '0.04em', color: C.secondary, margin: 0, fontWeight: 600 }}>Song Debuts</p>
+                    </div>
+                    <ChevronDown size={14} color={C.muted} style={{ transition: 'transform 0.2s ease', transform: showDebuts ? 'rotate(180deg)' : 'rotate(0deg)' }} />
+                  </button>
+                  {showDebuts && <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                     {songDebuts.map((debut, i) => (
                       <div key={`${debut.title}-${i}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                         <div style={{ minWidth: 0 }}>
@@ -408,7 +423,7 @@ export default function StatsPage() {
                         </span>
                       </div>
                     ))}
-                  </div>
+                  </div>}
                 </div>
               )}
 
