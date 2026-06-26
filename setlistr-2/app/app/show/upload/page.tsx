@@ -187,7 +187,7 @@ export default function UploadShowPage() {
                     type="date"
                     value={showDate}
                     onChange={e => setShowDate(e.target.value)}
-                    style={{ width: '100%', boxSizing: 'border-box', background: C.input, border: `1px solid ${C.borderGold}`, borderRadius: 10, padding: '12px 14px', color: C.text, fontSize: 15, fontFamily: 'inherit', outline: 'none', colorScheme: 'dark' }}
+                    style={{ width: '100%', boxSizing: 'border-box', background: C.input, border: `1px solid ${C.borderGold}`, borderRadius: 10, padding: '12px 14px', color: C.text, fontSize: 15, fontFamily: 'inherit', outline: 'none', colorScheme: 'dark', WebkitAppearance: 'none' }}
                   />
                 </div>
               </div>
