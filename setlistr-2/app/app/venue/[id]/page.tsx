@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { Mic2 } from 'lucide-react'
 
 const C = {
   bg: '#0a0908', card: '#141210',
@@ -95,6 +96,26 @@ export default function VenueDetailPage() {
   const totalSongs = shows.reduce((sum, s) => sum + s.songs.length, 0)
   const avgSongs = shows.length > 0 ? Math.round(totalSongs / shows.length) : 0
 
+  const songCounts: Record<string, number> = {}
+  shows.forEach(show => {
+    show.songs.forEach(song => {
+      const t = song.title?.trim()
+      if (t) songCounts[t] = (songCounts[t] || 0) + 1
+    })
+  })
+  const signatureSongs = Object.entries(songCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .filter(([, count]) => count > 1)
+
+  const narrative = shows.length === 1
+    ? 'First time here. The stage remembers.'
+    : shows.length === 2
+    ? `Twice at ${venueName}. A pattern forming.`
+    : shows.length < 10
+    ? `${venueName} knows your name. ${shows.length} times.`
+    : `${venueName} is home ground. ${shows.length} shows deep.`
+
   return (
     <div style={{ minHeight: '100svh', background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif' }}>
 
@@ -131,6 +152,31 @@ export default function VenueDetailPage() {
               </div>
             ))}
           </div>
+
+          {/* Narrative */}
+          <p style={{ fontSize: 15, fontStyle: 'italic', color: C.gold, padding: '16px 24px 0', margin: 0, lineHeight: 1.4 }}>
+            {narrative}
+          </p>
+
+          {/* Signature songs */}
+          {signatureSongs.length > 0 && (
+            <div style={{ padding: '14px 24px 0' }}>
+              <div style={{ background: C.card, borderLeft: `3px solid ${C.gold}`, borderRadius: 12, padding: '14px 16px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                  <Mic2 size={14} color={C.gold} />
+                  <p style={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.04em', color: C.secondary, margin: 0 }}>Always In Your Set Here</p>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {signatureSongs.map(([title, count], i) => (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <p style={{ fontSize: 14, fontWeight: 600, color: C.text, margin: 0 }}>{title}</p>
+                      <span style={{ fontSize: 12, color: C.gold, fontFamily: '"DM Mono", monospace', fontWeight: 700 }}>{count}×</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Show history */}
           <div style={{ padding: '16px 24px 80px' }}>

@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { Search, ChevronLeft, Music2, AlertCircle } from 'lucide-react'
+import { Search, ChevronLeft, Music2, DollarSign } from 'lucide-react'
 import { estimateRoyalties, capacityToBand } from '@/lib/royalty-estimate'
 
 const C = {
@@ -197,7 +197,7 @@ export default function HistoryPage() {
             <ChevronLeft size={14} /> Back
           </button>
           <h1 style={{ fontSize: 28, fontWeight: 800, color: C.text, margin: 0, letterSpacing: '-0.02em', flex: 1 }}>
-            Show history
+            Your Record
           </h1>
           <div style={{ fontSize: 13, color: C.muted, background: C.card, border: `1px solid ${C.border}`, borderRadius: 20, padding: '5px 10px' }}>
             {performances.length} shows
@@ -208,7 +208,7 @@ export default function HistoryPage() {
         {unclaimedShows.length > 0 && (
           <div style={{ marginBottom: 16, background: 'rgba(201,168,76,0.05)', border: '1px solid rgba(201,168,76,0.15)', borderRadius: 14, padding: '16px 18px', display: 'flex', alignItems: 'center', gap: 14 }}>
             <div style={{ width: 40, height: 40, borderRadius: '50%', background: C.goldDim, border: `1px solid ${C.borderGold}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <AlertCircle size={18} color={C.gold} />
+              <DollarSign size={18} color={C.gold} />
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <p style={{ fontSize: 20, fontWeight: 800, color: C.gold, margin: '0 0 2px' }}>
@@ -287,10 +287,10 @@ export default function HistoryPage() {
                 <Music2 size={20} color={C.gold} />
               </div>
               <p style={{ fontSize: 17, fontWeight: 600, color: C.text, margin: '0 0 6px' }}>
-                {hasFilters ? 'No shows match your filters' : 'No past performances yet'}
+                {hasFilters ? 'No shows match your filters' : 'Your record starts tonight.'}
               </p>
               <p style={{ fontSize: 15, color: C.muted, margin: '0 0 18px' }}>
-                {hasFilters ? 'Try adjusting your search or filters' : 'Completed shows will appear here'}
+                {hasFilters ? 'Try adjusting your search or filters' : 'Every show you capture becomes permanent.'}
               </p>
               {!hasFilters && (
                 <button onClick={() => router.push('/app/show/new')}

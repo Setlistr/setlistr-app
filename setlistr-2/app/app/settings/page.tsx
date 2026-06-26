@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Check, KeyRound, User, Music2, Search, Download, Radio, Users, Copy, X, Clock } from 'lucide-react'
+import { Check, KeyRound, User, Music2, Search, Download, Radio, Users, Copy, X, Clock, AlertCircle } from 'lucide-react'
 
 const C = {
   bg: '#0a0908',
@@ -72,6 +72,7 @@ export default function SettingsPage() {
   const [proSaving, setProSaving]           = useState(false)
   const [proSaved, setProSaved]             = useState(false)
   const [proError, setProError]             = useState('')
+  const [showProPrompt, setShowProPrompt]   = useState(false)
 
   // Bandsintown
   const [bandsintownName, setBandsintownName]       = useState('')
@@ -131,6 +132,7 @@ export default function SettingsPage() {
         setBandsintownName(profile.bandsintown_artist_name ?? '')
         if (profile.career_start_year) setCareerStartYear(profile.career_start_year)
         if (profile.artist_name) setSpotifyQuery(profile.artist_name)
+        if (!profile.pro_affiliation?.trim() || !profile.ipi_number?.trim()) setShowProPrompt(true)
       }
 
       const { count } = await supabase
@@ -408,6 +410,17 @@ export default function SettingsPage() {
 
       <div style={{ padding: '16px 16px 60px', maxWidth: 520, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
 
+        {showProPrompt && (
+          <div style={{ background: 'rgba(201,168,76,0.07)', border: '1px solid rgba(201,168,76,0.2)', borderRadius: 14, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <AlertCircle size={14} color={C.gold} style={{ flexShrink: 0 }} />
+            <p style={{ fontSize: 13, color: C.secondary, margin: 0, flex: 1, lineHeight: 1.4 }}>Your PRO info is incomplete — submissions won't pre-fill correctly.</p>
+            <button onClick={() => document.getElementById('pro-section')?.scrollIntoView({ behavior: 'smooth' })}
+              style={{ background: 'none', border: 'none', color: C.gold, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0, padding: 0 }}>
+              Fill it in →
+            </button>
+          </div>
+        )}
+
         {/* ── Profile ── */}
         <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -681,7 +694,7 @@ export default function SettingsPage() {
         </div>
 
         {/* ── PRO Information ── */}
-        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div id="pro-section" style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <Music2 size={15} color={C.gold} />
