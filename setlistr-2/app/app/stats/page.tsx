@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { Music2, MapPin, Calendar, TrendingUp, Mic2, AlertCircle } from 'lucide-react'
+import { Music2, MapPin, Calendar, TrendingUp, Mic2, AlertCircle, Shield } from 'lucide-react'
 import MySongsTab from '@/components/MySongsTab'
 
 const C = {
@@ -411,6 +411,19 @@ export default function StatsPage() {
                   </div>
                 </div>
               )}
+
+              {/* Performance Proof File */}
+              <button onClick={() => router.push('/app/proof')}
+                style={{ width: '100%', padding: '16px 20px', background: C.card, border: '1px solid rgba(255,255,255,0.04)', borderRadius: 14, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <Shield size={18} color={C.gold} style={{ flexShrink: 0 }} />
+                  <div style={{ textAlign: 'left' }}>
+                    <p style={{ fontSize: 15, fontWeight: 600, color: C.secondary, margin: '0 0 2px' }}>Performance Proof File</p>
+                    <p style={{ fontSize: 13, color: C.muted, margin: 0 }}>Your verified career record.</p>
+                  </div>
+                </div>
+                <span style={{ fontSize: 18, color: C.muted }}>→</span>
+              </button>
             </>
           )}
         </div>

@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { Check, Calendar, ChevronDown, Users, X } from 'lucide-react'
+import { Check, Calendar, ChevronDown, Users, X, Upload, MapPin } from 'lucide-react'
 import {
   estimateRoyalties, aggregateUnclaimedEarnings,
   capacityToBand, type ShowEstimateInput,
@@ -740,37 +740,29 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {capturedCount >= 1 && (
-          <button onClick={() => router.push('/app/career-map')}
-            style={{ width: '100%', padding: '16px 20px', background: 'transparent', border: `1px solid ${C.border}`, borderRadius: 14, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-            <div style={{ textAlign: 'left' }}>
-              <p style={{ fontSize: 15, fontWeight: 600, color: C.secondary, margin: '0 0 2px' }}>Career Map</p>
-              <p style={{ fontSize: 13, color: C.muted, margin: 0 }}>{uniqueCities.length} cities · {capturedCount} verified shows</p>
-            </div>
-            <span style={{ fontSize: 18, color: C.muted }}>→</span>
-          </button>
-        )}
-
         <button onClick={() => router.push('/app/show/upload')}
           style={{ width: '100%', padding: '16px 20px', background: 'transparent', border: `1px solid ${C.border}`, borderRadius: 14, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-          <div style={{ textAlign: 'left' }}>
-            <p style={{ fontSize: 15, fontWeight: 600, color: C.secondary, margin: '0 0 2px' }}>Upload a Show</p>
-            <p style={{ fontSize: 13, color: C.muted, margin: 0 }}>Board mix, GoPro, or any recording</p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <Upload size={18} color={C.gold} style={{ flexShrink: 0 }} />
+            <div style={{ textAlign: 'left' }}>
+              <p style={{ fontSize: 15, fontWeight: 600, color: C.secondary, margin: '0 0 2px' }}>Upload a Show</p>
+              <p style={{ fontSize: 13, color: C.muted, margin: 0 }}>Board mix, GoPro, or any recording</p>
+            </div>
           </div>
           <span style={{ fontSize: 18, color: C.muted }}>→</span>
         </button>
 
-        {/* ── PROOF FILE LINK ── */}
-        {capturedCount >= 3 && (
-          <button onClick={() => router.push('/app/proof')}
-            style={{ width: '100%', background: 'transparent', border: 'none', padding: '14px 0', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid rgba(255,255,255,0.05)', marginBottom: 8, WebkitTapHighlightColor: 'transparent' }}
-            onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.7'}
-            onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}>
-            <div>
-              <p style={{ fontSize: 15, fontWeight: 600, color: C.secondary, margin: 0 }}>Performance Proof File</p>
-              <p style={{ fontSize: 13, color: C.muted, margin: '2px 0 0' }}>Your verified career record</p>
+        {capturedCount >= 1 && (
+          <button onClick={() => router.push('/app/career-map')}
+            style={{ width: '100%', padding: '16px 20px', background: 'transparent', border: `1px solid ${C.border}`, borderRadius: 14, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <MapPin size={18} color={C.gold} style={{ flexShrink: 0 }} />
+              <div style={{ textAlign: 'left' }}>
+                <p style={{ fontSize: 15, fontWeight: 600, color: C.secondary, margin: '0 0 2px' }}>Career Map</p>
+                <p style={{ fontSize: 13, color: C.muted, margin: 0 }}>{uniqueCities.length} cities · {capturedCount} verified shows</p>
+              </div>
             </div>
-            <span style={{ fontSize: 13, color: C.muted }}>→</span>
+            <span style={{ fontSize: 18, color: C.muted }}>→</span>
           </button>
         )}
 
