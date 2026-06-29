@@ -140,6 +140,9 @@ export default function UploadShowPage() {
       setUploadState('processing')
       setProgress('Reading audio file...')
 
+      const detectedTitles: string[] = []
+      const detectedSongs: { title: string; artist: string | null; isrc: string | null; composer: string | null; publisher: string | null; source: string; inclusion_reason: string | null; threshold: number | null; score: number | null }[] = []
+
       try {
         const arrayBuffer = await recordingFile.arrayBuffer()
         const AudioCtx    = window.AudioContext || (window as any).webkitAudioContext
@@ -149,7 +152,6 @@ export default function UploadShowPage() {
 
         const duration    = audioBuffer.duration
         const totalChunks = Math.max(1, Math.floor((duration - UPLOAD_CHUNK_SECONDS) / UPLOAD_CHUNK_STEP_SECONDS) + 1)
-        const detectedTitles: string[] = []
 
         for (let i = 0; i < totalChunks; i++) {
           const startSec = i * UPLOAD_CHUNK_STEP_SECONDS
@@ -169,6 +171,17 @@ export default function UploadShowPage() {
               const norm = data.title.toLowerCase().trim()
               if (!detectedTitles.some(t => t.toLowerCase().trim() === norm)) {
                 detectedTitles.push(data.title)
+                detectedSongs.push({
+                  title: data.title,
+                  artist: data.artist || null,
+                  isrc: data.isrc || null,
+                  composer: data.composer || null,
+                  publisher: data.publisher || null,
+                  source: data.source || 'recognized',
+                  inclusion_reason: data.inclusion_reason || null,
+                  threshold: data.threshold ?? null,
+                  score: data.score ?? null,
+                })
                 setLastCaught(data.title)
                 setTimeout(() => setLastCaught(null), 3000)
               }
@@ -180,6 +193,26 @@ export default function UploadShowPage() {
           } catch { /* skip failed chunk, keep going */ }
         }
       } catch { /* audio decode failed — proceed to review with whatever was detected */ }
+
+      if (detectedSongs.length > 0) {
+        await supabase.from('performance_songs').insert(
+          detectedSongs.map((song, i) => ({
+            performance_id: performance.id,
+            title: song.title,
+            artist: song.artist,
+            position: i + 1,
+            isrc: song.isrc,
+            composer: song.composer,
+            publisher: song.publisher,
+            source: song.source,
+            was_planned: false,
+            inclusion_reason: song.inclusion_reason,
+            threshold: song.threshold,
+            score: song.score,
+            confusion_matrix_result: 'TBD',
+          }))
+        )
+      }
 
       setUploadState('done')
       router.push(`/app/review/${performance.id}`)
