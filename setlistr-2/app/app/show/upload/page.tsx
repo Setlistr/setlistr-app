@@ -63,6 +63,8 @@ export default function UploadShowPage() {
   const [error, setError] = useState('')
   const [progress, setProgress] = useState('')
   const [scanProgress, setScanProgress] = useState(0)
+  const [uploadLine, setUploadLine] = useState('')
+  const [lastCaught, setLastCaught] = useState<string | null>(null)
 
   const recordingInputRef = useRef<HTMLInputElement>(null)
   const setlistInputRef = useRef<HTMLInputElement>(null)
@@ -167,7 +169,13 @@ export default function UploadShowPage() {
               const norm = data.title.toLowerCase().trim()
               if (!detectedTitles.some(t => t.toLowerCase().trim() === norm)) {
                 detectedTitles.push(data.title)
+                setLastCaught(data.title)
+                setTimeout(() => setLastCaught(null), 3000)
               }
+            }
+            const c = data?.chunk
+            if (c) {
+              setUploadLine(`${fmtClock(startSec)} — ${c.artist || ''} — ${c.title || ''} — ${c.score != null ? Math.round(c.score) : ''} — ${c.status}${c.inclusion_reason ? ` — ${c.inclusion_reason}` : ''}`)
             }
           } catch { /* skip failed chunk, keep going */ }
         }
@@ -359,6 +367,17 @@ export default function UploadShowPage() {
                 {scanProgress > 0 && (
                   <div style={{ marginTop: 10, height: 4, background: 'rgba(255,255,255,0.08)', borderRadius: 2, overflow: 'hidden' }}>
                     <div style={{ height: '100%', width: `${Math.round(scanProgress * 100)}%`, background: C.gold, borderRadius: 2, transition: 'width 0.3s ease' }} />
+                  </div>
+                )}
+                {lastCaught && (
+                  <div style={{ marginTop: 14, textAlign: 'center', animation: 'fadeUp 0.3s ease' }}>
+                    <p style={{ fontSize: 15, fontWeight: 700, color: C.text, margin: '0 0 2px' }}>{lastCaught}</p>
+                    <p style={{ fontSize: 11, fontWeight: 600, color: C.green, margin: 0, letterSpacing: '0.06em' }}>captured</p>
+                  </div>
+                )}
+                {uploadLine && (
+                  <div style={{ marginTop: 10, fontFamily: '"DM Mono", monospace', fontSize: 10, lineHeight: 1.6, color: uploadLine.includes('— ADD') ? C.green : uploadLine.includes('ALREADY ADDED') ? C.gold : C.muted, wordBreak: 'break-word' as const }}>
+                    {uploadLine}
                   </div>
                 )}
               </div>
