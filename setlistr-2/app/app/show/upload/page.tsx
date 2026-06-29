@@ -14,6 +14,42 @@ const C = {
 
 type UploadState = 'idle' | 'uploading' | 'processing' | 'done' | 'error'
 
+const UPLOAD_CHUNK_SECONDS      = 14
+const UPLOAD_CHUNK_STEP_SECONDS = 20
+
+function fmtClock(sec: number): string {
+  const m = Math.floor(sec / 60)
+  const s = Math.floor(sec % 60)
+  return `${m}:${String(s).padStart(2, '0')}`
+}
+
+function sliceToMonoWav(audioBuffer: AudioBuffer, startSec: number, durSec: number): Blob {
+  const sampleRate  = audioBuffer.sampleRate
+  const startSample = Math.floor(startSec * sampleRate)
+  const endSample   = Math.min(audioBuffer.length, Math.floor((startSec + durSec) * sampleRate))
+  const len         = Math.max(0, endSample - startSample)
+  const channels    = audioBuffer.numberOfChannels
+  const mono = new Float32Array(len)
+  for (let c = 0; c < channels; c++) {
+    const chData = audioBuffer.getChannelData(c)
+    for (let i = 0; i < len; i++) mono[i] += chData[startSample + i] / channels
+  }
+  const buffer = new ArrayBuffer(44 + len * 2)
+  const view   = new DataView(buffer)
+  const writeStr = (offset: number, s: string) => { for (let i = 0; i < s.length; i++) view.setUint8(offset + i, s.charCodeAt(i)) }
+  writeStr(0, 'RIFF'); view.setUint32(4, 36 + len * 2, true); writeStr(8, 'WAVE')
+  writeStr(12, 'fmt '); view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true)
+  view.setUint32(24, sampleRate, true); view.setUint32(28, sampleRate * 2, true); view.setUint16(32, 2, true); view.setUint16(34, 16, true)
+  writeStr(36, 'data'); view.setUint32(40, len * 2, true)
+  let offset = 44
+  for (let i = 0; i < len; i++) {
+    const sample = Math.max(-1, Math.min(1, mono[i]))
+    view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true)
+    offset += 2
+  }
+  return new Blob([view], { type: 'audio/wav' })
+}
+
 export default function UploadShowPage() {
   const router = useRouter()
 
@@ -26,6 +62,7 @@ export default function UploadShowPage() {
   const [uploadState, setUploadState] = useState<UploadState>('idle')
   const [error, setError] = useState('')
   const [progress, setProgress] = useState('')
+  const [scanProgress, setScanProgress] = useState(0)
 
   const recordingInputRef = useRef<HTMLInputElement>(null)
   const setlistInputRef = useRef<HTMLInputElement>(null)
@@ -99,20 +136,45 @@ export default function UploadShowPage() {
       if (!performance) throw new Error('Failed to create performance')
 
       setUploadState('processing')
-      setProgress('Your recording has been uploaded. We\'ll process it and notify you when your setlist is ready.')
+      setProgress('Reading audio file...')
 
-      // TODO: Trigger ACRCloud file scan endpoint here
-      // await fetch('/api/process-recording', {
-      //   method: 'POST',
-      //   body: JSON.stringify({ performanceId: performance.id, recordingPath }),
-      // })
+      try {
+        const arrayBuffer = await recordingFile.arrayBuffer()
+        const AudioCtx    = window.AudioContext || (window as any).webkitAudioContext
+        const ctx         = new AudioCtx()
+        const audioBuffer = await ctx.decodeAudioData(arrayBuffer)
+        ctx.close()
+
+        const duration    = audioBuffer.duration
+        const totalChunks = Math.max(1, Math.floor((duration - UPLOAD_CHUNK_SECONDS) / UPLOAD_CHUNK_STEP_SECONDS) + 1)
+        const detectedTitles: string[] = []
+
+        for (let i = 0; i < totalChunks; i++) {
+          const startSec = i * UPLOAD_CHUNK_STEP_SECONDS
+          setProgress(`Scanning ${fmtClock(startSec)} / ${fmtClock(duration)}`)
+          setScanProgress((i + 1) / totalChunks)
+
+          const wav  = sliceToMonoWav(audioBuffer, startSec, UPLOAD_CHUNK_SECONDS)
+          const form = new FormData()
+          form.append('audio', wav, 'sample.wav')
+          form.append('performance_id', performance.id)
+          form.append('previous_songs', JSON.stringify(detectedTitles))
+
+          try {
+            const res  = await fetch('/api/identify', { method: 'POST', body: form })
+            const data = await res.json()
+            if (data?.detected && data.confidence_level === 'auto' && data.title) {
+              const norm = data.title.toLowerCase().trim()
+              if (!detectedTitles.some(t => t.toLowerCase().trim() === norm)) {
+                detectedTitles.push(data.title)
+              }
+            }
+          } catch { /* skip failed chunk, keep going */ }
+        }
+      } catch { /* audio decode failed — proceed to review with whatever was detected */ }
 
       setUploadState('done')
-
-      // Navigate to review after short delay
-      setTimeout(() => {
-        router.push(`/app/review/${performance.id}`)
-      }, 2000)
+      router.push(`/app/review/${performance.id}`)
 
     } catch (err: any) {
       setError(err.message || 'Something went wrong.')
@@ -289,9 +351,16 @@ export default function UploadShowPage() {
 
             {/* Processing state */}
             {isLoading && (
-              <div style={{ padding: '14px 16px', background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 10, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ width: 16, height: 16, borderRadius: '50%', border: `2px solid rgba(201,168,76,0.3)`, borderTopColor: C.gold, animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />
-                <p style={{ fontSize: 13, color: C.gold, margin: 0, fontWeight: 600 }}>{progress}</p>
+              <div style={{ padding: '14px 16px', background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 10, marginBottom: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ width: 16, height: 16, borderRadius: '50%', border: `2px solid rgba(201,168,76,0.3)`, borderTopColor: C.gold, animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />
+                  <p style={{ fontSize: 13, color: C.gold, margin: 0, fontWeight: 600 }}>{progress}</p>
+                </div>
+                {scanProgress > 0 && (
+                  <div style={{ marginTop: 10, height: 4, background: 'rgba(255,255,255,0.08)', borderRadius: 2, overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${Math.round(scanProgress * 100)}%`, background: C.gold, borderRadius: 2, transition: 'width 0.3s ease' }} />
+                  </div>
+                )}
               </div>
             )}
 
