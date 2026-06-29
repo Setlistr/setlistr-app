@@ -98,6 +98,13 @@ function isTomorrow(d: string) {
 }
 function formatShowTime(d: string) { return new Date(d).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) }
 function formatShowDate(d: string) { return new Date(d).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) }
+function parseLocalDate(d: string): Date {
+  // For date-only or UTC-midnight timestamps, extract Y-M-D and construct in local time
+  const datePart = d.split('T')[0].split(' ')[0]
+  const [y, m, day] = datePart.split('-').map(Number)
+  if (y && m && day) return new Date(y, m - 1, day)
+  return new Date(d)
+}
 function isCanadian(country?: string | null, city?: string | null) {
   return ['CA','Canada','ca'].includes(country || '') ||
     ['toronto','vancouver','montreal','calgary','edmonton','ottawa','winnipeg'].some(c => (city || '').toLowerCase().includes(c)) ||
@@ -323,7 +330,10 @@ export default function DashboardPage() {
 
   const capturedPerfs    = performances.filter(p => p.data_source !== 'setlistfm_imported')
   const importedPerfs    = performances.filter(p => p.data_source === 'setlistfm_imported')
-  const totalCareerShows = careerTotalShows > 0 ? careerTotalShows : performances.length
+  const totalCareerShows = performances.filter(p =>
+    p.data_source !== 'setlistfm_imported' &&
+    ['complete', 'completed', 'review', 'submitted', 'exported'].includes(p.status)
+  ).length
   const animatedCareerShows = useCountUp(totalCareerShows, 1400, 200)
   const animatedRoyalties   = useCountUp(lifetimeTotal, 1600, 400)
   const capturedCount    = capturedPerfs.filter(p => p.status !== 'live' && p.status !== 'pending').length
@@ -817,8 +827,8 @@ export default function DashboardPage() {
                     onMouseEnter={e => { if (!isImported) (e.currentTarget as HTMLElement).style.opacity = '0.7' }}
                     onMouseLeave={e => { if (!isImported) (e.currentTarget as HTMLElement).style.opacity = '1' }}>
                     <div style={{ minWidth: 36, flexShrink: 0, textAlign: 'center' }}>
-                      <p style={{ fontSize: 18, fontWeight: 700, color: C.text, margin: 0, fontFamily: '"DM Mono", monospace', lineHeight: 1 }}>{new Date(dateStr).getDate()}</p>
-                      <p style={{ fontSize: 10, color: C.muted, margin: '1px 0 0', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{new Date(dateStr).toLocaleDateString('en-US', { month: 'short' })}</p>
+                      <p style={{ fontSize: 18, fontWeight: 700, color: C.text, margin: 0, fontFamily: '"DM Mono", monospace', lineHeight: 1 }}>{parseLocalDate(dateStr).getDate()}</p>
+                      <p style={{ fontSize: 10, color: C.muted, margin: '1px 0 0', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{parseLocalDate(dateStr).toLocaleDateString('en-US', { month: 'short' })}</p>
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <p style={{ fontSize: 15, fontWeight: 600, color: C.text, margin: '0 0 2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{perf.venue_name}</p>
