@@ -185,10 +185,10 @@ export default function UploadShowPage() {
                 setLastCaught(data.title)
                 setTimeout(() => setLastCaught(null), 3000)
               }
-            }
-            const c = data?.chunk
-            if (c) {
-              setUploadLine(`${fmtClock(startSec)} — ${c.artist || ''} — ${c.title || ''} — ${c.score != null ? Math.round(c.score) : ''} — ${c.status}${c.inclusion_reason ? ` — ${c.inclusion_reason}` : ''}`)
+              const c = data?.chunk
+              if (c) {
+                setUploadLine(`${fmtClock(startSec)} — ${c.artist || ''} — ${c.title || ''} — ${c.score != null ? Math.round(c.score) : ''} — ${c.status}${c.inclusion_reason ? ` — ${c.inclusion_reason}` : ''}`)
+              }
             }
           } catch { /* skip failed chunk, keep going */ }
         }
