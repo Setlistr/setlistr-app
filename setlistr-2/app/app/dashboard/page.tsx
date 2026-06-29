@@ -750,7 +750,7 @@ export default function DashboardPage() {
           </div>
         )}
 
-        <button onClick={() => router.push('/app/show/upload')}
+        <button onClick={() => router.push('/app/show/new?intent=upload')}
           style={{ width: '100%', padding: '16px 20px', background: 'transparent', border: `1px solid ${C.border}`, borderRadius: 14, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <Upload size={18} color={C.gold} style={{ flexShrink: 0 }} />

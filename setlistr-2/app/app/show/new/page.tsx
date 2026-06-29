@@ -363,7 +363,8 @@ export default function NewShowPage() {
       }).select().single()
       if (perfError) throw new Error('Performance insert failed: ' + perfError.message)
       if (plannedSongs.length > 0) await savePlannedSetlist(performance.id, user.id, resolvedVenueId)
-      router.push(`/app/live/${performance.id}`)
+      const uploadIntent = searchParams.get('intent') === 'upload'
+      router.push(`/app/live/${performance.id}${uploadIntent ? '?intent=upload' : ''}`)
     } catch (err: any) {
       setError(err?.message || 'Something went wrong. Please try again.')
       setLoading(false)
