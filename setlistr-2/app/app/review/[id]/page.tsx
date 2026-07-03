@@ -351,8 +351,8 @@ function PlannedSongRow({ song, onPlayed, onRemove }: {
 }
 
 
-function CeremonyCountCard({ songCount, showDate, showYear, verifiedCount, autoCount, manualCount, songs }: {
-  songCount: number; showDate: string; showYear: string
+function CeremonyCountCard({ songCount, showDate, verifiedCount, autoCount, manualCount, songs }: {
+  songCount: number; showDate: string
   verifiedCount: number; autoCount: number; manualCount: number
   songs: Song[]
 }) {
@@ -369,7 +369,7 @@ function CeremonyCountCard({ songCount, showDate, showYear, verifiedCount, autoC
           </span>
         </div>
         <p style={{ fontSize: 13, color: '#8a7a68', margin: 0, letterSpacing: '0.04em' }}>
-          Captured live · {showDate}{showYear ? `, ${showYear}` : ''}
+          Captured live · {showDate}
         </p>
       </div>
       <div style={{ padding: '16px 0 8px' }}>
@@ -822,7 +822,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
 
   function generateExportCSV(pro: PRO) {
     if (!performance) return
-    const date = new Date(performance.started_at).toLocaleDateString()
+    const date = parseLocalDate(performance.started_at).toLocaleDateString()
     const confirmedSongs = songs.filter(s => s.source !== 'planned' && !s.isRemoved)
     const headers: Record<PRO, string[]> = {
       SOCAN: ['Title', 'Artist', 'Composer', 'Publisher', 'ISRC', 'Duration', 'Date', 'Venue', 'City'],
@@ -839,11 +839,17 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
     const blob = new Blob([csv], { type: 'text/csv' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a'); a.href = url
-    a.download = `${pro}-setlist-${performance.venue_name}-${new Date(performance.started_at).toLocaleDateString().replace(/\//g, '-')}.csv`
+    a.download = `${pro}-setlist-${performance.venue_name}-${parseLocalDate(performance.started_at).toLocaleDateString().replace(/\//g, '-')}.csv`
     a.click(); URL.revokeObjectURL(url)
   }
 
-  function formatDate(d: string) { return new Date(d).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) }
+  function parseLocalDate(d: string): Date {
+    const datePart = d.split('T')[0].split(' ')[0]
+    const [y, m, day] = datePart.split('-').map(Number)
+    if (y && m && day) return new Date(y, m - 1, day)
+    return new Date(d)
+  }
+  function formatDate(d: string) { return parseLocalDate(d).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) }
   function formatDuration() {
     if (!performance?.started_at || !performance?.ended_at) return ''
     return `${Math.round((new Date(performance.ended_at).getTime() - new Date(performance.started_at).getTime()) / 60000)} min`
@@ -871,8 +877,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
     const territory = getTerritory(performance?.country, performance?.city)
     const songCount = confirmedSongs.length > 0 ? confirmedSongs.length : 8
     const estimate  = estimateRoyalties({ songCount, venueCapacityBand: capacityToBand(performance?.venue_capacity), showType: (performance?.show_type as any) || 'single', territory })
-    const showDate  = performance?.started_at ? new Date(performance.started_at).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : ''
-    const showYear  = performance?.started_at ? new Date(performance.started_at).getFullYear() : ''
+    const showDate  = performance?.started_at ? parseLocalDate(performance.started_at).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) : ''
     const durMins   = performance?.started_at && performance?.ended_at ? Math.round((new Date(performance.ended_at).getTime() - new Date(performance.started_at).getTime()) / 60000) : null
     const manualCount = confirmedSongs.filter(s => s.source === 'manual' && !s.was_planned).length
 
@@ -920,7 +925,6 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
           <CeremonyCountCard
             songCount={confirmedSongs.length}
             showDate={showDate}
-            showYear={String(showYear)}
             verifiedCount={verifiedCount}
             autoCount={autoCount}
             manualCount={manualCount}
