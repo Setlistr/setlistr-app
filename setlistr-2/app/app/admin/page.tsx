@@ -2,6 +2,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { createClient } from '@supabase/supabase-js'
 import { redirect } from 'next/navigation'
 import AdminDashboard from './AdminView'
+import { TEST_USER_IDS } from '@/lib/admin-config'
 
 const ADMIN_EMAILS = [
   'jesse.slack.music@gmail.com',
@@ -68,13 +69,21 @@ export default async function AdminPage() {
       .order('created_at', { ascending: false }),
   ])
 
+  // ── Exclude test accounts before passing to dashboard ─────────────────────
+  const realProfiles     = (profiles        ?? []).filter(p => !TEST_USER_IDS.has(p.id))
+  const realPerformances = (performances    ?? []).filter(p => !p.user_id || !TEST_USER_IDS.has(p.user_id))
+  const realPerfIds      = new Set(realPerformances.map(p => p.id))
+  const realPerfSongs    = (performanceSongs ?? []).filter(s => realPerfIds.has(s.performance_id))
+  const realUserSongs    = (userSongs        ?? []).filter(s => !TEST_USER_IDS.has(s.user_id))
+  const realDetEvents    = (detectionEvents  ?? []).filter(e => !e.performance_id || realPerfIds.has(e.performance_id))
+
   return (
     <AdminDashboard
-      detectionEvents={detectionEvents ?? []}
-      performances={performances ?? []}
-      performanceSongs={performanceSongs ?? []}
-      profiles={profiles ?? []}
-      userSongs={userSongs ?? []}
+      detectionEvents={realDetEvents}
+      performances={realPerformances}
+      performanceSongs={realPerfSongs}
+      profiles={realProfiles}
+      userSongs={realUserSongs}
       betaInvites={betaInvites ?? []}
     />
   )
