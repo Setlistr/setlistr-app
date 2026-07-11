@@ -127,7 +127,7 @@ export default function UploadShowPage() {
         started_at: new Date(showDate).toISOString(),
         ended_at: new Date(showDate).toISOString(),
         status: 'review',
-        set_duration_minutes: 60,
+        set_duration_minutes: null,
         auto_close_buffer_minutes: 5,
         user_id: user.id,
         data_source: 'captured',

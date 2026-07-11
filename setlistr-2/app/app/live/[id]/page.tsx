@@ -490,7 +490,11 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
     if (endingRef.current || !performance) return
     setEnding(true); endingRef.current = true; stopListening()
     const supabase = createClient()
-    await supabase.from('performances').update({ status: 'review', ended_at: new Date().toISOString() }).eq('id', performance.id)
+    const endedAt = new Date()
+    const durationMinutes = performance?.started_at
+      ? Math.round((endedAt.getTime() - new Date(performance.started_at).getTime()) / 60000)
+      : null
+    await supabase.from('performances').update({ status: 'review', ended_at: endedAt.toISOString(), set_duration_minutes: durationMinutes }).eq('id', performance.id)
     if (showId) await supabase.from('shows').update({ status: 'completed', ended_at: new Date().toISOString() }).eq('id', showId)
     await supabase.from('capture_sessions').update({ ended_at: new Date().toISOString(), status: 'ended' }).eq('performance_id', performance.id)
     if (setlistId) {

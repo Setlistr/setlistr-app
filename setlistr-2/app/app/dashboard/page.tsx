@@ -334,8 +334,8 @@ export default function DashboardPage() {
     p.data_source !== 'setlistfm_imported' &&
     ['complete', 'completed', 'review', 'submitted', 'exported'].includes(p.status)
   ).length
-  const animatedCareerShows = useCountUp(totalCareerShows, 1400, 200)
-  const animatedRoyalties   = useCountUp(lifetimeTotal, 1600, 400)
+  const animatedCareerShows = useCountUp(totalCareerShows, 900, 100)
+  const animatedRoyalties   = useCountUp(lifetimeTotal, 900, 200)
   const capturedCount    = capturedPerfs.filter(p => p.status !== 'live' && p.status !== 'pending').length
   const submittedCount   = capturedPerfs.filter(p => p.submission_status === 'submitted').length
   const recentPerfs      = capturedPerfs.slice(0, 5)
@@ -552,7 +552,7 @@ export default function DashboardPage() {
 
         {/* ── CAREER LEDGER ── */}
         {totalCareerShows > 0 && (
-          <div style={{ marginBottom: 32, animation: 'fadeUp 0.3s ease' }}>
+          <div style={{ marginBottom: 32, animation: 'fadeUp 0.3s ease', animationFillMode: 'both' }}>
             <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.13em', textTransform: 'uppercase', color: C.muted, margin: '0 0 16px' }}>Your career</p>
 
             {/* Big career number */}
@@ -651,15 +651,15 @@ export default function DashboardPage() {
 
         {/* ── ROAD MEMORY ── */}
         {roadMemory && (
-          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '14px 18px', marginBottom: 24 }}>
+          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderLeft: '2px solid rgba(201,168,76,0.5)', borderRadius: 14, padding: '14px 18px', marginBottom: 24, animation: 'fadeUp 0.35s ease', animationDelay: '0.08s', animationFillMode: 'both' }}>
             <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.13em', textTransform: 'uppercase', color: C.muted, margin: '0 0 6px' }}>FROM THE ROAD</p>
-            <p style={{ fontSize: 14, color: C.secondary, margin: 0, lineHeight: 1.5 }}>{roadMemory}</p>
+            <p style={{ fontSize: 14, color: C.secondary, margin: 0, lineHeight: 1.5, fontStyle: 'italic' }}>{roadMemory}</p>
           </div>
         )}
 
         {/* ── MORNING-AFTER NUDGE ── */}
         {morningAfterPerf && !livePerf && (
-          <div style={{ marginBottom: 16, animation: 'fadeUp 0.3s ease' }}>
+          <div style={{ marginBottom: 16, animation: 'fadeUp 0.3s ease', animationDelay: '0.16s', animationFillMode: 'both' }}>
             <button onClick={() => navigateToPerformance(morningAfterPerf)}
               style={{ width: '100%', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)', borderRadius: 14, padding: '14px 18px', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 14 }}>
               <div style={{ flex: 1, minWidth: 0 }}>
@@ -724,7 +724,7 @@ export default function DashboardPage() {
 
         {/* ── UNCLAIMED EARNINGS ── */}
         {aggregate.unclaimedCount > 0 && (
-          <div style={{ borderLeft: '3px solid #c9a84c', background: 'rgba(201,168,76,0.06)', borderRadius: 14, padding: '16px 18px', marginBottom: 32, animation: 'fadeUp 0.36s ease' }}>
+          <div style={{ borderLeft: '3px solid #c9a84c', background: 'linear-gradient(135deg, rgba(201,168,76,0.10) 0%, rgba(201,168,76,0.04) 40%, rgba(201,168,76,0.10) 100%)', borderRadius: 14, padding: '16px 18px', marginBottom: 32, animation: 'fadeUp 0.36s ease', animationDelay: '0.24s', animationFillMode: 'both' }}>
             <p style={{ fontSize: 34, fontWeight: 700, color: C.gold, margin: 0, fontFamily: '"DM Mono", monospace', letterSpacing: '-0.02em', lineHeight: 1 }}>~${aggregate.unclaimedExpected.toLocaleString()}</p>
             <p style={{ fontSize: 13, color: C.muted, margin: '6px 0 16px' }}>{aggregate.unclaimedCount} nights not yet filed</p>
             <button onClick={() => router.push('/app/history')}
@@ -768,7 +768,7 @@ export default function DashboardPage() {
         )}
 
         {/* ── RECENT CAPTURED SHOWS ── */}
-        <div style={{ animation: 'fadeUp 0.42s ease', paddingBottom: 32 }}>
+        <div style={{ animation: 'fadeUp 0.42s ease', animationDelay: '0.32s', animationFillMode: 'both', paddingBottom: 32 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
             <p style={{ fontSize: 13, fontWeight: 600, color: C.muted, margin: 0, letterSpacing: '0.04em' }}>
               Recent shows

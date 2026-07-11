@@ -2,8 +2,9 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { Music2, MapPin, Calendar, TrendingUp, Mic2, AlertCircle, Shield, ChevronDown } from 'lucide-react'
+import { Music2, MapPin, Calendar, TrendingUp, Mic2, Shield, ChevronDown } from 'lucide-react'
 import MySongsTab from '@/components/MySongsTab'
+import { estimateRoyalties, capacityToBand } from '@/lib/royalty-estimate'
 
 const C = {
   bg: '#0a0908', card: '#141210',
@@ -14,10 +15,12 @@ const C = {
 
 const ACTING_AS_KEY = 'setlistr_acting_as'
 
-const BASE_ROYALTY = 1.20
-
-type Song        = { title: string; artist: string }
-type Performance = { id: string; venue_name: string; venue_id: string | null; city: string; country: string; started_at: string; set_duration_minutes: number }
+type Song        = { title: string; artist: string; performance_id: string }
+type Performance = {
+  id: string; venue_name: string; venue_id: string | null; city: string; country: string;
+  started_at: string; ended_at: string | null; set_duration_minutes: number;
+  submission_status: string | null; show_type?: string; venue_capacity?: number | null
+}
 type UserSong    = { id: string; song_title: string; canonical_artist: string; confirmed_count: number; last_confirmed_at: string }
 type SongDebut   = { title: string; artist: string | null; first_performed_at: string }
 
@@ -35,6 +38,12 @@ function formatRelative(dateStr: string): string {
   if (days < 30) return `${Math.floor(days / 7)}w ago`
   if (days < 365) return `${Math.floor(days / 30)}mo ago`
   return `${Math.floor(days / 365)}y ago`
+}
+
+function isCanadian(country?: string | null, city?: string | null) {
+  if (['CA', 'Canada', 'ca'].includes(country || '')) return true
+  const lowerCity = (city || '').toLowerCase()
+  return ['toronto', 'vancouver', 'montreal', 'calgary', 'edmonton', 'ottawa', 'winnipeg'].some(c => lowerCity.includes(c))
 }
 
 export default function StatsPage() {
@@ -80,7 +89,15 @@ export default function StatsPage() {
         if (!ctxData.error) {
           perfList = (ctxData.performances || []).filter((p: any) =>
             ['completed', 'complete', 'exported', 'review'].includes(p.status)
-          )
+          ).map((p: any) => ({
+            id: p.id, venue_name: p.venue_name, venue_id: p.venue_id || null,
+            city: p.city, country: p.country,
+            started_at: p.started_at, ended_at: p.ended_at || null,
+            set_duration_minutes: p.set_duration_minutes,
+            submission_status: p.submission_status || null,
+            show_type: p.show_type || 'single',
+            venue_capacity: p.venue_capacity || null,
+          }))
           setPerformances(perfList)
           setUserSongs([])
         }
@@ -88,7 +105,7 @@ export default function StatsPage() {
       } else {
         const [perfsResult, uSongsResult, debutRes] = await Promise.all([
           supabase.from('performances')
-            .select('id, venue_name, venue_id, city, country, started_at, set_duration_minutes')
+            .select('id, venue_name, venue_id, city, country, started_at, ended_at, set_duration_minutes, submission_status, shows(show_type), venues(capacity)')
             .eq('user_id', user.id)
             .in('status', ['completed', 'complete', 'exported', 'review'])
             .order('started_at', { ascending: false }),
@@ -99,7 +116,15 @@ export default function StatsPage() {
           fetch('/api/song-debuts'),
         ])
         const debutData = await debutRes.json()
-        perfList = perfsResult.data || []
+        perfList = (perfsResult.data || []).map((p: any) => ({
+          id: p.id, venue_name: p.venue_name, venue_id: p.venue_id || null,
+          city: p.city, country: p.country,
+          started_at: p.started_at, ended_at: p.ended_at || null,
+          set_duration_minutes: p.set_duration_minutes,
+          submission_status: p.submission_status || null,
+          show_type: (p.shows as any)?.show_type || 'single',
+          venue_capacity: (p.venues as any)?.capacity || null,
+        }))
         setPerformances(perfList)
         setUserSongs(uSongsResult.data || [])
         if (!debutData.error) setSongDebuts(debutData.debuts || [])
@@ -107,8 +132,8 @@ export default function StatsPage() {
 
       if (perfList.length > 0) {
         const { data: songs } = await supabase.from('performance_songs')
-          .select('title, artist, position').in('performance_id', perfList.map(p => p.id))
-        setAllSongs(songs || [])
+          .select('title, artist, position, performance_id').in('performance_id', perfList.map(p => p.id))
+        setAllSongs((songs || []) as Song[])
       }
       setLoading(false)
     }
@@ -116,13 +141,11 @@ export default function StatsPage() {
   }, [])
 
   // ── Derived stats ─────────────────────────────────────────────────────────
-  const totalShows   = performances.length
-  const totalSongs   = allSongs.length
-  const totalCities  = new Set(performances.map(p => p.city).filter(Boolean)).size
-  const totalMinutes = performances.reduce((s, p) => s + (p.set_duration_minutes ?? 0), 0)
-  const totalHours   = Math.round(totalMinutes / 60 * 10) / 10
+  const totalShows  = performances.length
+  const totalSongs  = allSongs.length
+  const totalCities = new Set(performances.map(p => p.city).filter(Boolean)).size
 
-  const lastShow     = performances.length > 0 ? performances[0] : null
+  const lastShow = performances.length > 0 ? performances[0] : null
   const daysSinceLastShow = lastShow
     ? Math.floor((Date.now() - new Date(lastShow.started_at).getTime()) / 86400000)
     : null
@@ -133,9 +156,61 @@ export default function StatsPage() {
     return days > 45
   }).length
 
-  const totalConfirmedPerformances = userSongs.reduce((sum, s) => sum + (s.confirmed_count || 0), 0)
-  const estimatedLifetimeRoyalty   = Math.round(totalConfirmedPerformances * BASE_ROYALTY)
+  // A: Per-show royalty estimate matching dashboard formula
+  const songCountMap: Record<string, number> = {}
+  allSongs.forEach(s => {
+    if (s.performance_id) songCountMap[s.performance_id] = (songCountMap[s.performance_id] || 0) + 1
+  })
+  let estimatedLifetimeRoyalty = 0
+  performances.forEach(p => {
+    const songCount = songCountMap[p.id] || 0
+    if (songCount === 0) return
+    const est = estimateRoyalties({
+      songCount,
+      venueCapacityBand: capacityToBand(p.venue_capacity ?? undefined),
+      showType: (p.show_type as any) || 'single',
+      territory: isCanadian(p.country, p.city) ? 'CA' : 'US',
+    })
+    estimatedLifetimeRoyalty += est.expected
+  })
+  estimatedLifetimeRoyalty = Math.round(estimatedLifetimeRoyalty)
 
+  // B.2: Real hours from ended_at - started_at (0 < d < 8h)
+  const showsWithRealDuration = performances.filter(p => {
+    if (!p.ended_at) return false
+    const diff = new Date(p.ended_at).getTime() - new Date(p.started_at).getTime()
+    const mins = diff / 60000
+    return mins > 0 && mins < 480
+  })
+  const realTotalMinutes = showsWithRealDuration.reduce((sum, p) => {
+    return sum + (new Date(p.ended_at!).getTime() - new Date(p.started_at).getTime()) / 60000
+  }, 0)
+  const realTotalHours = Math.round(realTotalMinutes / 60 * 10) / 10
+  const N = showsWithRealDuration.length
+  const showHours = totalShows > 0 && N >= Math.ceil(totalShows * 0.3)
+
+  const firstShow = performances.length > 0 ? performances[performances.length - 1] : null
+  const firstShowLabel = firstShow
+    ? new Date(firstShow.started_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
+    : null
+
+  // Mapbox static image for Career Map card
+  const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || ''
+  const topCountry = (() => {
+    const cc: Record<string, number> = {}
+    performances.forEach(p => { if (p.country) cc[p.country] = (cc[p.country] || 0) + 1 })
+    return Object.entries(cc).sort((a, b) => b[1] - a[1])[0]?.[0] || ''
+  })()
+  const [mapLon, mapLat, mapZoom] =
+    topCountry === 'CA' || topCountry === 'Canada' ? [-96, 57, 3] :
+    topCountry === 'GB' || topCountry === 'United Kingdom' ? [-2, 54, 5] :
+    topCountry === 'AU' || topCountry === 'Australia' ? [134, -26, 3] :
+    [-98, 38, 3]
+  const mapboxStaticUrl = mapboxToken
+    ? `https://api.mapbox.com/styles/v1/mapbox/dark-v11/static/${mapLon},${mapLat},${mapZoom}/480x160@2x?access_token=${mapboxToken}`
+    : ''
+
+  // Song analysis
   const songCounts: Record<string, { title: string; artist: string; count: number; positions: number[] }> = {}
   allSongs.forEach((s: any) => {
     const key = s.title.toLowerCase()
@@ -190,7 +265,7 @@ export default function StatsPage() {
 
       <div style={{ padding: '32px 20px 0', maxWidth: 520, margin: '0 auto' }}>
         <p style={{ fontSize: 12, letterSpacing: '0.12em', color: C.gold + '90', margin: '0 0 4px', fontWeight: 600 }}>Your career</p>
-        <h1 style={{ fontSize: 36, fontWeight: 800, color: C.text, margin: '0 0 20px', letterSpacing: '-0.02em' }}>Stats</h1>
+        <h1 style={{ fontSize: 36, fontWeight: 800, color: C.text, margin: '0 0 20px', letterSpacing: '-0.02em' }}>Career</h1>
 
         <div style={{ display: 'flex', gap: 4, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.04)', borderRadius: 12, padding: 4, marginBottom: 20 }}>
           {([['stats', 'Overview'], ['songs', 'My Songs']] as const).map(([key, label]) => (
@@ -218,10 +293,9 @@ export default function StatsPage() {
               {/* Primary stat grid */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                 {[
-                  { icon: Calendar,   label: 'Shows Played',   value: totalShows },
-                  { icon: Music2,     label: 'Songs Logged',   value: totalSongs },
-                  { icon: MapPin,     label: 'Cities',         value: totalCities },
-                  { icon: TrendingUp, label: 'Hours on Stage', value: totalHours },
+                  { icon: Calendar, label: 'Shows Played',      value: totalShows },
+                  { icon: Music2,   label: 'Song Performances', value: totalSongs },
+                  { icon: MapPin,   label: 'Cities',            value: totalCities },
                 ].map(({ icon: Icon, label, value }) => (
                   <div key={label} style={{ background: C.card, border: '1px solid rgba(255,255,255,0.04)', borderRadius: 14, padding: '14px' }}>
                     <Icon size={16} color={C.gold} style={{ marginBottom: 8 }} />
@@ -229,7 +303,57 @@ export default function StatsPage() {
                     <p style={{ fontSize: 11, letterSpacing: '0.04em', color: C.muted, margin: '3px 0 0' }}>{label}</p>
                   </div>
                 ))}
+
+                {/* 4th cell: hours on stage if N ≥ 30% of shows, else first show date */}
+                <div style={{ background: C.card, border: '1px solid rgba(255,255,255,0.04)', borderRadius: 14, padding: '14px' }}>
+                  <TrendingUp size={16} color={C.gold} style={{ marginBottom: 8 }} />
+                  {showHours ? (
+                    <>
+                      <p style={{ fontSize: 32, fontWeight: 800, color: C.text, margin: 0, letterSpacing: '-0.02em' }}>{realTotalHours}</p>
+                      <p style={{ fontSize: 11, letterSpacing: '0.04em', color: C.muted, margin: '3px 0 0' }}>Hours on Stage</p>
+                      <p style={{ fontSize: 10, color: C.muted, margin: '2px 0 0', opacity: 0.65 }}>from {N} timed shows</p>
+                    </>
+                  ) : firstShowLabel ? (
+                    <>
+                      <p style={{ fontSize: 22, fontWeight: 800, color: C.text, margin: 0, letterSpacing: '-0.02em', lineHeight: 1.1 }}>{firstShowLabel}</p>
+                      <p style={{ fontSize: 11, letterSpacing: '0.04em', color: C.muted, margin: '4px 0 0' }}>First Show</p>
+                    </>
+                  ) : (
+                    <>
+                      <p style={{ fontSize: 32, fontWeight: 800, color: C.text, margin: 0, letterSpacing: '-0.02em' }}>—</p>
+                      <p style={{ fontSize: 11, letterSpacing: '0.04em', color: C.muted, margin: '3px 0 0' }}>Hours on Stage</p>
+                    </>
+                  )}
+                </div>
               </div>
+
+              {/* Career Map — large visual card with Mapbox static image */}
+              <button onClick={() => router.push('/app/career-map')}
+                style={{
+                  width: '100%', height: 160, position: 'relative', overflow: 'hidden',
+                  borderRadius: 16, cursor: 'pointer', border: 'none', padding: 0, display: 'block',
+                  backgroundColor: C.card,
+                  backgroundImage: mapboxStaticUrl ? `url(${mapboxStaticUrl})` : 'none',
+                  backgroundSize: 'cover',
+                  backgroundPosition: 'center',
+                }}>
+                {/* Bottom gradient overlay */}
+                <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, rgba(10,9,8,0) 35%, rgba(10,9,8,0.88) 100%)' }} />
+                {/* Fallback icon when no token */}
+                {!mapboxStaticUrl && (
+                  <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <MapPin size={36} color={C.gold} style={{ opacity: 0.2 }} />
+                  </div>
+                )}
+                {/* Content */}
+                <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '0 18px 16px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
+                  <div>
+                    <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: C.gold, margin: '0 0 3px' }}>Career Map</p>
+                    <p style={{ fontSize: 15, fontWeight: 700, color: C.text, margin: 0 }}>{totalCities} cities · {totalShows} verified shows</p>
+                  </div>
+                  <span style={{ fontSize: 18, color: C.muted, lineHeight: 1 }}>→</span>
+                </div>
+              </button>
 
               {/* Lifetime royalty estimate */}
               {estimatedLifetimeRoyalty > 0 && (
@@ -237,11 +361,14 @@ export default function StatsPage() {
                   <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
                     <div>
                       <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: C.muted, margin: '0 0 4px' }}>Estimated Lifetime Royalties</p>
-                      <p style={{ fontSize: 42, fontWeight: 800, color: C.gold, margin: 0, fontFamily: '"DM Mono", monospace', letterSpacing: '-0.02em', lineHeight: 1 }}>
-                        ~${estimatedLifetimeRoyalty.toLocaleString()}
-                      </p>
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                        <p style={{ fontSize: 42, fontWeight: 800, color: C.gold, margin: 0, fontFamily: '"DM Mono", monospace', letterSpacing: '-0.02em', lineHeight: 1 }}>
+                          ~${estimatedLifetimeRoyalty.toLocaleString()}
+                        </p>
+                        <span style={{ fontSize: 12, color: C.muted, fontWeight: 500 }}>documented</span>
+                      </div>
                       <p style={{ fontSize: 14, color: C.muted, margin: '6px 0 0', lineHeight: 1.5 }}>
-                        Based on {totalConfirmedPerformances} verified song performances across {totalShows} shows
+                        Based on {totalSongs} song appearances across {totalShows} shows
                       </p>
                     </div>
                   </div>
@@ -272,19 +399,19 @@ export default function StatsPage() {
                     {dormantSongs}
                   </p>
                   <p style={{ fontSize: 13, color: C.muted, margin: '3px 0 0' }}>
-                    {dormantSongs === 0 ? 'all active' : `not played in 45d+`}
+                    {dormantSongs === 0 ? 'all active' : 'not played in 45d+'}
                   </p>
                 </div>
               </div>
 
-              {/* Dormant song callout */}
+              {/* Dormant callout — soft one-line text link */}
               {dormantSongs > 0 && (
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '12px 14px', background: 'rgba(201,168,76,0.05)', border: '1px solid rgba(201,168,76,0.12)', borderRadius: 12 }}>
-                  <AlertCircle size={14} color={C.gold} style={{ marginTop: 1, flexShrink: 0 }} />
-                  <p style={{ fontSize: 14, color: C.secondary, margin: 0, lineHeight: 1.6 }}>
-                    You have {dormantSongs} song{dormantSongs !== 1 ? 's' : ''} that {dormantSongs !== 1 ? 'haven\'t' : 'hasn\'t'} been played in over 45 days. Check My Songs to see which ones.
+                <button onClick={() => setTab('songs')}
+                  style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '2px 0', cursor: 'pointer', fontFamily: 'inherit' }}>
+                  <p style={{ fontSize: 14, color: C.secondary, margin: 0, lineHeight: 1.5 }}>
+                    {dormantSongs} song{dormantSongs !== 1 ? 's' : ''} in your catalog {dormantSongs !== 1 ? "haven't" : "hasn't"} been played live in 45+ days →
                   </p>
-                </div>
+                </button>
               )}
 
               {/* Shows per month */}
@@ -435,19 +562,6 @@ export default function StatsPage() {
                   <div style={{ textAlign: 'left' }}>
                     <p style={{ fontSize: 15, fontWeight: 600, color: C.secondary, margin: '0 0 2px' }}>Performance Proof File</p>
                     <p style={{ fontSize: 13, color: C.muted, margin: 0 }}>Your verified career record.</p>
-                  </div>
-                </div>
-                <span style={{ fontSize: 18, color: C.muted }}>→</span>
-              </button>
-
-              {/* Career Map */}
-              <button onClick={() => router.push('/app/career-map')}
-                style={{ width: '100%', padding: '16px 20px', background: C.card, border: '1px solid rgba(255,255,255,0.04)', borderRadius: 14, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <MapPin size={18} color={C.gold} style={{ flexShrink: 0 }} />
-                  <div style={{ textAlign: 'left' }}>
-                    <p style={{ fontSize: 15, fontWeight: 600, color: C.secondary, margin: '0 0 2px' }}>Career Map</p>
-                    <p style={{ fontSize: 13, color: C.muted, margin: 0 }}>{totalCities} cities · {totalShows} verified shows</p>
                   </div>
                 </div>
                 <span style={{ fontSize: 18, color: C.muted }}>→</span>
