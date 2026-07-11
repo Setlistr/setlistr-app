@@ -139,7 +139,7 @@ const VENUE_SIZE_OPTIONS: { key: VenueSizePick; label: string; sub: string; capa
 
 type Song = {
   title: string; artist: string; isrc?: string; composer?: string
-  publisher?: string; work_number?: string; is_cover?: boolean
+  publisher?: string; work_number?: string
   matchConfidence: 'matched' | 'partial' | 'unverified' | 'none'
 }
 type Performance = {
@@ -187,7 +187,7 @@ function downloadSubmissionBrief({
   const line = (char = '─', n = 52) => char.repeat(n)
   const songLines = songs.map((s, i) => {
     const parts = [`${String(i + 1).padStart(2, ' ')}. ${s.title}`]
-    if (s.is_cover) parts.push('  [COVER]')
+
     if (s.composer) parts.push(`    Composer: ${s.composer}`)
     if (s.work_number) parts.push(`    Work #: ${s.work_number}`)
     if (s.isrc) parts.push(`    ISRC: ${s.isrc}`)
@@ -319,7 +319,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
         title: s.title, artist: s.artist || '',
         isrc: s.isrc || '', composer: s.composer || '',
         publisher: s.publisher || '', work_number: s.work_number || '',
-        is_cover: s.is_cover || false,
+
         matchConfidence: deriveConfidence(s),
       }))
       setSongs(mapped)
@@ -392,7 +392,6 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
   const matchedCount   = songs.filter(s => s.matchConfidence === 'matched').length
   const partialCount   = songs.filter(s => s.matchConfidence === 'partial').length
   const unverCount     = songs.filter(s => s.matchConfidence === 'unverified').length
-  const coverCount     = songs.filter(s => s.is_cover).length
 
   const territory      = getTerritory(performance.country, performance.city)
   const daysLeft       = proConfig ? proConfig.deadlineDays(new Date()) : 365
@@ -429,7 +428,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
         <p style={{ fontSize: 15, color: C.muted, margin: '0 0 28px' }}>{showDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
 
         <div style={{ width: '100%', background: C.greenDim, border: '1px solid rgba(74,222,128,0.2)', borderRadius: 16, padding: '20px', marginBottom: 14 }}>
-          <p style={{ fontSize: 13, color: C.green, margin: '0 0 4px', fontWeight: 600 }}>~${estimate.expected} on its way</p>
+          <p style={{ fontSize: 13, color: C.green, margin: '0 0 4px', fontWeight: 600 }}>~${estimate.expected} in royalties filed</p>
           <p style={{ fontSize: 12, color: C.secondary, margin: 0 }}>{songs.length} songs on record · expect payment in 6–9 months</p>
         </div>
 
@@ -527,7 +526,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
         {/* Money + deadline */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
           <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)', borderRadius: 14, padding: '16px' }}>
-            <p style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.12em', color: C.gold, margin: '0 0 6px' }}>You're owed</p>
+            <p style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.12em', color: C.gold, margin: '0 0 6px' }}>Performance royalties</p>
             <p style={{ fontSize: 32, fontWeight: 800, color: C.gold, margin: 0, fontFamily: '"DM Mono", monospace', letterSpacing: '-0.02em' }}>~${estimate.expected}</p>
             <p style={{ fontSize: 13, color: C.secondary, margin: '2px 0 0' }}>est. ${estimate.low}–${estimate.high}</p>
           </div>
@@ -716,7 +715,6 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
             )}
             <p style={{ fontSize: 11, color: C.muted, margin: 0, lineHeight: 1.5 }}>
               Or tap any song to copy its title individually.
-              {coverCount > 0 && <span style={{ color: C.gold }}> {coverCount} cover{coverCount > 1 ? 's' : ''} — use "Add Cover Version" in the portal.</span>}
             </p>
           </div>
 
@@ -740,7 +738,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         <p style={{ fontSize: 16, fontWeight: 600, color: isCopied ? C.green : C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{song.title}</p>
-                        {song.is_cover && <span style={{ fontSize: 9, fontWeight: 700, color: C.gold, background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 4, padding: '1px 5px', flexShrink: 0 }}>COVER</span>}
+
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2, flexWrap: 'wrap' as const }}>
                         {song.composer && <span style={{ fontSize: 12, color: C.muted }}>Writer: <span style={{ color: C.secondary }}>{song.composer}</span></span>}

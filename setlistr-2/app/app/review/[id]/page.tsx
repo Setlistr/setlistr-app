@@ -397,19 +397,19 @@ function CeremonyRoyaltyCard({ expected, low, high, performanceId, onClaim }: {
   return (
     <div style={{ background: 'rgba(201,168,76,0.05)', border: `1px solid rgba(201,168,76,0.14)`, borderRadius: 20, padding: '20px 22px', marginBottom: 12, opacity: 0, animation: 'fadeUp 0.6s 0.85s ease forwards' }}>
       <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#8a7a68', margin: '0 0 8px' }}>
-        What tonight's worth
+        What tonight generated
       </p>
       <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, marginBottom: 6 }}>
         <span style={{ fontSize: 52, fontWeight: 800, color: '#c9a84c', fontFamily: '"DM Mono", monospace', letterSpacing: '-0.03em', lineHeight: 1 }}>
           ~${count.toLocaleString()}
         </span>
       </div>
-      <p style={{ fontSize: 13, color: '#8a7a68', margin: '0 0 16px', opacity: 0.7 }}>${low}–${high} estimated range · <span style={{ color: '#c9a84c' }}>because you tracked it</span></p>
+      <p style={{ fontSize: 13, color: '#8a7a68', margin: '0 0 16px', opacity: 0.7 }}>${low}–${high} estimated range · <span style={{ color: '#c9a84c' }}>for the songs you performed</span></p>
       <button onClick={onClaim}
         style={{ width: '100%', padding: '13px', background: C.gold, border: 'none', borderRadius: 12, color: '#0a0908', fontSize: 15, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', letterSpacing: '0.06em', transition: 'transform 0.15s ease' }}
         onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = 'scale(1.01)' }}
         onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = 'scale(1)' }}>
-        Claim what you earned →
+        Submit the setlist →
       </button>
     </div>
   )

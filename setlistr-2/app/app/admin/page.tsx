@@ -77,9 +77,19 @@ export default async function AdminPage() {
   const realUserSongs    = (userSongs        ?? []).filter(s => !TEST_USER_IDS.has(s.user_id))
   const realDetEvents    = (detectionEvents  ?? []).filter(e => !e.performance_id || realPerfIds.has(e.performance_id))
 
+  // True total for detection_events — the .limit(500) fetch above may be truncated
+  const perfIdArray = Array.from(realPerfIds)
+  const { count: detectionEventsTrueCount } = perfIdArray.length > 0
+    ? await adminSupabase
+        .from('detection_events')
+        .select('*', { count: 'exact', head: true })
+        .in('performance_id', perfIdArray)
+    : { count: 0 }
+
   return (
     <AdminDashboard
       detectionEvents={realDetEvents}
+      detectionEventsTrueCount={detectionEventsTrueCount ?? realDetEvents.length}
       performances={realPerformances}
       performanceSongs={realPerfSongs}
       profiles={realProfiles}

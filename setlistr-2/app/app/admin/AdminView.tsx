@@ -128,9 +128,10 @@ function Dot({ color }: { color: string }) {
 
 // ── Main component ───────────────────────────────────────────────────────────
 export default function AdminDashboard({
-  detectionEvents, performances, performanceSongs, profiles, userSongs, betaInvites,
+  detectionEvents, detectionEventsTrueCount, performances, performanceSongs, profiles, userSongs, betaInvites,
 }: {
   detectionEvents: DetectionEvent[]
+  detectionEventsTrueCount: number
   performances:    Performance[]
   performanceSongs: PerformanceSong[]
   profiles:        Profile[]
@@ -161,14 +162,15 @@ export default function AdminDashboard({
 
   // ── Detection stats ────────────────────────────────────────────────────────
   const det = useMemo(() => {
-    const total      = detectionEvents.length
+    const loaded     = detectionEvents.length
+    const trueTotal  = detectionEventsTrueCount
     const detected   = detectionEvents.filter(e =>
       e.auto_confirmed || e.confidence_level === 'suggest' || e.confidence_level === 'auto'
     ).length
     const missed     = detectionEvents.filter(e =>
       e.confidence_level === 'no_result' || (!e.auto_confirmed && !e.acr_title)
     ).length
-    const hitRate    = total > 0 ? Math.round((detected / total) * 100) : 0
+    const hitRate    = loaded > 0 ? Math.round((detected / loaded) * 100) : 0
     const scored     = detectionEvents.filter(e => e.acr_score > 0)
     const avgScore   = scored.length > 0
       ? Math.round(scored.reduce((s, e) => s + e.acr_score, 0) / scored.length)
@@ -176,8 +178,8 @@ export default function AdminDashboard({
     const last24h    = detectionEvents.filter(e =>
       Date.now() - new Date(e.created_at).getTime() < 86400000
     ).length
-    return { total, detected, missed, hitRate, avgScore, last24h }
-  }, [detectionEvents])
+    return { total: trueTotal, loaded, detected, missed, hitRate, avgScore, last24h }
+  }, [detectionEvents, detectionEventsTrueCount])
 
   const perf = useMemo(() => {
     const total     = performances.length
@@ -593,6 +595,11 @@ export default function AdminDashboard({
               ))}
             </div>
 
+            {det.total > det.loaded && (
+              <p style={{ fontSize: 11, color: C.muted, margin: '0 0 4px', fontStyle: 'italic' }}>
+                Showing most recent {det.loaded} of {det.total} total
+              </p>
+            )}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {filteredEvents.slice(0, 100).map(e => {
                 const isDetected = e.auto_confirmed || e.confidence_level === 'auto' || e.confidence_level === 'suggest'
