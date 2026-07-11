@@ -851,10 +851,12 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
                       <div style={{ width: 5, height: 5, borderRadius: '50%', background: 'rgba(255,255,255,0.2)' }} />
                     </div>
                     <p style={{ fontSize: 15, fontWeight: 500, color: C.secondary, margin: 0, flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{song.title}</p>
-                    <button onClick={() => markPlannedAsPlayed(realIdx)}
-                      style={{ flexShrink: 0, padding: '4px 10px', background: 'transparent', border: `1px solid rgba(255,255,255,0.1)`, borderRadius: 6, color: C.muted, fontSize: 10, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', letterSpacing: '0.04em', WebkitTapHighlightColor: 'transparent' }}>
-                      Played
-                    </button>
+                    {isListening && (
+                      <button onClick={() => markPlannedAsPlayed(realIdx)}
+                        style={{ flexShrink: 0, padding: '4px 10px', background: 'transparent', border: `1px solid rgba(255,255,255,0.1)`, borderRadius: 6, color: C.muted, fontSize: 10, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', letterSpacing: '0.04em', WebkitTapHighlightColor: 'transparent' }}>
+                        Played
+                      </button>
+                    )}
                   </div>
                 )
               })}

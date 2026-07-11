@@ -7,7 +7,7 @@ interface TonightsRunCardProps {
   city: string
   date: string
   songCount: number
-  minutes: number
+  minutes?: number
   showNumber: number
   photoUrl?: string | null
 }
@@ -73,10 +73,12 @@ export default function TonightsRunCard({
               <span style={{ fontSize: 48, fontWeight: 800, color: '#f0ece3', lineHeight: 1, letterSpacing: '-0.02em' }}>{songCount}</span>
               <span style={{ fontSize: 10, color: '#8a7a68', letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 700 }}>SONGS</span>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <span style={{ fontSize: 48, fontWeight: 800, color: '#f0ece3', lineHeight: 1, letterSpacing: '-0.02em' }}>{minutes}</span>
-              <span style={{ fontSize: 10, color: '#8a7a68', letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 700 }}>MINUTES</span>
-            </div>
+            {minutes != null && minutes > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <span style={{ fontSize: 48, fontWeight: 800, color: '#f0ece3', lineHeight: 1, letterSpacing: '-0.02em' }}>{minutes}</span>
+                <span style={{ fontSize: 10, color: '#8a7a68', letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 700 }}>MINUTES</span>
+              </div>
+            )}
             {showNumber > 0 && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                 <span style={{ fontSize: 48, fontWeight: 800, color: '#c9a84c', lineHeight: 1, letterSpacing: '-0.02em' }}>#{showNumber}</span>

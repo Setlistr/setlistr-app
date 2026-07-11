@@ -852,7 +852,8 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
   function formatDate(d: string) { return parseLocalDate(d).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) }
   function formatDuration() {
     if (!performance?.started_at || !performance?.ended_at) return ''
-    return `${Math.round((new Date(performance.ended_at).getTime() - new Date(performance.started_at).getTime()) / 60000)} min`
+    const mins = Math.round((new Date(performance.ended_at).getTime() - new Date(performance.started_at).getTime()) / 60000)
+    return mins > 0 ? `${mins} min` : ''
   }
 
   if (loading) return (
@@ -914,7 +915,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
             <p style={{ fontSize: 15, color: C.secondary, margin: '0 0 28px', opacity: 0, animation: 'fadeUp 0.5s 0.3s ease forwards' }}>
               {performance?.city && <span>{performance.city}</span>}
               {showDate && <><span style={{ opacity: 0.35, margin: '0 8px' }}>·</span><span>{showDate}</span></>}
-              {durMins && <><span style={{ opacity: 0.35, margin: '0 8px' }}>·</span><span>{durMins} min</span></>}
+              {!!durMins && <><span style={{ opacity: 0.35, margin: '0 8px' }}>·</span><span>{durMins} min</span></>}
             </p>
             <p style={{ fontSize: 22, fontWeight: 700, color: C.gold, margin: 0, letterSpacing: '-0.01em', fontStyle: 'italic', opacity: 0, animation: 'fadeUp 0.6s 0.45s ease forwards' }}>
               Another one. In the books.
@@ -1006,7 +1007,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
                       city={performance?.city || ''}
                       date={showDate}
                       songCount={confirmedSongs.length}
-                      minutes={durMins || 60}
+                      minutes={durMins && durMins > 0 ? durMins : undefined}
                       showNumber={showNumber}
                       photoUrl={photoUrl}
                     />
