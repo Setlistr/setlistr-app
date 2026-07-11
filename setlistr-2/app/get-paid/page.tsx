@@ -85,7 +85,7 @@ export default function GetPaidPage() {
           </p>
 
           <button onClick={() => router.push('/app/show/new')}
-            style={{ width: '100%', padding: '18px 24px', background: C.gold, border: 'none', borderRadius: 14, color: '#0a0908', fontSize: 15, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' as const, cursor: 'pointer', fontFamily: 'inherit', marginBottom: 12 }}
+            style={{ width: '100%', padding: '18px 24px', background: C.gold, border: 'none', borderRadius: 16, color: '#0a0908', fontSize: 15, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' as const, cursor: 'pointer', fontFamily: 'inherit', marginBottom: 12 }}
             onMouseEnter={e => (e.currentTarget.style.opacity = '0.88')}
             onMouseLeave={e => (e.currentTarget.style.opacity = '1')}>
             See what you might be owed →
@@ -112,7 +112,7 @@ export default function GetPaidPage() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {ARTICLES.map(({ tag, tagColor, href, title, desc, stat }) => (
             <Link key={href} href={href} style={{ textDecoration: 'none' }}>
-              <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '18px 20px', cursor: 'pointer', transition: 'border-color 0.15s ease' }}
+              <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '18px 20px', cursor: 'pointer', transition: 'border-color 0.15s ease' }}
                 onMouseEnter={e => (e.currentTarget.style.borderColor = C.borderGold)}
                 onMouseLeave={e => (e.currentTarget.style.borderColor = C.border)}>
                 <div style={{ marginBottom: 8 }}>

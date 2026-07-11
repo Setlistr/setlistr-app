@@ -309,7 +309,7 @@ export default function OnboardingPage() {
               </div>
 
               <button onClick={handleStep1} disabled={!isStep1Valid || saving}
-                style={{ width: '100%', padding: '16px', background: isStep1Valid ? C.gold : C.muted, border: 'none', borderRadius: 14, color: '#0a0908', fontSize: 15, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: isStep1Valid && !saving ? 'pointer' : 'not-allowed', opacity: saving ? 0.7 : isStep1Valid ? 1 : 0.4, transition: 'all 0.2s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit', marginTop: 4 }}>
+                style={{ width: '100%', padding: '16px', background: isStep1Valid ? C.gold : C.muted, border: 'none', borderRadius: 16, color: '#0a0908', fontSize: 15, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: isStep1Valid && !saving ? 'pointer' : 'not-allowed', opacity: saving ? 0.7 : isStep1Valid ? 1 : 0.4, transition: 'all 0.2s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit', marginTop: 4 }}>
                 {saving
                   ? <><div style={{ width: 13, height: 13, borderRadius: '50%', border: '2px solid #0a090840', borderTopColor: '#0a0908', animation: 'spin 0.7s linear infinite' }} />Saving...</>
                   : <>Start my record <ArrowRight size={15} strokeWidth={2.5} /></>}
@@ -368,7 +368,7 @@ export default function OnboardingPage() {
                 </div>
 
                 <button onClick={() => setStep(3)}
-                  style={{ width: '100%', padding: '16px', background: C.gold, border: 'none', borderRadius: 14, color: '#0a0908', fontSize: 15, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, transition: 'all 0.2s ease' }}>
+                  style={{ width: '100%', padding: '16px', background: C.gold, border: 'none', borderRadius: 16, color: '#0a0908', fontSize: 15, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, transition: 'all 0.2s ease' }}>
                   Claim my record <ArrowRight size={15} strokeWidth={2.5} />
                 </button>
 
@@ -398,7 +398,7 @@ export default function OnboardingPage() {
                 </div>
 
                 <button onClick={() => setStep(3)}
-                  style={{ width: '100%', padding: '16px', background: C.gold, border: 'none', borderRadius: 14, color: '#0a0908', fontSize: 15, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                  style={{ width: '100%', padding: '16px', background: C.gold, border: 'none', borderRadius: 16, color: '#0a0908', fontSize: 15, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
                   Start my full record <ArrowRight size={15} strokeWidth={2.5} />
                 </button>
               </div>
@@ -423,7 +423,7 @@ export default function OnboardingPage() {
                 </div>
 
                 <button onClick={() => setStep(3)}
-                  style={{ width: '100%', padding: '16px', background: C.gold, border: 'none', borderRadius: 14, color: '#0a0908', fontSize: 15, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                  style={{ width: '100%', padding: '16px', background: C.gold, border: 'none', borderRadius: 16, color: '#0a0908', fontSize: 15, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
                   Begin my record <ArrowRight size={15} strokeWidth={2.5} />
                 </button>
               </div>

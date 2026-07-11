@@ -428,7 +428,7 @@ export default function SettingsPage() {
       <div style={{ padding: '16px 16px 60px', maxWidth: 520, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
 
         {showProPrompt && (
-          <div style={{ background: 'rgba(201,168,76,0.07)', border: '1px solid rgba(201,168,76,0.2)', borderRadius: 14, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ background: 'rgba(201,168,76,0.07)', border: '1px solid rgba(201,168,76,0.2)', borderRadius: 16, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 10 }}>
             <AlertCircle size={14} color={C.gold} style={{ flexShrink: 0 }} />
             <p style={{ fontSize: 13, color: C.secondary, margin: 0, flex: 1, lineHeight: 1.4 }}>Your PRO info is incomplete — submissions won't pre-fill correctly.</p>
             <button onClick={() => document.getElementById('pro-section')?.scrollIntoView({ behavior: 'smooth' })}

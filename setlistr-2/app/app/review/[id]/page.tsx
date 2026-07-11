@@ -214,11 +214,9 @@ function SortableRow({ song, index, onDelete, onTap }: {
     <div ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition: swiping ? 'none' : transition, position: 'relative', borderRadius: 12, overflow: 'hidden', opacity: isDragging ? 0.4 : 1 }}>
       <div style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: ACTION_W, display: 'flex', pointerEvents: swipeX < -20 ? 'auto' : 'none' }}>
         <button onClick={() => { closeSwipe(); onTap(song.id) }} style={{ flex: 1, background: C.gold, border: 'none', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3, color: '#0a0908' }}>
-          <span style={{ fontSize: 16 }}>✏️</span>
           <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', fontFamily: 'inherit' }}>Edit</span>
         </button>
         <button onClick={() => { closeSwipe(); onDelete(song.id) }} style={{ flex: 1, background: C.red, border: 'none', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3, color: '#fff', borderRadius: '0 12px 12px 0' }}>
-          <span style={{ fontSize: 16 }}>🗑️</span>
           <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', fontFamily: 'inherit' }}>Delete</span>
         </button>
       </div>
@@ -283,8 +281,8 @@ function EditSheet({ song, onSave, onClose }: { song: Song; onSave: (id: string,
           <p style={{ fontSize: 13, fontWeight: 700, color: C.text, margin: 0 }}>Edit song</p>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: C.muted, cursor: 'pointer', padding: 4 }}><X size={16} /></button>
         </div>
-        <input autoFocus value={title} onChange={e => setTitle(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && title.trim()) { onSave(song.id, title.trim(), artist.trim()); onClose() } }} placeholder="Song title" style={{ background: C.input, border: `1px solid ${C.gold}40`, borderRadius: 10, padding: '13px 14px', color: C.text, fontSize: 15, outline: 'none', fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' }} />
-        <input value={artist} onChange={e => setArtist(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && title.trim()) { onSave(song.id, title.trim(), artist.trim()); onClose() } }} placeholder="Artist" style={{ background: C.input, border: `1px solid ${C.border}`, borderRadius: 10, padding: '13px 14px', color: C.text, fontSize: 15, outline: 'none', fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' }} />
+        <input autoFocus value={title} onChange={e => setTitle(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && title.trim()) { onSave(song.id, title.trim(), artist.trim()); onClose() } }} placeholder="Song title" spellCheck={false} autoCorrect="off" autoCapitalize="words" style={{ background: C.input, border: `1px solid ${C.gold}40`, borderRadius: 10, padding: '13px 14px', color: C.text, fontSize: 15, outline: 'none', fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' }} />
+        <input value={artist} onChange={e => setArtist(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && title.trim()) { onSave(song.id, title.trim(), artist.trim()); onClose() } }} placeholder="Artist" spellCheck={false} autoCorrect="off" autoCapitalize="words" style={{ background: C.input, border: `1px solid ${C.border}`, borderRadius: 10, padding: '13px 14px', color: C.text, fontSize: 15, outline: 'none', fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' }} />
         <button onClick={() => { if (title.trim()) { onSave(song.id, title.trim(), artist.trim()); onClose() } }} disabled={!title.trim()} style={{ width: '100%', padding: '14px', background: title.trim() ? C.gold : C.muted, border: 'none', borderRadius: 10, color: '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: title.trim() ? 'pointer' : 'not-allowed', opacity: title.trim() ? 1 : 0.4, fontFamily: 'inherit', marginTop: 4 }}>
           Save
         </button>
@@ -941,7 +939,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
                     padding: '16px 20px', marginBottom: 6,
                     background: 'rgba(201,168,76,0.08)',
                     border: '1px solid rgba(201,168,76,0.25)',
-                    borderRadius: 14,
+                    borderRadius: 16,
                     display: 'flex', alignItems: 'center', gap: 12,
                   }}>
                     <div style={{
@@ -964,7 +962,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
           {intelligence && insights.length > 0 && (
             <div style={{ marginBottom: 12, opacity: 0, animation: 'fadeUp 0.6s 0.7s ease forwards' }}>
               {insights.slice(0, 2).map((insight, i) => (
-                <div key={i} style={{ padding: '14px 20px', background: insight.highlight ? 'rgba(201,168,76,0.07)' : 'transparent', border: `1px solid ${insight.highlight ? 'rgba(201,168,76,0.2)' : 'rgba(255,255,255,0.04)'}`, borderRadius: 14, marginBottom: 6 }}>
+                <div key={i} style={{ padding: '14px 20px', background: insight.highlight ? 'rgba(201,168,76,0.07)' : 'transparent', border: `1px solid ${insight.highlight ? 'rgba(201,168,76,0.2)' : 'rgba(255,255,255,0.04)'}`, borderRadius: 16, marginBottom: 6 }}>
                   <p style={{ fontSize: 16, fontWeight: insight.highlight ? 600 : 400, color: insight.highlight ? C.gold : C.secondary, margin: 0, lineHeight: 1.5, letterSpacing: '-0.005em' }}>{insight.label}</p>
                 </div>
               ))}
@@ -1125,7 +1123,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
           {/* ── ACTIONS ── */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, opacity: 0, animation: 'fadeUp 0.6s 1.1s ease forwards' }}>
             <button onClick={() => router.push('/app/dashboard')}
-              style={{ width: '100%', padding: '17px', background: C.gold, border: 'none', borderRadius: 14, color: '#0a0908', fontSize: 15, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'inherit', transition: 'transform 0.15s ease' }}
+              style={{ width: '100%', padding: '17px', background: C.gold, border: 'none', borderRadius: 16, color: '#0a0908', fontSize: 15, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'inherit', transition: 'transform 0.15s ease' }}
               onMouseEnter={e => (e.currentTarget as HTMLElement).style.transform = 'scale(1.01)'}
               onMouseLeave={e => (e.currentTarget as HTMLElement).style.transform = 'scale(1)'}>
               Back to your record
@@ -1158,7 +1156,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
         <div style={{ paddingTop: 28, paddingBottom: 20, animation: 'fadeUp 0.4s ease' }}>
           <h1 style={{ fontSize: 34, fontWeight: 800, color: C.text, margin: '0 0 8px', letterSpacing: '-0.025em', lineHeight: 1.15 }}>{performance?.venue_name}</h1>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: C.secondary }}><MapPin size={11} />{performance?.city}, {performance?.country}</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: C.secondary }}><MapPin size={11} />{performance?.city}</span>
             {performance?.started_at ? <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: C.secondary }}><Calendar size={11} />{formatDate(performance.started_at)}</span> : null}
             {dur ? <span style={{ fontSize: 12, color: C.secondary }}>· {dur}</span> : null}
           </div>
@@ -1284,7 +1282,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
           </div>
         )}
 
-        <div style={{ marginTop: 12, background: 'transparent', border: 'none', borderRadius: 14, overflow: 'hidden', animation: 'fadeUp 0.4s 0.15s ease both' }}>
+        <div style={{ marginTop: 12, background: 'transparent', border: 'none', borderRadius: 16, overflow: 'hidden', animation: 'fadeUp 0.4s 0.15s ease both' }}>
           <button onClick={() => setShowExport(!showExport)}
             style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
             <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 600, color: C.muted }}><Download size={14} color={C.gold} />Export for PRO Submission</span>

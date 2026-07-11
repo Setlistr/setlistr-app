@@ -122,7 +122,7 @@ export default function UnclaimedRoyalties() {
         </div>
 
         <H2>How Much Are You Leaving Behind?</H2>
-        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, overflow: 'hidden', margin: '16px 0' }}>
+        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, overflow: 'hidden', margin: '16px 0' }}>
           <div style={{ padding: '12px 18px', borderBottom: `1px solid ${C.border}`, display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: 8 }}>
             {['Scenario', 'Shows/yr', 'Songs', 'Est. unclaimed'].map(h => (
               <span key={h} style={{ fontSize: 10, fontWeight: 700, color: C.muted, textTransform: 'uppercase' as const, letterSpacing: '0.08em' }}>{h}</span>

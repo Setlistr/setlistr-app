@@ -37,11 +37,11 @@ function getDisplayStatus(p: Performance): { label: string; color: string } {
   switch (p.status) {
     case 'live':
     case 'pending':    return { label: 'Live',         color: C.red }
-    case 'review':     return { label: 'Needs Review', color: C.blue }
+    case 'review':     return { label: 'Needs Review', color: C.gold }
     case 'complete':
     case 'completed':  return { label: 'Ready to Claim', color: C.gold }
     case 'exported':   return { label: 'Exported',     color: C.green }
-    default:           return { label: 'Needs Review', color: C.blue }
+    default:           return { label: 'Needs Review', color: C.gold }
   }
 }
 
@@ -206,7 +206,7 @@ export default function HistoryPage() {
 
         {/* ── Unclaimed earnings banner ── */}
         {unclaimedShows.length > 0 && (
-          <div style={{ marginBottom: 16, background: 'rgba(201,168,76,0.05)', border: '1px solid rgba(201,168,76,0.15)', borderRadius: 14, padding: '16px 18px', display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div style={{ marginBottom: 16, background: 'rgba(201,168,76,0.05)', border: '1px solid rgba(201,168,76,0.15)', borderRadius: 16, padding: '16px 18px', display: 'flex', alignItems: 'center', gap: 14 }}>
             <div style={{ width: 40, height: 40, borderRadius: '50%', background: C.goldDim, border: `1px solid ${C.borderGold}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               <DollarSign size={18} color={C.gold} />
             </div>
@@ -238,7 +238,7 @@ export default function HistoryPage() {
           <div style={{ display: 'flex', gap: 6, marginBottom: 8, overflowX: 'auto' as const }}>
             {([
               { key: 'all',       label: 'All',             color: C.muted,  count: counts.all },
-              { key: 'review',    label: 'Needs Review',    color: C.blue,   count: counts.review },
+              { key: 'review',    label: 'Needs Review',    color: C.gold,   count: counts.review },
               { key: 'complete',  label: 'Ready to Claim',  color: C.gold,   count: counts.complete },
               { key: 'submitted', label: 'Submitted',       color: C.green,  count: counts.submitted },
             ] as const).map(tab => {
@@ -282,7 +282,7 @@ export default function HistoryPage() {
         {/* List */}
         <div style={{ paddingBottom: 48 }}>
           {filtered.length === 0 ? (
-            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '52px 20px', textAlign: 'center' }}>
+            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '52px 20px', textAlign: 'center' }}>
               <div style={{ width: 52, height: 52, borderRadius: '50%', background: C.goldDim, border: `1px solid ${C.borderGold}`, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px' }}>
                 <Music2 size={20} color={C.gold} />
               </div>
@@ -315,7 +315,7 @@ export default function HistoryPage() {
 
                 return (
                   <button key={perf.id} onClick={() => navigateTo(perf)}
-                    style={{ background: C.card, border: `1px solid ${isClaimable ? 'rgba(201,168,76,0.15)' : 'rgba(255,255,255,0.04)'}`, borderRadius: 14, padding: '16px', cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 12, fontFamily: 'inherit', width: '100%', transition: 'background 0.12s ease, border-color 0.12s ease' }}
+                    style={{ background: C.card, border: `1px solid ${isClaimable ? 'rgba(201,168,76,0.15)' : 'rgba(255,255,255,0.04)'}`, borderRadius: 16, padding: '16px', cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 12, fontFamily: 'inherit', width: '100%', transition: 'background 0.12s ease, border-color 0.12s ease' }}
                     onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.background = C.cardHover }}
                     onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.background = C.card }}>
 

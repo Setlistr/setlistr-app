@@ -165,7 +165,7 @@ function LoginPageInner() {
 
               {fromStart && (
                 <div style={{ background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 10, padding: '10px 14px', marginBottom: 20 }}>
-                  <p style={{ fontSize: 12, color: C.gold, margin: 0, fontWeight: 600, lineHeight: 1.5 }}>💾 Your setlist is ready — sign in or create an account to save it.</p>
+                  <p style={{ fontSize: 12, color: C.gold, margin: 0, fontWeight: 600, lineHeight: 1.5 }}>Your setlist is ready — sign in or create an account to save it.</p>
                 </div>
               )}
 
@@ -315,7 +315,7 @@ function LoginPageInner() {
             <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 18, padding: '28px 24px', marginBottom: 12 }}>
               {waitlistDone ? (
                 <div style={{ textAlign: 'center', padding: '16px 0' }}>
-                  <div style={{ width: 56, height: 56, borderRadius: '50%', margin: '0 auto 18px', background: C.goldDim, border: `1px solid ${C.borderGold}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24 }}>🎸</div>
+                  <div style={{ width: 56, height: 56, borderRadius: '50%', margin: '0 auto 18px', background: C.goldDim, border: `1px solid ${C.borderGold}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }} />
                   <h2 style={{ fontSize: 20, fontWeight: 800, color: C.text, margin: '0 0 8px', letterSpacing: '-0.02em' }}>You&apos;re on the list!</h2>
                   <p style={{ fontSize: 13, color: C.secondary, margin: 0, lineHeight: 1.6 }}>
                     We&apos;ll reach out when we open access. Keep playing shows.

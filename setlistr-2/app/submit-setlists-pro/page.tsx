@@ -148,7 +148,7 @@ export default function SubmitSetlistsPRO() {
         </div>
 
         {/* Before you start */}
-        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '20px 24px', marginBottom: 48 }}>
+        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '20px 24px', marginBottom: 48 }}>
           <p style={{ fontSize: 11, fontWeight: 700, color: C.muted, letterSpacing: '0.1em', textTransform: 'uppercase' as const, margin: '0 0 14px' }}>Before You Start — Have These Ready</p>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
             {[

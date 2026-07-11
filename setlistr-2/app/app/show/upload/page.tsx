@@ -278,6 +278,7 @@ export default function UploadShowPage() {
                     value={venueName}
                     onChange={e => setVenueName(e.target.value)}
                     placeholder="Where did you play?"
+                    spellCheck={false} autoCorrect="off" autoCapitalize="words"
                     style={{ width: '100%', boxSizing: 'border-box', background: C.input, border: `1px solid ${venueName.trim() ? C.borderGold : C.border}`, borderRadius: 10, padding: '12px 14px', color: C.text, fontSize: 15, fontFamily: 'inherit', outline: 'none' }}
                   />
                 </div>
@@ -315,7 +316,6 @@ export default function UploadShowPage() {
 
               {recordingFile ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 10 }}>
-                  <span style={{ fontSize: 20 }}>🎵</span>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <p style={{ fontSize: 13, fontWeight: 600, color: C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{recordingFile.name}</p>
                     <p style={{ fontSize: 11, color: C.muted, margin: 0 }}>{formatFileSize(recordingFile.size)}</p>
@@ -329,7 +329,6 @@ export default function UploadShowPage() {
                 <button
                   onClick={() => recordingInputRef.current?.click()}
                   style={{ width: '100%', padding: '16px', background: 'rgba(255,255,255,0.02)', border: `2px dashed rgba(255,255,255,0.12)`, borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, color: C.muted, fontSize: 14, fontWeight: 600 }}>
-                  <span style={{ fontSize: 20 }}>📁</span>
                   Choose audio or video file
                 </button>
               )}
@@ -354,7 +353,6 @@ export default function UploadShowPage() {
 
               {setlistFile ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 10 }}>
-                  <span style={{ fontSize: 20 }}>📄</span>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <p style={{ fontSize: 13, fontWeight: 600, color: C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{setlistFile.name}</p>
                     <p style={{ fontSize: 11, color: C.muted, margin: 0 }}>{formatFileSize(setlistFile.size)}</p>
@@ -368,7 +366,6 @@ export default function UploadShowPage() {
                 <button
                   onClick={() => setlistInputRef.current?.click()}
                   style={{ width: '100%', padding: '14px', background: 'rgba(255,255,255,0.02)', border: `2px dashed rgba(255,255,255,0.12)`, borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, color: C.muted, fontSize: 13, fontWeight: 600 }}>
-                  <span style={{ fontSize: 18 }}>📸</span>
                   Add setlist photo or PDF
                 </button>
               )}

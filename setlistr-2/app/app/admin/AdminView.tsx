@@ -292,7 +292,7 @@ export default function AdminDashboard({
     { id: 'venues',     label: 'Venues'      },
     { id: 'shows',      label: 'Shows'       },
     { id: 'beta',       label: 'Beta Users'  },
-    { id: 'superadmin', label: '⚡ Superadmin' },
+    { id: 'superadmin', label: 'Superadmin' },
   ]
 
   async function deletePerformance(id: string, venueName: string) {
@@ -637,7 +637,7 @@ export default function AdminDashboard({
                           <p style={{ fontSize: 13, color: C.red, margin: '0 0 6px', fontWeight: 600 }}>No match</p>
                         )}
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-                          {e.venue_name && <span style={{ fontSize: 11, color: C.muted }}>📍 {e.venue_name}</span>}
+                          {e.venue_name && <span style={{ fontSize: 11, color: C.muted }}>{e.venue_name}</span>}
                           {e.acr_score > 0 && <span style={{ fontSize: 11, color: scoreColor, fontFamily: '"DM Mono", monospace', fontWeight: 700 }}>{e.acr_score}</span>}
                           {e.final_source && <span style={{ fontSize: 11, color: C.muted }}>via {e.final_source}</span>}
                           {e.confidence_level && <span style={{ fontSize: 11, color: C.muted }}>{e.confidence_level}</span>}
@@ -783,7 +783,7 @@ export default function AdminDashboard({
               <Stat label="With Songs"  value={localPerfs.filter(p => performanceSongs.filter(s => s.performance_id === p.id).length > 0).length} color={C.green} sub="non-empty shows" />
             </div>
             <div style={{ background: 'rgba(248,113,113,0.06)', border: '1px solid rgba(248,113,113,0.15)', borderRadius: 10, padding: '10px 14px' }}>
-              <p style={{ fontSize: 12, color: '#f87171', margin: 0 }}>🔒 Admin only — delete removes show, songs, and detection events permanently.</p>
+              <p style={{ fontSize: 12, color: '#f87171', margin: 0 }}>Admin only — delete removes show, songs, and detection events permanently.</p>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               {localPerfs.map(p => {
@@ -901,7 +901,7 @@ export default function AdminDashboard({
         {tab === 'superadmin' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
             <div style={{ background: 'rgba(248,113,113,0.06)', border: '1px solid rgba(248,113,113,0.2)', borderRadius: 12, padding: '12px 16px' }}>
-              <p style={{ fontSize: 12, color: C.red, margin: 0, fontWeight: 700 }}>⚡ Superadmin — founder use only.</p>
+              <p style={{ fontSize: 12, color: C.red, margin: 0, fontWeight: 700 }}>Superadmin — founder use only.</p>
             </div>
             <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: '18px 20px' }}>
               <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, margin: '0 0 4px' }}>Give Someone Manager Access</p>

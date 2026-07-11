@@ -67,12 +67,12 @@ function getDisplayStatus(p: Performance): { label: string; color: string; bg: s
   const map: Record<string, { label: string; color: string; bg: string }> = {
     live:      { label: 'Live',         color: C.red,   bg: C.redDim  },
     pending:   { label: 'Live',         color: C.red,   bg: C.redDim  },
-    review:    { label: 'Needs Review', color: C.blue,  bg: C.blueDim },
+    review:    { label: 'Needs Review', color: C.gold,  bg: C.goldDim },
     complete:  { label: 'Completed',    color: C.green, bg: C.greenDim },
     completed: { label: 'Completed',    color: C.green, bg: C.greenDim },
     exported:  { label: 'Exported',     color: C.green, bg: C.greenDim },
   }
-  return map[p.status] || { label: 'Needs Review', color: C.blue, bg: C.blueDim }
+  return map[p.status] || { label: 'Needs Review', color: C.gold, bg: C.goldDim }
 }
 
 function timeAgo(d: string) {
@@ -651,7 +651,7 @@ export default function DashboardPage() {
 
         {/* ── ROAD MEMORY ── */}
         {roadMemory && (
-          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderLeft: '2px solid rgba(201,168,76,0.5)', borderRadius: 14, padding: '14px 18px', marginBottom: 24, animation: 'fadeUp 0.35s ease', animationDelay: '0.08s', animationFillMode: 'both' }}>
+          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderLeft: '2px solid rgba(201,168,76,0.5)', borderRadius: 16, padding: '14px 18px', marginBottom: 24, animation: 'fadeUp 0.35s ease', animationDelay: '0.08s', animationFillMode: 'both' }}>
             <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.13em', textTransform: 'uppercase', color: C.muted, margin: '0 0 6px' }}>FROM THE ROAD</p>
             <p style={{ fontSize: 14, color: C.secondary, margin: 0, lineHeight: 1.5, fontStyle: 'italic' }}>{roadMemory}</p>
           </div>
@@ -661,7 +661,7 @@ export default function DashboardPage() {
         {morningAfterPerf && !livePerf && (
           <div style={{ marginBottom: 16, animation: 'fadeUp 0.3s ease', animationDelay: '0.16s', animationFillMode: 'both' }}>
             <button onClick={() => navigateToPerformance(morningAfterPerf)}
-              style={{ width: '100%', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)', borderRadius: 14, padding: '14px 18px', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 14 }}>
+              style={{ width: '100%', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)', borderRadius: 16, padding: '14px 18px', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 14 }}>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <p style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.gold, margin: '0 0 2px' }}>
                   {actingAs ? `${actingAs.artist_name}'s Last Show` : "Last Night's Show"}
@@ -676,9 +676,8 @@ export default function DashboardPage() {
         {todayShow && !livePerf && (
           <div style={{ marginBottom: 16, animation: 'fadeUp 0.32s ease' }}>
             <button onClick={() => startShowFromBIT(todayShow)}
-              style={{ width: '100%', background: 'rgba(74,222,128,0.06)', border: '1px solid rgba(74,222,128,0.2)', borderRadius: 14, padding: '14px 18px', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 14 }}>
-              <div style={{ position: 'relative', flexShrink: 0 }}>
-                <span style={{ fontSize: 20 }}>🎸</span>
+              style={{ width: '100%', background: 'rgba(74,222,128,0.06)', border: '1px solid rgba(74,222,128,0.2)', borderRadius: 16, padding: '14px 18px', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 14 }}>
+              <div style={{ position: 'relative', flexShrink: 0, width: 20, height: 20 }}>
                 <div style={{ position: 'absolute', inset: -6, borderRadius: '50%', border: '1.5px solid rgba(74,222,128,0.3)', animation: 'orb-pulse 2s ease-in-out infinite' }} />
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
@@ -724,7 +723,7 @@ export default function DashboardPage() {
 
         {/* ── UNCLAIMED EARNINGS ── */}
         {aggregate.unclaimedCount > 0 && (
-          <div style={{ borderLeft: '3px solid #c9a84c', background: 'linear-gradient(135deg, rgba(201,168,76,0.10) 0%, rgba(201,168,76,0.04) 40%, rgba(201,168,76,0.10) 100%)', borderRadius: 14, padding: '16px 18px', marginBottom: 32, animation: 'fadeUp 0.36s ease', animationDelay: '0.24s', animationFillMode: 'both' }}>
+          <div style={{ borderLeft: '3px solid #c9a84c', background: 'linear-gradient(135deg, rgba(201,168,76,0.10) 0%, rgba(201,168,76,0.04) 40%, rgba(201,168,76,0.10) 100%)', borderRadius: 16, padding: '16px 18px', marginBottom: 32, animation: 'fadeUp 0.36s ease', animationDelay: '0.24s', animationFillMode: 'both' }}>
             <p style={{ fontSize: 34, fontWeight: 700, color: C.gold, margin: 0, fontFamily: '"DM Mono", monospace', letterSpacing: '-0.02em', lineHeight: 1 }}>~${aggregate.unclaimedExpected.toLocaleString()}</p>
             <p style={{ fontSize: 13, color: C.muted, margin: '6px 0 16px' }}>{aggregate.unclaimedCount} nights not yet filed</p>
             <button onClick={() => router.push('/app/history')}

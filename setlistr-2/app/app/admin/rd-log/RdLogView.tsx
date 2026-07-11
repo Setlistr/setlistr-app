@@ -258,7 +258,7 @@ export default function RdLogView({ initialEntries }: { initialEntries: RdEntry[
         {/* ── SECTION 1: Log new entry ─────────────────────────────────────── */}
         <div style={{
           background: C.card, border: `1px solid ${C.border}`,
-          borderRadius: 14, padding: '20px', marginBottom: 24,
+          borderRadius: 16, padding: '20px', marginBottom: 24,
         }}>
           <p style={{
             fontSize: 10, fontWeight: 700, letterSpacing: '0.12em',
@@ -473,7 +473,7 @@ export default function RdLogView({ initialEntries }: { initialEntries: RdEntry[
         {/* ── SECTION 2: Entry table ───────────────────────────────────────── */}
         <div style={{
           background: C.card, border: `1px solid ${C.border}`,
-          borderRadius: 14, padding: '20px', marginBottom: 24,
+          borderRadius: 16, padding: '20px', marginBottom: 24,
         }}>
           <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 16 }}>
             <p style={{
@@ -603,7 +603,7 @@ export default function RdLogView({ initialEntries }: { initialEntries: RdEntry[
         {/* ── SECTION 3: Export + Hours summary ───────────────────────────── */}
         <div style={{
           background: C.card, border: `1px solid ${C.border}`,
-          borderRadius: 14, padding: '20px',
+          borderRadius: 16, padding: '20px',
         }}>
           <p style={{
             fontSize: 10, fontWeight: 700, letterSpacing: '0.12em',

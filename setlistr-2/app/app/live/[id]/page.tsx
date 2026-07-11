@@ -665,7 +665,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
             <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.08em', color: engineDot, transition: 'color 0.5s ease' }}>{engineLabel}</span>
           </div>
           {confirmedSongs.length > 0 && (
-            <span style={{ fontFamily: '"DM Mono", monospace', fontSize: 15, fontWeight: 800, color: C.gold, letterSpacing: '-0.01em', animation: 'fadeIn 0.3s ease' }}>{confirmedSongs.length}♪</span>
+            <span style={{ fontFamily: '"DM Mono", monospace', fontSize: 15, fontWeight: 800, color: C.gold, letterSpacing: '-0.01em', animation: 'fadeIn 0.3s ease' }}>{confirmedSongs.length}</span>
           )}
           <span style={{ fontFamily: '"DM Mono", monospace', fontSize: 18, fontWeight: 700, color: C.muted, letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums' }}>{formatTime(elapsed)}</span>
         </div>
@@ -764,7 +764,6 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
 
         {showPlacementCard && (
           <div style={{ marginTop: 8, maxWidth: 300, width: '100%', background: 'rgba(255,255,255,0.03)', border: `1px solid rgba(255,255,255,0.09)`, borderRadius: 12, padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10, animation: 'fadeUp 0.3s ease' }}>
-            <span style={{ fontSize: 16, flexShrink: 0 }}>📍</span>
             <span style={{ fontSize: 14, color: C.secondary, lineHeight: 1.4, flex: 1 }}>For best results, set your phone near the PA or monitor.</span>
             <button onClick={dismissPlacementCard} style={{ background: 'none', border: 'none', color: C.muted, cursor: 'pointer', padding: '2px', flexShrink: 0, display: 'flex', alignItems: 'center', WebkitTapHighlightColor: 'transparent' }}><X size={13} /></button>
           </div>
@@ -804,15 +803,17 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
                   background: C.card,
                   border: `1px solid ${isPendingDel ? 'rgba(220,38,38,0.35)' : editingIndex === realIdx ? 'rgba(201,168,76,0.45)' : isVerified ? 'rgba(74,222,128,0.2)' : 'rgba(255,255,255,0.04)'}`,
                   borderLeft: isVerified && !isPendingDel && editingIndex !== realIdx ? `3px solid rgba(74,222,128,0.55)` : undefined,
-                  borderRadius: 14, overflow: 'hidden',
+                  borderRadius: 16, overflow: 'hidden',
                   animation: 'songPop 0.35s cubic-bezier(0.34,1.56,0.64,1) both',
                   transition: 'border-color 0.2s ease',
                 }}>
                   {editingIndex === realIdx ? (
                     <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
                       <input autoFocus value={editTitle} onChange={e => setEditTitle(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') cancelEdit() }} placeholder="Song title"
+                        spellCheck={false} autoCorrect="off" autoCapitalize="words"
                         style={{ background: C.input, border: `1px solid rgba(201,168,76,0.35)`, borderRadius: 8, padding: '9px 12px', color: C.text, fontSize: 14, fontFamily: 'inherit', outline: 'none', width: '100%', boxSizing: 'border-box' }} />
                       <input value={editArtist} onChange={e => setEditArtist(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') cancelEdit() }} placeholder="Artist"
+                        spellCheck={false} autoCorrect="off" autoCapitalize="words"
                         style={{ background: C.input, border: `1px solid ${C.border}`, borderRadius: 8, padding: '9px 12px', color: C.text, fontSize: 13, fontFamily: 'inherit', outline: 'none', width: '100%', boxSizing: 'border-box' }} />
                       <div style={{ display: 'flex', gap: 8 }}>
                         <button onClick={saveEdit} style={{ flex: 1, padding: '8px', background: C.gold, border: 'none', borderRadius: 8, color: '#0a0908', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}><Check size={12} strokeWidth={2.5} /> Save</button>
@@ -915,6 +916,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         {showManual && (
           <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: '12px', display: 'flex', flexDirection: 'column', gap: 10, animation: 'slideUp 0.15s ease' }}>
             <input value={songInput} onChange={e => setSongInput(e.target.value)} placeholder="Search or type a song title..." autoFocus
+              spellCheck={false} autoCorrect="off" autoCapitalize="words"
               style={{ background: C.input, border: `1px solid rgba(201,168,76,0.3)`, borderRadius: 8, padding: '12px 14px', color: C.text, fontSize: 15, outline: 'none', width: '100%', boxSizing: 'border-box', fontFamily: 'inherit' }}
               onKeyDown={e => { if (e.key === 'Enter' && songInput.trim()) addSong() }} />
             {songInput.trim() && <button onClick={addSong} style={{ padding: '11px', background: C.gold, border: 'none', borderRadius: 8, color: '#0a0908', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent' }}>Add "{songInput.trim()}"</button>}

@@ -297,7 +297,7 @@ export default function StatsPage() {
                   { icon: Music2,   label: 'Song Performances', value: totalSongs },
                   { icon: MapPin,   label: 'Cities',            value: totalCities },
                 ].map(({ icon: Icon, label, value }) => (
-                  <div key={label} style={{ background: C.card, border: '1px solid rgba(255,255,255,0.04)', borderRadius: 14, padding: '14px' }}>
+                  <div key={label} style={{ background: C.card, border: '1px solid rgba(255,255,255,0.04)', borderRadius: 16, padding: '14px' }}>
                     <Icon size={16} color={C.gold} style={{ marginBottom: 8 }} />
                     <p style={{ fontSize: 32, fontWeight: 800, color: C.text, margin: 0, letterSpacing: '-0.02em' }}>{value}</p>
                     <p style={{ fontSize: 11, letterSpacing: '0.04em', color: C.muted, margin: '3px 0 0' }}>{label}</p>
@@ -305,7 +305,7 @@ export default function StatsPage() {
                 ))}
 
                 {/* 4th cell: hours on stage if N ≥ 30% of shows, else first show date */}
-                <div style={{ background: C.card, border: '1px solid rgba(255,255,255,0.04)', borderRadius: 14, padding: '14px' }}>
+                <div style={{ background: C.card, border: '1px solid rgba(255,255,255,0.04)', borderRadius: 16, padding: '14px' }}>
                   <TrendingUp size={16} color={C.gold} style={{ marginBottom: 8 }} />
                   {showHours ? (
                     <>
@@ -357,7 +357,7 @@ export default function StatsPage() {
 
               {/* Lifetime royalty estimate */}
               {estimatedLifetimeRoyalty > 0 && (
-                <div style={{ background: 'rgba(201,168,76,0.07)', border: '1px solid rgba(201,168,76,0.12)', borderRadius: 14, padding: '18px 20px' }}>
+                <div style={{ background: 'rgba(201,168,76,0.07)', border: '1px solid rgba(201,168,76,0.12)', borderRadius: 16, padding: '18px 20px' }}>
                   <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
                     <div>
                       <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: C.muted, margin: '0 0 4px' }}>Estimated Lifetime Royalties</p>
@@ -377,7 +377,7 @@ export default function StatsPage() {
 
               {/* Intelligence row — last show + dormant */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                <div style={{ background: C.card, border: '1px solid rgba(255,255,255,0.04)', borderRadius: 14, padding: '14px' }}>
+                <div style={{ background: C.card, border: '1px solid rgba(255,255,255,0.04)', borderRadius: 16, padding: '14px' }}>
                   <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', color: C.muted, margin: '0 0 6px' }}>Last Show</p>
                   {daysSinceLastShow !== null ? (
                     <>
@@ -393,7 +393,7 @@ export default function StatsPage() {
                   )}
                 </div>
 
-                <div style={{ background: C.card, border: '1px solid rgba(255,255,255,0.04)', borderRadius: 14, padding: '14px' }}>
+                <div style={{ background: C.card, border: '1px solid rgba(255,255,255,0.04)', borderRadius: 16, padding: '14px' }}>
                   <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', color: C.muted, margin: '0 0 6px' }}>Dormant Songs</p>
                   <p style={{ fontSize: 28, fontWeight: 800, color: dormantSongs > 0 ? C.gold : C.text, margin: 0, fontFamily: '"DM Mono", monospace', letterSpacing: '-0.02em' }}>
                     {dormantSongs}
@@ -415,7 +415,7 @@ export default function StatsPage() {
               )}
 
               {/* Shows per month */}
-              <div style={{ background: C.card, border: '1px solid rgba(255,255,255,0.04)', borderRadius: 14, padding: '16px' }}>
+              <div style={{ background: C.card, border: '1px solid rgba(255,255,255,0.04)', borderRadius: 16, padding: '16px' }}>
                 <p style={{ fontSize: 13, letterSpacing: '0.04em', color: C.secondary, margin: '0 0 16px', fontWeight: 600 }}>Shows per Month</p>
                 <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, height: 80 }}>
                   {last6Months.map(month => {
@@ -459,7 +459,7 @@ export default function StatsPage() {
 
               {/* Top songs */}
               {topSongs.length > 0 && (
-                <div style={{ background: C.card, border: '1px solid rgba(255,255,255,0.04)', borderRadius: 14, padding: '16px' }}>
+                <div style={{ background: C.card, border: '1px solid rgba(255,255,255,0.04)', borderRadius: 16, padding: '16px' }}>
                   <button onClick={() => setShowTopSongs(v => !v)}
                     style={{ width: '100%', background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: showTopSongs ? 16 : 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -499,7 +499,7 @@ export default function StatsPage() {
 
               {/* Top venues */}
               {topVenues.length > 0 && (
-                <div style={{ background: C.card, border: '1px solid rgba(255,255,255,0.04)', borderRadius: 14, padding: '16px' }}>
+                <div style={{ background: C.card, border: '1px solid rgba(255,255,255,0.04)', borderRadius: 16, padding: '16px' }}>
                   <button onClick={() => setShowTopVenues(v => !v)}
                     style={{ width: '100%', background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: showTopVenues ? 16 : 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -529,7 +529,7 @@ export default function StatsPage() {
 
               {/* Song Debuts */}
               {songDebuts.length > 0 && (
-                <div style={{ background: C.card, border: '1px solid rgba(255,255,255,0.04)', borderRadius: 14, padding: '16px' }}>
+                <div style={{ background: C.card, border: '1px solid rgba(255,255,255,0.04)', borderRadius: 16, padding: '16px' }}>
                   <button onClick={() => setShowDebuts(v => !v)}
                     style={{ width: '100%', background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: showDebuts ? 16 : 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -556,7 +556,7 @@ export default function StatsPage() {
 
               {/* Performance Proof File */}
               <button onClick={() => router.push('/app/proof')}
-                style={{ width: '100%', padding: '16px 20px', background: C.card, border: '1px solid rgba(255,255,255,0.04)', borderRadius: 14, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                style={{ width: '100%', padding: '16px 20px', background: C.card, border: '1px solid rgba(255,255,255,0.04)', borderRadius: 16, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                   <Shield size={18} color={C.gold} style={{ flexShrink: 0 }} />
                   <div style={{ textAlign: 'left' }}>

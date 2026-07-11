@@ -108,7 +108,6 @@ export default function AcceptInvitePage() {
   if (error) return (
     <div style={{ minHeight: '100svh', background: C.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', fontFamily: '"DM Sans", system-ui, sans-serif' }}>
       <div style={{ maxWidth: 400, width: '100%', textAlign: 'center' }}>
-        <p style={{ fontSize: 32, margin: '0 0 12px' }}>⚠️</p>
         <h2 style={{ fontSize: 20, fontWeight: 800, color: C.text, margin: '0 0 8px' }}>Invalid Invite</h2>
         <p style={{ fontSize: 14, color: C.muted, margin: '0 0 24px' }}>{error}</p>
         <button onClick={() => router.push('/app/dashboard')}
@@ -138,7 +137,7 @@ export default function AcceptInvitePage() {
           {invite?.artist_name}'s account
         </p>
 
-        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '16px 20px', marginBottom: 20, textAlign: 'left' }}>
+        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '16px 20px', marginBottom: 20, textAlign: 'left' }}>
           <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, color: C.muted, margin: '0 0 10px' }}>What you can do</p>
           {[
             'Capture shows on their behalf',
@@ -166,7 +165,7 @@ export default function AcceptInvitePage() {
   if (wrongAccount) return (
     <div style={{ minHeight: '100svh', background: C.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', fontFamily: '"DM Sans", system-ui, sans-serif' }}>
       <div style={{ maxWidth: 400, width: '100%', textAlign: 'center' }}>
-        <p style={{ fontSize: 32, margin: '0 0 12px' }}>👤</p>
+        <Users size={32} color={C.gold} style={{ marginBottom: 12 }} />
         <h2 style={{ fontSize: 20, fontWeight: 800, color: C.text, margin: '0 0 8px' }}>Wrong account</h2>
         <p style={{ fontSize: 14, color: C.muted, margin: '0 0 6px', lineHeight: 1.5 }}>
           This invite was sent to a different account. Log in with the correct account to accept.
@@ -211,7 +210,7 @@ export default function AcceptInvitePage() {
         </div>
 
         {/* What this means */}
-        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '16px 20px', marginBottom: 16 }}>
+        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '16px 20px', marginBottom: 16 }}>
           <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, color: C.muted, margin: '0 0 12px' }}>As a manager you can</p>
           {[
             'Capture live shows on their behalf',
@@ -229,7 +228,7 @@ export default function AcceptInvitePage() {
         {/* Audit trail note */}
         <div style={{ padding: '12px 16px', background: 'rgba(255,255,255,0.02)', border: `1px solid ${C.border}`, borderRadius: 10, marginBottom: 20 }}>
           <p style={{ fontSize: 11, color: C.muted, margin: 0, lineHeight: 1.5 }}>
-            🔒 Every action you take is logged and visible to {invite?.artist_name}. They can remove your access at any time from their Settings.
+            Every action you take is logged and visible to {invite?.artist_name}. They can remove your access at any time from their Settings.
           </p>
         </div>
 

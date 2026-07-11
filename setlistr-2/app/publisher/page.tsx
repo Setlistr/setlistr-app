@@ -807,7 +807,7 @@ export default function IndustryTerminal() {
                   />
                 ))}
               {artists.length === 0 && (
-                <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '36px 20px', textAlign: 'center' }}>
+                <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '36px 20px', textAlign: 'center' }}>
                   <p style={{ fontSize: 13, color: C.muted, margin: '0 0 8px' }}>No artists on roster yet.</p>
                   <p style={{ fontSize: 11, color: C.muted, margin: 0 }}>Search for an artist above to add them.</p>
                 </div>

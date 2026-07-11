@@ -463,6 +463,7 @@ export default function NewShowPage() {
                 onChange={e => handleVenueInput(e.target.value)}
                 onFocus={() => { if (venueResults.length > 0) setShowDropdown(true) }}
                 placeholder="Venue or room name..."
+                spellCheck={false} autoCorrect="off" autoCapitalize="words"
                 style={{ background: C.input, border: `1px solid ${venueSelected ? C.borderGold : venueQuery.trim() ? C.borderGold : C.border}`, borderRadius: 10, padding: '14px 40px 14px 16px', color: C.text, fontSize: 16, fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' as const, outline: 'none' }} />
               <div style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}>
                 {venueSearching
@@ -582,7 +583,6 @@ export default function NewShowPage() {
                   setTimeout(() => cameraInputRef.current?.click(), 50)
                 }}
                 style={{ flex: 2, padding: '16px 12px', background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 12, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, WebkitTapHighlightColor: 'transparent' }}>
-                <span style={{ fontSize: 22 }}>📸</span>
                 <span style={{ fontSize: 14, fontWeight: 800, color: C.gold, textAlign: 'center' as const }}>Photo setlist</span>
                 <span style={{ fontSize: 12, color: C.muted, textAlign: 'center' as const }}>Scan paper or screen</span>
               </button>
@@ -590,7 +590,6 @@ export default function NewShowPage() {
               <button
                 onClick={() => setSetlistMode('quick')}
                 style={{ flex: 1, padding: '16px 12px', background: 'rgba(255,255,255,0.02)', border: `1px solid ${C.border}`, borderRadius: 12, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, WebkitTapHighlightColor: 'transparent' }}>
-                <span style={{ fontSize: 22 }}>🎵</span>
                 <span style={{ fontSize: 14, fontWeight: 700, color: C.secondary, textAlign: 'center' as const }}>Add songs</span>
                 <span style={{ fontSize: 12, color: C.muted, textAlign: 'center' as const }}>From catalog</span>
               </button>
@@ -606,7 +605,6 @@ export default function NewShowPage() {
                   onClick={() => { setUploadError(''); cameraInputRef.current?.click() }}
                   disabled={uploading}
                   style={{ flex: 1, padding: '14px 10px', background: uploading ? 'transparent' : C.goldDim, border: `1px solid ${uploading ? C.border : C.borderGold}`, borderRadius: 10, cursor: uploading ? 'default' : 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, opacity: uploading ? 0.5 : 1, WebkitTapHighlightColor: 'transparent' }}>
-                  <span style={{ fontSize: 20 }}>📷</span>
                   <span style={{ fontSize: 11, fontWeight: 700, color: C.gold }}>
                     {plannedSongs.length > 0 ? 'Add page 2' : 'Scan setlist'}
                   </span>
@@ -616,14 +614,12 @@ export default function NewShowPage() {
                   onClick={() => { setUploadError(''); fileInputRef.current?.click() }}
                   disabled={uploading}
                   style={{ flex: 1, padding: '14px 10px', background: 'rgba(255,255,255,0.02)', border: `1px solid ${C.border}`, borderRadius: 10, cursor: uploading ? 'default' : 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, opacity: uploading ? 0.5 : 1, WebkitTapHighlightColor: 'transparent' }}>
-                  <span style={{ fontSize: 20 }}>📁</span>
                   <span style={{ fontSize: 11, fontWeight: 700, color: C.secondary }}>Gallery / file</span>
                 </button>
                 {/* Switch to manual */}
                 <button
                   onClick={() => setSetlistMode('quick')}
                   style={{ flex: 1, padding: '14px 10px', background: 'rgba(255,255,255,0.02)', border: `1px solid ${C.border}`, borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, WebkitTapHighlightColor: 'transparent' }}>
-                  <span style={{ fontSize: 20 }}>✏️</span>
                   <span style={{ fontSize: 11, fontWeight: 700, color: C.secondary }}>Type it</span>
                 </button>
               </div>
@@ -653,7 +649,7 @@ export default function NewShowPage() {
                     value={quickSearch}
                     onChange={e => setQuickSearch(e.target.value)}
                     placeholder="Search your songs..."
-                    autoFocus
+                    autoFocus spellCheck={false} autoCorrect="off" autoCapitalize="words"
                     style={{ width: '100%', background: C.input, border: `1px solid ${C.border}`, borderRadius: 8, padding: '9px 12px 9px 30px', color: C.text, fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' as const }} />
                 </div>
 
@@ -689,7 +685,7 @@ export default function NewShowPage() {
                 <button
                   onClick={() => { setSetlistMode('photo'); setTimeout(() => cameraInputRef.current?.click(), 50) }}
                   style={{ fontSize: 12, color: C.muted, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>
-                  📸 Scan a setlist instead →
+                  Scan a setlist instead →
                 </button>
               </div>
             </div>
@@ -728,7 +724,7 @@ export default function NewShowPage() {
                 <button
                   onClick={() => { setSetlistMode('photo'); setTimeout(() => cameraInputRef.current?.click(), 50) }}
                   style={{ marginTop: 10, fontSize: 12, color: C.muted, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>
-                  📸 Add another page →
+                  Add another page →
                 </button>
               )}
             </div>
