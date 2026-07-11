@@ -479,61 +479,22 @@ export default function DashboardPage() {
 
         {/* ── NAV ── */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 0 24px' }}>
-          <span style={{ fontSize: 17, fontWeight: 800, color: C.text, letterSpacing: '-0.01em' }}>
-            {actingAs ? actingAs.artist_name : artistName || 'Setlistr'}
-          </span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            {submittedCount > 0 && (
-              <span style={{ fontSize: 11, color: C.green, background: C.greenDim, border: '1px solid rgba(74,222,128,0.2)', borderRadius: 20, padding: '3px 10px', display: 'flex', alignItems: 'center', gap: 4 }}>
-                <Check size={10} strokeWidth={2.5} />{submittedCount}
+          <div style={{ position: 'relative' }}>
+            {managedArtists.length > 0 ? (
+              <button onClick={() => setSwitcherOpen(v => !v)}
+                style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontSize: 17, fontWeight: 800, color: C.text, letterSpacing: '-0.01em' }}>
+                  {actingAs ? actingAs.artist_name : artistName || 'Setlistr'}
+                </span>
+                <ChevronDown size={14} color={C.muted} style={{ transform: switcherOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s ease', flexShrink: 0 }} />
+              </button>
+            ) : (
+              <span style={{ fontSize: 17, fontWeight: 800, color: C.text, letterSpacing: '-0.01em' }}>
+                {actingAs ? actingAs.artist_name : artistName || 'Setlistr'}
               </span>
             )}
-            <button onClick={() => router.push('/app/settings')} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>Settings</button>
-            <button onClick={() => router.push('/app/history')} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>History →</button>
-          </div>
-        </div>
-
-        {/* ── ACTING-AS BANNER ── */}
-        {actingAs && (
-          <div style={{ marginBottom: 16, animation: 'fadeUp 0.3s ease' }}>
-            <div style={{ background: 'rgba(201,168,76,0.08)', border: `1px solid ${C.borderGold}`, borderRadius: 12, padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Users size={13} color={C.gold} strokeWidth={2} />
-                <span style={{ fontSize: 12, fontWeight: 700, color: C.gold }}>Managing: {actingAs.artist_name}</span>
-              </div>
-              <button onClick={switchToOwn} style={{ background: 'none', border: `1px solid ${C.borderGold}`, borderRadius: 8, padding: '4px 10px', color: C.secondary, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}>
-                <X size={10} /> Exit
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* ── ACCOUNT SWITCHER ── */}
-        {managedArtists.length > 0 && (
-          <div style={{ marginBottom: 16, position: 'relative' }}>
-            <button onClick={() => setSwitcherOpen(v => !v)}
-              style={{ width: '100%', background: C.card, border: `1px solid ${actingAs ? C.borderGold : C.border}`, borderRadius: 12, padding: '10px 16px', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <div style={{ width: 28, height: 28, borderRadius: '50%', background: actingAs ? C.goldDim : 'rgba(255,255,255,0.04)', border: `1px solid ${actingAs ? C.borderGold : C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
-                  {actingAs
-                    ? (managedArtists.find(m => m.artist_id === actingAs.artist_id)?.avatar_url
-                        ? <img src={managedArtists.find(m => m.artist_id === actingAs.artist_id)!.avatar_url!} alt={actingAs.artist_name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                        : <span style={{ fontSize: 11, fontWeight: 800, color: C.gold }}>{actingAs.artist_name.charAt(0).toUpperCase()}</span>)
-                    : (ownAvatarUrl
-                        ? <img src={ownAvatarUrl} alt={ownArtistName || 'Y'} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                        : <span style={{ fontSize: 11, fontWeight: 800, color: C.secondary }}>{(ownArtistName || 'Y').charAt(0).toUpperCase()}</span>)
-                  }
-                </div>
-                <div style={{ textAlign: 'left' }}>
-                  <p style={{ fontSize: 13, fontWeight: 700, color: C.text, margin: 0 }}>{actingAs ? actingAs.artist_name : ownArtistName || 'Your Account'}</p>
-                  <p style={{ fontSize: 10, color: C.muted, margin: 0 }}>{actingAs ? 'Managing · tap to switch' : 'Your account · tap to switch'}</p>
-                </div>
-              </div>
-              <ChevronDown size={14} color={C.muted} style={{ transform: switcherOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s ease', flexShrink: 0 }} />
-            </button>
-
             {switcherOpen && (
-              <div style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, right: 0, background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, overflow: 'hidden', zIndex: 50, boxShadow: '0 8px 24px rgba(0,0,0,0.4)', animation: 'fadeUp 0.15s ease' }}>
+              <div style={{ position: 'absolute', top: 'calc(100% + 8px)', left: 0, width: 260, background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, overflow: 'hidden', zIndex: 50, boxShadow: '0 8px 24px rgba(0,0,0,0.4)', animation: 'fadeUp 0.15s ease' }}>
                 <button onClick={switchToOwn}
                   style={{ width: '100%', padding: '12px 16px', background: !actingAs ? 'rgba(201,168,76,0.06)' : 'transparent', border: 'none', borderBottom: `1px solid ${C.border}`, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left' }}>
                   <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'rgba(255,255,255,0.04)', border: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
@@ -566,6 +527,24 @@ export default function DashboardPage() {
                 ))}
               </div>
             )}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <button onClick={() => router.push('/app/history')} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>History →</button>
+          </div>
+        </div>
+
+        {/* ── ACTING-AS BANNER ── */}
+        {actingAs && (
+          <div style={{ marginBottom: 16, animation: 'fadeUp 0.3s ease' }}>
+            <div style={{ background: 'rgba(201,168,76,0.08)', border: `1px solid ${C.borderGold}`, borderRadius: 12, padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Users size={13} color={C.gold} strokeWidth={2} />
+                <span style={{ fontSize: 12, fontWeight: 700, color: C.gold }}>Managing: {actingAs.artist_name}</span>
+              </div>
+              <button onClick={switchToOwn} style={{ background: 'none', border: `1px solid ${C.borderGold}`, borderRadius: 8, padding: '4px 10px', color: C.secondary, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}>
+                <X size={10} /> Exit
+              </button>
+            </div>
           </div>
         )}
 
@@ -633,7 +612,7 @@ export default function DashboardPage() {
             {/* Submitted progress bar */}
             {submittedCount > 0 && lifetimeTotal > 0 && (
               <div style={{ marginTop: 12, height: 2, background: 'rgba(255,255,255,0.06)', borderRadius: 1, overflow: 'hidden', maxWidth: 200 }}>
-                <div style={{ height: '100%', borderRadius: 1, background: C.green, width: `${Math.min(100, Math.round((submittedAggregate.totalExpected / lifetimeTotal) * 100))}%`, transition: 'width 0.8s ease' }} />
+                <div style={{ height: '100%', borderRadius: 1, background: C.gold, width: `${Math.min(100, Math.round((submittedAggregate.totalExpected / lifetimeTotal) * 100))}%`, transition: 'width 0.8s ease' }} />
               </div>
             )}
           </div>
@@ -683,7 +662,6 @@ export default function DashboardPage() {
           <div style={{ marginBottom: 16, animation: 'fadeUp 0.3s ease' }}>
             <button onClick={() => navigateToPerformance(morningAfterPerf)}
               style={{ width: '100%', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)', borderRadius: 14, padding: '14px 18px', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 14 }}>
-              <span style={{ fontSize: 20, flexShrink: 0 }}>🌅</span>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <p style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.gold, margin: '0 0 2px' }}>
                   {actingAs ? `${actingAs.artist_name}'s Last Show` : "Last Night's Show"}
@@ -746,16 +724,14 @@ export default function DashboardPage() {
 
         {/* ── UNCLAIMED EARNINGS ── */}
         {aggregate.unclaimedCount > 0 && (
-          <button onClick={() => router.push('/app/history')}
-            style={{ width: '100%', background: 'transparent', border: 'none', borderRadius: 0, padding: '16px 0', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid rgba(255,255,255,0.05)', borderBottom: '1px solid rgba(255,255,255,0.05)', marginBottom: 32, animation: 'fadeUp 0.36s ease' }}
-            onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.8'}
-            onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}>
-            <div>
-              <p style={{ fontSize: 20, fontWeight: 700, color: C.gold, margin: 0, fontFamily: '"DM Mono", monospace', letterSpacing: '-0.01em' }}>~${aggregate.unclaimedExpected.toLocaleString()} waiting</p>
-              <p style={{ fontSize: 13, color: C.muted, margin: '3px 0 0' }}>{aggregate.unclaimedCount} nights not yet filed</p>
-            </div>
-            <span style={{ fontSize: 13, color: C.gold, fontWeight: 600 }}>File them →</span>
-          </button>
+          <div style={{ borderLeft: '3px solid #c9a84c', background: 'rgba(201,168,76,0.06)', borderRadius: 14, padding: '16px 18px', marginBottom: 32, animation: 'fadeUp 0.36s ease' }}>
+            <p style={{ fontSize: 34, fontWeight: 700, color: C.gold, margin: 0, fontFamily: '"DM Mono", monospace', letterSpacing: '-0.02em', lineHeight: 1 }}>~${aggregate.unclaimedExpected.toLocaleString()}</p>
+            <p style={{ fontSize: 13, color: C.muted, margin: '6px 0 16px' }}>{aggregate.unclaimedCount} nights not yet filed</p>
+            <button onClick={() => router.push('/app/history')}
+              style={{ background: C.gold, border: 'none', borderRadius: 20, padding: '8px 18px', color: '#0a0908', fontWeight: 800, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', letterSpacing: '0.04em' }}>
+              File them →
+            </button>
+          </div>
         )}
 
         {/* ── UPCOMING SHOWS ── */}

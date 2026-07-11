@@ -170,7 +170,7 @@ export default function AdminDashboard({
     const missed     = detectionEvents.filter(e =>
       e.confidence_level === 'no_result' || (!e.auto_confirmed && !e.acr_title)
     ).length
-    const hitRate    = loaded > 0 ? Math.round((detected / loaded) * 100) : 0
+    const hitRate    = trueTotal > 0 ? Math.round((detected / trueTotal) * 100) : 0
     const scored     = detectionEvents.filter(e => e.acr_score > 0)
     const avgScore   = scored.length > 0
       ? Math.round(scored.reduce((s, e) => s + e.acr_score, 0) / scored.length)
@@ -202,6 +202,22 @@ export default function AdminDashboard({
     const matchedPct = total > 0 ? Math.round((withBoth / total) * 100) : 0
     return { total, withIsrc, withComp, withBoth, isrcPct, compPct, matchedPct }
   }, [performanceSongs])
+
+  const showCaptureRate = useMemo(() => {
+    const doneIds = new Set(
+      performances
+        .filter(p => p.status !== 'live' && p.status !== 'pending')
+        .map(p => p.id)
+    )
+    const withSongs = new Set(
+      performanceSongs
+        .filter(s => doneIds.has(s.performance_id))
+        .map(s => s.performance_id)
+    ).size
+    const total = doneIds.size
+    const rate = total > 0 ? Math.round((withSongs / total) * 100) : 0
+    return { rate, withSongs, total }
+  }, [performances, performanceSongs])
 
   const artists = useMemo(() => {
     const profileMap = new Map(profiles.map(p => [p.id, p]))
@@ -577,7 +593,7 @@ export default function AdminDashboard({
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
               <Stat label="Total Attempts" value={det.total}        sub={`${det.last24h} in last 24h`} />
-              <Stat label="Hit Rate"       value={`${det.hitRate}%`} color={det.hitRate >= 90 ? C.green : det.hitRate >= 70 ? C.gold : C.red} sub={`${det.detected} detected`} />
+              <Stat label="Chunk detection rate" value={`${det.hitRate}%`} color={det.hitRate >= 90 ? C.green : det.hitRate >= 70 ? C.gold : C.red} sub={`${det.detected} detected`} />
               <Stat label="Avg ACR Score"  value={det.avgScore}     color={det.avgScore >= 70 ? C.green : C.gold} sub="higher = more confident" />
               <Stat label="Missed"         value={det.missed}       color={C.red} sub={`${det.total - det.detected - det.missed} pending/other`} />
             </div>
@@ -594,6 +610,8 @@ export default function AdminDashboard({
                 </button>
               ))}
             </div>
+
+            <Stat label="Show capture rate" value={`${showCaptureRate.rate}%`} color={showCaptureRate.rate >= 70 ? C.green : C.gold} sub={`${showCaptureRate.withSongs} of ${showCaptureRate.total} shows with songs`} />
 
             {det.total > det.loaded && (
               <p style={{ fontSize: 11, color: C.muted, margin: '0 0 4px', fontStyle: 'italic' }}>
