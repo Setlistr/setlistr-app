@@ -1,7 +1,14 @@
 'use client'
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { Check, KeyRound, User, Music2, Search, Download, Radio, Users, Copy, X, Clock, AlertCircle } from 'lucide-react'
+import { Check, KeyRound, User, Music2, Search, Download, Radio, Users, Copy, X, Clock, AlertCircle, LogOut, Shield } from 'lucide-react'
+
+const ADMIN_EMAILS = [
+  'jesse.slack.music@gmail.com',
+  'darylscottsongs@gmail.com',
+]
 
 const C = {
   bg: '#0a0908',
@@ -45,6 +52,8 @@ type Delegate = {
 }
 
 export default function SettingsPage() {
+  const router = useRouter()
+
   // Profile
   const [fullName, setFullName]     = useState('')
   const [artistName, setArtistName] = useState('')
@@ -368,6 +377,12 @@ export default function SettingsPage() {
     }
   }
 
+  async function signOut() {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    router.push('/auth/login')
+  }
+
   function copyInvite(text: string) {
     try { navigator.clipboard.writeText(text) } catch {
       const el = document.createElement('textarea')
@@ -386,6 +401,8 @@ export default function SettingsPage() {
     if (days < 7) return `${days}d ago`
     return `${Math.floor(days / 7)}w ago`
   }
+
+  const isAdmin = ADMIN_EMAILS.includes(email)
 
   const inputStyle: React.CSSProperties = {
     width: '100%', boxSizing: 'border-box',
@@ -843,6 +860,30 @@ export default function SettingsPage() {
           <button onClick={savePassword} disabled={passwordSaving || passwordSaved}
             style={{ width: '100%', padding: '13px', background: passwordSaved ? '#16a34a' : C.gold, border: 'none', borderRadius: 10, color: passwordSaved ? '#fff' : '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontFamily: 'inherit', opacity: passwordSaving ? 0.7 : 1 }}>
             {passwordSaved ? <><Check size={14} strokeWidth={2.5} />Updated</> : passwordSaving ? 'Updating...' : 'Update Password'}
+          </button>
+        </div>
+
+        {/* ── Account ── */}
+        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+            <User size={15} color={C.gold} />
+            <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.secondary, margin: 0 }}>Account</p>
+          </div>
+          <p style={{ fontSize: 13, color: C.muted, margin: 0 }}>{email}</p>
+
+          {isAdmin && (
+            <Link href="/app/admin"
+              style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', background: 'rgba(201,168,76,0.07)', border: '1px solid rgba(201,168,76,0.2)', borderRadius: 10, color: C.gold, textDecoration: 'none', fontSize: 14, fontWeight: 600 }}>
+              <Shield size={15} color={C.gold} />
+              Admin Dashboard
+              <span style={{ marginLeft: 'auto', fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: C.gold, background: 'rgba(201,168,76,0.12)', padding: '2px 7px', borderRadius: 4 }}>Internal</span>
+            </Link>
+          )}
+
+          <button onClick={signOut}
+            style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', background: 'rgba(248,113,113,0.06)', border: '1px solid rgba(248,113,113,0.15)', borderRadius: 10, color: C.red, cursor: 'pointer', fontFamily: 'inherit', width: '100%', textAlign: 'left', fontSize: 14, fontWeight: 600 }}>
+            <LogOut size={15} color={C.red} />
+            Sign out
           </button>
         </div>
 

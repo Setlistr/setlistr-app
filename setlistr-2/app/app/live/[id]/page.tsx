@@ -170,6 +170,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   const isListeningRef      = useRef<boolean>(false)
   const endingRef           = useRef<boolean>(false)
   const wakeLockRef         = useRef<WakeLockSentinel | null>(null)
+  const autoStartFiredRef   = useRef(false)
 
   useEffect(() => { pendingCandidateRef.current = pendingCandidate }, [pendingCandidate])
   useEffect(() => { confirmedSongsRef.current = songs }, [songs])
@@ -472,6 +473,19 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
     await startListening(); setRestarting(false)
   }, [stopListening, startListening])
 
+  // Auto-start when navigating from setup screen with ?autostart=1.
+  // Fires once per mount only (autoStartFiredRef). Uses isListeningRef to
+  // avoid re-triggering; reads the URL directly to stay off the render cycle.
+  useEffect(() => {
+    if (!performance) return
+    if (autoStartFiredRef.current) return
+    if (isListeningRef.current) return
+    const sp = new URLSearchParams(window.location.search)
+    if (sp.get('autostart') !== '1') return
+    autoStartFiredRef.current = true
+    startListening()
+  }, [performance, startListening])
+
   const handleEnd = useCallback(async () => {
     if (endingRef.current || !performance) return
     setEnding(true); endingRef.current = true; stopListening()
@@ -701,7 +715,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
             )}
           </div>
           <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: isListening ? '#0a0908' : C.gold }}>
-            {isDetecting ? 'catching' : isListening ? 'listening' : 'tap to start'}
+            {isDetecting ? 'catching' : isListening ? 'listening' : confirmedSongs.length > 0 ? 'resume' : 'tap to start'}
           </span>
         </button>
 
