@@ -439,6 +439,19 @@ export default function StatsPage() {
                 </div>
                 <span style={{ fontSize: 18, color: C.muted }}>→</span>
               </button>
+
+              {/* Career Map */}
+              <button onClick={() => router.push('/app/career-map')}
+                style={{ width: '100%', padding: '16px 20px', background: C.card, border: '1px solid rgba(255,255,255,0.04)', borderRadius: 14, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <MapPin size={18} color={C.gold} style={{ flexShrink: 0 }} />
+                  <div style={{ textAlign: 'left' }}>
+                    <p style={{ fontSize: 15, fontWeight: 600, color: C.secondary, margin: '0 0 2px' }}>Career Map</p>
+                    <p style={{ fontSize: 13, color: C.muted, margin: 0 }}>{totalCities} cities · {totalShows} verified shows</p>
+                  </div>
+                </div>
+                <span style={{ fontSize: 18, color: C.muted }}>→</span>
+              </button>
             </>
           )}
         </div>

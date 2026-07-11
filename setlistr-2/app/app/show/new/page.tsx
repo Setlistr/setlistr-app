@@ -813,6 +813,11 @@ export default function NewShowPage() {
           {showSchedule ? '× Cancel scheduling' : '+ Schedule ahead'}
         </button>
 
+        <button onClick={() => router.push('/app/show/upload')}
+          style={{ background: 'none', border: 'none', color: C.muted, fontSize: 12, cursor: 'pointer', letterSpacing: '0.04em', fontFamily: 'inherit', padding: '4px', width: '100%' }}>
+          or upload a recording instead →
+        </button>
+
         <button onClick={() => router.push('/app/dashboard')}
           style={{ background: 'none', border: 'none', color: C.muted, fontSize: 12, cursor: 'pointer', letterSpacing: '0.04em', fontFamily: 'inherit', padding: '4px', width: '100%' }}>
           ← Back to Dashboard

@@ -130,6 +130,7 @@ export function AppShell({ children, profile }: { children: React.ReactNode; pro
           {/* Raised center capture button — absolutely positioned, floats above nav */}
           <Link
             href="/app/show/new"
+            className="nav-ctr"
             style={{
               position: 'absolute',
               left: '50%',
@@ -139,7 +140,6 @@ export function AppShell({ children, profile }: { children: React.ReactNode; pro
               borderRadius: '50%',
               background: 'linear-gradient(180deg, #d4b45c 0%, #b8963e 100%)',
               border: '3px solid #0a0908',
-              boxShadow: '0 4px 20px rgba(201,168,76,0.40), 0 2px 8px rgba(0,0,0,0.55)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               textDecoration: 'none',
               zIndex: 2,
@@ -154,8 +154,11 @@ export function AppShell({ children, profile }: { children: React.ReactNode; pro
       </nav>
 
       <style>{`
-        @keyframes fadeIn  { from{opacity:0} to{opacity:1} }
-        @keyframes slideUp { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes fadeIn       { from{opacity:0} to{opacity:1} }
+        @keyframes slideUp      { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes gold-breathe { 0%,100%{box-shadow:0 4px 20px rgba(201,168,76,0.25),0 2px 8px rgba(0,0,0,0.55)} 50%{box-shadow:0 4px 32px rgba(201,168,76,0.50),0 2px 8px rgba(0,0,0,0.55),0 0 44px rgba(201,168,76,0.18)} }
+        .nav-ctr { animation: gold-breathe 3s ease-in-out infinite; }
+        @media (prefers-reduced-motion: reduce) { .nav-ctr { animation: none !important; box-shadow: 0 4px 20px rgba(201,168,76,0.40), 0 2px 8px rgba(0,0,0,0.55); } }
         * { -webkit-tap-highlight-color: transparent; }
       `}</style>
     </div>

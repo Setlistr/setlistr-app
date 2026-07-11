@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { Check, Calendar, ChevronDown, Users, X, Upload, MapPin } from 'lucide-react'
+import { Check, Calendar, ChevronDown, Users, X } from 'lucide-react'
 import {
   estimateRoyalties, aggregateUnclaimedEarnings,
   capacityToBand, type ShowEstimateInput,
@@ -377,6 +377,63 @@ export default function DashboardPage() {
     return `${pct}% ${ahead ? 'ahead of' : 'behind'} last year's pace.`
   })()
 
+  // ── ROAD MEMORY — deterministic daily rotation, no state needed ──
+  const completedPerfs = capturedPerfs.filter(p => p.status !== 'live' && p.status !== 'pending')
+  const roadMemoryOptions: string[] = (() => {
+    if (completedPerfs.length === 0) return []
+    const opts: string[] = []
+
+    // P1: one year ago this week (350–380 days)
+    const oneYearPerf = completedPerfs.find(p => {
+      const days = Math.floor((Date.now() - new Date(p.started_at || p.created_at).getTime()) / 86400000)
+      return days >= 350 && days <= 380 && !!p.venue_name
+    })
+    if (oneYearPerf) {
+      opts.push(`One year ago this week: ${oneYearPerf.venue_name}${oneYearPerf.city ? `, ${oneYearPerf.city}` : ''}`)
+    }
+
+    // P2: most-played venue ≥ 5 shows, only when capturedCount ≥ 10
+    if (capturedCount >= 10) {
+      const vMap: Record<string, { name: string; count: number }> = {}
+      completedPerfs.forEach(p => {
+        if (!p.venue_name?.trim()) return
+        const key = p.venue_name.toLowerCase().trim()
+        if (!vMap[key]) vMap[key] = { name: p.venue_name, count: 0 }
+        vMap[key].count++
+      })
+      const topV = Object.values(vMap).sort((a, b) => b.count - a.count)[0]
+      if (topV && topV.count >= 5) {
+        opts.push(`${topV.name} — you've played it ${topV.count} times, your most-played room`)
+      }
+    }
+
+    // P3: milestone framing (only when capturedCount ≥ 25)
+    if (capturedCount >= 25) {
+      const lastMilestone = Math.floor(capturedCount / 25) * 25
+      const nextMilestone = lastMilestone + 25
+      const showsAway     = nextMilestone - capturedCount
+      // completedPerfs is descending; show #lastMilestone is at index (capturedCount - lastMilestone)
+      const msPerf = completedPerfs[capturedCount - lastMilestone]
+      if (msPerf) {
+        const monthsAgo  = Math.round((Date.now() - new Date(msPerf.started_at || msPerf.created_at).getTime()) / (30 * 86400000))
+        const monthsLabel = monthsAgo <= 1 ? 'last month' : `${monthsAgo} months ago`
+        opts.push(`Show #${lastMilestone} was ${monthsLabel}. #${nextMilestone} is ${showsAway} show${showsAway !== 1 ? 's' : ''} away.`)
+      }
+    }
+
+    // P4: first show on record (always available)
+    const firstPerf = completedPerfs[completedPerfs.length - 1]
+    if (firstPerf?.venue_name) {
+      const d = parseLocalDate(firstPerf.started_at || firstPerf.created_at)
+      opts.push(`First show on record: ${firstPerf.venue_name}, ${d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`)
+    }
+
+    return opts
+  })()
+  const roadMemory = roadMemoryOptions.length > 0
+    ? roadMemoryOptions[dayOfYear % roadMemoryOptions.length]
+    : null
+
   const careerStartDate = performances.length > 0
     ? performances.reduce((earliest, p) => {
         const d = p.performance_date || p.started_at || p.created_at
@@ -613,6 +670,14 @@ export default function DashboardPage() {
           )
         })()}
 
+        {/* ── ROAD MEMORY ── */}
+        {roadMemory && (
+          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '14px 18px', marginBottom: 24 }}>
+            <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.13em', textTransform: 'uppercase', color: C.muted, margin: '0 0 6px' }}>FROM THE ROAD</p>
+            <p style={{ fontSize: 14, color: C.secondary, margin: 0, lineHeight: 1.5 }}>{roadMemory}</p>
+          </div>
+        )}
+
         {/* ── MORNING-AFTER NUDGE ── */}
         {morningAfterPerf && !livePerf && (
           <div style={{ marginBottom: 16, animation: 'fadeUp 0.3s ease' }}>
@@ -693,30 +758,6 @@ export default function DashboardPage() {
           </button>
         )}
 
-        {/* ── HERO CTA ── */}
-        {!livePerf && (
-          <div style={{ marginBottom: 24, animation: 'fadeUp 0.3s ease' }}>
-            <button onClick={() => router.push('/app/show/new')}
-              style={{ width: '100%', background: `linear-gradient(135deg, #c9a84c 0%, #a8872d 100%)`, border: 'none', borderRadius: 20, padding: '28px 24px', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 20, position: 'relative', overflow: 'hidden', WebkitTapHighlightColor: 'transparent' }}>
-              <div style={{ position: 'absolute', top: '-40%', right: '-10%', width: '60%', height: '180%', background: 'radial-gradient(ellipse, rgba(255,255,255,0.12) 0%, transparent 70%)', pointerEvents: 'none' }} />
-              <div style={{ position: 'relative', flexShrink: 0 }}>
-                <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'rgba(10,9,8,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <div style={{ width: 18, height: 18, borderRadius: '50%', background: '#0a0908', opacity: 0.85 }} />
-                </div>
-                <div style={{ position: 'absolute', inset: -6, borderRadius: '50%', border: '1.5px solid rgba(10,9,8,0.2)', animation: 'orb-pulse 2s ease-in-out infinite' }} />
-                <div style={{ position: 'absolute', inset: -14, borderRadius: '50%', border: '1px solid rgba(10,9,8,0.1)', animation: 'orb-pulse 2s ease-in-out 0.4s infinite' }} />
-              </div>
-              <div style={{ flex: 1, minWidth: 0, position: 'relative', zIndex: 1 }}>
-                <p style={{ fontSize: 22, fontWeight: 800, color: '#0a0908', margin: '0 0 4px', letterSpacing: '-0.02em', lineHeight: 1.1 }}>Start a Show</p>
-                <p style={{ fontSize: 13, color: 'rgba(10,9,8,0.6)', margin: 0, fontWeight: 500 }}>
-                  {actingAs ? `Capturing for ${actingAs.artist_name}` : 'Venue · setlist · automatic capture'}
-                </p>
-              </div>
-              <div style={{ fontSize: 20, color: 'rgba(10,9,8,0.4)', flexShrink: 0, position: 'relative', zIndex: 1 }}>→</div>
-            </button>
-          </div>
-        )}
-
         {/* ── UPCOMING SHOWS ── */}
         {upcomingShows.length > 0 && (
           <div style={{ marginBottom: 16, animation: 'fadeUp 0.38s ease' }}>
@@ -748,32 +789,6 @@ export default function DashboardPage() {
               })}
             </div>
           </div>
-        )}
-
-        <button onClick={() => router.push('/app/show/upload')}
-          style={{ width: '100%', padding: '16px 20px', background: 'transparent', border: `1px solid ${C.border}`, borderRadius: 14, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <Upload size={18} color={C.gold} style={{ flexShrink: 0 }} />
-            <div style={{ textAlign: 'left' }}>
-              <p style={{ fontSize: 15, fontWeight: 600, color: C.secondary, margin: '0 0 2px' }}>Upload a Show</p>
-              <p style={{ fontSize: 13, color: C.muted, margin: 0 }}>Board mix, GoPro, or any recording</p>
-            </div>
-          </div>
-          <span style={{ fontSize: 18, color: C.muted }}>→</span>
-        </button>
-
-        {capturedCount >= 1 && (
-          <button onClick={() => router.push('/app/career-map')}
-            style={{ width: '100%', padding: '16px 20px', background: 'transparent', border: `1px solid ${C.border}`, borderRadius: 14, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <MapPin size={18} color={C.gold} style={{ flexShrink: 0 }} />
-              <div style={{ textAlign: 'left' }}>
-                <p style={{ fontSize: 15, fontWeight: 600, color: C.secondary, margin: '0 0 2px' }}>Career Map</p>
-                <p style={{ fontSize: 13, color: C.muted, margin: 0 }}>{uniqueCities.length} cities · {capturedCount} verified shows</p>
-              </div>
-            </div>
-            <span style={{ fontSize: 18, color: C.muted }}>→</span>
-          </button>
         )}
 
         {/* ── RECENT CAPTURED SHOWS ── */}
