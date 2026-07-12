@@ -264,7 +264,6 @@ export default function StatsPage() {
     <div style={{ minHeight: '100svh', background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif' }}>
 
       <div style={{ padding: '32px 20px 0', maxWidth: 520, margin: '0 auto' }}>
-        <p style={{ fontSize: 12, letterSpacing: '0.12em', color: C.gold + '90', margin: '0 0 4px', fontWeight: 600 }}>Your career</p>
         <h1 style={{ fontSize: 36, fontWeight: 800, color: C.text, margin: '0 0 20px', letterSpacing: '-0.02em' }}>Career</h1>
 
         <div style={{ display: 'flex', gap: 4, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.04)', borderRadius: 12, padding: 4, marginBottom: 20 }}>
@@ -337,8 +336,8 @@ export default function StatsPage() {
                   backgroundSize: 'cover',
                   backgroundPosition: 'center',
                 }}>
-                {/* Bottom gradient overlay */}
-                <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, rgba(10,9,8,0) 35%, rgba(10,9,8,0.88) 100%)' }} />
+                {/* Night-map gradient overlay — dark at top, near-black at bottom */}
+                <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, rgba(10,9,8,0.55) 0%, rgba(10,9,8,0.92) 100%)' }} />
                 {/* Fallback icon when no token */}
                 {!mapboxStaticUrl && (
                   <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -416,14 +415,26 @@ export default function StatsPage() {
 
               {/* Shows per month */}
               <div style={{ background: C.card, border: '1px solid rgba(255,255,255,0.04)', borderRadius: 16, padding: '16px' }}>
+                {/* Title in its own row — clear of bars */}
                 <p style={{ fontSize: 13, letterSpacing: '0.04em', color: C.secondary, margin: '0 0 16px', fontWeight: 600 }}>Shows per Month</p>
-                <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, height: 80 }}>
+                {/* Value labels row — own line so bar tops never collide with title */}
+                <div style={{ display: 'flex', gap: 8, marginBottom: 4 }}>
+                  {last6Months.map(month => {
+                    const count = monthCounts[month] ?? 0
+                    return (
+                      <div key={month} style={{ flex: 1, textAlign: 'center' }}>
+                        <span style={{ fontSize: 12, color: count > 0 ? C.text : C.muted }}>{count || ''}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+                {/* Bars-only container — no value labels inside so height is clean */}
+                <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, height: 64 }}>
                   {last6Months.map(month => {
                     const count  = monthCounts[month] ?? 0
-                    const height = count === 0 ? 4 : Math.max(12, (count / maxMonthCount) * 80)
+                    const height = count === 0 ? 4 : Math.max(8, (count / maxMonthCount) * 64)
                     return (
                       <div key={month} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-                        <span style={{ fontSize: 12, color: count > 0 ? C.text : C.muted }}>{count || ''}</span>
                         <div style={{ width: '100%', borderRadius: '3px 3px 0 0', height: `${height}px`, background: count > 0 ? C.gold : 'rgba(255,255,255,0.05)' }} />
                         <span style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', color: C.muted }}>{month.split(' ')[0]}</span>
                       </div>

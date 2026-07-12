@@ -432,6 +432,8 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
   const [seqPhase, setSeqPhase] = useState(0)
   const [skipEnabled, setSkipEnabled] = useState(false)
   const [seqRoyaltyCount, setSeqRoyaltyCount] = useState(0)
+  const [seqSongIdx, setSeqSongIdx] = useState(0)
+  const [seqFading, setSeqFading] = useState(false)
   const seqRafRef = useRef<number | null>(null)
 
   const sensors = useSensors(
@@ -600,26 +602,59 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
   useEffect(() => {
     if (loading) return
     const reduced = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    if (reduced) { setSeqPhase(6); return }
+    if (reduced) { setSeqPhase(7); return }
+
+    const cs = songs.filter(s => s.source !== 'planned' && !s.isRemoved)
+    const pp = songs.filter(s => s.source === 'planned' && !s.isRemoved)
+    const hasSongs  = cs.length > 0
+    const hasGaps   = pp.length > 0
+    const hasShowNum = !!(performance as any)?.show_number
+
+    // Each confirmed song gets 1400ms: 600ms fade-in, 400ms hold, 400ms fade-out.
+    // Max 5 individual moments; if more, first 5 then "+N more" as one extra moment.
+    const songMoments = hasSongs ? Math.min(cs.length, 5) + (cs.length > 5 ? 1 : 0) : 0
+    const songMs = songMoments * 1400
+
+    // Cumulative phase start times (ms)
+    const venueAt   = 1200
+    const songAt    = hasSongs ? 2200 : -1
+    const afterSong = hasSongs ? 2200 + songMs : 2200
+    const gapAt     = hasGaps ? afterSong : -1
+    const royaltyAt = afterSong + (hasGaps ? 2000 : 0)
+    const stampAt   = hasShowNum ? royaltyAt + 1800 : -1
+    const fadeAt    = royaltyAt + 1800 + (hasShowNum ? 600 : 0)
+    const doneAt    = fadeAt + 400
+
     setSeqPhase(1)
-    const confirmedCount = songs.filter(s => s.source !== 'planned' && !s.isRemoved).length
-    const plannedCount   = songs.filter(s => s.source === 'planned' && !s.isRemoved).length
-    const skipTimer = setTimeout(() => setSkipEnabled(true), 2000)
-    const t2 = setTimeout(() => setSeqPhase(2), 1200)
-    const t3 = setTimeout(() => setSeqPhase(3), 2200)
-    const songsMs = Math.max(800, confirmedCount * 120 + plannedCount * 80 + 400)
-    const t4 = setTimeout(() => setSeqPhase(4), 2200 + songsMs + 400)
-    const t5 = setTimeout(() => setSeqPhase(5), 2200 + songsMs + 400 + 1600)
-    const t6 = setTimeout(() => setSeqPhase(6), 2200 + songsMs + 400 + 1600 + 700)
+    const timers: ReturnType<typeof setTimeout>[] = []
+    timers.push(setTimeout(() => setSkipEnabled(true), 2000))
+    timers.push(setTimeout(() => setSeqPhase(2), venueAt))
+    if (songAt > 0)  timers.push(setTimeout(() => setSeqPhase(3), songAt))
+    if (gapAt  > 0)  timers.push(setTimeout(() => setSeqPhase(4), gapAt))
+    timers.push(setTimeout(() => setSeqPhase(5), royaltyAt))
+    if (stampAt > 0) timers.push(setTimeout(() => setSeqPhase(6), stampAt))
+    timers.push(setTimeout(() => setSeqFading(true), fadeAt))
+    timers.push(setTimeout(() => setSeqPhase(7), doneAt))
+
     return () => {
-      [skipTimer, t2, t3, t4, t5, t6].forEach(clearTimeout)
+      timers.forEach(clearTimeout)
       if (seqRafRef.current) cancelAnimationFrame(seqRafRef.current)
     }
   }, [loading]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Sequence royalty count-up — starts when phase reaches 4
+  // Advance song index once per 1400ms while in phase 3
   useEffect(() => {
-    if (seqPhase !== 4 || !performance) return
+    if (seqPhase !== 3) return
+    const cs = songs.filter(s => s.source !== 'planned' && !s.isRemoved)
+    const moments = Math.min(cs.length, 5) + (cs.length > 5 ? 1 : 0)
+    if (seqSongIdx >= moments) return
+    const t = setTimeout(() => setSeqSongIdx(i => i + 1), 1400)
+    return () => clearTimeout(t)
+  }, [seqPhase, seqSongIdx]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Sequence royalty count-up — starts when phase reaches 5
+  useEffect(() => {
+    if (seqPhase !== 5 || !performance) return
     const territory = getTerritory(performance.country, performance.city)
     const confirmedForEst = songs.filter(s => s.source !== 'planned' && !s.isRemoved)
     const est = estimateRoyalties({
@@ -917,101 +952,130 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
   const allClean          = needsReviewCount === 0
   const dur               = formatDuration()
 
-  // ── BEAT 3: sequence overlay ──────────────────────────────────────────────
-  if (!showComplete && seqPhase > 0 && seqPhase < 6) {
-    const seqText = seqPhase === 1
-      ? 'Reviewing your show…'
-      : autoCount > 0
-        ? `${autoCount} detections — matching against your setlist…`
-        : 'Matching against your setlist…'
+  // ── BEAT 3: cinematic sequence overlay ───────────────────────────────────
+  if (!showComplete && seqPhase > 0 && seqPhase < 7) {
+    const seqCs = confirmedSongs  // already filtered above
+    const overflowCount = seqCs.length > 5 ? seqCs.length - 5 : 0
+    const isOverflowMoment = seqPhase === 3 && seqSongIdx === 5 && overflowCount > 0
+    const currentSong = seqPhase === 3 && seqSongIdx < 5 ? seqCs[seqSongIdx] : null
+    const venueDate = performance?.started_at
+      ? parseLocalDate(performance.started_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+      : null
 
     return (
       <div
-        style={{ minHeight: '100svh', background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', padding: '72px 24px 60px', cursor: skipEnabled ? 'pointer' : 'default', overflowY: 'auto' }}
-        onClick={() => { if (skipEnabled) setSeqPhase(6) }}
+        onClick={() => { if (skipEnabled) setSeqPhase(7) }}
+        style={{
+          position: 'fixed', inset: 0, background: C.bg, zIndex: 50,
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+          fontFamily: '"DM Sans", system-ui, sans-serif',
+          cursor: skipEnabled ? 'pointer' : 'default',
+          opacity: seqFading ? 0 : 1, transition: seqFading ? 'opacity 0.4s ease' : 'none',
+        }}
       >
-        <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '60vh', pointerEvents: 'none', background: 'radial-gradient(ellipse at 50% 0%, rgba(201,168,76,0.07) 0%, transparent 60%)' }} />
+        {/* Phase 1: "REVIEWING YOUR SHOW" small-caps + pulsing dot */}
+        {seqPhase === 1 && (
+          <div style={{ textAlign: 'center', opacity: 0, animation: 'fadeIn 0.6s ease forwards' }}>
+            <div style={{ width: 10, height: 10, borderRadius: '50%', background: C.gold, animation: 'breathe 1.4s ease-in-out infinite', margin: '0 auto 20px' }} />
+            <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', color: C.muted, margin: 0 }}>
+              Reviewing your show
+            </p>
+          </div>
+        )}
 
-        {/* Phase 1–2: status text */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, marginBottom: 40, position: 'relative', zIndex: 1 }}>
-          <div style={{ width: 12, height: 12, borderRadius: '50%', background: C.gold, animation: 'breathe 1.4s ease-in-out infinite' }} />
-          <p key={seqPhase <= 2 ? seqPhase : 2} style={{ fontSize: 15, color: C.secondary, margin: 0, opacity: 0, animation: 'fadeUp 0.4s ease forwards', textAlign: 'center' }}>
-            {seqText}
-          </p>
-        </div>
+        {/* Phase 2: venue name huge + city · date */}
+        {seqPhase === 2 && (
+          <div key="phase2" style={{ textAlign: 'center', opacity: 0, animation: 'fadeUp 0.5s ease forwards', padding: '0 28px' }}>
+            <div style={{ width: 10, height: 10, borderRadius: '50%', background: C.gold, animation: 'breathe 1.4s ease-in-out infinite', margin: '0 auto 28px' }} />
+            <p style={{ fontSize: 48, fontWeight: 800, color: C.text, margin: '0 0 10px', letterSpacing: '-0.03em', lineHeight: 1.05 }}>
+              {performance?.venue_name || 'Your Show'}
+            </p>
+            {(performance?.city || venueDate) && (
+              <p style={{ fontSize: 14, color: C.muted, margin: 0, letterSpacing: '0.02em' }}>
+                {[performance?.city, venueDate].filter(Boolean).join(' · ')}
+              </p>
+            )}
+          </div>
+        )}
 
-        {/* Phase 3+: song list assembles */}
-        {seqPhase >= 3 && (
-          <div style={{ width: '100%', maxWidth: 420, display: 'flex', flexDirection: 'column', gap: 5, position: 'relative', zIndex: 1 }}>
-            {confirmedSongs.map((song, i) => (
-              <div key={song.id} style={{
-                display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px',
-                background: C.card, border: '1px solid rgba(255,255,255,0.04)',
-                borderLeft: `3px solid ${song.was_planned ? 'rgba(74,222,128,0.45)' : 'rgba(74,222,128,0.2)'}`,
-                borderRadius: 12,
-                opacity: 0, animation: `slideUp 350ms ${i * 120}ms ease-out forwards`,
-              }}>
-                <span style={{ fontSize: 11, color: C.muted, minWidth: 18, textAlign: 'right', fontFamily: '"DM Mono", monospace', opacity: 0.45, flexShrink: 0 }}>{i + 1}</span>
-                <p style={{ fontSize: 15, fontWeight: 600, color: C.text, margin: 0, flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{song.title}</p>
-                {song.was_planned && (
-                  <span style={{ fontSize: 12, color: C.green, fontWeight: 600, flexShrink: 0, opacity: 0, animation: `fadeIn 0.25s ${i * 120 + 500}ms ease-out forwards` }}>✓</span>
+        {/* Phase 3: song-by-song moments — one at a time, centered */}
+        {seqPhase === 3 && (
+          <div key={`song-${seqSongIdx}`} style={{ textAlign: 'center', padding: '0 36px', maxWidth: 520, opacity: 0, animation: 'songMoment 1.4s ease forwards' }}>
+            {isOverflowMoment ? (
+              <p style={{ fontSize: 28, fontWeight: 700, color: C.muted, margin: 0 }}>
+                +{overflowCount} more
+              </p>
+            ) : currentSong ? (
+              <>
+                <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: C.muted, margin: '0 0 18px', opacity: 0.55 }}>
+                  {seqSongIdx + 1} / {seqCs.length}
+                </p>
+                <p style={{ fontSize: 32, fontWeight: 800, color: C.text, margin: 0, lineHeight: 1.15, letterSpacing: '-0.02em' }}>
+                  {currentSong.title}
+                </p>
+                {currentSong.artist && (
+                  <p style={{ fontSize: 15, color: C.muted, margin: '10px 0 0', fontWeight: 400 }}>
+                    {currentSong.artist}
+                  </p>
                 )}
-              </div>
-            ))}
+              </>
+            ) : null}
+          </div>
+        )}
 
-            {/* Planned-but-undetected enter after confirmed */}
-            {plannedPending.map((song, i) => (
-              <div key={song.id} onClick={e => e.stopPropagation()} style={{
-                display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px',
-                background: 'rgba(255,255,255,0.02)', border: '1px dashed rgba(255,255,255,0.08)',
-                borderRadius: 12,
-                opacity: 0, animation: `slideUp 350ms ${confirmedSongs.length * 120 + 200 + i * 80}ms ease-out forwards`,
-              }}>
-                <span style={{ fontSize: 11, color: C.muted, minWidth: 18, textAlign: 'right', fontFamily: '"DM Mono", monospace', opacity: 0.35, flexShrink: 0 }}>{confirmedSongs.length + i + 1}</span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ fontSize: 15, fontWeight: 500, color: C.secondary, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', opacity: 0.7 }}>{song.title}</p>
-                  <p style={{ fontSize: 11, color: C.muted, margin: '2px 0 0' }}>Not detected — did you play it?</p>
+        {/* Phase 4: planned-but-undetected gaps */}
+        {seqPhase === 4 && (
+          <div key="phase4" style={{ textAlign: 'center', opacity: 0, animation: 'fadeUp 0.5s ease forwards', width: '100%', maxWidth: 400, padding: '0 24px' }}>
+            <p style={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.gold, margin: '0 0 20px' }}>
+              {plannedPending.length === 1 ? 'One gap in the record' : `${plannedPending.length} gaps in the record`}
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {plannedPending.map(song => (
+                <div key={song.id} onClick={e => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', background: 'rgba(255,255,255,0.03)', border: '1px dashed rgba(255,255,255,0.1)', borderRadius: 12 }}>
+                  <div style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
+                    <p style={{ fontSize: 15, color: C.secondary, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 500 }}>{song.title}</p>
+                    <p style={{ fontSize: 11, color: C.muted, margin: '2px 0 0' }}>Did you play it?</p>
+                  </div>
+                  <button onClick={e => { e.stopPropagation(); markPlannedAsPlayed(song.id) }}
+                    style={{ flexShrink: 0, padding: '6px 14px', background: 'rgba(74,222,128,0.1)', border: '1px solid rgba(74,222,128,0.25)', borderRadius: 8, color: C.green, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', letterSpacing: '0.04em', WebkitTapHighlightColor: 'transparent' }}>
+                    Add
+                  </button>
                 </div>
-                <button
-                  onClick={e => { e.stopPropagation(); markPlannedAsPlayed(song.id) }}
-                  style={{ flexShrink: 0, padding: '5px 11px', background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.2)', borderRadius: 8, color: C.green, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', letterSpacing: '0.04em', WebkitTapHighlightColor: 'transparent' }}>
-                  Add
-                </button>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         )}
 
-        {/* Phase 4+: royalty count */}
-        {seqPhase >= 4 && (
-          <div style={{ marginTop: 28, textAlign: 'center', opacity: 0, animation: 'fadeUp 0.5s ease forwards', position: 'relative', zIndex: 1 }}>
-            <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.muted, margin: '0 0 6px' }}>What tonight generated</p>
-            <span style={{ fontSize: 44, fontWeight: 800, color: C.gold, fontFamily: '"DM Mono", monospace', letterSpacing: '-0.02em' }}>~${seqRoyaltyCount.toLocaleString()}</span>
+        {/* Phase 5: royalty count-up, large, centered */}
+        {seqPhase === 5 && (
+          <div key="phase5" style={{ textAlign: 'center', opacity: 0, animation: 'fadeUp 0.5s ease forwards' }}>
+            <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.muted, margin: '0 0 14px' }}>What tonight generated</p>
+            <span style={{ fontSize: 56, fontWeight: 800, color: C.gold, fontFamily: '"DM Mono", monospace', letterSpacing: '-0.03em', lineHeight: 1 }}>~${seqRoyaltyCount.toLocaleString()}</span>
           </div>
         )}
 
-        {/* Phase 5+: show number stamp */}
-        {seqPhase >= 5 && performance?.show_number && (
-          <div style={{ marginTop: 20, textAlign: 'center', opacity: 0, animation: 'fadeUp 0.4s ease forwards', position: 'relative', zIndex: 1 }}>
-            <span style={{ fontSize: 22, fontWeight: 800, color: C.gold, letterSpacing: '0.12em', display: 'inline-block', animation: 'showStamp 0.4s ease-out both' }}>
+        {/* Phase 6: SHOW #N stamp — only if show_number is defined */}
+        {seqPhase === 6 && performance?.show_number != null && (
+          <div key="phase6" style={{ textAlign: 'center', opacity: 0, animation: 'fadeUp 0.4s ease forwards' }}>
+            <span style={{ fontSize: 64, fontWeight: 800, color: C.gold, letterSpacing: '0.08em', display: 'inline-block', animation: 'showStamp 0.4s ease-out both', fontFamily: '"DM Mono", monospace' }}>
               SHOW #{performance.show_number}
             </span>
           </div>
         )}
 
         {/* Tap-to-skip hint */}
-        {skipEnabled && (
+        {skipEnabled && seqPhase < 6 && (
           <p style={{ position: 'fixed', bottom: 32, left: 0, right: 0, textAlign: 'center', fontSize: 11, color: C.muted, margin: 0, opacity: 0, animation: 'fadeIn 0.4s ease forwards', pointerEvents: 'none' }}>Tap to skip</p>
         )}
 
         <style>{`
           @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500;700&display=swap');
-          @keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
           @keyframes fadeIn{from{opacity:0}to{opacity:1}}
-          @keyframes slideUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+          @keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
           @keyframes breathe{0%,100%{transform:scale(1);opacity:.3}50%{transform:scale(1.2);opacity:.8}}
           @keyframes showStamp{from{transform:scale(1.06)}to{transform:scale(1)}}
-          *{-webkit-tap-highlight-color:transparent;box-sizing:border-box;}
+          @keyframes songMoment{0%{opacity:0;transform:translateY(8px)}43%{opacity:1;transform:translateY(0)}71%{opacity:1;transform:translateY(0)}100%{opacity:0;transform:translateY(-8px)}}
+          *{-webkit-tap-highlight-color:transparent;box-sizing:border-box}
         `}</style>
       </div>
     )

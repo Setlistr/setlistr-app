@@ -550,16 +550,19 @@ export default function DashboardPage() {
 
         {switcherOpen && <div onClick={() => setSwitcherOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 40 }} />}
 
-        {/* ── CAREER LEDGER ── */}
+        {/* ── CAREER HERO ZONE ── */}
         {totalCareerShows > 0 && (
-          <div style={{ marginBottom: 32, animation: 'fadeUp 0.3s ease', animationFillMode: 'both' }}>
-            <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.13em', textTransform: 'uppercase', color: C.muted, margin: '0 0 16px' }}>Your career</p>
+          <div style={{ marginBottom: 48, animation: 'fadeUp 0.3s ease', animationFillMode: 'both' }}>
+            <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.13em', textTransform: 'uppercase', color: C.muted, margin: '0 0 20px' }}>Your career</p>
 
-            {/* Big career number */}
-            <p style={{ fontSize: 72, fontWeight: 800, color: C.text, margin: 0, fontFamily: '"DM Mono", monospace', letterSpacing: '-0.04em', lineHeight: 0.9, transition: 'all 0.1s ease' }}>
-              {animatedCareerShows.toLocaleString()}
-            </p>
-            <p style={{ fontSize: 15, color: C.muted, margin: '8px 0 0', fontWeight: 400 }}>
+            {/* Big career number with soft radial glow */}
+            <div style={{ position: 'relative', display: 'inline-block' }}>
+              <div style={{ position: 'absolute', inset: '-48px', borderRadius: '50%', background: 'radial-gradient(circle, rgba(201,168,76,0.07) 0%, transparent 70%)', pointerEvents: 'none', zIndex: 0 }} />
+              <p style={{ fontSize: 96, fontWeight: 800, color: C.text, margin: 0, fontFamily: '"DM Mono", monospace', letterSpacing: '-0.04em', lineHeight: 0.9, transition: 'all 0.1s ease', position: 'relative', zIndex: 1 }}>
+                {animatedCareerShows.toLocaleString()}
+              </p>
+            </div>
+            <p style={{ fontSize: 15, color: C.muted, margin: '14px 0 0', fontWeight: 400 }}>
               shows on record
               {capturedCount > 0 && importedPerfs.length > 0 && (
                 <span style={{ color: C.gold, marginLeft: 8, fontSize: 13 }}>
@@ -568,9 +571,9 @@ export default function DashboardPage() {
               )}
             </p>
 
-            {/* Career stat pills */}
+            {/* Career stat chips */}
             {(uniqueCities.length > 0 || careerYears > 0) && (
-              <div style={{ display: 'flex', gap: 8, marginTop: 16, flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', gap: 8, marginTop: 24, flexWrap: 'wrap' }}>
                 {uniqueCities.length > 0 && (
                   <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 20, padding: '6px 14px', display: 'flex', alignItems: 'center', gap: 6 }}>
                     <span style={{ fontSize: 13, fontWeight: 700, color: C.text, fontFamily: '"DM Mono", monospace' }}>{uniqueCities.length}</span>
@@ -594,16 +597,16 @@ export default function DashboardPage() {
             {trajectoryLabel && (
               <p style={{
                 fontSize: 13, color: trajectoryPct !== null && trajectoryPct > 0 ? '#4ade80' : trajectoryPct !== null && trajectoryPct < -4 ? '#f87171' : '#8a7a68',
-                margin: '4px 0 0', letterSpacing: '0.01em',
-                opacity: 0, animation: 'fadeUp 0.5s 0.8s ease forwards',
+                margin: '8px 0 0', letterSpacing: '0.01em',
+                opacity: 0, animation: 'fadeUp 0.5s 0.8s ease forwards', animationFillMode: 'both',
               }}>
                 {trajectoryPct !== null && trajectoryPct > 4 ? '↑ ' : trajectoryPct !== null && trajectoryPct < -4 ? '↓ ' : ''}{trajectoryLabel}
               </p>
             )}
 
-            {/* Royalty line */}
+            {/* Documented royalty line */}
             {lifetimeTotal > 0 && (
-              <p style={{ fontSize: 22, fontWeight: 700, color: C.gold, margin: '16px 0 0', fontFamily: '"DM Mono", monospace', letterSpacing: '-0.02em' }}>
+              <p style={{ fontSize: 22, fontWeight: 700, color: C.gold, margin: '24px 0 0', fontFamily: '"DM Mono", monospace', letterSpacing: '-0.02em' }}>
                 ~${animatedRoyalties.toLocaleString()}
                 <span style={{ fontSize: 14, fontWeight: 400, color: C.muted, marginLeft: 8, fontFamily: '"DM Sans", system-ui, sans-serif', letterSpacing: 0 }}>documented</span>
               </p>
@@ -615,12 +618,32 @@ export default function DashboardPage() {
                 <div style={{ height: '100%', borderRadius: 1, background: C.gold, width: `${Math.min(100, Math.round((submittedAggregate.totalExpected / lifetimeTotal) * 100))}%`, transition: 'width 0.8s ease' }} />
               </div>
             )}
+
+            {/* Insight line — hero zone closing line */}
+            {capturedCount >= 3 && recentPerfs.length > 0 && (() => {
+              const lastPerf = recentPerfs[0]
+              const daysSince = Math.floor((Date.now() - new Date(lastPerf.started_at || lastPerf.created_at).getTime()) / 86400000)
+              const insightLine = daysSince === 0
+                ? `You played tonight. The record is up to date.`
+                : daysSince === 1
+                ? `Last night at ${lastPerf.venue_name}. Still fresh.`
+                : daysSince < 7
+                ? `${daysSince} days since ${lastPerf.venue_name}.`
+                : daysSince < 30
+                ? `${daysSince} days since your last show. The stage is waiting.`
+                : `${daysSince} days since your last show. When's the next one?`
+              return (
+                <div style={{ marginTop: 24, borderLeft: '2px solid rgba(201,168,76,0.3)', paddingLeft: 16, opacity: 0, animation: 'fadeUp 0.5s 0.9s ease forwards', animationFillMode: 'both' }}>
+                  <p style={{ fontSize: 15, color: C.secondary, margin: 0, lineHeight: 1.5, fontWeight: 400, fontStyle: 'italic' }}>{insightLine}</p>
+                </div>
+              )
+            })()}
           </div>
         )}
 
         {/* Empty career state */}
         {totalCareerShows === 0 && !loading && (
-          <div style={{ marginBottom: 32, animation: 'fadeUp 0.3s ease' }}>
+          <div style={{ marginBottom: 48, animation: 'fadeUp 0.3s ease' }}>
             <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.13em', textTransform: 'uppercase', color: C.muted, margin: '0 0 12px' }}>Your career</p>
             <div style={{ padding: '32px 0' }}>
               <p style={{ fontSize: 16, color: C.secondary, margin: '0 0 6px', fontWeight: 500 }}>The stage is quiet for now.</p>
@@ -628,26 +651,6 @@ export default function DashboardPage() {
             </div>
           </div>
         )}
-
-        {/* ── INSIGHT LINE ── */}
-        {capturedCount >= 3 && recentPerfs.length > 0 && (() => {
-          const lastPerf = recentPerfs[0]
-          const daysSince = Math.floor((Date.now() - new Date(lastPerf.started_at || lastPerf.created_at).getTime()) / 86400000)
-          const insightLine = daysSince === 0
-            ? `You played tonight. The record is up to date.`
-            : daysSince === 1
-            ? `Last night at ${lastPerf.venue_name}. Still fresh.`
-            : daysSince < 7
-            ? `${daysSince} days since ${lastPerf.venue_name}.`
-            : daysSince < 30
-            ? `${daysSince} days since your last show. The stage is waiting.`
-            : `${daysSince} days since your last show. When's the next one?`
-          return (
-            <div style={{ marginBottom: 24, animation: 'fadeUp 0.35s ease', borderLeft: '2px solid rgba(201,168,76,0.3)', paddingLeft: 16 }}>
-              <p style={{ fontSize: 15, color: C.secondary, margin: 0, lineHeight: 1.5, fontWeight: 400, fontStyle: 'italic' }}>{insightLine}</p>
-            </div>
-          )
-        })()}
 
         {/* ── ROAD MEMORY ── */}
         {roadMemory && (
