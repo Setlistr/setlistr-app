@@ -31,6 +31,7 @@ type DetectedSong = {
   confidence_level?: 'auto' | 'suggest' | 'manual_review'
   isrc?: string; composer?: string; publisher?: string
   was_planned?: boolean
+  confirmedAt?: number
   // Inclusion metadata returned by /api/identify (for the confusion-matrix dataset)
   inclusion_reason?: string | null; threshold?: number | null; score?: number | null
 }
@@ -152,6 +153,8 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
 
   const [deletePending, setDeletePending] = useState<number | null>(null)
   const deletePendingTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const [confirmRing, setConfirmRing] = useState(false)
+  const prevConfirmedCountRef = useRef<number>(-1)
 
   const [showPlacementCard, setShowPlacementCard] = useState(false)
   const placementShownRef = useRef(false)
@@ -250,6 +253,22 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
 
   useEffect(() => { return () => stopListening() }, [])
 
+  useEffect(() => {
+    const confirmedCount = songs.filter(s => s.source !== 'planned' && s.source !== 'unidentified').length
+    if (prevConfirmedCountRef.current === -1) {
+      prevConfirmedCountRef.current = confirmedCount
+      return
+    }
+    const didIncrease = confirmedCount > prevConfirmedCountRef.current
+    prevConfirmedCountRef.current = confirmedCount
+    if (!didIncrease) return
+    const reduced = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    if (reduced) return
+    setConfirmRing(true)
+    const t = setTimeout(() => setConfirmRing(false), 650)
+    return () => clearTimeout(t)
+  }, [songs])
+
   const fetchRecentSongs = useCallback(() => {
     const exclude = confirmedSongsRef.current
       .filter(s => s.source !== 'unidentified' && s.source !== 'planned')
@@ -295,7 +314,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
 
   function markPlannedAsPlayed(realIdx: number) {
     const song = songs[realIdx]
-    setSongs(prev => prev.map((s, i) => i === realIdx ? { ...s, source: 'manual', was_planned: true } : s))
+    setSongs(prev => prev.map((s, i) => i === realIdx ? { ...s, source: 'manual', was_planned: true, confirmedAt: Date.now() } : s))
     setLastCaught(song.title); setCatchFlash(true)
     const now = Date.now()
     lastSongRef.current = now; setLastSongAt(now); setShowSilenceWarning(false)
@@ -311,13 +330,13 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         const existingIdx = prev.findIndex(s => normalizeSongKey(s.title) === plannedMatch.normalizedTitle)
         if (existingIdx !== -1) {
           return prev.map((s, i) => i === existingIdx
-            ? { ...s, source: candidate.source, confidence_level: candidate.confidence_level, was_planned: true, isrc: enriched?.isrc || s.isrc || '', composer: enriched?.composer || s.composer || '', publisher: enriched?.publisher || s.publisher || '', inclusion_reason: enriched?.inclusion_reason ?? s.inclusion_reason ?? null, threshold: enriched?.threshold ?? s.threshold ?? null, score: enriched?.score ?? s.score ?? null }
+            ? { ...s, source: candidate.source, confidence_level: candidate.confidence_level, was_planned: true, confirmedAt: Date.now(), isrc: enriched?.isrc || s.isrc || '', composer: enriched?.composer || s.composer || '', publisher: enriched?.publisher || s.publisher || '', inclusion_reason: enriched?.inclusion_reason ?? s.inclusion_reason ?? null, threshold: enriched?.threshold ?? s.threshold ?? null, score: enriched?.score ?? s.score ?? null }
             : s)
         }
-        return [...prev, { title: plannedMatch.title, artist: plannedMatch.artist || candidate.artist, source: candidate.source, setlist_item_id, confidence_level: candidate.confidence_level, was_planned: true, isrc: enriched?.isrc || '', composer: enriched?.composer || '', publisher: enriched?.publisher || '', inclusion_reason: enriched?.inclusion_reason ?? null, threshold: enriched?.threshold ?? null, score: enriched?.score ?? null }]
+        return [...prev, { title: plannedMatch.title, artist: plannedMatch.artist || candidate.artist, source: candidate.source, setlist_item_id, confidence_level: candidate.confidence_level, was_planned: true, confirmedAt: Date.now(), isrc: enriched?.isrc || '', composer: enriched?.composer || '', publisher: enriched?.publisher || '', inclusion_reason: enriched?.inclusion_reason ?? null, threshold: enriched?.threshold ?? null, score: enriched?.score ?? null }]
       })
     } else {
-      setSongs(prev => [...prev, { title: candidate.title, artist: candidate.artist, source: candidate.source, setlist_item_id, confidence_level: candidate.confidence_level, was_planned: false, isrc: enriched?.isrc || '', composer: enriched?.composer || '', publisher: enriched?.publisher || '', inclusion_reason: enriched?.inclusion_reason ?? null, threshold: enriched?.threshold ?? null, score: enriched?.score ?? null }])
+      setSongs(prev => [...prev, { title: candidate.title, artist: candidate.artist, source: candidate.source, setlist_item_id, confidence_level: candidate.confidence_level, was_planned: false, confirmedAt: Date.now(), isrc: enriched?.isrc || '', composer: enriched?.composer || '', publisher: enriched?.publisher || '', inclusion_reason: enriched?.inclusion_reason ?? null, threshold: enriched?.threshold ?? null, score: enriched?.score ?? null }])
     }
     const now = Date.now()
     lastConfirmedAtRef.current = now; lastSongRef.current = now; setLastSongAt(now); setShowSilenceWarning(false)
@@ -702,6 +721,9 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
             ))}
           </>
         )}
+        {confirmRing && (
+          <div style={{ position: 'absolute', width: 230, height: 230, borderRadius: '50%', border: `1.5px solid ${C.gold}cc`, top: 40, left: '50%', transform: 'translateX(-50%)', pointerEvents: 'none', animation: 'ring-confirm 600ms ease-out forwards' }} />
+        )}
         <button onClick={isListening ? stopListening : startListening} disabled={(isDetecting && !isListening) || uploadProcessing}
           style={{ width: 160, height: 160, borderRadius: '50%', border: 'none', cursor: uploadProcessing ? 'not-allowed' : isDetecting && !isListening ? 'wait' : 'pointer', position: 'relative', zIndex: 2, opacity: uploadProcessing ? 0.4 : 1, background: catchFlash ? `radial-gradient(circle at 40% 35%, #e8c76a, ${C.gold} 55%, #a07828)` : isListening ? `radial-gradient(circle at 40% 35%, ${C.gold}cc, ${C.gold} 55%, #8a6520)` : `radial-gradient(circle at 40% 35%, #2a2520, #1a1610 55%, #0f0e0c)`, boxShadow: catchFlash ? `0 0 60px ${C.gold}80, 0 0 120px ${C.gold}30, inset 0 1px 0 rgba(255,255,255,0.25)` : isListening ? `0 0 40px ${C.gold}40, 0 0 80px ${C.gold}18, inset 0 1px 0 rgba(255,255,255,0.12)` : `0 8px 40px rgba(0,0,0,0.6), 0 2px 8px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06)`, transform: catchFlash ? 'scale(1.05)' : 'scale(1)', transition: 'background 0.4s ease, box-shadow 0.4s ease, transform 0.2s ease', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6, WebkitTapHighlightColor: 'transparent', outline: 'none', touchAction: 'manipulation' }}>
           <div style={{ width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -804,7 +826,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
                   border: `1px solid ${isPendingDel ? 'rgba(220,38,38,0.35)' : editingIndex === realIdx ? 'rgba(201,168,76,0.45)' : isVerified ? 'rgba(74,222,128,0.2)' : 'rgba(255,255,255,0.04)'}`,
                   borderLeft: isVerified && !isPendingDel && editingIndex !== realIdx ? `3px solid rgba(74,222,128,0.55)` : undefined,
                   borderRadius: 16, overflow: 'hidden',
-                  animation: 'songPop 0.35s cubic-bezier(0.34,1.56,0.64,1) both',
+                  animation: 'slideUp 350ms ease-out both',
                   transition: 'border-color 0.2s ease',
                 }}>
                   {editingIndex === realIdx ? (
@@ -828,7 +850,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
                         {isPendingDel
                           ? <p style={{ fontSize: 11, color: '#f87171', margin: '2px 0 0', fontWeight: 600 }}>Tap ✕ again to delete</p>
                           : isVerified
-                          ? <p style={{ fontSize: 12, color: C.green, margin: '2px 0 0', fontWeight: 600, opacity: 0.85 }}>Verified ✓</p>
+                          ? <p style={{ fontSize: 12, color: C.green, margin: '2px 0 0', fontWeight: 600, ...(song.confirmedAt !== undefined && Date.now() - song.confirmedAt < 2500 ? { opacity: 0, animation: 'fadeIn 0.25s 350ms ease-out forwards' } : { opacity: 0.85 }) }}>Verified ✓</p>
                           : song.artist && song.artist !== performance.artist_name
                           ? <p style={{ fontSize: 13, color: C.muted, margin: '2px 0 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{song.artist}</p>
                           : null
@@ -953,10 +975,10 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         @keyframes pulse-dot    { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(.8)} }
         @keyframes ring-pulse   { 0%{opacity:.5;transform:translateX(-50%) scale(.97)} 100%{opacity:0;transform:translateX(-50%) scale(1.2)} }
         @keyframes ring-catch   { 0%{opacity:.9;transform:translateX(-50%) scale(.93)} 100%{opacity:0;transform:translateX(-50%) scale(1.42)} }
+        @keyframes ring-confirm { 0%{opacity:0.75;transform:translateX(-50%) scale(0.96)} 100%{opacity:0;transform:translateX(-50%) scale(1.35)} }
         @keyframes wave-bar     { from{height:4px} to{height:22px} }
         @keyframes slideUp      { from{opacity:0;transform:translateY(6px) scale(0.97)} to{opacity:1;transform:translateY(0) scale(1)} }
         @keyframes slideDown    { from{opacity:0;transform:translateY(-6px)} to{opacity:1;transform:translateY(0)} }
-        @keyframes songPop      { 0%{opacity:0;transform:translateY(4px) scale(0.96)} 60%{transform:translateY(-2px) scale(1.01)} 100%{opacity:1;transform:translateY(0) scale(1)} }
         @keyframes fadeIn       { from{opacity:0} to{opacity:1} }
         @keyframes fadeUp       { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
         @keyframes breathe      { 0%,100%{transform:scale(1);opacity:.4} 50%{transform:scale(1.15);opacity:.9} }

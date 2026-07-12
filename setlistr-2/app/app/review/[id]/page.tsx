@@ -252,18 +252,12 @@ function SortableRow({ song, index, onDelete, onTap }: {
           {hovered ? (
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={C.red} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
           ) : isVerified ? (
-            <div style={{ width: 18, height: 18, borderRadius: '50%', background: 'rgba(74,222,128,0.12)', border: '1px solid rgba(74,222,128,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Check size={10} color={C.green} strokeWidth={2.5} />
-            </div>
+            <span style={{ width: 9, height: 9, borderRadius: '50%', background: C.gold, display: 'inline-block', flexShrink: 0 }} />
           ) : needsReview ? (
             <span style={{ fontSize: 10, color: C.gold, opacity: 0.7, fontWeight: 700 }}>!</span>
-          ) : (() => {
-            const conf = getMatchConfidence(song)
-            if (conf === 'matched')    return <span style={{ width: 7, height: 7, borderRadius: '50%', background: C.green, display: 'inline-block', opacity: 0.8 }} />
-            if (conf === 'partial')    return <span style={{ width: 7, height: 7, borderRadius: '50%', background: C.gold, display: 'inline-block', opacity: 0.6 }} />
-            if (conf === 'unverified') return <span style={{ width: 7, height: 7, borderRadius: '50%', background: C.muted, display: 'inline-block', opacity: 0.5 }} />
-            return <Check size={13} color={C.green} strokeWidth={2.5} style={{ opacity: 0.3 }} />
-          })()}
+          ) : (
+            <span style={{ width: 9, height: 9, borderRadius: '50%', background: 'transparent', border: `1.5px solid ${C.gold}`, display: 'inline-block', opacity: 0.6, flexShrink: 0 }} />
+          )}
         </div>
       </div>
     </div>
@@ -435,6 +429,10 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
   const [photoUrl, setPhotoUrl] = useState<string | null>(null)
   const [photoUploading, setPhotoUploading] = useState(false)
   const shareCardRef = useRef<HTMLDivElement>(null)
+  const [seqPhase, setSeqPhase] = useState(0)
+  const [skipEnabled, setSkipEnabled] = useState(false)
+  const [seqRoyaltyCount, setSeqRoyaltyCount] = useState(0)
+  const seqRafRef = useRef<number | null>(null)
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -597,6 +595,53 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
         setLoading(false)
       })
   }, [params.id])
+
+  // Sequence: start when loading completes
+  useEffect(() => {
+    if (loading) return
+    const reduced = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    if (reduced) { setSeqPhase(6); return }
+    setSeqPhase(1)
+    const confirmedCount = songs.filter(s => s.source !== 'planned' && !s.isRemoved).length
+    const plannedCount   = songs.filter(s => s.source === 'planned' && !s.isRemoved).length
+    const skipTimer = setTimeout(() => setSkipEnabled(true), 2000)
+    const t2 = setTimeout(() => setSeqPhase(2), 1200)
+    const t3 = setTimeout(() => setSeqPhase(3), 2200)
+    const songsMs = Math.max(800, confirmedCount * 120 + plannedCount * 80 + 400)
+    const t4 = setTimeout(() => setSeqPhase(4), 2200 + songsMs + 400)
+    const t5 = setTimeout(() => setSeqPhase(5), 2200 + songsMs + 400 + 1600)
+    const t6 = setTimeout(() => setSeqPhase(6), 2200 + songsMs + 400 + 1600 + 700)
+    return () => {
+      [skipTimer, t2, t3, t4, t5, t6].forEach(clearTimeout)
+      if (seqRafRef.current) cancelAnimationFrame(seqRafRef.current)
+    }
+  }, [loading]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Sequence royalty count-up — starts when phase reaches 4
+  useEffect(() => {
+    if (seqPhase !== 4 || !performance) return
+    const territory = getTerritory(performance.country, performance.city)
+    const confirmedForEst = songs.filter(s => s.source !== 'planned' && !s.isRemoved)
+    const est = estimateRoyalties({
+      songCount: confirmedForEst.length || 8,
+      venueCapacityBand: capacityToBand(performance.venue_capacity),
+      showType: (performance.show_type as any) || 'single',
+      territory,
+    })
+    const target = est.expected
+    if (target === 0) return
+    const duration = 1200
+    const startMs = Date.now()
+    function tick() {
+      const progress = Math.min((Date.now() - startMs) / duration, 1)
+      const eased = 1 - Math.pow(1 - progress, 3)
+      setSeqRoyaltyCount(Math.round(eased * target))
+      if (progress < 1) seqRafRef.current = requestAnimationFrame(tick)
+      else setSeqRoyaltyCount(target)
+    }
+    seqRafRef.current = requestAnimationFrame(tick)
+    return () => { if (seqRafRef.current) cancelAnimationFrame(seqRafRef.current) }
+  }, [seqPhase]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event
@@ -871,6 +916,106 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
   const needsReviewCount  = confirmedSongs.filter(s => s.source === 'unidentified' || s.reviewState === 'needs_review').length
   const allClean          = needsReviewCount === 0
   const dur               = formatDuration()
+
+  // ── BEAT 3: sequence overlay ──────────────────────────────────────────────
+  if (!showComplete && seqPhase > 0 && seqPhase < 6) {
+    const seqText = seqPhase === 1
+      ? 'Reviewing your show…'
+      : autoCount > 0
+        ? `${autoCount} detections — matching against your setlist…`
+        : 'Matching against your setlist…'
+
+    return (
+      <div
+        style={{ minHeight: '100svh', background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', padding: '72px 24px 60px', cursor: skipEnabled ? 'pointer' : 'default', overflowY: 'auto' }}
+        onClick={() => { if (skipEnabled) setSeqPhase(6) }}
+      >
+        <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '60vh', pointerEvents: 'none', background: 'radial-gradient(ellipse at 50% 0%, rgba(201,168,76,0.07) 0%, transparent 60%)' }} />
+
+        {/* Phase 1–2: status text */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, marginBottom: 40, position: 'relative', zIndex: 1 }}>
+          <div style={{ width: 12, height: 12, borderRadius: '50%', background: C.gold, animation: 'breathe 1.4s ease-in-out infinite' }} />
+          <p key={seqPhase <= 2 ? seqPhase : 2} style={{ fontSize: 15, color: C.secondary, margin: 0, opacity: 0, animation: 'fadeUp 0.4s ease forwards', textAlign: 'center' }}>
+            {seqText}
+          </p>
+        </div>
+
+        {/* Phase 3+: song list assembles */}
+        {seqPhase >= 3 && (
+          <div style={{ width: '100%', maxWidth: 420, display: 'flex', flexDirection: 'column', gap: 5, position: 'relative', zIndex: 1 }}>
+            {confirmedSongs.map((song, i) => (
+              <div key={song.id} style={{
+                display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px',
+                background: C.card, border: '1px solid rgba(255,255,255,0.04)',
+                borderLeft: `3px solid ${song.was_planned ? 'rgba(74,222,128,0.45)' : 'rgba(74,222,128,0.2)'}`,
+                borderRadius: 12,
+                opacity: 0, animation: `slideUp 350ms ${i * 120}ms ease-out forwards`,
+              }}>
+                <span style={{ fontSize: 11, color: C.muted, minWidth: 18, textAlign: 'right', fontFamily: '"DM Mono", monospace', opacity: 0.45, flexShrink: 0 }}>{i + 1}</span>
+                <p style={{ fontSize: 15, fontWeight: 600, color: C.text, margin: 0, flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{song.title}</p>
+                {song.was_planned && (
+                  <span style={{ fontSize: 12, color: C.green, fontWeight: 600, flexShrink: 0, opacity: 0, animation: `fadeIn 0.25s ${i * 120 + 500}ms ease-out forwards` }}>✓</span>
+                )}
+              </div>
+            ))}
+
+            {/* Planned-but-undetected enter after confirmed */}
+            {plannedPending.map((song, i) => (
+              <div key={song.id} onClick={e => e.stopPropagation()} style={{
+                display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px',
+                background: 'rgba(255,255,255,0.02)', border: '1px dashed rgba(255,255,255,0.08)',
+                borderRadius: 12,
+                opacity: 0, animation: `slideUp 350ms ${confirmedSongs.length * 120 + 200 + i * 80}ms ease-out forwards`,
+              }}>
+                <span style={{ fontSize: 11, color: C.muted, minWidth: 18, textAlign: 'right', fontFamily: '"DM Mono", monospace', opacity: 0.35, flexShrink: 0 }}>{confirmedSongs.length + i + 1}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontSize: 15, fontWeight: 500, color: C.secondary, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', opacity: 0.7 }}>{song.title}</p>
+                  <p style={{ fontSize: 11, color: C.muted, margin: '2px 0 0' }}>Not detected — did you play it?</p>
+                </div>
+                <button
+                  onClick={e => { e.stopPropagation(); markPlannedAsPlayed(song.id) }}
+                  style={{ flexShrink: 0, padding: '5px 11px', background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.2)', borderRadius: 8, color: C.green, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', letterSpacing: '0.04em', WebkitTapHighlightColor: 'transparent' }}>
+                  Add
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Phase 4+: royalty count */}
+        {seqPhase >= 4 && (
+          <div style={{ marginTop: 28, textAlign: 'center', opacity: 0, animation: 'fadeUp 0.5s ease forwards', position: 'relative', zIndex: 1 }}>
+            <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.muted, margin: '0 0 6px' }}>What tonight generated</p>
+            <span style={{ fontSize: 44, fontWeight: 800, color: C.gold, fontFamily: '"DM Mono", monospace', letterSpacing: '-0.02em' }}>~${seqRoyaltyCount.toLocaleString()}</span>
+          </div>
+        )}
+
+        {/* Phase 5+: show number stamp */}
+        {seqPhase >= 5 && performance?.show_number && (
+          <div style={{ marginTop: 20, textAlign: 'center', opacity: 0, animation: 'fadeUp 0.4s ease forwards', position: 'relative', zIndex: 1 }}>
+            <span style={{ fontSize: 22, fontWeight: 800, color: C.gold, letterSpacing: '0.12em', display: 'inline-block', animation: 'showStamp 0.4s ease-out both' }}>
+              SHOW #{performance.show_number}
+            </span>
+          </div>
+        )}
+
+        {/* Tap-to-skip hint */}
+        {skipEnabled && (
+          <p style={{ position: 'fixed', bottom: 32, left: 0, right: 0, textAlign: 'center', fontSize: 11, color: C.muted, margin: 0, opacity: 0, animation: 'fadeIn 0.4s ease forwards', pointerEvents: 'none' }}>Tap to skip</p>
+        )}
+
+        <style>{`
+          @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500;700&display=swap');
+          @keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+          @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+          @keyframes slideUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+          @keyframes breathe{0%,100%{transform:scale(1);opacity:.3}50%{transform:scale(1.2);opacity:.8}}
+          @keyframes showStamp{from{transform:scale(1.06)}to{transform:scale(1)}}
+          *{-webkit-tap-highlight-color:transparent;box-sizing:border-box;}
+        `}</style>
+      </div>
+    )
+  }
 
   if (showComplete) {
     const territory = getTerritory(performance?.country, performance?.city)
@@ -1327,6 +1472,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
         @keyframes sheetUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
         @keyframes spin{to{transform:rotate(360deg)}}
         @keyframes breathe{0%,100%{transform:scale(1);opacity:.3}50%{transform:scale(1.2);opacity:.8}}
+        @keyframes showStamp{from{transform:scale(1.06)}to{transform:scale(1)}}
         *{-webkit-tap-highlight-color:transparent}
         input::placeholder{color:#6a6050}
         input:focus{border-color:rgba(201,168,76,0.4)!important}

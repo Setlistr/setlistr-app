@@ -352,8 +352,9 @@ export default function HistoryPage() {
 
                     {/* Right side — estimate + status or just status */}
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, flexShrink: 0 }}>
-                      <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, color: displayStatus.color, background: displayStatus.color + '18', border: `1px solid ${displayStatus.color}35`, borderRadius: 20, padding: '3px 10px' }}>
-                        {displayStatus.label}
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ width: 9, height: 9, borderRadius: '50%', flexShrink: 0, display: 'inline-block', background: displayStatus.color === C.green ? C.gold : 'transparent', border: displayStatus.color === C.green ? 'none' : `1.5px solid ${C.gold}` }} />
+                        <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, color: displayStatus.color }}>{displayStatus.label}</span>
                       </span>
                       {est && est.expected > 0 && (
                         <span style={{ fontSize: 14, fontWeight: 700, color: C.gold, fontFamily: '"DM Mono", monospace' }}>

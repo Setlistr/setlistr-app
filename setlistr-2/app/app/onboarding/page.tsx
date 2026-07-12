@@ -60,6 +60,11 @@ export default function OnboardingPage() {
     lastfmListeners: 0,
   })
 
+  // Career reveal animation
+  const [revealPhase, setRevealPhase] = useState(0)
+  const [countedShows, setCountedShows] = useState(0)
+  const revealRafRef = useRef<number | null>(null)
+
   // Spotify step
   const [spotifyQuery, setSpotifyQuery] = useState('')
   const [spotifySearching, setSpotifySearching] = useState(false)
@@ -191,6 +196,45 @@ export default function OnboardingPage() {
   }
 
   useEffect(() => {
+    if (career.state !== 'rich' && career.state !== 'partial') return
+    if (career.totalShows === 0) { setRevealPhase(4); return }
+    const reduced = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    if (reduced) { setCountedShows(career.totalShows); setRevealPhase(4); return }
+
+    let mounted = true
+    let animFrame: number | null = null
+    const total = career.totalShows
+    const duration = 1600
+
+    const t0 = setTimeout(() => {
+      if (!mounted) return
+      setRevealPhase(1)
+      const startMs = Date.now()
+      function tick() {
+        if (!mounted) return
+        const progress = Math.min((Date.now() - startMs) / duration, 1)
+        const eased = 1 - Math.pow(1 - progress, 3)
+        setCountedShows(Math.round(eased * total))
+        if (progress < 1) {
+          animFrame = requestAnimationFrame(tick)
+        } else {
+          setCountedShows(total)
+          setTimeout(() => mounted && setRevealPhase(2), 100)
+          setTimeout(() => mounted && setRevealPhase(3), 200)
+          setTimeout(() => mounted && setRevealPhase(4), 500)
+        }
+      }
+      animFrame = requestAnimationFrame(tick)
+    }, 400)
+
+    return () => {
+      mounted = false
+      clearTimeout(t0)
+      if (animFrame) cancelAnimationFrame(animFrame)
+    }
+  }, [career.state, career.totalShows])
+
+  useEffect(() => {
     if (step === 3 && spotifyQuery.trim()) searchSpotify()
   }, [step])
 
@@ -319,7 +363,23 @@ export default function OnboardingPage() {
         )}
 
         {/* STEP 2: Career Reveal */}
-        {step === 2 && (
+        {step === 2 && (() => {
+          // Earliest show for closing line — null-guard venue and date
+          function getYear(d: string): string | null {
+            if (!d) return null
+            const parts = d.split('-')
+            const y = parts.find(p => p.length === 4 && /^\d+$/.test(p))
+            return y || null
+          }
+          const sortedShows = [...career.shows].sort((a, b) => {
+            const da = String(a.eventDate || a.date || '')
+            const db = String(b.eventDate || b.date || '')
+            return da < db ? -1 : da > db ? 1 : 0
+          })
+          const earliest = sortedShows[0] || null
+          const earliestVenue = earliest ? (earliest.venue?.name || earliest.venueName || earliest.venue_name || null) : null
+          const earliestYear = earliest ? getYear(String(earliest.eventDate || earliest.date || '')) : null
+          return (
           <div style={{ animation: 'fadeUp 0.35s ease' }}>
 
             {/* Loading state */}
@@ -334,30 +394,35 @@ export default function OnboardingPage() {
             {/* Rich history found */}
             {career.state === 'rich' && (
               <div style={{ background: C.card, border: '1px solid rgba(255,255,255,0.04)', borderRadius: 20, padding: '32px 28px' }}>
-                <div style={{ marginBottom: 24 }}>
+                {/* Count-up heading */}
+                <div style={{ marginBottom: 24, opacity: revealPhase >= 1 ? 1 : 0, transition: 'opacity 0.3s ease' }}>
                   <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.13em', textTransform: 'uppercase', color: C.gold, margin: '0 0 8px' }}>Your career, found</p>
-                  <h2 style={{ fontSize: 28, fontWeight: 800, color: C.text, margin: '0 0 6px', letterSpacing: '-0.02em', lineHeight: 1.2 }}>
-                    We found {career.totalShows} shows<br />in your history.
+                  <h2 style={{ fontSize: 36, fontWeight: 800, color: C.text, margin: '0 0 6px', letterSpacing: '-0.02em', lineHeight: 1.1 }}>
+                    <span style={{ fontFamily: '"DM Mono", monospace', color: C.gold }}>{countedShows}</span>
+                    {' '}
+                    <span style={{ opacity: revealPhase >= 2 ? 1 : 0, transition: 'opacity 0.4s ease' }}>shows on record</span>
                   </h2>
-                  <p style={{ fontSize: 15, color: C.secondary, margin: 0, lineHeight: 1.5 }}>
-                    {career.cities.length > 0 && `${career.cities.slice(0, 3).join(', ')}${career.cities.length > 3 ? ` and ${career.cities.length - 3} more cities.` : '.'}`}
-                  </p>
+                  {revealPhase >= 2 && career.cities.length > 0 && (
+                    <p style={{ fontSize: 15, color: C.secondary, margin: 0, lineHeight: 1.5 }}>
+                      {career.cities.slice(0, 3).join(', ')}{career.cities.length > 3 ? ` and ${career.cities.length - 3} more cities.` : '.'}
+                    </p>
+                  )}
                 </div>
 
-                {/* Stats row */}
+                {/* Stat chips — staggered entry */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 20 }}>
-                  <div style={{ background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 12, padding: '14px 16px' }}>
-                    <p style={{ fontSize: 24, fontWeight: 800, color: C.gold, margin: '0 0 2px', letterSpacing: '-0.02em' }}>{career.totalShows}</p>
+                  <div style={{ background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 12, padding: '14px 16px', opacity: 0, animation: revealPhase >= 3 ? 'fadeUp 0.35s ease forwards' : 'none' }}>
+                    <p style={{ fontSize: 24, fontWeight: 800, color: C.gold, margin: '0 0 2px', letterSpacing: '-0.02em', fontFamily: '"DM Mono", monospace' }}>{career.totalShows}</p>
                     <p style={{ fontSize: 11, color: C.muted, margin: 0, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Shows found</p>
                   </div>
-                  <div style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid ${C.border}`, borderRadius: 12, padding: '14px 16px' }}>
-                    <p style={{ fontSize: 24, fontWeight: 800, color: C.text, margin: '0 0 2px', letterSpacing: '-0.02em' }}>{career.cities.length}</p>
+                  <div style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid ${C.border}`, borderRadius: 12, padding: '14px 16px', opacity: 0, animation: revealPhase >= 3 ? 'fadeUp 0.35s 100ms ease forwards' : 'none' }}>
+                    <p style={{ fontSize: 24, fontWeight: 800, color: C.text, margin: '0 0 2px', letterSpacing: '-0.02em', fontFamily: '"DM Mono", monospace' }}>{career.cities.length}</p>
                     <p style={{ fontSize: 11, color: C.muted, margin: 0, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Cities</p>
                   </div>
                 </div>
 
-                {/* Injustice number */}
-                <div style={{ background: C.redDim, border: '1px solid rgba(248,113,113,0.2)', borderRadius: 12, padding: '16px', marginBottom: 20 }}>
+                {/* Estimate card */}
+                <div style={{ background: C.redDim, border: '1px solid rgba(248,113,113,0.2)', borderRadius: 12, padding: '16px', marginBottom: 20, opacity: 0, animation: revealPhase >= 3 ? 'fadeUp 0.35s 200ms ease forwards' : 'none' }}>
                   <p style={{ fontSize: 13, fontWeight: 700, color: C.red, margin: '0 0 4px', letterSpacing: '0.04em' }}>Estimated uncollected</p>
                   <p style={{ fontSize: 22, fontWeight: 800, color: C.text, margin: '0 0 6px', letterSpacing: '-0.02em' }}>
                     ${career.estimatedMin.toLocaleString()} – ${career.estimatedMax.toLocaleString()}
@@ -372,7 +437,14 @@ export default function OnboardingPage() {
                   Claim my record <ArrowRight size={15} strokeWidth={2.5} />
                 </button>
 
-                <p style={{ fontSize: 11, color: C.muted, margin: '10px 0 0', textAlign: 'center' }}>
+                {/* Closing line — phase 4, only if venue and year are available */}
+                {revealPhase >= 4 && earliestVenue && earliestYear && (
+                  <p style={{ fontSize: 12, color: C.secondary, margin: '10px 0 0', textAlign: 'center', opacity: 0, animation: 'fadeUp 0.4s ease forwards', lineHeight: 1.5 }}>
+                    Show #1: {earliestVenue}, {earliestYear}. It's all on record now.
+                  </p>
+                )}
+
+                <p style={{ fontSize: 11, color: C.muted, margin: '8px 0 0', textAlign: 'center' }}>
                   Based on {career.totalShows} shows · Standard PRO live rates · <span style={{ color: C.gold }}>How we calculate this</span>
                 </p>
               </div>
@@ -381,15 +453,21 @@ export default function OnboardingPage() {
             {/* Partial history */}
             {career.state === 'partial' && (
               <div style={{ background: C.card, border: '1px solid rgba(255,255,255,0.04)', borderRadius: 20, padding: '32px 28px' }}>
-                <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.13em', textTransform: 'uppercase', color: C.gold, margin: '0 0 8px' }}>Your career, started</p>
-                <h2 style={{ fontSize: 28, fontWeight: 800, color: C.text, margin: '0 0 8px', letterSpacing: '-0.02em', lineHeight: 1.2 }}>
-                  We found {career.totalShows} shows so far.
-                </h2>
-                <p style={{ fontSize: 15, color: C.secondary, margin: '0 0 20px', lineHeight: 1.5 }}>
-                  Your full history likely goes deeper. Setlistr will build it show by show from here.
-                </p>
+                <div style={{ marginBottom: 20, opacity: revealPhase >= 1 ? 1 : 0, transition: 'opacity 0.3s ease' }}>
+                  <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.13em', textTransform: 'uppercase', color: C.gold, margin: '0 0 8px' }}>Your career, started</p>
+                  <h2 style={{ fontSize: 36, fontWeight: 800, color: C.text, margin: '0 0 8px', letterSpacing: '-0.02em', lineHeight: 1.1 }}>
+                    <span style={{ fontFamily: '"DM Mono", monospace', color: C.gold }}>{countedShows}</span>
+                    {' '}
+                    <span style={{ opacity: revealPhase >= 2 ? 1 : 0, transition: 'opacity 0.4s ease' }}>shows found so far</span>
+                  </h2>
+                  {revealPhase >= 2 && (
+                    <p style={{ fontSize: 15, color: C.secondary, margin: 0, lineHeight: 1.5 }}>
+                      Your full history likely goes deeper. Setlistr will build it show by show from here.
+                    </p>
+                  )}
+                </div>
 
-                <div style={{ background: C.redDim, border: '1px solid rgba(248,113,113,0.2)', borderRadius: 12, padding: '16px', marginBottom: 20 }}>
+                <div style={{ background: C.redDim, border: '1px solid rgba(248,113,113,0.2)', borderRadius: 12, padding: '16px', marginBottom: 20, opacity: 0, animation: revealPhase >= 3 ? 'fadeUp 0.35s ease forwards' : 'none' }}>
                   <p style={{ fontSize: 13, fontWeight: 700, color: C.red, margin: '0 0 4px' }}>From what we found</p>
                   <p style={{ fontSize: 20, fontWeight: 800, color: C.text, margin: '0 0 4px' }}>
                     ${career.estimatedMin.toLocaleString()} – ${career.estimatedMax.toLocaleString()} uncollected
@@ -401,6 +479,13 @@ export default function OnboardingPage() {
                   style={{ width: '100%', padding: '16px', background: C.gold, border: 'none', borderRadius: 16, color: '#0a0908', fontSize: 15, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
                   Start my full record <ArrowRight size={15} strokeWidth={2.5} />
                 </button>
+
+                {/* Closing line — phase 4, only if venue and year are available */}
+                {revealPhase >= 4 && earliestVenue && earliestYear && (
+                  <p style={{ fontSize: 12, color: C.secondary, margin: '10px 0 0', textAlign: 'center', opacity: 0, animation: 'fadeUp 0.4s ease forwards', lineHeight: 1.5 }}>
+                    Show #1: {earliestVenue}, {earliestYear}. It's all on record now.
+                  </p>
+                )}
               </div>
             )}
 
@@ -416,7 +501,7 @@ export default function OnboardingPage() {
                 </p>
 
                 <div style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid ${C.border}`, borderRadius: 12, padding: '16px', marginBottom: 20 }}>
-                  <p style={{ fontSize: 15, fontWeight: 700, color: C.gold, margin: '0 0 4px' }}>Your record starts tonight.</p>
+                  <p style={{ fontSize: 15, fontWeight: 700, color: C.gold, margin: '0 0 4px' }}>Your record starts with your next show.</p>
                   <p style={{ fontSize: 13, color: C.muted, margin: 0, lineHeight: 1.5 }}>
                     The first show you capture becomes the beginning of a permanent, verified career archive. Every show after that builds it.
                   </p>
@@ -429,7 +514,8 @@ export default function OnboardingPage() {
               </div>
             )}
           </div>
-        )}
+          )
+        })()}
 
         {/* STEP 3: Spotify */}
         {step === 3 && (
@@ -516,7 +602,7 @@ export default function OnboardingPage() {
         </p>
 
         <style>{`
-          @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700;800&display=swap');
+          @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700;800&family=DM+Mono:wght@400;500;700&display=swap');
           @keyframes fadeUp { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
           @keyframes spin { to{transform:rotate(360deg)} }
           @keyframes breathe { 0%,100%{transform:scale(1);opacity:.3} 50%{transform:scale(1.2);opacity:.8} }
