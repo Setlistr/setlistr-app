@@ -528,9 +528,6 @@ export default function DashboardPage() {
               </div>
             )}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <button onClick={() => router.push('/app/history')} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>History →</button>
-          </div>
         </div>
 
         {/* ── ACTING-AS BANNER ── */}

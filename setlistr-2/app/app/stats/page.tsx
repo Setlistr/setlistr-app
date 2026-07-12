@@ -58,6 +58,7 @@ export default function StatsPage() {
   const [showTopSongs, setShowTopSongs]   = useState(false)
   const [showTopVenues, setShowTopVenues] = useState(false)
   const [showDebuts, setShowDebuts]       = useState(false)
+  const [markerOverlay, setMarkerOverlay] = useState<string>('')
 
   useEffect(() => {
     const supabase = createClient()
@@ -140,6 +141,53 @@ export default function StatsPage() {
     load()
   }, [])
 
+  // ── Marker-pin geocoding for Career Map card ─────────────────────────────
+  useEffect(() => {
+    if (!mapboxToken || performances.length === 0) return
+
+    // Derive top 6 cities by show count
+    const cityCount: Record<string, { city: string; country: string; count: number }> = {}
+    performances.forEach(p => {
+      if (!p.city) return
+      const key = `${p.city}__${p.country || ''}`
+      if (!cityCount[key]) cityCount[key] = { city: p.city, country: p.country, count: 0 }
+      cityCount[key].count++
+    })
+    const topCities = Object.values(cityCount).sort((a, b) => b.count - a.count).slice(0, 6)
+    if (topCities.length === 0) return
+
+    // Cache key: sorted city+country pairs so order doesn't matter
+    const cacheKey = `setlistr_mapmarkers_${topCities.map(c => `${c.city}__${c.country}`).sort().join('|')}`
+
+    try {
+      const cached = localStorage.getItem(cacheKey)
+      if (cached) { setMarkerOverlay(cached); return }
+    } catch {}
+
+    // Not cached — geocode async; card renders plain map in the meantime
+    ;(async () => {
+      const markers: string[] = []
+      for (const { city, country } of topCities) {
+        try {
+          const query = [city, country].filter(Boolean).join(', ')
+          const res  = await fetch(
+            `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?types=place&limit=1&access_token=${mapboxToken}`
+          )
+          const data = await res.json()
+          if (data.features?.[0]) {
+            const [lng, lat] = data.features[0].center
+            markers.push(`pin-s+c9a84c(${lng.toFixed(4)},${lat.toFixed(4)})`)
+          }
+        } catch {} // drop this pin, continue
+      }
+      if (markers.length > 0) {
+        const overlay = markers.join(',')
+        setMarkerOverlay(overlay)
+        try { localStorage.setItem(cacheKey, overlay) } catch {}
+      }
+    })()
+  }, [performances]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── Derived stats ─────────────────────────────────────────────────────────
   const totalShows  = performances.length
   const totalSongs  = allSongs.length
@@ -207,7 +255,7 @@ export default function StatsPage() {
     topCountry === 'AU' || topCountry === 'Australia' ? [134, -26, 3] :
     [-98, 38, 3]
   const mapboxStaticUrl = mapboxToken
-    ? `https://api.mapbox.com/styles/v1/mapbox/dark-v11/static/${mapLon},${mapLat},${mapZoom}/480x160@2x?access_token=${mapboxToken}`
+    ? `https://api.mapbox.com/styles/v1/mapbox/dark-v11/static/${markerOverlay ? markerOverlay + '/' : ''}${mapLon},${mapLat},${mapZoom}/480x200@2x?access_token=${mapboxToken}`
     : ''
 
   // Song analysis
@@ -326,17 +374,17 @@ export default function StatsPage() {
                 </div>
               </div>
 
-              {/* Career Map — large visual card with Mapbox static image */}
+              {/* Career Map — focal card with Mapbox static image + gold marker pins */}
               <button onClick={() => router.push('/app/career-map')}
                 style={{
-                  width: '100%', height: 160, position: 'relative', overflow: 'hidden',
+                  width: '100%', height: 200, position: 'relative', overflow: 'hidden',
                   borderRadius: 16, cursor: 'pointer', border: 'none', padding: 0, display: 'block',
                   backgroundColor: C.card,
                   backgroundImage: mapboxStaticUrl ? `url(${mapboxStaticUrl})` : 'none',
                   backgroundSize: 'cover',
                   backgroundPosition: 'center',
                 }}>
-                {/* Night-map gradient overlay — dark at top, near-black at bottom */}
+                {/* Night-map gradient overlay */}
                 <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, rgba(10,9,8,0.55) 0%, rgba(10,9,8,0.92) 100%)' }} />
                 {/* Fallback icon when no token */}
                 {!mapboxStaticUrl && (
@@ -344,13 +392,14 @@ export default function StatsPage() {
                     <MapPin size={36} color={C.gold} style={{ opacity: 0.2 }} />
                   </div>
                 )}
-                {/* Content */}
-                <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '0 18px 16px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
-                  <div>
-                    <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: C.gold, margin: '0 0 3px' }}>Career Map</p>
-                    <p style={{ fontSize: 15, fontWeight: 700, color: C.text, margin: 0 }}>{totalCities} cities · {totalShows} verified shows</p>
-                  </div>
-                  <span style={{ fontSize: 18, color: C.muted, lineHeight: 1 }}>→</span>
+                {/* Text hierarchy — bottom-left over darkest zone */}
+                <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '0 20px 20px' }}>
+                  <p style={{ fontSize: 36, fontWeight: 800, color: C.text, margin: '0 0 4px', letterSpacing: '-0.02em', lineHeight: 1 }}>
+                    {totalCities} Cities
+                  </p>
+                  <p style={{ fontSize: 14, color: C.secondary, margin: 0 }}>
+                    {totalShows} verified shows · view your map →
+                  </p>
                 </div>
               </button>
 
