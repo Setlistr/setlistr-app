@@ -5,6 +5,11 @@ import { createClient } from '@/lib/supabase/client'
 import { Check, ExternalLink, Copy, ChevronDown, ChevronUp, FileText } from 'lucide-react'
 import { estimateRoyalties, capacityToBand } from '@/lib/royalty-estimate'
 
+const CARD = {
+  background: 'linear-gradient(180deg, #171512 0%, #121009 100%)',
+  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04)',
+}
+
 const C = {
   bg: '#0a0908', card: '#141210',
   border: 'rgba(255,255,255,0.07)', borderGold: 'rgba(201,168,76,0.3)',
@@ -436,7 +441,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
         </div>
 
         {/* What happens next */}
-        <div style={{ width: '100%', background: C.card, border: '1px solid rgba(255,255,255,0.04)', borderRadius: 16, padding: '16px 18px', marginBottom: 14, textAlign: 'left' }}>
+        <div style={{ width: '100%', background: CARD.background, border: '1px solid rgba(255,255,255,0.04)', borderRadius: 16, padding: '16px 18px', marginBottom: 14, textAlign: 'left', boxShadow: CARD.boxShadow }}>
           <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' as const, color: C.gold, margin: '0 0 12px' }}>What Happens Next</p>
           {[
             { icon: '1', label: 'PRO reviews your claim', when: 'Now – 4 weeks' },
@@ -511,7 +516,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
 
         {/* Venue size picker */}
         {needsVenuePick && (
-          <div style={{ background: C.card, border: `1px solid ${C.borderGold}`, borderRadius: 16, padding: '14px 16px', marginBottom: 12 }}>
+          <div style={{ background: CARD.background, border: `1px solid ${C.borderGold}`, borderRadius: 16, padding: '14px 16px', marginBottom: 12, boxShadow: CARD.boxShadow }}>
             <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, color: C.gold, margin: '0 0 4px' }}>Venue Size</p>
             <p style={{ fontSize: 11, color: C.muted, margin: '0 0 10px' }}>Helps calculate your royalty estimate</p>
             <div style={{ display: 'flex', gap: 6 }}>
@@ -565,7 +570,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
 
         {/* Show Details — PRO required fields */}
         {hasAnyShowDetail && (
-          <div style={{ background: C.card, border: `1px solid ${showDetailsFilled ? 'rgba(74,222,128,0.25)' : C.borderGold}`, borderRadius: 16, marginBottom: 12, overflow: 'hidden' }}>
+          <div style={{ background: CARD.background, border: `1px solid ${showDetailsFilled ? 'rgba(74,222,128,0.25)' : C.borderGold}`, borderRadius: 16, marginBottom: 12, overflow: 'hidden', boxShadow: CARD.boxShadow }}>
             <button onClick={() => setShowDetailsOpen(v => !v)}
               style={{ width: '100%', padding: '14px 18px', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontFamily: 'inherit' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -648,7 +653,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
         )}
 
         {/* Step 1 — Setlist title */}
-        <div style={{ background: C.card, border: `1px solid ${C.borderGold}`, borderRadius: 16, padding: '16px 18px', marginBottom: 12 }}>
+        <div style={{ background: CARD.background, border: `1px solid ${C.borderGold}`, borderRadius: 16, padding: '16px 18px', marginBottom: 12, boxShadow: CARD.boxShadow }}>
           <p style={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.12em', color: C.gold, margin: '0 0 6px' }}>Your set title</p>
           <p style={{ fontSize: 11, color: C.muted, margin: '0 0 12px', lineHeight: 1.5 }}>Use this as your title when creating the setlist in the {pro || 'PRO'} portal.</p>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#0a0908', border: `1px solid rgba(255,255,255,0.07)`, borderRadius: 10, padding: '12px 14px' }}>
@@ -694,7 +699,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
         </div>
 
         {/* Step 2 — Song list */}
-        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, marginBottom: 12, overflow: 'hidden' }}>
+        <div style={{ background: CARD.background, border: `1px solid ${C.border}`, borderRadius: 16, marginBottom: 12, overflow: 'hidden', boxShadow: CARD.boxShadow }}>
           <div style={{ padding: '14px 18px 10px', borderBottom: `1px solid ${C.border}` }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
               <p style={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.12em', color: C.muted, margin: 0 }}>
@@ -767,7 +772,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
 
         {/* Guided steps */}
         {hasPRO && proConfig && (
-          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, marginBottom: 12, overflow: 'hidden' }}>
+          <div style={{ background: CARD.background, border: `1px solid ${C.border}`, borderRadius: 16, marginBottom: 12, overflow: 'hidden', boxShadow: CARD.boxShadow }}>
             <button onClick={() => setStepsOpen(v => !v)}
               style={{ width: '100%', padding: '14px 18px', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontFamily: 'inherit' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>

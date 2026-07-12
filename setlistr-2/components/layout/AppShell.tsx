@@ -9,6 +9,8 @@ import { useState, useEffect } from 'react'
 
 const FULLSCREEN_ROUTES = ['/app/live/']
 
+const GRAIN_URI = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)'/%3E%3C/svg%3E")`
+
 export function AppShell({ children, profile }: { children: React.ReactNode; profile: Profile }) {
   const pathname = usePathname()
   const [needsReviewCount, setNeedsReviewCount] = useState(0)
@@ -63,6 +65,9 @@ export function AppShell({ children, profile }: { children: React.ReactNode; pro
           <Image src="/logo-white.png" alt="Setlistr" width={120} height={32} priority style={{ objectFit: 'contain' }} />
         </Link>
       </header>
+
+      {/* Grain layer — fixed noise texture over all shell surfaces, excluded from fullscreen routes */}
+      <div aria-hidden="true" style={{ position: 'fixed', inset: 0, zIndex: 100, pointerEvents: 'none', backgroundImage: GRAIN_URI, backgroundRepeat: 'repeat', opacity: 0.03 }} />
 
       {/* ── Main content ── */}
       <main style={{ flex: 1, paddingBottom: 96 }}>{children}</main>

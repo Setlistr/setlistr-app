@@ -10,6 +10,11 @@ const ADMIN_EMAILS = [
   'darylscottsongs@gmail.com',
 ]
 
+const CARD = {
+  background: 'linear-gradient(180deg, #171512 0%, #121009 100%)',
+  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04)',
+}
+
 const C = {
   bg: '#0a0908',
   card: '#141210',
@@ -439,7 +444,7 @@ export default function SettingsPage() {
         )}
 
         {/* ── Profile ── */}
-        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{ background: CARD.background, border: `1px solid ${C.border}`, borderRadius: 16, padding: '20px', display: 'flex', flexDirection: 'column', gap: 16, boxShadow: CARD.boxShadow }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <User size={15} color={C.gold} />
             <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.secondary, margin: 0 }}>Profile</p>
@@ -517,7 +522,7 @@ export default function SettingsPage() {
         </div>
 
         {/* ── Team ── */}
-        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{ background: CARD.background, border: `1px solid ${C.border}`, borderRadius: 16, padding: '20px', display: 'flex', flexDirection: 'column', gap: 16, boxShadow: CARD.boxShadow }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <Users size={15} color={C.gold} />
@@ -633,7 +638,7 @@ export default function SettingsPage() {
         </div>
 
         {/* ── Bandsintown ── */}
-        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{ background: CARD.background, border: `1px solid ${C.border}`, borderRadius: 16, padding: '20px', display: 'flex', flexDirection: 'column', gap: 16, boxShadow: CARD.boxShadow }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <Radio size={15} color={C.gold} />
@@ -679,7 +684,7 @@ export default function SettingsPage() {
         </div>
 
         {/* ── Career History ── */}
-        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{ background: CARD.background, border: `1px solid ${C.border}`, borderRadius: 16, padding: '20px', display: 'flex', flexDirection: 'column', gap: 16, boxShadow: CARD.boxShadow }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <Clock size={15} color={C.gold} />
             <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.secondary, margin: 0 }}>Career History</p>
@@ -711,7 +716,7 @@ export default function SettingsPage() {
         </div>
 
         {/* ── PRO Information ── */}
-        <div id="pro-section" style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div id="pro-section" style={{ background: CARD.background, border: `1px solid ${C.border}`, borderRadius: 16, padding: '20px', display: 'flex', flexDirection: 'column', gap: 16, boxShadow: CARD.boxShadow }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <Music2 size={15} color={C.gold} />
@@ -768,7 +773,7 @@ export default function SettingsPage() {
         </div>
 
         {/* ── Song Catalog — Spotify Import ── */}
-        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{ background: CARD.background, border: `1px solid ${C.border}`, borderRadius: 16, padding: '20px', display: 'flex', flexDirection: 'column', gap: 16, boxShadow: CARD.boxShadow }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <svg width="15" height="15" viewBox="0 0 24 24" fill={C.gold}>
@@ -835,7 +840,7 @@ export default function SettingsPage() {
         </div>
 
         {/* ── Password ── */}
-        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{ background: CARD.background, border: `1px solid ${C.border}`, borderRadius: 16, padding: '20px', display: 'flex', flexDirection: 'column', gap: 16, boxShadow: CARD.boxShadow }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <KeyRound size={15} color={C.gold} />
             <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.secondary, margin: 0 }}>Change Password</p>
@@ -864,7 +869,7 @@ export default function SettingsPage() {
         </div>
 
         {/* ── Account ── */}
-        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={{ background: CARD.background, border: `1px solid ${C.border}`, borderRadius: 16, padding: '20px', display: 'flex', flexDirection: 'column', gap: 10, boxShadow: CARD.boxShadow }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
             <User size={15} color={C.gold} />
             <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.secondary, margin: 0 }}>Account</p>

@@ -5,6 +5,11 @@ import { createClient } from '@/lib/supabase/client'
 import { Search, ChevronLeft, Music2, DollarSign } from 'lucide-react'
 import { estimateRoyalties, capacityToBand } from '@/lib/royalty-estimate'
 
+const CARD = {
+  background: 'linear-gradient(180deg, #171512 0%, #121009 100%)',
+  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04)',
+}
+
 const C = {
   bg: '#0a0908', card: '#141210', cardHover: '#181614',
   border: 'rgba(255,255,255,0.07)', borderGold: 'rgba(201,168,76,0.3)',
@@ -30,6 +35,7 @@ type Performance = {
   song_count?:       number
   captured_by_name?: string | null
   venue_id?:         string | null
+  photo_url?:        string | null
 }
 
 function getDisplayStatus(p: Performance): { label: string; color: string } {
@@ -78,7 +84,7 @@ export default function HistoryPage() {
 
       const { data, error } = await supabase
         .from('performances')
-        .select('id, venue_name, venue_id, artist_name, city, country, status, submission_status, started_at, created_at, captured_by_name, shows(show_type), venues(capacity)')
+        .select('id, venue_name, venue_id, artist_name, city, country, status, submission_status, started_at, created_at, captured_by_name, photo_url, shows(show_type), venues(capacity)')
         .eq('user_id', user.id)
         .not('status', 'in', '("live","pending")')
         .order('started_at', { ascending: false })
@@ -107,6 +113,7 @@ export default function HistoryPage() {
             song_count: countMap[p.id] || 0,
             captured_by_name: p.captured_by_name || null,
             venue_id: p.venue_id || null,
+            photo_url: p.photo_url || null,
           }))
 
         setPerformances(clean)
@@ -282,7 +289,7 @@ export default function HistoryPage() {
         {/* List */}
         <div style={{ paddingBottom: 48 }}>
           {filtered.length === 0 ? (
-            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '52px 20px', textAlign: 'center' }}>
+            <div style={{ background: CARD.background, border: `1px solid ${C.border}`, borderRadius: 16, padding: '52px 20px', textAlign: 'center', boxShadow: CARD.boxShadow }}>
               <div style={{ width: 52, height: 52, borderRadius: '50%', background: C.goldDim, border: `1px solid ${C.borderGold}`, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px' }}>
                 <Music2 size={20} color={C.gold} />
               </div>
@@ -315,9 +322,22 @@ export default function HistoryPage() {
 
                 return (
                   <button key={perf.id} onClick={() => navigateTo(perf)}
-                    style={{ background: C.card, border: `1px solid ${isClaimable ? 'rgba(201,168,76,0.15)' : 'rgba(255,255,255,0.04)'}`, borderRadius: 16, padding: '16px', cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 12, fontFamily: 'inherit', width: '100%', transition: 'background 0.12s ease, border-color 0.12s ease' }}
+                    style={{ background: CARD.background, border: `1px solid ${isClaimable ? 'rgba(201,168,76,0.15)' : 'rgba(255,255,255,0.04)'}`, borderRadius: 16, padding: '16px', cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 12, fontFamily: 'inherit', width: '100%', transition: 'background 0.12s ease, border-color 0.12s ease', boxShadow: CARD.boxShadow }}
                     onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.background = C.cardHover }}
-                    onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.background = C.card }}>
+                    onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.background = CARD.background }}>
+
+                    {/* Photo thumbnail — 40px rounded square, fades in on load */}
+                    {perf.photo_url && (
+                      <div style={{ width: 40, height: 40, borderRadius: 8, overflow: 'hidden', flexShrink: 0, background: '#171512' }}>
+                        <img
+                          src={perf.photo_url}
+                          alt=""
+                          aria-hidden="true"
+                          onLoad={e => { (e.target as HTMLImageElement).style.opacity = '1' }}
+                          style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', opacity: 0, transition: 'opacity 0.2s ease' }}
+                        />
+                      </div>
+                    )}
 
                     {/* Date */}
                     <div style={{ minWidth: 36, textAlign: 'center', flexShrink: 0 }}>

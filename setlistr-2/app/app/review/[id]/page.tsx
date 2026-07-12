@@ -23,7 +23,7 @@ import MilestoneCard from '@/components/share-cards/MilestoneCard'
 import html2canvas from 'html2canvas'
 
 const C = {
-  bg: '#0a0908', card: '#141210', cardHover: '#181614',
+  bg: '#0a0908', card: '#141210', cardGrad: 'linear-gradient(180deg, #171512 0%, #121009 100%)', cardHover: '#181614',
   border: 'rgba(255,255,255,0.07)', borderGold: 'rgba(201,168,76,0.3)',
   input: '#0f0e0c', text: '#f0ece3', secondary: '#a09070', muted: '#6a6050',
   gold: '#c9a84c', goldDim: 'rgba(201,168,76,0.1)', green: '#4ade80', red: '#ef4444',
@@ -270,7 +270,7 @@ function EditSheet({ song, onSave, onClose }: { song: Song; onSave: (id: string,
   const bottomOffset        = useKeyboardOffset()
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', animation: 'fadeIn 0.15s ease' }} onClick={onClose}>
-      <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 520, background: '#141210', borderRadius: '20px 20px 0 0', border: '1px solid rgba(255,255,255,0.07)', borderBottom: 'none', padding: '20px 20px 40px', display: 'flex', flexDirection: 'column', gap: 12, animation: 'sheetUp 0.22s ease', fontFamily: '"DM Sans", system-ui, sans-serif', marginBottom: bottomOffset, transition: 'margin-bottom 0.15s ease' }}>
+      <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 520, background: C.cardGrad, borderRadius: '20px 20px 0 0', border: '1px solid rgba(255,255,255,0.07)', borderBottom: 'none', padding: '20px 20px 40px', display: 'flex', flexDirection: 'column', gap: 12, animation: 'sheetUp 0.22s ease', fontFamily: '"DM Sans", system-ui, sans-serif', marginBottom: bottomOffset, transition: 'margin-bottom 0.15s ease', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
           <p style={{ fontSize: 13, fontWeight: 700, color: C.text, margin: 0 }}>Edit song</p>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: C.muted, cursor: 'pointer', padding: 4 }}><X size={16} /></button>
@@ -293,7 +293,7 @@ function AssignSheet({ assignSheet, onAssign, onClose, onCatalogSelect, userId, 
   const bottomOffset = useKeyboardOffset()
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', animation: 'fadeIn 0.15s ease' }} onClick={onClose}>
-      <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 520, background: '#141210', borderRadius: '20px 20px 0 0', border: '1px solid rgba(255,255,255,0.07)', borderBottom: 'none', padding: '20px 20px 40px', display: 'flex', flexDirection: 'column', gap: 12, animation: 'sheetUp 0.22s ease', fontFamily: '"DM Sans", system-ui, sans-serif', marginBottom: bottomOffset, transition: 'margin-bottom 0.15s ease' }}>
+      <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 520, background: C.cardGrad, borderRadius: '20px 20px 0 0', border: '1px solid rgba(255,255,255,0.07)', borderBottom: 'none', padding: '20px 20px 40px', display: 'flex', flexDirection: 'column', gap: 12, animation: 'sheetUp 0.22s ease', fontFamily: '"DM Sans", system-ui, sans-serif', marginBottom: bottomOffset, transition: 'margin-bottom 0.15s ease', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
           <div>
             <p style={{ fontSize: 14, fontWeight: 700, color: C.text, margin: 0 }}>What song was this?</p>
@@ -350,7 +350,7 @@ function CeremonyCountCard({ songCount, showDate, verifiedCount, autoCount, manu
 }) {
   const count = useCountUp(songCount, 1000, 500)
   return (
-    <div style={{ background: '#141210', border: '1px solid rgba(255,255,255,0.04)', borderRadius: 24, overflow: 'hidden', marginBottom: 12, opacity: 0, animation: 'fadeUp 0.6s 0.5s ease forwards' }}>
+    <div style={{ background: C.cardGrad, border: '1px solid rgba(255,255,255,0.04)', borderRadius: 24, overflow: 'hidden', marginBottom: 12, opacity: 0, animation: 'fadeUp 0.6s 0.5s ease forwards', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04)' }}>
       <div style={{ padding: '20px 24px 16px', borderBottom: `1px solid rgba(255,255,255,0.05)` }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 4 }}>
           <span style={{ fontSize: 64, fontWeight: 800, color: '#f0ece3', fontFamily: '"DM Mono", monospace', letterSpacing: '-0.04em', lineHeight: 1, animation: count === songCount ? 'countPulse 0.4s ease' : 'none' }}>
@@ -1433,7 +1433,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
         </div>
 
         {showAdd ? (
-          <div style={{ background: C.card, border: `1px solid ${C.borderGold}`, borderRadius: 12, padding: 14, marginBottom: 10, animation: 'slideUp 0.2s ease' }}>
+          <div style={{ background: C.cardGrad, border: `1px solid ${C.borderGold}`, borderRadius: 12, padding: 14, marginBottom: 10, animation: 'slideUp 0.2s ease', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04)' }}>
             <CatalogSearch userId={userId} placeholder="Search or add a song..." autoFocus showEmpty currentSongs={confirmedSongs.map(s => s.title)}
               onSelect={(catalogSong) => {
                 const normalized = normalizeSong({ title: catalogSong.title, artist: catalogSong.artist || performance?.artist_name || '' })

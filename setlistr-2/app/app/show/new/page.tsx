@@ -4,6 +4,11 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Calendar, ArrowRight, RefreshCw, Check, MapPin, Search, X, Plus, ChevronDown, ChevronUp } from 'lucide-react'
 
+const CARD = {
+  background: 'linear-gradient(180deg, #171512 0%, #121009 100%)',
+  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04)',
+}
+
 const C = {
   bg: '#0a0908', card: '#141210', cardHover: '#181614',
   border: 'rgba(255,255,255,0.07)', borderGold: 'rgba(201,168,76,0.3)',
@@ -452,7 +457,7 @@ export default function NewShowPage() {
         <h1 style={{ fontSize: 30, fontWeight: 800, color: C.text, margin: '0 0 16px', letterSpacing: '-0.025em' }}>Where tonight?</h1>
 
         {/* ── VENUE CARD ── */}
-        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '20px', display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 16 }}>
+        <div style={{ background: CARD.background, border: `1px solid ${C.border}`, borderRadius: 16, padding: '20px', display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 16, boxShadow: CARD.boxShadow }}>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, position: 'relative' }} ref={dropdownRef}>
             <label style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' as const, color: C.muted, display: 'flex', alignItems: 'center', gap: 5 }}>
@@ -555,7 +560,7 @@ export default function NewShowPage() {
         </div>
 
         {/* ── SETLIST SECTION ── */}
-        <div style={{ background: C.card, border: `1px solid ${plannedSongs.length > 0 ? C.borderGold : C.border}`, borderRadius: 16, marginBottom: 16, overflow: 'hidden', transition: 'border-color 0.2s ease' }}>
+        <div style={{ background: CARD.background, border: `1px solid ${plannedSongs.length > 0 ? C.borderGold : C.border}`, borderRadius: 16, marginBottom: 16, overflow: 'hidden', transition: 'border-color 0.2s ease', boxShadow: CARD.boxShadow }}>
 
           {/* Header */}
           <div style={{ padding: '16px 20px 14px' }}>
@@ -759,11 +764,11 @@ export default function NewShowPage() {
         {showReuse && (
           <div style={{ marginTop: 10 }}>
             {pastLoading ? (
-              <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ background: CARD.background, border: `1px solid ${C.border}`, borderRadius: 12, boxShadow: CARD.boxShadow, padding: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <div style={{ width: 20, height: 20, borderRadius: '50%', border: `2px solid ${C.border}`, borderTopColor: C.gold, animation: 'spin 0.7s linear infinite' }} />
               </div>
             ) : pastPerfs.length === 0 ? (
-              <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: '20px', textAlign: 'center' }}>
+              <div style={{ background: CARD.background, border: `1px solid ${C.border}`, borderRadius: 12, boxShadow: CARD.boxShadow, padding: '20px', textAlign: 'center' }}>
                 <p style={{ fontSize: 13, color: C.muted, margin: 0 }}>No past shows with songs yet.</p>
               </div>
             ) : (

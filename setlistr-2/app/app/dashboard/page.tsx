@@ -20,6 +20,11 @@ const C = {
 
 const ACTING_AS_KEY = 'setlistr_acting_as'
 
+const CARD = {
+  background: 'linear-gradient(180deg, #171512 0%, #121009 100%)',
+  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04)',
+}
+
 type Performance = {
   id: string; venue_name: string; artist_name: string
   city: string; country: string; status: string
@@ -28,6 +33,7 @@ type Performance = {
   show_type?: string; venue_capacity?: number | null
   captured_by_name?: string | null
   data_source?: string | null
+  photo_url?: string | null
   performance_date?: string | null
 }
 
@@ -185,7 +191,7 @@ export default function DashboardPage() {
     const [{ data }, { data: profileCareer }] = await Promise.all([
       supabase
         .from('performances')
-        .select(`id, venue_name, artist_name, city, country, status, submission_status, started_at, ended_at, created_at, captured_by_name, data_source, performance_date, shows ( show_type ), venues ( capacity )`)
+        .select(`id, venue_name, artist_name, city, country, status, submission_status, started_at, ended_at, created_at, captured_by_name, data_source, performance_date, photo_url, shows ( show_type ), venues ( capacity )`)
         .order('created_at', { ascending: false }),
       supabase
         .from('profiles')
@@ -220,6 +226,7 @@ export default function DashboardPage() {
       captured_by_name: p.captured_by_name || null,
       data_source: p.data_source || 'captured',
       performance_date: p.performance_date || null,
+      photo_url: p.photo_url || null,
     }))
     setPerformances(perfs)
 
@@ -379,9 +386,10 @@ export default function DashboardPage() {
 
   // ── ROAD MEMORY — deterministic daily rotation, no state needed ──
   const completedPerfs = capturedPerfs.filter(p => p.status !== 'live' && p.status !== 'pending')
-  const roadMemoryOptions: string[] = (() => {
+  type RoadMemoryEntry = { text: string; photoUrl?: string | null }
+  const roadMemoryOptions: RoadMemoryEntry[] = (() => {
     if (completedPerfs.length === 0) return []
-    const opts: string[] = []
+    const opts: RoadMemoryEntry[] = []
 
     // P1: one year ago this week (350–380 days)
     const oneYearPerf = completedPerfs.find(p => {
@@ -389,7 +397,7 @@ export default function DashboardPage() {
       return days >= 350 && days <= 380 && !!p.venue_name
     })
     if (oneYearPerf) {
-      opts.push(`One year ago this week: ${oneYearPerf.venue_name}${oneYearPerf.city ? `, ${oneYearPerf.city}` : ''}`)
+      opts.push({ text: `One year ago this week: ${oneYearPerf.venue_name}${oneYearPerf.city ? `, ${oneYearPerf.city}` : ''}`, photoUrl: oneYearPerf.photo_url })
     }
 
     // P2: most-played venue ≥ 5 shows, only when capturedCount ≥ 10
@@ -403,7 +411,8 @@ export default function DashboardPage() {
       })
       const topV = Object.values(vMap).sort((a, b) => b.count - a.count)[0]
       if (topV && topV.count >= 5) {
-        opts.push(`${topV.name} — you've played it ${topV.count} times, your most-played room`)
+        const vPhotoUrl = completedPerfs.find(p => p.venue_name?.toLowerCase().trim() === topV.name.toLowerCase().trim() && p.photo_url)?.photo_url || null
+        opts.push({ text: `${topV.name} — you've played it ${topV.count} times, your most-played room`, photoUrl: vPhotoUrl })
       }
     }
 
@@ -417,7 +426,7 @@ export default function DashboardPage() {
       if (msPerf) {
         const monthsAgo  = Math.round((Date.now() - new Date(msPerf.started_at || msPerf.created_at).getTime()) / (30 * 86400000))
         const monthsLabel = monthsAgo <= 1 ? 'last month' : `${monthsAgo} months ago`
-        opts.push(`Show #${lastMilestone} was ${monthsLabel}. #${nextMilestone} is ${showsAway} show${showsAway !== 1 ? 's' : ''} away.`)
+        opts.push({ text: `Show #${lastMilestone} was ${monthsLabel}. #${nextMilestone} is ${showsAway} show${showsAway !== 1 ? 's' : ''} away.`, photoUrl: msPerf.photo_url })
       }
     }
 
@@ -425,12 +434,12 @@ export default function DashboardPage() {
     const firstPerf = completedPerfs[completedPerfs.length - 1]
     if (firstPerf?.venue_name) {
       const d = parseLocalDate(firstPerf.started_at || firstPerf.created_at)
-      opts.push(`First show on record: ${firstPerf.venue_name}, ${d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`)
+      opts.push({ text: `First show on record: ${firstPerf.venue_name}, ${d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`, photoUrl: firstPerf.photo_url })
     }
 
     return opts
   })()
-  const roadMemory = roadMemoryOptions.length > 0
+  const roadMemory: RoadMemoryEntry | null = roadMemoryOptions.length > 0
     ? roadMemoryOptions[dayOfYear % roadMemoryOptions.length]
     : null
 
@@ -494,7 +503,7 @@ export default function DashboardPage() {
               </span>
             )}
             {switcherOpen && (
-              <div style={{ position: 'absolute', top: 'calc(100% + 8px)', left: 0, width: 260, background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, overflow: 'hidden', zIndex: 50, boxShadow: '0 8px 24px rgba(0,0,0,0.4)', animation: 'fadeUp 0.15s ease' }}>
+              <div style={{ position: 'absolute', top: 'calc(100% + 8px)', left: 0, width: 260, background: CARD.background, border: `1px solid ${C.border}`, borderRadius: 12, overflow: 'hidden', zIndex: 50, boxShadow: '0 8px 24px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.04)', animation: 'fadeUp 0.15s ease' }}>
                 <button onClick={switchToOwn}
                   style={{ width: '100%', padding: '12px 16px', background: !actingAs ? 'rgba(201,168,76,0.06)' : 'transparent', border: 'none', borderBottom: `1px solid ${C.border}`, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left' }}>
                   <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'rgba(255,255,255,0.04)', border: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
@@ -651,9 +660,15 @@ export default function DashboardPage() {
 
         {/* ── ROAD MEMORY ── */}
         {roadMemory && (
-          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderLeft: '2px solid rgba(201,168,76,0.5)', borderRadius: 16, padding: '14px 18px', marginBottom: 24, animation: 'fadeUp 0.35s ease', animationDelay: '0.08s', animationFillMode: 'both' }}>
-            <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.13em', textTransform: 'uppercase', color: C.muted, margin: '0 0 6px' }}>FROM THE ROAD</p>
-            <p style={{ fontSize: 14, color: C.secondary, margin: 0, lineHeight: 1.5, fontStyle: 'italic' }}>{roadMemory}</p>
+          <div style={{ background: CARD.background, border: `1px solid ${C.border}`, borderLeft: '2px solid rgba(201,168,76,0.5)', borderRadius: 16, marginBottom: 24, animation: 'fadeUp 0.35s ease', animationDelay: '0.08s', animationFillMode: 'both', position: 'relative', overflow: 'hidden', boxShadow: CARD.boxShadow }}>
+            {roadMemory.photoUrl && (
+              <img src={roadMemory.photoUrl} alt="" aria-hidden="true" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.18, display: 'block' }} />
+            )}
+            <div aria-hidden="true" style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, rgba(10,9,8,0.55) 0%, rgba(10,9,8,0.88) 100%)' }} />
+            <div style={{ position: 'relative', zIndex: 1, padding: '14px 18px' }}>
+              <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.13em', textTransform: 'uppercase', color: C.muted, margin: '0 0 6px' }}>FROM THE ROAD</p>
+              <p style={{ fontSize: 14, color: C.secondary, margin: 0, lineHeight: 1.5, fontStyle: 'italic' }}>{roadMemory.text}</p>
+            </div>
           </div>
         )}
 
@@ -704,7 +719,7 @@ export default function DashboardPage() {
                 </div>
               )}
               <button onClick={() => navigateToPerformance(livePerf)}
-                style={{ width: '100%', background: C.card, border: `2px solid ${C.borderGold}`, borderRadius: mightBeInterrupted ? '0 0 14px 14px' : 14, padding: '18px 16px', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 14 }}>
+                style={{ width: '100%', background: CARD.background, border: `2px solid ${C.borderGold}`, borderRadius: mightBeInterrupted ? '0 0 14px 14px' : 14, padding: '18px 16px', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 14, boxShadow: CARD.boxShadow }}>
                 <div style={{ width: 44, height: 44, borderRadius: '50%', background: C.goldDim, border: `1px solid ${C.borderGold}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                   <div style={{ width: 12, height: 12, borderRadius: '50%', background: C.gold, animation: 'pulse-dot 1.4s ease-in-out infinite' }} />
                 </div>
@@ -746,9 +761,9 @@ export default function DashboardPage() {
                 const dateLabel = isEventToday ? 'Tonight' : isEventTomorrow ? 'Tomorrow' : formatShowDate(event.datetime)
                 return (
                   <button key={event.id} onClick={() => startShowFromBIT(event)}
-                    style={{ background: C.card, border: `1px solid ${isEventToday ? C.borderGold : C.border}`, borderRadius: 12, padding: '12px 16px', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 12, transition: 'background 0.15s ease' }}
+                    style={{ background: CARD.background, border: `1px solid ${isEventToday ? C.borderGold : C.border}`, borderRadius: 12, padding: '12px 16px', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 12, transition: 'background 0.15s ease', boxShadow: CARD.boxShadow }}
                     onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = C.cardHover}
-                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = C.card}>
+                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = CARD.background}>
                     <div style={{ minWidth: 52, flexShrink: 0 }}>
                       <p style={{ fontSize: 11, fontWeight: 700, color: isEventToday ? C.gold : C.secondary, margin: 0 }}>{dateLabel}</p>
                       <p style={{ fontSize: 10, color: C.muted, margin: '1px 0 0' }}>{formatShowTime(event.datetime)}</p>
@@ -782,7 +797,7 @@ export default function DashboardPage() {
 
           {recentPerfs.length === 0 && importedPerfs.length > 0 ? (
             // Has imported history but no captured shows yet
-            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '24px 20px', textAlign: 'center' }}>
+            <div style={{ background: CARD.background, border: `1px solid ${C.border}`, borderRadius: 16, padding: '24px 20px', textAlign: 'center', boxShadow: CARD.boxShadow }}>
               <p style={{ fontSize: 28, fontWeight: 800, color: C.gold, margin: '0 0 4px', fontFamily: '"DM Mono", monospace' }}>{careerTotalShows > 0 ? careerTotalShows.toLocaleString() : importedPerfs.length}</p>
               <p style={{ fontSize: 14, color: C.secondary, margin: '0 0 4px', fontWeight: 500 }}>shows in your history</p>
               <p style={{ fontSize: 13, color: C.muted, margin: '0 0 20px', lineHeight: 1.5 }}>
