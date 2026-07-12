@@ -59,6 +59,7 @@ export default function StatsPage() {
   const [showTopVenues, setShowTopVenues] = useState(false)
   const [showDebuts, setShowDebuts]       = useState(false)
   const [markerOverlay, setMarkerOverlay] = useState<string>('')
+  const [usePlainMap, setUsePlainMap]     = useState(false)
 
   useEffect(() => {
     const supabase = createClient()
@@ -161,7 +162,11 @@ export default function StatsPage() {
 
     try {
       const cached = localStorage.getItem(cacheKey)
-      if (cached) { setMarkerOverlay(cached); return }
+      if (cached) {
+        const isClean = !cached.includes('NaN') && !cached.includes('null') && !cached.includes('undefined') && cached.startsWith('pin-s+')
+        if (isClean) { setMarkerOverlay(cached); return }
+        try { localStorage.removeItem(cacheKey) } catch {}
+      }
     } catch {}
 
     // Not cached — geocode async; card renders plain map in the meantime
@@ -176,7 +181,9 @@ export default function StatsPage() {
           const data = await res.json()
           if (data.features?.[0]) {
             const [lng, lat] = data.features[0].center
-            markers.push(`pin-s+c9a84c(${lng.toFixed(4)},${lat.toFixed(4)})`)
+            if (Number.isFinite(lng) && Number.isFinite(lat)) {
+              markers.push(`pin-s+c9a84c(${lng.toFixed(4)},${lat.toFixed(4)})`)
+            }
           }
         } catch {} // drop this pin, continue
       }
@@ -187,6 +194,9 @@ export default function StatsPage() {
       }
     })()
   }, [performances]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Reset fallback flag whenever markerOverlay changes so we retry the marker URL
+  useEffect(() => { setUsePlainMap(false) }, [markerOverlay])
 
   // ── Derived stats ─────────────────────────────────────────────────────────
   const totalShows  = performances.length
@@ -254,9 +264,17 @@ export default function StatsPage() {
     topCountry === 'GB' || topCountry === 'United Kingdom' ? [-2, 54, 5] :
     topCountry === 'AU' || topCountry === 'Australia' ? [134, -26, 3] :
     [-98, 38, 3]
-  const mapboxStaticUrl = mapboxToken
-    ? `https://api.mapbox.com/styles/v1/mapbox/dark-v11/static/${markerOverlay ? markerOverlay + '/' : ''}${mapLon},${mapLat},${mapZoom}/480x200@2x?access_token=${mapboxToken}`
+  const plainMapUrl = mapboxToken
+    ? `https://api.mapbox.com/styles/v1/mapbox/dark-v11/static/${mapLon},${mapLat},${mapZoom}/480x200@2x?access_token=${mapboxToken}`
     : ''
+  const isValidOverlay = markerOverlay.length > 0
+    && !markerOverlay.includes('NaN')
+    && !markerOverlay.includes('null')
+    && !markerOverlay.includes('undefined')
+  const markerMapUrl = (isValidOverlay && mapboxToken)
+    ? `https://api.mapbox.com/styles/v1/mapbox/dark-v11/static/${markerOverlay}/${mapLon},${mapLat},${mapZoom}/480x200@2x?access_token=${mapboxToken}`
+    : ''
+  const activeMapUrl = (isValidOverlay && !usePlainMap && markerMapUrl) ? markerMapUrl : plainMapUrl
 
   // Song analysis
   const songCounts: Record<string, { title: string; artist: string; count: number; positions: number[] }> = {}
@@ -380,14 +398,21 @@ export default function StatsPage() {
                   width: '100%', height: 200, position: 'relative', overflow: 'hidden',
                   borderRadius: 16, cursor: 'pointer', border: 'none', padding: 0, display: 'block',
                   backgroundColor: C.card,
-                  backgroundImage: mapboxStaticUrl ? `url(${mapboxStaticUrl})` : 'none',
-                  backgroundSize: 'cover',
-                  backgroundPosition: 'center',
                 }}>
+                {/* Map image layer — img fires onError; CSS background-image cannot */}
+                {plainMapUrl && (
+                  <img
+                    src={activeMapUrl}
+                    alt=""
+                    aria-hidden="true"
+                    onError={() => setUsePlainMap(true)}
+                    style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                  />
+                )}
                 {/* Night-map gradient overlay */}
                 <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, rgba(10,9,8,0.55) 0%, rgba(10,9,8,0.92) 100%)' }} />
                 {/* Fallback icon when no token */}
-                {!mapboxStaticUrl && (
+                {!plainMapUrl && (
                   <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <MapPin size={36} color={C.gold} style={{ opacity: 0.2 }} />
                   </div>
