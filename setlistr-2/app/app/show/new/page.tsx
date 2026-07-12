@@ -29,6 +29,7 @@ type Venue = { id: string; name: string; city: string; country: string }
 type PastPerformance = { id: string; venue_name: string; artist_name: string; started_at: string; song_count: number }
 type VenueMemory = { lastDate: string; songCount: number; showCount: number; songs?: { title: string; artist: string }[] }
 type PlannedSong = { title: string; artist: string; position: number }
+type SetlistOffer = { songs: { title: string; artist: string }[]; venueName: string; date: string }
 
 // Setlist mode:
 // null   → show the two-path choice buttons
@@ -57,6 +58,7 @@ export default function NewShowPage() {
   const [showDropdown, setShowDropdown]     = useState(false)
   const [venueMemory, setVenueMemory]       = useState<VenueMemory | null>(null)
   const [venueCapacity, setVenueCapacity]   = useState<string>('')
+  const [isPrefilled, setIsPrefilled]       = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const searchTimer = useRef<NodeJS.Timeout | null>(null)
 
@@ -66,7 +68,6 @@ export default function NewShowPage() {
   const [selectedPast, setSelectedPast] = useState<PastPerformance | null>(null)
   const [cloning, setCloning]           = useState(false)
 
-  // Setlist state — replaces setlistOpen + uploadMode + showCamera
   const [setlistMode, setSetlistMode]   = useState<SetlistMode>(null)
   const [plannedSongs, setPlannedSongs] = useState<PlannedSong[]>([])
   const [recentSongs, setRecentSongs]   = useState<{ title: string; artist: string }[]>([])
@@ -74,9 +75,14 @@ export default function NewShowPage() {
   const [uploading, setUploading]       = useState(false)
   const [uploadError, setUploadError]   = useState('')
 
-  // Camera input: capture="environment" opens native camera on iOS + Android
+  const [showMoreOptions, setShowMoreOptions] = useState(false)
+
+  const [setlistOffer, setSetlistOffer]                 = useState<SetlistOffer | null>(null)
+  const [setlistOfferDismissed, setSetlistOfferDismissed] = useState(false)
+
+  // Camera: capture="environment" opens native camera on iOS + Android
   const cameraInputRef = useRef<HTMLInputElement>(null)
-  // Gallery/file input: no capture attribute — opens file picker
+  // Gallery/file: no capture attribute — opens file picker
   const fileInputRef   = useRef<HTMLInputElement>(null)
 
   const effectiveName = venueQuery.trim() || 'Show'
@@ -102,7 +108,7 @@ export default function NewShowPage() {
     })
   }, [])
 
-  // ── Pre-fill last used venue on mount ──
+  // ── Pre-fill last used venue on mount (45-day recency window) ──
   useEffect(() => {
     const supabase = createClient()
     async function loadLastVenue() {
@@ -110,7 +116,7 @@ export default function NewShowPage() {
       if (!user) return
       const { data: lastPerf } = await supabase
         .from('performances')
-        .select('venue_id, venue_name, city, country')
+        .select('id, venue_id, venue_name, city, country, started_at')
         .eq('user_id', user.id)
         .in('status', ['review', 'complete', 'completed', 'exported'])
         .not('venue_name', 'is', null)
@@ -118,8 +124,32 @@ export default function NewShowPage() {
         .limit(1)
         .single()
       if (!lastPerf?.venue_name || lastPerf.venue_name.trim() === '.') return
+      // Always load last setlist as a dismissible offer (no time gate)
+      const { data: lastSongs } = await supabase
+        .from('performance_songs')
+        .select('title, artist')
+        .eq('performance_id', lastPerf.id)
+        .order('position', { ascending: true })
+      if (lastSongs && lastSongs.length > 0) {
+        setSetlistOffer({
+          songs: lastSongs.map(s => ({ title: s.title, artist: s.artist || '' })),
+          venueName: lastPerf.venue_name,
+          date: lastPerf.started_at,
+        })
+      }
+      const daysSince = (Date.now() - new Date(lastPerf.started_at).getTime()) / (1000 * 60 * 60 * 24)
+      if (daysSince > 45) return
+      setVenueQuery(lastPerf.venue_name)
+      setVenueId(lastPerf.venue_id || null)
+      setVenueCity(lastPerf.city || '')
+      setVenueCountry(lastPerf.country || '')
+      setVenueSelected(true)
+      setIsPrefilled(true)
       if (lastPerf.venue_id) {
-        fetchVenueMemory(lastPerf.venue_id)
+        const memory = await fetchVenueMemory(lastPerf.venue_id)
+        if (memory?.songs?.length) {
+          setPlannedSongs(memory.songs.map((s, i) => ({ ...s, position: i })))
+        }
       }
     }
     loadLastVenue()
@@ -152,17 +182,17 @@ export default function NewShowPage() {
     setVenueSearching(false)
   }, [])
 
-  async function fetchVenueMemory(selectedVenueId: string) {
+  async function fetchVenueMemory(selectedVenueId: string): Promise<VenueMemory | null> {
     setVenueMemory(null)
     try {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
+      if (!user) return null
       const { data: perfs } = await supabase.from('performances').select('id, started_at')
         .eq('venue_id', selectedVenueId).eq('user_id', user.id)
         .in('status', ['review', 'complete', 'completed', 'exported'])
         .order('started_at', { ascending: false }).limit(10)
-      if (!perfs || perfs.length === 0) return
+      if (!perfs || perfs.length === 0) return null
       const { data: songs } = await supabase.from('performance_songs')
         .select('performance_id, title, artist')
         .in('performance_id', perfs.map(p => p.id))
@@ -173,17 +203,34 @@ export default function NewShowPage() {
         if (!songMap[s.performance_id]) songMap[s.performance_id] = []
         songMap[s.performance_id].push({ title: s.title, artist: s.artist || '' })
       })
-      setVenueMemory({
+      const memory: VenueMemory = {
         lastDate: perfs[0].started_at,
         songCount: countMap[perfs[0].id] || 0,
         showCount: perfs.length,
         songs: songMap[perfs[0].id] || [],
-      })
-    } catch { /* non-blocking */ }
+      }
+      setVenueMemory(memory)
+      return memory
+    } catch { return null }
+  }
+
+  function clearPrefill() {
+    setVenueQuery('')
+    setVenueId(null)
+    setVenueSelected(false)
+    setVenueMemory(null)
+    setVenueCapacity('')
+    setVenueCity('')
+    setVenueCountry('')
+    setIsPrefilled(false)
+    setPlannedSongs([])
+    setVenueResults([])
+    setShowDropdown(false)
   }
 
   function handleVenueInput(val: string) {
     setVenueQuery(val); setVenueId(null); setVenueSelected(false); setVenueMemory(null); setVenueCapacity('')
+    if (isPrefilled) { setIsPrefilled(false); setPlannedSongs([]) }
     if (searchTimer.current) clearTimeout(searchTimer.current)
     searchTimer.current = setTimeout(() => searchVenues(val), 280)
   }
@@ -192,6 +239,7 @@ export default function NewShowPage() {
     setVenueQuery(v.name); setVenueId(v.id)
     setVenueCity(v.city || ''); setVenueCountry(v.country || '')
     setVenueSelected(true); setShowDropdown(false); setVenueResults([])
+    setIsPrefilled(false)
     fetchVenueMemory(v.id)
   }
 
@@ -212,7 +260,6 @@ export default function NewShowPage() {
   function loadFromVenueMemory() {
     if (!venueMemory?.songs?.length) return
     setPlannedSongs(venueMemory.songs.map((s, i) => ({ ...s, position: i })))
-    // Don't force a mode — songs will appear regardless
   }
 
   function songWord(n: number) { return n === 1 ? 'song' : 'songs' }
@@ -322,7 +369,6 @@ export default function NewShowPage() {
       plannedSongs.map((s, i) => ({
         performance_id: performanceId, title: s.title, artist: s.artist,
         position: i, was_planned: true, source: 'planned',
-        // Planned, not yet detected; confusion result resolved in review
         inclusion_reason: 'planned setlist - not detected', confusion_matrix_result: 'TBD',
       }))
     )
@@ -433,24 +479,8 @@ export default function NewShowPage() {
     <div style={{ minHeight: '100svh', background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px 20px' }}>
       <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '50vh', pointerEvents: 'none', zIndex: 0, background: 'radial-gradient(ellipse at 50% 0%, rgba(201,168,76,0.07) 0%, transparent 65%)' }} />
 
-      {/* Hidden file inputs */}
-      {/* Camera: capture="environment" opens native camera on iOS + Android */}
-      <input
-        ref={cameraInputRef}
-        type="file"
-        accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
-        capture="environment"
-        style={{ display: 'none' }}
-        onChange={handleFileChange}
-      />
-      {/* Gallery: no capture attribute — file picker only */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/jpeg,image/png,image/webp,application/pdf,text/plain"
-        style={{ display: 'none' }}
-        onChange={handleFileChange}
-      />
+      <input ref={cameraInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" capture="environment" style={{ display: 'none' }} onChange={handleFileChange} />
+      <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp,application/pdf,text/plain" style={{ display: 'none' }} onChange={handleFileChange} />
 
       <div style={{ width: '100%', maxWidth: 440, position: 'relative', zIndex: 1, animation: 'fadeUp 0.4s ease' }}>
 
@@ -464,26 +494,36 @@ export default function NewShowPage() {
               <MapPin size={10} />Venue
             </label>
             <div style={{ position: 'relative' }}>
-              <input type="text" value={venueQuery}
+              <input
+                type="text"
+                value={venueQuery}
                 onChange={e => handleVenueInput(e.target.value)}
                 onFocus={() => { if (venueResults.length > 0) setShowDropdown(true) }}
                 placeholder="Venue or room name..."
                 spellCheck={false} autoCorrect="off" autoCapitalize="words"
-                style={{ background: C.input, border: `1px solid ${venueSelected ? C.borderGold : venueQuery.trim() ? C.borderGold : C.border}`, borderRadius: 10, padding: '14px 40px 14px 16px', color: C.text, fontSize: 16, fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' as const, outline: 'none' }} />
-              <div style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}>
+                style={{ background: C.input, border: `1px solid ${venueSelected ? C.borderGold : venueQuery.trim() ? C.borderGold : C.border}`, borderRadius: 10, padding: '14px 40px 14px 16px', color: C.text, fontSize: 16, fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' as const, outline: 'none' }}
+              />
+              <div style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center' }}>
                 {venueSearching
-                  ? <div style={{ width: 13, height: 13, borderRadius: '50%', border: `2px solid ${C.muted}`, borderTopColor: C.gold, animation: 'spin 0.7s linear infinite' }} />
-                  : venueSelected ? <span style={{ fontSize: 13, color: C.gold }}>✓</span>
-                  : <Search size={13} color={C.muted} />}
+                  ? <div style={{ width: 13, height: 13, borderRadius: '50%', border: `2px solid ${C.muted}`, borderTopColor: C.gold, animation: 'spin 0.7s linear infinite', pointerEvents: 'none' as const }} />
+                  : isPrefilled
+                  ? <button
+                      onClick={clearPrefill}
+                      style={{ background: 'rgba(255,255,255,0.08)', border: 'none', color: C.secondary, cursor: 'pointer', width: 22, height: 22, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, fontFamily: 'inherit', fontSize: 15, lineHeight: '1' }}
+                    >×</button>
+                  : venueSelected
+                  ? <span style={{ fontSize: 13, color: C.gold, pointerEvents: 'none' as const }}>✓</span>
+                  : <span style={{ pointerEvents: 'none' as const, display: 'flex' }}><Search size={13} color={C.muted} /></span>
+                }
               </div>
             </div>
 
-            {venueMemory && (
+            {venueMemory && !isPrefilled && (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '9px 12px', background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 8 }}>
                 <p style={{ fontSize: 14, color: C.gold, margin: 0, lineHeight: 1.4 }}>
                   Last time here: <strong>{venueMemory.songCount} {songWord(venueMemory.songCount)}</strong> on {formatDate(venueMemory.lastDate)}
                 </p>
-                {venueMemory.songs && venueMemory.songs.length > 0 && (
+                {venueMemory.songs && venueMemory.songs.length > 0 && plannedSongs.length === 0 && (
                   <button onClick={loadFromVenueMemory}
                     style={{ fontSize: 13, fontWeight: 700, color: C.gold, background: 'rgba(201,168,76,0.15)', border: `1px solid ${C.borderGold}`, borderRadius: 6, padding: '6px 14px', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' as const }}>
                     Load that set →
@@ -497,7 +537,7 @@ export default function NewShowPage() {
                 style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#1a1816', border: `1px solid ${C.borderGold}`, borderRadius: 10, marginTop: 4, zIndex: 50, overflow: 'hidden', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
                 {venueResults.map((v, i) => (
                   <button key={v.id} onMouseDown={() => selectVenue(v)}
-                    style={{ width: '100%', padding: '11px 14px', background: 'transparent', border: 'none', borderBottom: i < venueResults.length - 1 ? `1px solid ${C.border}` : 'none', cursor: 'pointer', textAlign: 'left', display: 'flex', flexDirection: 'column', gap: 2, fontFamily: 'inherit' }}
+                    style={{ width: '100%', padding: '11px 14px', background: 'transparent', border: 'none', borderBottom: i < venueResults.length - 1 ? `1px solid ${C.border}` : 'none', cursor: 'pointer', textAlign: 'left' as const, display: 'flex', flexDirection: 'column', gap: 2, fontFamily: 'inherit' }}
                     onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = C.cardHover}
                     onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}>
                     <span style={{ fontSize: 14, fontWeight: 600, color: C.text }}>{v.name}</span>
@@ -505,7 +545,7 @@ export default function NewShowPage() {
                   </button>
                 ))}
                 <button onMouseDown={() => { setVenueSelected(false); setShowDropdown(false) }}
-                  style={{ width: '100%', padding: '10px 14px', background: C.goldDim, border: 'none', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit' }}>
+                  style={{ width: '100%', padding: '10px 14px', background: C.goldDim, border: 'none', cursor: 'pointer', textAlign: 'left' as const, fontFamily: 'inherit' }}>
                   <span style={{ fontSize: 12, color: C.gold, fontWeight: 600 }}>+ Add "{venueQuery}" as new venue</span>
                 </button>
               </div>
@@ -538,31 +578,11 @@ export default function NewShowPage() {
               </div>
             )}
           </div>
-
-          <button type="button" onClick={() => setShowType(showType === 'single' ? 'writers_round' : 'single')}
-            style={{ display: 'flex', alignItems: 'center', gap: 8, background: showType === 'writers_round' ? C.goldDim : 'transparent', border: `1px solid ${showType === 'writers_round' ? C.borderGold : 'rgba(255,255,255,0.06)'}`, borderRadius: 10, padding: '10px 14px', cursor: 'pointer', fontFamily: 'inherit', width: '100%' }}>
-            <span style={{ fontSize: 14, color: showType === 'writers_round' ? C.gold : C.muted }}>{showType === 'writers_round' ? '✓' : '○'}</span>
-            <div>
-              <p style={{ fontSize: 13, fontWeight: 600, color: showType === 'writers_round' ? C.gold : C.secondary, margin: 0 }}>Writer's Round</p>
-              <p style={{ fontSize: 11, color: C.muted, margin: '1px 0 0' }}>Multiple writers on the bill</p>
-            </div>
-          </button>
-
-          {showSchedule && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <label style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' as const, color: C.muted, display: 'flex', alignItems: 'center', gap: 5 }}>
-                <Calendar size={10} />Scheduled Time
-              </label>
-              <input type="datetime-local" value={scheduledAt} onChange={e => setScheduledAt(e.target.value)}
-                style={{ background: C.input, border: `1px solid ${scheduledAt ? C.borderGold : C.border}`, borderRadius: 10, padding: '12px 14px', color: C.text, fontSize: 14, fontFamily: 'inherit', width: '100%', colorScheme: 'dark' as const, outline: 'none' }} />
-            </div>
-          )}
         </div>
 
         {/* ── SETLIST SECTION ── */}
         <div style={{ background: CARD.background, border: `1px solid ${plannedSongs.length > 0 ? C.borderGold : C.border}`, borderRadius: 16, marginBottom: 16, overflow: 'hidden', transition: 'border-color 0.2s ease', boxShadow: CARD.boxShadow }}>
 
-          {/* Header */}
           <div style={{ padding: '16px 20px 14px' }}>
             <p style={{ fontSize: 17, fontWeight: 700, color: plannedSongs.length > 0 ? C.gold : C.text, margin: '0 0 3px', transition: 'color 0.2s ease' }}>
               {plannedSongs.length > 0
@@ -576,22 +596,18 @@ export default function NewShowPage() {
             </p>
           </div>
 
-          {/* ── PATH CHOICE — shown when no mode selected and no songs yet ── */}
           {setlistMode === null && plannedSongs.length === 0 && (
             <div style={{ padding: '0 16px 16px', display: 'flex', gap: 8 }}>
-              {/* Primary: open camera immediately */}
               <button
                 onClick={() => {
                   setUploadError('')
                   setSetlistMode('photo')
-                  // Slight delay so state updates before input click
                   setTimeout(() => cameraInputRef.current?.click(), 50)
                 }}
                 style={{ flex: 2, padding: '16px 12px', background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 12, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, WebkitTapHighlightColor: 'transparent' }}>
                 <span style={{ fontSize: 14, fontWeight: 800, color: C.gold, textAlign: 'center' as const }}>Photo setlist</span>
                 <span style={{ fontSize: 12, color: C.muted, textAlign: 'center' as const }}>Scan paper or screen</span>
               </button>
-              {/* Secondary: manual add */}
               <button
                 onClick={() => setSetlistMode('quick')}
                 style={{ flex: 1, padding: '16px 12px', background: 'rgba(255,255,255,0.02)', border: `1px solid ${C.border}`, borderRadius: 12, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, WebkitTapHighlightColor: 'transparent' }}>
@@ -601,11 +617,9 @@ export default function NewShowPage() {
             </div>
           )}
 
-          {/* ── PHOTO MODE ── */}
           {setlistMode === 'photo' && (
             <div style={{ padding: '0 16px 16px', borderTop: `1px solid ${C.border}` }}>
               <div style={{ paddingTop: 14, display: 'flex', gap: 8 }}>
-                {/* Retake / add another photo */}
                 <button
                   onClick={() => { setUploadError(''); cameraInputRef.current?.click() }}
                   disabled={uploading}
@@ -614,14 +628,12 @@ export default function NewShowPage() {
                     {plannedSongs.length > 0 ? 'Add page 2' : 'Scan setlist'}
                   </span>
                 </button>
-                {/* Gallery / file picker */}
                 <button
                   onClick={() => { setUploadError(''); fileInputRef.current?.click() }}
                   disabled={uploading}
                   style={{ flex: 1, padding: '14px 10px', background: 'rgba(255,255,255,0.02)', border: `1px solid ${C.border}`, borderRadius: 10, cursor: uploading ? 'default' : 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, opacity: uploading ? 0.5 : 1, WebkitTapHighlightColor: 'transparent' }}>
                   <span style={{ fontSize: 11, fontWeight: 700, color: C.secondary }}>Gallery / file</span>
                 </button>
-                {/* Switch to manual */}
                 <button
                   onClick={() => setSetlistMode('quick')}
                   style={{ flex: 1, padding: '14px 10px', background: 'rgba(255,255,255,0.02)', border: `1px solid ${C.border}`, borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, WebkitTapHighlightColor: 'transparent' }}>
@@ -644,7 +656,6 @@ export default function NewShowPage() {
             </div>
           )}
 
-          {/* ── QUICK ADD MODE ── */}
           {setlistMode === 'quick' && (
             <div style={{ padding: '0 16px 16px', borderTop: `1px solid ${C.border}` }}>
               <div style={{ paddingTop: 14 }}>
@@ -686,7 +697,6 @@ export default function NewShowPage() {
                   </p>
                 )}
 
-                {/* Also offer photo from quick-add mode */}
                 <button
                   onClick={() => { setSetlistMode('photo'); setTimeout(() => cameraInputRef.current?.click(), 50) }}
                   style={{ fontSize: 12, color: C.muted, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>
@@ -696,7 +706,6 @@ export default function NewShowPage() {
             </div>
           )}
 
-          {/* ── LOADED SONGS — always shown when songs exist ── */}
           {plannedSongs.length > 0 && (
             <div style={{ padding: '0 16px 16px', borderTop: setlistMode !== null ? `1px solid ${C.border}` : 'none' }}>
               {setlistMode !== null && <div style={{ height: 12 }} />}
@@ -724,7 +733,6 @@ export default function NewShowPage() {
                 </p>
               </div>
 
-              {/* Let them add more photos if they have a multi-page setlist */}
               {setlistMode === null && (
                 <button
                   onClick={() => { setSetlistMode('photo'); setTimeout(() => cameraInputRef.current?.click(), 50) }}
@@ -736,7 +744,31 @@ export default function NewShowPage() {
           )}
         </div>
 
-        {/* ── ERROR ── */}
+        {/* ── LAST SETLIST OFFER — shown when not pre-filled and no songs added yet ── */}
+        {setlistOffer && !setlistOfferDismissed && !isPrefilled && plannedSongs.length === 0 && (
+          <div style={{ background: CARD.background, border: `1px solid ${C.border}`, borderRadius: 12, marginBottom: 12, boxShadow: CARD.boxShadow, display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px' }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{ fontSize: 11, color: C.muted, margin: '0 0 2px', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' as const }}>Use your last setlist?</p>
+              <p style={{ fontSize: 13, color: C.secondary, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {setlistOffer.songs.length} {songWord(setlistOffer.songs.length)} · {setlistOffer.venueName} · {formatDate(setlistOffer.date)}
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                setPlannedSongs(setlistOffer.songs.map((s, i) => ({ ...s, position: i })))
+                setSetlistOfferDismissed(true)
+              }}
+              style={{ fontSize: 12, fontWeight: 700, color: C.gold, background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 8, padding: '7px 12px', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' as const, flexShrink: 0 }}>
+              Load →
+            </button>
+            <button
+              onClick={() => setSetlistOfferDismissed(true)}
+              style={{ background: 'none', border: 'none', color: C.muted, cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+              <X size={13} />
+            </button>
+          </div>
+        )}
+
         {error && (
           <div style={{ background: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.2)', borderRadius: 10, padding: '12px 14px', marginBottom: 14 }}>
             <p style={{ fontSize: 13, color: '#f87171', margin: 0 }}>{error}</p>
@@ -768,7 +800,7 @@ export default function NewShowPage() {
                 <div style={{ width: 20, height: 20, borderRadius: '50%', border: `2px solid ${C.border}`, borderTopColor: C.gold, animation: 'spin 0.7s linear infinite' }} />
               </div>
             ) : pastPerfs.length === 0 ? (
-              <div style={{ background: CARD.background, border: `1px solid ${C.border}`, borderRadius: 12, boxShadow: CARD.boxShadow, padding: '20px', textAlign: 'center' }}>
+              <div style={{ background: CARD.background, border: `1px solid ${C.border}`, borderRadius: 12, boxShadow: CARD.boxShadow, padding: '20px', textAlign: 'center' as const }}>
                 <p style={{ fontSize: 13, color: C.muted, margin: 0 }}>No past shows with songs yet.</p>
               </div>
             ) : (
@@ -778,7 +810,7 @@ export default function NewShowPage() {
                   const isSelected = selectedPast?.id === perf.id
                   return (
                     <button key={perf.id} onClick={() => setSelectedPast(isSelected ? null : perf)}
-                      style={{ background: isSelected ? C.goldDim : C.card, border: `1px solid ${isSelected ? C.borderGold : C.border}`, borderRadius: 10, padding: '12px 14px', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 12 }}
+                      style={{ background: isSelected ? C.goldDim : C.card, border: `1px solid ${isSelected ? C.borderGold : C.border}`, borderRadius: 10, padding: '12px 14px', cursor: 'pointer', textAlign: 'left' as const, fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 12 }}
                       onMouseEnter={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = C.cardHover }}
                       onMouseLeave={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = C.card }}>
                       <div style={{ width: 20, height: 20, borderRadius: '50%', flexShrink: 0, background: isSelected ? C.gold : 'transparent', border: `1px solid ${isSelected ? C.gold : C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -809,18 +841,58 @@ export default function NewShowPage() {
           </div>
         )}
 
-        <button onClick={() => setShowSchedule(v => !v)}
-          style={{ background: 'none', border: 'none', color: showSchedule ? C.gold : C.muted, fontSize: 12, cursor: 'pointer', letterSpacing: '0.04em', fontFamily: 'inherit', padding: '12px', width: '100%', marginTop: 4 }}>
-          {showSchedule ? '× Cancel scheduling' : '+ Schedule ahead'}
+        {/* ── MORE OPTIONS ── */}
+        <button
+          onClick={() => setShowMoreOptions(v => !v)}
+          style={{ background: 'none', border: 'none', color: showMoreOptions ? C.gold : C.muted, fontSize: 12, cursor: 'pointer', letterSpacing: '0.04em', fontFamily: 'inherit', padding: '12px', width: '100%', marginTop: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+          {showMoreOptions ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+          {showMoreOptions ? 'fewer options' : '+ more options'}
         </button>
 
-        <button onClick={() => router.push('/app/show/upload')}
-          style={{ background: 'none', border: 'none', color: C.muted, fontSize: 12, cursor: 'pointer', letterSpacing: '0.04em', fontFamily: 'inherit', padding: '4px', width: '100%' }}>
-          or upload a recording instead →
-        </button>
+        {showMoreOptions && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '4px 0 12px' }}>
+            <button
+              type="button"
+              onClick={() => setShowType(showType === 'single' ? 'writers_round' : 'single')}
+              style={{ display: 'flex', alignItems: 'center', gap: 8, background: showType === 'writers_round' ? C.goldDim : 'transparent', border: `1px solid ${showType === 'writers_round' ? C.borderGold : 'rgba(255,255,255,0.06)'}`, borderRadius: 10, padding: '10px 14px', cursor: 'pointer', fontFamily: 'inherit', width: '100%' }}>
+              <span style={{ fontSize: 14, color: showType === 'writers_round' ? C.gold : C.muted }}>{showType === 'writers_round' ? '✓' : '○'}</span>
+              <div style={{ textAlign: 'left' as const }}>
+                <p style={{ fontSize: 13, fontWeight: 600, color: showType === 'writers_round' ? C.gold : C.secondary, margin: 0 }}>Writer's Round</p>
+                <p style={{ fontSize: 11, color: C.muted, margin: '1px 0 0' }}>Multiple writers on the bill</p>
+              </div>
+            </button>
 
-        <button onClick={() => router.push('/app/dashboard')}
-          style={{ background: 'none', border: 'none', color: C.muted, fontSize: 12, cursor: 'pointer', letterSpacing: '0.04em', fontFamily: 'inherit', padding: '4px', width: '100%' }}>
+            <button
+              onClick={() => setShowSchedule(v => !v)}
+              style={{ background: 'none', border: 'none', color: showSchedule ? C.gold : C.muted, fontSize: 12, cursor: 'pointer', letterSpacing: '0.04em', fontFamily: 'inherit', padding: '2px 0', textAlign: 'center' as const, width: '100%' }}>
+              {showSchedule ? '× Cancel scheduling' : '+ Schedule ahead'}
+            </button>
+
+            {showSchedule && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <label style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' as const, color: C.muted, display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <Calendar size={10} />Scheduled Time
+                </label>
+                <input
+                  type="datetime-local"
+                  value={scheduledAt}
+                  onChange={e => setScheduledAt(e.target.value)}
+                  style={{ background: C.input, border: `1px solid ${scheduledAt ? C.borderGold : C.border}`, borderRadius: 10, padding: '12px 14px', color: C.text, fontSize: 14, fontFamily: 'inherit', width: '100%', colorScheme: 'dark' as const, outline: 'none' }}
+                />
+              </div>
+            )}
+
+            <button
+              onClick={() => router.push('/app/show/upload')}
+              style={{ background: 'none', border: 'none', color: C.muted, fontSize: 12, cursor: 'pointer', letterSpacing: '0.04em', fontFamily: 'inherit', padding: '2px 0', textAlign: 'center' as const, width: '100%' }}>
+              or upload a recording instead →
+            </button>
+          </div>
+        )}
+
+        <button
+          onClick={() => router.push('/app/dashboard')}
+          style={{ background: 'none', border: 'none', color: C.muted, fontSize: 12, cursor: 'pointer', letterSpacing: '0.04em', fontFamily: 'inherit', padding: '4px', width: '100%', textAlign: 'center' as const }}>
           ← Back to Dashboard
         </button>
       </div>
