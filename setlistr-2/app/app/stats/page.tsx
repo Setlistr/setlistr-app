@@ -12,7 +12,7 @@ const CARD = {
 }
 
 const C = {
-  bg: '#0a0908', card: '#141210',
+  bg: '#0a0908', card: '#141210', cardHover: '#181614',
   border: 'rgba(255,255,255,0.07)', borderGold: 'rgba(201,168,76,0.25)',
   text: '#f0ece3', secondary: '#b8a888', muted: '#8a7a68',
   gold: '#c9a84c', goldDim: 'rgba(201,168,76,0.1)', green: '#4ade80',
@@ -356,7 +356,7 @@ export default function StatsPage() {
           {totalShows === 0 ? (
             <div style={{ textAlign: 'center', padding: '60px 0' }}>
               <Music2 size={36} color={C.muted} style={{ opacity: 0.2, marginBottom: 16 }} />
-              <p style={{ fontSize: 14, color: C.secondary, margin: 0 }}>No completed shows yet</p>
+              <p style={{ fontSize: 14, color: C.secondary, margin: 0 }}>Your stats, venues, and map build automatically as you play.</p>
             </div>
           ) : (
             <>
@@ -402,8 +402,10 @@ export default function StatsPage() {
                 style={{
                   width: '100%', height: 200, position: 'relative', overflow: 'hidden',
                   borderRadius: 16, cursor: 'pointer', border: 'none', padding: 0, display: 'block',
-                  background: CARD.background,
-                }}>
+                  background: CARD.background, transition: 'opacity 0.15s ease',
+                }}
+                onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.85'}
+                onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}>
                 {/* Map image layer — img fires onError; CSS background-image cannot */}
                 {plainMapUrl && (
                   <img
@@ -485,7 +487,9 @@ export default function StatsPage() {
               {/* Dormant callout — soft one-line text link */}
               {dormantSongs > 0 && (
                 <button onClick={() => setTab('songs')}
-                  style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '2px 0', cursor: 'pointer', fontFamily: 'inherit' }}>
+                  style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '2px 0', cursor: 'pointer', fontFamily: 'inherit', transition: 'opacity 0.15s ease' }}
+                  onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.7'}
+                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}>
                   <p style={{ fontSize: 14, color: C.secondary, margin: 0, lineHeight: 1.5 }}>
                     {dormantSongs} song{dormantSongs !== 1 ? 's' : ''} in your catalog {dormantSongs !== 1 ? "haven't" : "hasn't"} been played live in 45+ days →
                   </p>
@@ -552,7 +556,9 @@ export default function StatsPage() {
               {topSongs.length > 0 && (
                 <div style={{ background: CARD.background, border: '1px solid rgba(255,255,255,0.04)', borderRadius: 16, boxShadow: CARD.boxShadow, padding: '16px' }}>
                   <button onClick={() => setShowTopSongs(v => !v)}
-                    style={{ width: '100%', background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: showTopSongs ? 16 : 0 }}>
+                    style={{ width: '100%', background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: showTopSongs ? 16 : 0, transition: 'opacity 0.15s ease' }}
+                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.7'}
+                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <Mic2 size={14} color={C.gold} />
                       <p style={{ fontSize: 13, letterSpacing: '0.04em', color: C.secondary, margin: 0, fontWeight: 600 }}>Most Played Songs</p>
@@ -592,7 +598,9 @@ export default function StatsPage() {
               {topVenues.length > 0 && (
                 <div style={{ background: CARD.background, border: '1px solid rgba(255,255,255,0.04)', borderRadius: 16, boxShadow: CARD.boxShadow, padding: '16px' }}>
                   <button onClick={() => setShowTopVenues(v => !v)}
-                    style={{ width: '100%', background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: showTopVenues ? 16 : 0 }}>
+                    style={{ width: '100%', background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: showTopVenues ? 16 : 0, transition: 'opacity 0.15s ease' }}
+                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.7'}
+                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <MapPin size={14} color={C.gold} />
                       <p style={{ fontSize: 13, letterSpacing: '0.04em', color: C.secondary, margin: 0, fontWeight: 600 }}>Top Venues</p>
@@ -601,7 +609,10 @@ export default function StatsPage() {
                   </button>
                   {showTopVenues && <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                     {topVenues.map((venue, i) => (
-                      <div key={venue.name} onClick={() => { if (venue.id) router.push(`/app/venue/${venue.id}`) }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, cursor: venue.id ? 'pointer' : 'default' }}>
+                      <div key={venue.name} onClick={() => { if (venue.id) router.push(`/app/venue/${venue.id}`) }}
+                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, cursor: venue.id ? 'pointer' : 'default', borderRadius: 8, padding: '4px 6px', margin: '-4px -6px', transition: 'background 0.12s ease' }}
+                        onMouseEnter={e => { if (venue.id) (e.currentTarget as HTMLElement).style.background = C.cardHover }}
+                        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
                           <span style={{ fontSize: 11, fontWeight: 700, color: C.gold, minWidth: 16, textAlign: 'right', fontFamily: '"DM Mono", monospace' }}>{i + 1}</span>
                           <div style={{ minWidth: 0 }}>
@@ -609,9 +620,12 @@ export default function StatsPage() {
                             {venue.city && <p style={{ fontSize: 13, color: C.secondary, margin: '1px 0 0' }}>{venue.city}</p>}
                           </div>
                         </div>
-                        <span style={{ fontSize: 12, color: C.gold, background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.15)', borderRadius: 20, padding: '2px 8px', flexShrink: 0 }}>
-                          {venue.count} {venue.count === 1 ? 'show' : 'shows'}
-                        </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                          <span style={{ fontSize: 12, color: C.gold, background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.15)', borderRadius: 20, padding: '2px 8px' }}>
+                            {venue.count} {venue.count === 1 ? 'show' : 'shows'}
+                          </span>
+                          {venue.id && <span style={{ fontSize: 13, color: C.muted }}>→</span>}
+                        </div>
                       </div>
                     ))}
                   </div>}
@@ -622,7 +636,9 @@ export default function StatsPage() {
               {songDebuts.length > 0 && (
                 <div style={{ background: CARD.background, border: '1px solid rgba(255,255,255,0.04)', borderRadius: 16, boxShadow: CARD.boxShadow, padding: '16px' }}>
                   <button onClick={() => setShowDebuts(v => !v)}
-                    style={{ width: '100%', background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: showDebuts ? 16 : 0 }}>
+                    style={{ width: '100%', background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: showDebuts ? 16 : 0, transition: 'opacity 0.15s ease' }}
+                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.7'}
+                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <Calendar size={14} color={C.gold} />
                       <p style={{ fontSize: 13, letterSpacing: '0.04em', color: C.secondary, margin: 0, fontWeight: 600 }}>Song Debuts</p>
@@ -647,7 +663,9 @@ export default function StatsPage() {
 
               {/* Performance Proof File */}
               <button onClick={() => router.push('/app/proof')}
-                style={{ width: '100%', padding: '16px 20px', background: CARD.background, border: '1px solid rgba(255,255,255,0.04)', borderRadius: 16, boxShadow: CARD.boxShadow, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                style={{ width: '100%', padding: '16px 20px', background: CARD.background, border: '1px solid rgba(255,255,255,0.04)', borderRadius: 16, boxShadow: CARD.boxShadow, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'space-between', transition: 'opacity 0.15s ease' }}
+                onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.7'}
+                onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                   <Shield size={18} color={C.gold} style={{ flexShrink: 0 }} />
                   <div style={{ textAlign: 'left' }}>

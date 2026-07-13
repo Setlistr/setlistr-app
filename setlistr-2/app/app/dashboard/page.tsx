@@ -650,10 +650,10 @@ export default function DashboardPage() {
         {/* Empty career state */}
         {totalCareerShows === 0 && !loading && (
           <div style={{ marginBottom: 48, animation: 'fadeUp 0.3s ease' }}>
-            <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.13em', textTransform: 'uppercase', color: C.muted, margin: '0 0 12px' }}>Your career</p>
-            <div style={{ padding: '32px 0' }}>
-              <p style={{ fontSize: 16, color: C.secondary, margin: '0 0 6px', fontWeight: 500 }}>The stage is quiet for now.</p>
-              <p style={{ fontSize: 14, color: C.muted, margin: 0 }}>Your record starts with your first show.</p>
+            <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.13em', textTransform: 'uppercase', color: C.muted, margin: '0 0 20px' }}>Your career</p>
+            <div style={{ padding: '12px 0' }}>
+              <p style={{ fontSize: 96, fontWeight: 800, color: C.secondary, margin: 0, fontFamily: '"DM Mono", monospace', letterSpacing: '-0.04em', lineHeight: 0.9, opacity: 0.2 }}>—</p>
+              <p style={{ fontSize: 15, color: C.muted, margin: '16px 0 0', fontWeight: 400, lineHeight: 1.5 }}>Your first show starts your record. Tap the gold button when you're on stage tonight.</p>
             </div>
           </div>
         )}
@@ -676,7 +676,9 @@ export default function DashboardPage() {
         {morningAfterPerf && !livePerf && (
           <div style={{ marginBottom: 16, animation: 'fadeUp 0.3s ease', animationDelay: '0.16s', animationFillMode: 'both' }}>
             <button onClick={() => navigateToPerformance(morningAfterPerf)}
-              style={{ width: '100%', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)', borderRadius: 16, padding: '14px 18px', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 14 }}>
+              style={{ width: '100%', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)', borderRadius: 16, padding: '14px 18px', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 14, transition: 'opacity 0.15s ease' }}
+              onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.7'}
+              onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <p style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.gold, margin: '0 0 2px' }}>
                   {actingAs ? `${actingAs.artist_name}'s Last Show` : "Last Night's Show"}
@@ -691,7 +693,9 @@ export default function DashboardPage() {
         {todayShow && !livePerf && (
           <div style={{ marginBottom: 16, animation: 'fadeUp 0.32s ease' }}>
             <button onClick={() => startShowFromBIT(todayShow)}
-              style={{ width: '100%', background: 'rgba(74,222,128,0.06)', border: '1px solid rgba(74,222,128,0.2)', borderRadius: 16, padding: '14px 18px', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 14 }}>
+              style={{ width: '100%', background: 'rgba(74,222,128,0.06)', border: '1px solid rgba(74,222,128,0.2)', borderRadius: 16, padding: '14px 18px', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 14, transition: 'opacity 0.15s ease' }}
+              onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.7'}
+              onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}>
               <div style={{ position: 'relative', flexShrink: 0, width: 20, height: 20 }}>
                 <div style={{ position: 'absolute', inset: -6, borderRadius: '50%', border: '1.5px solid rgba(74,222,128,0.3)', animation: 'orb-pulse 2s ease-in-out infinite' }} />
               </div>
@@ -719,7 +723,9 @@ export default function DashboardPage() {
                 </div>
               )}
               <button onClick={() => navigateToPerformance(livePerf)}
-                style={{ width: '100%', background: CARD.background, border: `2px solid ${C.borderGold}`, borderRadius: mightBeInterrupted ? '0 0 14px 14px' : 14, padding: '18px 16px', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 14, boxShadow: CARD.boxShadow }}>
+                style={{ width: '100%', background: CARD.background, border: `2px solid ${C.borderGold}`, borderRadius: mightBeInterrupted ? '0 0 14px 14px' : 14, padding: '18px 16px', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 14, boxShadow: CARD.boxShadow, transition: 'opacity 0.15s ease' }}
+                onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.7'}
+                onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}>
                 <div style={{ width: 44, height: 44, borderRadius: '50%', background: C.goldDim, border: `1px solid ${C.borderGold}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                   <div style={{ width: 12, height: 12, borderRadius: '50%', background: C.gold, animation: 'pulse-dot 1.4s ease-in-out infinite' }} />
                 </div>
@@ -742,7 +748,9 @@ export default function DashboardPage() {
             <p style={{ fontSize: 34, fontWeight: 700, color: C.gold, margin: 0, fontFamily: '"DM Mono", monospace', letterSpacing: '-0.02em', lineHeight: 1 }}>~${aggregate.unclaimedExpected.toLocaleString()}</p>
             <p style={{ fontSize: 13, color: C.muted, margin: '6px 0 16px' }}>{aggregate.unclaimedCount} nights not yet filed</p>
             <button onClick={() => router.push('/app/history')}
-              style={{ background: C.gold, border: 'none', borderRadius: 20, padding: '8px 18px', color: '#0a0908', fontWeight: 800, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', letterSpacing: '0.04em' }}>
+              style={{ background: C.gold, border: 'none', borderRadius: 20, padding: '8px 18px', color: '#0a0908', fontWeight: 800, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', letterSpacing: '0.04em', transition: 'opacity 0.15s ease' }}
+              onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.7'}
+              onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}>
               File them →
             </button>
           </div>
@@ -810,8 +818,7 @@ export default function DashboardPage() {
             </div>
           ) : recentPerfs.length === 0 ? (
             <div style={{ padding: '40px 0', textAlign: 'center' }}>
-              <p style={{ fontSize: 16, color: C.secondary, margin: '0 0 6px', fontWeight: 500 }}>The stage is quiet for now.</p>
-              <p style={{ fontSize: 14, color: C.muted, margin: 0 }}>Your record starts with your first show.</p>
+              <p style={{ fontSize: 15, color: C.muted, margin: 0, lineHeight: 1.5 }}>Your first show starts your record. Tap the gold button when you're on stage tonight.</p>
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -843,6 +850,7 @@ export default function DashboardPage() {
                       <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.06em', color: displayStatus.color, opacity: 0.8 }}>{displayStatus.label}</span>
                       {perfEst && perfEst.expected > 0 && <span style={{ fontSize: 12, color: C.muted, fontFamily: '"DM Mono", monospace' }}>~${perfEst.expected}</span>}
                     </div>
+                    {!isImported && <span style={{ fontSize: 14, color: C.muted, flexShrink: 0 }}>→</span>}
                   </button>
                 )
               })}

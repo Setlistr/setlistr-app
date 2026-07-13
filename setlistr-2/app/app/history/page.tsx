@@ -227,7 +227,9 @@ export default function HistoryPage() {
             </div>
             <button
               onClick={() => setStatusFilter('complete')}
-              style={{ flexShrink: 0, padding: '10px 16px', background: C.gold, border: 'none', borderRadius: 10, color: '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' as const, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
+              style={{ flexShrink: 0, padding: '10px 16px', background: C.gold, border: 'none', borderRadius: 10, color: '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' as const, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', transition: 'opacity 0.15s ease' }}
+              onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.7'}
+              onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}>
               File them →
             </button>
           </div>
@@ -297,12 +299,14 @@ export default function HistoryPage() {
                 {hasFilters ? 'No shows match your filters' : 'Your record starts tonight.'}
               </p>
               <p style={{ fontSize: 15, color: C.muted, margin: '0 0 18px' }}>
-                {hasFilters ? 'Try adjusting your search or filters' : 'Every show you capture becomes permanent.'}
+                {hasFilters ? 'Try adjusting your search or filters' : 'Every show you capture lands here — reviewed, filed, and building your record.'}
               </p>
               {!hasFilters && (
                 <button onClick={() => router.push('/app/show/new')}
-                  style={{ background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 10, padding: '13px 24px', color: C.gold, fontSize: 15, fontWeight: 700, cursor: 'pointer', letterSpacing: '0.06em', textTransform: 'uppercase' as const, fontFamily: 'inherit' }}>
-                  Start First Show
+                  style={{ background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 10, padding: '13px 24px', color: C.gold, fontSize: 15, fontWeight: 700, cursor: 'pointer', letterSpacing: '0.06em', textTransform: 'uppercase' as const, fontFamily: 'inherit', transition: 'opacity 0.15s ease' }}
+                  onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.7'}
+                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}>
+                  Start First Show →
                 </button>
               )}
             </div>
@@ -382,6 +386,7 @@ export default function HistoryPage() {
                         </span>
                       )}
                     </div>
+                    <span style={{ fontSize: 14, color: C.muted, flexShrink: 0 }}>→</span>
                   </button>
                 )
               })}

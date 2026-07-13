@@ -586,8 +586,7 @@ export default function MySongsTab({ userId }: { userId: string }) {
         <p style={{ textAlign: 'center', color: C.muted, padding: '40px 0' }}>Loading...</p>
       ) : filtered.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '40px 0' }}>
-          <p style={{ color: C.muted, fontSize: 14 }}>{search ? 'No songs match your search' : 'No songs yet'}</p>
-          {!search && <p style={{ color: C.muted, fontSize: 12, marginTop: 6 }}>Songs you play will appear here automatically</p>}
+          <p style={{ color: C.muted, fontSize: 14, lineHeight: 1.5 }}>{search ? 'No songs match your search' : 'Songs you perform are confirmed here and become your searchable catalog.'}</p>
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>

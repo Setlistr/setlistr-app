@@ -437,7 +437,9 @@ export default function SettingsPage() {
             <AlertCircle size={14} color={C.gold} style={{ flexShrink: 0 }} />
             <p style={{ fontSize: 13, color: C.secondary, margin: 0, flex: 1, lineHeight: 1.4 }}>Your PRO info is incomplete — submissions won't pre-fill correctly.</p>
             <button onClick={() => document.getElementById('pro-section')?.scrollIntoView({ behavior: 'smooth' })}
-              style={{ background: 'none', border: 'none', color: C.gold, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0, padding: 0 }}>
+              style={{ background: 'none', border: 'none', color: C.gold, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0, padding: 0, transition: 'opacity 0.15s ease' }}
+              onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.7'}
+              onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}>
               Fill it in →
             </button>
           </div>
@@ -516,7 +518,9 @@ export default function SettingsPage() {
             </div>
           )}
           <button onClick={saveProfile} disabled={profileSaving || profileSaved}
-            style={{ width: '100%', padding: '13px', background: profileSaved ? '#16a34a' : C.gold, border: 'none', borderRadius: 10, color: profileSaved ? '#fff' : '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontFamily: 'inherit', opacity: profileSaving ? 0.7 : 1 }}>
+            style={{ width: '100%', padding: '13px', background: profileSaved ? '#16a34a' : C.gold, border: 'none', borderRadius: 10, color: profileSaved ? '#fff' : '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontFamily: 'inherit', opacity: profileSaving ? 0.7 : 1, transition: 'opacity 0.15s ease' }}
+            onMouseEnter={e => { if (!(e.currentTarget as HTMLButtonElement).disabled) (e.currentTarget as HTMLElement).style.opacity = '0.8' }}
+            onMouseLeave={e => { if (!(e.currentTarget as HTMLButtonElement).disabled) (e.currentTarget as HTMLElement).style.opacity = '1' }}>
             {profileSaved ? <><Check size={14} strokeWidth={2.5} />Saved</> : profileSaving ? 'Saving...' : 'Save Profile'}
           </button>
         </div>
@@ -575,7 +579,9 @@ export default function SettingsPage() {
                     )}
                     {/* Revoke */}
                     <button onClick={() => revokeDelegate(d.id)} disabled={revoking === d.id}
-                      style={{ background: 'none', border: '1px solid rgba(248,113,113,0.2)', borderRadius: 8, padding: '5px 10px', color: C.red, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 4, opacity: revoking === d.id ? 0.5 : 1 }}>
+                      style={{ background: 'none', border: '1px solid rgba(248,113,113,0.2)', borderRadius: 8, padding: '5px 10px', color: C.red, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 4, opacity: revoking === d.id ? 0.5 : 1, transition: 'opacity 0.15s ease' }}
+                      onMouseEnter={e => { if (!(e.currentTarget as HTMLButtonElement).disabled) (e.currentTarget as HTMLElement).style.opacity = '0.7' }}
+                      onMouseLeave={e => { if (!(e.currentTarget as HTMLButtonElement).disabled) (e.currentTarget as HTMLElement).style.opacity = '1' }}>
                       <X size={10} /> {revoking === d.id ? '...' : 'Remove'}
                     </button>
                   </div>
@@ -599,7 +605,9 @@ export default function SettingsPage() {
                 onBlur={e => (e.target as HTMLInputElement).style.borderColor = C.inputBorder}
               />
               <button onClick={sendInvite} disabled={inviting || !delegateEmail.trim()}
-                style={{ padding: '11px 16px', background: delegateEmail.trim() ? C.gold : 'rgba(255,255,255,0.04)', border: `1px solid ${delegateEmail.trim() ? C.gold : C.border}`, borderRadius: 10, color: delegateEmail.trim() ? '#0a0908' : C.muted, fontSize: 13, fontWeight: 700, cursor: inviting || !delegateEmail.trim() ? 'default' : 'pointer', fontFamily: 'inherit', flexShrink: 0, opacity: inviting ? 0.7 : 1 }}>
+                style={{ padding: '11px 16px', background: delegateEmail.trim() ? C.gold : 'rgba(255,255,255,0.04)', border: `1px solid ${delegateEmail.trim() ? C.gold : C.border}`, borderRadius: 10, color: delegateEmail.trim() ? '#0a0908' : C.muted, fontSize: 13, fontWeight: 700, cursor: inviting || !delegateEmail.trim() ? 'default' : 'pointer', fontFamily: 'inherit', flexShrink: 0, opacity: inviting ? 0.7 : 1, transition: 'opacity 0.15s ease' }}
+                onMouseEnter={e => { if (!(e.currentTarget as HTMLButtonElement).disabled) (e.currentTarget as HTMLElement).style.opacity = '0.8' }}
+                onMouseLeave={e => { if (!(e.currentTarget as HTMLButtonElement).disabled) (e.currentTarget as HTMLElement).style.opacity = '1' }}>
                 {inviting ? '...' : 'Invite'}
               </button>
             </div>
@@ -630,7 +638,9 @@ export default function SettingsPage() {
                   : 'Send them this link — they tap it to accept access.'}
               </p>
               <button onClick={() => copyInvite(inviteResult.invite_url)}
-                style={{ width: '100%', padding: '12px', background: copiedInvite ? '#16a34a' : 'transparent', border: `1px solid ${copiedInvite ? 'rgba(74,222,128,0.4)' : 'rgba(74,222,128,0.25)'}`, borderRadius: 10, color: copiedInvite ? C.green : C.secondary, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                style={{ width: '100%', padding: '12px', background: copiedInvite ? '#16a34a' : 'transparent', border: `1px solid ${copiedInvite ? 'rgba(74,222,128,0.4)' : 'rgba(74,222,128,0.25)'}`, borderRadius: 10, color: copiedInvite ? C.green : C.secondary, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, transition: 'opacity 0.15s ease' }}
+                onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.7'}
+                onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}>
                 {copiedInvite ? <><Check size={12} strokeWidth={2.5} /> Link Copied</> : <><Copy size={12} strokeWidth={2} /> Copy Invite Link</>}
               </button>
             </div>
@@ -673,11 +683,15 @@ export default function SettingsPage() {
           )}
           <div style={{ display: 'flex', gap: 8 }}>
             <button onClick={testBandsintown} disabled={!bandsintownName.trim() || bandsintownTesting}
-              style={{ flex: 1, padding: '12px', background: 'transparent', border: `1px solid ${C.borderGold}`, borderRadius: 10, color: C.gold, fontSize: 13, fontWeight: 700, cursor: bandsintownName.trim() && !bandsintownTesting ? 'pointer' : 'not-allowed', fontFamily: 'inherit', opacity: !bandsintownName.trim() ? 0.4 : 1 }}>
+              style={{ flex: 1, padding: '12px', background: 'transparent', border: `1px solid ${C.borderGold}`, borderRadius: 10, color: C.gold, fontSize: 13, fontWeight: 700, cursor: bandsintownName.trim() && !bandsintownTesting ? 'pointer' : 'not-allowed', fontFamily: 'inherit', opacity: !bandsintownName.trim() ? 0.4 : 1, transition: 'opacity 0.15s ease' }}
+              onMouseEnter={e => { if (!(e.currentTarget as HTMLButtonElement).disabled) (e.currentTarget as HTMLElement).style.opacity = '0.7' }}
+              onMouseLeave={e => { if (!(e.currentTarget as HTMLButtonElement).disabled) (e.currentTarget as HTMLElement).style.opacity = '1' }}>
               {bandsintownTesting ? 'Testing...' : 'Test Connection'}
             </button>
             <button onClick={saveBandsintown} disabled={bandsintownSaving || bandsintownSaved}
-              style={{ flex: 1, padding: '12px', background: bandsintownSaved ? '#16a34a' : C.gold, border: 'none', borderRadius: 10, color: bandsintownSaved ? '#fff' : '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontFamily: 'inherit', opacity: bandsintownSaving ? 0.7 : 1 }}>
+              style={{ flex: 1, padding: '12px', background: bandsintownSaved ? '#16a34a' : C.gold, border: 'none', borderRadius: 10, color: bandsintownSaved ? '#fff' : '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontFamily: 'inherit', opacity: bandsintownSaving ? 0.7 : 1, transition: 'opacity 0.15s ease' }}
+              onMouseEnter={e => { if (!(e.currentTarget as HTMLButtonElement).disabled) (e.currentTarget as HTMLElement).style.opacity = '0.8' }}
+              onMouseLeave={e => { if (!(e.currentTarget as HTMLButtonElement).disabled) (e.currentTarget as HTMLElement).style.opacity = '1' }}>
               {bandsintownSaved ? <><Check size={14} strokeWidth={2.5} />Saved</> : bandsintownSaving ? 'Saving...' : 'Save'}
             </button>
           </div>
@@ -710,7 +724,9 @@ export default function SettingsPage() {
             </p>
           </div>
           <button onClick={saveCareerStartYear} disabled={careerStartYearSaving || careerStartYearSaved || !careerStartYear}
-            style={{ width: '100%', padding: '13px', background: careerStartYearSaved ? '#16a34a' : C.gold, border: 'none', borderRadius: 10, color: careerStartYearSaved ? '#fff' : '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontFamily: 'inherit', opacity: careerStartYearSaving || !careerStartYear ? 0.7 : 1 }}>
+            style={{ width: '100%', padding: '13px', background: careerStartYearSaved ? '#16a34a' : C.gold, border: 'none', borderRadius: 10, color: careerStartYearSaved ? '#fff' : '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontFamily: 'inherit', opacity: careerStartYearSaving || !careerStartYear ? 0.7 : 1, transition: 'opacity 0.15s ease' }}
+            onMouseEnter={e => { if (!(e.currentTarget as HTMLButtonElement).disabled) (e.currentTarget as HTMLElement).style.opacity = '0.8' }}
+            onMouseLeave={e => { if (!(e.currentTarget as HTMLButtonElement).disabled) (e.currentTarget as HTMLElement).style.opacity = '1' }}>
             {careerStartYearSaved ? <><Check size={14} strokeWidth={2.5} />Saved</> : careerStartYearSaving ? 'Saving...' : 'Update Career Start'}
           </button>
         </div>
@@ -736,7 +752,9 @@ export default function SettingsPage() {
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
               {PRO_OPTIONS.map(pro => (
                 <button key={pro} onClick={() => setProAffiliation(pro === proAffiliation ? '' : pro)}
-                  style={{ padding: '7px 14px', borderRadius: 8, border: `1px solid ${proAffiliation === pro ? C.borderGold : C.border}`, background: proAffiliation === pro ? C.goldDim : 'transparent', color: proAffiliation === pro ? C.gold : C.secondary, fontSize: 12, fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s ease', fontFamily: 'inherit' }}>
+                  style={{ padding: '7px 14px', borderRadius: 8, border: `1px solid ${proAffiliation === pro ? C.borderGold : C.border}`, background: proAffiliation === pro ? C.goldDim : 'transparent', color: proAffiliation === pro ? C.gold : C.secondary, fontSize: 12, fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s ease', fontFamily: 'inherit' }}
+                  onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.7'}
+                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}>
                   {pro}
                 </button>
               ))}
@@ -767,7 +785,9 @@ export default function SettingsPage() {
             </div>
           )}
           <button onClick={savePRO} disabled={proSaving || proSaved}
-            style={{ width: '100%', padding: '13px', background: proSaved ? '#16a34a' : C.gold, border: 'none', borderRadius: 10, color: proSaved ? '#fff' : '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontFamily: 'inherit', opacity: proSaving ? 0.7 : 1 }}>
+            style={{ width: '100%', padding: '13px', background: proSaved ? '#16a34a' : C.gold, border: 'none', borderRadius: 10, color: proSaved ? '#fff' : '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontFamily: 'inherit', opacity: proSaving ? 0.7 : 1, transition: 'opacity 0.15s ease' }}
+            onMouseEnter={e => { if (!(e.currentTarget as HTMLButtonElement).disabled) (e.currentTarget as HTMLElement).style.opacity = '0.8' }}
+            onMouseLeave={e => { if (!(e.currentTarget as HTMLButtonElement).disabled) (e.currentTarget as HTMLElement).style.opacity = '1' }}>
             {proSaved ? <><Check size={14} strokeWidth={2.5} />Saved</> : proSaving ? 'Saving...' : 'Save PRO Info'}
           </button>
         </div>
@@ -820,7 +840,9 @@ export default function SettingsPage() {
                   <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, margin: 0 }}>Select your profile</p>
                   {spotifyResults.map(artist => (
                     <button key={artist.id} onClick={() => importFromSpotify(artist)} disabled={importing}
-                      style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', background: selectedArtist?.id === artist.id ? C.goldDim : 'rgba(255,255,255,0.02)', border: `1px solid ${selectedArtist?.id === artist.id ? C.borderGold : C.border}`, borderRadius: 12, cursor: importing ? 'wait' : 'pointer', textAlign: 'left', fontFamily: 'inherit', width: '100%', transition: 'all 0.15s ease' }}>
+                      style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', background: selectedArtist?.id === artist.id ? C.goldDim : 'rgba(255,255,255,0.02)', border: `1px solid ${selectedArtist?.id === artist.id ? C.borderGold : C.border}`, borderRadius: 12, cursor: importing ? 'wait' : 'pointer', textAlign: 'left', fontFamily: 'inherit', width: '100%', transition: 'all 0.15s ease' }}
+                      onMouseEnter={e => { if (!(e.currentTarget as HTMLButtonElement).disabled) (e.currentTarget as HTMLElement).style.opacity = '0.8' }}
+                      onMouseLeave={e => { if (!(e.currentTarget as HTMLButtonElement).disabled) (e.currentTarget as HTMLElement).style.opacity = '1' }}>
                       {artist.image
                         ? <img src={artist.image} alt={artist.name} style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
                         : <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Music2 size={18} color={C.muted} /></div>}
@@ -878,15 +900,19 @@ export default function SettingsPage() {
 
           {isAdmin && (
             <Link href="/app/admin"
-              style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', background: 'rgba(201,168,76,0.07)', border: '1px solid rgba(201,168,76,0.2)', borderRadius: 10, color: C.gold, textDecoration: 'none', fontSize: 14, fontWeight: 600 }}>
+              style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', background: 'rgba(201,168,76,0.07)', border: '1px solid rgba(201,168,76,0.2)', borderRadius: 10, color: C.gold, textDecoration: 'none', fontSize: 14, fontWeight: 600, transition: 'opacity 0.15s ease' }}
+              onMouseEnter={(e: any) => (e.currentTarget as HTMLElement).style.opacity = '0.7'}
+              onMouseLeave={(e: any) => (e.currentTarget as HTMLElement).style.opacity = '1'}>
               <Shield size={15} color={C.gold} />
-              Admin Dashboard
+              Admin Dashboard →
               <span style={{ marginLeft: 'auto', fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: C.gold, background: 'rgba(201,168,76,0.12)', padding: '2px 7px', borderRadius: 4 }}>Internal</span>
             </Link>
           )}
 
           <button onClick={signOut}
-            style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', background: 'rgba(248,113,113,0.06)', border: '1px solid rgba(248,113,113,0.15)', borderRadius: 10, color: C.red, cursor: 'pointer', fontFamily: 'inherit', width: '100%', textAlign: 'left', fontSize: 14, fontWeight: 600 }}>
+            style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', background: 'rgba(248,113,113,0.06)', border: '1px solid rgba(248,113,113,0.15)', borderRadius: 10, color: C.red, cursor: 'pointer', fontFamily: 'inherit', width: '100%', textAlign: 'left', fontSize: 14, fontWeight: 600, transition: 'opacity 0.15s ease' }}
+            onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.7'}
+            onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}>
             <LogOut size={15} color={C.red} />
             Sign out
           </button>

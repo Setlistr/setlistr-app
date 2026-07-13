@@ -1331,10 +1331,16 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
 
           {/* ── ACTIONS ── */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, opacity: 0, animation: 'fadeUp 0.6s 1.1s ease forwards' }}>
-            <button onClick={() => router.push('/app/dashboard')}
+            <button onClick={() => router.push('/app/submit/' + params.id)}
               style={{ width: '100%', padding: '17px', background: C.gold, border: 'none', borderRadius: 16, color: '#0a0908', fontSize: 15, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'inherit', transition: 'transform 0.15s ease' }}
               onMouseEnter={e => (e.currentTarget as HTMLElement).style.transform = 'scale(1.01)'}
               onMouseLeave={e => (e.currentTarget as HTMLElement).style.transform = 'scale(1)'}>
+              Submit the setlist →
+            </button>
+            <button onClick={() => router.push('/app/dashboard')}
+              style={{ width: '100%', padding: '14px', background: 'transparent', border: '1px solid rgba(201,168,76,0.3)', borderRadius: 16, color: C.gold, fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', transition: 'opacity 0.15s ease' }}
+              onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.7'}
+              onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}>
               Back to your record
             </button>
             <button onClick={() => setShowComplete(false)}
@@ -1515,11 +1521,15 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
 
         <div style={{ paddingTop: 14, paddingBottom: 40, display: 'flex', flexDirection: 'column', gap: 10, animation: 'fadeUp 0.4s 0.2s ease both' }}>
           <button onClick={handleSave} disabled={saving || saved}
-            style={{ width: '100%', padding: '15px', background: saved ? '#16a34a' : C.gold, border: 'none', borderRadius: 12, color: saved ? '#fff' : '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: saving || saved ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1, transition: 'all 0.25s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit' }}>
+            style={{ width: '100%', padding: '15px', background: saved ? '#16a34a' : C.gold, border: 'none', borderRadius: 12, color: saved ? '#fff' : '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: saving || saved ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1, transition: 'all 0.25s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit' }}
+            onMouseEnter={e => { if (!saving && !saved) (e.currentTarget as HTMLElement).style.opacity = '0.8' }}
+            onMouseLeave={e => { if (!saving && !saved) (e.currentTarget as HTMLElement).style.opacity = '1' }}>
             {saved ? <><Check size={16} strokeWidth={2.5} /> Saved</> : saving ? <><div style={{ width: 14, height: 14, borderRadius: '50%', border: `2px solid #0a090840`, borderTopColor: '#0a0908', animation: 'spin 0.7s linear infinite' }} />Saving...</> : 'Save & Complete'}
           </button>
           <button onClick={() => router.push('/app/dashboard')}
-            style={{ background: 'none', border: 'none', color: C.muted, fontSize: 12, cursor: 'pointer', letterSpacing: '0.04em', fontFamily: 'inherit', padding: '6px' }}>
+            style={{ background: 'none', border: 'none', color: C.muted, fontSize: 12, cursor: 'pointer', letterSpacing: '0.04em', fontFamily: 'inherit', padding: '6px', transition: 'opacity 0.15s ease' }}
+            onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.7'}
+            onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}>
             Back to Dashboard
           </button>
         </div>

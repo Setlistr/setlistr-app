@@ -485,7 +485,9 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
         </div>
 
         <button onClick={() => router.push('/app/dashboard')}
-          style={{ width: '100%', padding: '16px', background: C.gold, border: 'none', borderRadius: 12, color: '#0a0908', fontSize: 15, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' as const, cursor: 'pointer', fontFamily: 'inherit', marginBottom: 10 }}>
+          style={{ width: '100%', padding: '16px', background: C.gold, border: 'none', borderRadius: 12, color: '#0a0908', fontSize: 15, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' as const, cursor: 'pointer', fontFamily: 'inherit', marginBottom: 10, transition: 'opacity 0.15s ease' }}
+          onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.7'}
+          onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}>
           Back to Dashboard
         </button>
         <button onClick={() => setSubmitted(false)} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
@@ -510,6 +512,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
         <h1 style={{ fontSize: 36, fontWeight: 800, color: C.text, margin: '0 0 4px', letterSpacing: '-0.02em', lineHeight: 1.1 }}>
           Claim Your Royalties
         </h1>
+        <p style={{ fontSize: 13, color: C.muted, margin: '4px 0 0' }}>Filed setlists are how PROs know to pay the songwriters.</p>
         <p style={{ fontSize: 15, color: C.secondary, margin: '0 0 24px' }}>
           {showDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
         </p>
@@ -703,7 +706,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
           <div style={{ padding: '14px 18px 10px', borderBottom: `1px solid ${C.border}` }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
               <p style={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.12em', color: C.muted, margin: 0 }}>
-                Songs performed ({songs.length} total)
+                Songs performed ({songs.length})
               </p>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 {matchedCount > 0 && <span style={{ fontSize: 10, color: C.green }}>●&nbsp;{matchedCount} matched</span>}
@@ -827,7 +830,9 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
           {songs.length > 0 && (
             <button
               onClick={() => downloadSubmissionBrief({ performance, songs, profile, proConfig: proConfig || null, pro, estimate, suggestedTitle, effectiveCapacity: effectiveCapacity ?? null, promoter, ticketPrice, attendanceEstimate })}
-              style={{ width: '100%', padding: '14px', background: 'rgba(201,168,76,0.06)', border: `1px solid ${C.borderGold}`, borderRadius: 12, color: C.gold, fontSize: 15, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit' }}>
+              style={{ width: '100%', padding: '14px', background: 'rgba(201,168,76,0.06)', border: `1px solid ${C.borderGold}`, borderRadius: 12, color: C.gold, fontSize: 15, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit', transition: 'opacity 0.15s ease' }}
+              onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.7'}
+              onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}>
               <FileText size={14} strokeWidth={2} />
               Download Submission Brief
             </button>
@@ -836,7 +841,9 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
           {hasPRO && proConfig && (
             !portalOpened ? (
               <button onClick={() => handleOpenPortal(proConfig.submitUrl)}
-                style={{ width: '100%', padding: '16px', background: C.gold, border: 'none', borderRadius: 12, color: '#0a0908', fontSize: 16, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' as const, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit' }}>
+                style={{ width: '100%', padding: '16px', background: C.gold, border: 'none', borderRadius: 12, color: '#0a0908', fontSize: 16, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' as const, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit', transition: 'opacity 0.15s ease' }}
+                onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.7'}
+                onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}>
                 <ExternalLink size={15} strokeWidth={2.5} />{proConfig.portalLabel}
               </button>
             ) : (
@@ -856,7 +863,9 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
           )}
 
           <button onClick={() => router.push('/app/dashboard')}
-            style={{ background: 'none', border: 'none', color: C.muted, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit', padding: '8px', width: '100%' }}>
+            style={{ background: 'none', border: 'none', color: C.muted, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit', padding: '8px', width: '100%', transition: 'opacity 0.15s ease' }}
+            onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.7'}
+            onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}>
             Back to Dashboard
           </button>
         </div>
