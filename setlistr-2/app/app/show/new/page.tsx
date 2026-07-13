@@ -79,6 +79,7 @@ export default function NewShowPage() {
 
   const [setlistOffer, setSetlistOffer]                 = useState<SetlistOffer | null>(null)
   const [setlistOfferDismissed, setSetlistOfferDismissed] = useState(false)
+  const [setlistPhotoUrl, setSetlistPhotoUrl]           = useState<string | null>(null)
 
   // Camera: capture="environment" opens native camera on iOS + Android
   const cameraInputRef = useRef<HTMLInputElement>(null)
@@ -311,6 +312,8 @@ export default function NewShowPage() {
       const existing = new Set(plannedSongs.map(s => s.title.toLowerCase()))
       const newSongs = (data.songs as PlannedSong[]).filter(s => !existing.has(s.title.toLowerCase()))
       setPlannedSongs(prev => [...prev, ...newSongs.map((s, i) => ({ ...s, position: prev.length + i }))])
+      // First page's evidence photo wins; subsequent pages do not overwrite
+      if (data.setlistPhotoUrl) setSetlistPhotoUrl(prev => prev ?? data.setlistPhotoUrl)
     } catch (err: any) {
       setUploadError(err.message || "Couldn't read that one. Try a clearer photo.")
     } finally {
@@ -411,6 +414,7 @@ export default function NewShowPage() {
         started_at: new Date().toISOString(), user_id: user.id,
         captured_by: actingAsCtx ? user.id : null,
         captured_by_name: actingAsCtx ? selfName : null,
+        setlist_photo_url: setlistPhotoUrl || null,
       }).select().single()
       if (perfError) throw new Error('Performance insert failed: ' + perfError.message)
       if (plannedSongs.length > 0) await savePlannedSetlist(performance.id, user.id, resolvedVenueId)

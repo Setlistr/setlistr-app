@@ -242,7 +242,33 @@ Rules:
       }
     }
 
-    return NextResponse.json({ songs: sanitized, count: sanitized.length })
+    // ── Persist evidence image (non-fatal, image/PDF paths only) ─────────────
+    let setlistPhotoUrl: string | null = null
+    if (mimeType !== 'text/plain' && userId) {
+      try {
+        const ext = mimeType === 'application/pdf' ? 'pdf'
+          : mimeType === 'image/webp' ? 'webp'
+          : mimeType === 'image/gif'  ? 'gif'
+          : 'jpg'
+        const storagePath = `setlists/${userId}/${Date.now()}.${ext}`
+        const contentType = mimeType === 'application/pdf' ? 'application/pdf' : `image/${ext}`
+        const { error: storageError } = await supabase.storage
+          .from('performance-photos')
+          .upload(storagePath, Buffer.from(bytes), { contentType, upsert: false })
+        if (storageError) {
+          console.error('Setlist photo upload failed (non-fatal):', storageError.message)
+        } else {
+          const { data: { publicUrl } } = supabase.storage
+            .from('performance-photos')
+            .getPublicUrl(storagePath)
+          setlistPhotoUrl = publicUrl
+        }
+      } catch (err) {
+        console.error('Setlist photo upload error (non-fatal):', err)
+      }
+    }
+
+    return NextResponse.json({ songs: sanitized, count: sanitized.length, setlistPhotoUrl })
 
   } catch (err: any) {
     console.error('Parse setlist error:', err)
