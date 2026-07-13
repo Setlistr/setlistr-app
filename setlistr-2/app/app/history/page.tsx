@@ -326,11 +326,11 @@ export default function HistoryPage() {
 
                 return (
                   <button key={perf.id} onClick={() => navigateTo(perf)}
-                    style={{ background: CARD.background, border: `1px solid ${isClaimable ? 'rgba(201,168,76,0.15)' : 'rgba(255,255,255,0.04)'}`, borderRadius: 16, padding: '16px', cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 12, fontFamily: 'inherit', width: '100%', transition: 'background 0.12s ease, border-color 0.12s ease', boxShadow: CARD.boxShadow }}
+                    style={{ background: CARD.background, border: `1px solid ${isClaimable ? 'rgba(201,168,76,0.15)' : 'rgba(255,255,255,0.04)'}`, borderRadius: 16, padding: '16px 18px', minHeight: 88, cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 12, fontFamily: 'inherit', width: '100%', transition: 'background 0.12s ease, border-color 0.12s ease', boxShadow: CARD.boxShadow }}
                     onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.background = C.cardHover }}
                     onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.background = CARD.background }}>
 
-                    {/* Photo thumbnail — 40px rounded square, fades in on load */}
+                    {/* Photo thumbnail */}
                     {perf.photo_url && (
                       <div style={{ width: 40, height: 40, borderRadius: 8, overflow: 'hidden', flexShrink: 0, background: '#171512' }}>
                         <img
@@ -349,44 +349,31 @@ export default function HistoryPage() {
                       <p style={{ fontSize: 11, color: C.muted, margin: '2px 0 0', textTransform: 'uppercase' as const, letterSpacing: '0.08em' }}>{date.toLocaleDateString('en-US', { month: 'short' })}</p>
                     </div>
 
-                    <div style={{ width: 1, height: 30, background: C.border, flexShrink: 0 }} />
+                    <div style={{ width: 1, height: 40, background: C.border, flexShrink: 0 }} />
 
-                    {/* Venue + artist */}
+                    {/* Venue + city · songs */}
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                        <p style={{ fontSize: 16, fontWeight: 600, color: C.text, margin: 0,
-                            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>
-                            {perf.venue_name}
-                        </p>
-                        {perf.venue_id && (
-                          <button
-                            onClick={e => { e.stopPropagation(); router.push(`/app/venue/${perf.venue_id}`) }}
-                            style={{ fontSize: 11, color: C.gold, background: 'none', border: 'none',
-                              cursor: 'pointer', fontFamily: 'inherit', padding: 0, flexShrink: 0,
-                              fontWeight: 600, letterSpacing: '0.04em' }}>
-                            History →
-                          </button>
-                        )}
-                      </div>
-                      <p style={{ fontSize: 13, color: C.secondary, margin: 0 }}>
-                        {perf.artist_name}{perf.city ? ` · ${perf.city}` : ''}{perf.country ? `, ${perf.country}` : ''}
+                      <p style={{ fontSize: 17, fontWeight: 700, color: C.text, margin: '0 0 5px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {perf.venue_name}
                       </p>
-                      {perf.captured_by_name && <p style={{ fontSize: 12, color: C.muted, margin: '2px 0 0' }}>Captured by {perf.captured_by_name}</p>}
+                      <p style={{ fontSize: 13, color: C.muted, margin: 0 }}>
+                        {[perf.city, (perf.song_count || 0) > 0 ? `${perf.song_count} songs` : null].filter(Boolean).join(' · ')}
+                      </p>
                     </div>
 
-                    {/* Right side — estimate + status or just status */}
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, flexShrink: 0 }}>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    {/* Status + arrow */}
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 5, flexShrink: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         <span style={{ width: 9, height: 9, borderRadius: '50%', flexShrink: 0, display: 'inline-block', background: displayStatus.color === C.green ? C.gold : 'transparent', border: displayStatus.color === C.green ? 'none' : `1.5px solid ${C.gold}` }} />
                         <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, color: displayStatus.color }}>{displayStatus.label}</span>
-                      </span>
+                        <span style={{ fontSize: 14, color: C.muted }}>→</span>
+                      </div>
                       {est && est.expected > 0 && (
                         <span style={{ fontSize: 14, fontWeight: 700, color: C.gold, fontFamily: '"DM Mono", monospace' }}>
                           ~${est.expected}
                         </span>
                       )}
                     </div>
-                    <span style={{ fontSize: 14, color: C.muted, flexShrink: 0 }}>→</span>
                   </button>
                 )
               })}
