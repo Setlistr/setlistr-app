@@ -10,6 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **PRO integrations must be globally agnostic.** All submission and royalty logic must support SOCAN, ASCAP, BMI, PRS, APRA, SESAC, and GMR equally. Never build a feature for a single PRO.
 - **Inline styles only — never Tailwind classes.** The design system is implemented via inline `style={{}}` props throughout. Tailwind config exists only for custom color/font tokens.
 - **All deploys go through GitHub → Vercel.** Never run `vercel deploy` or any direct deployment command from the terminal.
+- **Before any commit that touches `lib/`, run `npx tsc --noEmit` with the app tsconfig** (i.e. no `-p` flag pointing elsewhere). If you've been iterating with `ts-node --transpile-only` (e.g. via a `scripts/` CLI harness), that flag skips type-checking entirely and gives false confidence — it will not catch errors Vercel's build step (`tsc --noEmit` under the real `tsconfig.json`) does. Confirmed the hard way: `lib/reconciliation/resolve.ts` iterated a `Map` directly in a `for...of`, which needs `--downlevelIteration` or an ES2015+ target; the app tsconfig sets neither, so it broke the Vercel build while every local `ts-node` run had passed.
 - **Stack:** Next.js 14.2.5 / TypeScript / Supabase / Vercel.
 - **Project root:** code lives in `setlistr-2/` — confirm paths relative to that directory.
 
