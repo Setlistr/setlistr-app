@@ -163,7 +163,7 @@ export function resolveSlot(
 
   const breakdowns: GroupScoreBreakdown[] = []
 
-  for (const agg of groups.values()) {
+  for (const agg of Array.from(groups.values())) {
     const consistencyBoost = Math.min(
       CFG.CONSISTENCY_BOOST_MAX,
       (agg.supportingObservations - 1) * CFG.CONSISTENCY_BOOST_PER_OBSERVATION
