@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "reconcile": "ts-node --transpile-only -P scripts/tsconfig.json scripts/reconcile.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",

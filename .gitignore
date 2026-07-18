@@ -33,5 +33,10 @@ next-env.d.ts
 ios/App/App/public/
 setlistr-2/ios/App/App/public/
 
-# Local test scripts (not shipped)
-setlistr-2/scripts/
+# Local test scripts (not shipped) — except the reconciliation harness and
+# its diagnostic tooling, which are real Phase 1 deliverables (see
+# setlistr-2/lib/reconciliation/).
+setlistr-2/scripts/*
+!setlistr-2/scripts/reconcile.ts
+!setlistr-2/scripts/tsconfig.json
+!setlistr-2/scripts/debug-inspect.ts
