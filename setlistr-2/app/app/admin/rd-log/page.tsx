@@ -2,11 +2,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { createClient } from '@supabase/supabase-js'
 import { redirect } from 'next/navigation'
 import RdLogView from './RdLogView'
-
-const ADMIN_EMAILS = [
-  'jesse.slack.music@gmail.com',
-  'darylscottsongs@gmail.com',
-]
+import { ADMIN_EMAILS } from '@/lib/admin-config'
 
 function getServiceSupabase() {
   return createClient(

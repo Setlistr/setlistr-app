@@ -1,5 +1,6 @@
 'use client'
 import { useState, useMemo } from 'react'
+import AdminShell, { type AdminShellTab } from '../AdminShell'
 
 const C = {
   bg:         '#0a0908',
@@ -25,6 +26,23 @@ const ROLES: Record<string, string> = {
   Kode:    'Engineer',
 }
 const FUNDING_OPTIONS = ['Section 41', 'IRAP', 'NSF SBIR', 'Patent'] as const
+
+// Same tab set as AdminView.tsx, but every entry links back to /app/admin
+// (which always opens on Overview — see the render function below) since
+// this page has no access to AdminView's local tab state. Only R&D Log
+// itself is a "true" active tab from here.
+const RD_LOG_SHELL_TABS: AdminShellTab[] = [
+  { id: 'overview',       label: 'Overview',       href: '/app/admin' },
+  { id: 'detection',      label: 'Detection',      href: '/app/admin' },
+  { id: 'reconciliation', label: 'Reconciliation', href: '/app/admin' },
+  { id: 'artists',        label: 'Artists',        href: '/app/admin' },
+  { id: 'songs',          label: 'Songs',          href: '/app/admin' },
+  { id: 'venues',         label: 'Venues',         href: '/app/admin' },
+  { id: 'shows',          label: 'Shows',          href: '/app/admin' },
+  { id: 'beta',           label: 'Beta Users',     href: '/app/admin' },
+  { id: 'superadmin',     label: 'Superadmin',     href: '/app/admin' },
+  { id: 'rd-log',         label: 'R&D Log',        href: '/app/admin/rd-log' },
+]
 
 type RdEntry = {
   id:                    string
@@ -222,38 +240,19 @@ export default function RdLogView({ initialEntries }: { initialEntries: RdEntry[
   }
 
   // ── Render ───────────────────────────────────────────────────────────────────
+  // R&D Log is a separate route from the main admin panel, so every other
+  // tab here is a plain link back to /app/admin (which always opens on its
+  // Overview tab — AdminView's tab selection is local component state, not
+  // URL-driven, so a cross-page link can't deep-link into a specific tab
+  // there. Same net capability the old "← Admin" link had, just presented
+  // as part of the shared tab bar now instead of a standalone back-link).
   return (
-    <div style={{
-      minHeight: '100svh', background: C.bg,
-      fontFamily: '"DM Sans", system-ui, sans-serif',
-      color: C.text,
-    }}>
-      <div style={{ padding: '28px 20px 60px', maxWidth: 800, margin: '0 auto' }}>
-
-        {/* Header */}
-        <div style={{ marginBottom: 28 }}>
-          <a href="/app/admin" style={{
-            fontSize: 11, color: C.muted, textDecoration: 'none',
-            letterSpacing: '0.06em', display: 'inline-block', marginBottom: 16,
-          }}>
-            ← Admin
-          </a>
-          <p style={{
-            fontSize: 10, fontWeight: 700, letterSpacing: '0.25em',
-            textTransform: 'uppercase', color: C.gold + '99', margin: '0 0 4px',
-          }}>
-            Setlistr · Admin
-          </p>
-          <h1 style={{
-            fontSize: 28, fontWeight: 800, color: C.text,
-            margin: 0, letterSpacing: '-0.025em',
-          }}>
-            R&D Activity Log
-          </h1>
-          <p style={{ fontSize: 13, color: C.muted, margin: '6px 0 0' }}>
-            Section 41 · IRAP · NSF SBIR · Patent documentation
-          </p>
-        </div>
+    <AdminShell
+      title="R&D Activity Log"
+      subtitle="Section 41 · IRAP · NSF SBIR · Patent documentation"
+      tabs={RD_LOG_SHELL_TABS}
+      activeTab="rd-log"
+    >
 
         {/* ── SECTION 1: Log new entry ─────────────────────────────────────── */}
         <div style={{
@@ -676,8 +675,6 @@ export default function RdLogView({ initialEntries }: { initialEntries: RdEntry[
           </button>
         </div>
 
-      </div>
-
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500;700&display=swap');
         * { box-sizing: border-box; }
@@ -687,6 +684,6 @@ export default function RdLogView({ initialEntries }: { initialEntries: RdEntry[
         input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
         ::-webkit-scrollbar { display: none; }
       `}</style>
-    </div>
+    </AdminShell>
   )
 }

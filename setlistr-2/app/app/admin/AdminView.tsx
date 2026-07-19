@@ -1,5 +1,6 @@
 'use client'
 import { useState, useMemo } from 'react'
+import AdminShell, { type AdminShellTab } from './AdminShell'
 
 // ── Design tokens ────────────────────────────────────────────────────────────
 const C = {
@@ -80,7 +81,66 @@ type BetaInvite = {
   accepted_at: string | null
 }
 
-type Tab = 'overview' | 'detection' | 'artists' | 'songs' | 'venues' | 'shows' | 'beta' | 'superadmin'
+// ── Reconciliation engine (Phase 1, read-only) ─────────────────────────────
+// Mirrors lib/reconciliation/types.ts's PriorApplied / evidence shape.
+// `losing_groups` is not currently persisted by the engine (kept
+// engine-internal on purpose — see lib/reconciliation/resolve.ts) but the
+// evidence JSONB has no schema constraint against it, so this stays
+// optional and renders conditionally if a future run ever includes it.
+type PriorApplied = { name: string; weight: number; detail: string }
+
+type ReconciliationEvidence = {
+  log_row_ids?: string[]
+  priors_applied?: PriorApplied[]
+  source_tier?: 'a' | 'b' | 'c'
+  losing_groups?: Array<{
+    title: string
+    finalScore: number
+    bestScore?: number
+    suppressionMultiplier?: number
+    priorsApplied?: PriorApplied[]
+  }>
+}
+
+type ReconciliationRunPerformance = {
+  id: string
+  venue_name: string | null
+  artist_name: string | null
+  city: string | null
+  started_at: string | null
+} | null
+
+type ReconciliationRun = {
+  id: string
+  performance_id: string
+  mode: 'baseline' | 'engine'
+  engine_version: string
+  params: Record<string, any> | null
+  status: string
+  error_message: string | null
+  scoring: Record<string, any> | null
+  started_at: string
+  completed_at: string | null
+  created_at: string
+  performance: ReconciliationRunPerformance
+}
+
+type ReconciliationConclusion = {
+  id: string
+  run_id: string
+  slot_index: number
+  slot_start: string | null
+  slot_end: string | null
+  concluded_title: string | null
+  concluded_artist: string | null
+  concluded_isrc: string | null
+  tier: 'CONFIRMED' | 'LIKELY' | 'UNKNOWN'
+  score: number
+  evidence: ReconciliationEvidence | null
+  created_at: string
+}
+
+type Tab = 'overview' | 'detection' | 'reconciliation' | 'artists' | 'songs' | 'venues' | 'shows' | 'beta' | 'superadmin'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 function timeAgo(d: string) {
@@ -126,9 +186,225 @@ function Dot({ color }: { color: string }) {
   return <span style={{ width: 7, height: 7, borderRadius: '50%', background: color, display: 'inline-block', flexShrink: 0 }} />
 }
 
+// ── Empty state ──────────────────────────────────────────────────────────────
+// Shared across every tab's "nothing here" message — was six near-identical
+// inline <p> tags before, now one component with the same exact style.
+function EmptyState({ message }: { message: string }) {
+  return <p style={{ textAlign: 'center', color: C.muted, padding: '40px 0' }}>{message}</p>
+}
+
+// ── Pagination caveat ────────────────────────────────────────────────────────
+// Shared "showing most recent N of M total" note for any list whose server
+// fetch is capped. Renders nothing when the loaded count already covers the
+// true total.
+function PaginationCaveat({ loaded, total }: { loaded: number; total: number }) {
+  if (total <= loaded) return null
+  return (
+    <p style={{ fontSize: 11, color: C.muted, margin: '0 0 4px', fontStyle: 'italic' }}>
+      Showing most recent {loaded} of {total} total
+    </p>
+  )
+}
+
+// ── Reconciliation tier badge ───────────────────────────────────────────────
+// Per spec: CONFIRMED gold, LIKELY muted, UNKNOWN dim.
+function TierBadge({ tier }: { tier: 'CONFIRMED' | 'LIKELY' | 'UNKNOWN' }) {
+  const styles = {
+    CONFIRMED: { color: C.gold,      bg: C.goldDim,              border: C.borderGold },
+    LIKELY:    { color: C.secondary, bg: 'rgba(160,144,112,0.1)', border: 'rgba(160,144,112,0.25)' },
+    UNKNOWN:   { color: C.muted,     bg: 'rgba(255,255,255,0.03)', border: C.border },
+  }[tier]
+  return (
+    <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', padding: '2px 7px', borderRadius: 4, background: styles.bg, border: `1px solid ${styles.border}`, color: styles.color, flexShrink: 0 }}>
+      {tier}
+    </span>
+  )
+}
+
+// ── Styled select ────────────────────────────────────────────────────────────
+// Removes the native OS dropdown arrow (the one place browser chrome leaked
+// through the otherwise fully custom dark UI) and replaces it with a
+// custom chevron. The open option list itself still renders with native
+// OS styling — not fixable without a full custom-combobox rebuild, out of
+// scope here.
+function StyledSelect({ value, onChange, options, placeholder }: {
+  value: string
+  onChange: (value: string) => void
+  options: { value: string; label: string }[]
+  placeholder: string
+}) {
+  return (
+    <div style={{ position: 'relative' }}>
+      <select value={value} onChange={e => onChange(e.target.value)}
+        style={{
+          width: '100%', background: '#0f0e0c', border: `1px solid ${value ? C.borderGold : C.border}`,
+          borderRadius: 8, padding: '10px 32px 10px 12px', color: value ? C.text : C.muted,
+          fontSize: 13, fontFamily: 'inherit', outline: 'none', cursor: 'pointer',
+          appearance: 'none', WebkitAppearance: 'none', MozAppearance: 'none',
+        }}>
+        <option value=''>{placeholder}</option>
+        {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+      </select>
+      <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: C.muted, fontSize: 10 }}>▾</span>
+    </div>
+  )
+}
+
+// ── Reconciliation run scoring summary ──────────────────────────────────────
+// Handles both persisted scoring shapes: baseline runs store a ScoreResult
+// directly, engine runs store { confirmed_only, confirmed_plus_likely,
+// tier_counts }. See scripts/reconcile.ts for what actually gets written.
+function fmtNum(n: unknown): string {
+  return typeof n === 'number' && Number.isFinite(n) ? n.toFixed(2) : '—'
+}
+
+function summarizeRunScoring(run: ReconciliationRun): string {
+  if (run.status === 'failed') return run.error_message || 'failed'
+  if (!run.scoring) return 'no scoring recorded'
+  if (run.mode === 'baseline') {
+    const s = run.scoring
+    if (typeof s.headline === 'string') return `${s.headline} · P=${fmtNum(s.precision)} R=${fmtNum(s.recall)}`
+    return 'scored'
+  }
+  const cl = run.scoring.confirmed_plus_likely
+  if (cl && typeof cl.headline === 'string') return `${cl.headline} · P=${fmtNum(cl.precision)} R=${fmtNum(cl.recall)}`
+  return 'scored'
+}
+
+// ── Reconciliation conclusion row ───────────────────────────────────────────
+// One slot's concluded title/tier/score plus its full evidence breakdown:
+// priors applied, cited evidence-row ids, and (if ever persisted) losing
+// candidates from the same slot.
+function ConclusionRow({ c }: { c: ReconciliationConclusion }) {
+  const priors       = c.evidence?.priors_applied ?? []
+  const logIds       = c.evidence?.log_row_ids ?? []
+  const losingGroups = c.evidence?.losing_groups ?? []
+  const sourceTier   = c.evidence?.source_tier
+  const hasSlotTimes = !!(c.slot_start || c.slot_end)
+
+  return (
+    <div style={{ padding: '12px 14px', borderBottom: `1px solid ${C.border}`, display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 11, color: C.muted, fontFamily: '"DM Mono", monospace', minWidth: 22, flexShrink: 0 }}>#{c.slot_index}</span>
+        <TierBadge tier={c.tier} />
+        <p style={{ fontSize: 14, fontWeight: 600, color: c.concluded_title ? C.text : C.muted, fontStyle: c.concluded_title ? 'normal' : 'italic', margin: 0, flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {c.concluded_title || 'no conclusion'}
+        </p>
+        <span style={{ fontSize: 12, fontWeight: 700, color: C.gold, fontFamily: '"DM Mono", monospace', flexShrink: 0 }}>{c.score.toFixed(4)}</span>
+      </div>
+
+      {(c.concluded_artist || sourceTier || hasSlotTimes) && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, paddingLeft: 32 }}>
+          {c.concluded_artist && (
+            <span style={{ fontSize: 11, color: C.secondary }}>
+              {c.concluded_artist}{c.concluded_isrc ? ` · ${c.concluded_isrc}` : ''}
+            </span>
+          )}
+          {sourceTier && (
+            <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: C.muted, border: `1px solid ${C.border}`, borderRadius: 4, padding: '1px 6px' }}>
+              tier {sourceTier}
+            </span>
+          )}
+          {hasSlotTimes && (
+            <span style={{ fontSize: 11, color: C.muted, fontFamily: '"DM Mono", monospace' }}>
+              {c.slot_start ? new Date(c.slot_start).toLocaleTimeString() : '—'} – {c.slot_end ? new Date(c.slot_end).toLocaleTimeString() : '—'}
+            </span>
+          )}
+        </div>
+      )}
+
+      {priors.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, paddingLeft: 32 }}>
+          {priors.map((p, i) => (
+            <span key={i} title={p.detail}
+              style={{ fontSize: 10, color: p.weight >= 0 ? C.green : C.red, background: p.weight >= 0 ? C.greenDim : C.redDim, border: `1px solid ${p.weight >= 0 ? 'rgba(74,222,128,0.2)' : 'rgba(248,113,113,0.2)'}`, borderRadius: 4, padding: '2px 6px', fontFamily: '"DM Mono", monospace' }}>
+              {p.name} {p.weight >= 0 ? '+' : ''}{p.weight.toFixed(3)}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {logIds.length > 0 && (
+        <div style={{ paddingLeft: 32 }}>
+          <p style={{ fontSize: 9, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.1em', margin: '0 0 3px' }}>Evidence rows</p>
+          <p style={{ fontSize: 10, color: C.secondary, margin: 0, fontFamily: '"DM Mono", monospace', wordBreak: 'break-all' }}>
+            {logIds.map(id => id.slice(0, 8)).join(', ')}
+          </p>
+        </div>
+      )}
+
+      {losingGroups.length > 0 && (
+        <div style={{ paddingLeft: 32 }}>
+          <p style={{ fontSize: 9, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.1em', margin: '0 0 4px' }}>
+            Losing candidates ({losingGroups.length})
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            {losingGroups.slice(0, 10).map((g, i) => (
+              <p key={i} style={{ fontSize: 11, color: C.muted, margin: 0, fontFamily: '"DM Mono", monospace' }}>
+                {g.title} — {g.finalScore.toFixed(4)}
+              </p>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Reconciliation run card ─────────────────────────────────────────────────
+function ReconciliationRunCard({ run, conclusions, isExpanded, onToggle }: {
+  run: ReconciliationRun; conclusions: ReconciliationConclusion[]; isExpanded: boolean; onToggle: () => void
+}) {
+  const perf      = run.performance
+  const perfLabel = perf ? (perf.venue_name || 'Unknown venue') : run.performance_id.slice(0, 8) + '…'
+  const subLabel  = [perf?.artist_name, perf?.city].filter(Boolean).join(' · ')
+  const dateLabel = perf?.started_at ? formatDate(perf.started_at) : null
+  const modeColor = run.mode === 'engine' ? C.gold : C.secondary
+  const summary   = summarizeRunScoring(run)
+
+  return (
+    <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, overflow: 'hidden' }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '12px 14px' }}>
+        <div style={{ marginTop: 3, flexShrink: 0 }}><Dot color={run.status === 'failed' ? C.red : run.mode === 'engine' ? C.gold : C.secondary} /></div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 3 }}>
+            <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', padding: '2px 7px', borderRadius: 4, background: run.mode === 'engine' ? C.goldDim : 'rgba(255,255,255,0.05)', color: modeColor, border: `1px solid ${run.mode === 'engine' ? C.borderGold : C.border}` }}>
+              {run.mode}
+            </span>
+            <span style={{ fontSize: 10, color: C.muted, fontFamily: '"DM Mono", monospace' }}>{run.engine_version}</span>
+            {run.status === 'failed' && <span style={{ fontSize: 9, fontWeight: 700, color: C.red, textTransform: 'uppercase', letterSpacing: '0.08em' }}>failed</span>}
+          </div>
+          <p style={{ fontSize: 14, fontWeight: 600, color: C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{perfLabel}</p>
+          <p style={{ fontSize: 11, color: C.muted, margin: '2px 0 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {[dateLabel, subLabel, run.params?.label, summary].filter(Boolean).join(' · ')}
+          </p>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>
+          <span style={{ fontSize: 11, color: C.muted }}>{timeAgo(run.created_at)}</span>
+          <span style={{ fontSize: 10, color: C.muted, fontFamily: '"DM Mono", monospace' }}>{conclusions.length} slot{conclusions.length !== 1 ? 's' : ''}</span>
+        </div>
+        <button onClick={onToggle} style={{ background: 'none', border: 'none', color: C.muted, cursor: 'pointer', padding: 4, flexShrink: 0, fontSize: 14 }}>
+          {isExpanded ? '▲' : '▼'}
+        </button>
+      </div>
+      {isExpanded && (
+        <div style={{ borderTop: `1px solid ${C.border}`, background: C.bg }}>
+          {run.status === 'failed' && run.error_message && (
+            <p style={{ fontSize: 12, color: C.red, margin: 0, padding: '10px 14px', borderBottom: `1px solid ${C.border}` }}>{run.error_message}</p>
+          )}
+          {conclusions.length === 0
+            ? <div style={{ padding: '20px 0' }}><EmptyState message="No conclusions recorded for this run" /></div>
+            : conclusions.map(c => <ConclusionRow key={c.id} c={c} />)}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Main component ───────────────────────────────────────────────────────────
 export default function AdminDashboard({
   detectionEvents, detectionEventsTrueCount, performances, performanceSongs, profiles, userSongs, betaInvites,
+  reconciliationRuns, reconciliationRunsTrueCount, reconciliationConclusions, goldenSetPerformanceIds,
 }: {
   detectionEvents: DetectionEvent[]
   detectionEventsTrueCount: number
@@ -137,10 +413,15 @@ export default function AdminDashboard({
   profiles:        Profile[]
   userSongs:       UserSong[]
   betaInvites:     BetaInvite[]
+  reconciliationRuns: ReconciliationRun[]
+  reconciliationRunsTrueCount: number
+  reconciliationConclusions: ReconciliationConclusion[]
+  goldenSetPerformanceIds: string[]
 }) {
   const [tab, setTab]             = useState<Tab>('overview')
   const [detFilter, setDetFilter] = useState<'all' | 'detected' | 'missed'>('all')
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [expandedRunId, setExpandedRunId] = useState<string | null>(null)
   const [songSearch, setSongSearch]   = useState('')
   const [newEmail, setNewEmail]       = useState('')
   const [newName, setNewName]         = useState('')
@@ -180,6 +461,19 @@ export default function AdminDashboard({
     ).length
     return { total: trueTotal, loaded, detected, missed, hitRate, avgScore, last24h }
   }, [detectionEvents, detectionEventsTrueCount])
+
+  // Per-show detection-event count, for the Recent Shows health signal —
+  // a show with confirmed songs but zero detection events was captured
+  // entirely by hand (no ACR evidence at all), which is worth surfacing
+  // at a glance rather than discovering it by cross-referencing tabs.
+  const detectionEventCountByPerf = useMemo(() => {
+    const map = new Map<string, number>()
+    for (const e of detectionEvents) {
+      if (!e.performance_id) continue
+      map.set(e.performance_id, (map.get(e.performance_id) || 0) + 1)
+    }
+    return map
+  }, [detectionEvents])
 
   const perf = useMemo(() => {
     const total     = performances.length
@@ -284,9 +578,24 @@ export default function AdminDashboard({
     return topSongs.filter(s => s.title.toLowerCase().includes(q) || s.artist.toLowerCase().includes(q))
   }, [topSongs, songSearch])
 
+  const conclusionsByRun = useMemo(() => {
+    const map = new Map<string, ReconciliationConclusion[]>()
+    for (const c of reconciliationConclusions) {
+      const arr = map.get(c.run_id) || []
+      arr.push(c)
+      map.set(c.run_id, arr)
+    }
+    return map
+  }, [reconciliationConclusions])
+
+  // Golden-set performances back persisted reconciliation_runs — the Shows
+  // tab must never let one be deleted casually, including by an admin.
+  const goldenSetIds = useMemo(() => new Set(goldenSetPerformanceIds), [goldenSetPerformanceIds])
+
   const tabs: { id: Tab; label: string }[] = [
     { id: 'overview',   label: 'Overview'    },
     { id: 'detection',  label: 'Detection'   },
+    { id: 'reconciliation', label: 'Reconciliation' },
     { id: 'artists',    label: 'Artists'     },
     { id: 'songs',      label: 'Songs'       },
     { id: 'venues',     label: 'Venues'      },
@@ -295,7 +604,18 @@ export default function AdminDashboard({
     { id: 'superadmin', label: 'Superadmin' },
   ]
 
+  // R&D Log lives on a separate route/component — it renders as a real
+  // navigation link in the shared shell, not a local tab.
+  const shellTabs: AdminShellTab[] = [
+    ...tabs.map(t => ({ id: t.id, label: t.label })),
+    { id: 'rd-log', label: 'R&D Log', href: '/app/admin/rd-log' },
+  ]
+
   async function deletePerformance(id: string, venueName: string) {
+    // Defense in depth — the button itself is already replaced by a locked
+    // indicator for golden-set rows, but this guard holds even if that's
+    // ever bypassed (e.g. a stale row, a future caller of this function).
+    if (goldenSetIds.has(id)) { alert('This is a golden-set performance (regression-suite ground truth) — delete is blocked.'); return }
     if (!confirm(`Delete "${venueName || 'this show'}"? This cannot be undone.`)) return
     try {
       const res = await fetch(`/api/admin/delete-performance`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) })
@@ -305,6 +625,7 @@ export default function AdminDashboard({
   }
 
   async function deleteShow(perfId: string) {
+    if (goldenSetIds.has(perfId)) { alert('This is a golden-set performance (regression-suite ground truth) — delete is blocked.'); return }
     if (!confirm('Delete this show and all its data? This cannot be undone.')) return
     try {
       const res = await fetch('/api/admin/delete-show', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ performance_id: perfId }) })
@@ -396,75 +717,7 @@ export default function AdminDashboard({
   }
 
   return (
-    <div style={{ minHeight: '100svh', background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif', color: C.text }}>
-
-      {/* ── Header ── */}
-      <div style={{ padding: '28px 20px 0', maxWidth: 800, margin: '0 auto' }}>
-        <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.25em', textTransform: 'uppercase', color: C.gold + '99', margin: '0 0 4px' }}>
-          Setlistr · Admin
-        </p>
-        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 24 }}>
-          <h1 style={{ fontSize: 28, fontWeight: 800, color: C.text, margin: 0, letterSpacing: '-0.025em' }}>
-            Data Infrastructure
-          </h1>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <div style={{ width: 6, height: 6, borderRadius: '50%', background: C.green, animation: 'pulse-dot 2s ease-in-out infinite' }} />
-            <span style={{ fontSize: 11, color: C.secondary }}>Live</span>
-          </div>
-        </div>
-
-        {/* ── Tab bar — mobile scrollable ── */}
-        <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' as any, marginLeft: -20, marginRight: -20, paddingLeft: 20, paddingRight: 20, marginBottom: 24 }}>
-          <div style={{ display: 'flex', gap: 0, borderBottom: `1px solid ${C.border}`, minWidth: 'max-content' }}>
-            {tabs.map(t => (
-              <button key={t.id} onClick={() => setTab(t.id)}
-                style={{
-                  padding: '10px 14px',
-                  background: 'none',
-                  border: 'none',
-                  borderBottom: tab === t.id ? `2px solid ${C.gold}` : '2px solid transparent',
-                  color: tab === t.id ? C.gold : C.muted,
-                  fontSize: 11,
-                  fontWeight: 700,
-                  letterSpacing: '0.06em',
-                  textTransform: 'uppercase',
-                  cursor: 'pointer',
-                  fontFamily: 'inherit',
-                  marginBottom: -1,
-                  whiteSpace: 'nowrap',
-                  transition: 'color 0.15s ease',
-                  WebkitTapHighlightColor: 'transparent',
-                }}>
-                {t.label}
-              </button>
-            ))}
-            <a href="/app/admin/rd-log" style={{
-              padding: '10px 14px',
-              background: 'none',
-              border: 'none',
-              borderBottom: '2px solid transparent',
-              color: C.muted,
-              fontSize: 11,
-              fontWeight: 700,
-              letterSpacing: '0.06em',
-              textTransform: 'uppercase',
-              cursor: 'pointer',
-              fontFamily: 'inherit',
-              marginBottom: -1,
-              whiteSpace: 'nowrap',
-              textDecoration: 'none',
-              display: 'inline-flex',
-              alignItems: 'center',
-              WebkitTapHighlightColor: 'transparent',
-            }}>
-              R&D Log
-            </a>
-          </div>
-        </div>
-      </div>
-
-      {/* ── Content ── */}
-      <div style={{ padding: '0 20px 60px', maxWidth: 800, margin: '0 auto' }}>
+    <AdminShell title="Data Infrastructure" tabs={shellTabs} activeTab={tab} onTabChange={id => setTab(id as Tab)}>
 
         {/* ════════════════════════════ OVERVIEW ════════════════════════════ */}
         {tab === 'overview' && (
@@ -556,7 +809,12 @@ export default function AdminDashboard({
               <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, margin: '0 0 14px' }}>Recent Shows</p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                 {localPerfs.slice(0, 20).map(p => {
-                  const songCount = performanceSongs.filter(s => s.performance_id === p.id).length
+                  const songCount  = performanceSongs.filter(s => s.performance_id === p.id).length
+                  const eventCount = detectionEventCountByPerf.get(p.id) || 0
+                  // Songs exist but zero ACR detection events ever fired —
+                  // this show was captured entirely by hand, worth a flag.
+                  const noEvidence = songCount > 0 && eventCount === 0
+                  const isGolden   = goldenSetIds.has(p.id)
                   return (
                     <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '9px 0', borderBottom: `1px solid ${C.border}` }}>
                       <div style={{ flex: 1, minWidth: 0 }}>
@@ -565,20 +823,30 @@ export default function AdminDashboard({
                             {p.venue_name || '—'}
                           </p>
                           {songCount === 0 && <span style={{ fontSize: 9, color: C.muted, flexShrink: 0 }}>empty</span>}
+                          {noEvidence && <span title="Songs exist but no ACR detection events were ever recorded for this show" style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: C.amber, background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.25)', borderRadius: 4, padding: '1px 6px', flexShrink: 0 }}>no evidence</span>}
+                          {isGolden && <span title="Regression-suite ground truth — backs persisted reconciliation_runs. Deletion is blocked." style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: C.gold, background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 4, padding: '1px 6px', flexShrink: 0 }}>Golden Set</span>}
                         </div>
-                        <p style={{ fontSize: 11, color: C.muted, margin: '1px 0 0' }}>{p.artist_name} · {p.city} · {songCount} song{songCount !== 1 ? 's' : ''}</p>
+                        <p style={{ fontSize: 11, color: C.muted, margin: '1px 0 0' }}>
+                          {p.artist_name} · {p.city} · {songCount} song{songCount !== 1 ? 's' : ''}
+                          {' · '}
+                          <span style={{ color: noEvidence ? C.amber : eventCount > 0 ? C.secondary : C.muted, fontFamily: '"DM Mono", monospace' }}>{eventCount} event{eventCount !== 1 ? 's' : ''}</span>
+                        </p>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
                         <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', padding: '2px 7px', borderRadius: 4, background: p.submission_status === 'submitted' ? 'rgba(74,222,128,0.1)' : p.status === 'live' ? 'rgba(201,168,76,0.1)' : 'rgba(255,255,255,0.05)', color: p.submission_status === 'submitted' ? C.green : p.status === 'live' ? C.gold : C.muted }}>
                           {p.submission_status === 'submitted' ? 'Submitted' : p.status === 'live' ? 'Live' : p.status}
                         </span>
                         <span style={{ fontSize: 11, color: C.muted }}>{timeAgo(p.started_at)}</span>
-                        <button onClick={() => deletePerformance(p.id, p.venue_name)}
-                          style={{ background: 'none', border: `1px solid rgba(248,113,113,0.2)`, borderRadius: 5, color: C.red, fontSize: 11, cursor: 'pointer', padding: '2px 8px', fontFamily: 'inherit', opacity: 0.5, transition: 'opacity 0.15s ease', flexShrink: 0 }}
-                          onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '1'}
-                          onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '0.5'}>
-                          del
-                        </button>
+                        {isGolden ? (
+                          <span title="Golden-set performance — delete is blocked." style={{ color: C.muted, fontSize: 11, cursor: 'not-allowed', flexShrink: 0, opacity: 0.6 }}>🔒</span>
+                        ) : (
+                          <button onClick={() => deletePerformance(p.id, p.venue_name)}
+                            style={{ background: 'none', border: `1px solid rgba(248,113,113,0.2)`, borderRadius: 5, color: C.red, fontSize: 11, cursor: 'pointer', padding: '2px 8px', fontFamily: 'inherit', opacity: 0.5, transition: 'opacity 0.15s ease', flexShrink: 0 }}
+                            onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '1'}
+                            onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '0.5'}>
+                            del
+                          </button>
+                        )}
                       </div>
                     </div>
                   )
@@ -613,11 +881,7 @@ export default function AdminDashboard({
 
             <Stat label="Show capture rate" value={`${showCaptureRate.rate}%`} color={showCaptureRate.rate >= 70 ? C.green : C.gold} sub={`${showCaptureRate.withSongs} of ${showCaptureRate.total} shows with songs`} />
 
-            {det.total > det.loaded && (
-              <p style={{ fontSize: 11, color: C.muted, margin: '0 0 4px', fontStyle: 'italic' }}>
-                Showing most recent {det.loaded} of {det.total} total
-              </p>
-            )}
+            <PaginationCaveat loaded={det.loaded} total={det.total} />
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {filteredEvents.slice(0, 100).map(e => {
                 const isDetected = e.auto_confirmed || e.confidence_level === 'auto' || e.confidence_level === 'suggest'
@@ -672,7 +936,38 @@ export default function AdminDashboard({
                   </div>
                 )
               })}
-              {filteredEvents.length === 0 && <p style={{ textAlign: 'center', color: C.muted, padding: '40px 0' }}>No events</p>}
+              {filteredEvents.length === 0 && <EmptyState message="No events" />}
+            </div>
+          </div>
+        )}
+
+        {/* ════════════════════════════ RECONCILIATION ═══════════════════════ */}
+        {tab === 'reconciliation' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
+              <Stat label="Total Runs" value={reconciliationRunsTrueCount}
+                sub={`${reconciliationRuns.filter(r => r.mode === 'engine').length} engine · ${reconciliationRuns.filter(r => r.mode === 'baseline').length} baseline loaded`} />
+              <Stat label="Conclusions Loaded" value={reconciliationConclusions.length}
+                color={C.secondary} sub="across all loaded runs" />
+            </div>
+
+            <div style={{ background: 'rgba(201,168,76,0.06)', border: `1px solid ${C.borderGold}`, borderRadius: 10, padding: '10px 14px' }}>
+              <p style={{ fontSize: 12, color: C.gold, margin: 0 }}>Read-only — the engine only writes here from the offline harness (`npm run reconcile`). No trigger exists in this panel.</p>
+            </div>
+
+            <PaginationCaveat loaded={reconciliationRuns.length} total={reconciliationRunsTrueCount} />
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {reconciliationRuns.map(run => (
+                <ReconciliationRunCard
+                  key={run.id}
+                  run={run}
+                  conclusions={conclusionsByRun.get(run.id) || []}
+                  isExpanded={expandedRunId === run.id}
+                  onToggle={() => setExpandedRunId(expandedRunId === run.id ? null : run.id)}
+                />
+              ))}
+              {reconciliationRuns.length === 0 && <EmptyState message="No reconciliation runs yet" />}
             </div>
           </div>
         )}
@@ -723,7 +1018,7 @@ export default function AdminDashboard({
                 </div>
               </div>
             ))}
-            {artists.length === 0 && <p style={{ textAlign: 'center', color: C.muted, padding: '40px 0' }}>No artists yet</p>}
+            {artists.length === 0 && <EmptyState message="No artists yet" />}
           </div>
         )}
 
@@ -750,7 +1045,7 @@ export default function AdminDashboard({
                   </div>
                 </div>
               ))}
-              {filteredSongs.length === 0 && <p style={{ textAlign: 'center', color: C.muted, padding: '40px 0' }}>No songs found</p>}
+              {filteredSongs.length === 0 && <EmptyState message="No songs found" />}
             </div>
           </div>
         )}
@@ -770,7 +1065,7 @@ export default function AdminDashboard({
                   <span style={{ fontSize: 13, fontWeight: 700, color: C.gold, fontFamily: '"DM Mono", monospace', flexShrink: 0 }}>{v.showCount} {v.showCount === 1 ? 'show' : 'shows'}</span>
                 </div>
               ))}
-              {venues.length === 0 && <p style={{ textAlign: 'center', color: C.muted, padding: '40px 0' }}>No venues yet</p>}
+              {venues.length === 0 && <EmptyState message="No venues yet" />}
             </div>
           </div>
         )}
@@ -789,12 +1084,20 @@ export default function AdminDashboard({
               {localPerfs.map(p => {
                 const songCount = performanceSongs.filter(s => s.performance_id === p.id).length
                 const isEmpty   = songCount === 0
+                const isGolden  = goldenSetIds.has(p.id)
                 return (
-                  <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', background: isEmpty ? 'rgba(248,113,113,0.04)' : C.card, border: `1px solid ${isEmpty ? 'rgba(248,113,113,0.15)' : C.border}`, borderRadius: 10 }}>
+                  <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', background: isGolden ? 'rgba(201,168,76,0.05)' : isEmpty ? 'rgba(248,113,113,0.04)' : C.card, border: `1px solid ${isGolden ? C.borderGold : isEmpty ? 'rgba(248,113,113,0.15)' : C.border}`, borderRadius: 10 }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <p style={{ fontSize: 13, fontWeight: 600, color: isEmpty ? '#f87171' : C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {p.venue_name || 'Unknown venue'}{isEmpty && <span style={{ fontSize: 10, marginLeft: 8, opacity: 0.7 }}>empty</span>}
-                      </p>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <p style={{ fontSize: 13, fontWeight: 600, color: isEmpty ? '#f87171' : C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {p.venue_name || 'Unknown venue'}{isEmpty && <span style={{ fontSize: 10, marginLeft: 8, opacity: 0.7 }}>empty</span>}
+                        </p>
+                        {isGolden && (
+                          <span title="Regression-suite ground truth — backs persisted reconciliation_runs. Deletion is blocked." style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: C.gold, background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 4, padding: '1px 6px', flexShrink: 0 }}>
+                            Golden Set
+                          </span>
+                        )}
+                      </div>
                       <p style={{ fontSize: 11, color: C.muted, margin: '2px 0 0' }}>{p.artist_name} · {p.city} · {timeAgo(p.started_at)} · {songCount} song{songCount !== 1 ? 's' : ''}</p>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
@@ -804,17 +1107,24 @@ export default function AdminDashboard({
                       {p.status === 'live' && (
                         <button onClick={() => forceEndShow(p.id)} style={{ background: 'rgba(201,168,76,0.1)', border: `1px solid rgba(201,168,76,0.3)`, borderRadius: 6, color: C.gold, fontSize: 10, cursor: 'pointer', padding: '3px 8px', fontFamily: 'inherit', flexShrink: 0 }}>End</button>
                       )}
-                      <button onClick={() => deleteShow(p.id)}
-                        style={{ background: 'none', border: `1px solid rgba(248,113,113,0.2)`, borderRadius: 6, color: '#f87171', fontSize: 11, cursor: 'pointer', padding: '4px 10px', fontFamily: 'inherit', opacity: 0.6, transition: 'opacity 0.15s ease', flexShrink: 0 }}
-                        onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '1'}
-                        onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '0.6'}>
-                        Delete
-                      </button>
+                      {isGolden ? (
+                        <span title="Golden-set performance — regression-suite ground truth. Delete is blocked, not just confirm-gated."
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'none', border: `1px solid ${C.border}`, borderRadius: 6, color: C.muted, fontSize: 11, padding: '4px 10px', fontFamily: 'inherit', cursor: 'not-allowed', flexShrink: 0, opacity: 0.6 }}>
+                          🔒 Locked
+                        </span>
+                      ) : (
+                        <button onClick={() => deleteShow(p.id)}
+                          style={{ background: 'none', border: `1px solid rgba(248,113,113,0.2)`, borderRadius: 6, color: '#f87171', fontSize: 11, cursor: 'pointer', padding: '4px 10px', fontFamily: 'inherit', opacity: 0.6, transition: 'opacity 0.15s ease', flexShrink: 0 }}
+                          onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '1'}
+                          onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '0.6'}>
+                          Delete
+                        </button>
+                      )}
                     </div>
                   </div>
                 )
               })}
-              {localPerfs.length === 0 && <p style={{ textAlign: 'center', color: C.muted, padding: '40px 0' }}>No shows yet</p>}
+              {localPerfs.length === 0 && <EmptyState message="No shows yet" />}
             </div>
           </div>
         )}
@@ -893,7 +1203,7 @@ export default function AdminDashboard({
                 </div>
               </div>
             )}
-            {invites.length === 0 && <p style={{ textAlign: 'center', color: C.muted, padding: '40px 0' }}>No beta artists yet</p>}
+            {invites.length === 0 && <EmptyState message="No beta artists yet" />}
           </div>
         )}
 
@@ -909,19 +1219,13 @@ export default function AdminDashboard({
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <div>
                   <label style={{ fontSize: 10, color: C.muted, display: 'block', marginBottom: 5, letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 700 }}>Artist (being managed)</label>
-                  <select value={saArtistId} onChange={e => setSaArtistId(e.target.value)}
-                    style={{ width: '100%', background: '#0f0e0c', border: `1px solid ${saArtistId ? C.borderGold : C.border}`, borderRadius: 8, padding: '10px 12px', color: saArtistId ? C.text : C.muted, fontSize: 13, fontFamily: 'inherit', outline: 'none', cursor: 'pointer' }}>
-                    <option value=''>Select artist…</option>
-                    {artists.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-                  </select>
+                  <StyledSelect value={saArtistId} onChange={setSaArtistId} placeholder="Select artist…"
+                    options={artists.map(a => ({ value: a.id, label: a.name }))} />
                 </div>
                 <div>
                   <label style={{ fontSize: 10, color: C.muted, display: 'block', marginBottom: 5, letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 700 }}>Manager (gets access)</label>
-                  <select value={saManagerId} onChange={e => setSaManagerId(e.target.value)}
-                    style={{ width: '100%', background: '#0f0e0c', border: `1px solid ${saManagerId ? C.borderGold : C.border}`, borderRadius: 8, padding: '10px 12px', color: saManagerId ? C.text : C.muted, fontSize: 13, fontFamily: 'inherit', outline: 'none', cursor: 'pointer' }}>
-                    <option value=''>Select manager…</option>
-                    {artists.filter(a => a.id !== saArtistId).map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-                  </select>
+                  <StyledSelect value={saManagerId} onChange={setSaManagerId} placeholder="Select manager…"
+                    options={artists.filter(a => a.id !== saArtistId).map(a => ({ value: a.id, label: a.name }))} />
                 </div>
                 {saAssignMsg && <p style={{ fontSize: 12, color: saAssignMsg.startsWith('✓') ? C.green : C.red, margin: 0 }}>{saAssignMsg}</p>}
                 <button onClick={assignDelegate} disabled={saAssigning || !saArtistId || !saManagerId}
@@ -936,11 +1240,8 @@ export default function AdminDashboard({
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <div>
                   <label style={{ fontSize: 10, color: C.muted, display: 'block', marginBottom: 5, letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 700 }}>Artist</label>
-                  <select value={saSetlistArtistId} onChange={e => setSaSetlistArtistId(e.target.value)}
-                    style={{ width: '100%', background: '#0f0e0c', border: `1px solid ${saSetlistArtistId ? C.borderGold : C.border}`, borderRadius: 8, padding: '10px 12px', color: saSetlistArtistId ? C.text : C.muted, fontSize: 13, fontFamily: 'inherit', outline: 'none', cursor: 'pointer' }}>
-                    <option value=''>Select artist…</option>
-                    {artists.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-                  </select>
+                  <StyledSelect value={saSetlistArtistId} onChange={setSaSetlistArtistId} placeholder="Select artist…"
+                    options={artists.map(a => ({ value: a.id, label: a.name }))} />
                 </div>
                 <div>
                   <label style={{ fontSize: 10, color: C.muted, display: 'block', marginBottom: 5, letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 700 }}>Songs (one per line)</label>
@@ -957,8 +1258,6 @@ export default function AdminDashboard({
           </div>
         )}
 
-      </div>
-
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500;700&display=swap');
         @keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:.3} }
@@ -968,6 +1267,6 @@ export default function AdminDashboard({
         input:focus         { border-color: rgba(201,168,76,0.3) !important; }
         ::-webkit-scrollbar { display: none; }
       `}</style>
-    </div>
+    </AdminShell>
   )
 }
