@@ -396,7 +396,8 @@ function CeremonyRoyaltyCard({ expected, low, high, performanceId, onClaim }: {
           ~${count.toLocaleString()}
         </span>
       </div>
-      <p style={{ fontSize: 13, color: '#8a7a68', margin: '0 0 16px', opacity: 0.7 }}>${low}–${high} estimated range · <span style={{ color: '#c9a84c' }}>for the songs you performed</span></p>
+      <p style={{ fontSize: 13, color: '#8a7a68', margin: '0 0 6px', opacity: 0.7 }}>${low}–${high} estimated range · <span style={{ color: '#c9a84c' }}>for the songs you performed</span></p>
+      <p style={{ fontSize: 11, color: '#8a7a68', margin: '0 0 16px', opacity: 0.55 }}>Estimate only, not guaranteed — actual payouts vary by PRO.</p>
       <button onClick={onClaim}
         style={{ width: '100%', padding: '13px', background: C.gold, border: 'none', borderRadius: 12, color: '#0a0908', fontSize: 15, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', letterSpacing: '0.06em', transition: 'transform 0.15s ease' }}
         onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = 'scale(1.01)' }}
@@ -1520,6 +1521,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
         </div>
 
         <div style={{ paddingTop: 14, paddingBottom: 40, display: 'flex', flexDirection: 'column', gap: 10, animation: 'fadeUp 0.4s 0.2s ease both' }}>
+          <p style={{ fontSize: 11, color: C.muted, textAlign: 'center', margin: '0 0 2px' }}>By saving, you confirm these songs were performed at this show.</p>
           <button onClick={handleSave} disabled={saving || saved}
             style={{ width: '100%', padding: '15px', background: saved ? '#16a34a' : C.gold, border: 'none', borderRadius: 12, color: saved ? '#fff' : '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: saving || saved ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1, transition: 'all 0.25s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit' }}
             onMouseEnter={e => { if (!saving && !saved) (e.currentTarget as HTMLElement).style.opacity = '0.8' }}

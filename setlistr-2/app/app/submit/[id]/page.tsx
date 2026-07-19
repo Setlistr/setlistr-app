@@ -540,6 +540,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
             <p style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.12em', color: C.gold, margin: '0 0 6px' }}>Performance royalties</p>
             <p style={{ fontSize: 32, fontWeight: 800, color: C.gold, margin: 0, fontFamily: '"DM Mono", monospace', letterSpacing: '-0.02em' }}>~${estimate.expected}</p>
             <p style={{ fontSize: 13, color: C.secondary, margin: '2px 0 0' }}>est. ${estimate.low}–${estimate.high}</p>
+            <p style={{ fontSize: 10, color: C.muted, margin: '6px 0 0' }}>Estimate only, not guaranteed — actual payouts vary by PRO.</p>
           </div>
           <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)', borderRadius: 16, padding: '16px' }}>
             <p style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.12em', color: C.muted, margin: '0 0 6px' }}>Deadline</p>
@@ -826,6 +827,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
         )}
 
         {/* CTAs */}
+        <p style={{ fontSize: 11, color: C.muted, textAlign: 'center', margin: '0 0 8px' }}>By marking this submitted, you confirm these songs were performed at this show.</p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {songs.length > 0 && (
             <button

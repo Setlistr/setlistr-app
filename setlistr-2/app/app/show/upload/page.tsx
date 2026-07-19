@@ -87,6 +87,11 @@ export default function UploadShowPage() {
       setProgress('Uploading recording...')
 
       // Upload recording to Supabase Storage
+      // NOTE: Terms of Service / Privacy Policy retention language (audio
+      // fingerprinting + data-retention sections) states recordings uploaded
+      // here are retained until deletion is requested — if this storage
+      // behavior changes (e.g. adding auto-delete, changing the bucket),
+      // update those legal pages too.
       const recordingExt = recordingFile.name.split('.').pop()
       const recordingPath = `${user.id}/${Date.now()}-recording.${recordingExt}`
       const { error: recordingError } = await supabase.storage
@@ -414,6 +419,7 @@ export default function UploadShowPage() {
             )}
 
             {/* Submit */}
+            <p style={{ fontSize: 11, color: C.muted, textAlign: 'center', margin: '0 0 8px' }}>By uploading, you confirm you have the right to record this performance. Ambient audio may include others nearby.</p>
             <button
               onClick={handleSubmit}
               disabled={!isValid || isLoading}

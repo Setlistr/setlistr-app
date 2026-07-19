@@ -168,6 +168,7 @@ export default function ProofPage() {
             <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', color: '#8a7a68', margin: '0 0 12px', textTransform: 'uppercase' }}>Estimated career value</p>
             <p style={{ fontSize: 36, fontWeight: 800, color: '#c9a84c', margin: '0 0 6px', fontFamily: '"DM Mono", monospace', letterSpacing: '-0.02em' }}>~${estimatedRoyalties.toLocaleString()}</p>
             <p style={{ fontSize: 14, color: '#8a7a68', margin: 0 }}>across {totalShows} verified live performances</p>
+            <p style={{ fontSize: 11, color: '#5a5040', margin: '6px 0 0' }}>Estimate only, not guaranteed — actual payouts vary by PRO.</p>
             {submittedShows > 0 && (
               <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 10 }}>
                 <div style={{ flex: 1, height: 2, background: 'rgba(255,255,255,0.06)', borderRadius: 1 }}>

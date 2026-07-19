@@ -43,10 +43,11 @@ export default function PrivacyPage() {
             <P>We may use cookies, pixel tags, web beacons, local storage, mobile device identifiers, and similar tracking technologies to collect this information and to support Service functionality, analytics, fraud prevention, security, and personalization.</P>
           </SubSection>
           <SubSection title="Audio Processing and Song Identification Data">
-            <P>Setlistr does not store live performance audio or full audio recordings of performances.</P>
-            <P>When you use song identification features, Setlistr temporarily processes short portions of audio solely for the purpose of generating audio fingerprints and matching those fingerprints against third-party or internal music identification databases. This audio is not stored by Setlistr.</P>
+            <P>Setlistr processes audio in two ways: live, real-time song identification during a performance, and audio or video recordings you choose to upload.</P>
+            <P><strong>Live song identification.</strong> When you use live song identification features, Setlistr temporarily processes short portions of audio solely for the purpose of generating audio fingerprints and matching those fingerprints against third-party or internal music identification databases. This audio is not stored by Setlistr — only the results of the matching process (see below) are retained.</P>
+            <P><strong>Uploaded recordings.</strong> If you upload an audio or video recording of a performance (for example, through the Upload a Show feature), Setlistr stores that recording in order to generate your setlist and as a record of the performance. Uploaded recordings are retained until you request deletion, as described in &ldquo;Data Retention&rdquo; below.</P>
             <P>Setlistr may store information generated from or related to the song identification process, including song match results, confidence scores, timestamps, performance dates, venue information, artist information, user-confirmed setlists, user corrections, missing song indicators, possible song matches, and related metadata.</P>
-            <P>If third-party audio recognition providers are used, limited audio fingerprinting or identification-related data may be transmitted to those providers as necessary to identify songs and return match results. Use of third-party providers is governed by their own terms and privacy policies.</P>
+            <P>Setlistr uses <strong>ACRCloud</strong>, a third-party audio recognition service, to generate audio fingerprints and match them against music identification databases. Audio segments processed for song identification are transmitted to ACRCloud as necessary to return match results. ACRCloud&apos;s use of this data is governed by its own terms and privacy policy. If other third-party audio recognition providers are used, limited audio fingerprinting or identification-related data may similarly be transmitted to those providers as necessary to identify songs and return match results.</P>
           </SubSection>
           <SubSection title="Information from Third-Party Services">
             <P>If you connect third-party services to your Setlistr account, such as Spotify or other music platforms, we may receive information from those services, including artist catalogue information, track metadata, album information, playlist data, and related music data.</P>
@@ -79,6 +80,7 @@ export default function PrivacyPage() {
         <Section title="Data Retention">
           <P>We retain your information for as long as reasonably necessary to provide the Service, maintain accurate records, comply with legal obligations, resolve disputes, prevent fraud, enforce our Terms of Service, and support legitimate business purposes.</P>
           <P>We may retain certain information after you delete your account or request deletion, including where retention is required or permitted by law, necessary for fraud prevention, needed to complete transactions or submissions, required to resolve disputes, needed to maintain audit trails or business records, or maintained in backup systems for a limited period.</P>
+          <P>Uploaded audio and video recordings of performances are retained until you request their deletion. To request deletion of an uploaded recording, contact us at info@setlistr.ai. Live song identification audio is not retained, as described above.</P>
         </Section>
 
         <Section title="Your Privacy Rights and Choices">

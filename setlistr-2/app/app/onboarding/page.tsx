@@ -445,7 +445,7 @@ export default function OnboardingPage() {
                 )}
 
                 <p style={{ fontSize: 11, color: C.muted, margin: '8px 0 0', textAlign: 'center' }}>
-                  Based on {career.totalShows} shows · Standard PRO live rates · <span style={{ color: C.gold }}>How we calculate this</span>
+                  Estimate only, not guaranteed. Based on {career.totalShows} shows · Standard PRO live rates · <span style={{ color: C.gold }}>How we calculate this</span>
                 </p>
               </div>
             )}
@@ -473,6 +473,7 @@ export default function OnboardingPage() {
                     ${career.estimatedMin.toLocaleString()} – ${career.estimatedMax.toLocaleString()} uncollected
                   </p>
                   <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>The actual number is almost certainly higher.</p>
+                  <p style={{ fontSize: 10, color: C.muted, margin: '6px 0 0', opacity: 0.8 }}>Estimate only, not guaranteed — actual payouts vary by PRO.</p>
                 </div>
 
                 <button onClick={() => setStep(3)}

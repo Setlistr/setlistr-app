@@ -62,7 +62,8 @@ export default function TermsPage() {
 
         <Section title="Audio Fingerprinting and Song Identification">
           <P>Setlistr uses audio fingerprinting and music identification technology to help identify songs performed during live events. When you enable song identification features, Setlistr may temporarily process short portions of audio for the limited purpose of generating audio fingerprints, matching those fingerprints against third-party or internal music identification databases, and returning possible song matches for your review.</P>
-          <P>Setlistr does not store live performance audio or full audio recordings of performances. Audio processed through the Service for song identification is used only for generating audio fingerprints and identifying possible song matches.</P>
+          <P>When you use live, real-time song identification during a performance, Setlistr does not store the audio itself — short audio segments are processed only to generate audio fingerprints and are not retained after processing.</P>
+          <P>If you upload an audio or video recording of a performance (for example, through the Upload a Show feature), Setlistr stores that recording in order to generate your setlist and as a record of the performance. Uploaded recordings are retained until you request deletion. To request deletion of an uploaded recording, contact us at info@setlistr.ai.</P>
           <P>Setlistr does not claim ownership of any musical work, sound recording, live performance, lyrics, composition, master recording, publishing rights, neighboring rights, performance rights, or other intellectual property identified, referenced, processed, or matched through the Service.</P>
         </Section>
 

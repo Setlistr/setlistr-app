@@ -224,6 +224,7 @@ export default function HistoryPage() {
               <p style={{ fontSize: 14, color: C.secondary, margin: 0 }}>
                 {unclaimedShows.length} show{unclaimedShows.length !== 1 ? 's' : ''} ready to submit to your PRO
               </p>
+              <p style={{ fontSize: 10, color: C.muted, margin: '4px 0 0' }}>Estimate only, not guaranteed — actual payouts vary by PRO.</p>
             </div>
             <button
               onClick={() => setStatusFilter('complete')}

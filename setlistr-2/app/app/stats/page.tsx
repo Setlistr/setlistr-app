@@ -450,6 +450,7 @@ export default function StatsPage() {
                       <p style={{ fontSize: 14, color: C.muted, margin: '6px 0 0', lineHeight: 1.5 }}>
                         Based on {totalSongs} song appearances across {totalShows} shows
                       </p>
+                      <p style={{ fontSize: 10, color: C.muted, margin: '4px 0 0', opacity: 0.8 }}>Estimate only, not guaranteed — actual payouts vary by PRO.</p>
                     </div>
                   </div>
                 </div>

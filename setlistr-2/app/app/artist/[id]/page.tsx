@@ -200,6 +200,7 @@ export default function ArtistProfilePage({ params }: { params: { id: string } }
               <p style={{ fontSize: 22, fontWeight: 800, color: C.text, margin: 0, letterSpacing: '-0.02em' }}>
                 ${stats.estimatedRoyalties.low.toLocaleString()}–${stats.estimatedRoyalties.high.toLocaleString()}
               </p>
+              <p style={{ fontSize: 10, color: C.muted, margin: '4px 0 0' }}>Estimate only, not guaranteed — actual payouts vary by PRO.</p>
             </div>
             <TrendingUp size={28} color={C.gold} opacity={0.6} />
           </div>

@@ -746,7 +746,8 @@ export default function DashboardPage() {
         {aggregate.unclaimedCount > 0 && (
           <div style={{ borderLeft: '3px solid #c9a84c', background: 'linear-gradient(135deg, rgba(201,168,76,0.10) 0%, rgba(201,168,76,0.04) 40%, rgba(201,168,76,0.10) 100%)', borderRadius: 16, padding: '16px 18px', marginBottom: 32, animation: 'fadeUp 0.36s ease', animationDelay: '0.24s', animationFillMode: 'both' }}>
             <p style={{ fontSize: 34, fontWeight: 700, color: C.gold, margin: 0, fontFamily: '"DM Mono", monospace', letterSpacing: '-0.02em', lineHeight: 1 }}>~${aggregate.unclaimedExpected.toLocaleString()}</p>
-            <p style={{ fontSize: 13, color: C.muted, margin: '6px 0 16px' }}>{aggregate.unclaimedCount} nights not yet filed</p>
+            <p style={{ fontSize: 13, color: C.muted, margin: '6px 0 4px' }}>{aggregate.unclaimedCount} nights not yet filed</p>
+            <p style={{ fontSize: 10, color: C.muted, margin: '0 0 16px', opacity: 0.7 }}>Estimate only, not guaranteed — actual payouts vary by PRO.</p>
             <button onClick={() => router.push('/app/history')}
               style={{ background: C.gold, border: 'none', borderRadius: 20, padding: '8px 18px', color: '#0a0908', fontWeight: 800, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', letterSpacing: '0.04em', transition: 'opacity 0.15s ease' }}
               onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.7'}
