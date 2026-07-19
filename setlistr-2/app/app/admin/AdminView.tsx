@@ -1,5 +1,6 @@
 'use client'
 import { useState, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
 import AdminShell, { type AdminShellTab } from './AdminShell'
 
 // ── Design tokens ────────────────────────────────────────────────────────────
@@ -418,10 +419,14 @@ export default function AdminDashboard({
   reconciliationConclusions: ReconciliationConclusion[]
   goldenSetPerformanceIds: string[]
 }) {
+  const router = useRouter()
   const [tab, setTab]             = useState<Tab>('overview')
   const [detFilter, setDetFilter] = useState<'all' | 'detected' | 'missed'>('all')
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [expandedRunId, setExpandedRunId] = useState<string | null>(null)
+  const [runPerfId, setRunPerfId]   = useState('')
+  const [runState, setRunState]     = useState<'idle' | 'running' | 'success' | 'error'>('idle')
+  const [runMessage, setRunMessage] = useState('')
   const [songSearch, setSongSearch]   = useState('')
   const [newEmail, setNewEmail]       = useState('')
   const [newName, setNewName]         = useState('')
@@ -592,6 +597,13 @@ export default function AdminDashboard({
   // tab must never let one be deleted casually, including by an admin.
   const goldenSetIds = useMemo(() => new Set(goldenSetPerformanceIds), [goldenSetPerformanceIds])
 
+  // Performance picker for the Reconciliation tab's "Run engine" button.
+  // `performances` is already ordered newest-first from page.tsx.
+  const performanceOptions = useMemo(() => performances.map(p => ({
+    value: p.id,
+    label: `${p.venue_name || 'Unknown venue'} · ${p.artist_name || '—'} · ${formatDate(p.started_at)}`,
+  })), [performances])
+
   const tabs: { id: Tab; label: string }[] = [
     { id: 'overview',   label: 'Overview'    },
     { id: 'detection',  label: 'Detection'   },
@@ -641,6 +653,26 @@ export default function AdminDashboard({
       if (res.ok) setLocalPerfs(prev => prev.map(p => p.id === perfId ? { ...p, status: 'review' } : p))
       else alert('Failed to force-end show')
     } catch { alert('Network error') }
+  }
+
+  async function runEngine() {
+    if (!runPerfId) return
+    setRunState('running')
+    setRunMessage('')
+    try {
+      const res = await fetch('/api/admin/run-reconciliation', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ performance_id: runPerfId }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || `Failed (${res.status})`)
+      const tierSummary = Object.entries(data.tier_counts || {}).map(([t, n]) => `${n} ${t}`).join(', ') || 'no slots'
+      setRunState('success')
+      setRunMessage(`${data.conclusion_count} conclusions (${tierSummary})`)
+      router.refresh()
+    } catch (err: any) {
+      setRunState('error')
+      setRunMessage(err.message || 'Engine run failed')
+    }
   }
 
   function exportCSV(type: 'shows' | 'songs' | 'detection') {
@@ -951,8 +983,28 @@ export default function AdminDashboard({
                 color={C.secondary} sub="across all loaded runs" />
             </div>
 
-            <div style={{ background: 'rgba(201,168,76,0.06)', border: `1px solid ${C.borderGold}`, borderRadius: 10, padding: '10px 14px' }}>
-              <p style={{ fontSize: 12, color: C.gold, margin: 0 }}>Read-only — the engine only writes here from the offline harness (`npm run reconcile`). No trigger exists in this panel.</p>
+            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: '18px 20px' }}>
+              <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, margin: '0 0 4px' }}>Run Engine</p>
+              <p style={{ fontSize: 11, color: C.muted, margin: '0 0 14px' }}>
+                Engine mode, persisted. No scoring is computed here — this performance may not have artist-confirmed truth to score against.
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <StyledSelect value={runPerfId} onChange={id => { setRunPerfId(id); setRunState('idle'); setRunMessage('') }}
+                  placeholder="Select a performance…" options={performanceOptions} />
+                <button onClick={runEngine} disabled={!runPerfId || runState === 'running'}
+                  style={{
+                    padding: '13px', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', fontFamily: 'inherit',
+                    background: !runPerfId ? C.muted : runState === 'running' ? C.muted : C.gold,
+                    color: '#0a0908', cursor: !runPerfId || runState === 'running' ? 'default' : 'pointer',
+                    opacity: runState === 'running' ? 0.7 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                  }}>
+                  {runState === 'running'
+                    ? <><div style={{ width: 13, height: 13, borderRadius: '50%', border: '2px solid #0a090840', borderTopColor: '#0a0908', animation: 'spin 0.7s linear infinite' }} />Running…</>
+                    : 'Run Engine'}
+                </button>
+                {runState === 'success' && <p style={{ fontSize: 12, color: C.green, margin: 0 }}>✓ {runMessage}</p>}
+                {runState === 'error'   && <p style={{ fontSize: 12, color: C.red,   margin: 0 }}>✗ {runMessage}</p>}
+              </div>
             </div>
 
             <PaginationCaveat loaded={reconciliationRuns.length} total={reconciliationRunsTrueCount} />
