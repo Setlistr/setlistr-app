@@ -1,14 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { ADMIN_EMAILS } from '@/lib/admin-config'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
-
-const ADMIN_EMAILS = [
-  'jesse.slack.music@gmail.com',
-  'darylscottsongs@gmail.com',
-]
 
 function getServiceSupabase() {
   return createClient(

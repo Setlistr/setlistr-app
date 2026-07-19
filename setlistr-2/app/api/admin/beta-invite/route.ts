@@ -1,10 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-
-const ADMIN_EMAILS = [
-  'jesse.slack.music@gmail.com',
-  'darylscottsongs@gmail.com',
-]
+import { ADMIN_EMAILS } from '@/lib/admin-config'
 
 const BASE_URL       = process.env.NEXT_PUBLIC_APP_URL || 'https://setlistr.ai'
 const RESEND_API_KEY = process.env.RESEND_API_KEY

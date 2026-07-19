@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { ADMIN_EMAILS } from '@/lib/admin-config'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -29,7 +31,16 @@ function urgencyLevel(daysLeft: number): 'critical' | 'warning' | 'monitor' {
   return 'monitor'
 }
 
+// TODO: no real publisher auth model exists yet (publishers don't have their
+// own session-linked identity distinct from admin). Gated behind admin for
+// now — replace with a proper publisher-session check once that model exists.
 export async function GET(req: NextRequest) {
+  const authSupabase = await createServerSupabaseClient()
+  const { data: { user } } = await authSupabase.auth.getUser()
+  if (!user || !ADMIN_EMAILS.includes(user.email ?? '')) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
+  }
+
   const publisherId = req.nextUrl.searchParams.get('publisher_id')
   if (!publisherId) {
     return NextResponse.json({ error: 'publisher_id required' }, { status: 400 })

@@ -4,11 +4,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Check, KeyRound, User, Music2, Search, Download, Radio, Users, Copy, X, Clock, AlertCircle, LogOut, Shield } from 'lucide-react'
-
-const ADMIN_EMAILS = [
-  'jesse.slack.music@gmail.com',
-  'darylscottsongs@gmail.com',
-]
+import { ADMIN_EMAILS } from '@/lib/admin-config'
 
 const CARD = {
   background: 'linear-gradient(180deg, #171512 0%, #121009 100%)',

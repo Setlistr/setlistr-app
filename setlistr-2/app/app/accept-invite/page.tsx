@@ -16,7 +16,7 @@ const C = {
 type InviteData = {
   id: string
   artist_id: string
-  delegate_id: string
+  is_intended_recipient: boolean
   role: string
   artist_name: string
   artist_email: string
@@ -33,7 +33,6 @@ export default function AcceptInvitePage() {
   const [error, setError]           = useState('')
   const [accepting, setAccepting]   = useState(false)
   const [accepted, setAccepted]     = useState(false)
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [wrongAccount, setWrongAccount]   = useState(false)
 
   useEffect(() => {
@@ -49,8 +48,6 @@ export default function AcceptInvitePage() {
         return
       }
 
-      setCurrentUserId(user.id)
-
       // Look up the invite via service-side API
       const res = await fetch(`/api/team/accept?token=${token}`)
       const data = await res.json()
@@ -58,7 +55,7 @@ export default function AcceptInvitePage() {
       if (data.error) { setError(data.error); setLoading(false); return }
 
       // Check if the logged-in user is the intended delegate
-      if (data.delegate_id !== user.id) {
+      if (!data.is_intended_recipient) {
         setWrongAccount(true)
         setInvite(data)
         setLoading(false)
@@ -86,7 +83,7 @@ export default function AcceptInvitePage() {
       const res = await fetch('/api/team/accept', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, delegate_id: currentUserId }),
+        body: JSON.stringify({ token }),
       })
       const data = await res.json()
       if (data.error) { setError(data.error); return }

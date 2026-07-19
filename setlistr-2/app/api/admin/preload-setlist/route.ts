@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { ADMIN_EMAILS } from '@/lib/admin-config'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -7,6 +9,12 @@ const supabase = createClient(
 )
 
 export async function POST(req: NextRequest) {
+  const authSupabase = await createServerSupabaseClient()
+  const { data: { user } } = await authSupabase.auth.getUser()
+  if (!user || !ADMIN_EMAILS.includes(user.email ?? '')) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
+  }
+
   try {
     const { user_id, songs } = await req.json()
     if (!user_id || !songs?.length) {

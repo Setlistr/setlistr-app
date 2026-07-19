@@ -2,11 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
-
-const ADMIN_EMAILS = [
-  'jesse.slack.music@gmail.com',
-  'darylscottsongs@gmail.com',
-]
+import { ADMIN_EMAILS } from '@/lib/admin-config'
 
 function getSupabase() {
   return createClient(

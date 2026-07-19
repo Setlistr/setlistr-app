@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { createClient } from '@supabase/supabase-js'
+import { createServerSupabaseClient } from '@/lib/supabase/server'
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY!,
@@ -89,9 +90,15 @@ function normaliseMime(mime: string, filename: string): string {
 
 export async function POST(req: NextRequest) {
   try {
+    const authSupabase = await createServerSupabaseClient()
+    const { data: { user } } = await authSupabase.auth.getUser()
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    const userId = user.id
+
     const formData = await req.formData()
     const file = formData.get('file') as File | null
-    const userId = formData.get('userId') as string | null
 
     if (!file) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 })

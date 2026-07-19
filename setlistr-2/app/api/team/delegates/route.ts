@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { createServerSupabaseClient } from '@/lib/supabase/server'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -9,6 +10,12 @@ const supabase = createClient(
 export async function GET(req: NextRequest) {
   const artistId = req.nextUrl.searchParams.get('artist_id')
   if (!artistId) return NextResponse.json({ error: 'artist_id required' }, { status: 400 })
+
+  const authSupabase = await createServerSupabaseClient()
+  const { data: { user } } = await authSupabase.auth.getUser()
+  if (!user || user.id !== artistId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
+  }
 
   try {
     const { data: delegates } = await supabase
@@ -54,7 +61,6 @@ export async function GET(req: NextRequest) {
         accepted_at: d.accepted_at,
         invited_at: d.invited_at,
         invite_url: isPending ? `${BASE_URL}/app/accept-invite?token=${d.invite_token}` : null,
-        invite_token: isPending ? d.invite_token : null,
         avatar_url: profile?.avatar_url || null,
       }
     })
@@ -73,11 +79,17 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: 'delegate_id and artist_id required' }, { status: 400 })
     }
 
+    const authSupabase = await createServerSupabaseClient()
+    const { data: { user } } = await authSupabase.auth.getUser()
+    if (!user || user.id !== artist_id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
+    }
+
     const { error } = await supabase
       .from('artist_delegates')
       .delete()
       .eq('id', delegate_id)
-      .eq('artist_id', artist_id) // safety: only artist can revoke
+      .eq('artist_id', artist_id) // verified above: caller's session must match artist_id
 
     if (error) return NextResponse.json({ error: 'Failed to revoke access' }, { status: 500 })
     return NextResponse.json({ success: true })
