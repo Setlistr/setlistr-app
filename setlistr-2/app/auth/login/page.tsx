@@ -36,6 +36,11 @@ function LoginPageInner() {
   const [waitlistDone, setWaitlistDone]       = useState(false)
   const [waitlistError, setWaitlistError]     = useState('')
 
+  const [showForgotPassword, setShowForgotPassword] = useState(false)
+  const [forgotLoading, setForgotLoading]           = useState(false)
+  const [forgotDone, setForgotDone]                 = useState(false)
+  const [forgotError, setForgotError]               = useState('')
+
   function switchMode(m: Mode) {
     setMode(m)
     setError('')
@@ -124,6 +129,23 @@ function LoginPageInner() {
     setWaitlistLoading(false)
   }
 
+  async function handleForgotPassword(e?: React.FormEvent) {
+    e?.preventDefault()
+    if (!email.trim()) return
+    setForgotLoading(true)
+    setForgotError('')
+    const supabase = createClient()
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: 'https://setlistr.ai/auth/reset-password',
+    })
+    setForgotLoading(false)
+    if (error) {
+      setForgotError(error.message)
+      return
+    }
+    setForgotDone(true)
+  }
+
   const inp = (val: string): React.CSSProperties => ({
     width: '100%', boxSizing: 'border-box' as const,
     background: C.input,
@@ -159,7 +181,7 @@ function LoginPageInner() {
           <p style={{ fontSize: 10, color: C.muted, letterSpacing: '0.25em', textTransform: 'uppercase', margin: 0 }}>Your verified live career starts here.</p>
         </div>
 
-        {!showWaitlist ? (
+        {!showWaitlist && !showForgotPassword ? (
           <div style={{ animation: 'fadeUp 0.35s ease' }}>
             <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 18, padding: '24px', marginBottom: 12 }}>
 
@@ -199,6 +221,16 @@ function LoginPageInner() {
                     style={inp(password)}
                     onFocus={e => (e.target.style.borderColor = 'rgba(201,168,76,0.4)')}
                     onBlur={e => (e.target.style.borderColor = password.trim() ? C.borderGold : C.border)} />
+                  {mode === 'signin' && (
+                    <div style={{ textAlign: 'right', marginTop: 6 }}>
+                      <button type="button" onClick={() => { setForgotError(''); setForgotDone(false); setShowForgotPassword(true) }}
+                        style={{ background: 'none', border: 'none', color: C.muted, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', padding: 0, letterSpacing: '0.02em' }}
+                        onMouseEnter={e => (e.currentTarget.style.color = C.gold)}
+                        onMouseLeave={e => (e.currentTarget.style.color = C.muted)}>
+                        Forgot password?
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {mode === 'signup' && (
@@ -308,6 +340,50 @@ function LoginPageInner() {
             <p style={{ textAlign: 'center', fontSize: 10, color: C.muted, letterSpacing: '0.18em', textTransform: 'uppercase', opacity: 0.5 }}>
               {fromStart ? 'Free forever · No credit card' : 'Private Beta · Invite Only'}
             </p>
+          </div>
+
+        ) : showForgotPassword ? (
+          <div style={{ animation: 'fadeUp 0.35s ease' }}>
+            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 18, padding: '28px 24px', marginBottom: 12 }}>
+              {forgotDone ? (
+                <div style={{ textAlign: 'center', padding: '16px 0' }}>
+                  <div style={{ width: 56, height: 56, borderRadius: '50%', margin: '0 auto 18px', background: C.goldDim, border: `1px solid ${C.borderGold}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }} />
+                  <h2 style={{ fontSize: 20, fontWeight: 800, color: C.text, margin: '0 0 8px', letterSpacing: '-0.02em' }}>Check your email</h2>
+                  <p style={{ fontSize: 13, color: C.secondary, margin: 0, lineHeight: 1.6 }}>
+                    We sent a password reset link to <span style={{ color: C.gold }}>{email.trim()}</span>. Open it on this device to set a new password.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <h1 style={{ fontSize: 20, fontWeight: 800, color: C.text, margin: '0 0 4px', letterSpacing: '-0.02em' }}>Reset your password</h1>
+                  <p style={{ fontSize: 13, color: C.muted, margin: '0 0 24px', lineHeight: 1.5 }}>Enter your account email and we&apos;ll send you a link to set a new password.</p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                    <div>
+                      <label style={lbl}>Email</label>
+                      <input type="email" value={email} onChange={e => setEmail(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && handleForgotPassword()}
+                        placeholder="you@example.com" autoComplete="email"
+                        style={inp(email)}
+                        onFocus={e => (e.target.style.borderColor = 'rgba(201,168,76,0.4)')}
+                        onBlur={e => (e.target.style.borderColor = email.trim() ? C.borderGold : C.border)} />
+                    </div>
+                    {forgotError && (
+                      <div style={{ background: C.redDim, border: `1px solid rgba(248,113,113,0.2)`, borderRadius: 10, padding: '11px 14px' }}>
+                        <p style={{ fontSize: 13, color: C.red, margin: 0 }}>{forgotError}</p>
+                      </div>
+                    )}
+                    <button onClick={handleForgotPassword} disabled={forgotLoading || !email.trim()}
+                      style={{ width: '100%', padding: '13px', background: email.trim() ? C.gold : C.muted, border: 'none', borderRadius: 10, color: '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: forgotLoading || !email.trim() ? 'not-allowed' : 'pointer', opacity: forgotLoading ? 0.7 : 1, transition: 'all 0.2s ease', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                      {forgotLoading ? <><Spinner />Sending...</> : 'Send Reset Link'}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+            <button onClick={() => { setShowForgotPassword(false); setForgotError(''); setForgotDone(false) }}
+              style={{ width: '100%', background: 'none', border: 'none', color: C.muted, fontSize: 12, cursor: 'pointer', letterSpacing: '0.04em', fontFamily: 'inherit', padding: '10px', textAlign: 'center' }}>
+              ← Back to sign in
+            </button>
           </div>
 
         ) : (
