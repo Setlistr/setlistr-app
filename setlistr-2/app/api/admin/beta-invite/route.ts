@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
 import { ADMIN_EMAILS } from '@/lib/admin-config'
 
 const BASE_URL       = process.env.NEXT_PUBLIC_APP_URL || 'https://setlistr.ai'
@@ -77,6 +79,22 @@ async function sendBetaInviteEmail({ to, name }: { to: string; name?: string | n
 // ── POST — add a beta user ────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
   try {
+    const cookieStore = cookies()
+    const authClient = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() { return cookieStore.getAll() },
+          setAll() {},
+        },
+      }
+    )
+    const { data: { user: sessionUser } } = await authClient.auth.getUser()
+    if (!sessionUser || !ADMIN_EMAILS.includes(sessionUser.email ?? '')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
+    }
+
     const supabase    = getSupabase()
     const authHeader  = req.headers.get('authorization')
     let callerEmail   = ''
@@ -124,6 +142,22 @@ export async function POST(req: NextRequest) {
 // ── DELETE — remove a beta user ───────────────────────────────────────────────
 export async function DELETE(req: NextRequest) {
   try {
+    const cookieStore = cookies()
+    const authClient = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() { return cookieStore.getAll() },
+          setAll() {},
+        },
+      }
+    )
+    const { data: { user } } = await authClient.auth.getUser()
+    if (!user || !ADMIN_EMAILS.includes(user.email ?? '')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
+    }
+
     const { id } = await req.json()
 
     if (!id) {
