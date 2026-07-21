@@ -1,14 +1,12 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
+import { ADMIN_EMAILS } from '@/lib/admin-config'
 
 // ── Hardcoded admin safety net ────────────────────────────────────────────────
-// These emails always have access regardless of DB state.
-// Protects against being locked out if the beta_invites table is empty or broken.
-const ADMIN_EMAILS = [
-  'jesse.slack.music@gmail.com',
-  'darylscottsongs@gmail.com',
-  'kode.roberts@gmail.com',  // hardcoded bypass — also in beta_invites
-]
+// Admins always have access regardless of DB state — protects against being
+// locked out if the beta_invites table is empty or broken. Same list now
+// gates both admin-panel/API access and this beta-gate bypass, so every
+// admin automatically skips the beta gate too.
 
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
@@ -121,6 +119,10 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  // Added '/' so middleware runs on the root route for beta user redirect
-  matcher: ['/', '/app/:path*', '/auth/:path*', '/beta'],
+  // Added '/' so middleware runs on the root route for beta user redirect.
+  // Only '/auth/login' (not all of '/auth/:path*') gets the "redirect logged-in
+  // users away" treatment — otherwise a logged-in user opening a password
+  // recovery link at /auth/reset-password would get bounced to the dashboard
+  // before they could set a new password.
+  matcher: ['/', '/app/:path*', '/auth/login', '/beta'],
 }

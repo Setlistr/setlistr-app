@@ -6,12 +6,14 @@ export const TEST_USER_IDS = new Set<string>([
   '6ab2db5d-3a29-4b18-b913-f0816c32f365', // Dead signup — typo'd email domain (.con), null profile
 ])
 
-// Single source of truth for admin panel access — used by both
-// app/app/admin/page.tsx and app/app/admin/rd-log/page.tsx. Previously each
-// page kept its own copy; rd-log's had drifted stale and was missing
-// Spencer (srclarke7@gmail.com, CTO) after he was added to the main list.
+// Single source of truth for admin access — used by every admin-panel page,
+// every admin/publisher API route, AND middleware.ts's beta-gate bypass
+// (previously middleware kept its own separate, independently-drifted copy).
+// Plain constants only, no imports — this file must stay edge-runtime-safe
+// since middleware.ts runs on the Edge Runtime.
 export const ADMIN_EMAILS = [
   'jesse.slack.music@gmail.com',
   'darylscottsongs@gmail.com',
   'srclarke7@gmail.com',
+  'kode.roberts@gmail.com',
 ]
