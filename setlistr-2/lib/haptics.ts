@@ -11,15 +11,19 @@
  *
  * iOS respects the system haptics setting on its own; nothing to handle here.
  *
- * Everything here goes through impact(), which maps to UIImpactFeedbackGenerator
- * and fires effectively instantly. We deliberately do NOT use Haptics.vibrate():
- * that path builds a fresh CHHapticEngine per call on the main thread, and
- * engine startup costs tens of milliseconds — enough to make a tab tap feel
- * sluggish and to compete with the navigation transition.
+ * Two different mechanisms live here, and the split matters:
  *
- * Weight instead comes from stacking pulses. Perceived responsiveness is the
- * time to the FIRST pulse, which is always immediate; the follow-ups land after
- * the user's finger is already committed, so they add heft at no latency cost.
+ * - impact() maps to UIImpactFeedbackGenerator and fires effectively instantly.
+ *   This is what anything tapped frequently must use. Weight comes from stacking
+ *   pulses: perceived responsiveness is the time to the FIRST pulse, which is
+ *   always immediate, so follow-ups add heft at no latency cost.
+ *
+ * - vibrate() renders a CoreHaptics continuous event — the only way to get a
+ *   sustained buzz rather than a tap. It costs more: iOS builds a fresh
+ *   CHHapticEngine per call on the main thread, and engine startup runs tens of
+ *   milliseconds. Reserved for rare, deliberate, one-per-show actions. Never use
+ *   it for anything tapped repeatedly, and always lead with an impact so the
+ *   onset is instant regardless of how long the engine takes to spin up.
  */
 
 import { Capacitor } from '@capacitor/core'
@@ -70,6 +74,18 @@ export function tapNav(): void {
 /** Record button — triple heavy pulse, the weightiest thing in the app. */
 export function tapRecord(): void {
   burst(ImpactStyle.Heavy, [0, 42, 84])
+}
+
+/**
+ * Long sustained buzz for show start/stop — the two moments that bookend a
+ * capture. Leads with a Heavy impact so onset is instant, then the continuous
+ * event carries the weight. See the vibrate() note in the header before reusing
+ * this anywhere that gets tapped more than once or twice a show.
+ */
+export function buzzLong(): void {
+  if (!canVibrate()) return
+  impact(ImpactStyle.Heavy)
+  Haptics.vibrate({ duration: 420 }).catch(() => {})
 }
 
 /** Double-pulse confirmation — song confirmed, submission accepted. */

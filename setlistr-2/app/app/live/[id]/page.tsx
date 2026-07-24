@@ -2,6 +2,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { buzzLong } from '@/lib/haptics'
 import { Check, X, RefreshCw, Upload } from 'lucide-react'
 import type { Performance } from '@/types'
 
@@ -963,7 +964,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
           </div>
         )}
 
-        <button onClick={handleEnd} disabled={ending}
+        <button onClick={() => { buzzLong(); handleEnd() }} disabled={ending}
           style={{ width: '100%', padding: '16px', background: 'rgba(220,38,38,0.05)', border: `1px solid rgba(220,38,38,0.15)`, borderRadius: 12, color: ending ? C.muted : '#f87171', fontSize: 14, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: ending ? 'not-allowed' : 'pointer', opacity: ending ? 0.4 : 1, transition: 'all 0.15s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent' }}>
           <span style={{ width: 6, height: 6, background: ending ? C.muted : C.red, borderRadius: 1, display: 'inline-block', flexShrink: 0 }} />
           {ending ? 'Ending...' : 'End Show'}
