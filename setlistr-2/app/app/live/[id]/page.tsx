@@ -20,6 +20,12 @@ const AUTO_CLOSE_SILENCE_MS = 60 * 60 * 1000
 const HARD_CEILING_MS = 4 * 60 * 60 * 1000
 const SILENCE_WARNING_MS = 45 * 60 * 1000
 
+// Session health: how long we tolerate hearing nothing back from ACR before
+// telling the artist capture has broken. Healthy responses land ~20s apart (the
+// 20s recordAndDetect interval + 14s recording), so 45s absorbs one slow or
+// skipped cycle without a false alarm while still catching a real death fast.
+const CAPTURE_HEALTH_WINDOW_MS = 45 * 1000
+
 // Upload mode: how the route is fed an uploaded file (mirrors live capture cadence)
 const UPLOAD_CHUNK_SECONDS      = 14   // length of each sample POSTed to /api/identify
 const UPLOAD_CHUNK_STEP_SECONDS = 20   // advance this far through the file between samples
@@ -142,6 +148,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   const [lastSongAt, setLastSongAt]     = useState<number>(0)
   const [showSilenceWarning, setShowSilenceWarning] = useState(false)
   const [restarting, setRestarting]     = useState(false)
+  const [captureStale, setCaptureStale] = useState(false)
   const [plannedCount, setPlannedCount] = useState<number>(0)
   const plannedSongsRef = useRef<{ title: string; normalizedTitle: string; artist: string }[]>([])
 
@@ -171,6 +178,9 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   const showStartRef        = useRef<number>(Date.now())
   const lastPingRef         = useRef<number>(0)
   const lastSongRef         = useRef<number>(0)
+  // Last time /api/identify actually answered — any verdict counts, including
+  // "nothing recognized". Distinct from lastPingRef, which marks attempt START.
+  const lastAcrResponseRef  = useRef<number>(0)
   const isListeningRef      = useRef<boolean>(false)
   const endingRef           = useRef<boolean>(false)
   const wakeLockRef         = useRef<WakeLockSentinel | null>(null)
@@ -249,6 +259,20 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
       if (lastSongRef.current > 0 && msSinceSong >= AUTO_CLOSE_SILENCE_MS && !endingRef.current) handleEndRef.current()
       if ((now - showStartRef.current) >= HARD_CEILING_MS && !endingRef.current) handleEndRef.current()
     }, 15000)
+    return () => clearInterval(interval)
+  }, [])
+
+  // ── Session health tick ──
+  // Separate from the engineState heartbeat above, which works on 3/5-minute
+  // horizons. Only flips the boolean on a real change so this doesn't re-render
+  // the whole capture screen once a second.
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const stale = isListeningRef.current
+        && lastAcrResponseRef.current > 0
+        && (Date.now() - lastAcrResponseRef.current) > CAPTURE_HEALTH_WINDOW_MS
+      setCaptureStale(prev => (prev === stale ? prev : stale))
+    }, 1000)
     return () => clearInterval(interval)
   }, [])
 
@@ -436,6 +460,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
       formData.append('previous_songs', JSON.stringify(confirmedSongsRef.current.filter(s => s.source !== 'planned').map(s => s.title)))
       const res = await fetch('/api/identify', { method: 'POST', body: formData })
       const data = await res.json()
+      lastAcrResponseRef.current = Date.now()  // answered — capture is alive, whatever the verdict
 
       // Trust the route's verdict — same as upload mode. No client-side cooldown,
       // pending card, or multi-hit gating; the route already decided.
@@ -462,6 +487,9 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       streamRef.current = stream; setIsListening(true)
       const pingTime = Date.now(); lastPingRef.current = pingTime; setEngineState('listening')
+      // Grace period: the first real response is ~14s out, so seed the health
+      // clock on start/resume instead of instantly reading as interrupted.
+      lastAcrResponseRef.current = pingTime; setCaptureStale(false)
       try { if ('wakeLock' in navigator) wakeLockRef.current = await (navigator as any).wakeLock.request('screen') } catch {}
       if (!placementShownRef.current) {
         placementShownRef.current = true; setShowPlacementCard(true)
@@ -780,6 +808,27 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
             </div>
           )}
         </div>
+
+        {/* ── Session health — is ACR still answering? ──────────────────────── */}
+        {isListening && (
+          <div style={{ marginTop: 18, width: '100%', maxWidth: 320, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.muted, opacity: 0.7 }}>
+              Session Health
+            </span>
+            {captureStale ? (
+              <button onClick={restartListening} disabled={restarting}
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, width: '100%', padding: '11px 16px', background: 'rgba(220,38,38,0.12)', border: '1px solid rgba(220,38,38,0.3)', borderRadius: 20, color: '#f87171', fontSize: 12, fontWeight: 700, cursor: restarting ? 'default' : 'pointer', fontFamily: 'inherit', opacity: restarting ? 0.6 : 1, WebkitTapHighlightColor: 'transparent', textAlign: 'center' as const, animation: 'fadeIn 0.2s ease' }}>
+                <RefreshCw size={12} style={{ flexShrink: 0, animation: restarting ? 'spin 0.7s linear infinite' : 'none' }} />
+                {restarting ? 'Resuming...' : 'Recording Interrupted — Click to Resume'}
+              </button>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                <div style={{ width: 6, height: 6, borderRadius: '50%', background: C.green, boxShadow: `0 0 5px ${C.green}80` }} />
+                <span style={{ fontSize: 12, color: C.green, fontWeight: 600, letterSpacing: '0.04em' }}>Capture Stable</span>
+              </div>
+            )}
+          </div>
+        )}
 
         <div style={{ marginTop: 22, minHeight: 44, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
           {renderTrustSignal()}
