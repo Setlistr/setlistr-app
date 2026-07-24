@@ -264,14 +264,21 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
 
   // ── Session health tick ──
   // Separate from the engineState heartbeat above, which works on 3/5-minute
-  // horizons. Only flips the boolean on a real change so this doesn't re-render
-  // the whole capture screen once a second.
+  // horizons.
+  //
+  // This LATCHES: once we've gone quiet past the window it stays flagged until
+  // the artist explicitly resumes. It must not clear itself, because a fetch
+  // already in flight when capture broke will resolve afterwards and stamp
+  // lastAcrResponseRef — a straggler answer from before the break, which would
+  // otherwise clear the warning while the recording loop is still dead.
+  // Only startListening() clears it, so the green state always means "capture
+  // has been restarted", never "a late response arrived".
   useEffect(() => {
     const interval = setInterval(() => {
       const stale = isListeningRef.current
         && lastAcrResponseRef.current > 0
         && (Date.now() - lastAcrResponseRef.current) > CAPTURE_HEALTH_WINDOW_MS
-      setCaptureStale(prev => (prev === stale ? prev : stale))
+      if (stale) setCaptureStale(true)
     }, 1000)
     return () => clearInterval(interval)
   }, [])
