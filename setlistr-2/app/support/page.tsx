@@ -2,7 +2,7 @@
 
 export const metadata = {
   title: 'Support — Setlistr',
-  description: 'Get help with Setlistr: how live capture works, submitting to your PRO, resetting your password, and how to reach us.',
+  description: 'Get help with Setlistr: how live capture works, submitting to your PRO, resetting your password, and how to reach us. FAQs and support contact.',
 }
 
 const C = {
@@ -14,20 +14,40 @@ const C = {
 
 const FAQS = [
   {
-    q: 'How does live capture work?',
-    a: 'Start a show from the app before you go on, and Setlistr listens in the background and identifies songs in real time as you play them — no manual setlist typing required. When the show ends, you review the detected songs, fix anything that was missed or misheard, and confirm the final setlist.',
+    q: 'How does Setlistr capture my show?',
+    a: 'Start a capture before you go on stage. Setlistr listens and identifies the songs you perform, then builds a record of your set — venue, date, and every song in order. You review it afterward, so nothing is final until you\'ve seen it.',
   },
   {
-    q: 'How do I submit a show to my PRO?',
-    a: 'Once a performance is confirmed, open it from your History and go to Submit. Setlistr formats your setlist to match your PRO\'s requirements (SOCAN, ASCAP, BMI, PRS, APRA, SESAC, or GMR) using the songwriter, publisher, and PRO details in your account Settings. Make sure your PRO affiliation and IPI number are filled in under Settings before submitting.',
+    q: 'Do I need to enter my setlist manually?',
+    a: 'No. Setlistr identifies what you play automatically. You can add a planned setlist beforehand to improve accuracy, but it isn\'t required — just hit capture and play.',
+  },
+  {
+    q: 'What happens after the show?',
+    a: 'You get a review screen showing everything Setlistr captured. Confirm anything the app flagged as uncertain, make any edits, and save. Your show is then a verified record you can submit or keep.',
+  },
+  {
+    q: 'How do I submit to my PRO?',
+    a: 'Once a show is reviewed and saved, Setlistr prepares it for your performing rights organization — SOCAN, ASCAP, BMI, PRS, APRA, SESAC, or GMR — with the performance details they need. You stay in control of what gets submitted.',
+  },
+  {
+    q: 'Will this get me paid?',
+    a: 'Setlistr helps you capture and submit verified performance data so your live shows are properly documented and claimed. Actual payments are determined by your PRO based on their rules and rates — Setlistr doesn\'t pay royalties directly, and payout amounts vary. For cover songs, Setlistr builds an accurate record of what you performed; whether a performance generates a payment depends on your PRO and the rights involved.',
+  },
+  {
+    q: 'Does Setlistr record audio of my whole show?',
+    a: 'Setlistr uses your device\'s microphone to identify the songs you perform. It\'s built to recognize your setlist, not to store continuous recordings of your performance.',
   },
   {
     q: 'How do I reset my password?',
-    a: 'On the sign-in screen, tap "Forgot password?" and enter the email on your account. We\'ll send a reset link — open it on the same device and choose a new password. If you don\'t see the email within a few minutes, check spam before requesting another one.',
+    a: 'On the login screen, tap "Forgot password?" and enter your email. You\'ll get a link to set a new password. If you don\'t see the email, check your spam folder.',
   },
   {
-    q: 'How do I contact Setlistr directly?',
-    a: 'Email us any time at support@setlistr.ai. We read every message and typically reply within one business day.',
+    q: 'How do I contact support?',
+    a: 'Email us at info@setlistr.ai and we\'ll get back to you.',
+  },
+  {
+    q: 'Who built Setlistr?',
+    a: 'Setlistr is built by working songwriters and performers who wanted live performance royalties to actually get captured and claimed. We\'re based in Nashville, Tennessee.',
   },
 ]
 
@@ -71,10 +91,10 @@ export default function SupportPage() {
             Contact us
           </p>
           <a
-            href="mailto:support@setlistr.ai"
+            href="mailto:info@setlistr.ai"
             style={{ fontSize: 18, fontWeight: 700, color: C.gold, textDecoration: 'none' }}
           >
-            support@setlistr.ai
+            info@setlistr.ai
           </a>
           <p style={{ fontSize: 13, color: C.muted, margin: '8px 0 0', lineHeight: 1.5 }}>
             We typically reply within one business day.
@@ -113,7 +133,7 @@ export default function SupportPage() {
           textAlign: 'center', fontSize: 10, color: C.muted, letterSpacing: '0.1em',
           textTransform: 'uppercase', opacity: 0.5, marginTop: 40,
         }}>
-          Setlistr · support@setlistr.ai
+          Setlistr · info@setlistr.ai
         </p>
       </div>
     </div>
