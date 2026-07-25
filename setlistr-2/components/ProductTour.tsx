@@ -80,12 +80,12 @@ export default function ProductTour() {
     <>
       <style>{`
         .pt-capture { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: center; max-width: 1180px; margin: 0 auto; padding: 8px 32px 110px; }
-        .pt-eyebrow { font-family: "DM Mono", monospace; font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: rgba(201,168,76,.7); margin-bottom: 18px; display: flex; align-items: center; gap: 10px; }
+        .pt-eyebrow { font-family: "DM Mono", monospace; font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: rgba(201,168,76,.95); margin-bottom: 18px; display: flex; align-items: center; gap: 10px; }
         .pt-eyebrow .dot { width: 6px; height: 6px; border-radius: 50%; background: #C9A84C; animation: pt-pulse 2s infinite; }
         @keyframes pt-pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.3;transform:scale(.6)} }
         .pt-h2 { font-family: "Bebas Neue", sans-serif; font-size: clamp(38px,5vw,68px); line-height: .98; letter-spacing: .02em; margin-bottom: 20px; }
         .pt-h2 .gold { color: #C9A84C; }
-        .pt-lead { font-size: 16px; font-weight: 300; line-height: 1.8; color: rgba(212,209,202,.55); max-width: 400px; }
+        .pt-lead { font-size: 16px; font-weight: 300; line-height: 1.8; color: rgba(212,209,202,.8); max-width: 400px; }
 
         .pt-stage { perspective: 1800px; display: flex; justify-content: center; align-items: center; }
         .pt-phone { position: relative; width: 300px; height: 620px; transform-style: preserve-3d; transform: rotateY(-22deg) rotateX(6deg) rotateZ(1deg); animation: pt-float 7s ease-in-out infinite; }
@@ -127,19 +127,19 @@ export default function ProductTour() {
         .pt-story { max-width:760px; margin:0 auto; padding:60px 24px 40px; text-align:center; }
         .pt-story h2 { font-family:"Bebas Neue",sans-serif; font-size:clamp(34px,5vw,66px); line-height:1.05; letter-spacing:.02em; margin-bottom:20px; }
         .pt-story h2.gold { color:#C9A84C; margin-bottom:40px; }
-        .pt-story p { font-size:clamp(15px,2vw,19px); font-weight:300; color:rgba(212,209,202,.6); line-height:1.8; }
+        .pt-story p { font-size:clamp(15px,2vw,19px); font-weight:300; color:rgba(212,209,202,.82); line-height:1.8; }
 
         .pt-tour { max-width:1080px; margin:0 auto; padding:80px 24px 60px; }
         .pt-tour-head { text-align:center; margin-bottom:64px; }
-        .pt-tour-head .eb { font-family:"DM Mono",monospace; font-size:11px; letter-spacing:.16em; color:rgba(201,168,76,.6); text-transform:uppercase; margin-bottom:16px; }
+        .pt-tour-head .eb { font-family:"DM Mono",monospace; font-size:11px; letter-spacing:.16em; color:rgba(201,168,76,.95); text-transform:uppercase; margin-bottom:16px; }
         .pt-tour-head h2 { font-family:"Bebas Neue",sans-serif; font-size:clamp(34px,5vw,60px); line-height:1.05; letter-spacing:.02em; }
         .pt-tour-head h2 .gold { color:#C9A84C; }
         .pt-row { display:grid; grid-template-columns:1fr 1fr; gap:56px; align-items:center; padding:64px 0; opacity:0; transform:translateY(40px); transition:opacity 1s cubic-bezier(.16,1,.3,1), transform 1s cubic-bezier(.16,1,.3,1); }
         .pt-row.in { opacity:1; transform:translateY(0); }
         .pt-row.reverse .pt-rcopy { order:2; } .pt-row.reverse .pt-rmedia { order:1; }
-        .pt-rn { font-family:"Bebas Neue",sans-serif; font-size:18px; color:rgba(201,168,76,.4); margin-bottom:12px; }
+        .pt-rn { font-family:"Bebas Neue",sans-serif; font-size:18px; color:rgba(201,168,76,.7); margin-bottom:12px; }
         .pt-rcopy h3 { font-family:"Bebas Neue",sans-serif; font-size:clamp(28px,3.5vw,42px); line-height:1.08; letter-spacing:.02em; margin-bottom:16px; }
-        .pt-rcopy p { font-size:15.5px; font-weight:300; line-height:1.8; color:rgba(212,209,202,.55); max-width:420px; }
+        .pt-rcopy p { font-size:15.5px; font-weight:300; line-height:1.8; color:rgba(212,209,202,.8); max-width:420px; }
         .pt-rmedia { display:flex; justify-content:center; perspective:1600px; }
         .pt-rphone { width:250px; border-radius:34px; padding:8px; background:linear-gradient(150deg,#3a352c,#171410 45%,#0c0a08 70%,#2a251d); box-shadow:0 40px 90px -30px rgba(0,0,0,.8), 0 0 0 1px rgba(201,168,76,.12); transform:rotateY(-16deg) rotateX(4deg); position:relative; }
         .pt-row.reverse .pt-rphone { transform:rotateY(16deg) rotateX(4deg); }

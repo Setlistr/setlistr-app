@@ -42,7 +42,7 @@ export default function WaitlistForm() {
         <p style={{
           fontFamily: '"DM Sans", sans-serif',
           fontSize: 15, fontWeight: 300,
-          color: '#605e58', lineHeight: 1.7, marginBottom: 28,
+          color: 'rgba(212,209,202,0.7)', lineHeight: 1.7, marginBottom: 28,
         }}>
           We review applications personally. We will be in touch.
         </p>
@@ -100,7 +100,7 @@ export default function WaitlistForm() {
         <span style={{
           fontFamily: '"DM Mono", monospace',
           fontSize: 9, letterSpacing: '0.2em',
-          color: '#3a3028', textTransform: 'uppercase',
+          color: 'rgba(212,209,202,0.5)', textTransform: 'uppercase',
         }}>or apply for access</span>
         <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.07)' }} />
       </div>
@@ -122,7 +122,7 @@ export default function WaitlistForm() {
                 border: `1px solid ${accessType === t
                   ? 'rgba(201,168,76,0.45)'
                   : 'rgba(255,255,255,0.08)'}`,
-                color: accessType === t ? '#C9A84C' : '#605e58',
+                color: accessType === t ? '#C9A84C' : 'rgba(232,228,219,0.75)',
                 fontFamily: '"DM Mono", monospace',
                 fontSize: 11, letterSpacing: '0.14em',
                 textTransform: 'uppercase' as const,
@@ -175,9 +175,9 @@ export default function WaitlistForm() {
           disabled={loading || !email || !accessType}
           style={{
             width: '100%', padding: '16px',
-            background: email && accessType ? '#C9A84C' : 'rgba(201,168,76,0.2)',
+            background: email && accessType ? '#C9A84C' : 'rgba(201,168,76,0.32)',
             border: 'none', borderRadius: 10,
-            color: email && accessType ? '#080706' : '#3a3028',
+            color: email && accessType ? '#080706' : 'rgba(232,228,219,0.6)',
             fontFamily: '"Bebas Neue", sans-serif',
             fontSize: 18, letterSpacing: '0.12em',
             cursor: email && accessType ? 'pointer' : 'not-allowed',

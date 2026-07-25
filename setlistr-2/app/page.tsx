@@ -47,17 +47,17 @@ export default function HomePage() {
 
         .sl-nav-link {
           font-family: "DM Mono", monospace; font-size: 11px; letter-spacing: .14em;
-          text-transform: uppercase; color: rgba(212,209,202,0.5);
+          text-transform: uppercase; color: rgba(232,228,219,0.78);
           text-decoration: none; transition: color .2s;
         }
         .sl-nav-link:hover { color: #C9A84C; }
         .sl-btn-signin {
           font-family: "DM Mono", monospace; font-size: 11px; letter-spacing: .14em;
           text-transform: uppercase; color: #C9A84C; text-decoration: none;
-          padding: 9px 18px; border-radius: 6px; border: 1px solid rgba(201,168,76,0.45);
-          transition: all .2s;
+          padding: 9px 18px; border-radius: 6px; border: 1px solid rgba(201,168,76,0.55);
+          transition: all .2s; white-space: nowrap;
         }
-        .sl-btn-signin:hover { background: rgba(201,168,76,0.1); border-color: #C9A84C; }
+        .sl-btn-signin:hover { background: rgba(201,168,76,0.12); border-color: #C9A84C; }
         .sl-btn-apply {
           font-family: "DM Mono", monospace; font-size: 11px; letter-spacing: .14em;
           text-transform: uppercase; background: #C9A84C; color: #080706;
@@ -68,7 +68,7 @@ export default function HomePage() {
         .sl-hero-h1 { font-family: "Bebas Neue", sans-serif; font-size: clamp(56px,10vw,140px); line-height: .9; letter-spacing: .02em; margin: 0; }
         .sl-ghost   { font-family: "Bebas Neue", sans-serif; font-size: clamp(34px,6vw,80px); line-height: 1; color: #C9A84C; margin-top: 4px; }
 
-        .sl-scroll-hint { margin-top: 36px; font-family: "DM Mono", monospace; font-size: 10px; letter-spacing: .2em; text-transform: uppercase; color: rgba(212,209,202,0.35); display: flex; flex-direction: column; align-items: center; gap: 10px; }
+        .sl-scroll-hint { margin-top: 36px; font-family: "DM Mono", monospace; font-size: 10px; letter-spacing: .2em; text-transform: uppercase; color: rgba(201,168,76,0.75); display: flex; flex-direction: column; align-items: center; gap: 10px; }
         .sl-scroll-arrow { width: 1px; height: 34px; background: linear-gradient(to bottom, rgba(201,168,76,0.6), transparent); animation: sl-drop 2s infinite; }
         @keyframes sl-drop { 0%{opacity:0;transform:translateY(-6px)} 40%{opacity:1} 100%{opacity:0;transform:translateY(10px)} }
 
@@ -78,10 +78,16 @@ export default function HomePage() {
 
         @media (max-width: 820px) {
           .sl-nav-link { display: none !important; }
+          .sl-mobile-links { display: flex !important; }
           .sl-stats { flex-direction: column; }
           .sl-stat { border-right: none; border-bottom: 1px solid rgba(255,255,255,0.06); }
           .sl-stat:last-child { border-bottom: none; }
+          .sl-logo { height: 26px !important; }
+          .sl-nav { height: 60px !important; padding: 0 18px !important; }
+          .sl-btn-signin { padding: 8px 12px !important; font-size: 10px !important; }
+          .sl-btn-apply { padding: 9px 14px !important; font-size: 10px !important; }
         }
+        .sl-mobile-links { display: none; }
 
         input::placeholder { color: #3a3028 !important; }
       `}</style>
@@ -90,16 +96,16 @@ export default function HomePage() {
       <div className="sl-orb" style={{ width: 460, height: 460, background: 'radial-gradient(circle, rgba(201,168,76,1), transparent)', opacity: 0.07, bottom: '10%', left: -160 }} />
 
       {/* ── NAV ── */}
-      <header style={{
+      <header className="sl-nav" style={{
         position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100,
         height: 72, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         padding: '0 40px',
-        background: 'rgba(8,7,6,0.78)',
+        background: 'rgba(8,7,6,0.82)',
         backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)',
         borderBottom: '1px solid rgba(255,255,255,0.05)',
       }}>
         <Link href="/" style={{ textDecoration: 'none', display: 'flex' }}>
-          <Image src="/logo-white-tight.png" alt="Setlistr" width={211} height={40} priority style={{ height: 40, width: 'auto', objectFit: 'contain' }} />
+          <Image className="sl-logo" src="/logo-white-tight.png" alt="Setlistr" width={169} height={32} priority style={{ height: 32, width: 'auto', objectFit: 'contain' }} />
         </Link>
         <nav style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
           <Link href="/get-paid" className="sl-nav-link" style={{ marginRight: 8 }}>For Artists</Link>
@@ -108,6 +114,19 @@ export default function HomePage() {
           <a href="#access" className="sl-btn-apply">Apply</a>
         </nav>
       </header>
+
+      {/* ── MOBILE LINK BAR (below nav, keeps For Artists / How It Works reachable) ── */}
+      <div className="sl-mobile-links" style={{
+        position: 'fixed', top: 60, left: 0, right: 0, zIndex: 99,
+        alignItems: 'center', justifyContent: 'center', gap: 28,
+        height: 42, padding: '0 18px',
+        background: 'rgba(8,7,6,0.82)',
+        backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)',
+        borderBottom: '1px solid rgba(255,255,255,0.05)',
+      }}>
+        <Link href="/get-paid" style={{ fontFamily: '"DM Mono", monospace', fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: 'rgba(232,228,219,0.8)', textDecoration: 'none' }}>For Artists</Link>
+        <Link href="/how-it-works" style={{ fontFamily: '"DM Mono", monospace', fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: 'rgba(232,228,219,0.8)', textDecoration: 'none' }}>How It Works · FAQ</Link>
+      </div>
 
       <div style={{ position: 'relative', zIndex: 1 }}>
 
@@ -140,7 +159,7 @@ export default function HomePage() {
 
         {/* ══ SEO paragraph ══ */}
         <section style={{ padding: '0 24px 80px', maxWidth: 680, margin: '0 auto' }}>
-          <p style={{ fontSize: 13, fontWeight: 300, color: 'rgba(212,209,202,0.2)', lineHeight: 1.9, margin: 0, textAlign: 'center' }}>
+          <p style={{ fontSize: 13, fontWeight: 300, color: 'rgba(212,209,202,0.45)', lineHeight: 1.9, margin: 0, textAlign: 'center' }}>
             Working songwriters registered with SOCAN, ASCAP, BMI, PRS for Music,
             APRA AMCOS, SESAC, and GMR earn live performance royalties for every show.
             Setlistr is the infrastructure that connects live music performance to royalty payment —
@@ -165,9 +184,9 @@ export default function HomePage() {
             We review applications personally.
           </p>
           <WaitlistForm />
-          <p style={{ fontFamily: '"DM Mono", monospace', fontSize: 10, letterSpacing: '0.12em', color: '#3a3028', marginTop: 36 }}>
+          <p style={{ fontFamily: '"DM Mono", monospace', fontSize: 10, letterSpacing: '0.12em', color: 'rgba(212,209,202,0.4)', marginTop: 36 }}>
             Investor inquiries —{' '}
-            <a href="mailto:info@setlistr.ai" style={{ color: 'rgba(201,168,76,0.4)', textDecoration: 'none' }}>info@setlistr.ai</a>
+            <a href="mailto:info@setlistr.ai" style={{ color: 'rgba(201,168,76,0.75)', textDecoration: 'none' }}>info@setlistr.ai</a>
           </p>
         </section>
 
@@ -176,7 +195,7 @@ export default function HomePage() {
           borderTop: '1px solid rgba(255,255,255,0.05)', padding: '32px 40px',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 20,
         }}>
-          <Image src="/logo-white-tight.png" alt="Setlistr" width={132} height={25} style={{ height: 25, width: 'auto', objectFit: 'contain', opacity: 0.3 }} />
+          <Image src="/logo-white-tight.png" alt="Setlistr" width={106} height={20} style={{ height: 20, width: 'auto', objectFit: 'contain', opacity: 0.55 }} />
           <nav style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
             {[
               { label: 'For Artists',  href: '/get-paid' },
@@ -192,7 +211,7 @@ export default function HomePage() {
               )
             )}
           </nav>
-          <p style={{ fontFamily: '"DM Mono", monospace', fontSize: 10, letterSpacing: '0.1em', color: '#2a2520', margin: 0 }}>
+          <p style={{ fontFamily: '"DM Mono", monospace', fontSize: 10, letterSpacing: '0.1em', color: 'rgba(212,209,202,0.4)', margin: 0 }}>
             © {new Date().getFullYear()} Setlistr Inc.
           </p>
         </footer>
