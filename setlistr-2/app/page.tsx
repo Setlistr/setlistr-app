@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import Image from 'next/image'
 import Link from 'next/link'
 import WaitlistForm from '@/components/WaitlistForm'
-import CursorEffect from '@/components/CursorEffect'
+import ProductTour from '@/components/ProductTour'
 
 export const metadata: Metadata = {
   title: 'Setlistr — The System of Record for Live Music',
@@ -33,39 +33,6 @@ export const metadata: Metadata = {
   ],
 }
 
-const PROOF_ITEMS = [
-  {
-    src: '/screenshots/setlist-ready.webp',
-    alt: 'Setlistr planned setlist screen showing twelve songs ready before a show at The Saltbox',
-    title: 'Starts with your plan.',
-    copy: 'Load tonight’s set before you play. Setlistr listens for those songs first, then catches everything else too.',
-  },
-  {
-    src: '/screenshots/show-complete.webp',
-    alt: 'Setlistr show complete screen showing a verified eight-song setlist captured live in Nashville',
-    title: 'Every show, closed out clean.',
-    copy: 'A verified record the moment you walk off stage — timestamped, sourced, and ready for submission.',
-  },
-  {
-    src: '/screenshots/claim-pipeline.webp',
-    alt: 'Setlistr submissions screen showing verified shows marked ready to claim',
-    title: 'Submission-ready, not just logged.',
-    copy: 'Verified performances move straight into the claim pipeline — this is what publishers and PROs actually need to see.',
-  },
-  {
-    src: '/screenshots/career-map.webp',
-    alt: 'Setlistr career map showing verified shows across cities including Austin, Toronto, and Nashville',
-    title: 'A career, mapped.',
-    copy: 'Every city, every venue, every verified show — the touring record that never existed until now.',
-  },
-  {
-    src: '/screenshots/share-card.webp',
-    alt: 'Setlistr verified show share card showing one hundred twenty four verified shows',
-    title: 'Built to compound.',
-    copy: 'Every verified show adds to a record that’s yours — and worth sharing.',
-  },
-]
-
 export default function HomePage() {
   return (
     <div style={{
@@ -74,450 +41,104 @@ export default function HomePage() {
       overflowX: 'hidden',
       fontFamily: '"DM Sans", system-ui, sans-serif',
       color: '#FFFFFF',
-      cursor: 'none',
     }}>
-
       <style>{`
-        #sl-cursor {
-          position: fixed; width: 10px; height: 10px;
-          background: #C9A84C; border-radius: 50%;
-          pointer-events: none; z-index: 9999;
-          transform: translate(-50%,-50%);
-        }
-        #sl-cursor-ring {
-          position: fixed; width: 32px; height: 32px;
-          border: 1px solid rgba(201,168,76,0.4); border-radius: 50%;
-          pointer-events: none; z-index: 9998;
-          transform: translate(-50%,-50%);
-          transition: all .2s cubic-bezier(.16,1,.3,1);
-        }
+        .sl-orb { position: fixed; pointer-events: none; z-index: 0; border-radius: 50%; filter: blur(120px); }
 
-        .sl-bg-lines {
-          position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden;
-        }
-        .sl-bg-lines::before {
-          content: "";
-          position: absolute; top: -50%; left: -50%; width: 200%; height: 200%;
-          background: repeating-linear-gradient(0deg, transparent, transparent 79px, rgba(201,168,76,0.025) 80px);
-          animation: drift 40s linear infinite;
-        }
-        .sl-bg-lines::after {
-          content: "";
-          position: absolute; top: -50%; left: -50%; width: 200%; height: 200%;
-          background: repeating-linear-gradient(90deg, transparent, transparent 79px, rgba(201,168,76,0.015) 80px);
-          animation: drift 60s linear infinite reverse;
-        }
-        @keyframes drift {
-          from { transform: translate(0,0); }
-          to   { transform: translate(80px,80px); }
-        }
-
-        .sl-orb {
-          position: fixed; pointer-events: none; z-index: 0;
-          border-radius: 50%; filter: blur(120px);
-        }
-
-        .sl-pulse {
-          width: 6px; height: 6px; background: #C9A84C;
-          border-radius: 50%; flex-shrink: 0;
-          animation: pulse 2s infinite;
-        }
-        @keyframes pulse {
-          0%, 100% { opacity: 1; transform: scale(1); }
-          50%       { opacity: .3; transform: scale(.6); }
-        }
-
-        /* Nav */
         .sl-nav-link {
-          font-family: "DM Mono", monospace;
-          font-size: 11px; letter-spacing: .14em; text-transform: uppercase;
-          color: rgba(212,209,202,0.5); text-decoration: none; transition: color .2s;
+          font-family: "DM Mono", monospace; font-size: 11px; letter-spacing: .14em;
+          text-transform: uppercase; color: rgba(212,209,202,0.5);
+          text-decoration: none; transition: color .2s;
         }
         .sl-nav-link:hover { color: #C9A84C; }
-        .sl-nav-apply {
-          font-family: "DM Mono", monospace;
-          font-size: 11px; letter-spacing: .14em; text-transform: uppercase;
-          background: #C9A84C; color: #080706;
-          padding: 9px 20px; text-decoration: none; border-radius: 6px;
-          transition: opacity .2s;
+        .sl-btn-signin {
+          font-family: "DM Mono", monospace; font-size: 11px; letter-spacing: .14em;
+          text-transform: uppercase; color: #C9A84C; text-decoration: none;
+          padding: 9px 18px; border-radius: 6px; border: 1px solid rgba(201,168,76,0.45);
+          transition: all .2s;
         }
-        .sl-nav-apply:hover { opacity: .84; }
+        .sl-btn-signin:hover { background: rgba(201,168,76,0.1); border-color: #C9A84C; }
+        .sl-btn-apply {
+          font-family: "DM Mono", monospace; font-size: 11px; letter-spacing: .14em;
+          text-transform: uppercase; background: #C9A84C; color: #080706;
+          text-decoration: none; padding: 10px 20px; border-radius: 6px; transition: opacity .2s;
+        }
+        .sl-btn-apply:hover { opacity: .85; }
 
-        /* Stats row */
-        .sl-stats {
-          display: flex;
-          gap: 0;
-          border-top: 1px solid rgba(255,255,255,0.06);
-          border-bottom: 1px solid rgba(255,255,255,0.06);
-        }
-        .sl-stat-cell {
-          flex: 1;
-          padding: 36px 0;
-          text-align: center;
-          border-right: 1px solid rgba(255,255,255,0.06);
-        }
-        .sl-stat-cell:last-child { border-right: none; }
+        .sl-hero-h1 { font-family: "Bebas Neue", sans-serif; font-size: clamp(56px,10vw,140px); line-height: .9; letter-spacing: .02em; margin: 0; }
+        .sl-ghost   { font-family: "Bebas Neue", sans-serif; font-size: clamp(34px,6vw,80px); line-height: 1; color: #C9A84C; margin-top: 4px; }
 
-        /* Product proof */
-        .sl-feature-row {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 64px;
-          align-items: center;
-          margin-bottom: 96px;
-        }
-        .sl-proof-frame {
-          position: relative;
-          border-radius: 28px;
-          overflow: hidden;
-          border: 1px solid rgba(201,168,76,0.18);
-          box-shadow: 0 40px 80px -30px rgba(0,0,0,0.6);
-          background: #0a0908;
-        }
-        .sl-proof-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-          gap: 48px;
-        }
+        .sl-scroll-hint { margin-top: 36px; font-family: "DM Mono", monospace; font-size: 10px; letter-spacing: .2em; text-transform: uppercase; color: rgba(212,209,202,0.35); display: flex; flex-direction: column; align-items: center; gap: 10px; }
+        .sl-scroll-arrow { width: 1px; height: 34px; background: linear-gradient(to bottom, rgba(201,168,76,0.6), transparent); animation: sl-drop 2s infinite; }
+        @keyframes sl-drop { 0%{opacity:0;transform:translateY(-6px)} 40%{opacity:1} 100%{opacity:0;transform:translateY(10px)} }
 
-        /* Footer */
-        .sl-footer-link {
-          font-family: "DM Mono", monospace;
-          font-size: 10px; letter-spacing: .12em;
-          color: #3a3028; text-decoration: none;
-          text-transform: uppercase; transition: color .2s;
-        }
-        .sl-footer-link:hover { color: #605e58; }
+        .sl-stats { display: flex; max-width: 900px; margin: 40px auto 0; border-top: 1px solid rgba(255,255,255,0.06); border-bottom: 1px solid rgba(255,255,255,0.06); }
+        .sl-stat { flex: 1; padding: 32px 0; text-align: center; border-right: 1px solid rgba(255,255,255,0.06); }
+        .sl-stat:last-child { border-right: none; }
 
-        /* Fade-up animation */
-        .sl-fade { opacity: 0; animation: fadeUp .9s cubic-bezier(.16,1,.3,1) forwards; }
-        @keyframes fadeUp {
-          from { opacity: 0; transform: translateY(16px); }
-          to   { opacity: 1; transform: translateY(0); }
-        }
-
-        @media (max-width: 600px) {
+        @media (max-width: 820px) {
+          .sl-nav-link { display: none !important; }
           .sl-stats { flex-direction: column; }
-          .sl-stat-cell { border-right: none; border-bottom: 1px solid rgba(255,255,255,0.06); }
-          .sl-stat-cell:last-child { border-bottom: none; }
-          .sl-hide-mobile { display: none !important; }
-          .sl-feature-row { grid-template-columns: 1fr; text-align: center; gap: 32px; }
-          #sl-cursor, #sl-cursor-ring { display: none !important; }
+          .sl-stat { border-right: none; border-bottom: 1px solid rgba(255,255,255,0.06); }
+          .sl-stat:last-child { border-bottom: none; }
         }
 
         input::placeholder { color: #3a3028 !important; }
       `}</style>
 
-      <div id="sl-cursor" />
-      <div id="sl-cursor-ring" />
-      <CursorEffect />
-
-      <div className="sl-bg-lines" />
-      <div className="sl-orb" style={{ width: 600, height: 600, background: 'radial-gradient(circle, rgba(201,168,76,1), transparent)', opacity: 0.11, top: -250, right: -200 }} />
-      <div className="sl-orb" style={{ width: 400, height: 400, background: 'radial-gradient(circle, rgba(201,168,76,1), transparent)', opacity: 0.07, bottom: -150, left: -150 }} />
+      <div className="sl-orb" style={{ width: 620, height: 620, background: 'radial-gradient(circle, rgba(201,168,76,1), transparent)', opacity: 0.10, top: -260, right: -180 }} />
+      <div className="sl-orb" style={{ width: 460, height: 460, background: 'radial-gradient(circle, rgba(201,168,76,1), transparent)', opacity: 0.07, bottom: '10%', left: -160 }} />
 
       {/* ── NAV ── */}
       <header style={{
         position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100,
-        height: 64, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '0 48px',
-        background: 'rgba(8,7,6,0.85)',
+        height: 72, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '0 40px',
+        background: 'rgba(8,7,6,0.78)',
         backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)',
         borderBottom: '1px solid rgba(255,255,255,0.05)',
       }}>
-        <Link href="/" style={{ textDecoration: 'none' }}>
-          <Image src="/logo-white.png" alt="Setlistr" width={120} height={32} priority style={{ objectFit: 'contain', opacity: 0.9 }} />
+        <Link href="/" style={{ textDecoration: 'none', display: 'flex' }}>
+          <Image src="/logo-white-tight.png" alt="Setlistr" width={211} height={40} priority style={{ height: 40, width: 'auto', objectFit: 'contain' }} />
         </Link>
-        <nav style={{ display: 'flex', alignItems: 'center', gap: 36 }}>
-          <Link href="/get-paid" className="sl-nav-link sl-hide-mobile">For Artists</Link>
-          <Link href="/how-it-works" className="sl-nav-link sl-hide-mobile">How It Works</Link>
-          <a href="mailto:info@setlistr.ai" className="sl-nav-link sl-hide-mobile">For Publishers</a>
-          <a href="#access" className="sl-nav-apply">Apply</a>
+        <nav style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <Link href="/get-paid" className="sl-nav-link" style={{ marginRight: 8 }}>For Artists</Link>
+          <Link href="/how-it-works" className="sl-nav-link" style={{ marginRight: 8 }}>How It Works</Link>
+          <Link href="/auth/login" className="sl-btn-signin">Sign In</Link>
+          <a href="#access" className="sl-btn-apply">Apply</a>
         </nav>
       </header>
 
       <div style={{ position: 'relative', zIndex: 1 }}>
 
-        {/* ══════════════════════════════════════════
-            HERO
-        ══════════════════════════════════════════ */}
+        {/* ══ HERO 1: statement ══ */}
         <section style={{
-          minHeight: '100svh',
-          display: 'flex', flexDirection: 'column',
+          minHeight: '78vh', display: 'flex', flexDirection: 'column',
           alignItems: 'center', justifyContent: 'center',
-          textAlign: 'center', padding: '100px 24px 80px',
-        }}>
-
-          <div className="sl-fade" style={{ animationDelay: '0.1s',
-            display: 'inline-flex', alignItems: 'center', gap: 10,
-            border: '1px solid rgba(201,168,76,.35)', borderRadius: 20,
-            padding: '6px 18px', marginBottom: 40,
-            fontFamily: '"DM Mono", monospace',
-            fontSize: 11, color: '#C9A84C', letterSpacing: '.16em',
-            textTransform: 'uppercase',
-          }}>
-            <div className="sl-pulse" />
-            Verified Performance Intelligence
-          </div>
-
-          <h1 className="sl-fade" style={{ animationDelay: '0.3s',
-            fontFamily: '"Bebas Neue", sans-serif',
-            fontSize: 'clamp(64px, 11vw, 152px)',
-            lineHeight: 0.88, letterSpacing: '0.025em',
-            color: '#FFFFFF', margin: 0, maxWidth: 1000,
-          }}>
-            The Live<br />
-            Performance Record<br />
-            Has Never{' '}
-            <span style={{ color: '#C9A84C' }}>Existed.</span>
-          </h1>
-
-          <div className="sl-fade" style={{ animationDelay: '0.75s',
-            fontFamily: '"Bebas Neue", sans-serif',
-            fontSize: 'clamp(40px, 7vw, 96px)',
-            lineHeight: 1.0, letterSpacing: '0.025em',
-            color: 'rgba(255,255,255,0.15)',
-            marginTop: 0, marginBottom: 52,
-          }}>
-            Until Now.
-          </div>
-
-          <div className="sl-fade" style={{ animationDelay: '1s',
-            display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center',
-            marginBottom: 64,
-          }}>
-            <Link href="/start" style={{
-              fontFamily: '"Bebas Neue", sans-serif',
-              fontSize: 18, letterSpacing: '0.1em',
-              background: '#C9A84C', color: '#080706',
-              padding: '14px 36px', textDecoration: 'none', borderRadius: 8,
-            }}>
-              See What You&apos;re Owed
-            </Link>
-            <a href="#access" style={{
-              fontFamily: '"Bebas Neue", sans-serif',
-              fontSize: 18, letterSpacing: '0.1em',
-              background: 'transparent',
-              border: '1px solid rgba(201,168,76,0.3)',
-              color: 'rgba(212,209,202,0.8)',
-              padding: '14px 36px', textDecoration: 'none', borderRadius: 8,
-            }}>
-              Request Access
-            </a>
-          </div>
-
-          <div className="sl-fade" style={{ animationDelay: '1.2s',
-            display: 'flex', gap: 28, flexWrap: 'wrap', justifyContent: 'center',
-          }}>
-            {['SOCAN', 'ASCAP', 'BMI', 'PRS', 'APRA', 'SESAC', 'GMR'].map(pro => (
-              <span key={pro} style={{
-                fontFamily: '"DM Mono", monospace',
-                fontSize: 11, letterSpacing: '0.18em',
-                color: 'rgba(212,209,202,0.3)', textTransform: 'uppercase',
-              }}>{pro}</span>
-            ))}
-          </div>
-        </section>
-
-        {/* ══════════════════════════════════════════
-            STATS
-        ══════════════════════════════════════════ */}
-        <div className="sl-stats" style={{ maxWidth: 900, margin: '0 auto 0' }}>
-          {[
-            { n: '$2B+', l: 'Live royalties annually' },
-            { n: '<30%', l: 'Ever reported'           },
-            { n: '0',    l: 'Real-time datasets exist' },
-          ].map(({ n, l }) => (
-            <div key={n} className="sl-stat-cell">
-              <div style={{
-                fontFamily: '"Bebas Neue", sans-serif',
-                fontSize: 'clamp(44px, 5.5vw, 72px)',
-                color: '#C9A84C', lineHeight: 1,
-                letterSpacing: '0.02em', marginBottom: 8,
-              }}>{n}</div>
-              <div style={{
-                fontFamily: '"DM Mono", monospace',
-                fontSize: 11, letterSpacing: '0.12em',
-                color: 'rgba(212,209,202,0.45)',
-                textTransform: 'uppercase',
-              }}>{l}</div>
-            </div>
-          ))}
-        </div>
-
-        {/* ══════════════════════════════════════════
-            PROBLEM
-        ══════════════════════════════════════════ */}
-        <section style={{
-          padding: '120px 24px',
-          maxWidth: 760, margin: '0 auto',
-          textAlign: 'center',
-        }}>
-          <h2 style={{
-            fontFamily: '"Bebas Neue", sans-serif',
-            fontSize: 'clamp(36px, 5vw, 72px)',
-            lineHeight: 1.05, letterSpacing: '0.025em',
-            color: '#FFFFFF', margin: '0 0 24px',
-          }}>
-            An artist just walked<br />off stage.
-          </h2>
-          <h2 style={{
-            fontFamily: '"Bebas Neue", sans-serif',
-            fontSize: 'clamp(36px, 5vw, 72px)',
-            lineHeight: 1.05, letterSpacing: '0.025em',
-            color: '#C9A84C', margin: '0 0 56px',
-          }}>
-            They left money behind.
-          </h2>
-          <p style={{
-            fontSize: 'clamp(16px, 2vw, 20px)', fontWeight: 300,
-            color: 'rgba(212,209,202,0.6)', lineHeight: 1.8, margin: 0,
-          }}>
-            Not because they didn&apos;t earn it.<br />
-            Because the system couldn&apos;t see it.
-          </p>
-        </section>
-
-        {/* ══════════════════════════════════════════
-            SYSTEM
-        ══════════════════════════════════════════ */}
-        <section style={{
-          padding: '0 24px 120px',
-          maxWidth: 900, margin: '0 auto',
-          textAlign: 'center',
+          textAlign: 'center', padding: '128px 24px 0',
         }}>
           <div style={{
-            display: 'flex', alignItems: 'center',
-            justifyContent: 'center', gap: 0,
-            marginBottom: 48,
+            display: 'inline-flex', alignItems: 'center', gap: 10,
+            border: '1px solid rgba(201,168,76,.3)', borderRadius: 20,
+            padding: '6px 18px', marginBottom: 34,
+            fontFamily: '"DM Mono", monospace', fontSize: 11, color: '#C9A84C',
+            letterSpacing: '.16em', textTransform: 'uppercase',
           }}>
-            {['Performance', 'Data', 'Payment'].map((word, i) => (
-              <div key={word} style={{ display: 'flex', alignItems: 'center' }}>
-                <span style={{
-                  fontFamily: '"Bebas Neue", sans-serif',
-                  fontSize: 'clamp(28px, 4vw, 52px)',
-                  letterSpacing: '0.04em',
-                  color: i === 1 ? '#C9A84C' : '#FFFFFF',
-                  padding: '0 20px',
-                }}>{word}</span>
-                {i < 2 && (
-                  <span style={{
-                    fontFamily: '"DM Mono", monospace',
-                    fontSize: 20, color: 'rgba(201,168,76,0.4)',
-                  }}>→</span>
-                )}
-              </div>
-            ))}
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#C9A84C' }} />
+            Verified Performance Intelligence
           </div>
-
-          <p style={{
-            fontSize: 'clamp(15px, 1.8vw, 18px)', fontWeight: 300,
-            color: 'rgba(212,209,202,0.5)', lineHeight: 1.8,
-            maxWidth: 520, margin: '0 auto',
-          }}>
-            Every show. Every song. Every royalty.<br />
-            Captured automatically. Routed correctly.<br />
-            For the first time.
-          </p>
+          <h1 className="sl-hero-h1">
+            The Live<br />Performance Record<br />Has Never{' '}
+            <span style={{ color: '#C9A84C' }}>Existed.</span>
+          </h1>
+          <div className="sl-ghost">Until Now.</div>
+          <div className="sl-scroll-hint"><span className="sl-scroll-arrow" />See it live</div>
         </section>
 
-        {/* ══════════════════════════════════════════
-            PRODUCT PROOF — real captures, not renders
-        ══════════════════════════════════════════ */}
-        <section style={{ padding: '0 24px 120px', maxWidth: 1100, margin: '0 auto' }}>
-          <div style={{ textAlign: 'center', marginBottom: 72 }}>
-            <div style={{
-              fontFamily: '"DM Mono", monospace',
-              fontSize: 11, letterSpacing: '.16em',
-              color: 'rgba(201,168,76,0.6)', textTransform: 'uppercase',
-              marginBottom: 16,
-            }}>
-              Inside The Product
-            </div>
-            <h2 style={{
-              fontFamily: '"Bebas Neue", sans-serif',
-              fontSize: 'clamp(36px, 5vw, 64px)',
-              lineHeight: 1.05, letterSpacing: '0.025em',
-              color: '#FFFFFF', margin: 0,
-            }}>
-              This isn&apos;t a mockup.<br />
-              <span style={{ color: '#C9A84C' }}>It&apos;s running right now.</span>
-            </h2>
-          </div>
+        {/* ══ HERO 2 + PROBLEM + PRODUCT TOUR (client: animation + scroll reveal) ══ */}
+        <ProductTour />
 
-          {/* Featured: live capture */}
-          <div className="sl-feature-row">
-            <div>
-              <div style={{
-                fontFamily: '"DM Mono", monospace',
-                fontSize: 11, letterSpacing: '.14em',
-                color: 'rgba(201,168,76,0.6)', textTransform: 'uppercase',
-                marginBottom: 14,
-              }}>
-                Live Capture
-              </div>
-              <h3 style={{
-                fontFamily: '"Bebas Neue", sans-serif',
-                fontSize: 'clamp(32px, 4vw, 48px)',
-                lineHeight: 1.05, letterSpacing: '0.02em',
-                color: '#FFFFFF', margin: '0 0 20px',
-              }}>
-                It listens through<br />the whole set.
-              </h3>
-              <p style={{
-                fontSize: 16, fontWeight: 300, lineHeight: 1.8,
-                color: 'rgba(212,209,202,0.55)', margin: 0, maxWidth: 420,
-              }}>
-                On-device recognition confirms every song as it&apos;s played —
-                no manual entry, no reconstructing the set from memory after the show.
-                Session health and confirmation status, visible in real time.
-              </p>
-            </div>
-            <div className="sl-proof-frame">
-              <Image
-                src="/screenshots/capture-live.webp"
-                alt="Setlistr live capture screen showing real-time song recognition and verification during a performance at The Saltbox"
-                width={760}
-                height={1647}
-                style={{ width: '100%', height: 'auto', display: 'block' }}
-              />
-            </div>
-          </div>
-
-          {/* Grid: remaining five */}
-          <div className="sl-proof-grid">
-            {PROOF_ITEMS.map((item) => (
-              <div key={item.src} style={{ textAlign: 'center' }}>
-                <div className="sl-proof-frame" style={{ marginBottom: 24 }}>
-                  <Image
-                    src={item.src}
-                    alt={item.alt}
-                    width={760}
-                    height={1647}
-                    style={{ width: '100%', height: 'auto', display: 'block' }}
-                  />
-                </div>
-                <h3 style={{
-                  fontFamily: '"Bebas Neue", sans-serif',
-                  fontSize: 21, letterSpacing: '0.03em',
-                  color: '#FFFFFF', margin: '0 0 10px',
-                }}>
-                  {item.title}
-                </h3>
-                <p style={{
-                  fontSize: 14, fontWeight: 300, lineHeight: 1.7,
-                  color: 'rgba(212,209,202,0.5)', margin: '0 auto', maxWidth: 280,
-                }}>
-                  {item.copy}
-                </p>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* ══════════════════════════════════════════
-            SEO paragraph
-        ══════════════════════════════════════════ */}
+        {/* ══ SEO paragraph ══ */}
         <section style={{ padding: '0 24px 80px', maxWidth: 680, margin: '0 auto' }}>
           <p style={{ fontSize: 13, fontWeight: 300, color: 'rgba(212,209,202,0.2)', lineHeight: 1.9, margin: 0, textAlign: 'center' }}>
             Working songwriters registered with SOCAN, ASCAP, BMI, PRS for Music,
@@ -528,68 +149,34 @@ export default function HomePage() {
           </p>
         </section>
 
-        {/* ══════════════════════════════════════════
-            ACCESS
-        ══════════════════════════════════════════ */}
-        <section id="access" style={{
-          padding: '100px 24px 140px',
-          textAlign: 'center', position: 'relative',
-        }}>
+        {/* ══ ACCESS ══ */}
+        <section id="access" style={{ padding: '90px 24px 140px', textAlign: 'center', position: 'relative' }}>
           <div style={{
-            position: 'absolute', top: 0, left: '50%',
-            transform: 'translateX(-50%)',
-            width: 1, height: 100,
-            background: 'linear-gradient(to bottom, transparent, rgba(201,168,76,0.5))',
+            position: 'absolute', top: 0, left: '50%', transform: 'translateX(-50%)',
+            width: 1, height: 100, background: 'linear-gradient(to bottom, transparent, rgba(201,168,76,0.5))',
           }} />
-
-          <h2 style={{
-            fontFamily: '"Bebas Neue", sans-serif',
-            fontSize: 'clamp(52px, 8vw, 104px)',
-            lineHeight: 0.9, letterSpacing: '0.025em',
-            color: '#FFFFFF', margin: '0 0 8px',
-          }}>
+          <h2 style={{ fontFamily: '"Bebas Neue", sans-serif', fontSize: 'clamp(48px,8vw,96px)', lineHeight: 0.9, letterSpacing: '0.02em', color: '#FFFFFF', margin: '0 0 8px' }}>
             Early Access.
           </h2>
-          <h2 style={{
-            fontFamily: '"Bebas Neue", sans-serif',
-            fontSize: 'clamp(52px, 8vw, 104px)',
-            lineHeight: 0.9, letterSpacing: '0.025em',
-            color: '#C9A84C', margin: '0 0 28px',
-          }}>
+          <h2 style={{ fontFamily: '"Bebas Neue", sans-serif', fontSize: 'clamp(48px,8vw,96px)', lineHeight: 0.9, letterSpacing: '0.02em', color: '#C9A84C', margin: '0 0 28px' }}>
             By Application Only.
           </h2>
-
-          <p style={{
-            fontSize: 16, fontWeight: 300,
-            color: 'rgba(212,209,202,0.45)',
-            maxWidth: 340, margin: '0 auto 52px', lineHeight: 1.7,
-          }}>
+          <p style={{ fontSize: 16, fontWeight: 300, color: 'rgba(212,209,202,0.45)', maxWidth: 340, margin: '0 auto 52px', lineHeight: 1.7 }}>
             We review applications personally.
           </p>
-
           <WaitlistForm />
-
-          <p style={{
-            fontFamily: '"DM Mono", monospace',
-            fontSize: 10, letterSpacing: '0.12em',
-            color: '#3a3028', marginTop: 36,
-          }}>
+          <p style={{ fontFamily: '"DM Mono", monospace', fontSize: 10, letterSpacing: '0.12em', color: '#3a3028', marginTop: 36 }}>
             Investor inquiries —{' '}
-            <a href="mailto:info@setlistr.ai" style={{ color: 'rgba(201,168,76,0.4)', textDecoration: 'none' }}>
-              info@setlistr.ai
-            </a>
+            <a href="mailto:info@setlistr.ai" style={{ color: 'rgba(201,168,76,0.4)', textDecoration: 'none' }}>info@setlistr.ai</a>
           </p>
         </section>
 
         {/* ── FOOTER ── */}
         <footer style={{
-          borderTop: '1px solid rgba(255,255,255,0.05)',
-          padding: '32px 48px',
-          display: 'flex', alignItems: 'center',
-          justifyContent: 'space-between', flexWrap: 'wrap', gap: 20,
+          borderTop: '1px solid rgba(255,255,255,0.05)', padding: '32px 40px',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 20,
         }}>
-          <Image src="/logo-white.png" alt="Setlistr" width={80} height={22}
-            style={{ objectFit: 'contain', opacity: 0.3 }} />
+          <Image src="/logo-white-tight.png" alt="Setlistr" width={132} height={25} style={{ height: 25, width: 'auto', objectFit: 'contain', opacity: 0.3 }} />
           <nav style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
             {[
               { label: 'For Artists',  href: '/get-paid' },
@@ -599,17 +186,13 @@ export default function HomePage() {
               { label: 'Terms',        href: '/terms' },
             ].map(({ label, href }) =>
               href.startsWith('mailto') ? (
-                <a key={label} href={href} className="sl-footer-link">{label}</a>
+                <a key={label} href={href} className="sl-nav-link">{label}</a>
               ) : (
-                <Link key={label} href={href} className="sl-footer-link">{label}</Link>
+                <Link key={label} href={href} className="sl-nav-link">{label}</Link>
               )
             )}
           </nav>
-          <p style={{
-            fontFamily: '"DM Mono", monospace',
-            fontSize: 10, letterSpacing: '0.1em',
-            color: '#2a2520', margin: 0,
-          }}>
+          <p style={{ fontFamily: '"DM Mono", monospace', fontSize: 10, letterSpacing: '0.1em', color: '#2a2520', margin: 0 }}>
             © {new Date().getFullYear()} Setlistr Inc.
           </p>
         </footer>
