@@ -105,7 +105,7 @@ export default function HomePage() {
         borderBottom: '1px solid rgba(255,255,255,0.05)',
       }}>
         <Link href="/" style={{ textDecoration: 'none', display: 'flex' }}>
-          <Image className="sl-logo" src="/logo-white-tight.png" alt="Setlistr" width={169} height={32} priority style={{ height: 32, width: 'auto', objectFit: 'contain' }} />
+          <Image className="sl-logo" src="/logo-white-tight.png" alt="Setlistr" width={190} height={36} priority style={{ height: 36, width: 'auto', objectFit: 'contain' }} />
         </Link>
         <nav style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
           <Link href="/get-paid" className="sl-nav-link" style={{ marginRight: 8 }}>For Artists</Link>

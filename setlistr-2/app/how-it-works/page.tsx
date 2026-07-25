@@ -140,7 +140,7 @@ export default function HowItWorksPage() {
         borderBottom: '1px solid rgba(255,255,255,0.05)',
       }}>
         <Link href="/" style={{ textDecoration: 'none' }}>
-          <Image src="/logo-white.png" alt="Setlistr" width={120} height={32} priority style={{ objectFit: 'contain', opacity: 0.9 }} />
+          <Image src="/logo-white-tight.png" alt="Setlistr" width={190} height={36} priority style={{ height: 36, width: 'auto', objectFit: 'contain' }} />
         </Link>
         <Link href="/#access" style={{
           fontFamily: '"DM Mono", monospace',
@@ -166,7 +166,7 @@ export default function HowItWorksPage() {
         }}>
           Performance to payment.<br /><span style={{ color: '#C9A84C' }}>Six steps.</span>
         </h1>
-        <p style={{ fontSize: 17, fontWeight: 300, color: 'rgba(212,209,202,0.55)', lineHeight: 1.8, maxWidth: 560, margin: '0 auto' }}>
+        <p style={{ fontSize: 17, fontWeight: 300, color: 'rgba(212,209,202,0.8)', lineHeight: 1.8, maxWidth: 560, margin: '0 auto' }}>
           Every screen below is the live product — not a mockup. This is what happens
           between walking on stage and a royalty claim landing at your PRO.
         </p>
@@ -178,7 +178,7 @@ export default function HowItWorksPage() {
             <div className="hiw-copy">
               <div style={{
                 fontFamily: '"Bebas Neue", sans-serif',
-                fontSize: 20, color: 'rgba(201,168,76,0.4)', marginBottom: 12,
+                fontSize: 20, color: 'rgba(201,168,76,0.7)', marginBottom: 12,
               }}>{step.n}</div>
               <h2 style={{
                 fontFamily: '"Bebas Neue", sans-serif',
@@ -188,7 +188,7 @@ export default function HowItWorksPage() {
               }}>{step.title}</h2>
               <p style={{
                 fontSize: 15.5, fontWeight: 300, lineHeight: 1.8,
-                color: 'rgba(212,209,202,0.55)', margin: 0, maxWidth: 420,
+                color: 'rgba(212,209,202,0.8)', margin: 0, maxWidth: 420,
               }}>{step.copy}</p>
             </div>
             <div className="hiw-frame">
@@ -217,7 +217,7 @@ export default function HowItWorksPage() {
                 fontFamily: '"DM Sans", sans-serif', fontWeight: 600,
                 fontSize: 18, color: '#FFFFFF', margin: '0 0 10px',
               }}>{q}</h3>
-              <p style={{ fontSize: 15, fontWeight: 300, lineHeight: 1.75, color: 'rgba(212,209,202,0.55)', margin: 0 }}>{a}</p>
+              <p style={{ fontSize: 15, fontWeight: 300, lineHeight: 1.75, color: 'rgba(212,209,202,0.8)', margin: 0 }}>{a}</p>
             </div>
           ))}
         </div>

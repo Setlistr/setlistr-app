@@ -55,7 +55,7 @@ export default function GetPaidPage() {
       <header style={{ position: 'sticky', top: 0, zIndex: 50, background: 'rgba(10,9,8,0.92)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', borderBottom: `1px solid ${C.border}` }}>
         <div style={{ maxWidth: 800, margin: '0 auto', padding: '0 20px', height: 56, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <Link href="/" style={{ textDecoration: 'none' }}>
-            <Image src="/logo-white.png" alt="Setlistr" width={130} height={34} priority style={{ objectFit: 'contain' }} />
+            <Image src="/logo-white-tight.png" alt="Setlistr" width={190} height={36} priority style={{ height: 36, width: 'auto', objectFit: 'contain' }} />
           </Link>
           <Link href="/app/show/new" style={{ textDecoration: 'none', fontSize: 13, fontWeight: 700, color: '#0a0908', background: C.gold, borderRadius: 8, padding: '8px 16px' }}>
             Start Free →
@@ -69,7 +69,7 @@ export default function GetPaidPage() {
         <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', paddingTop: 72, paddingBottom: 56, overflow: 'hidden' }}>
           {/* Watermark */}
           <div style={{ position: 'absolute', top: 40, left: '50%', transform: 'translateX(-50%)', opacity: 0.035, pointerEvents: 'none', whiteSpace: 'nowrap' }}>
-            <Image src="/logo-white.png" alt="" width={400} height={105} style={{ objectFit: 'contain' }} />
+            <Image src="/logo-white-tight.png" alt="" width={400} height={76} style={{ objectFit: 'contain' }} />
           </div>
 
           {/* ── FIX: headline space bug — using a space between words ── */}
@@ -131,7 +131,7 @@ export default function GetPaidPage() {
 
         {/* ── Bottom CTA ── */}
         <div style={{ marginTop: 36, padding: '28px 24px', background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 16, textAlign: 'center' }}>
-          <Image src="/logo-white.png" alt="Setlistr" width={110} height={29} style={{ objectFit: 'contain', marginBottom: 14, opacity: 0.8 }} />
+          <Image src="/logo-white-tight.png" alt="Setlistr" width={110} height={21} style={{ objectFit: 'contain', marginBottom: 14, opacity: 0.85 }} />
           <p style={{ fontSize: 17, fontWeight: 800, color: C.text, margin: '0 0 8px', letterSpacing: '-0.02em' }}>Ready to stop leaving money on stage?</p>
           <p style={{ fontSize: 13, color: C.secondary, margin: '0 0 20px', lineHeight: 1.5 }}>Setlistr automatically captures your setlist during the show. Free to start.</p>
           <button onClick={() => router.push('/app/show/new')}
@@ -146,7 +146,7 @@ export default function GetPaidPage() {
 
         <div style={{ marginBottom: 20 }}>
           <Link href="/" style={{ textDecoration: 'none' }}>
-            <Image src="/logo-white.png" alt="Setlistr" width={100} height={26} style={{ objectFit: 'contain', opacity: 0.6 }} />
+            <Image src="/logo-white-tight.png" alt="Setlistr" width={100} height={19} style={{ objectFit: 'contain', opacity: 0.75 }} />
           </Link>
         </div>
 

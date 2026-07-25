@@ -28,7 +28,7 @@ function Nav() {
     <header style={{ position: 'sticky', top: 0, zIndex: 50, background: 'rgba(10,9,8,0.92)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', borderBottom: `1px solid ${C.border}` }}>
       <div style={{ maxWidth: 800, margin: '0 auto', padding: '0 20px', height: 56, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <Link href="/" style={{ textDecoration: 'none' }}>
-          <Image src="/logo-white.png" alt="Setlistr" width={130} height={34} priority style={{ objectFit: 'contain' }} />
+          <Image src="/logo-white-tight.png" alt="Setlistr" width={190} height={36} priority style={{ height: 36, width: 'auto', objectFit: 'contain' }} />
         </Link>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <Link href="/get-paid" style={{ textDecoration: 'none', fontSize: 13, fontWeight: 600, color: C.muted, padding: '6px 10px' }}>Get Paid</Link>
@@ -44,7 +44,7 @@ function Footer() {
     <footer style={{ borderTop: `1px solid ${C.border}`, padding: '40px 24px', maxWidth: 760, margin: '0 auto' }}>
       <div style={{ marginBottom: 20 }}>
         <Link href="/" style={{ textDecoration: 'none' }}>
-          <Image src="/logo-white.png" alt="Setlistr" width={110} height={29} style={{ objectFit: 'contain', opacity: 0.6 }} />
+          <Image src="/logo-white-tight.png" alt="Setlistr" width={110} height={21} style={{ objectFit: 'contain', opacity: 0.75 }} />
         </Link>
       </div>
       <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: 6, marginBottom: 20 }}>
@@ -81,7 +81,7 @@ export default function UnclaimedRoyalties() {
         {/* Hero */}
         <div style={{ position: 'relative', marginBottom: 48, overflow: 'hidden' }}>
           <div style={{ position: 'absolute', right: -20, top: '50%', transform: 'translateY(-50%)', opacity: 0.03, pointerEvents: 'none' }}>
-            <Image src="/logo-white.png" alt="" width={260} height={68} style={{ objectFit: 'contain' }} />
+            <Image src="/logo-white-tight.png" alt="" width={260} height={49} style={{ objectFit: 'contain' }} />
           </div>
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: C.redDim, border: '1px solid rgba(248,113,113,0.2)', borderRadius: 20, padding: '4px 12px', marginBottom: 20 }}>
             <span style={{ fontSize: 11, fontWeight: 700, color: C.red, letterSpacing: '0.1em', textTransform: 'uppercase' as const }}>Are You Missing Out?</span>
@@ -161,7 +161,7 @@ export default function UnclaimedRoyalties() {
         </div>
 
         <div style={{ background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 16, padding: '32px', textAlign: 'center' }}>
-          <Image src="/logo-white.png" alt="Setlistr" width={120} height={32} style={{ objectFit: 'contain', marginBottom: 16, opacity: 0.8 }} />
+          <Image src="/logo-white-tight.png" alt="Setlistr" width={120} height={23} style={{ objectFit: 'contain', marginBottom: 16, opacity: 0.85 }} />
           <h2 style={{ fontSize: 22, fontWeight: 800, color: C.text, margin: '0 0 10px', letterSpacing: '-0.02em' }}>Never miss a setlist again</h2>
           <p style={{ fontSize: 14, color: C.secondary, margin: '0 0 24px', lineHeight: 1.6 }}>Setlistr listens during your show and builds the setlist automatically. Free to start.</p>
           <Link href="/app/show/new" style={{ textDecoration: 'none', display: 'inline-block', background: C.gold, color: '#0a0908', fontWeight: 800, fontSize: 13, letterSpacing: '0.06em', textTransform: 'uppercase' as const, borderRadius: 10, padding: '13px 28px' }}>

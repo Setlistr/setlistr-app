@@ -27,7 +27,7 @@ function Nav() {
     <header style={{ position: 'sticky', top: 0, zIndex: 50, background: 'rgba(10,9,8,0.92)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', borderBottom: `1px solid ${C.border}` }}>
       <div style={{ maxWidth: 800, margin: '0 auto', padding: '0 20px', height: 56, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <Link href="/" style={{ textDecoration: 'none' }}>
-          <Image src="/logo-white.png" alt="Setlistr" width={130} height={34} priority style={{ objectFit: 'contain' }} />
+          <Image src="/logo-white-tight.png" alt="Setlistr" width={190} height={36} priority style={{ height: 36, width: 'auto', objectFit: 'contain' }} />
         </Link>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <Link href="/get-paid" style={{ textDecoration: 'none', fontSize: 13, fontWeight: 600, color: C.muted, padding: '6px 10px' }}>Get Paid</Link>
@@ -43,7 +43,7 @@ function Footer() {
     <footer style={{ borderTop: `1px solid ${C.border}`, padding: '40px 24px', maxWidth: 760, margin: '0 auto' }}>
       <div style={{ marginBottom: 20 }}>
         <Link href="/" style={{ textDecoration: 'none' }}>
-          <Image src="/logo-white.png" alt="Setlistr" width={110} height={29} style={{ objectFit: 'contain', opacity: 0.6 }} />
+          <Image src="/logo-white-tight.png" alt="Setlistr" width={110} height={21} style={{ objectFit: 'contain', opacity: 0.75 }} />
         </Link>
       </div>
       <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: 6, marginBottom: 20 }}>
@@ -58,7 +58,7 @@ function Footer() {
       </div>
       <p style={{ fontSize: 11, color: C.muted, margin: 0, lineHeight: 1.6 }}>
         © {new Date().getFullYear()} Setlistr · Live performance tracking and royalty submission.<br />
-        <span style={{ opacity: 0.6 }}>Works with SOCAN, ASCAP, BMI, PRS, APRA and all major PROs.</span>
+        <span style={{ opacity: 0.75 }}>Works with SOCAN, ASCAP, BMI, PRS, APRA and all major PROs.</span>
       </p>
     </footer>
   )
@@ -91,7 +91,7 @@ export default function GetPaidForLiveShows() {
         <div style={{ position: 'relative', marginBottom: 56, overflow: 'hidden' }}>
           {/* Watermark */}
           <div style={{ position: 'absolute', right: -40, top: '50%', transform: 'translateY(-50%)', opacity: 0.035, pointerEvents: 'none' }}>
-            <Image src="/logo-white.png" alt="" width={280} height={74} style={{ objectFit: 'contain' }} />
+            <Image src="/logo-white-tight.png" alt="" width={280} height={53} style={{ objectFit: 'contain' }} />
           </div>
 
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 20, padding: '4px 12px', marginBottom: 20 }}>
@@ -178,7 +178,7 @@ export default function GetPaidForLiveShows() {
         </Callout>
 
         <div style={{ background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 16, padding: '32px', textAlign: 'center', marginTop: 48 }}>
-          <Image src="/logo-white.png" alt="Setlistr" width={120} height={32} style={{ objectFit: 'contain', marginBottom: 16, opacity: 0.8 }} />
+          <Image src="/logo-white-tight.png" alt="Setlistr" width={120} height={23} style={{ objectFit: 'contain', marginBottom: 16, opacity: 0.85 }} />
           <h2 style={{ fontSize: 24, fontWeight: 800, color: C.text, margin: '0 0 10px', letterSpacing: '-0.02em' }}>Stop leaving royalties on stage</h2>
           <p style={{ fontSize: 14, color: C.secondary, margin: '0 0 24px', lineHeight: 1.6 }}>Setlistr automatically captures your setlist during the show. Free to start.</p>
           <Link href="/app/show/new" style={{ textDecoration: 'none', display: 'inline-block', background: C.gold, color: '#0a0908', fontWeight: 800, fontSize: 14, letterSpacing: '0.06em', textTransform: 'uppercase' as const, borderRadius: 10, padding: '14px 28px' }}>
