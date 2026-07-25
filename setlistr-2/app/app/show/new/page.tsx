@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { buzzLong } from '@/lib/haptics'
 import { Calendar, ArrowRight, RefreshCw, Check, MapPin, Search, X, Plus, ChevronDown, ChevronUp } from 'lucide-react'
 
 const CARD = {
@@ -379,6 +380,7 @@ export default function NewShowPage() {
 
   async function handleSubmit() {
     if (!isValid || loading) return
+    buzzLong()
     setLoading(true); setError('')
     try {
       const supabase = createClient()

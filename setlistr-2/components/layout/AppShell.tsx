@@ -5,6 +5,7 @@ import { LayoutDashboard, Send, TrendingUp } from 'lucide-react'
 import Image from 'next/image'
 import type { Profile } from '@/types'
 import { createClient } from '@/lib/supabase/client'
+import { tapNav, tapRecord } from '@/lib/haptics'
 import { useState, useEffect } from 'react'
 
 const FULLSCREEN_ROUTES = ['/app/live/']
@@ -88,7 +89,7 @@ export function AppShell({ children, profile }: { children: React.ReactNode; pro
             const isActive = pathname === tab.href || (tab.href !== '/app/dashboard' && pathname.startsWith(tab.href))
             const Icon = tab.icon
             return (
-              <Link key={tab.href} href={tab.href} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '8px 4px 10px', textDecoration: 'none', position: 'relative', WebkitTapHighlightColor: 'transparent', minHeight: 56 }}>
+              <Link key={tab.href} href={tab.href} onClick={tapNav} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '8px 4px 10px', textDecoration: 'none', position: 'relative', WebkitTapHighlightColor: 'transparent', minHeight: 56 }}>
                 {tab.badge > 0 && (
                   <div style={{ position: 'absolute', top: 6, right: '50%', transform: 'translateX(14px)', width: 7, height: 7, borderRadius: '50%', background: '#c9a84c', border: '1.5px solid #0a0908' }} />
                 )}
@@ -111,7 +112,7 @@ export function AppShell({ children, profile }: { children: React.ReactNode; pro
             const isActive = pathname === tab.href || pathname.startsWith(tab.href)
             const isProfile = tab.href === '/app/settings'
             return (
-              <Link key={tab.href} href={tab.href} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '8px 4px 10px', textDecoration: 'none', position: 'relative', WebkitTapHighlightColor: 'transparent', minHeight: 56 }}>
+              <Link key={tab.href} href={tab.href} onClick={tapNav} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '8px 4px 10px', textDecoration: 'none', position: 'relative', WebkitTapHighlightColor: 'transparent', minHeight: 56 }}>
                 {isProfile ? (
                   <div style={{ width: 22, height: 22, borderRadius: '50%', background: isActive ? 'rgba(201,168,76,0.2)' : 'rgba(255,255,255,0.08)', border: `1.5px solid ${isActive ? 'rgba(201,168,76,0.5)' : 'rgba(255,255,255,0.12)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
                     {profile.avatar_url
@@ -136,6 +137,7 @@ export function AppShell({ children, profile }: { children: React.ReactNode; pro
           <Link
             href="/app/show/new"
             className="nav-ctr"
+            onClick={tapRecord}
             style={{
               position: 'absolute',
               left: '50%',
