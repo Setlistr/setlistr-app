@@ -1,4 +1,6 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600;700&display=swap');
+/* Fonts are loaded once, in app/layout.tsx <head>, via a real <link rel="stylesheet">
+   discovered during HTML parsing — not an @import here or in page-level <style> blocks.
+   If a new weight/family is ever needed, add it to the Google Fonts URL in layout.tsx only. */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -21,15 +23,12 @@ body {
 
 .font-display { font-family: var(--font-display); }
 
-/* Scrollbar */
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: #c9a84c; border-radius: 2px; }
 
-/* Safe area for mobile */
 .pb-safe { padding-bottom: env(safe-area-inset-bottom, 16px); }
 
-/* Text hierarchy */
 .text-primary   { color: #f0ece3; }
 .text-secondary { color: #a09880; }
 .text-muted     { color: #5a5448; }

@@ -46,10 +46,50 @@ export const viewport: Viewport = {
   themeColor: '#1a1814',
 }
 
+const organizationSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'Organization',
+  name: 'Setlistr',
+  legalName: 'Setlistr, Inc.',
+  url: 'https://setlistr.ai',
+  logo: 'https://setlistr.ai/logo-white.png',
+  description:
+    'Setlistr is live performance data infrastructure that automatically captures verified setlists from live shows and routes them through royalty submission to SOCAN, ASCAP, BMI, PRS, APRA, SESAC, and GMR.',
+}
+
+const softwareAppSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'SoftwareApplication',
+  name: 'Setlistr',
+  applicationCategory: 'MusicApplication',
+  operatingSystem: 'iOS, Web',
+  url: 'https://setlistr.ai',
+  description:
+    'Setlistr automatically captures and verifies live performance setlists via audio recognition, then submits royalty claims to performing rights organizations on behalf of touring artists.',
+  offers: {
+    '@type': 'Offer',
+    category: 'Early access — application required',
+  },
+}
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600;700&family=DM+Serif+Display:ital@0;1&display=swap"
+          rel="stylesheet"
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareAppSchema) }}
+        />
         <script dangerouslySetInnerHTML={{ __html: `!function(key) {if (window.reb2b) return;window.reb2b = {loaded: true};var s = document.createElement("script");s.async = true;s.src = "https://ddwl4m2hdecbv.cloudfront.net/b/" + key + "/" + key + ".js.gz";document.getElementsByTagName("script")[0].parentNode.insertBefore(s, document.getElementsByTagName("script")[0]);}("1N5W0H7VG8O5");` }} />
       </head>
       <body>

@@ -33,6 +33,39 @@ export const metadata: Metadata = {
   ],
 }
 
+const PROOF_ITEMS = [
+  {
+    src: '/screenshots/setlist-ready.webp',
+    alt: 'Setlistr planned setlist screen showing twelve songs ready before a show at The Saltbox',
+    title: 'Starts with your plan.',
+    copy: 'Load tonight’s set before you play. Setlistr listens for those songs first, then catches everything else too.',
+  },
+  {
+    src: '/screenshots/show-complete.webp',
+    alt: 'Setlistr show complete screen showing a verified eight-song setlist captured live in Nashville',
+    title: 'Every show, closed out clean.',
+    copy: 'A verified record the moment you walk off stage — timestamped, sourced, and ready for submission.',
+  },
+  {
+    src: '/screenshots/claim-pipeline.webp',
+    alt: 'Setlistr submissions screen showing verified shows marked ready to claim',
+    title: 'Submission-ready, not just logged.',
+    copy: 'Verified performances move straight into the claim pipeline — this is what publishers and PROs actually need to see.',
+  },
+  {
+    src: '/screenshots/career-map.webp',
+    alt: 'Setlistr career map showing verified shows across cities including Austin, Toronto, and Nashville',
+    title: 'A career, mapped.',
+    copy: 'Every city, every venue, every verified show — the touring record that never existed until now.',
+  },
+  {
+    src: '/screenshots/share-card.webp',
+    alt: 'Setlistr verified show share card showing one hundred twenty four verified shows',
+    title: 'Built to compound.',
+    copy: 'Every verified show adds to a record that’s yours — and worth sharing.',
+  },
+]
+
 export default function HomePage() {
   return (
     <div style={{
@@ -45,8 +78,6 @@ export default function HomePage() {
     }}>
 
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap');
-
         #sl-cursor {
           position: fixed; width: 10px; height: 10px;
           background: #C9A84C; border-radius: 50%;
@@ -127,6 +158,28 @@ export default function HomePage() {
         }
         .sl-stat-cell:last-child { border-right: none; }
 
+        /* Product proof */
+        .sl-feature-row {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 64px;
+          align-items: center;
+          margin-bottom: 96px;
+        }
+        .sl-proof-frame {
+          position: relative;
+          border-radius: 28px;
+          overflow: hidden;
+          border: 1px solid rgba(201,168,76,0.18);
+          box-shadow: 0 40px 80px -30px rgba(0,0,0,0.6);
+          background: #0a0908;
+        }
+        .sl-proof-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+          gap: 48px;
+        }
+
         /* Footer */
         .sl-footer-link {
           font-family: "DM Mono", monospace;
@@ -148,6 +201,7 @@ export default function HomePage() {
           .sl-stat-cell { border-right: none; border-bottom: 1px solid rgba(255,255,255,0.06); }
           .sl-stat-cell:last-child { border-bottom: none; }
           .sl-hide-mobile { display: none !important; }
+          .sl-feature-row { grid-template-columns: 1fr; text-align: center; gap: 32px; }
           #sl-cursor, #sl-cursor-ring { display: none !important; }
         }
 
@@ -176,6 +230,7 @@ export default function HomePage() {
         </Link>
         <nav style={{ display: 'flex', alignItems: 'center', gap: 36 }}>
           <Link href="/get-paid" className="sl-nav-link sl-hide-mobile">For Artists</Link>
+          <Link href="/how-it-works" className="sl-nav-link sl-hide-mobile">How It Works</Link>
           <a href="mailto:info@setlistr.ai" className="sl-nav-link sl-hide-mobile">For Publishers</a>
           <a href="#access" className="sl-nav-apply">Apply</a>
         </nav>
@@ -193,7 +248,6 @@ export default function HomePage() {
           textAlign: 'center', padding: '100px 24px 80px',
         }}>
 
-          {/* Eyebrow */}
           <div className="sl-fade" style={{ animationDelay: '0.1s',
             display: 'inline-flex', alignItems: 'center', gap: 10,
             border: '1px solid rgba(201,168,76,.35)', borderRadius: 20,
@@ -206,7 +260,6 @@ export default function HomePage() {
             Verified Performance Intelligence
           </div>
 
-          {/* Headline */}
           <h1 className="sl-fade" style={{ animationDelay: '0.3s',
             fontFamily: '"Bebas Neue", sans-serif',
             fontSize: 'clamp(64px, 11vw, 152px)',
@@ -219,7 +272,6 @@ export default function HomePage() {
             <span style={{ color: '#C9A84C' }}>Existed.</span>
           </h1>
 
-          {/* Ghost line */}
           <div className="sl-fade" style={{ animationDelay: '0.75s',
             fontFamily: '"Bebas Neue", sans-serif',
             fontSize: 'clamp(40px, 7vw, 96px)',
@@ -230,7 +282,6 @@ export default function HomePage() {
             Until Now.
           </div>
 
-          {/* CTAs */}
           <div className="sl-fade" style={{ animationDelay: '1s',
             display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center',
             marginBottom: 64,
@@ -255,7 +306,6 @@ export default function HomePage() {
             </a>
           </div>
 
-          {/* PRO names */}
           <div className="sl-fade" style={{ animationDelay: '1.2s',
             display: 'flex', gap: 28, flexWrap: 'wrap', justifyContent: 'center',
           }}>
@@ -270,7 +320,7 @@ export default function HomePage() {
         </section>
 
         {/* ══════════════════════════════════════════
-            STATS — compressed, no explanation
+            STATS
         ══════════════════════════════════════════ */}
         <div className="sl-stats" style={{ maxWidth: 900, margin: '0 auto 0' }}>
           {[
@@ -296,7 +346,7 @@ export default function HomePage() {
         </div>
 
         {/* ══════════════════════════════════════════
-            PROBLEM — emotional, short
+            PROBLEM
         ══════════════════════════════════════════ */}
         <section style={{
           padding: '120px 24px',
@@ -329,14 +379,13 @@ export default function HomePage() {
         </section>
 
         {/* ══════════════════════════════════════════
-            SYSTEM — one line
+            SYSTEM
         ══════════════════════════════════════════ */}
         <section style={{
           padding: '0 24px 120px',
           maxWidth: 900, margin: '0 auto',
           textAlign: 'center',
         }}>
-          {/* Flow line */}
           <div style={{
             display: 'flex', alignItems: 'center',
             justifyContent: 'center', gap: 0,
@@ -373,7 +422,101 @@ export default function HomePage() {
         </section>
 
         {/* ══════════════════════════════════════════
-            SEO — minimal, indexed, not displayed prominently
+            PRODUCT PROOF — real captures, not renders
+        ══════════════════════════════════════════ */}
+        <section style={{ padding: '0 24px 120px', maxWidth: 1100, margin: '0 auto' }}>
+          <div style={{ textAlign: 'center', marginBottom: 72 }}>
+            <div style={{
+              fontFamily: '"DM Mono", monospace',
+              fontSize: 11, letterSpacing: '.16em',
+              color: 'rgba(201,168,76,0.6)', textTransform: 'uppercase',
+              marginBottom: 16,
+            }}>
+              Inside The Product
+            </div>
+            <h2 style={{
+              fontFamily: '"Bebas Neue", sans-serif',
+              fontSize: 'clamp(36px, 5vw, 64px)',
+              lineHeight: 1.05, letterSpacing: '0.025em',
+              color: '#FFFFFF', margin: 0,
+            }}>
+              This isn&apos;t a mockup.<br />
+              <span style={{ color: '#C9A84C' }}>It&apos;s running right now.</span>
+            </h2>
+          </div>
+
+          {/* Featured: live capture */}
+          <div className="sl-feature-row">
+            <div>
+              <div style={{
+                fontFamily: '"DM Mono", monospace',
+                fontSize: 11, letterSpacing: '.14em',
+                color: 'rgba(201,168,76,0.6)', textTransform: 'uppercase',
+                marginBottom: 14,
+              }}>
+                Live Capture
+              </div>
+              <h3 style={{
+                fontFamily: '"Bebas Neue", sans-serif',
+                fontSize: 'clamp(32px, 4vw, 48px)',
+                lineHeight: 1.05, letterSpacing: '0.02em',
+                color: '#FFFFFF', margin: '0 0 20px',
+              }}>
+                It listens through<br />the whole set.
+              </h3>
+              <p style={{
+                fontSize: 16, fontWeight: 300, lineHeight: 1.8,
+                color: 'rgba(212,209,202,0.55)', margin: 0, maxWidth: 420,
+              }}>
+                On-device recognition confirms every song as it&apos;s played —
+                no manual entry, no reconstructing the set from memory after the show.
+                Session health and confirmation status, visible in real time.
+              </p>
+            </div>
+            <div className="sl-proof-frame">
+              <Image
+                src="/screenshots/capture-live.webp"
+                alt="Setlistr live capture screen showing real-time song recognition and verification during a performance at The Saltbox"
+                width={760}
+                height={1647}
+                style={{ width: '100%', height: 'auto', display: 'block' }}
+              />
+            </div>
+          </div>
+
+          {/* Grid: remaining five */}
+          <div className="sl-proof-grid">
+            {PROOF_ITEMS.map((item) => (
+              <div key={item.src} style={{ textAlign: 'center' }}>
+                <div className="sl-proof-frame" style={{ marginBottom: 24 }}>
+                  <Image
+                    src={item.src}
+                    alt={item.alt}
+                    width={760}
+                    height={1647}
+                    style={{ width: '100%', height: 'auto', display: 'block' }}
+                  />
+                </div>
+                <h3 style={{
+                  fontFamily: '"Bebas Neue", sans-serif',
+                  fontSize: 21, letterSpacing: '0.03em',
+                  color: '#FFFFFF', margin: '0 0 10px',
+                }}>
+                  {item.title}
+                </h3>
+                <p style={{
+                  fontSize: 14, fontWeight: 300, lineHeight: 1.7,
+                  color: 'rgba(212,209,202,0.5)', margin: '0 auto', maxWidth: 280,
+                }}>
+                  {item.copy}
+                </p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* ══════════════════════════════════════════
+            SEO paragraph
         ══════════════════════════════════════════ */}
         <section style={{ padding: '0 24px 80px', maxWidth: 680, margin: '0 auto' }}>
           <p style={{ fontSize: 13, fontWeight: 300, color: 'rgba(212,209,202,0.2)', lineHeight: 1.9, margin: 0, textAlign: 'center' }}>
@@ -450,7 +593,7 @@ export default function HomePage() {
           <nav style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
             {[
               { label: 'For Artists',  href: '/get-paid' },
-              { label: 'How It Works', href: '/start' },
+              { label: 'How It Works', href: '/how-it-works' },
               { label: 'Contact',      href: 'mailto:info@setlistr.ai' },
               { label: 'Privacy',      href: '/privacy' },
               { label: 'Terms',        href: '/terms' },
