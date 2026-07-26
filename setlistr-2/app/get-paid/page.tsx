@@ -1,207 +1,138 @@
-'use client'
-import { useRouter } from 'next/navigation'
+import type { Metadata } from 'next'
 import Link from 'next/link'
 import Image from 'next/image'
 
-const C = {
-  bg: '#0a0908', card: '#141210', border: 'rgba(255,255,255,0.07)',
-  borderGold: 'rgba(201,168,76,0.25)', text: '#f0ece3', secondary: '#b8a888',
-  muted: '#8a7a68', gold: '#c9a84c', goldDim: 'rgba(201,168,76,0.08)',
-  green: '#4ade80', red: '#f87171',
+export const metadata: Metadata = {
+  title: 'Get Paid for Live Shows — Live Performance Royalty Guides | Setlistr',
+  description: 'Most performing songwriters leave real money behind after every show. Learn how to claim live performance royalties from SOCAN, ASCAP, BMI, PRS, APRA and more.',
+  alternates: { canonical: 'https://setlistr.ai/get-paid' },
+  openGraph: {
+    title: 'Get Paid for Live Shows — Live Performance Royalty Guides',
+    description: 'Everything you need to claim what you’re owed for playing live.',
+    url: 'https://setlistr.ai/get-paid',
+    siteName: 'Setlistr',
+    type: 'website',
+    images: [{ url: '/og-image.jpg', width: 1200, height: 630, alt: 'Setlistr — Get Paid for Live Shows' }],
+  },
 }
 
-const ARTICLES = [
-  {
-    tag: 'Start Here', tagColor: C.gold,
-    href: '/get-paid-for-live-shows',
-    title: "Most artists never get paid for live shows. Here's how to fix that.",
-    desc: "Where the money comes from, how much you're owed by venue size, and the exact steps to claim it from ASCAP, BMI, SOCAN, PRS and more.",
-    stat: '$512M distributed by SOCAN alone in 2024',
-  },
-  {
-    tag: 'Eye-opener', tagColor: C.red,
-    href: '/unclaimed-music-royalties',
-    title: "Millions in unclaimed live royalties — your money is going to someone else.",
-    desc: "When you don't submit your setlist, the money doesn't disappear. It gets redistributed to artists who did submit.",
-    stat: 'Billions go unclaimed globally every year',
-  },
-  {
-    tag: 'Step-by-Step', tagColor: C.green,
-    href: '/submit-setlists-pro',
-    title: "How to submit your setlists to ASCAP, BMI & SOCAN — every step.",
-    desc: "A complete walkthrough of every major PRO's live performance submission portal with exact navigation paths.",
-    stat: 'Takes under 10 minutes per show',
-  },
-  {
-    tag: 'Plain English', tagColor: C.secondary,
-    href: '/what-is-live-performance-royalty',
-    title: "What is a live performance royalty? A simple explanation.",
-    desc: "How live royalties work, who pays them, and why most performing songwriters are missing out entirely.",
-    stat: 'Shareable — send to any artist friend',
-  },
+const CARDS = [
+  { href: '/get-paid-for-live-shows', tag: 'Start Here', tagColor: 'gold',
+    title: 'Most artists never get paid for live shows. Here’s how to fix that.',
+    copy: 'Where the money comes from, how much you’re owed by venue size, and the exact steps to claim it from ASCAP, BMI, SOCAN, PRS and more.',
+    stat: '$512M distributed by SOCAN in 2024' },
+  { href: '/unclaimed-music-royalties', tag: 'Eye-opener', tagColor: 'red',
+    title: 'Millions in unclaimed live royalties — your money is going to someone else.',
+    copy: 'When you don’t submit your setlist, the money doesn’t disappear. It gets redistributed to artists who did submit.',
+    stat: 'Billions unclaimed globally every year' },
+  { href: '/submit-setlists-pro', tag: 'Step-by-Step', tagColor: 'green',
+    title: 'How to submit your setlists to ASCAP, BMI & SOCAN — every step.',
+    copy: 'A complete walkthrough of every major PRO’s live performance submission portal with exact navigation paths.',
+    stat: 'Under 10 minutes per show' },
+  { href: '/what-is-live-performance-royalty', tag: 'Plain English', tagColor: 'neutral',
+    title: 'What is a live performance royalty? A simple explanation.',
+    copy: 'How live royalties work, who pays them, and why most performing songwriters are missing out entirely.',
+    stat: 'Shareable — send to any artist friend' },
 ]
 
+function tagStyle(kind: string): React.CSSProperties {
+  const map: Record<string, { c: string; bg: string; bd: string }> = {
+    gold:    { c: '#C9A84C', bg: 'rgba(201,168,76,0.1)', bd: 'rgba(201,168,76,0.25)' },
+    red:     { c: '#f0a68a', bg: 'rgba(248,113,113,0.08)', bd: 'rgba(248,113,113,0.22)' },
+    green:   { c: '#86e0a8', bg: 'rgba(74,222,128,0.08)', bd: 'rgba(74,222,128,0.22)' },
+    neutral: { c: 'rgba(212,209,202,0.85)', bg: 'rgba(255,255,255,0.05)', bd: 'rgba(255,255,255,0.15)' },
+  }
+  const m = map[kind] || map.gold
+  return { display: 'inline-block', fontFamily: '"DM Mono", monospace', fontSize: 10, fontWeight: 500, letterSpacing: '.12em', textTransform: 'uppercase', padding: '4px 11px', borderRadius: 20, marginBottom: 16, color: m.c, background: m.bg, border: `1px solid ${m.bd}` }
+}
+
 export default function GetPaidPage() {
-  const router = useRouter()
-
   return (
-    <div style={{ minHeight: '100svh', background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif' }}>
+    <div style={{ minHeight: '100svh', background: '#080706', color: '#fff', fontFamily: '"DM Sans", system-ui, sans-serif', overflowX: 'hidden' }}>
+      <style>{`
+        .gp-card { transition: border-color .25s, transform .25s; }
+        .gp-card:hover { border-color: rgba(201,168,76,0.4) !important; transform: translateY(-4px); }
+        .gp-navlink:hover { color: #C9A84C !important; }
+        @media (max-width: 760px) { .gp-navlink { display: none !important; } .gp-cards { grid-template-columns: 1fr !important; } }
+      `}</style>
 
-      {/* Background */}
-      <div style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none', background: 'radial-gradient(ellipse at 50% -10%, rgba(201,168,76,0.12) 0%, transparent 60%), radial-gradient(ellipse at 80% 80%, rgba(201,168,76,0.04) 0%, transparent 50%)' }} />
-      <div style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none', opacity: 0.03, backgroundImage: 'linear-gradient(rgba(201,168,76,1) 1px, transparent 1px), linear-gradient(90deg, rgba(201,168,76,1) 1px, transparent 1px)', backgroundSize: '60px 60px' }} />
+      <div style={{ position: 'fixed', width: 620, height: 620, borderRadius: '50%', filter: 'blur(120px)', pointerEvents: 'none', zIndex: 0, background: 'radial-gradient(circle, rgba(201,168,76,1), transparent)', opacity: 0.11, top: -260, right: -180 }} />
+      <div style={{ position: 'fixed', width: 460, height: 460, borderRadius: '50%', filter: 'blur(120px)', pointerEvents: 'none', zIndex: 0, background: 'radial-gradient(circle, rgba(201,168,76,1), transparent)', opacity: 0.06, bottom: '12%', left: -160 }} />
 
-      {/* ── Nav ── */}
-      <header style={{ position: 'sticky', top: 0, zIndex: 50, background: 'rgba(10,9,8,0.92)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', borderBottom: `1px solid ${C.border}` }}>
-        <div style={{ maxWidth: 800, margin: '0 auto', padding: '0 20px', height: 56, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Link href="/" style={{ textDecoration: 'none' }}>
-            <Image src="/logo-white-tight.png" alt="Setlistr" width={190} height={36} priority style={{ height: 36, width: 'auto', objectFit: 'contain' }} />
-          </Link>
-          <Link href="/app/show/new" style={{ textDecoration: 'none', fontSize: 13, fontWeight: 700, color: '#0a0908', background: C.gold, borderRadius: 8, padding: '8px 16px' }}>
-            Start Free →
-          </Link>
-        </div>
+      <header style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 50, height: 72, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 40px', background: 'rgba(8,7,6,0.82)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+        <Link href="/" style={{ textDecoration: 'none', display: 'flex' }}>
+          <Image src="/logo-white-tight.png" alt="Setlistr" width={190} height={36} priority style={{ height: 36, width: 'auto', objectFit: 'contain' }} />
+        </Link>
+        <nav style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <Link href="/how-it-works" className="gp-navlink" style={{ fontFamily: '"DM Mono", monospace', fontSize: 11, letterSpacing: '.14em', textTransform: 'uppercase', color: 'rgba(232,228,219,0.78)', textDecoration: 'none' }}>How It Works</Link>
+          <Link href="/app/show/new" style={{ fontFamily: '"DM Mono", monospace', fontSize: 11, letterSpacing: '.14em', textTransform: 'uppercase', background: '#C9A84C', color: '#080706', textDecoration: 'none', padding: '10px 20px', borderRadius: 6 }}>Start Free</Link>
+        </nav>
       </header>
 
-      <div style={{ position: 'relative', zIndex: 1, maxWidth: 480, margin: '0 auto', padding: '0 20px 80px' }}>
-
-        {/* ── Hero ── */}
-        <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', paddingTop: 72, paddingBottom: 56, overflow: 'hidden' }}>
-          {/* Watermark */}
-          <div style={{ position: 'absolute', top: 40, left: '50%', transform: 'translateX(-50%)', opacity: 0.035, pointerEvents: 'none', whiteSpace: 'nowrap' }}>
-            <Image src="/logo-white-tight.png" alt="" width={400} height={76} style={{ objectFit: 'contain' }} />
+      <div style={{ position: 'relative', zIndex: 1 }}>
+        <section style={{ minHeight: '82vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '128px 24px 40px' }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10, border: '1px solid rgba(201,168,76,.3)', borderRadius: 20, padding: '6px 18px', marginBottom: 32, fontFamily: '"DM Mono", monospace', fontSize: 11, color: '#C9A84C', letterSpacing: '.16em', textTransform: 'uppercase' }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#C9A84C' }} /> For Working Songwriters
           </div>
-
-          {/* ── FIX: headline space bug — using a space between words ── */}
-          <h1 style={{ fontSize: 'clamp(36px, 10vw, 52px)', fontWeight: 800, color: C.text, margin: '0 0 8px', letterSpacing: '-0.04em', lineHeight: 1.05, position: 'relative' }}>
-            You played that song live.
+          <h1 style={{ fontFamily: '"Bebas Neue", sans-serif', fontSize: 'clamp(52px, 9vw, 116px)', lineHeight: 0.9, letterSpacing: '.02em', margin: 0 }}>
+            You played that song live.<br /><span style={{ color: '#C9A84C' }}>Did you get paid?</span>
           </h1>
-          <h2 style={{ fontSize: 'clamp(36px, 10vw, 52px)', fontWeight: 800, color: C.gold, margin: '0 0 20px', letterSpacing: '-0.04em', lineHeight: 1.05, position: 'relative' }}>
-            Did you get paid?
-          </h2>
-
-          <p style={{ fontSize: 16, color: '#a09070', lineHeight: 1.6, margin: '0 0 36px', maxWidth: 300 }}>
-            Most live performances never get reported to PROs. Songwriters leave real money behind — every single show.
+          <p style={{ fontSize: 17, fontWeight: 300, color: 'rgba(212,209,202,0.72)', lineHeight: 1.7, maxWidth: 440, margin: '28px auto 40px' }}>
+            Most live performances never get reported to the PROs. Songwriters leave real money behind &mdash; every single show.
           </p>
-
-          <button onClick={() => router.push('/app/show/new')}
-            style={{ width: '100%', padding: '18px 24px', background: C.gold, border: 'none', borderRadius: 16, color: '#0a0908', fontSize: 15, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' as const, cursor: 'pointer', fontFamily: 'inherit', marginBottom: 12 }}
-            onMouseEnter={e => (e.currentTarget.style.opacity = '0.88')}
-            onMouseLeave={e => (e.currentTarget.style.opacity = '1')}>
-            See what you might be owed →
-          </button>
-          <p style={{ fontSize: 12, color: 'rgba(106,96,80,0.8)', margin: '0 0 40px', letterSpacing: '0.04em' }}>
-            No account needed · Takes 30 seconds
-          </p>
-
-          <div style={{ display: 'flex', gap: 20, alignItems: 'center', flexWrap: 'wrap' as const, justifyContent: 'center' }}>
-            {['SOCAN', 'ASCAP', 'BMI', 'PRS', 'APRA'].map(pro => (
-              <span key={pro} style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.15em', color: 'rgba(160,144,112,0.4)', textTransform: 'uppercase' as const }}>{pro}</span>
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center', marginBottom: 20 }}>
+            <Link href="/start" style={{ fontFamily: '"Bebas Neue", sans-serif', fontSize: 18, letterSpacing: '.08em', background: '#C9A84C', color: '#080706', padding: '15px 38px', textDecoration: 'none', borderRadius: 8 }}>See What You&rsquo;re Owed</Link>
+            <Link href="/how-it-works" style={{ fontFamily: '"Bebas Neue", sans-serif', fontSize: 18, letterSpacing: '.08em', background: 'transparent', border: '1px solid rgba(201,168,76,.35)', color: 'rgba(212,209,202,.85)', padding: '15px 38px', textDecoration: 'none', borderRadius: 8 }}>How It Works</Link>
+          </div>
+          <div style={{ fontFamily: '"DM Mono", monospace', fontSize: 11, letterSpacing: '.1em', color: 'rgba(201,168,76,.7)', marginBottom: 44 }}>No account needed &middot; Takes 30 seconds</div>
+          <div style={{ display: 'flex', gap: 26, flexWrap: 'wrap', justifyContent: 'center' }}>
+            {['SOCAN','ASCAP','BMI','PRS','APRA','SESAC','GMR'].map(p => (
+              <span key={p} style={{ fontFamily: '"DM Mono", monospace', fontSize: 11, letterSpacing: '.18em', color: 'rgba(212,209,202,.4)', textTransform: 'uppercase' }}>{p}</span>
             ))}
           </div>
-        </div>
+        </section>
 
-        {/* ── Divider ── */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 28 }}>
-          <div style={{ flex: 1, height: 1, background: C.border }} />
-          <span style={{ fontSize: 10, fontWeight: 700, color: C.muted, letterSpacing: '0.14em', textTransform: 'uppercase' as const, whiteSpace: 'nowrap' }}>The full guide</span>
-          <div style={{ flex: 1, height: 1, background: C.border }} />
-        </div>
+        <section style={{ textAlign: 'center', padding: '80px 24px 20px' }}>
+          <div style={{ fontFamily: '"DM Mono", monospace', fontSize: 11, letterSpacing: '.16em', color: 'rgba(201,168,76,.9)', textTransform: 'uppercase', marginBottom: 16 }}>The Full Guide</div>
+          <h2 style={{ fontFamily: '"Bebas Neue", sans-serif', fontSize: 'clamp(34px, 5vw, 60px)', lineHeight: 1.05, letterSpacing: '.02em', margin: 0 }}>
+            Everything you need<br /><span style={{ color: '#C9A84C' }}>to claim what&rsquo;s yours.</span>
+          </h2>
+        </section>
 
-        {/* ── Article cluster ── */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {ARTICLES.map(({ tag, tagColor, href, title, desc, stat }) => (
-            <Link key={href} href={href} style={{ textDecoration: 'none' }}>
-              <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '18px 20px', cursor: 'pointer', transition: 'border-color 0.15s ease' }}
-                onMouseEnter={e => (e.currentTarget.style.borderColor = C.borderGold)}
-                onMouseLeave={e => (e.currentTarget.style.borderColor = C.border)}>
-                <div style={{ marginBottom: 8 }}>
-                  <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, color: tagColor, background: tagColor + '15', border: `1px solid ${tagColor}30`, borderRadius: 20, padding: '3px 9px' }}>{tag}</span>
-                </div>
-                <p style={{ fontSize: 15, fontWeight: 700, color: C.text, margin: '0 0 7px', lineHeight: 1.35, letterSpacing: '-0.01em' }}>{title}</p>
-                <p style={{ fontSize: 13, color: C.muted, margin: '0 0 12px', lineHeight: 1.55 }}>{desc}</p>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: 11, fontWeight: 600, color: tagColor, background: tagColor + '10', border: `1px solid ${tagColor}20`, borderRadius: 6, padding: '3px 8px' }}>{stat}</span>
-                  <span style={{ fontSize: 14, color: C.muted }}>→</span>
-                </div>
+        <section className="gp-cards" style={{ maxWidth: 920, margin: '0 auto', padding: '40px 24px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+          {CARDS.map(card => (
+            <Link key={card.href} href={card.href} className="gp-card" style={{ background: 'linear-gradient(160deg, rgba(20,18,16,.9), rgba(12,10,8,.9))', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 20, padding: 28, textDecoration: 'none', display: 'block' }}>
+              <span style={tagStyle(card.tagColor)}>{card.tag}</span>
+              <h3 style={{ fontSize: 18, fontWeight: 600, color: '#f0ece3', lineHeight: 1.35, marginBottom: 10 }}>{card.title}</h3>
+              <p style={{ fontSize: 14, fontWeight: 300, color: 'rgba(212,209,202,0.62)', lineHeight: 1.6, marginBottom: 18 }}>{card.copy}</p>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontFamily: '"DM Mono", monospace', fontSize: 11, color: '#C9A84C', background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.2)', borderRadius: 6, padding: '5px 10px' }}>{card.stat}</span>
+                <span style={{ color: 'rgba(201,168,76,0.6)', fontSize: 16 }}>&rarr;</span>
               </div>
             </Link>
           ))}
-        </div>
+        </section>
 
-        {/* ── Bottom CTA ── */}
-        <div style={{ marginTop: 36, padding: '28px 24px', background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 16, textAlign: 'center' }}>
-          <Image src="/logo-white-tight.png" alt="Setlistr" width={110} height={21} style={{ objectFit: 'contain', marginBottom: 14, opacity: 0.85 }} />
-          <p style={{ fontSize: 17, fontWeight: 800, color: C.text, margin: '0 0 8px', letterSpacing: '-0.02em' }}>Ready to stop leaving money on stage?</p>
-          <p style={{ fontSize: 13, color: C.secondary, margin: '0 0 20px', lineHeight: 1.5 }}>Setlistr automatically captures your setlist during the show. Free to start.</p>
-          <button onClick={() => router.push('/app/show/new')}
-            style={{ width: '100%', padding: '15px', background: C.gold, border: 'none', borderRadius: 12, color: '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' as const, cursor: 'pointer', fontFamily: 'inherit' }}>
-            Start Free →
-          </button>
-        </div>
+        <section style={{ maxWidth: 720, margin: '40px auto 0', padding: '0 24px' }}>
+          <div style={{ background: 'linear-gradient(160deg, rgba(201,168,76,.1), rgba(201,168,76,.03))', border: '1px solid rgba(201,168,76,0.28)', borderRadius: 24, padding: '48px 32px', textAlign: 'center' }}>
+            <h2 style={{ fontFamily: '"Bebas Neue", sans-serif', fontSize: 'clamp(28px, 4vw, 44px)', lineHeight: 1.05, letterSpacing: '.02em', marginBottom: 14 }}>Ready to stop leaving<br /><span style={{ color: '#C9A84C' }}>money on stage?</span></h2>
+            <p style={{ fontSize: 15, fontWeight: 300, color: 'rgba(212,209,202,0.7)', lineHeight: 1.6, maxWidth: 400, margin: '0 auto 28px' }}>Setlistr automatically captures your setlist during the show. Free to start.</p>
+            <Link href="/app/show/new" style={{ display: 'inline-block', fontFamily: '"Bebas Neue", sans-serif', fontSize: 18, letterSpacing: '.08em', background: '#C9A84C', color: '#080706', padding: '15px 40px', textDecoration: 'none', borderRadius: 8 }}>Start Free &rarr;</Link>
+          </div>
+        </section>
+
+        <footer style={{ borderTop: '1px solid rgba(255,255,255,0.06)', marginTop: 80, padding: '40px 24px', maxWidth: 920, marginLeft: 'auto', marginRight: 'auto' }}>
+          <p style={{ fontSize: 11, color: 'rgba(212,209,202,0.4)', lineHeight: 1.7, marginBottom: 12 }}>
+            <b style={{ color: 'rgba(212,209,202,0.6)' }}>Disclaimer:</b> Royalty estimates are for informational purposes only and based on publicly available PRO tariff data. Actual payments vary based on venue license status, PRO distribution rules, song registration, writer splits, and other factors outside Setlistr&rsquo;s control. Setlistr is not a licensed financial or legal advisor. Always verify rates directly with your PRO.
+          </p>
+          <p style={{ fontSize: 11, color: 'rgba(212,209,202,0.4)', lineHeight: 1.7, marginBottom: 12 }}>
+            Setlistr is not affiliated with, endorsed by, or connected to SOCAN, ASCAP, BMI, SESAC, GMR, PRS for Music, APRA AMCOS, or any Performing Rights Organization. All PRO names are trademarks of their respective owners.
+          </p>
+          <p style={{ fontSize: 11, color: 'rgba(212,209,202,0.35)', lineHeight: 1.6 }}>
+            &copy; {new Date().getFullYear()} Setlistr &middot; Live performance tracking and royalty submission for songwriters. Works with SOCAN, ASCAP, BMI, PRS, APRA and all major PROs. &middot; <Link href="/terms" style={{ color: 'rgba(201,168,76,0.5)', textDecoration: 'none' }}>Terms</Link> &middot; <Link href="/privacy" style={{ color: 'rgba(201,168,76,0.5)', textDecoration: 'none' }}>Privacy</Link>
+          </p>
+        </footer>
       </div>
-
-      {/* ── Footer ── */}
-      <footer style={{ borderTop: `1px solid ${C.border}`, padding: '36px 20px', maxWidth: 480, margin: '0 auto' }}>
-
-        <div style={{ marginBottom: 20 }}>
-          <Link href="/" style={{ textDecoration: 'none' }}>
-            <Image src="/logo-white-tight.png" alt="Setlistr" width={100} height={19} style={{ objectFit: 'contain', opacity: 0.75 }} />
-          </Link>
-        </div>
-
-        {/* Internal links */}
-        <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: 6, marginBottom: 24 }}>
-          {[
-            { href: '/get-paid-for-live-shows', label: 'How to Get Paid' },
-            { href: '/unclaimed-music-royalties', label: 'Unclaimed Royalties' },
-            { href: '/submit-setlists-pro', label: 'Submit Setlists' },
-            { href: '/what-is-live-performance-royalty', label: 'What Are Live Royalties?' },
-          ].map(({ href, label }) => (
-            <Link key={href} href={href} style={{ textDecoration: 'none', fontSize: 12, color: C.muted, background: 'rgba(255,255,255,0.03)', border: `1px solid ${C.border}`, borderRadius: 6, padding: '5px 10px' }}>{label}</Link>
-          ))}
-        </div>
-
-        {/* Contact */}
-        <p style={{ fontSize: 12, color: C.muted, margin: '0 0 20px' }}>
-          Questions? <a href="mailto:info@setlistr.ai" style={{ color: C.gold, textDecoration: 'none' }}>info@setlistr.ai</a>
-        </p>
-
-        {/* Legal disclaimer */}
-        <div style={{ paddingTop: 20, borderTop: `1px solid rgba(255,255,255,0.04)`, marginBottom: 16 }}>
-          <p style={{ fontSize: 11, color: 'rgba(138,122,104,0.6)', margin: '0 0 8px', lineHeight: 1.6 }}>
-            <strong style={{ color: 'rgba(138,122,104,0.8)' }}>Disclaimer:</strong>{' '}
-            Royalty estimates are for informational purposes only and are based on publicly available PRO tariff data.
-            Actual payments vary based on venue license status, PRO distribution rules, song registration, writer splits,
-            and other factors outside Setlistr's control. Setlistr is not a licensed financial or legal advisor.
-            Always verify rates directly with your PRO.
-          </p>
-          <p style={{ fontSize: 11, color: 'rgba(138,122,104,0.5)', margin: '0 0 8px', lineHeight: 1.6 }}>
-            Setlistr is not affiliated with, endorsed by, or connected to SOCAN, ASCAP, BMI, SESAC, GMR,
-            PRS for Music, APRA AMCOS, or any Performing Rights Organization. All PRO names are trademarks
-            of their respective owners.
-          </p>
-          <p style={{ fontSize: 11, color: 'rgba(138,122,104,0.5)', margin: 0, lineHeight: 1.6 }}>
-            This site uses essential cookies for authentication only. No advertising or tracking cookies.{' '}
-            By using this site you agree to our{' '}
-            <Link href="/terms" style={{ color: 'rgba(201,168,76,0.5)', textDecoration: 'none' }}>Terms of Service</Link>
-            {' '}and{' '}
-            <Link href="/privacy" style={{ color: 'rgba(201,168,76,0.5)', textDecoration: 'none' }}>Privacy Policy</Link>.
-          </p>
-        </div>
-
-        {/* Copyright */}
-        <p style={{ fontSize: 11, color: 'rgba(138,122,104,0.4)', margin: 0, lineHeight: 1.6 }}>
-          © {new Date().getFullYear()} Setlistr · Live performance tracking and royalty submission for songwriters.<br />
-          <span style={{ opacity: 0.7 }}>Works with SOCAN, ASCAP, BMI, PRS, APRA and all major PROs.</span>
-        </p>
-      </footer>
-
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap');
-        @keyframes fadeUp { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
-        * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
-      `}</style>
     </div>
   )
 }
