@@ -3,7 +3,11 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { buzzLong } from '@/lib/haptics'
-import { Calendar, ArrowRight, RefreshCw, Check, MapPin, Search, X, Plus, ChevronDown, ChevronUp } from 'lucide-react'
+import { Calendar, ArrowRight, ArrowLeft, RefreshCw, Check, MapPin, Search, X, Plus, ChevronDown, ChevronUp, Camera, Upload, ListMusic } from 'lucide-react'
+import mapboxgl from 'mapbox-gl'
+import 'mapbox-gl/dist/mapbox-gl.css'
+
+mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
 
 const CARD = {
   background: 'linear-gradient(180deg, #171512 0%, #121009 100%)',
@@ -37,6 +41,66 @@ type SetlistOffer = { songs: { title: string; artist: string }[]; venueName: str
 // 'photo' → camera/file upload area is expanded
 // 'quick' → manual chip/search add is expanded
 type SetlistMode = null | 'photo' | 'quick'
+
+// ── Small dark venue-location preview, reusing the Career Map's Mapbox GL setup.
+// Best-effort only: renders nothing if there's no token, no query, or geocoding fails.
+function VenueMap({ venueName, city, country }: { venueName: string; city: string; country: string }) {
+  const mapContainer = useRef<HTMLDivElement>(null)
+  const map = useRef<mapboxgl.Map | null>(null)
+  const marker = useRef<mapboxgl.Marker | null>(null)
+  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null)
+  const [failed, setFailed] = useState(false)
+  const debounceRef = useRef<NodeJS.Timeout | null>(null)
+
+  useEffect(() => {
+    const query = [venueName, city, country].filter(Boolean).join(', ').trim()
+    if (!mapboxgl.accessToken || query.length < 2) { setCoords(null); return }
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?limit=1&access_token=${mapboxgl.accessToken}`
+        )
+        const data = await res.json()
+        const feature = data.features?.[0]
+        if (feature) { setCoords({ lat: feature.center[1], lng: feature.center[0] }); setFailed(false) }
+        else setFailed(true)
+      } catch { setFailed(true) }
+    }, 500)
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
+  }, [venueName, city, country])
+
+  useEffect(() => {
+    if (!coords || !mapContainer.current) return
+    if (!map.current) {
+      map.current = new mapboxgl.Map({
+        container: mapContainer.current,
+        style: 'mapbox://styles/mapbox/dark-v11',
+        center: [coords.lng, coords.lat],
+        zoom: 13,
+        attributionControl: false,
+        scrollZoom: false,
+      })
+      map.current.on('load', () => { map.current?.setPaintProperty('background', 'background-color', '#0a0908') })
+    } else {
+      map.current.flyTo({ center: [coords.lng, coords.lat], zoom: 13 })
+    }
+    const el = document.createElement('div')
+    el.style.cssText = `width:16px;height:16px;border-radius:50%;background:#c9a84c;border:2px solid rgba(201,168,76,0.4);box-shadow:0 0 20px rgba(201,168,76,0.5);`
+    marker.current?.remove()
+    marker.current = new mapboxgl.Marker(el).setLngLat([coords.lng, coords.lat]).addTo(map.current)
+  }, [coords])
+
+  useEffect(() => () => { map.current?.remove(); map.current = null }, [])
+
+  if (!mapboxgl.accessToken || failed || !coords) return null
+
+  return (
+    <div style={{ marginTop: 12, height: 140, borderRadius: 12, overflow: 'hidden', border: `1px solid ${C.border}` }}>
+      <div ref={mapContainer} style={{ width: '100%', height: '100%' }} />
+    </div>
+  )
+}
 
 export default function NewShowPage() {
   const router       = useRouter()
@@ -81,6 +145,10 @@ export default function NewShowPage() {
   const [setlistOffer, setSetlistOffer]                 = useState<SetlistOffer | null>(null)
   const [setlistOfferDismissed, setSetlistOfferDismissed] = useState(false)
   const [setlistPhotoUrl, setSetlistPhotoUrl]           = useState<string | null>(null)
+
+  // ── New: step flow + skip confirmation (presentation only — no capture/setlist logic here) ──
+  const [step, setStep] = useState<1 | 2>(1)
+  const [showSkipConfirm, setShowSkipConfirm] = useState(false)
 
   // Camera: capture="environment" opens native camera on iOS + Android
   const cameraInputRef = useRef<HTMLInputElement>(null)
@@ -481,6 +549,16 @@ export default function NewShowPage() {
     }
   }
 
+  // ── Step navigation (presentation only) ──
+  function goNext() {
+    if (!isValid) return
+    setStep(2)
+  }
+
+  function goBack() {
+    setStep(1)
+  }
+
   return (
     <div style={{ minHeight: '100svh', background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px 20px' }}>
       <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '50vh', pointerEvents: 'none', zIndex: 0, background: 'radial-gradient(ellipse at 50% 0%, rgba(201,168,76,0.07) 0%, transparent 65%)' }} />
@@ -488,434 +566,495 @@ export default function NewShowPage() {
       <input ref={cameraInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" capture="environment" style={{ display: 'none' }} onChange={handleFileChange} />
       <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp,application/pdf,text/plain" style={{ display: 'none' }} onChange={handleFileChange} />
 
-      <div style={{ width: '100%', maxWidth: 440, position: 'relative', zIndex: 1, animation: 'fadeUp 0.4s ease' }}>
+      <div style={{ width: '100%', maxWidth: 440, position: 'relative', zIndex: 1 }}>
 
-        <h1 style={{ fontSize: 30, fontWeight: 800, color: C.text, margin: '0 0 16px', letterSpacing: '-0.025em' }}>Where tonight?</h1>
-
-        {/* ── VENUE CARD ── */}
-        <div style={{ background: CARD.background, border: `1px solid ${C.border}`, borderRadius: 16, padding: '20px', display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 16, boxShadow: CARD.boxShadow }}>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, position: 'relative' }} ref={dropdownRef}>
-            <label style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' as const, color: C.muted, display: 'flex', alignItems: 'center', gap: 5 }}>
-              <MapPin size={10} />Venue
-            </label>
-            <div style={{ position: 'relative' }}>
-              <input
-                type="text"
-                value={venueQuery}
-                onChange={e => handleVenueInput(e.target.value)}
-                onFocus={() => { if (venueResults.length > 0) setShowDropdown(true) }}
-                placeholder="Venue or room name..."
-                spellCheck={false} autoCorrect="off" autoCapitalize="words"
-                style={{ background: C.input, border: `1px solid ${venueSelected ? C.borderGold : venueQuery.trim() ? C.borderGold : C.border}`, borderRadius: 10, padding: '14px 40px 14px 16px', color: C.text, fontSize: 16, fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' as const, outline: 'none' }}
-              />
-              <div style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center' }}>
-                {venueSearching
-                  ? <div style={{ width: 13, height: 13, borderRadius: '50%', border: `2px solid ${C.muted}`, borderTopColor: C.gold, animation: 'spin 0.7s linear infinite', pointerEvents: 'none' as const }} />
-                  : isPrefilled
-                  ? <button
-                      onClick={clearPrefill}
-                      style={{ background: 'rgba(255,255,255,0.08)', border: 'none', color: C.secondary, cursor: 'pointer', width: 22, height: 22, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, fontFamily: 'inherit', fontSize: 15, lineHeight: '1' }}
-                    >×</button>
-                  : venueSelected
-                  ? <span style={{ fontSize: 13, color: C.gold, pointerEvents: 'none' as const }}>✓</span>
-                  : <span style={{ pointerEvents: 'none' as const, display: 'flex' }}><Search size={13} color={C.muted} /></span>
-                }
-              </div>
-            </div>
-
-            {venueMemory && !isPrefilled && (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '9px 12px', background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 8 }}>
-                <p style={{ fontSize: 14, color: C.gold, margin: 0, lineHeight: 1.4 }}>
-                  Last time here: <strong>{venueMemory.songCount} {songWord(venueMemory.songCount)}</strong> on {formatDate(venueMemory.lastDate)}
-                </p>
-                {venueMemory.songs && venueMemory.songs.length > 0 && plannedSongs.length === 0 && (
-                  <button onClick={loadFromVenueMemory}
-                    style={{ fontSize: 13, fontWeight: 700, color: C.gold, background: 'rgba(201,168,76,0.15)', border: `1px solid ${C.borderGold}`, borderRadius: 6, padding: '6px 14px', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' as const }}>
-                    Load that set →
-                  </button>
-                )}
-              </div>
-            )}
-
-            {showDropdown && venueResults.length > 0 && (
-              <div onMouseDown={e => e.preventDefault()}
-                style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#1a1816', border: `1px solid ${C.borderGold}`, borderRadius: 10, marginTop: 4, zIndex: 50, overflow: 'hidden', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
-                {venueResults.map((v, i) => (
-                  <button key={v.id} onMouseDown={() => selectVenue(v)}
-                    style={{ width: '100%', padding: '11px 14px', background: 'transparent', border: 'none', borderBottom: i < venueResults.length - 1 ? `1px solid ${C.border}` : 'none', cursor: 'pointer', textAlign: 'left' as const, display: 'flex', flexDirection: 'column', gap: 2, fontFamily: 'inherit' }}
-                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = C.cardHover}
-                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}>
-                    <span style={{ fontSize: 14, fontWeight: 600, color: C.text }}>{v.name}</span>
-                    {(v.city || v.country) && <span style={{ fontSize: 11, color: C.muted }}>{[v.city, v.country].filter(Boolean).join(', ')}</span>}
-                  </button>
-                ))}
-                <button onMouseDown={() => { setVenueSelected(false); setShowDropdown(false) }}
-                  style={{ width: '100%', padding: '10px 14px', background: C.goldDim, border: 'none', cursor: 'pointer', textAlign: 'left' as const, fontFamily: 'inherit' }}>
-                  <span style={{ fontSize: 12, color: C.gold, fontWeight: 600 }}>+ Add "{venueQuery}" as new venue</span>
-                </button>
-              </div>
-            )}
-
-            {showDropdown && venueResults.length === 0 && venueQuery.trim().length >= 2 && !venueSearching && (
-              <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#1a1816', border: `1px solid ${C.border}`, borderRadius: 10, marginTop: 4, zIndex: 50, padding: '12px 14px' }}>
-                <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>New venue — we'll remember it.</p>
-              </div>
-            )}
-
-            {venueQuery.trim().length >= 2 && !venueSelected && !venueSearching && !showDropdown && (
-              <div style={{ marginTop: 8 }}>
-                <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, color: C.muted, margin: '0 0 6px' }}>Room size</p>
-                <div style={{ display: 'flex', gap: 6 }}>
-                  {([
-                    { key: 'small', label: 'Small', sub: '<300' },
-                    { key: 'medium', label: 'Medium', sub: '300–2k' },
-                    { key: 'large', label: 'Large', sub: '2k–10k' },
-                    { key: 'festival', label: 'Festival', sub: '10k+' },
-                  ] as const).map(opt => (
-                    <button key={opt.key} type="button"
-                      onClick={() => setVenueCapacity(venueCapacity === opt.key ? '' : opt.key)}
-                      style={{ flex: 1, padding: '8px 4px', background: venueCapacity === opt.key ? C.goldDim : 'transparent', border: `1px solid ${venueCapacity === opt.key ? C.borderGold : C.border}`, borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-                      <span style={{ fontSize: 11, fontWeight: 700, color: venueCapacity === opt.key ? C.gold : C.secondary }}>{opt.label}</span>
-                      <span style={{ fontSize: 9, color: C.muted }}>{opt.sub}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
+        {/* ── PROGRESS DOTS ── */}
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6, marginBottom: 20 }}>
+          {[1, 2, 3].map(i => (
+            <div key={i} style={{
+              width: i === step ? 20 : 6, height: 6, borderRadius: 3,
+              background: i <= step ? C.gold : 'rgba(255,255,255,0.15)',
+              transition: 'all 0.25s ease',
+            }} />
+          ))}
         </div>
 
-        {/* ── SETLIST SECTION ── */}
-        <div style={{ background: CARD.background, border: `1px solid ${plannedSongs.length > 0 ? C.borderGold : C.border}`, borderRadius: 16, marginBottom: 16, overflow: 'hidden', transition: 'border-color 0.2s ease', boxShadow: CARD.boxShadow }}>
+        {/* ══════════════════════════════════════════
+            STEP 1 — VENUE
+        ══════════════════════════════════════════ */}
+        {step === 1 && (
+          <div key="step1" style={{ animation: 'fadeUp 0.3s ease' }}>
+            <h1 style={{ fontSize: 30, fontWeight: 800, color: C.text, margin: '0 0 16px', letterSpacing: '-0.025em' }}>Where tonight?</h1>
 
-          <div style={{ padding: '16px 20px 14px' }}>
-            <p style={{ fontSize: 17, fontWeight: 700, color: plannedSongs.length > 0 ? C.gold : C.text, margin: '0 0 3px', transition: 'color 0.2s ease' }}>
+            {/* ── VENUE CARD ── */}
+            <div style={{ background: CARD.background, border: `1px solid ${C.border}`, borderRadius: 16, padding: '20px', display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 16, boxShadow: CARD.boxShadow }}>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, position: 'relative' }} ref={dropdownRef}>
+                <label style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' as const, color: C.muted, display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <MapPin size={10} />Venue
+                </label>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type="text"
+                    value={venueQuery}
+                    onChange={e => handleVenueInput(e.target.value)}
+                    onFocus={() => { if (venueResults.length > 0) setShowDropdown(true) }}
+                    placeholder="Venue or room name..."
+                    spellCheck={false} autoCorrect="off" autoCapitalize="words"
+                    style={{ background: C.input, border: `1px solid ${venueSelected ? C.borderGold : venueQuery.trim() ? C.borderGold : C.border}`, borderRadius: 10, padding: '14px 40px 14px 16px', color: C.text, fontSize: 16, fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' as const, outline: 'none' }}
+                  />
+                  <div style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center' }}>
+                    {venueSearching
+                      ? <div style={{ width: 13, height: 13, borderRadius: '50%', border: `2px solid ${C.muted}`, borderTopColor: C.gold, animation: 'spin 0.7s linear infinite', pointerEvents: 'none' as const }} />
+                      : isPrefilled
+                      ? <button
+                          onClick={clearPrefill}
+                          style={{ background: 'rgba(255,255,255,0.08)', border: 'none', color: C.secondary, cursor: 'pointer', width: 22, height: 22, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, fontFamily: 'inherit', fontSize: 15, lineHeight: '1' }}
+                        >×</button>
+                      : venueSelected
+                      ? <span style={{ fontSize: 13, color: C.gold, pointerEvents: 'none' as const }}>✓</span>
+                      : <span style={{ pointerEvents: 'none' as const, display: 'flex' }}><Search size={13} color={C.muted} /></span>
+                    }
+                  </div>
+                </div>
+
+                {venueMemory && !isPrefilled && (
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '9px 12px', background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 8 }}>
+                    <p style={{ fontSize: 14, color: C.gold, margin: 0, lineHeight: 1.4 }}>
+                      Last time here: <strong>{venueMemory.songCount} {songWord(venueMemory.songCount)}</strong> on {formatDate(venueMemory.lastDate)}
+                    </p>
+                    {venueMemory.songs && venueMemory.songs.length > 0 && plannedSongs.length === 0 && (
+                      <button onClick={loadFromVenueMemory}
+                        style={{ fontSize: 13, fontWeight: 700, color: C.gold, background: 'rgba(201,168,76,0.15)', border: `1px solid ${C.borderGold}`, borderRadius: 6, padding: '6px 14px', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' as const }}>
+                        Load that set →
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {showDropdown && venueResults.length > 0 && (
+                  <div onMouseDown={e => e.preventDefault()}
+                    style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#1a1816', border: `1px solid ${C.borderGold}`, borderRadius: 10, marginTop: 4, zIndex: 50, overflow: 'hidden', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
+                    {venueResults.map((v, i) => (
+                      <button key={v.id} onMouseDown={() => selectVenue(v)}
+                        style={{ width: '100%', padding: '11px 14px', background: 'transparent', border: 'none', borderBottom: i < venueResults.length - 1 ? `1px solid ${C.border}` : 'none', cursor: 'pointer', textAlign: 'left' as const, display: 'flex', flexDirection: 'column', gap: 2, fontFamily: 'inherit' }}
+                        onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = C.cardHover}
+                        onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}>
+                        <span style={{ fontSize: 14, fontWeight: 600, color: C.text }}>{v.name}</span>
+                        {(v.city || v.country) && <span style={{ fontSize: 11, color: C.muted }}>{[v.city, v.country].filter(Boolean).join(', ')}</span>}
+                      </button>
+                    ))}
+                    <button onMouseDown={() => { setVenueSelected(false); setShowDropdown(false) }}
+                      style={{ width: '100%', padding: '10px 14px', background: C.goldDim, border: 'none', cursor: 'pointer', textAlign: 'left' as const, fontFamily: 'inherit' }}>
+                      <span style={{ fontSize: 12, color: C.gold, fontWeight: 600 }}>+ Add "{venueQuery}" as new venue</span>
+                    </button>
+                  </div>
+                )}
+
+                {showDropdown && venueResults.length === 0 && venueQuery.trim().length >= 2 && !venueSearching && (
+                  <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#1a1816', border: `1px solid ${C.border}`, borderRadius: 10, marginTop: 4, zIndex: 50, padding: '12px 14px' }}>
+                    <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>New venue — we'll remember it.</p>
+                  </div>
+                )}
+
+                {venueQuery.trim().length >= 2 && !venueSelected && !venueSearching && !showDropdown && (
+                  <div style={{ marginTop: 8 }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, color: C.muted, margin: '0 0 6px' }}>Room size</p>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      {([
+                        { key: 'small', label: 'Small', sub: '<300' },
+                        { key: 'medium', label: 'Medium', sub: '300–2k' },
+                        { key: 'large', label: 'Large', sub: '2k–10k' },
+                        { key: 'festival', label: 'Festival', sub: '10k+' },
+                      ] as const).map(opt => (
+                        <button key={opt.key} type="button"
+                          onClick={() => setVenueCapacity(venueCapacity === opt.key ? '' : opt.key)}
+                          style={{ flex: 1, padding: '8px 4px', background: venueCapacity === opt.key ? C.goldDim : 'transparent', border: `1px solid ${venueCapacity === opt.key ? C.borderGold : C.border}`, borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: venueCapacity === opt.key ? C.gold : C.secondary }}>{opt.label}</span>
+                          <span style={{ fontSize: 9, color: C.muted }}>{opt.sub}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Reuses the Career Map's Mapbox GL setup, styled dark — best-effort preview only */}
+                {(venueQuery.trim().length >= 2) && <VenueMap venueName={venueQuery} city={venueCity} country={venueCountry} />}
+              </div>
+            </div>
+
+            {error && (
+              <div style={{ background: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.2)', borderRadius: 10, padding: '12px 14px', marginBottom: 14 }}>
+                <p style={{ fontSize: 13, color: '#f87171', margin: 0 }}>{error}</p>
+              </div>
+            )}
+
+            <button onClick={goNext} disabled={!isValid}
+              style={{ width: '100%', padding: '18px', background: isValid ? C.gold : C.muted, border: 'none', borderRadius: 14, color: '#0a0908', fontSize: 15, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' as const, cursor: isValid ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit' }}>
+              Next <ArrowRight size={15} strokeWidth={2.5} />
+            </button>
+
+            {/* ── MORE OPTIONS ── */}
+            <button
+              onClick={() => setShowMoreOptions(v => !v)}
+              style={{ background: 'none', border: 'none', color: showMoreOptions ? C.gold : C.muted, fontSize: 12, cursor: 'pointer', letterSpacing: '0.04em', fontFamily: 'inherit', padding: '12px', width: '100%', marginTop: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+              {showMoreOptions ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+              {showMoreOptions ? 'fewer options' : '+ more options'}
+            </button>
+
+            {showMoreOptions && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '4px 0 12px' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowType(showType === 'single' ? 'writers_round' : 'single')}
+                  style={{ display: 'flex', alignItems: 'center', gap: 8, background: showType === 'writers_round' ? C.goldDim : 'transparent', border: `1px solid ${showType === 'writers_round' ? C.borderGold : 'rgba(255,255,255,0.06)'}`, borderRadius: 10, padding: '10px 14px', cursor: 'pointer', fontFamily: 'inherit', width: '100%' }}>
+                  <span style={{ fontSize: 14, color: showType === 'writers_round' ? C.gold : C.muted }}>{showType === 'writers_round' ? '✓' : '○'}</span>
+                  <div style={{ textAlign: 'left' as const }}>
+                    <p style={{ fontSize: 13, fontWeight: 600, color: showType === 'writers_round' ? C.gold : C.secondary, margin: 0 }}>Writer's Round</p>
+                    <p style={{ fontSize: 11, color: C.muted, margin: '1px 0 0' }}>Multiple writers on the bill</p>
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => setShowSchedule(v => !v)}
+                  style={{ background: 'none', border: 'none', color: showSchedule ? C.gold : C.muted, fontSize: 12, cursor: 'pointer', letterSpacing: '0.04em', fontFamily: 'inherit', padding: '2px 0', textAlign: 'center' as const, width: '100%' }}>
+                  {showSchedule ? '× Cancel scheduling' : '+ Schedule ahead'}
+                </button>
+
+                {showSchedule && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <label style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' as const, color: C.muted, display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <Calendar size={10} />Scheduled Time
+                    </label>
+                    <input
+                      type="datetime-local"
+                      value={scheduledAt}
+                      onChange={e => setScheduledAt(e.target.value)}
+                      style={{ background: C.input, border: `1px solid ${scheduledAt ? C.borderGold : C.border}`, borderRadius: 10, padding: '12px 14px', color: C.text, fontSize: 14, fontFamily: 'inherit', width: '100%', colorScheme: 'dark' as const, outline: 'none' }}
+                    />
+                  </div>
+                )}
+
+                <button
+                  onClick={() => router.push('/app/show/upload')}
+                  style={{ background: 'none', border: 'none', color: C.muted, fontSize: 12, cursor: 'pointer', letterSpacing: '0.04em', fontFamily: 'inherit', padding: '2px 0', textAlign: 'center' as const, width: '100%' }}>
+                  or upload a recording instead →
+                </button>
+              </div>
+            )}
+
+            <button
+              onClick={() => router.push('/app/dashboard')}
+              style={{ background: 'none', border: 'none', color: C.muted, fontSize: 12, cursor: 'pointer', letterSpacing: '0.04em', fontFamily: 'inherit', padding: '4px', width: '100%', textAlign: 'center' as const, marginTop: 4 }}>
+              ← Back to Dashboard
+            </button>
+          </div>
+        )}
+
+        {/* ══════════════════════════════════════════
+            STEP 2 — LOAD YOUR SET
+        ══════════════════════════════════════════ */}
+        {step === 2 && (
+          <div key="step2" style={{ animation: 'fadeUp 0.3s ease' }}>
+            <button onClick={goBack}
+              style={{ background: 'none', border: 'none', color: C.muted, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', padding: 0, marginBottom: 10, display: 'flex', alignItems: 'center', gap: 5 }}>
+              <ArrowLeft size={12} />{venueQuery.trim()}
+            </button>
+
+            <h1 style={{ fontSize: 30, fontWeight: 800, color: C.text, margin: '0 0 4px', letterSpacing: '-0.025em' }}>Load your set</h1>
+            <p style={{ fontSize: 14, color: C.muted, margin: '0 0 20px' }}>
               {plannedSongs.length > 0
-                ? `✓ ${plannedSongs.length} ${songWord(plannedSongs.length)} ready`
-                : 'Have a setlist tonight?'}
-            </p>
-            <p style={{ fontSize: 14, color: C.muted, margin: 0 }}>
-              {plannedSongs.length > 0
-                ? "We'll listen for these first. Tap to add more."
+                ? `✓ ${plannedSongs.length} ${songWord(plannedSongs.length)} ready — we'll listen for these first.`
                 : 'A photo helps us catch every song.'}
             </p>
-          </div>
 
-          {setlistMode === null && plannedSongs.length === 0 && (
-            <div style={{ padding: '0 16px 16px', display: 'flex', gap: 8 }}>
-              <button
-                onClick={() => {
-                  setUploadError('')
-                  setSetlistMode('photo')
-                  setTimeout(() => cameraInputRef.current?.click(), 50)
-                }}
-                style={{ flex: 2, padding: '16px 12px', background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 12, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, WebkitTapHighlightColor: 'transparent' }}>
-                <span style={{ fontSize: 14, fontWeight: 800, color: C.gold, textAlign: 'center' as const }}>Photo setlist</span>
-                <span style={{ fontSize: 12, color: C.muted, textAlign: 'center' as const }}>Scan paper or screen</span>
-              </button>
-              <button
-                onClick={() => setSetlistMode('quick')}
-                style={{ flex: 1, padding: '16px 12px', background: 'rgba(255,255,255,0.02)', border: `1px solid ${C.border}`, borderRadius: 12, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, WebkitTapHighlightColor: 'transparent' }}>
-                <span style={{ fontSize: 14, fontWeight: 700, color: C.secondary, textAlign: 'center' as const }}>Add songs</span>
-                <span style={{ fontSize: 12, color: C.muted, textAlign: 'center' as const }}>From catalog</span>
-              </button>
-            </div>
-          )}
-
-          {setlistMode === 'photo' && (
-            <div style={{ padding: '0 16px 16px', borderTop: `1px solid ${C.border}` }}>
-              <div style={{ paddingTop: 14, display: 'flex', gap: 8 }}>
+            {/* ── LAST SETLIST OFFER ── */}
+            {setlistOffer && !setlistOfferDismissed && !isPrefilled && plannedSongs.length === 0 && (
+              <div style={{ background: CARD.background, border: `1px solid ${C.border}`, borderRadius: 12, marginBottom: 12, boxShadow: CARD.boxShadow, display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px' }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontSize: 11, color: C.muted, margin: '0 0 2px', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' as const }}>Use your last setlist?</p>
+                  <p style={{ fontSize: 13, color: C.secondary, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {setlistOffer.songs.length} {songWord(setlistOffer.songs.length)} · {setlistOffer.venueName} · {formatDate(setlistOffer.date)}
+                  </p>
+                </div>
                 <button
-                  onClick={() => { setUploadError(''); cameraInputRef.current?.click() }}
+                  onClick={() => {
+                    setPlannedSongs(setlistOffer.songs.map((s, i) => ({ ...s, position: i })))
+                    setSetlistOfferDismissed(true)
+                  }}
+                  style={{ fontSize: 12, fontWeight: 700, color: C.gold, background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 8, padding: '7px 12px', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' as const, flexShrink: 0 }}>
+                  Load →
+                </button>
+                <button
+                  onClick={() => setSetlistOfferDismissed(true)}
+                  style={{ background: 'none', border: 'none', color: C.muted, cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                  <X size={13} />
+                </button>
+              </div>
+            )}
+
+            {/* ── SETLIST CARD ── */}
+            <div style={{ background: CARD.background, border: `1px solid ${plannedSongs.length > 0 ? C.borderGold : C.border}`, borderRadius: 16, marginBottom: 16, overflow: 'hidden', transition: 'border-color 0.2s ease', boxShadow: CARD.boxShadow }}>
+
+              {/* 1. Photo setlist — hero action */}
+              <div style={{ padding: '16px 16px 0' }}>
+                <button
+                  onClick={() => {
+                    setUploadError('')
+                    setSetlistMode('photo')
+                    setTimeout(() => cameraInputRef.current?.click(), 50)
+                  }}
                   disabled={uploading}
-                  style={{ flex: 1, padding: '14px 10px', background: uploading ? 'transparent' : C.goldDim, border: `1px solid ${uploading ? C.border : C.borderGold}`, borderRadius: 10, cursor: uploading ? 'default' : 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, opacity: uploading ? 0.5 : 1, WebkitTapHighlightColor: 'transparent' }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: C.gold }}>
-                    {plannedSongs.length > 0 ? 'Add page 2' : 'Scan setlist'}
+                  style={{ width: '100%', padding: '22px 16px', background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 14, cursor: uploading ? 'default' : 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, opacity: uploading ? 0.6 : 1, WebkitTapHighlightColor: 'transparent' }}>
+                  <Camera size={26} color={C.gold} strokeWidth={1.75} />
+                  <span style={{ fontSize: 16, fontWeight: 800, color: C.gold }}>Photo setlist</span>
+                  <span style={{ fontSize: 12, color: C.muted, textAlign: 'center' as const }}>
+                    {plannedSongs.length > 0 ? `Add another page · ${plannedSongs.length} loaded` : 'Scan paper or screen'}
                   </span>
                 </button>
+
+                {/* 2. Helper line */}
+                <p style={{ fontSize: 11.5, color: C.muted, textAlign: 'center' as const, margin: '10px 0 0', lineHeight: 1.5 }}>
+                  New songs land pre-ordered for one-tap review after the show
+                </p>
+              </div>
+
+              <div style={{ padding: '14px 16px 0', display: 'flex', gap: 8 }}>
+                {/* 3. Upload a setlist */}
                 <button
                   onClick={() => { setUploadError(''); fileInputRef.current?.click() }}
                   disabled={uploading}
-                  style={{ flex: 1, padding: '14px 10px', background: 'rgba(255,255,255,0.02)', border: `1px solid ${C.border}`, borderRadius: 10, cursor: uploading ? 'default' : 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, opacity: uploading ? 0.5 : 1, WebkitTapHighlightColor: 'transparent' }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: C.secondary }}>Gallery / file</span>
+                  style={{ flex: 1, padding: '14px 10px', background: 'rgba(255,255,255,0.02)', border: `1px solid ${C.border}`, borderRadius: 10, cursor: uploading ? 'default' : 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, opacity: uploading ? 0.5 : 1, WebkitTapHighlightColor: 'transparent' }}>
+                  <Upload size={16} color={C.secondary} strokeWidth={1.75} />
+                  <span style={{ fontSize: 12, fontWeight: 700, color: C.secondary }}>Upload a setlist</span>
+                  <span style={{ fontSize: 10, color: C.muted }}>PDF or from library</span>
                 </button>
+
+                {/* 4. Pick from your catalog */}
                 <button
-                  onClick={() => setSetlistMode('quick')}
-                  style={{ flex: 1, padding: '14px 10px', background: 'rgba(255,255,255,0.02)', border: `1px solid ${C.border}`, borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, WebkitTapHighlightColor: 'transparent' }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: C.secondary }}>Type it</span>
+                  onClick={() => setSetlistMode(setlistMode === 'quick' ? null : 'quick')}
+                  style={{ flex: 1, padding: '14px 10px', background: setlistMode === 'quick' ? C.goldDim : 'rgba(255,255,255,0.02)', border: `1px solid ${setlistMode === 'quick' ? C.borderGold : C.border}`, borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, WebkitTapHighlightColor: 'transparent' }}>
+                  <ListMusic size={16} color={setlistMode === 'quick' ? C.gold : C.secondary} strokeWidth={1.75} />
+                  <span style={{ fontSize: 12, fontWeight: 700, color: setlistMode === 'quick' ? C.gold : C.secondary }}>Pick from catalog</span>
+                  <span style={{ fontSize: 10, color: C.muted }}>Your songs</span>
                 </button>
               </div>
 
               {uploading && (
-                <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, padding: '14px', background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 10 }}>
+                <div style={{ margin: '12px 16px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, padding: '14px', background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 10 }}>
                   <div style={{ width: 16, height: 16, borderRadius: '50%', border: `2px solid ${C.muted}`, borderTopColor: C.gold, animation: 'spin 0.7s linear infinite' }} />
                   <span style={{ fontSize: 13, color: C.gold, fontWeight: 600 }}>Reading your setlist...</span>
                 </div>
               )}
 
               {uploadError && (
-                <div style={{ marginTop: 8, padding: '10px 12px', background: C.redDim, border: '1px solid rgba(248,113,113,0.2)', borderRadius: 8 }}>
+                <div style={{ margin: '10px 16px 0', padding: '10px 12px', background: C.redDim, border: '1px solid rgba(248,113,113,0.2)', borderRadius: 8 }}>
                   <p style={{ fontSize: 12, color: C.red, margin: 0 }}>{uploadError}</p>
                 </div>
               )}
-            </div>
-          )}
 
-          {setlistMode === 'quick' && (
-            <div style={{ padding: '0 16px 16px', borderTop: `1px solid ${C.border}` }}>
-              <div style={{ paddingTop: 14 }}>
-                <div style={{ position: 'relative', marginBottom: 10 }}>
-                  <Search size={12} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: C.muted, pointerEvents: 'none' }} />
-                  <input
-                    value={quickSearch}
-                    onChange={e => setQuickSearch(e.target.value)}
-                    placeholder="Search your songs..."
-                    autoFocus spellCheck={false} autoCorrect="off" autoCapitalize="words"
-                    style={{ width: '100%', background: C.input, border: `1px solid ${C.border}`, borderRadius: 8, padding: '9px 12px 9px 30px', color: C.text, fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' as const }} />
+              {setlistMode === 'quick' && (
+                <div style={{ padding: '14px 16px 16px', marginTop: 4, borderTop: `1px solid ${C.border}` }}>
+                  <div style={{ paddingTop: 14 }}>
+                    <div style={{ position: 'relative', marginBottom: 10 }}>
+                      <Search size={12} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: C.muted, pointerEvents: 'none' }} />
+                      <input
+                        value={quickSearch}
+                        onChange={e => setQuickSearch(e.target.value)}
+                        placeholder="Search your songs..."
+                        autoFocus spellCheck={false} autoCorrect="off" autoCapitalize="words"
+                        style={{ width: '100%', background: C.input, border: `1px solid ${C.border}`, borderRadius: 8, padding: '9px 12px 9px 30px', color: C.text, fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' as const }} />
+                    </div>
+
+                    {filteredRecent.length > 0 && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: 6, marginBottom: 12 }}>
+                        {filteredRecent.slice(0, 20).map((song, i) => (
+                          <button key={i} onClick={() => addPlannedSong(song.title, song.artist)}
+                            style={{ padding: '6px 12px', background: 'rgba(255,255,255,0.04)', border: `1px solid ${C.border}`, borderRadius: 20, color: C.secondary, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 5 }}
+                            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = C.goldDim; (e.currentTarget as HTMLElement).style.borderColor = C.borderGold; (e.currentTarget as HTMLElement).style.color = C.gold }}
+                            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.04)'; (e.currentTarget as HTMLElement).style.borderColor = C.border; (e.currentTarget as HTMLElement).style.color = C.secondary }}>
+                            <Plus size={10} />{song.title}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {filteredRecent.length === 0 && quickSearch && (
+                      <div style={{ marginBottom: 12 }}>
+                        <button onClick={() => { addPlannedSong(quickSearch); setQuickSearch('') }}
+                          style={{ padding: '8px 14px', background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 20, color: C.gold, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                          + Add "{quickSearch}"
+                        </button>
+                      </div>
+                    )}
+
+                    {recentSongs.length === 0 && !quickSearch && (
+                      <p style={{ fontSize: 12, color: C.muted, margin: '0 0 12px', fontStyle: 'italic' }}>
+                        Type a song name to add it
+                      </p>
+                    )}
+                  </div>
                 </div>
+              )}
 
-                {filteredRecent.length > 0 && (
-                  <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: 6, marginBottom: 12 }}>
-                    {filteredRecent.slice(0, 20).map((song, i) => (
-                      <button key={i} onClick={() => addPlannedSong(song.title, song.artist)}
-                        style={{ padding: '6px 12px', background: 'rgba(255,255,255,0.04)', border: `1px solid ${C.border}`, borderRadius: 20, color: C.secondary, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 5 }}
-                        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = C.goldDim; (e.currentTarget as HTMLElement).style.borderColor = C.borderGold; (e.currentTarget as HTMLElement).style.color = C.gold }}
-                        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.04)'; (e.currentTarget as HTMLElement).style.borderColor = C.border; (e.currentTarget as HTMLElement).style.color = C.secondary }}>
-                        <Plus size={10} />{song.title}
-                      </button>
+              {plannedSongs.length > 0 && (
+                <div style={{ padding: '14px 16px 16px', borderTop: `1px solid ${C.border}`, marginTop: 4 }}>
+                  <p style={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.1em', color: C.muted, margin: '0 0 8px' }}>
+                    Tonight's set · {plannedSongs.length} {songWord(plannedSongs.length)}
+                  </p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    {plannedSongs.map((song, i) => (
+                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', background: 'rgba(255,255,255,0.02)', border: `1px solid ${C.border}`, borderRadius: 8 }}>
+                        <span style={{ fontSize: 11, color: C.muted, minWidth: 18, fontFamily: '"DM Mono", monospace', fontWeight: 700 }}>{i + 1}</span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <p style={{ fontSize: 13, fontWeight: 600, color: C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{song.title}</p>
+                          {song.artist && <p style={{ fontSize: 11, color: C.muted, margin: '1px 0 0' }}>{song.artist}</p>}
+                        </div>
+                        <button onClick={() => removePlannedSong(i)}
+                          style={{ background: 'none', border: 'none', color: C.muted, cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                          <X size={13} />
+                        </button>
+                      </div>
                     ))}
                   </div>
-                )}
-
-                {filteredRecent.length === 0 && quickSearch && (
-                  <div style={{ marginBottom: 12 }}>
-                    <button onClick={() => { addPlannedSong(quickSearch); setQuickSearch('') }}
-                      style={{ padding: '8px 14px', background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 20, color: C.gold, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
-                      + Add "{quickSearch}"
-                    </button>
+                  <div style={{ marginTop: 10, padding: '10px 12px', background: C.greenDim, border: '1px solid rgba(74,222,128,0.2)', borderRadius: 8 }}>
+                    <p style={{ fontSize: 14, color: C.green, margin: 0, lineHeight: 1.4 }}>
+                      ✓ We'll listen for these. Review what was played vs planned after the show.
+                    </p>
                   </div>
-                )}
-
-                {recentSongs.length === 0 && !quickSearch && (
-                  <p style={{ fontSize: 12, color: C.muted, margin: '0 0 12px', fontStyle: 'italic' }}>
-                    Type a song name to add it
-                  </p>
-                )}
-
-                <button
-                  onClick={() => { setSetlistMode('photo'); setTimeout(() => cameraInputRef.current?.click(), 50) }}
-                  style={{ fontSize: 12, color: C.muted, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>
-                  Scan a setlist instead →
-                </button>
-              </div>
-            </div>
-          )}
-
-          {plannedSongs.length > 0 && (
-            <div style={{ padding: '0 16px 16px', borderTop: setlistMode !== null ? `1px solid ${C.border}` : 'none' }}>
-              {setlistMode !== null && <div style={{ height: 12 }} />}
-              <p style={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.1em', color: C.muted, margin: '0 0 8px' }}>
-                Tonight's set · {plannedSongs.length} {songWord(plannedSongs.length)}
-              </p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                {plannedSongs.map((song, i) => (
-                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', background: 'rgba(255,255,255,0.02)', border: `1px solid ${C.border}`, borderRadius: 8 }}>
-                    <span style={{ fontSize: 11, color: C.muted, minWidth: 18, fontFamily: '"DM Mono", monospace', fontWeight: 700 }}>{i + 1}</span>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <p style={{ fontSize: 13, fontWeight: 600, color: C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{song.title}</p>
-                      {song.artist && <p style={{ fontSize: 11, color: C.muted, margin: '1px 0 0' }}>{song.artist}</p>}
-                    </div>
-                    <button onClick={() => removePlannedSong(i)}
-                      style={{ background: 'none', border: 'none', color: C.muted, cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center', flexShrink: 0 }}>
-                      <X size={13} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-              <div style={{ marginTop: 10, padding: '10px 12px', background: C.greenDim, border: '1px solid rgba(74,222,128,0.2)', borderRadius: 8 }}>
-                <p style={{ fontSize: 14, color: C.green, margin: 0, lineHeight: 1.4 }}>
-                  ✓ We'll listen for these. Review what was played vs planned after the show.
-                </p>
-              </div>
-
-              {setlistMode === null && (
-                <button
-                  onClick={() => { setSetlistMode('photo'); setTimeout(() => cameraInputRef.current?.click(), 50) }}
-                  style={{ marginTop: 10, fontSize: 12, color: C.muted, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>
-                  Add another page →
-                </button>
+                </div>
               )}
             </div>
-          )}
-        </div>
 
-        {/* ── LAST SETLIST OFFER — shown when not pre-filled and no songs added yet ── */}
-        {setlistOffer && !setlistOfferDismissed && !isPrefilled && plannedSongs.length === 0 && (
-          <div style={{ background: CARD.background, border: `1px solid ${C.border}`, borderRadius: 12, marginBottom: 12, boxShadow: CARD.boxShadow, display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px' }}>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <p style={{ fontSize: 11, color: C.muted, margin: '0 0 2px', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' as const }}>Use your last setlist?</p>
-              <p style={{ fontSize: 13, color: C.secondary, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {setlistOffer.songs.length} {songWord(setlistOffer.songs.length)} · {setlistOffer.venueName} · {formatDate(setlistOffer.date)}
+            {error && (
+              <div style={{ background: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.2)', borderRadius: 10, padding: '12px 14px', marginBottom: 14 }}>
+                <p style={{ fontSize: 13, color: '#f87171', margin: 0 }}>{error}</p>
+              </div>
+            )}
+
+            {/* ── START / SKIP — hidden while the past-setlist reuse picker is open ── */}
+            {!showReuse && (
+              <>
+                <p style={{ fontSize: 11, color: C.muted, textAlign: 'center', margin: '0 0 8px' }}>By starting, you confirm you have the right to record this performance. Ambient audio may briefly include others nearby.</p>
+
+                {plannedSongs.length > 0 ? (
+                  <button onClick={handleSubmit} disabled={!isValid || loading}
+                    style={{ width: '100%', padding: '18px', background: isValid ? C.gold : C.muted, border: 'none', borderRadius: 14, color: '#0a0908', fontSize: 15, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' as const, cursor: isValid && !loading ? 'pointer' : 'not-allowed', opacity: loading ? 0.7 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit' }}>
+                    {loading
+                      ? <><div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid #0a090840', borderTopColor: '#0a0908', animation: 'spin 0.7s linear infinite' }} />Starting...</>
+                      : <>Start <ArrowRight size={15} strokeWidth={2.5} /></>}
+                  </button>
+                ) : (
+                  <button onClick={() => setShowSkipConfirm(true)} disabled={!isValid || loading}
+                    style={{ width: '100%', padding: '15px', background: 'transparent', border: `1px solid ${C.border}`, borderRadius: 14, color: C.secondary, fontSize: 13, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' as const, cursor: isValid ? 'pointer' : 'not-allowed', fontFamily: 'inherit' }}>
+                    Skip for now
+                  </button>
+                )}
+              </>
+            )}
+
+            {/* ── REUSE SETLIST ── */}
+            <button onClick={() => { setShowReuse(v => !v); setSelectedPast(null) }}
+              style={{ width: '100%', padding: '11px 16px', background: showReuse ? C.goldDim : 'transparent', border: `1px solid ${showReuse ? C.borderGold : C.border}`, borderRadius: 10, color: showReuse ? C.gold : C.muted, fontSize: 12, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' as const, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit', marginTop: showReuse ? 0 : 10 }}>
+              <RefreshCw size={12} />{showReuse ? 'Cancel' : 'Use a past setlist'}
+            </button>
+
+            {showReuse && (
+              <div style={{ marginTop: 10 }}>
+                {pastLoading ? (
+                  <div style={{ background: CARD.background, border: `1px solid ${C.border}`, borderRadius: 12, boxShadow: CARD.boxShadow, padding: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div style={{ width: 20, height: 20, borderRadius: '50%', border: `2px solid ${C.border}`, borderTopColor: C.gold, animation: 'spin 0.7s linear infinite' }} />
+                  </div>
+                ) : pastPerfs.length === 0 ? (
+                  <div style={{ background: CARD.background, border: `1px solid ${C.border}`, borderRadius: 12, boxShadow: CARD.boxShadow, padding: '20px', textAlign: 'center' as const }}>
+                    <p style={{ fontSize: 13, color: C.muted, margin: 0 }}>No past shows with songs yet.</p>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' as const, color: C.muted, margin: '0 0 4px' }}>Pick a night to repeat</p>
+                    {pastPerfs.map(perf => {
+                      const isSelected = selectedPast?.id === perf.id
+                      return (
+                        <button key={perf.id} onClick={() => setSelectedPast(isSelected ? null : perf)}
+                          style={{ background: isSelected ? C.goldDim : C.card, border: `1px solid ${isSelected ? C.borderGold : C.border}`, borderRadius: 10, padding: '12px 14px', cursor: 'pointer', textAlign: 'left' as const, fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 12 }}
+                          onMouseEnter={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = C.cardHover }}
+                          onMouseLeave={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = C.card }}>
+                          <div style={{ width: 20, height: 20, borderRadius: '50%', flexShrink: 0, background: isSelected ? C.gold : 'transparent', border: `1px solid ${isSelected ? C.gold : C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            {isSelected && <Check size={11} color="#0a0908" strokeWidth={3} />}
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <p style={{ fontSize: 13, fontWeight: 600, color: isSelected ? C.gold : C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{perf.venue_name}</p>
+                            <p style={{ fontSize: 11, color: C.secondary, margin: '2px 0 0' }}>{perf.artist_name} · {formatDate(perf.started_at)}</p>
+                          </div>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: isSelected ? C.gold : C.muted, flexShrink: 0 }}>
+                            {perf.song_count} {songWord(perf.song_count)}
+                          </span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+                {selectedPast && (
+                  <div style={{ marginTop: 12 }}>
+                    <button onClick={handleClone} disabled={!isValid || cloning}
+                      style={{ width: '100%', padding: '15px', background: isValid ? C.gold : C.muted, border: 'none', borderRadius: 12, color: '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' as const, cursor: isValid && !cloning ? 'pointer' : 'not-allowed', opacity: cloning ? 0.7 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit' }}>
+                      {cloning
+                        ? <><div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid #0a090840', borderTopColor: '#0a0908', animation: 'spin 0.7s linear infinite' }} />Cloning...</>
+                        : <><RefreshCw size={14} />Use this set →</>}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── SKIP CONFIRMATION SHEET ── */}
+      {showSkipConfirm && (
+        <div
+          style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', animation: 'fadeIn 0.15s ease' }}
+          onClick={() => setShowSkipConfirm(false)}
+        >
+          <div onClick={e => e.stopPropagation()}
+            style={{ width: '100%', maxWidth: 440, background: CARD.background, borderRadius: '20px 20px 0 0', border: `1px solid ${C.border}`, borderBottom: 'none', padding: '24px 20px 36px', display: 'flex', flexDirection: 'column', gap: 16, animation: 'sheetUp 0.22s ease', boxShadow: CARD.boxShadow }}>
+            <div>
+              <p style={{ fontSize: 16, fontWeight: 800, color: C.text, margin: '0 0 10px' }}>Start without a setlist?</p>
+              <p style={{ fontSize: 13.5, color: C.secondary, margin: 0, lineHeight: 1.6 }}>
+                Totally fine — we'll capture the show either way. A setlist just means any unreleased songs get pre-ordered in your post-show review for quick one-tap confirmation. You can add one anytime.
               </p>
             </div>
-            <button
-              onClick={() => {
-                setPlannedSongs(setlistOffer.songs.map((s, i) => ({ ...s, position: i })))
-                setSetlistOfferDismissed(true)
-              }}
-              style={{ fontSize: 12, fontWeight: 700, color: C.gold, background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 8, padding: '7px 12px', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' as const, flexShrink: 0 }}>
-              Load →
-            </button>
-            <button
-              onClick={() => setSetlistOfferDismissed(true)}
-              style={{ background: 'none', border: 'none', color: C.muted, cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center', flexShrink: 0 }}>
-              <X size={13} />
-            </button>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={() => setShowSkipConfirm(false)}
+                style={{ flex: 1, padding: '14px', background: 'transparent', border: `1px solid ${C.border}`, borderRadius: 12, color: C.secondary, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                Add setlist
+              </button>
+              <button
+                onClick={() => { setShowSkipConfirm(false); handleSubmit() }}
+                disabled={!isValid || loading}
+                style={{ flex: 1, padding: '14px', background: C.gold, border: 'none', borderRadius: 12, color: '#0a0908', fontSize: 13, fontWeight: 800, cursor: isValid && !loading ? 'pointer' : 'not-allowed', opacity: loading ? 0.7 : 1, fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                {loading
+                  ? <><div style={{ width: 12, height: 12, borderRadius: '50%', border: '2px solid #0a090840', borderTopColor: '#0a0908', animation: 'spin 0.7s linear infinite' }} />Starting...</>
+                  : 'Skip anyway'}
+              </button>
+            </div>
           </div>
-        )}
-
-        {error && (
-          <div style={{ background: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.2)', borderRadius: 10, padding: '12px 14px', marginBottom: 14 }}>
-            <p style={{ fontSize: 13, color: '#f87171', margin: 0 }}>{error}</p>
-          </div>
-        )}
-
-        {/* ── START BUTTON ── */}
-        {!showReuse && (
-          <>
-            <p style={{ fontSize: 11, color: C.muted, textAlign: 'center', margin: '0 0 8px' }}>By starting, you confirm you have the right to record this performance. Ambient audio may briefly include others nearby.</p>
-            <button onClick={handleSubmit} disabled={!isValid || loading}
-              style={{ width: '100%', padding: '18px', background: isValid ? C.gold : C.muted, border: 'none', borderRadius: 14, color: '#0a0908', fontSize: 15, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' as const, cursor: isValid && !loading ? 'pointer' : 'not-allowed', opacity: loading ? 0.7 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit' }}>
-              {loading
-                ? <><div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid #0a090840', borderTopColor: '#0a0908', animation: 'spin 0.7s linear infinite' }} />Starting...</>
-                : <>{plannedSongs.length > 0
-                    ? `Start · ${plannedSongs.length} ${songWord(plannedSongs.length)} ready`
-                    : 'Start Capturing'} <ArrowRight size={15} strokeWidth={2.5} /></>}
-            </button>
-          </>
-        )}
-
-        {/* ── REUSE SETLIST ── */}
-        <button onClick={() => { setShowReuse(v => !v); setSelectedPast(null) }}
-          style={{ width: '100%', padding: '11px 16px', background: showReuse ? C.goldDim : 'transparent', border: `1px solid ${showReuse ? C.borderGold : C.border}`, borderRadius: 10, color: showReuse ? C.gold : C.muted, fontSize: 12, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' as const, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit', marginTop: showReuse ? 0 : 10 }}>
-          <RefreshCw size={12} />{showReuse ? 'Cancel' : 'Use a past setlist'}
-        </button>
-
-        {showReuse && (
-          <div style={{ marginTop: 10 }}>
-            {pastLoading ? (
-              <div style={{ background: CARD.background, border: `1px solid ${C.border}`, borderRadius: 12, boxShadow: CARD.boxShadow, padding: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <div style={{ width: 20, height: 20, borderRadius: '50%', border: `2px solid ${C.border}`, borderTopColor: C.gold, animation: 'spin 0.7s linear infinite' }} />
-              </div>
-            ) : pastPerfs.length === 0 ? (
-              <div style={{ background: CARD.background, border: `1px solid ${C.border}`, borderRadius: 12, boxShadow: CARD.boxShadow, padding: '20px', textAlign: 'center' as const }}>
-                <p style={{ fontSize: 13, color: C.muted, margin: 0 }}>No past shows with songs yet.</p>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' as const, color: C.muted, margin: '0 0 4px' }}>Pick a night to repeat</p>
-                {pastPerfs.map(perf => {
-                  const isSelected = selectedPast?.id === perf.id
-                  return (
-                    <button key={perf.id} onClick={() => setSelectedPast(isSelected ? null : perf)}
-                      style={{ background: isSelected ? C.goldDim : C.card, border: `1px solid ${isSelected ? C.borderGold : C.border}`, borderRadius: 10, padding: '12px 14px', cursor: 'pointer', textAlign: 'left' as const, fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 12 }}
-                      onMouseEnter={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = C.cardHover }}
-                      onMouseLeave={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = C.card }}>
-                      <div style={{ width: 20, height: 20, borderRadius: '50%', flexShrink: 0, background: isSelected ? C.gold : 'transparent', border: `1px solid ${isSelected ? C.gold : C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        {isSelected && <Check size={11} color="#0a0908" strokeWidth={3} />}
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <p style={{ fontSize: 13, fontWeight: 600, color: isSelected ? C.gold : C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{perf.venue_name}</p>
-                        <p style={{ fontSize: 11, color: C.secondary, margin: '2px 0 0' }}>{perf.artist_name} · {formatDate(perf.started_at)}</p>
-                      </div>
-                      <span style={{ fontSize: 11, fontWeight: 700, color: isSelected ? C.gold : C.muted, flexShrink: 0 }}>
-                        {perf.song_count} {songWord(perf.song_count)}
-                      </span>
-                    </button>
-                  )
-                })}
-              </div>
-            )}
-            {selectedPast && (
-              <div style={{ marginTop: 12 }}>
-                <button onClick={handleClone} disabled={!isValid || cloning}
-                  style={{ width: '100%', padding: '15px', background: isValid ? C.gold : C.muted, border: 'none', borderRadius: 12, color: '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' as const, cursor: isValid && !cloning ? 'pointer' : 'not-allowed', opacity: cloning ? 0.7 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit' }}>
-                  {cloning
-                    ? <><div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid #0a090840', borderTopColor: '#0a0908', animation: 'spin 0.7s linear infinite' }} />Cloning...</>
-                    : <><RefreshCw size={14} />Use this set →</>}
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ── MORE OPTIONS ── */}
-        <button
-          onClick={() => setShowMoreOptions(v => !v)}
-          style={{ background: 'none', border: 'none', color: showMoreOptions ? C.gold : C.muted, fontSize: 12, cursor: 'pointer', letterSpacing: '0.04em', fontFamily: 'inherit', padding: '12px', width: '100%', marginTop: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-          {showMoreOptions ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-          {showMoreOptions ? 'fewer options' : '+ more options'}
-        </button>
-
-        {showMoreOptions && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '4px 0 12px' }}>
-            <button
-              type="button"
-              onClick={() => setShowType(showType === 'single' ? 'writers_round' : 'single')}
-              style={{ display: 'flex', alignItems: 'center', gap: 8, background: showType === 'writers_round' ? C.goldDim : 'transparent', border: `1px solid ${showType === 'writers_round' ? C.borderGold : 'rgba(255,255,255,0.06)'}`, borderRadius: 10, padding: '10px 14px', cursor: 'pointer', fontFamily: 'inherit', width: '100%' }}>
-              <span style={{ fontSize: 14, color: showType === 'writers_round' ? C.gold : C.muted }}>{showType === 'writers_round' ? '✓' : '○'}</span>
-              <div style={{ textAlign: 'left' as const }}>
-                <p style={{ fontSize: 13, fontWeight: 600, color: showType === 'writers_round' ? C.gold : C.secondary, margin: 0 }}>Writer's Round</p>
-                <p style={{ fontSize: 11, color: C.muted, margin: '1px 0 0' }}>Multiple writers on the bill</p>
-              </div>
-            </button>
-
-            <button
-              onClick={() => setShowSchedule(v => !v)}
-              style={{ background: 'none', border: 'none', color: showSchedule ? C.gold : C.muted, fontSize: 12, cursor: 'pointer', letterSpacing: '0.04em', fontFamily: 'inherit', padding: '2px 0', textAlign: 'center' as const, width: '100%' }}>
-              {showSchedule ? '× Cancel scheduling' : '+ Schedule ahead'}
-            </button>
-
-            {showSchedule && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <label style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' as const, color: C.muted, display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <Calendar size={10} />Scheduled Time
-                </label>
-                <input
-                  type="datetime-local"
-                  value={scheduledAt}
-                  onChange={e => setScheduledAt(e.target.value)}
-                  style={{ background: C.input, border: `1px solid ${scheduledAt ? C.borderGold : C.border}`, borderRadius: 10, padding: '12px 14px', color: C.text, fontSize: 14, fontFamily: 'inherit', width: '100%', colorScheme: 'dark' as const, outline: 'none' }}
-                />
-              </div>
-            )}
-
-            <button
-              onClick={() => router.push('/app/show/upload')}
-              style={{ background: 'none', border: 'none', color: C.muted, fontSize: 12, cursor: 'pointer', letterSpacing: '0.04em', fontFamily: 'inherit', padding: '2px 0', textAlign: 'center' as const, width: '100%' }}>
-              or upload a recording instead →
-            </button>
-          </div>
-        )}
-
-        <button
-          onClick={() => router.push('/app/dashboard')}
-          style={{ background: 'none', border: 'none', color: C.muted, fontSize: 12, cursor: 'pointer', letterSpacing: '0.04em', fontFamily: 'inherit', padding: '4px', width: '100%', textAlign: 'center' as const }}>
-          ← Back to Dashboard
-        </button>
-      </div>
+        </div>
+      )}
 
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500;700&display=swap');
         @keyframes fadeUp  { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
         @keyframes fadeIn  { from{opacity:0} to{opacity:1} }
         @keyframes slideUp { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes sheetUp { from{transform:translateY(100%)} to{transform:translateY(0)} }
         @keyframes spin    { to{transform:rotate(360deg)} }
         * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
         input::placeholder { color: #6a6050; }
         input:focus { border-color: rgba(201,168,76,0.4) !important; outline: none; }
         input[type="datetime-local"]::-webkit-calendar-picker-indicator { filter: invert(0.5); cursor: pointer; }
+        .mapboxgl-ctrl-bottom-left, .mapboxgl-ctrl-bottom-right, .mapboxgl-ctrl-top-right { display: none !important; }
+        .mapboxgl-canvas { border-radius: 12px !important; }
       `}</style>
     </div>
   )
