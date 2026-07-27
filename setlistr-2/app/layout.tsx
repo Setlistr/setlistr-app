@@ -1,10 +1,4 @@
 import type { Metadata, Viewport } from 'next'
-import { Bebas_Neue, DM_Sans, DM_Mono, DM_Serif_Display } from 'next/font/google'
-
-const bebas = Bebas_Neue({ weight: '400', subsets: ['latin'], variable: '--f-bebas', display: 'swap' })
-const dmSans = DM_Sans({ weight: ['300','400','500','600','700'], subsets: ['latin'], variable: '--f-dmsans', display: 'swap' })
-const dmMono = DM_Mono({ weight: ['400','500'], subsets: ['latin'], variable: '--f-dmmono', display: 'swap' })
-const dmSerif = DM_Serif_Display({ weight: '400', style: ['normal','italic'], subsets: ['latin'], variable: '--f-dmserif', display: 'swap' })
 import './globals.css'
 import GoogleAnalytics from '@/components/GoogleAnalytics'
 import Script from 'next/script'
@@ -87,8 +81,14 @@ const softwareAppSchema = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${bebas.variable} ${dmSans.variable} ${dmMono.variable} ${dmSerif.variable}`}>
+    <html lang="en">
       <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600;700&family=DM+Serif+Display:ital@0;1&display=swap"
+          rel="stylesheet"
+        />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }}
