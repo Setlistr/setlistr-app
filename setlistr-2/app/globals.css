@@ -1,15 +1,27 @@
-/* Fonts are loaded once, in app/layout.tsx <head>, via a real <link rel="stylesheet">
-   discovered during HTML parsing — not an @import here or in page-level <style> blocks.
-   If a new weight/family is ever needed, add it to the Google Fonts URL in layout.tsx only. */
+/* Fonts are self-hosted via next/font in app/layout.tsx — no external stylesheet,
+   so there's no flash of fallback text (FOUT). The inline styles across the app
+   reference fonts by literal name ("Bebas Neue", "DM Sans", "DM Mono",
+   "DM Serif Display"); the attribute-selector rules below remap those literal
+   names to the next/font CSS variables so every existing inline style resolves
+   to the optimized self-hosted font with zero per-style changes. To add a weight
+   or family, edit the next/font config in layout.tsx only. */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  --font-sans: 'DM Sans', sans-serif;
-  --font-mono: 'DM Mono', monospace;
-  --font-display: 'DM Serif Display', serif;
+  --font-sans: var(--f-dmsans), 'DM Sans', sans-serif;
+  --font-mono: var(--f-dmmono), 'DM Mono', monospace;
+  --font-display: var(--f-dmserif), 'DM Serif Display', serif;
 }
+
+/* Remap literal family names in inline styles to the next/font variables.
+   Inline style="font-family:..." can only be overridden by attribute-targeted
+   !important rules, so each family string the app uses is matched explicitly. */
+[style*="Bebas Neue"]       { font-family: var(--f-bebas),  'Bebas Neue', sans-serif !important; }
+[style*="DM Sans"]          { font-family: var(--f-dmsans), 'DM Sans', system-ui, sans-serif !important; }
+[style*="DM Mono"]          { font-family: var(--f-dmmono), 'DM Mono', monospace !important; }
+[style*="DM Serif Display"] { font-family: var(--f-dmserif), 'DM Serif Display', serif !important; }
 
 * { box-sizing: border-box; }
 
