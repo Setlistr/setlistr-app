@@ -30,11 +30,18 @@ const ALLOWED_MIME_TYPES = [
 ]
 const MAX_FILE_SIZE = 10 * 1024 * 1024
 
-type Venue = { id: string; name: string; city: string; country: string }
+type Venue = {
+  id: string; name: string; city: string; country: string
+  latitude: number | null; longitude: number | null
+  mapbox_id: string | null; formatted_address: string | null; place_verified: boolean | null
+}
 type PastPerformance = { id: string; venue_name: string; artist_name: string; started_at: string; song_count: number }
 type VenueMemory = { lastDate: string; songCount: number; showCount: number; songs?: { title: string; artist: string }[] }
 type PlannedSong = { title: string; artist: string; position: number }
 type SetlistOffer = { songs: { title: string; artist: string }[]; venueName: string; date: string }
+// A real place picked from the Mapbox autocomplete dropdown — not yet a Setlistr
+// venue row. Its coordinates are used directly for the map pin (no re-geocoding).
+type MapboxPlace = { id: string; name: string; fullAddress: string; lat: number; lng: number; city: string; country: string }
 
 // Setlist mode:
 // null   → show the two-path choice buttons
@@ -55,7 +62,14 @@ const VENUE_COUNTRY_CODES: Record<string, string> = {
 
 // ── Small dark venue-location preview, reusing the Career Map's Mapbox GL setup.
 // Best-effort only: renders nothing if there's no token, no query, or geocoding fails.
-function VenueMap({ venueName, city, country }: { venueName: string; city: string; country: string }) {
+// If `verifiedCoords` is provided (the artist picked a real place from the
+// autocomplete dropdown, or a previously-verified Setlistr venue), those
+// coordinates are used directly — no geocoding of the display string at all.
+function VenueMap({ venueName, city, country, verifiedCoords, proximityRef }: {
+  venueName: string; city: string; country: string
+  verifiedCoords: { lat: number; lng: number } | null
+  proximityRef: React.RefObject<{ lat: number; lng: number } | null>
+}) {
   const mapContainer = useRef<HTMLDivElement>(null)
   const map = useRef<mapboxgl.Map | null>(null)
   const marker = useRef<mapboxgl.Marker | null>(null)
@@ -63,19 +77,15 @@ function VenueMap({ venueName, city, country }: { venueName: string; city: strin
   const [failed, setFailed] = useState(false)
   const debounceRef = useRef<NodeJS.Timeout | null>(null)
 
-  // Best-effort proximity bias — most venue entry happens at or near the venue
-  // itself. Silently ignored if denied, unsupported, or unavailable.
-  const userLocation = useRef<{ lat: number; lng: number } | null>(null)
   useEffect(() => {
-    if (!navigator.geolocation) return
-    navigator.geolocation.getCurrentPosition(
-      pos => { userLocation.current = { lat: pos.coords.latitude, lng: pos.coords.longitude } },
-      () => {},
-      { timeout: 5000, maximumAge: 10 * 60 * 1000 }
-    )
-  }, [])
-
-  useEffect(() => {
+    // Verified coordinates take priority — never re-geocode a place that was
+    // already selected from the picker (or a stored, previously-verified venue).
+    if (verifiedCoords) {
+      if (debounceRef.current) clearTimeout(debounceRef.current)
+      setCoords(verifiedCoords)
+      setFailed(false)
+      return
+    }
     const query = [venueName, city, country].filter(Boolean).join(', ').trim()
     if (!mapboxgl.accessToken || query.length < 2) { setCoords(null); return }
     if (debounceRef.current) clearTimeout(debounceRef.current)
@@ -88,7 +98,7 @@ function VenueMap({ venueName, city, country }: { venueName: string; city: strin
         })
         const countryCode = VENUE_COUNTRY_CODES[country.trim().toLowerCase()]
         if (countryCode) params.set('country', countryCode)
-        if (userLocation.current) params.set('proximity', `${userLocation.current.lng},${userLocation.current.lat}`)
+        if (proximityRef.current) params.set('proximity', `${proximityRef.current.lng},${proximityRef.current.lat}`)
         const requestUrl = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?${params.toString()}`
         if (process.env.NODE_ENV !== 'production') console.debug('[VenueMap] geocode request:', requestUrl.replace(/access_token=[^&]+/, 'access_token=***'))
         const res = await fetch(requestUrl)
@@ -99,7 +109,7 @@ function VenueMap({ venueName, city, country }: { venueName: string; city: strin
       } catch { setFailed(true) }
     }, 500)
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
-  }, [venueName, city, country])
+  }, [venueName, city, country, verifiedCoords, proximityRef])
 
   useEffect(() => {
     if (!coords || !mapContainer.current) return
@@ -157,6 +167,30 @@ export default function NewShowPage() {
   const [isPrefilled, setIsPrefilled]       = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const searchTimer = useRef<NodeJS.Timeout | null>(null)
+
+  // ── Verified-place data (from the Mapbox autocomplete picker, or carried
+  // forward from a previously-verified Setlistr venue). Coordinates here are
+  // used directly for the map pin — never re-geocoded. A free-typed venue that
+  // isn't picked from either dropdown simply leaves these null/false. ──
+  const [venueCoords, setVenueCoords]                     = useState<{ lat: number; lng: number } | null>(null)
+  const [venueMapboxId, setVenueMapboxId]                 = useState<string | null>(null)
+  const [venueFormattedAddress, setVenueFormattedAddress] = useState<string | null>(null)
+  const [placeVerified, setPlaceVerified]                 = useState(false)
+  const [mapboxResults, setMapboxResults]                 = useState<MapboxPlace[]>([])
+
+  // Best-effort proximity bias for both the autocomplete search and VenueMap's
+  // geocode fallback — most venue entry happens at or near the venue itself.
+  // Silently ignored if denied, unsupported, or unavailable. A ref (not state)
+  // so it never triggers a re-render/extra fetch on its own once resolved.
+  const userLocation = useRef<{ lat: number; lng: number } | null>(null)
+  useEffect(() => {
+    if (!navigator.geolocation) return
+    navigator.geolocation.getCurrentPosition(
+      pos => { userLocation.current = { lat: pos.coords.latitude, lng: pos.coords.longitude } },
+      () => {},
+      { timeout: 5000, maximumAge: 10 * 60 * 1000 }
+    )
+  }, [])
 
   const [showReuse, setShowReuse]       = useState(searchParams.get('reuse') === 'true')
   const [pastPerfs, setPastPerfs]       = useState<PastPerformance[]>([])
@@ -277,10 +311,43 @@ export default function NewShowPage() {
     if (query.trim().length < 2) { setVenueResults([]); setShowDropdown(false); return }
     setVenueSearching(true)
     const supabase = createClient()
-    const { data } = await supabase.from('venues').select('id, name, city, country').ilike('name', `%${query}%`).limit(6)
+    const { data } = await supabase.from('venues')
+      .select('id, name, city, country, latitude, longitude, mapbox_id, formatted_address, place_verified')
+      .ilike('name', `%${query}%`).limit(6)
     setVenueResults(data || [])
     setShowDropdown(true)
     setVenueSearching(false)
+  }, [])
+
+  // ── Mapbox place autocomplete — real-world venues/addresses, not just what's
+  // already in Setlistr's own venues table. Biased to the app's supported PRO
+  // territories (SOCAN/ASCAP-BMI-SESAC-GMR/PRS/APRA) and, best-effort, toward
+  // the artist's current location. Best-effort only: an empty/failed result
+  // just means no Mapbox suggestions show — free typing still works. ──
+  const searchMapboxPlaces = useCallback(async (query: string) => {
+    if (!mapboxgl.accessToken || query.trim().length < 2) { setMapboxResults([]); return }
+    try {
+      const params = new URLSearchParams({
+        autocomplete: 'true',
+        limit: '5',
+        types: 'poi,address,place',
+        country: 'ca,us,gb,au',
+        access_token: mapboxgl.accessToken as string,
+      })
+      if (userLocation.current) params.set('proximity', `${userLocation.current.lng},${userLocation.current.lat}`)
+      const res = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?${params.toString()}`)
+      const data = await res.json()
+      const places: MapboxPlace[] = (data.features || []).map((f: any) => ({
+        id: f.id,
+        name: f.text || f.place_name,
+        fullAddress: f.place_name,
+        lat: f.center[1],
+        lng: f.center[0],
+        city: (f.context || []).find((c: any) => c.id?.startsWith('place.'))?.text || '',
+        country: (f.context || []).find((c: any) => c.id?.startsWith('country.'))?.text || '',
+      }))
+      setMapboxResults(places)
+    } catch { setMapboxResults([]) }
   }, [])
 
   async function fetchVenueMemory(selectedVenueId: string): Promise<VenueMemory | null> {
@@ -327,21 +394,46 @@ export default function NewShowPage() {
     setPlannedSongs([])
     setVenueResults([])
     setShowDropdown(false)
+    setVenueCoords(null); setVenueMapboxId(null); setVenueFormattedAddress(null); setPlaceVerified(false)
+    setMapboxResults([])
   }
 
   function handleVenueInput(val: string) {
     setVenueQuery(val); setVenueId(null); setVenueSelected(false); setVenueMemory(null); setVenueCapacity('')
+    // Editing the text invalidates any prior verified pick — same as it already
+    // invalidates a matched existing venue.
+    setVenueCoords(null); setVenueMapboxId(null); setVenueFormattedAddress(null); setPlaceVerified(false)
     if (isPrefilled) { setIsPrefilled(false); setPlannedSongs([]) }
     if (searchTimer.current) clearTimeout(searchTimer.current)
-    searchTimer.current = setTimeout(() => searchVenues(val), 280)
+    searchTimer.current = setTimeout(() => { searchVenues(val); searchMapboxPlaces(val) }, 280)
   }
 
   function selectVenue(v: Venue) {
     setVenueQuery(v.name); setVenueId(v.id)
     setVenueCity(v.city || ''); setVenueCountry(v.country || '')
-    setVenueSelected(true); setShowDropdown(false); setVenueResults([])
+    setVenueSelected(true); setShowDropdown(false); setVenueResults([]); setMapboxResults([])
     setIsPrefilled(false)
+    // Carry forward this venue's stored coordinates if it was already verified
+    // by a prior use of the autocomplete picker — skips re-geocoding entirely.
+    setVenueCoords(v.latitude != null && v.longitude != null ? { lat: v.latitude, lng: v.longitude } : null)
+    setVenueMapboxId(v.mapbox_id || null)
+    setVenueFormattedAddress(v.formatted_address || null)
+    setPlaceVerified(!!v.place_verified)
     fetchVenueMemory(v.id)
+  }
+
+  // Selecting a real place from the Mapbox autocomplete dropdown — not yet a
+  // Setlistr venue row (created on submit). Its coordinates go straight to the
+  // map, no geocoding involved.
+  function selectMapboxPlace(place: MapboxPlace) {
+    setVenueQuery(place.name); setVenueId(null)
+    setVenueCity(place.city); setVenueCountry(place.country)
+    setShowDropdown(false); setVenueResults([]); setMapboxResults([])
+    setIsPrefilled(false)
+    setVenueCoords({ lat: place.lat, lng: place.lng })
+    setVenueMapboxId(place.id)
+    setVenueFormattedAddress(place.fullAddress)
+    setPlaceVerified(true)
   }
 
   function formatDate(d: string) {
@@ -491,7 +583,10 @@ export default function NewShowPage() {
         const { data: nv, error: venueError } = await supabase.from('venues').insert({
           name: venueQuery.trim(), city: venueCity.trim() || null,
           country: venueCountry.trim() || null,
-          capacity: venueCapacity ? capacityMap[venueCapacity] : null
+          capacity: venueCapacity ? capacityMap[venueCapacity] : null,
+          latitude: venueCoords?.lat ?? null, longitude: venueCoords?.lng ?? null,
+          mapbox_id: venueMapboxId || null, formatted_address: venueFormattedAddress || null,
+          place_verified: placeVerified,
         }).select().single()
         if (venueError) throw new Error('Venue insert failed: ' + venueError.message)
         if (nv) resolvedVenueId = nv.id
@@ -539,7 +634,10 @@ export default function NewShowPage() {
         const { data: nv } = await supabase.from('venues').insert({
           name: venueQuery.trim(), city: venueCity.trim() || null,
           country: venueCountry.trim() || null,
-          capacity: venueCapacity ? capacityMap[venueCapacity] : null
+          capacity: venueCapacity ? capacityMap[venueCapacity] : null,
+          latitude: venueCoords?.lat ?? null, longitude: venueCoords?.lng ?? null,
+          mapbox_id: venueMapboxId || null, formatted_address: venueFormattedAddress || null,
+          place_verified: placeVerified,
         }).select().single()
         if (nv) resolvedVenueId = nv.id
       }
@@ -642,7 +740,7 @@ export default function NewShowPage() {
                           onClick={clearPrefill}
                           style={{ background: 'rgba(255,255,255,0.08)', border: 'none', color: C.secondary, cursor: 'pointer', width: 22, height: 22, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, fontFamily: 'inherit', fontSize: 15, lineHeight: '1' }}
                         >×</button>
-                      : venueSelected
+                      : venueSelected || placeVerified
                       ? <span style={{ fontSize: 13, color: C.gold, pointerEvents: 'none' as const }}>✓</span>
                       : <span style={{ pointerEvents: 'none' as const, display: 'flex' }}><Search size={13} color={C.muted} /></span>
                     }
@@ -663,18 +761,37 @@ export default function NewShowPage() {
                   </div>
                 )}
 
-                {showDropdown && venueResults.length > 0 && (
+                {showDropdown && (venueResults.length > 0 || mapboxResults.length > 0) && (
                   <div onMouseDown={e => e.preventDefault()}
-                    style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#1a1816', border: `1px solid ${C.borderGold}`, borderRadius: 10, marginTop: 4, zIndex: 50, overflow: 'hidden', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
-                    {venueResults.map((v, i) => (
-                      <button key={v.id} onMouseDown={() => selectVenue(v)}
-                        style={{ width: '100%', padding: '11px 14px', background: 'transparent', border: 'none', borderBottom: i < venueResults.length - 1 ? `1px solid ${C.border}` : 'none', cursor: 'pointer', textAlign: 'left' as const, display: 'flex', flexDirection: 'column', gap: 2, fontFamily: 'inherit' }}
-                        onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = C.cardHover}
-                        onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}>
-                        <span style={{ fontSize: 14, fontWeight: 600, color: C.text }}>{v.name}</span>
-                        {(v.city || v.country) && <span style={{ fontSize: 11, color: C.muted }}>{[v.city, v.country].filter(Boolean).join(', ')}</span>}
-                      </button>
-                    ))}
+                    style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#1a1816', border: `1px solid ${C.borderGold}`, borderRadius: 10, marginTop: 4, zIndex: 50, overflow: 'hidden', boxShadow: '0 8px 32px rgba(0,0,0,0.5)', maxHeight: 320, overflowY: 'auto' as const }}>
+                    {venueResults.length > 0 && (
+                      <>
+                        <div style={{ padding: '8px 14px 4px', fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, color: C.muted }}>Your venues</div>
+                        {venueResults.map((v, i) => (
+                          <button key={v.id} onMouseDown={() => selectVenue(v)}
+                            style={{ width: '100%', padding: '11px 14px', background: 'transparent', border: 'none', borderBottom: `1px solid ${C.border}`, cursor: 'pointer', textAlign: 'left' as const, display: 'flex', flexDirection: 'column', gap: 2, fontFamily: 'inherit' }}
+                            onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = C.cardHover}
+                            onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}>
+                            <span style={{ fontSize: 14, fontWeight: 600, color: C.text }}>{v.name}</span>
+                            {(v.city || v.country) && <span style={{ fontSize: 11, color: C.muted }}>{[v.city, v.country].filter(Boolean).join(', ')}</span>}
+                          </button>
+                        ))}
+                      </>
+                    )}
+                    {mapboxResults.length > 0 && (
+                      <>
+                        <div style={{ padding: '8px 14px 4px', fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, color: C.muted }}>Search results</div>
+                        {mapboxResults.map((p, i) => (
+                          <button key={p.id} onMouseDown={() => selectMapboxPlace(p)}
+                            style={{ width: '100%', padding: '11px 14px', background: 'transparent', border: 'none', borderBottom: i < mapboxResults.length - 1 ? `1px solid ${C.border}` : 'none', cursor: 'pointer', textAlign: 'left' as const, display: 'flex', flexDirection: 'column', gap: 2, fontFamily: 'inherit' }}
+                            onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = C.cardHover}
+                            onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}>
+                            <span style={{ fontSize: 14, fontWeight: 600, color: C.text }}>{p.name}</span>
+                            <span style={{ fontSize: 11, color: C.muted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.fullAddress}</span>
+                          </button>
+                        ))}
+                      </>
+                    )}
                     <button onMouseDown={() => { setVenueSelected(false); setShowDropdown(false) }}
                       style={{ width: '100%', padding: '10px 14px', background: C.goldDim, border: 'none', cursor: 'pointer', textAlign: 'left' as const, fontFamily: 'inherit' }}>
                       <span style={{ fontSize: 12, color: C.gold, fontWeight: 600 }}>+ Add "{venueQuery}" as new venue</span>
@@ -682,7 +799,7 @@ export default function NewShowPage() {
                   </div>
                 )}
 
-                {showDropdown && venueResults.length === 0 && venueQuery.trim().length >= 2 && !venueSearching && (
+                {showDropdown && venueResults.length === 0 && mapboxResults.length === 0 && venueQuery.trim().length >= 2 && !venueSearching && (
                   <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#1a1816', border: `1px solid ${C.border}`, borderRadius: 10, marginTop: 4, zIndex: 50, padding: '12px 14px' }}>
                     <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>New venue — we'll remember it.</p>
                   </div>
@@ -710,7 +827,7 @@ export default function NewShowPage() {
                 )}
 
                 {/* Reuses the Career Map's Mapbox GL setup, styled dark — best-effort preview only */}
-                {(venueQuery.trim().length >= 2) && <VenueMap venueName={venueQuery} city={venueCity} country={venueCountry} />}
+                {(venueQuery.trim().length >= 2) && <VenueMap venueName={venueQuery} city={venueCity} country={venueCountry} verifiedCoords={venueCoords} proximityRef={userLocation} />}
               </div>
             </div>
 
