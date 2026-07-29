@@ -42,6 +42,17 @@ type SetlistOffer = { songs: { title: string; artist: string }[]; venueName: str
 // 'quick' → manual chip/search add is expanded
 type SetlistMode = null | 'photo' | 'quick'
 
+// Common PRO territories, matched against the free-text `country` value on a
+// venue record. Used only to narrow the Mapbox `country` filter — if a venue's
+// country doesn't match one of these (or is blank, e.g. a free-typed venue),
+// the geocode request simply omits the filter rather than guessing.
+const VENUE_COUNTRY_CODES: Record<string, string> = {
+  'united states': 'us', 'usa': 'us', 'us': 'us',
+  'canada': 'ca',
+  'united kingdom': 'gb', 'uk': 'gb',
+  'australia': 'au',
+}
+
 // ── Small dark venue-location preview, reusing the Career Map's Mapbox GL setup.
 // Best-effort only: renders nothing if there's no token, no query, or geocoding fails.
 function VenueMap({ venueName, city, country }: { venueName: string; city: string; country: string }) {
@@ -52,15 +63,35 @@ function VenueMap({ venueName, city, country }: { venueName: string; city: strin
   const [failed, setFailed] = useState(false)
   const debounceRef = useRef<NodeJS.Timeout | null>(null)
 
+  // Best-effort proximity bias — most venue entry happens at or near the venue
+  // itself. Silently ignored if denied, unsupported, or unavailable.
+  const userLocation = useRef<{ lat: number; lng: number } | null>(null)
+  useEffect(() => {
+    if (!navigator.geolocation) return
+    navigator.geolocation.getCurrentPosition(
+      pos => { userLocation.current = { lat: pos.coords.latitude, lng: pos.coords.longitude } },
+      () => {},
+      { timeout: 5000, maximumAge: 10 * 60 * 1000 }
+    )
+  }, [])
+
   useEffect(() => {
     const query = [venueName, city, country].filter(Boolean).join(', ').trim()
     if (!mapboxgl.accessToken || query.length < 2) { setCoords(null); return }
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(async () => {
       try {
-        const res = await fetch(
-          `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?limit=1&access_token=${mapboxgl.accessToken}`
-        )
+        const params = new URLSearchParams({
+          limit: '1',
+          types: 'poi,address,place',
+          access_token: mapboxgl.accessToken as string,
+        })
+        const countryCode = VENUE_COUNTRY_CODES[country.trim().toLowerCase()]
+        if (countryCode) params.set('country', countryCode)
+        if (userLocation.current) params.set('proximity', `${userLocation.current.lng},${userLocation.current.lat}`)
+        const requestUrl = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?${params.toString()}`
+        if (process.env.NODE_ENV !== 'production') console.debug('[VenueMap] geocode request:', requestUrl.replace(/access_token=[^&]+/, 'access_token=***'))
+        const res = await fetch(requestUrl)
         const data = await res.json()
         const feature = data.features?.[0]
         if (feature) { setCoords({ lat: feature.center[1], lng: feature.center[0] }); setFailed(false) }
