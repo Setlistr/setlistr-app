@@ -5,7 +5,7 @@ import Link from 'next/link'
 export const metadata: Metadata = {
   title: 'Millions in Unclaimed Live Performance Royalties — Are You Missing Out? | Setlistr',
   description: "Billions in live performance royalties go unclaimed every year because artists don't submit their setlists. Find out how much you might be owed.",
-  alternates: { canonical: 'https://setlistr.ai/unclaimed-music-royalties' },
+  alternates: { canonical: '/unclaimed-music-royalties' },
   openGraph: {
     title: 'Millions in Unclaimed Live Performance Royalties — Are You Missing Out?',
     description: "Your money is going to artists who did submit. Here's the scale of what's being left behind.",
@@ -39,7 +39,14 @@ const STEPS = [
 
 export default function Page() {
   return (
-    <ArticleShell>
+    <ArticleShell
+      headline="Millions in Unclaimed Live Performance Royalties — Are You Missing Out?"
+      description="Billions in live performance royalties go unclaimed every year because artists don't submit their setlists. Find out how much you might be owed."
+      slug="/unclaimed-music-royalties"
+      datePublished="2026-04-03"
+      dateModified="2026-07-26"
+      crumbLabel="Unclaimed Royalties"
+    >
       <style>{`.art-navlink:hover{color:#C9A84C !important;} .art-related:hover{color:#C9A84C !important;} @media(max-width:600px){.art-navlink{display:none !important;}}`}</style>
       <Crumb><Link href="/get-paid" style={{ color: 'rgba(201,168,76,0.7)', textDecoration: 'none' }}>For Artists</Link> / Unclaimed Royalties</Crumb>
       <Tag color={COLORS.RED}>Are You Missing Out?</Tag>

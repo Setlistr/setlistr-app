@@ -5,7 +5,7 @@ import Link from 'next/link'
 export const metadata: Metadata = {
   title: 'How Setlistr Works — Live Setlist Capture & Royalty Submission',
   description: 'How Setlistr automatically captures your live setlist, verifies every song, and submits royalty claims to SOCAN, ASCAP, BMI, PRS, APRA, SESAC, and GMR.',
-  alternates: { canonical: 'https://setlistr.ai/how-it-works' },
+  alternates: { canonical: '/how-it-works' },
   openGraph: {
     title: 'How Setlistr Works',
     description: 'From planned setlist to verified performance to royalty submission — the full pipeline.',

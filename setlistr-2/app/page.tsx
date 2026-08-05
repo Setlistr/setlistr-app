@@ -20,7 +20,7 @@ export const metadata: Metadata = {
     title: 'Setlistr — The System of Record for Live Music',
     description: 'Live performance is the largest blind spot in music.',
   },
-  alternates: { canonical: 'https://setlistr.ai' },
+  alternates: { canonical: '/' },
   keywords: [
     'live performance royalties', 'setlist submission', 'SOCAN submission',
     'ASCAP live performance', 'BMI setlist', 'PRS royalties', 'APRA performance',

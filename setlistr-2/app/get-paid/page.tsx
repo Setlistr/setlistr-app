@@ -1,11 +1,12 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import Image from 'next/image'
+import { collectionPageSchema, breadcrumbSchema } from '@/lib/schema'
 
 export const metadata: Metadata = {
   title: 'Get Paid for Live Shows — Live Performance Royalty Guides | Setlistr',
   description: 'Most performing songwriters leave real money behind after every show. Learn how to claim live performance royalties from SOCAN, ASCAP, BMI, PRS, APRA and more.',
-  alternates: { canonical: 'https://setlistr.ai/get-paid' },
+  alternates: { canonical: '/get-paid' },
   openGraph: {
     title: 'Get Paid for Live Shows — Live Performance Royalty Guides',
     description: 'Everything you need to claim what you’re owed for playing live.',
@@ -47,8 +48,17 @@ function tagStyle(kind: string): React.CSSProperties {
 }
 
 export default function GetPaidPage() {
+  const collection = collectionPageSchema({
+    name: 'Get Paid for Live Shows — Live Performance Royalty Guides',
+    description: 'Most performing songwriters leave real money behind after every show. Learn how to claim live performance royalties from SOCAN, ASCAP, BMI, PRS, APRA and more.',
+    slug: '/get-paid',
+  })
+  const breadcrumb = breadcrumbSchema({ items: [{ name: 'Home', url: '/' }, { name: 'For Artists', url: '/get-paid' }] })
+
   return (
     <div style={{ minHeight: '100svh', background: '#080706', color: '#fff', fontFamily: '"DM Sans", system-ui, sans-serif', overflowX: 'hidden' }}>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(collection) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }} />
       <style>{`
         .gp-card { transition: border-color .25s, transform .25s; }
         .gp-card:hover { border-color: rgba(201,168,76,0.4) !important; transform: translateY(-4px); }

@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import './globals.css'
 import GoogleAnalytics from '@/components/GoogleAnalytics'
 import Script from 'next/script'
+import { organizationSchema, softwareApplicationSchema, websiteSchema } from '@/lib/schema'
 
 export const metadata: Metadata = {
   title: {
@@ -13,6 +14,11 @@ export const metadata: Metadata = {
   authors: [{ name: 'Setlistr', url: 'https://setlistr.ai' }],
   creator: 'Setlistr',
   metadataBase: new URL('https://setlistr.ai'),
+  alternates: { canonical: '/' },
+  verification: {
+    google: 'GOOGLE_TOKEN_PLACEHOLDER',
+    other: { 'msvalidate.01': 'BING_TOKEN_PLACEHOLDER' },
+  },
   openGraph: {
     type: 'website',
     siteName: 'Setlistr',
@@ -53,32 +59,6 @@ export const viewport: Viewport = {
   themeColor: '#1a1814',
 }
 
-const organizationSchema = {
-  '@context': 'https://schema.org',
-  '@type': 'Organization',
-  name: 'Setlistr',
-  legalName: 'Setlistr, Inc.',
-  url: 'https://setlistr.ai',
-  logo: 'https://setlistr.ai/logo-white.png',
-  description:
-    'Setlistr is live performance data infrastructure that automatically captures verified setlists from live shows and routes them through royalty submission to SOCAN, ASCAP, BMI, PRS, APRA, SESAC, and GMR.',
-}
-
-const softwareAppSchema = {
-  '@context': 'https://schema.org',
-  '@type': 'SoftwareApplication',
-  name: 'Setlistr',
-  applicationCategory: 'MusicApplication',
-  operatingSystem: 'iOS, Web',
-  url: 'https://setlistr.ai',
-  description:
-    'Setlistr automatically captures and verifies live performance setlists via audio recognition, then submits royalty claims to performing rights organizations on behalf of touring artists.',
-  offers: {
-    '@type': 'Offer',
-    category: 'Early access — application required',
-  },
-}
-
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
@@ -91,11 +71,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }}
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema()) }}
         />
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareAppSchema) }}
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareApplicationSchema()) }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteSchema()) }}
         />
         <script dangerouslySetInnerHTML={{ __html: `!function(key) {if (window.reb2b) return;window.reb2b = {loaded: true};var s = document.createElement("script");s.async = true;s.src = "https://ddwl4m2hdecbv.cloudfront.net/b/" + key + "/" + key + ".js.gz";document.getElementsByTagName("script")[0].parentNode.insertBefore(s, document.getElementsByTagName("script")[0]);}("1N5W0H7VG8O5");` }} />
       </head>

@@ -5,7 +5,7 @@ import Link from 'next/link'
 export const metadata: Metadata = {
   title: 'What Is a Live Performance Royalty? A Simple Explanation | Setlistr',
   description: "A plain-English explanation of what live performance royalties are, where the money comes from, who pays it, and how performing songwriters collect what they're owed.",
-  alternates: { canonical: 'https://setlistr.ai/what-is-live-performance-royalty' },
+  alternates: { canonical: '/what-is-live-performance-royalty' },
   openGraph: {
     title: 'What Is a Live Performance Royalty? A Simple Explanation',
     description: 'The clearest explanation of how live royalties work and why most artists are missing out.',
@@ -24,7 +24,32 @@ const WORTH = [
 
 export default function Page() {
   return (
-    <ArticleShell>
+    <ArticleShell
+      headline="What Is a Live Performance Royalty? A Simple Explanation"
+      description="A plain-English explanation of what live performance royalties are, where the money comes from, who pays it, and how performing songwriters collect what they're owed."
+      slug="/what-is-live-performance-royalty"
+      datePublished="2026-04-03"
+      dateModified="2026-07-26"
+      crumbLabel="What Are Live Royalties?"
+      faq={[
+        {
+          question: 'What is a live performance royalty?',
+          answer: "A live performance royalty is money paid to a songwriter every time one of their original compositions is performed publicly in a licensed venue. Not when a recording plays. Not when someone streams it. When a human being performs the song — on a stage — in a place that has paid for the right to have music performed there.",
+        },
+        {
+          question: 'Where does the money come from?',
+          answer: "The money starts with the venue. Bars, clubs, concert halls, festivals, restaurants — any establishment where live music is performed is legally required to hold a license from their country's Performing Rights Organization. In Canada that's SOCAN. In the US it's ASCAP, BMI, SESAC, or GMR. In the UK it's PRS. In Australia it's APRA AMCOS. Every country has one, and they all work together through reciprocal agreements.",
+        },
+        {
+          question: 'How does it get to the songwriter?',
+          answer: "The PRO takes that pool of money and distributes it to the songwriters whose music was actually performed. But here's the critical part: the PRO has no way of knowing what songs were played unless someone tells them. That's a setlist submission. After your show, you log into your PRO's portal and submit the songs you performed, the venue, and the date. The PRO matches it to the license fee paid and sends you your share. If you don't submit, the money sits. Eventually it gets redistributed to artists who did submit — or absorbed into operating costs.",
+        },
+        {
+          question: 'When do you get paid?',
+          answer: "PROs distribute royalties quarterly, typically 6–10 months after the performance. SOCAN takes 8–10 months for most domestic performances. Think of it as money earned tonight that arrives next year — which makes consistent submission all the more important.",
+        },
+      ]}
+    >
       <style>{`.art-navlink:hover{color:#C9A84C !important;} .art-related:hover{color:#C9A84C !important;} @media(max-width:600px){.art-navlink{display:none !important;}.art-worth{grid-template-columns:1fr 1fr !important;}}`}</style>
       <Crumb><Link href="/get-paid" style={{ color: 'rgba(201,168,76,0.7)', textDecoration: 'none' }}>For Artists</Link> / What Are Live Royalties?</Crumb>
       <Tag>Plain English</Tag>

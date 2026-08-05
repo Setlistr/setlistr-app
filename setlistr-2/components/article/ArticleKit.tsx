@@ -3,14 +3,50 @@
 // and a future font/color change touches only this file.
 import Link from 'next/link'
 import Image from 'next/image'
+import { articleSchema, breadcrumbSchema, faqSchema, type FaqItem } from '@/lib/schema'
 
 const GOLD = '#C9A84C'
 const GREEN = '#4ade80'
 const RED = '#f0a68a'
 
-export function ArticleShell({ children }: { children: React.ReactNode }) {
+export function ArticleShell({
+  children,
+  headline,
+  description,
+  slug,
+  datePublished,
+  dateModified,
+  authorName = 'Jesse Slack',
+  crumbLabel,
+  faq,
+}: {
+  children: React.ReactNode
+  headline: string
+  description: string
+  slug: string
+  datePublished: string
+  dateModified?: string
+  authorName?: string
+  crumbLabel: string
+  faq?: FaqItem[]
+}) {
+  const article = articleSchema({ headline, description, slug, datePublished, dateModified, authorName })
+  const breadcrumb = breadcrumbSchema({
+    items: [
+      { name: 'Home', url: '/' },
+      { name: 'For Artists', url: '/get-paid' },
+      { name: crumbLabel, url: slug },
+    ],
+  })
+  const faqLd = faq && faq.length > 0 ? faqSchema({ items: faq }) : null
+
   return (
     <div style={{ minHeight: '100svh', background: '#080706', color: '#fff', fontFamily: '"DM Sans", system-ui, sans-serif', overflowX: 'hidden' }}>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(article) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }} />
+      {faqLd && (
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqLd) }} />
+      )}
       <div style={{ position: 'fixed', width: 560, height: 560, borderRadius: '50%', filter: 'blur(120px)', pointerEvents: 'none', zIndex: 0, background: 'radial-gradient(circle, rgba(201,168,76,1), transparent)', opacity: 0.09, top: -240, right: -160 }} />
       <ArticleNav />
       <article style={{ position: 'relative', zIndex: 1, maxWidth: 720, margin: '0 auto', padding: '120px 24px 80px' }}>

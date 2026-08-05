@@ -5,7 +5,7 @@ import Link from 'next/link'
 export const metadata: Metadata = {
   title: 'How to Get Paid for Live Performances (ASCAP, BMI, SOCAN Guide) | Setlistr',
   description: "Most performing artists are leaving real money on the table after every show. Here's exactly how to collect live performance royalties from ASCAP, BMI, SOCAN, PRS and more.",
-  alternates: { canonical: 'https://setlistr.ai/get-paid-for-live-shows' },
+  alternates: { canonical: '/get-paid-for-live-shows' },
   openGraph: {
     title: "Most artists never get paid for live shows. Here's how to fix that.",
     description: "Where the money comes from, how much you're owed, and the exact steps to claim it.",
@@ -31,7 +31,14 @@ const PAYOUTS = [
 
 export default function Page() {
   return (
-    <ArticleShell>
+    <ArticleShell
+      headline="Most artists never get paid for live shows. Here's how to fix that."
+      description="Most performing artists are leaving real money on the table after every show. Here's exactly how to collect live performance royalties from ASCAP, BMI, SOCAN, PRS and more."
+      slug="/get-paid-for-live-shows"
+      datePublished="2026-04-03"
+      dateModified="2026-07-26"
+      crumbLabel="Live Royalties Guide"
+    >
       <style>{`.art-navlink:hover{color:#C9A84C !important;} .art-related:hover{color:#C9A84C !important;} @media(max-width:600px){.art-navlink{display:none !important;}.art-payout{grid-template-columns:1fr !important;}}`}</style>
       <Crumb><Link href="/get-paid" style={{ color: 'rgba(201,168,76,0.7)', textDecoration: 'none' }}>For Artists</Link> / Live Royalties Guide</Crumb>
       <Tag>Live Royalties Guide</Tag>

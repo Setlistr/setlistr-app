@@ -5,7 +5,7 @@ import Link from 'next/link'
 export const metadata: Metadata = {
   title: 'How to Submit Setlists to ASCAP, BMI & SOCAN (Step-by-Step) | Setlistr',
   description: "A complete step-by-step guide to submitting your setlists to every major PRO's live performance portal so you can stop leaving money on stage.",
-  alternates: { canonical: 'https://setlistr.ai/submit-setlists-pro' },
+  alternates: { canonical: '/submit-setlists-pro' },
   openGraph: {
     title: 'How to Submit Setlists to ASCAP, BMI & SOCAN (Step-by-Step)',
     description: "Stop leaving money on stage. A complete walkthrough of every major PRO's submission portal.",
@@ -60,7 +60,14 @@ const PROS = [
 
 export default function Page() {
   return (
-    <ArticleShell>
+    <ArticleShell
+      headline="How to Submit Setlists to ASCAP, BMI & SOCAN (Step-by-Step)"
+      description="A complete step-by-step guide to submitting your setlists to every major PRO's live performance portal so you can stop leaving money on stage."
+      slug="/submit-setlists-pro"
+      datePublished="2026-04-03"
+      dateModified="2026-07-26"
+      crumbLabel="Submit Setlists"
+    >
       <style>{`.art-navlink:hover{color:#C9A84C !important;} .art-related:hover{color:#C9A84C !important;} @media(max-width:600px){.art-navlink{display:none !important;}}`}</style>
       <Crumb><Link href="/get-paid" style={{ color: 'rgba(201,168,76,0.7)', textDecoration: 'none' }}>For Artists</Link> / Submit Setlists</Crumb>
       <Tag color={COLORS.GREEN}>Step-by-Step</Tag>
