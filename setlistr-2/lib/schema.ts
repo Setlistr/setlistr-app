@@ -33,10 +33,12 @@ export function organizationSchema() {
       { '@type': 'Person', name: 'Jesse Slack' },
       { '@type': 'Person', name: 'Daryl Scott' },
     ],
-    // TODO: populate once available — LinkedIn company page, Crunchbase profile,
-    // GitHub org URL. Do NOT add the App Store URL yet: app is still in review
-    // and the link is dead until it's live.
-    sameAs: [] as string[],
+    // Crunchbase profile and App Store URL still pending — do NOT add the App
+    // Store URL yet: app is still in review and the link is dead until it's live.
+    sameAs: [
+      'https://www.linkedin.com/company/setlistr-ai/',
+      'https://github.com/Setlistr',
+    ],
   }
 }
 
