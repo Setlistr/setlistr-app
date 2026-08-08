@@ -661,7 +661,7 @@ export default function SettingsPage() {
           </p>
           <div>
             <label style={labelStyle}>Your Artist Name</label>
-            <input value={bandsintownName} onChange={e => { setBandsintownName(e.target.value); setBandsintownTestResult(null) }} placeholder="e.g. Jesse Slack" style={inputStyle}
+            <input value={bandsintownName} onChange={e => { setBandsintownName(e.target.value); setBandsintownTestResult(null) }} placeholder="Your artist name" style={inputStyle}
               onFocus={e => (e.target as HTMLInputElement).style.borderColor = C.borderGold}
               onBlur={e => (e.target as HTMLInputElement).style.borderColor = C.inputBorder} />
             <p style={{ fontSize: 11, color: C.muted, margin: '6px 0 0' }}>Must match exactly how your name appears on Bandsintown or Ticketmaster</p>
