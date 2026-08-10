@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { Check, KeyRound, User, Music2, Search, Download, Radio, Users, Copy, X, Clock, AlertCircle, LogOut, Shield } from 'lucide-react'
+import { Check, KeyRound, User, Music2, Search, Download, Radio, Users, Copy, X, Clock, AlertCircle, LogOut, Shield, Trash2 } from 'lucide-react'
 import { ADMIN_EMAILS } from '@/lib/admin-config'
 
 const CARD = {
@@ -116,6 +116,11 @@ export default function SettingsPage() {
   const [careerStartYear, setCareerStartYear]         = useState<number | ''>('')
   const [careerStartYearSaving, setCareerStartYearSaving] = useState(false)
   const [careerStartYearSaved, setCareerStartYearSaved]   = useState(false)
+
+  // Account deletion
+  const [deleteConfirmText, setDeleteConfirmText] = useState('')
+  const [deleting, setDeleting]                   = useState(false)
+  const [deleteError, setDeleteError]             = useState('')
 
   useEffect(() => {
     async function load() {
@@ -382,6 +387,26 @@ export default function SettingsPage() {
     const supabase = createClient()
     await supabase.auth.signOut()
     router.push('/auth/login')
+  }
+
+  async function handleDeleteAccount() {
+    if (deleteConfirmText !== 'DELETE' || deleting) return
+    setDeleting(true); setDeleteError('')
+    try {
+      const res = await fetch('/api/account/delete', { method: 'POST' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setDeleteError(data.error || 'Something went wrong. Please try again.')
+        setDeleting(false)
+        return
+      }
+      const supabase = createClient()
+      await supabase.auth.signOut()
+      router.push('/')
+    } catch {
+      setDeleteError('Something went wrong. Please try again.')
+      setDeleting(false)
+    }
   }
 
   function copyInvite(text: string) {
@@ -911,6 +936,49 @@ export default function SettingsPage() {
             onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}>
             <LogOut size={15} color={C.red} />
             Sign out
+          </button>
+        </div>
+
+        {/* ── Danger Zone ── */}
+        <div style={{ background: CARD.background, border: '1px solid rgba(248,113,113,0.2)', borderRadius: 16, padding: '20px', display: 'flex', flexDirection: 'column', gap: 14, boxShadow: CARD.boxShadow }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Trash2 size={15} color={C.red} />
+            <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.red, margin: 0 }}>Delete Account</p>
+          </div>
+          <p style={{ fontSize: 12, color: C.muted, margin: 0, lineHeight: 1.6 }}>
+            This will permanently delete your account. This cannot be undone. Your profile, artist details, performances, setlists, capture history, and uploaded files will all be permanently deleted.
+          </p>
+          <div>
+            <label style={labelStyle}>Type DELETE to confirm</label>
+            <input
+              value={deleteConfirmText}
+              onChange={e => { setDeleteConfirmText(e.target.value); setDeleteError('') }}
+              placeholder="DELETE"
+              style={{ ...inputStyle, fontFamily: '"DM Mono", monospace', letterSpacing: '0.05em', borderColor: 'rgba(248,113,113,0.2)' }}
+              onFocus={e => (e.target as HTMLInputElement).style.borderColor = 'rgba(248,113,113,0.5)'}
+              onBlur={e => (e.target as HTMLInputElement).style.borderColor = 'rgba(248,113,113,0.2)'}
+            />
+          </div>
+          {deleteError && (
+            <div style={{ background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.2)', borderRadius: 10, padding: '11px 14px' }}>
+              <p style={{ fontSize: 13, color: '#f87171', margin: 0 }}>{deleteError}</p>
+            </div>
+          )}
+          <button onClick={handleDeleteAccount} disabled={deleteConfirmText !== 'DELETE' || deleting}
+            style={{
+              width: '100%', padding: '13px',
+              background: deleteConfirmText === 'DELETE' ? 'rgba(248,113,113,0.15)' : 'rgba(255,255,255,0.03)',
+              border: `1px solid ${deleteConfirmText === 'DELETE' ? 'rgba(248,113,113,0.4)' : C.border}`,
+              borderRadius: 10,
+              color: deleteConfirmText === 'DELETE' ? C.red : C.muted,
+              fontSize: 13, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase',
+              cursor: deleteConfirmText === 'DELETE' && !deleting ? 'pointer' : 'not-allowed',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              fontFamily: 'inherit', opacity: deleting ? 0.7 : 1, transition: 'opacity 0.15s ease',
+            }}
+            onMouseEnter={e => { if (!(e.currentTarget as HTMLButtonElement).disabled) (e.currentTarget as HTMLElement).style.opacity = '0.8' }}
+            onMouseLeave={e => { if (!(e.currentTarget as HTMLButtonElement).disabled) (e.currentTarget as HTMLElement).style.opacity = '1' }}>
+            {deleting ? 'Deleting Account...' : 'Permanently Delete Account'}
           </button>
         </div>
 
