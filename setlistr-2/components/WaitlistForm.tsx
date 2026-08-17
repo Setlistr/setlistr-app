@@ -37,14 +37,14 @@ export default function WaitlistForm() {
           fontSize: 38, letterSpacing: '0.06em',
           color: '#FFFFFF', marginBottom: 10,
         }}>
-          Application Received
+          Request Received
         </div>
         <p style={{
           fontFamily: '"DM Sans", sans-serif',
           fontSize: 15, fontWeight: 300,
           color: 'rgba(212,209,202,0.7)', lineHeight: 1.7, marginBottom: 28,
         }}>
-          We review applications personally. We will be in touch.
+          We’ll be in touch shortly.
         </p>
         <a href="/auth/login" style={{
           display: 'block',
@@ -101,7 +101,7 @@ export default function WaitlistForm() {
           fontFamily: '"DM Mono", monospace',
           fontSize: 9, letterSpacing: '0.2em',
           color: 'rgba(212,209,202,0.5)', textTransform: 'uppercase',
-        }}>or apply for access</span>
+        }}>or request access</span>
         <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.07)' }} />
       </div>
 
@@ -185,7 +185,7 @@ export default function WaitlistForm() {
             opacity: loading ? 0.6 : 1,
           }}
         >
-          {loading ? 'Submitting...' : 'Apply for Early Access'}
+          {loading ? 'Submitting...' : 'Request Access'}
         </button>
       </form>
     </div>

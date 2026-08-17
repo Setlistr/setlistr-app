@@ -121,7 +121,7 @@ function LoginPageInner() {
       note: waitlistNote.trim() || null,
     })
     if (error) {
-      setWaitlistError(error.code === '23505' ? "You're already on the list!" : error.message)
+      setWaitlistError(error.code === '23505' ? 'You’ve already requested access — we’ll be in touch.' : error.message)
       setWaitlistLoading(false)
       return
     }
@@ -326,19 +326,19 @@ function LoginPageInner() {
               <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '20px 24px', textAlign: 'center', marginBottom: 20 }}>
                 <p style={{ fontSize: 13, fontWeight: 600, color: C.secondary, margin: '0 0 5px' }}>Not invited yet?</p>
                 <p style={{ fontSize: 12, color: C.muted, margin: '0 0 16px', lineHeight: 1.5 }}>
-                  Setlistr is in private beta. Join the waitlist and we&apos;ll reach out when we open access.
+                  Setlistr is invite-only. Request access and we&apos;ll reach out.
                 </p>
                 <button onClick={() => setShowWaitlist(true)}
                   style={{ width: '100%', padding: '11px', background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 10, color: C.gold, fontSize: 12, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer', transition: 'all 0.15s ease', fontFamily: 'inherit' }}
                   onMouseEnter={e => (e.currentTarget.style.background = 'rgba(201,168,76,0.15)')}
                   onMouseLeave={e => (e.currentTarget.style.background = C.goldDim)}>
-                  Join the Waitlist
+                  Request Access
                 </button>
               </div>
             )}
 
             <p style={{ textAlign: 'center', fontSize: 10, color: C.muted, letterSpacing: '0.18em', textTransform: 'uppercase', opacity: 0.5 }}>
-              {fromStart ? 'Free forever · No credit card' : 'Private Beta · Invite Only'}
+              {fromStart ? 'Free forever · No credit card' : 'Invite Only'}
             </p>
           </div>
 
@@ -392,15 +392,15 @@ function LoginPageInner() {
               {waitlistDone ? (
                 <div style={{ textAlign: 'center', padding: '16px 0' }}>
                   <div style={{ width: 56, height: 56, borderRadius: '50%', margin: '0 auto 18px', background: C.goldDim, border: `1px solid ${C.borderGold}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }} />
-                  <h2 style={{ fontSize: 20, fontWeight: 800, color: C.text, margin: '0 0 8px', letterSpacing: '-0.02em' }}>You&apos;re on the list!</h2>
+                  <h2 style={{ fontSize: 20, fontWeight: 800, color: C.text, margin: '0 0 8px', letterSpacing: '-0.02em' }}>Request received</h2>
                   <p style={{ fontSize: 13, color: C.secondary, margin: 0, lineHeight: 1.6 }}>
-                    We&apos;ll reach out when we open access. Keep playing shows.
+                    We’ll be in touch shortly.
                   </p>
                 </div>
               ) : (
                 <>
-                  <h1 style={{ fontSize: 20, fontWeight: 800, color: C.text, margin: '0 0 4px', letterSpacing: '-0.02em' }}>Join the Waitlist</h1>
-                  <p style={{ fontSize: 13, color: C.muted, margin: '0 0 24px', lineHeight: 1.5 }}>We&apos;re onboarding artists in waves. Drop your info and we&apos;ll be in touch.</p>
+                  <h1 style={{ fontSize: 20, fontWeight: 800, color: C.text, margin: '0 0 4px', letterSpacing: '-0.02em' }}>Request Access</h1>
+                  <p style={{ fontSize: 13, color: C.muted, margin: '0 0 24px', lineHeight: 1.5 }}>Drop your info and we’ll be in touch.</p>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                     <div>
                       <label style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.13em', textTransform: 'uppercase', color: C.muted, display: 'block', marginBottom: 6 }}>Your Name</label>
@@ -444,7 +444,7 @@ function LoginPageInner() {
               </button>
             )}
             <p style={{ textAlign: 'center', fontSize: 10, color: C.muted, letterSpacing: '0.18em', textTransform: 'uppercase', opacity: 0.5, marginTop: 16 }}>
-              Private Beta · Invite Only
+              Invite Only
             </p>
           </div>
         )}

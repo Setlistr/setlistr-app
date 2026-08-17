@@ -50,7 +50,7 @@ export function softwareApplicationSchema() {
     applicationCategory: 'MusicApplication',
     operatingSystem: 'iOS, Web',
     url: SITE_URL,
-    description: `${SETLISTR_DESCRIPTION} Currently available by application during early access.`,
+    description: `${SETLISTR_DESCRIPTION} Access is currently invite-only.`,
     offers: {
       '@type': 'Offer',
       price: '0',

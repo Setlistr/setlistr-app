@@ -111,7 +111,7 @@ export default function HomePage() {
           <Link href="/get-paid" className="sl-nav-link" style={{ marginRight: 8 }}>For Artists</Link>
           <Link href="/how-it-works" className="sl-nav-link" style={{ marginRight: 8 }}>How It Works</Link>
           <Link href="/auth/login" className="sl-btn-signin">Sign In</Link>
-          <a href="#access" className="sl-btn-apply">Apply</a>
+          <a href="#access" className="sl-btn-apply">Request Access</a>
         </nav>
       </header>
 
@@ -175,13 +175,13 @@ export default function HomePage() {
             width: 1, height: 100, background: 'linear-gradient(to bottom, transparent, rgba(201,168,76,0.5))',
           }} />
           <h2 style={{ fontFamily: '"Bebas Neue", sans-serif', fontSize: 'clamp(48px,8vw,96px)', lineHeight: 0.9, letterSpacing: '0.02em', color: '#FFFFFF', margin: '0 0 8px' }}>
-            Early Access.
+            Invite Only.
           </h2>
           <h2 style={{ fontFamily: '"Bebas Neue", sans-serif', fontSize: 'clamp(48px,8vw,96px)', lineHeight: 0.9, letterSpacing: '0.02em', color: '#C9A84C', margin: '0 0 28px' }}>
-            By Application Only.
+            Request Access.
           </h2>
           <p style={{ fontSize: 16, fontWeight: 300, color: 'rgba(212,209,202,0.45)', maxWidth: 340, margin: '0 auto 52px', lineHeight: 1.7 }}>
-            We review applications personally.
+            We onboard artists directly.
           </p>
           <WaitlistForm />
           <p style={{ fontFamily: '"DM Mono", monospace', fontSize: 10, letterSpacing: '0.12em', color: 'rgba(212,209,202,0.4)', marginTop: 36 }}>

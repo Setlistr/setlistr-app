@@ -76,7 +76,7 @@ const FAQS = [
   },
   {
     q: 'Is Setlistr available now?',
-    a: 'Setlistr is in early access. Artists and publishers can apply for access, and applications are reviewed individually before onboarding.',
+    a: 'Yes. Setlistr is available now and access is invite-only while we onboard artists. Request an invite and we’ll be in touch.',
   },
 ]
 
@@ -147,7 +147,7 @@ export default function HowItWorksPage() {
           fontSize: 11, letterSpacing: '.14em', textTransform: 'uppercase',
           background: '#C9A84C', color: '#080706',
           padding: '9px 20px', textDecoration: 'none', borderRadius: 6,
-        }}>Apply</Link>
+        }}>Request Access</Link>
       </header>
 
       <section style={{ padding: '100px 24px 64px', maxWidth: 780, margin: '0 auto', textAlign: 'center' }}>
