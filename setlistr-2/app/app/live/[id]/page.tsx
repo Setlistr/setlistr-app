@@ -30,6 +30,11 @@ const CAPTURE_HEALTH_WINDOW_MS = 45 * 1000
 const UPLOAD_CHUNK_SECONDS      = 14   // length of each sample POSTed to /api/identify
 const UPLOAD_CHUNK_STEP_SECONDS = 20   // advance this far through the file between samples
 
+// Rotating status copy shown under the upload progress label, purely cosmetic.
+const SCAN_WORDS = ['Listening back', 'Working through the tape',
+  'Rolling the tape', 'Combing the recording', 'Going bar by bar',
+  'Marking the changes', 'Sorting the set', 'Cataloguing']
+
 type AcrCandidate = { title: string; artist: string; score: number }
 type DetectedSong = {
   title: string; artist: string
@@ -156,6 +161,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   const [uploadProcessing, setUploadProcessing] = useState(false)
   const [uploadProgress, setUploadProgress]     = useState(0)   // 0..1
   const [uploadLabel, setUploadLabel]           = useState('')
+  const [scanWordIdx, setScanWordIdx]           = useState(0)
   const uploadInputRef = useRef<HTMLInputElement | null>(null)
 
   const [deletePending, setDeletePending] = useState<number | null>(null)
@@ -381,6 +387,15 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
 
   const confirmPending = useCallback(() => { if (!pendingCandidateRef.current) return; confirmCandidate(pendingCandidateRef.current) }, [confirmCandidate])
   const dismissPending = useCallback(() => { setPendingCandidate(null); setDetectStatus('') }, [])
+
+  // Rotate the cosmetic "scanning" word under the upload progress label.
+  useEffect(() => {
+    if (!uploadProcessing) { setScanWordIdx(0); return }
+    const reduced = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    if (reduced) return
+    const interval = setInterval(() => setScanWordIdx(i => (i + 1) % SCAN_WORDS.length), 4000)
+    return () => clearInterval(interval)
+  }, [uploadProcessing])
 
   // ── Upload mode ──────────────────────────────────────────────────────────────
   // Lets a user pick an audio file instead of live-miking. We decode the file,
@@ -634,11 +649,12 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   // captureStale (the 45s latched health flag) trips well before engineState
   // reaches 'stalled' at 5 min, so it must win over engineState here.
   const ringMode    = captureStale ? 'alarm'
+    : uploadProcessing ? 'scanning'
     : engineState === 'stalled' ? 'alarm'
     : engineState === 'slow' ? 'weak'
     : 'healthy'
-  const engineDot   = engineState === 'listening' ? C.green : engineState === 'slow' ? C.amber : engineState === 'stalled' ? '#f87171' : C.muted
-  const engineLabel = engineState === 'listening' ? 'ON' : engineState === 'slow' ? 'SLOW' : engineState === 'stalled' ? 'STALLED' : 'IDLE'
+  const engineDot   = uploadProcessing ? C.gold : engineState === 'listening' ? C.green : engineState === 'slow' ? C.amber : engineState === 'stalled' ? '#f87171' : C.muted
+  const engineLabel = uploadProcessing ? 'SCANNING' : engineState === 'listening' ? 'ON' : engineState === 'slow' ? 'SLOW' : engineState === 'stalled' ? 'STALLED' : 'IDLE'
 
   function renderTrustSignal() {
     if (lastCaught) {
@@ -749,7 +765,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
 
       {/* Hero */}
       <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '40px 24px 28px', flexShrink: 0 }}>
-        {(isListening || catchFlash) && (
+        {(isListening || catchFlash || uploadProcessing) && (
           <>
             {[{ size: ringState === 'catch' ? 220 : 200, delay: '0s' }, { size: ringState === 'catch' ? 262 : 242, delay: '0.1s' }, { size: ringState === 'catch' ? 304 : 284, delay: '0.2s' }].map(({ size, delay }, idx) => {
               const ringColor = ringState === 'catch' ? C.gold
@@ -759,6 +775,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
               const ringAnim = ringState === 'catch' ? `ring-catch 0.85s ${delay} ease-out forwards`
                 : ringMode === 'alarm' ? `ring-alarm 2s ${delay} ease-out infinite`
                 : ringMode === 'weak' ? `ring-pulse-weak 4s ${delay} ease-out infinite`
+                : ringMode === 'scanning' ? `ring-scan 1.6s ${delay} ease-in-out infinite`
                 : `ring-pulse 2.6s ${delay} ease-out infinite`
               return (
                 <div key={idx} style={{ position: 'absolute', width: size, height: size, borderRadius: '50%', border: `1px solid ${ringColor + (ringState === 'catch' ? (idx === 0 ? 'cc' : idx === 1 ? '60' : '28') : (idx === 0 ? '28' : idx === 1 ? '14' : '08'))}`, animation: ringAnim, top: 40, left: '50%', transform: 'translateX(-50%)', pointerEvents: 'none' }} />
@@ -770,7 +787,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
           <div style={{ position: 'absolute', width: 230, height: 230, borderRadius: '50%', border: `1.5px solid ${C.gold}cc`, top: 40, left: '50%', transform: 'translateX(-50%)', pointerEvents: 'none', animation: 'ring-confirm 600ms ease-out forwards' }} />
         )}
         <button onClick={isListening ? stopListening : startListening} disabled={(isDetecting && !isListening) || uploadProcessing}
-          style={{ width: 160, height: 160, borderRadius: '50%', border: 'none', cursor: uploadProcessing ? 'not-allowed' : isDetecting && !isListening ? 'wait' : 'pointer', position: 'relative', zIndex: 2, opacity: uploadProcessing ? 0.4 : 1, background: catchFlash ? `radial-gradient(circle at 40% 35%, #e8c76a, ${C.gold} 55%, #a07828)` : isListening ? `radial-gradient(circle at 40% 35%, ${C.gold}cc, ${C.gold} 55%, #8a6520)` : `radial-gradient(circle at 40% 35%, #2a2520, #1a1610 55%, #0f0e0c)`, boxShadow: catchFlash ? `0 0 60px ${C.gold}80, 0 0 120px ${C.gold}30, inset 0 1px 0 rgba(255,255,255,0.25)` : isListening ? `0 0 40px ${C.gold}40, 0 0 80px ${C.gold}18, inset 0 1px 0 rgba(255,255,255,0.12)` : `0 8px 40px rgba(0,0,0,0.6), 0 2px 8px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06)`, transform: catchFlash ? 'scale(1.05)' : 'scale(1)', transition: 'background 0.4s ease, box-shadow 0.4s ease, transform 0.2s ease', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6, WebkitTapHighlightColor: 'transparent', outline: 'none', touchAction: 'manipulation' }}>
+          style={{ width: 160, height: 160, borderRadius: '50%', border: 'none', cursor: uploadProcessing ? 'not-allowed' : isDetecting && !isListening ? 'wait' : 'pointer', position: 'relative', zIndex: 2, opacity: 1, background: catchFlash ? `radial-gradient(circle at 40% 35%, #e8c76a, ${C.gold} 55%, #a07828)` : (isListening || uploadProcessing) ? `radial-gradient(circle at 40% 35%, ${C.gold}cc, ${C.gold} 55%, #8a6520)` : `radial-gradient(circle at 40% 35%, #2a2520, #1a1610 55%, #0f0e0c)`, boxShadow: catchFlash ? `0 0 60px ${C.gold}80, 0 0 120px ${C.gold}30, inset 0 1px 0 rgba(255,255,255,0.25)` : (isListening || uploadProcessing) ? `0 0 40px ${C.gold}40, 0 0 80px ${C.gold}18, inset 0 1px 0 rgba(255,255,255,0.12)` : `0 8px 40px rgba(0,0,0,0.6), 0 2px 8px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06)`, transform: catchFlash ? 'scale(1.05)' : 'scale(1)', transition: 'background 0.4s ease, box-shadow 0.4s ease, transform 0.2s ease', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6, WebkitTapHighlightColor: 'transparent', outline: 'none', touchAction: 'manipulation' }}>
           <div style={{ width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             {isDetecting ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: 3, height: 28 }}>
@@ -778,15 +795,15 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
               </div>
             ) : (
               <svg width="28" height="32" viewBox="0 0 28 32" fill="none">
-                <rect x="8" y="0" width="12" height="20" rx="6" fill={isListening ? '#0a0908' : C.gold} opacity={isListening ? 1 : 0.9} />
-                <path d="M4 16c0 5.523 4.477 10 10 10s10-4.477 10-10" stroke={isListening ? '#0a0908' : C.gold} strokeWidth="2" strokeLinecap="round" fill="none" />
-                <line x1="14" y1="26" x2="14" y2="31" stroke={isListening ? '#0a0908' : C.gold} strokeWidth="2" strokeLinecap="round" />
-                <line x1="10" y1="31" x2="18" y2="31" stroke={isListening ? '#0a0908' : C.gold} strokeWidth="2" strokeLinecap="round" />
+                <rect x="8" y="0" width="12" height="20" rx="6" fill={(isListening || uploadProcessing) ? '#0a0908' : C.gold} opacity={(isListening || uploadProcessing) ? 1 : 0.9} />
+                <path d="M4 16c0 5.523 4.477 10 10 10s10-4.477 10-10" stroke={(isListening || uploadProcessing) ? '#0a0908' : C.gold} strokeWidth="2" strokeLinecap="round" fill="none" />
+                <line x1="14" y1="26" x2="14" y2="31" stroke={(isListening || uploadProcessing) ? '#0a0908' : C.gold} strokeWidth="2" strokeLinecap="round" />
+                <line x1="10" y1="31" x2="18" y2="31" stroke={(isListening || uploadProcessing) ? '#0a0908' : C.gold} strokeWidth="2" strokeLinecap="round" />
               </svg>
             )}
           </div>
-          <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: isListening ? '#0a0908' : C.gold }}>
-            {isDetecting ? 'catching' : isListening ? 'listening' : confirmedSongs.length > 0 ? 'resume' : 'tap to start'}
+          <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: (isListening || uploadProcessing) ? '#0a0908' : C.gold }}>
+            {uploadProcessing ? 'scanning' : isDetecting ? 'catching' : isListening ? 'listening' : confirmedSongs.length > 0 ? 'resume' : 'tap to start'}
           </span>
         </button>
 
@@ -814,6 +831,11 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
               <div style={{ marginTop: 6, fontSize: 11, color: C.secondary, textAlign: 'center', fontFamily: '"DM Mono", monospace' }}>
                 {uploadLabel || `${Math.round(uploadProgress * 100)}%`}
               </div>
+              {uploadProcessing && (
+                <div key={scanWordIdx} style={{ marginTop: 4, fontSize: 11, color: C.muted, textAlign: 'center', fontFamily: '"DM Mono", monospace', animation: 'fadeIn 0.4s ease' }}>
+                  {SCAN_WORDS[scanWordIdx]}…
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -1034,6 +1056,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         @keyframes pulse-dot    { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(.8)} }
         @keyframes ring-pulse      { 0%{opacity:.5;transform:translateX(-50%) scale(.97)} 100%{opacity:0;transform:translateX(-50%) scale(1.2)} }
         @keyframes ring-pulse-weak { 0%{opacity:.5;transform:translateX(-50%) scale(.97)} 100%{opacity:0;transform:translateX(-50%) scale(1.08)} }
+        @keyframes ring-scan       { 0%{opacity:.5;transform:translateX(-50%) scale(.97)} 100%{opacity:.15;transform:translateX(-50%) scale(1.2)} }
         @keyframes ring-alarm      { 0%{opacity:.4;transform:translateX(-50%) scale(.98)} 50%{opacity:.9;transform:translateX(-50%) scale(1.02)} 100%{opacity:.4;transform:translateX(-50%) scale(.98)} }
         @keyframes ring-catch   { 0%{opacity:.9;transform:translateX(-50%) scale(.93)} 100%{opacity:0;transform:translateX(-50%) scale(1.42)} }
         @keyframes ring-confirm { 0%{opacity:1;transform:translateX(-50%) scale(0.96)} 100%{opacity:0;transform:translateX(-50%) scale(1.6)} }
