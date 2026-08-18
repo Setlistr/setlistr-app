@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { createServerSupabaseClient } from '@/lib/supabase/server'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -78,6 +79,27 @@ export async function POST(req: NextRequest) {
 
     if (!artist_id || !delegate_email) {
       return NextResponse.json({ error: 'artist_id and delegate_email required' }, { status: 400 })
+    }
+
+    // Caller must be authenticated before artist_id is trusted for anything.
+    const authSupabase = await createServerSupabaseClient()
+    const { data: { user } } = await authSupabase.auth.getUser()
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+    // Authorized only if the caller is the artist themselves, or an accepted
+    // delegate for this artist_id — same accepted-row check as context-data/route.ts.
+    if (user.id !== artist_id) {
+      const { data: delegation } = await supabase
+        .from('artist_delegates')
+        .select('id, role')
+        .eq('artist_id', artist_id)
+        .eq('delegate_id', user.id)
+        .not('accepted_at', 'is', null)
+        .maybeSingle()
+
+      if (!delegation) {
+        return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+      }
     }
 
     const { data: artist } = await supabase
