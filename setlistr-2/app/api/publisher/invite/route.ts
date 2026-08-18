@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { ADMIN_EMAILS } from '@/lib/admin-config'
 
+// Service-role client is deliberate here, not the old unauthenticated pattern:
+// publisher_roster_invites has no RLS policy, so the authenticated client would
+// have no policy to satisfy. Auth/authorization happens explicitly below instead.
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -75,7 +80,16 @@ async function sendPublisherInviteEmail({
   }
 }
 
+// TODO: no real publisher auth model exists yet (publishers don't have their
+// own session-linked identity distinct from admin). Gated behind admin for
+// now — replace with a proper publisher-session check once that model exists.
 export async function POST(req: NextRequest) {
+  const authSupabase = await createServerSupabaseClient()
+  const { data: { user } } = await authSupabase.auth.getUser()
+  if (!user || !ADMIN_EMAILS.includes(user.email ?? '')) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
+  }
+
   try {
     const { publisher_id, publisher_name, artist_name, artist_email } = await req.json()
 
