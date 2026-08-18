@@ -631,6 +631,12 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   const verifiedCount  = songs.filter(s => s.was_planned && s.source !== 'planned').length
 
   const ringState   = catchFlash ? 'catch' : isDetecting ? 'detect' : isListening ? 'listen' : 'idle'
+  // captureStale (the 45s latched health flag) trips well before engineState
+  // reaches 'stalled' at 5 min, so it must win over engineState here.
+  const ringMode    = captureStale ? 'alarm'
+    : engineState === 'stalled' ? 'alarm'
+    : engineState === 'slow' ? 'weak'
+    : 'healthy'
   const engineDot   = engineState === 'listening' ? C.green : engineState === 'slow' ? C.amber : engineState === 'stalled' ? '#f87171' : C.muted
   const engineLabel = engineState === 'listening' ? 'ON' : engineState === 'slow' ? 'SLOW' : engineState === 'stalled' ? 'STALLED' : 'IDLE'
 
@@ -745,9 +751,19 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
       <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '40px 24px 28px', flexShrink: 0 }}>
         {(isListening || catchFlash) && (
           <>
-            {[{ size: ringState === 'catch' ? 220 : 200, delay: '0s' }, { size: ringState === 'catch' ? 262 : 242, delay: '0.1s' }, { size: ringState === 'catch' ? 304 : 284, delay: '0.2s' }].map(({ size, delay }, idx) => (
-              <div key={idx} style={{ position: 'absolute', width: size, height: size, borderRadius: '50%', border: `1px solid ${ringState === 'catch' ? C.gold + (idx === 0 ? 'cc' : idx === 1 ? '60' : '28') : C.gold + (idx === 0 ? '28' : idx === 1 ? '14' : '08')}`, animation: ringState === 'catch' ? `ring-catch 0.85s ${delay} ease-out forwards` : `ring-pulse 2.6s ${delay} ease-out infinite`, top: 40, left: '50%', transform: 'translateX(-50%)', pointerEvents: 'none' }} />
-            ))}
+            {[{ size: ringState === 'catch' ? 220 : 200, delay: '0s' }, { size: ringState === 'catch' ? 262 : 242, delay: '0.1s' }, { size: ringState === 'catch' ? 304 : 284, delay: '0.2s' }].map(({ size, delay }, idx) => {
+              const ringColor = ringState === 'catch' ? C.gold
+                : ringMode === 'alarm' ? '#f87171'
+                : ringMode === 'weak' ? '#f59e0b'
+                : C.gold
+              const ringAnim = ringState === 'catch' ? `ring-catch 0.85s ${delay} ease-out forwards`
+                : ringMode === 'alarm' ? `ring-alarm 2s ${delay} ease-out infinite`
+                : ringMode === 'weak' ? `ring-pulse-weak 4s ${delay} ease-out infinite`
+                : `ring-pulse 2.6s ${delay} ease-out infinite`
+              return (
+                <div key={idx} style={{ position: 'absolute', width: size, height: size, borderRadius: '50%', border: `1px solid ${ringColor + (ringState === 'catch' ? (idx === 0 ? 'cc' : idx === 1 ? '60' : '28') : (idx === 0 ? '28' : idx === 1 ? '14' : '08'))}`, animation: ringAnim, top: 40, left: '50%', transform: 'translateX(-50%)', pointerEvents: 'none' }} />
+              )
+            })}
           </>
         )}
         {confirmRing && (
@@ -1016,9 +1032,11 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500;700&display=swap');
         @keyframes pulse-dot    { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(.8)} }
-        @keyframes ring-pulse   { 0%{opacity:.5;transform:translateX(-50%) scale(.97)} 100%{opacity:0;transform:translateX(-50%) scale(1.2)} }
+        @keyframes ring-pulse      { 0%{opacity:.5;transform:translateX(-50%) scale(.97)} 100%{opacity:0;transform:translateX(-50%) scale(1.2)} }
+        @keyframes ring-pulse-weak { 0%{opacity:.5;transform:translateX(-50%) scale(.97)} 100%{opacity:0;transform:translateX(-50%) scale(1.08)} }
+        @keyframes ring-alarm      { 0%{opacity:.4;transform:translateX(-50%) scale(.98)} 50%{opacity:.9;transform:translateX(-50%) scale(1.02)} 100%{opacity:.4;transform:translateX(-50%) scale(.98)} }
         @keyframes ring-catch   { 0%{opacity:.9;transform:translateX(-50%) scale(.93)} 100%{opacity:0;transform:translateX(-50%) scale(1.42)} }
-        @keyframes ring-confirm { 0%{opacity:0.75;transform:translateX(-50%) scale(0.96)} 100%{opacity:0;transform:translateX(-50%) scale(1.35)} }
+        @keyframes ring-confirm { 0%{opacity:1;transform:translateX(-50%) scale(0.96)} 100%{opacity:0;transform:translateX(-50%) scale(1.6)} }
         @keyframes wave-bar     { from{height:4px} to{height:22px} }
         @keyframes slideUp      { from{opacity:0;transform:translateY(6px) scale(0.97)} to{opacity:1;transform:translateY(0) scale(1)} }
         @keyframes slideDown    { from{opacity:0;transform:translateY(-6px)} to{opacity:1;transform:translateY(0)} }
