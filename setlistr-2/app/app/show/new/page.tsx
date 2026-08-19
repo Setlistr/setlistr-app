@@ -3,6 +3,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { buzzLong } from '@/lib/haptics'
+import { useActingAs } from '@/components/ActingAsProvider'
 import { Calendar, ArrowRight, ArrowLeft, RefreshCw, Check, MapPin, Search, X, Plus, ChevronDown, ChevronUp, Camera, Upload, ListMusic } from 'lucide-react'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
@@ -136,6 +137,7 @@ function VenueMap({ venueName, city, country }: { venueName: string; city: strin
 export default function NewShowPage() {
   const router       = useRouter()
   const searchParams = useSearchParams()
+  const { actingAs: providerActingAs } = useActingAs()
 
   const [artistName, setArtistName]     = useState('')
   const [showType, setShowType]         = useState<'single' | 'writers_round'>('single')
@@ -502,8 +504,7 @@ export default function NewShowPage() {
         started_at: new Date().toISOString(), status: 'live', created_by: user.id,
       }).select().single()
       if (showError) throw new Error('Show insert failed: ' + showError.message)
-      const actingAsRaw = localStorage.getItem('setlistr_acting_as')
-      const actingAsCtx = actingAsRaw ? JSON.parse(actingAsRaw) : null
+      const actingAsCtx = providerActingAs
       const { data: selfProfile } = await supabase.from('profiles').select('artist_name, full_name').eq('id', user.id).single()
       const selfName = selfProfile?.artist_name || selfProfile?.full_name || null
       const { data: performance, error: perfError } = await supabase.from('performances').insert({
@@ -549,8 +550,7 @@ export default function NewShowPage() {
         started_at: new Date().toISOString(), status: 'completed', created_by: user.id
       }).select().single()
       if (showError) throw new Error('Show insert failed: ' + showError.message)
-      const actingAsRaw2 = localStorage.getItem('setlistr_acting_as')
-      const actingAsCtx2 = actingAsRaw2 ? JSON.parse(actingAsRaw2) : null
+      const actingAsCtx2 = providerActingAs
       const { data: selfProfile2 } = await supabase.from('profiles').select('artist_name, full_name').eq('id', user.id).single()
       const selfName2 = selfProfile2?.artist_name || selfProfile2?.full_name || null
       const { data: performance, error: perfError } = await supabase.from('performances').insert({

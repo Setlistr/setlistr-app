@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Music2, MapPin, Calendar, TrendingUp, Mic2, Shield, ChevronDown } from 'lucide-react'
 import MySongsTab from '@/components/MySongsTab'
 import { estimateRoyalties, capacityToBand } from '@/lib/royalty-estimate'
+import { useActingAs } from '@/components/ActingAsProvider'
 
 const CARD = {
   background: 'linear-gradient(180deg, #171512 0%, #121009 100%)',
@@ -17,8 +18,6 @@ const C = {
   text: '#f0ece3', secondary: '#b8a888', muted: '#8a7a68',
   gold: '#c9a84c', goldDim: 'rgba(201,168,76,0.1)', green: '#4ade80',
 }
-
-const ACTING_AS_KEY = 'setlistr_acting_as'
 
 type Song        = { title: string; artist: string; performance_id: string }
 type Performance = {
@@ -53,6 +52,7 @@ function isCanadian(country?: string | null, city?: string | null) {
 
 export default function StatsPage() {
   const router = useRouter()
+  const { actingAsArtistId, resolved } = useActingAs()
   const [tab, setTab]                   = useState<'stats' | 'songs'>('stats')
   const [performances, setPerformances] = useState<Performance[]>([])
   const [allSongs, setAllSongs]         = useState<Song[]>([])
@@ -67,19 +67,11 @@ export default function StatsPage() {
   const [usePlainMap, setUsePlainMap]     = useState(false)
 
   useEffect(() => {
+    if (!resolved) return
     const supabase = createClient()
     async function load() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
-
-      let actingAsArtistId: string | null = null
-      try {
-        const saved = localStorage.getItem(ACTING_AS_KEY)
-        if (saved) {
-          const parsed = JSON.parse(saved)
-          if (parsed?.artist_id) actingAsArtistId = parsed.artist_id
-        }
-      } catch {}
 
       const targetUserId = actingAsArtistId || user.id
       setUserId(targetUserId)
@@ -145,7 +137,7 @@ export default function StatsPage() {
       setLoading(false)
     }
     load()
-  }, [])
+  }, [resolved, actingAsArtistId])
 
   // ── Marker-pin geocoding for Career Map card ─────────────────────────────
   useEffect(() => {

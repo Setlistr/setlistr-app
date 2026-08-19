@@ -3,6 +3,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Calendar, ArrowRight, RefreshCw, Check, MapPin, Search, X, Plus } from 'lucide-react'
+import { useActingAs } from '@/components/ActingAsProvider'
 
 const C = {
   bg: '#0a0908', card: '#141210', cardHover: '#181614',
@@ -43,6 +44,7 @@ function daysSince(d: string): number {
 export default function NewShowPage() {
   const router       = useRouter()
   const searchParams = useSearchParams()
+  const { actingAs: providerActingAs } = useActingAs()
 
   const [artistName, setArtistName]     = useState('')
   const [showType, setShowType]         = useState<'single' | 'writers_round'>('single')
@@ -350,8 +352,7 @@ export default function NewShowPage() {
         started_at: new Date().toISOString(), status: 'live', created_by: user.id,
       }).select().single()
       if (showError) throw new Error('Show insert failed: ' + showError.message)
-      const actingAsRaw = localStorage.getItem('setlistr_acting_as')
-      const actingAsCtx = actingAsRaw ? JSON.parse(actingAsRaw) : null
+      const actingAsCtx = providerActingAs
       const { data: selfProfile } = await supabase.from('profiles').select('artist_name, full_name').eq('id', user.id).single()
       const selfName = selfProfile?.artist_name || selfProfile?.full_name || null
       const { data: performance, error: perfError } = await supabase.from('performances').insert({
@@ -396,8 +397,7 @@ export default function NewShowPage() {
         started_at: new Date().toISOString(), status: 'completed', created_by: user.id
       }).select().single()
       if (showError) throw new Error('Show insert failed: ' + showError.message)
-      const actingAsRaw2 = localStorage.getItem('setlistr_acting_as')
-      const actingAsCtx2 = actingAsRaw2 ? JSON.parse(actingAsRaw2) : null
+      const actingAsCtx2 = providerActingAs
       const { data: selfProfile2 } = await supabase.from('profiles').select('artist_name, full_name').eq('id', user.id).single()
       const selfName2 = selfProfile2?.artist_name || selfProfile2?.full_name || null
       const { data: performance, error: perfError } = await supabase.from('performances').insert({
