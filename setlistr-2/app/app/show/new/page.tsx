@@ -105,17 +105,39 @@ function VenueMap({ venueName, city, country, onCoordsResolved }: { venueName: s
         // discard this result rather than let it overwrite the current one.
         if (attempt !== attemptRef.current) return
         const feature = data.features?.[0]
-        if (feature) {
-          const next = { lat: feature.center[1], lng: feature.center[0] }
-          setCoords(next)
-          setFailed(false)
-          const key = `${next.lat},${next.lng}`
-          if (onCoordsResolved && lastEmittedRef.current !== key) {
-            lastEmittedRef.current = key
-            onCoordsResolved(next)
+        if (!feature) {
+          setFailed(true)
+        } else {
+          // If we know the venue's city, the result must agree with it —
+          // Mapbox's own top result can match on venue name alone and land
+          // in a same-named place in a different city/province entirely
+          // (e.g. "The Rivoli, Toronto" resolving to a road in Piedmont,
+          // Quebec). context entries are ancestor levels only (never the
+          // feature's own level), tagged by id prefix — "place." is the
+          // city level. No place. entry at all counts as no match: we
+          // can't confirm agreement, so we don't accept the result.
+          let cityOk = true
+          if (city) {
+            const placeContext = (feature.context || []).find(
+              (c: any) => typeof c.id === 'string' && c.id.startsWith('place.')
+            )
+            cityOk = !!placeContext
+              && typeof placeContext.text === 'string'
+              && placeContext.text.trim().toLowerCase() === city.trim().toLowerCase()
+          }
+          if (!cityOk) {
+            setFailed(true)
+          } else {
+            const next = { lat: feature.center[1], lng: feature.center[0] }
+            setCoords(next)
+            setFailed(false)
+            const key = `${next.lat},${next.lng}`
+            if (onCoordsResolved && lastEmittedRef.current !== key) {
+              lastEmittedRef.current = key
+              onCoordsResolved(next)
+            }
           }
         }
-        else setFailed(true)
       } catch {
         if (attempt !== attemptRef.current) return
         setFailed(true)
@@ -147,7 +169,16 @@ function VenueMap({ venueName, city, country, onCoordsResolved }: { venueName: s
 
   useEffect(() => () => { map.current?.remove(); map.current = null }, [])
 
-  if (!mapboxgl.accessToken || failed || !coords) return null
+  if (!mapboxgl.accessToken || (!coords && !failed)) return null
+
+  if (failed) {
+    return (
+      <div style={{ marginTop: 12, borderRadius: 10, border: `1px solid ${C.border}`, background: C.card, padding: '14px 16px' }}>
+        <p style={{ fontSize: 13, color: C.secondary, margin: '0 0 2px' }}>We couldn't confirm this location</p>
+        <p style={{ fontSize: 11, color: C.muted, margin: 0 }}>Your show will still be captured.</p>
+      </div>
+    )
+  }
 
   return (
     <div style={{ marginTop: 12, height: 140, borderRadius: 12, overflow: 'hidden', border: `1px solid ${C.border}` }}>
