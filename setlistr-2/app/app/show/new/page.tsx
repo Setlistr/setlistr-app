@@ -77,7 +77,11 @@ function VenueMap({ venueName, city, country, onCoordsResolved }: { venueName: s
   const attemptRef = useRef(0)
 
   useEffect(() => {
-    const query = [venueName, city].filter(Boolean).join(', ').trim()
+    // Search broadly on name alone — appending city to q over-narrows Search
+    // Box's results (unlike the classic geocoder), sometimes to near-zero.
+    // city is still used, just later: as the post-response validation filter
+    // below, not as part of the search text itself.
+    const query = venueName.trim()
     const attempt = ++attemptRef.current
     if (!mapboxgl.accessToken || query.length < 2) { setCoords(null); return }
     if (debounceRef.current) clearTimeout(debounceRef.current)
