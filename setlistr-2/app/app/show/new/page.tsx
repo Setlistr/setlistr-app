@@ -523,7 +523,7 @@ export default function NewShowPage() {
         setlist_photo_url: setlistPhotoUrl || null,
       }).select().single()
       if (perfError) throw new Error('Performance insert failed: ' + perfError.message)
-      if (plannedSongs.length > 0) await savePlannedSetlist(performance.id, user.id, resolvedVenueId)
+      if (plannedSongs.length > 0) await savePlannedSetlist(performance.id, targetUserId, resolvedVenueId)
       router.push(`/app/live/${performance.id}?autostart=1`)
     } catch (err: any) {
       setError(err?.message || 'Something went wrong. Please try again.')

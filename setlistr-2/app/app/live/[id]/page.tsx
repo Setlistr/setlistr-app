@@ -3,6 +3,7 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { buzzLong } from '@/lib/haptics'
+import { useActingAs } from '@/components/ActingAsProvider'
 import { Check, X, RefreshCw, Upload } from 'lucide-react'
 import type { Performance } from '@/types'
 
@@ -124,6 +125,7 @@ async function writeUserSong(supabase: ReturnType<typeof createClient>, title: s
 
 export default function LiveCapturePage({ params }: { params: { id: string } }) {
   const router = useRouter()
+  const { actingAsArtistId } = useActingAs()
   const [performance, setPerformance] = useState<Performance | null>(null)
   const [showId, setShowId]           = useState<string | null>(null)
   const [setlistId, setSetlistId]     = useState<string | null>(null)
@@ -376,9 +378,9 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
     setTimeout(() => setCatchFlash(false), 1200); setTimeout(() => setLastCaught(null), 4000); setDetectStatus('')
     if (candidate.confidence_level === 'suggest' || candidate.source === 'manual') {
       const supabase = createClient()
-      supabase.auth.getUser().then(({ data: { user } }) => { if (user && params.id) writeUserSong(supabase, candidate.title, candidate.artist || '', user.id, params.id) })
+      supabase.auth.getUser().then(({ data: { user } }) => { if (user && params.id) writeUserSong(supabase, candidate.title, candidate.artist || '', actingAsArtistId || user.id, params.id) })
     }
-  }, [params.id])
+  }, [params.id, actingAsArtistId])
 
   const confirmPending = useCallback(() => { if (!pendingCandidateRef.current) return; confirmCandidate(pendingCandidateRef.current) }, [confirmCandidate])
   const dismissPending = useCallback(() => { setPendingCandidate(null); setDetectStatus('') }, [])

@@ -370,7 +370,7 @@ export default function NewShowPage() {
         captured_by_name: actingAsCtx ? selfName : null,
       }).select().single()
       if (perfError) throw new Error('Performance insert failed: ' + perfError.message)
-      if (plannedSongs.length > 0) await savePlannedSetlist(performance.id, user.id, resolvedVenueId)
+      if (plannedSongs.length > 0) await savePlannedSetlist(performance.id, targetUserId, resolvedVenueId)
       router.push(`/app/live/${performance.id}`)
     } catch (err: any) {
       setError(err?.message || 'Something went wrong. Please try again.')
