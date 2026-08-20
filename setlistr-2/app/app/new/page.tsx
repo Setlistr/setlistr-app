@@ -44,7 +44,7 @@ function daysSince(d: string): number {
 export default function NewShowPage() {
   const router       = useRouter()
   const searchParams = useSearchParams()
-  const { actingAs: providerActingAs } = useActingAs()
+  const { actingAs: providerActingAs, actingAsArtistId } = useActingAs()
 
   const [artistName, setArtistName]     = useState('')
   const [showType, setShowType]         = useState<'single' | 'writers_round'>('single')
@@ -335,6 +335,11 @@ export default function NewShowPage() {
       const supabase = createClient()
       const { data: { user }, error: userError } = await supabase.auth.getUser()
       if (userError || !user) throw new Error('Not authenticated')
+      // Resolved once, at the top, so both the shows and performances
+      // inserts below use the same target — the shows insert used to
+      // happen before this value was even read.
+      const actingAsCtx = providerActingAs
+      const targetUserId = actingAsArtistId || user.id
       let resolvedVenueId = venueId
       if (!resolvedVenueId && venueQuery.trim()) {
         const capacityMap: Record<string, number> = { small: 150, medium: 500, large: 2000, festival: 10000 }
@@ -349,10 +354,9 @@ export default function NewShowPage() {
       const scheduledIso = showSchedule && scheduledAt ? new Date(scheduledAt).toISOString() : null
       const { data: show, error: showError } = await supabase.from('shows').insert({
         name: effectiveName, show_type: showType, scheduled_at: scheduledIso,
-        started_at: new Date().toISOString(), status: 'live', created_by: user.id,
+        started_at: new Date().toISOString(), status: 'live', created_by: targetUserId,
       }).select().single()
       if (showError) throw new Error('Show insert failed: ' + showError.message)
-      const actingAsCtx = providerActingAs
       const { data: selfProfile } = await supabase.from('profiles').select('artist_name, full_name').eq('id', user.id).single()
       const selfName = selfProfile?.artist_name || selfProfile?.full_name || null
       const { data: performance, error: perfError } = await supabase.from('performances').insert({
@@ -361,7 +365,7 @@ export default function NewShowPage() {
         venue_name: venueQuery.trim(), venue_id: resolvedVenueId || null,
         city: venueCity.trim() || null, country: venueCountry.trim() || null,
         status: 'live', set_duration_minutes: 60, auto_close_buffer_minutes: 5,
-        started_at: new Date().toISOString(), user_id: user.id,
+        started_at: new Date().toISOString(), user_id: targetUserId,
         captured_by: actingAsCtx ? user.id : null,
         captured_by_name: actingAsCtx ? selfName : null,
       }).select().single()
@@ -381,6 +385,8 @@ export default function NewShowPage() {
       const supabase = createClient()
       const { data: { user }, error: userError } = await supabase.auth.getUser()
       if (userError || !user) throw new Error('Not authenticated')
+      const actingAsCtx2 = providerActingAs
+      const targetUserId2 = actingAsArtistId || user.id
       let resolvedVenueId = venueId
       if (!resolvedVenueId && venueQuery.trim()) {
         const capacityMap: Record<string, number> = { small: 150, medium: 500, large: 2000, festival: 10000 }
@@ -394,10 +400,9 @@ export default function NewShowPage() {
       const scheduledIso = showSchedule && scheduledAt ? new Date(scheduledAt).toISOString() : null
       const { data: show, error: showError } = await supabase.from('shows').insert({
         name: effectiveName, show_type: showType, scheduled_at: scheduledIso,
-        started_at: new Date().toISOString(), status: 'completed', created_by: user.id
+        started_at: new Date().toISOString(), status: 'completed', created_by: targetUserId2
       }).select().single()
       if (showError) throw new Error('Show insert failed: ' + showError.message)
-      const actingAsCtx2 = providerActingAs
       const { data: selfProfile2 } = await supabase.from('profiles').select('artist_name, full_name').eq('id', user.id).single()
       const selfName2 = selfProfile2?.artist_name || selfProfile2?.full_name || null
       const { data: performance, error: perfError } = await supabase.from('performances').insert({
@@ -407,7 +412,7 @@ export default function NewShowPage() {
         city: venueCity.trim() || null, country: venueCountry.trim() || null,
         status: 'review', set_duration_minutes: 60, auto_close_buffer_minutes: 5,
         started_at: new Date().toISOString(), ended_at: new Date().toISOString(),
-        user_id: user.id,
+        user_id: targetUserId2,
         captured_by: actingAsCtx2 ? user.id : null,
         captured_by_name: actingAsCtx2 ? selfName2 : null,
       }).select().single()
