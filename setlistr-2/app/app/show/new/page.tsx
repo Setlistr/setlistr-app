@@ -56,13 +56,16 @@ const VENUE_COUNTRY_CODES: Record<string, string> = {
 
 // ── Small dark venue-location preview, reusing the Career Map's Mapbox GL setup.
 // Best-effort only: renders nothing if there's no token, no query, or geocoding fails.
-function VenueMap({ venueName, city, country }: { venueName: string; city: string; country: string }) {
+function VenueMap({ venueName, city, country, onCoordsResolved }: { venueName: string; city: string; country: string; onCoordsResolved?: (coords: { lat: number; lng: number }) => void }) {
   const mapContainer = useRef<HTMLDivElement>(null)
   const map = useRef<mapboxgl.Map | null>(null)
   const marker = useRef<mapboxgl.Marker | null>(null)
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null)
   const [failed, setFailed] = useState(false)
   const debounceRef = useRef<NodeJS.Timeout | null>(null)
+  // Dedup guard so re-renders with the same resolved feature don't re-fire
+  // onCoordsResolved — only emit when the "lat,lng" pair actually changes.
+  const lastEmittedRef = useRef<string | null>(null)
 
   // Best-effort proximity bias — most venue entry happens at or near the venue
   // itself. Silently ignored if denied, unsupported, or unavailable.
@@ -77,10 +80,16 @@ function VenueMap({ venueName, city, country }: { venueName: string; city: strin
   }, [])
 
   useEffect(() => {
-    const query = [venueName, city, country].filter(Boolean).join(', ').trim()
+    const query = [venueName, city].filter(Boolean).join(', ').trim()
     if (!mapboxgl.accessToken || query.length < 2) { setCoords(null); return }
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(async () => {
+      // Reset per attempt, not per component lifetime — otherwise re-geocoding
+      // a venue whose coordinates were already emitted once (e.g. switching
+      // away and back to it) would compare against a stale key and silently
+      // skip the emit, even though the parent's venueCoords has since been
+      // cleared to null by selectVenue/handleVenueInput.
+      lastEmittedRef.current = null
       try {
         const params = new URLSearchParams({
           limit: '1',
@@ -95,7 +104,16 @@ function VenueMap({ venueName, city, country }: { venueName: string; city: strin
         const res = await fetch(requestUrl)
         const data = await res.json()
         const feature = data.features?.[0]
-        if (feature) { setCoords({ lat: feature.center[1], lng: feature.center[0] }); setFailed(false) }
+        if (feature) {
+          const next = { lat: feature.center[1], lng: feature.center[0] }
+          setCoords(next)
+          setFailed(false)
+          const key = `${next.lat},${next.lng}`
+          if (onCoordsResolved && lastEmittedRef.current !== key) {
+            lastEmittedRef.current = key
+            onCoordsResolved(next)
+          }
+        }
         else setFailed(true)
       } catch { setFailed(true) }
     }, 500)
@@ -156,6 +174,7 @@ export default function NewShowPage() {
   const [showDropdown, setShowDropdown]     = useState(false)
   const [venueMemory, setVenueMemory]       = useState<VenueMemory | null>(null)
   const [venueCapacity, setVenueCapacity]   = useState<string>('')
+  const [venueCoords, setVenueCoords]       = useState<{ lat: number; lng: number } | null>(null)
   const [isPrefilled, setIsPrefilled]       = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const searchTimer = useRef<NodeJS.Timeout | null>(null)
@@ -325,6 +344,7 @@ export default function NewShowPage() {
     setVenueCapacity('')
     setVenueCity('')
     setVenueCountry('')
+    setVenueCoords(null)
     setIsPrefilled(false)
     setPlannedSongs([])
     setVenueResults([])
@@ -333,6 +353,7 @@ export default function NewShowPage() {
 
   function handleVenueInput(val: string) {
     setVenueQuery(val); setVenueId(null); setVenueSelected(false); setVenueMemory(null); setVenueCapacity('')
+    setVenueCoords(null)
     if (isPrefilled) { setIsPrefilled(false); setPlannedSongs([]) }
     if (searchTimer.current) clearTimeout(searchTimer.current)
     searchTimer.current = setTimeout(() => searchVenues(val), 280)
@@ -342,6 +363,7 @@ export default function NewShowPage() {
     setVenueQuery(v.name); setVenueId(v.id)
     setVenueCity(v.city || ''); setVenueCountry(v.country || '')
     setVenueSelected(true); setShowDropdown(false); setVenueResults([])
+    setVenueCoords(null)
     setIsPrefilled(false)
     fetchVenueMemory(v.id)
   }
@@ -521,6 +543,8 @@ export default function NewShowPage() {
         captured_by: actingAsCtx ? user.id : null,
         captured_by_name: actingAsCtx ? selfName : null,
         setlist_photo_url: setlistPhotoUrl || null,
+        latitude: venueCoords?.lat ?? null,
+        longitude: venueCoords?.lng ?? null,
       }).select().single()
       if (perfError) throw new Error('Performance insert failed: ' + perfError.message)
       if (plannedSongs.length > 0) await savePlannedSetlist(performance.id, targetUserId, resolvedVenueId)
@@ -568,6 +592,8 @@ export default function NewShowPage() {
         user_id: targetUserId2,
         captured_by: actingAsCtx2 ? user.id : null,
         captured_by_name: actingAsCtx2 ? selfName2 : null,
+        latitude: venueCoords?.lat ?? null,
+        longitude: venueCoords?.lng ?? null,
       }).select().single()
       if (perfError) throw new Error('Performance insert failed: ' + perfError.message)
       const { data: sourceSongs } = await supabase.from('performance_songs')
@@ -715,7 +741,7 @@ export default function NewShowPage() {
                 )}
 
                 {/* Reuses the Career Map's Mapbox GL setup, styled dark — best-effort preview only */}
-                {(venueQuery.trim().length >= 2) && <VenueMap venueName={venueQuery} city={venueCity} country={venueCountry} />}
+                {(venueQuery.trim().length >= 2) && <VenueMap venueName={venueQuery} city={venueCity} country={venueCountry} onCoordsResolved={setVenueCoords} />}
               </div>
             </div>
 
