@@ -90,13 +90,15 @@ function VenueMap({ venueName, city, country, onCoordsResolved }: { venueName: s
       lastEmittedRef.current = null
       try {
         const params = new URLSearchParams({
+          q: query,
           limit: '5',
-          types: 'poi,address,place',
+          types: 'poi',
+          language: 'en',
           access_token: mapboxgl.accessToken as string,
         })
         const countryCode = VENUE_COUNTRY_CODES[country.trim().toLowerCase()]
         if (countryCode) params.set('country', countryCode)
-        const requestUrl = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?${params.toString()}`
+        const requestUrl = `https://api.mapbox.com/search/searchbox/v1/forward?${params.toString()}`
         if (process.env.NODE_ENV !== 'production') console.debug('[VenueMap] geocode request:', requestUrl.replace(/access_token=[^&]+/, 'access_token=***'))
         const res = await fetch(requestUrl)
         const data = await res.json()
@@ -110,45 +112,40 @@ function VenueMap({ venueName, city, country, onCoordsResolved }: { venueName: s
           // Nothing to validate against — accept Mapbox's top result, as before.
           chosen = features[0] || null
         } else {
-          // limit=5 gives Mapbox room to actually contain the right venue
-          // further down its ranked list — the top result alone can match on
-          // venue name only and land in a same-named place in the wrong
-          // city/province entirely (e.g. "The Rivoli, Toronto" resolving to
-          // a road in Piedmont, Quebec). We take the FIRST candidate, in
-          // Mapbox's own returned order, whose place-level context (id
-          // prefix "place.") agrees with the venue's known city — first
-          // match, not best/closest match, because once a candidate is
+          // Search Box's context is an object keyed by level ("place",
+          // "region", "country", ...) — not an array of {id, text} entries
+          // like the classic geocoder — and each present level is itself an
+          // object with a `name` field. We take the FIRST candidate, in
+          // Mapbox's own returned order, whose place-level context agrees
+          // with the venue's known city — first match, not best/closest
+          // match, for the same reason as before: once a candidate is
           // confirmed to be in the right city, Mapbox's own relevance
-          // ranking is still the best signal available; the city check
+          // ranking is still the best signal available, and the city check
           // exists only to exclude wrong-city results, not to re-rank
-          // correct ones.
-          const cityMatches = features.filter(f => {
-            const placeContext = (f.context || []).find(
-              (c: any) => typeof c.id === 'string' && c.id.startsWith('place.')
-            )
-            return !!placeContext
-              && typeof placeContext.text === 'string'
-              && placeContext.text.trim().toLowerCase() === city.trim().toLowerCase()
-          })
-          // The one deliberate exception to "first match wins": among
-          // city-matching candidates, prefer an actual POI over an
-          // address-only match — a POI means Mapbox resolved the venue
-          // itself, not just a nearby street address. No other reordering
-          // is applied.
-          const poiMatch = cityMatches.find(f => Array.isArray(f.place_type) && f.place_type.includes('poi'))
-          chosen = poiMatch || cityMatches[0] || null
+          // correct ones. No separate POI-vs-address tie-break is needed
+          // here — types=poi already restricts every candidate to POIs, so
+          // there's nothing lower-priority left to prefer against.
+          chosen = features.find(f => {
+            const placeName = f.properties?.context?.place?.name
+            return typeof placeName === 'string' && placeName.trim().toLowerCase() === city.trim().toLowerCase()
+          }) || null
         }
 
         if (!chosen) {
           setFailed(true)
         } else {
-          const next = { lat: chosen.center[1], lng: chosen.center[0] }
-          setCoords(next)
-          setFailed(false)
-          const key = `${next.lat},${next.lng}`
-          if (onCoordsResolved && lastEmittedRef.current !== key) {
-            lastEmittedRef.current = key
-            onCoordsResolved(next)
+          const c = chosen.properties?.coordinates
+          if (!c || typeof c.latitude !== 'number' || typeof c.longitude !== 'number') {
+            setFailed(true)
+          } else {
+            const next = { lat: c.latitude, lng: c.longitude }
+            setCoords(next)
+            setFailed(false)
+            const key = `${next.lat},${next.lng}`
+            if (onCoordsResolved && lastEmittedRef.current !== key) {
+              lastEmittedRef.current = key
+              onCoordsResolved(next)
+            }
           }
         }
       } catch {
@@ -256,7 +253,12 @@ export default function NewShowPage() {
   const fileInputRef   = useRef<HTMLInputElement>(null)
 
   const effectiveName = venueQuery.trim() || 'Show'
-  const isValid = venueQuery.trim().length > 0
+  // Any venue that isn't an existing selected row (venueId set via
+  // selectVenue) requires a city before it can be used — covers freehand
+  // entry generally, not just the explicit "+ Add ... as new venue" button,
+  // since a genuinely new venue with no near-matches never shows that
+  // button at all and was previously able to submit with no city.
+  const isValid = venueQuery.trim().length > 0 && (venueId !== null || venueCity.trim().length > 0)
 
   // ── Auto-open upload mode when arriving via ?mode=upload ──
   useEffect(() => {
@@ -765,6 +767,28 @@ export default function NewShowPage() {
                 {showDropdown && venueResults.length === 0 && venueQuery.trim().length >= 2 && !venueSearching && (
                   <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#1a1816', border: `1px solid ${C.border}`, borderRadius: 10, marginTop: 4, zIndex: 50, padding: '12px 14px' }}>
                     <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>New venue — we'll remember it.</p>
+                  </div>
+                )}
+
+                {/* No existing venue row selected (venueId null) — covers both the
+                    explicit "+ Add as new venue" path and a genuinely new venue
+                    name with no near-matches, which never shows that button at
+                    all. Gated on !showDropdown like the Room size block below it,
+                    so it appears once the dropdown/search has settled rather than
+                    overlapping it. */}
+                {venueId === null && venueQuery.trim().length >= 2 && !venueSelected && !venueSearching && !showDropdown && (
+                  <div style={{ marginTop: 8 }}>
+                    <label style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' as const, color: C.muted, display: 'flex', alignItems: 'center', gap: 5, marginBottom: 6 }}>
+                      <MapPin size={10} />City
+                    </label>
+                    <input
+                      type="text"
+                      value={venueCity}
+                      onChange={e => setVenueCity(e.target.value)}
+                      placeholder="City..."
+                      spellCheck={false} autoCorrect="off" autoCapitalize="words"
+                      style={{ background: C.input, border: `1px solid ${venueCity.trim() ? C.borderGold : C.border}`, borderRadius: 10, padding: '14px 16px', color: C.text, fontSize: 16, fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' as const, outline: 'none' }}
+                    />
                   </div>
                 )}
 
