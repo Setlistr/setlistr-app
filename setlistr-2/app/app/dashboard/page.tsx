@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Check, Calendar, ChevronDown, Users, X } from 'lucide-react'
+import { useActingAs } from '@/components/ActingAsProvider'
 import {
   estimateRoyalties, aggregateUnclaimedEarnings,
   capacityToBand, type ShowEstimateInput,
@@ -17,8 +18,6 @@ const C = {
   red: '#f87171', redDim: 'rgba(248,113,113,0.08)',
   blue: '#60a5fa', blueDim: 'rgba(96,165,250,0.1)',
 }
-
-const ACTING_AS_KEY = 'setlistr_acting_as'
 
 const CARD = {
   background: 'linear-gradient(180deg, #171512 0%, #121009 100%)',
@@ -43,7 +42,6 @@ type BitEvent = {
 }
 
 type ManagedArtist = { artist_id: string; artist_name: string; role: string; avatar_url?: string | null }
-type ActingAs      = { artist_id: string; artist_name: string } | null
 
 function useCountUp(target: number, duration: number = 1400, delay: number = 0): number {
   const [count, setCount] = useState(0)
@@ -119,6 +117,7 @@ function isCanadian(country?: string | null, city?: string | null) {
 
 export default function DashboardPage() {
   const router = useRouter()
+  const { actingAs, setActingAs, resolved } = useActingAs()
 
   const [performances, setPerformances]         = useState<Performance[]>([])
   const [loading, setLoading]                   = useState(true)
@@ -136,12 +135,17 @@ export default function DashboardPage() {
   const [upcomingShows, setUpcomingShows]       = useState<BitEvent[]>([])
   const [todayShow, setTodayShow]               = useState<BitEvent | null>(null)
   const [managedArtists, setManagedArtists]     = useState<ManagedArtist[]>([])
-  const [actingAs, setActingAs]                 = useState<ActingAs>(null)
   const [switcherOpen, setSwitcherOpen]         = useState(false)
   const [careerTotalShows, setCareerTotalShows] = useState<number>(0)
   const [careerStartYear, setCareerStartYear]   = useState<number>(0)
 
+  // Gated on `resolved` (not just present-but-still-validating `actingAs`) so
+  // this never runs before the provider has finished checking a saved value
+  // against /api/team/managed-artists — restores the original single-path
+  // shape (either load delegate data and return, or load own data), since
+  // `actingAs` is now guaranteed settled by the time this fires.
   useEffect(() => {
+    if (!resolved) return
     const supabase = createClient()
     async function load() {
       const { data: { user } } = await supabase.auth.getUser()
@@ -166,18 +170,11 @@ export default function DashboardPage() {
 
         setManagedArtists(managed)
 
-        const savedActingAs = localStorage.getItem(ACTING_AS_KEY)
-        if (savedActingAs && managed.length > 0) {
-          try {
-            const parsed = JSON.parse(savedActingAs)
-            const stillManages = managed.find(m => m.artist_id === parsed.artist_id)
-            if (stillManages) {
-              setActingAs(parsed)
-              await loadDelegateContext(parsed.artist_id, parsed.artist_name)
-              setLoading(false); return
-            } else { localStorage.removeItem(ACTING_AS_KEY) }
-          } catch { localStorage.removeItem(ACTING_AS_KEY) }
+        if (actingAs) {
+          await loadDelegateContext(actingAs.artist_id, actingAs.artist_name)
+          setLoading(false); return
         }
+
         setArtistName(name)
       }
 
@@ -185,7 +182,7 @@ export default function DashboardPage() {
       setLoading(false)
     }
     load()
-  }, [])
+  }, [resolved])
 
   async function loadOwnPerformances(supabase: any) {
     const [{ data }, { data: profileCareer }] = await Promise.all([
@@ -291,16 +288,14 @@ export default function DashboardPage() {
   async function switchToArtist(artist: ManagedArtist) {
     setSwitcherOpen(false); setLoading(true)
     setLookupName(null); setUpcomingShows([]); setTodayShow(null)
-    const ctx = { artist_id: artist.artist_id, artist_name: artist.artist_name }
-    setActingAs(ctx)
-    localStorage.setItem(ACTING_AS_KEY, JSON.stringify(ctx))
+    setActingAs({ artist_id: artist.artist_id, artist_name: artist.artist_name })
     await loadDelegateContext(artist.artist_id, artist.artist_name)
     setLoading(false)
   }
 
   async function switchToOwn() {
     setSwitcherOpen(false); setLoading(true)
-    setActingAs(null); localStorage.removeItem(ACTING_AS_KEY)
+    setActingAs(null)
     setLookupName(null); setUpcomingShows([]); setTodayShow(null)
     setArtistName(ownArtistName)
     const supabase = createClient()

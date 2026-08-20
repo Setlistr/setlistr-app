@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { AppShell } from '@/components/layout/AppShell'
+import { ActingAsProvider } from '@/components/ActingAsProvider'
 import type { Profile } from '@/types'
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -32,5 +33,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     created_at: new Date().toISOString(),
   }
 
-  return <AppShell profile={resolvedProfile}>{children}</AppShell>
+  return (
+    <ActingAsProvider>
+      <AppShell profile={resolvedProfile}>{children}</AppShell>
+    </ActingAsProvider>
+  )
 }

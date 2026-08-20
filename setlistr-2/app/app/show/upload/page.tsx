@@ -2,6 +2,7 @@
 import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { useActingAs } from '@/components/ActingAsProvider'
 
 const C = {
   bg: '#0a0908', card: '#141210',
@@ -52,6 +53,7 @@ function sliceToMonoWav(audioBuffer: AudioBuffer, startSec: number, durSec: numb
 
 export default function UploadShowPage() {
   const router = useRouter()
+  const { actingAsArtistId } = useActingAs()
 
   const [venueName, setVenueName] = useState('')
   const [showDate, setShowDate] = useState(new Date().toISOString().slice(0, 10))
@@ -82,6 +84,7 @@ export default function UploadShowPage() {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Not authenticated')
+      const targetUserId = actingAsArtistId || user.id
 
       setProgress('Uploading recording...')
 
@@ -118,7 +121,7 @@ export default function UploadShowPage() {
         show_type: 'single',
         started_at: new Date(showDate).toISOString(),
         status: 'completed',
-        created_by: user.id,
+        created_by: targetUserId,
       }).select().single()
 
       if (!show) throw new Error('Failed to create show')
@@ -133,7 +136,7 @@ export default function UploadShowPage() {
         status: 'review',
         set_duration_minutes: null,
         auto_close_buffer_minutes: 5,
-        user_id: user.id,
+        user_id: targetUserId,
         data_source: 'captured',
         recording_path: recordingPath,
         setlist_path: setlistPath,

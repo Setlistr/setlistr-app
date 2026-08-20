@@ -3,6 +3,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Calendar, ArrowRight, RefreshCw, Check, MapPin, Search, X, Plus } from 'lucide-react'
+import { useActingAs } from '@/components/ActingAsProvider'
 
 const C = {
   bg: '#0a0908', card: '#141210', cardHover: '#181614',
@@ -43,6 +44,7 @@ function daysSince(d: string): number {
 export default function NewShowPage() {
   const router       = useRouter()
   const searchParams = useSearchParams()
+  const { actingAs: providerActingAs, actingAsArtistId } = useActingAs()
 
   const [artistName, setArtistName]     = useState('')
   const [showType, setShowType]         = useState<'single' | 'writers_round'>('single')
@@ -333,6 +335,11 @@ export default function NewShowPage() {
       const supabase = createClient()
       const { data: { user }, error: userError } = await supabase.auth.getUser()
       if (userError || !user) throw new Error('Not authenticated')
+      // Resolved once, at the top, so both the shows and performances
+      // inserts below use the same target — the shows insert used to
+      // happen before this value was even read.
+      const actingAsCtx = providerActingAs
+      const targetUserId = actingAsArtistId || user.id
       let resolvedVenueId = venueId
       if (!resolvedVenueId && venueQuery.trim()) {
         const capacityMap: Record<string, number> = { small: 150, medium: 500, large: 2000, festival: 10000 }
@@ -347,11 +354,9 @@ export default function NewShowPage() {
       const scheduledIso = showSchedule && scheduledAt ? new Date(scheduledAt).toISOString() : null
       const { data: show, error: showError } = await supabase.from('shows').insert({
         name: effectiveName, show_type: showType, scheduled_at: scheduledIso,
-        started_at: new Date().toISOString(), status: 'live', created_by: user.id,
+        started_at: new Date().toISOString(), status: 'live', created_by: targetUserId,
       }).select().single()
       if (showError) throw new Error('Show insert failed: ' + showError.message)
-      const actingAsRaw = localStorage.getItem('setlistr_acting_as')
-      const actingAsCtx = actingAsRaw ? JSON.parse(actingAsRaw) : null
       const { data: selfProfile } = await supabase.from('profiles').select('artist_name, full_name').eq('id', user.id).single()
       const selfName = selfProfile?.artist_name || selfProfile?.full_name || null
       const { data: performance, error: perfError } = await supabase.from('performances').insert({
@@ -360,12 +365,12 @@ export default function NewShowPage() {
         venue_name: venueQuery.trim(), venue_id: resolvedVenueId || null,
         city: venueCity.trim() || null, country: venueCountry.trim() || null,
         status: 'live', set_duration_minutes: 60, auto_close_buffer_minutes: 5,
-        started_at: new Date().toISOString(), user_id: user.id,
+        started_at: new Date().toISOString(), user_id: targetUserId,
         captured_by: actingAsCtx ? user.id : null,
         captured_by_name: actingAsCtx ? selfName : null,
       }).select().single()
       if (perfError) throw new Error('Performance insert failed: ' + perfError.message)
-      if (plannedSongs.length > 0) await savePlannedSetlist(performance.id, user.id, resolvedVenueId)
+      if (plannedSongs.length > 0) await savePlannedSetlist(performance.id, targetUserId, resolvedVenueId)
       router.push(`/app/live/${performance.id}`)
     } catch (err: any) {
       setError(err?.message || 'Something went wrong. Please try again.')
@@ -380,6 +385,8 @@ export default function NewShowPage() {
       const supabase = createClient()
       const { data: { user }, error: userError } = await supabase.auth.getUser()
       if (userError || !user) throw new Error('Not authenticated')
+      const actingAsCtx2 = providerActingAs
+      const targetUserId2 = actingAsArtistId || user.id
       let resolvedVenueId = venueId
       if (!resolvedVenueId && venueQuery.trim()) {
         const capacityMap: Record<string, number> = { small: 150, medium: 500, large: 2000, festival: 10000 }
@@ -393,11 +400,9 @@ export default function NewShowPage() {
       const scheduledIso = showSchedule && scheduledAt ? new Date(scheduledAt).toISOString() : null
       const { data: show, error: showError } = await supabase.from('shows').insert({
         name: effectiveName, show_type: showType, scheduled_at: scheduledIso,
-        started_at: new Date().toISOString(), status: 'completed', created_by: user.id
+        started_at: new Date().toISOString(), status: 'completed', created_by: targetUserId2
       }).select().single()
       if (showError) throw new Error('Show insert failed: ' + showError.message)
-      const actingAsRaw2 = localStorage.getItem('setlistr_acting_as')
-      const actingAsCtx2 = actingAsRaw2 ? JSON.parse(actingAsRaw2) : null
       const { data: selfProfile2 } = await supabase.from('profiles').select('artist_name, full_name').eq('id', user.id).single()
       const selfName2 = selfProfile2?.artist_name || selfProfile2?.full_name || null
       const { data: performance, error: perfError } = await supabase.from('performances').insert({
@@ -407,7 +412,7 @@ export default function NewShowPage() {
         city: venueCity.trim() || null, country: venueCountry.trim() || null,
         status: 'review', set_duration_minutes: 60, auto_close_buffer_minutes: 5,
         started_at: new Date().toISOString(), ended_at: new Date().toISOString(),
-        user_id: user.id,
+        user_id: targetUserId2,
         captured_by: actingAsCtx2 ? user.id : null,
         captured_by_name: actingAsCtx2 ? selfName2 : null,
       }).select().single()

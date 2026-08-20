@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { useActingAs } from '@/components/ActingAsProvider'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 
@@ -13,8 +14,6 @@ const C = {
   text: '#f0ece3', secondary: '#b8a888', muted: '#8a7a68',
   gold: '#c9a84c', goldDim: 'rgba(201,168,76,0.1)',
 }
-
-const ACTING_AS_KEY = 'setlistr_acting_as'
 
 type ShowLocation = {
   city: string
@@ -29,6 +28,7 @@ type ShowLocation = {
 
 export default function CareerMapPage() {
   const router = useRouter()
+  const { actingAsArtistId, resolved } = useActingAs()
   const mapContainer = useRef<HTMLDivElement>(null)
   const map = useRef<mapboxgl.Map | null>(null)
   const [locations, setLocations] = useState<ShowLocation[]>([])
@@ -36,20 +36,11 @@ export default function CareerMapPage() {
   const [stats, setStats] = useState({ cities: 0, countries: 0, shows: 0 })
 
   useEffect(() => {
+    if (!resolved) return
     const supabase = createClient()
     async function loadLocations() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.replace('/auth/login'); return }
-
-      // Check for delegate context
-      let actingAsArtistId: string | null = null
-      try {
-        const saved = localStorage.getItem(ACTING_AS_KEY)
-        if (saved) {
-          const parsed = JSON.parse(saved)
-          if (parsed?.artist_id) actingAsArtistId = parsed.artist_id
-        }
-      } catch {}
 
       let rawPerfs: Array<{ city: string | null; country: string | null; venue_name: string | null; started_at: string | null }> = []
 
@@ -139,7 +130,7 @@ export default function CareerMapPage() {
       setLoading(false)
     }
     loadLocations()
-  }, [])
+  }, [resolved, actingAsArtistId])
 
   useEffect(() => {
     if (loading || !mapContainer.current || map.current) return

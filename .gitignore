@@ -29,6 +29,10 @@ next-env.d.ts
 # Vercel
 .vercel
 
+# Supabase CLI local state (link cache, temp files — machine-specific)
+supabase/.temp/
+setlistr-2/supabase/.temp/
+
 # iOS / Capacitor
 ios/App/App/public/
 setlistr-2/ios/App/App/public/

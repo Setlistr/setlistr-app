@@ -2,6 +2,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { useActingAs } from '@/components/ActingAsProvider'
 import {
   DndContext, closestCenter, KeyboardSensor, PointerSensor,
   useSensor, useSensors, DragEndEvent,
@@ -410,6 +411,7 @@ function CeremonyRoyaltyCard({ expected, low, high, performanceId, onClaim }: {
 
 export default function ReviewPage({ params }: { params: { id: string } }) {
   const router = useRouter()
+  const { actingAsArtistId } = useActingAs()
   const [performance, setPerformance]   = useState<Performance | null>(null)
   const [setlistId, setSetlistId]       = useState<string | null>(null)
   const [songs, setSongs]               = useState<Song[]>([])
@@ -891,13 +893,13 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
       if (user) {
         for (const song of kept) {
           if (!song.title?.trim()) continue
-          await writeUserSongFromReview(supabase, song.title, song.artist || '', user.id, performance.id)
+          await writeUserSongFromReview(supabase, song.title, song.artist || '', actingAsArtistId || user.id, performance.id)
         }
         fetchIntelligence(user.id, performance.venue_name, kept.map(s => s.title).filter(Boolean))
       }
     } catch (err) { console.error('[ReviewSave]', err) }
     setSaving(false); setSaved(true); setShowComplete(true)
-  }, [performance, songs, setlistId])
+  }, [performance, songs, setlistId, actingAsArtistId])
 
   function generateExportCSV(pro: PRO) {
     if (!performance) return
