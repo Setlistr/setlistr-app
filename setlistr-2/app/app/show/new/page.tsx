@@ -66,21 +66,19 @@ function VenueMap({ venueName, city, country, onCoordsResolved }: { venueName: s
   // Dedup guard so re-renders with the same resolved feature don't re-fire
   // onCoordsResolved — only emit when the "lat,lng" pair actually changes.
   const lastEmittedRef = useRef<string | null>(null)
-
-  // Best-effort proximity bias — most venue entry happens at or near the venue
-  // itself. Silently ignored if denied, unsupported, or unavailable.
-  const userLocation = useRef<{ lat: number; lng: number } | null>(null)
-  useEffect(() => {
-    if (!navigator.geolocation) return
-    navigator.geolocation.getCurrentPosition(
-      pos => { userLocation.current = { lat: pos.coords.latitude, lng: pos.coords.longitude } },
-      () => {},
-      { timeout: 5000, maximumAge: 10 * 60 * 1000 }
-    )
-  }, [])
+  // Generation counter: incremented every time this effect runs (i.e. every
+  // time venueName/city/country changes), not just when the debounce timer
+  // eventually fires. Incrementing here — immediately, not after the 500ms
+  // wait — means any older fetch already in flight is invalidated the
+  // instant new input arrives, even if that older fetch happens to resolve
+  // quickly (faster than the new request's own debounce). If it only
+  // incremented inside the timeout callback, a fast stale response could
+  // still land and briefly apply before the newer request finishes.
+  const attemptRef = useRef(0)
 
   useEffect(() => {
     const query = [venueName, city].filter(Boolean).join(', ').trim()
+    const attempt = ++attemptRef.current
     if (!mapboxgl.accessToken || query.length < 2) { setCoords(null); return }
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(async () => {
@@ -98,11 +96,14 @@ function VenueMap({ venueName, city, country, onCoordsResolved }: { venueName: s
         })
         const countryCode = VENUE_COUNTRY_CODES[country.trim().toLowerCase()]
         if (countryCode) params.set('country', countryCode)
-        if (userLocation.current) params.set('proximity', `${userLocation.current.lng},${userLocation.current.lat}`)
         const requestUrl = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?${params.toString()}`
         if (process.env.NODE_ENV !== 'production') console.debug('[VenueMap] geocode request:', requestUrl.replace(/access_token=[^&]+/, 'access_token=***'))
         const res = await fetch(requestUrl)
         const data = await res.json()
+        // A newer attempt has started since this fetch was kicked off (e.g.
+        // the user picked a suggestion while this request was in flight) —
+        // discard this result rather than let it overwrite the current one.
+        if (attempt !== attemptRef.current) return
         const feature = data.features?.[0]
         if (feature) {
           const next = { lat: feature.center[1], lng: feature.center[0] }
@@ -115,7 +116,10 @@ function VenueMap({ venueName, city, country, onCoordsResolved }: { venueName: s
           }
         }
         else setFailed(true)
-      } catch { setFailed(true) }
+      } catch {
+        if (attempt !== attemptRef.current) return
+        setFailed(true)
+      }
     }, 500)
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
   }, [venueName, city, country])
@@ -353,6 +357,7 @@ export default function NewShowPage() {
 
   function handleVenueInput(val: string) {
     setVenueQuery(val); setVenueId(null); setVenueSelected(false); setVenueMemory(null); setVenueCapacity('')
+    setVenueCity(''); setVenueCountry('')
     setVenueCoords(null)
     if (isPrefilled) { setIsPrefilled(false); setPlannedSongs([]) }
     if (searchTimer.current) clearTimeout(searchTimer.current)
