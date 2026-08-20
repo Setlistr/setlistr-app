@@ -90,7 +90,7 @@ function VenueMap({ venueName, city, country, onCoordsResolved }: { venueName: s
       lastEmittedRef.current = null
       try {
         const params = new URLSearchParams({
-          limit: '1',
+          limit: '5',
           types: 'poi,address,place',
           access_token: mapboxgl.accessToken as string,
         })
@@ -104,38 +104,51 @@ function VenueMap({ venueName, city, country, onCoordsResolved }: { venueName: s
         // the user picked a suggestion while this request was in flight) —
         // discard this result rather than let it overwrite the current one.
         if (attempt !== attemptRef.current) return
-        const feature = data.features?.[0]
-        if (!feature) {
-          setFailed(true)
+        const features: any[] = data.features || []
+        let chosen: any = null
+        if (!city) {
+          // Nothing to validate against — accept Mapbox's top result, as before.
+          chosen = features[0] || null
         } else {
-          // If we know the venue's city, the result must agree with it —
-          // Mapbox's own top result can match on venue name alone and land
-          // in a same-named place in a different city/province entirely
-          // (e.g. "The Rivoli, Toronto" resolving to a road in Piedmont,
-          // Quebec). context entries are ancestor levels only (never the
-          // feature's own level), tagged by id prefix — "place." is the
-          // city level. No place. entry at all counts as no match: we
-          // can't confirm agreement, so we don't accept the result.
-          let cityOk = true
-          if (city) {
-            const placeContext = (feature.context || []).find(
+          // limit=5 gives Mapbox room to actually contain the right venue
+          // further down its ranked list — the top result alone can match on
+          // venue name only and land in a same-named place in the wrong
+          // city/province entirely (e.g. "The Rivoli, Toronto" resolving to
+          // a road in Piedmont, Quebec). We take the FIRST candidate, in
+          // Mapbox's own returned order, whose place-level context (id
+          // prefix "place.") agrees with the venue's known city — first
+          // match, not best/closest match, because once a candidate is
+          // confirmed to be in the right city, Mapbox's own relevance
+          // ranking is still the best signal available; the city check
+          // exists only to exclude wrong-city results, not to re-rank
+          // correct ones.
+          const cityMatches = features.filter(f => {
+            const placeContext = (f.context || []).find(
               (c: any) => typeof c.id === 'string' && c.id.startsWith('place.')
             )
-            cityOk = !!placeContext
+            return !!placeContext
               && typeof placeContext.text === 'string'
               && placeContext.text.trim().toLowerCase() === city.trim().toLowerCase()
-          }
-          if (!cityOk) {
-            setFailed(true)
-          } else {
-            const next = { lat: feature.center[1], lng: feature.center[0] }
-            setCoords(next)
-            setFailed(false)
-            const key = `${next.lat},${next.lng}`
-            if (onCoordsResolved && lastEmittedRef.current !== key) {
-              lastEmittedRef.current = key
-              onCoordsResolved(next)
-            }
+          })
+          // The one deliberate exception to "first match wins": among
+          // city-matching candidates, prefer an actual POI over an
+          // address-only match — a POI means Mapbox resolved the venue
+          // itself, not just a nearby street address. No other reordering
+          // is applied.
+          const poiMatch = cityMatches.find(f => Array.isArray(f.place_type) && f.place_type.includes('poi'))
+          chosen = poiMatch || cityMatches[0] || null
+        }
+
+        if (!chosen) {
+          setFailed(true)
+        } else {
+          const next = { lat: chosen.center[1], lng: chosen.center[0] }
+          setCoords(next)
+          setFailed(false)
+          const key = `${next.lat},${next.lng}`
+          if (onCoordsResolved && lastEmittedRef.current !== key) {
+            lastEmittedRef.current = key
+            onCoordsResolved(next)
           }
         }
       } catch {
