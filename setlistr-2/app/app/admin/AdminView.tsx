@@ -1,5 +1,5 @@
 'use client'
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import AdminShell, { type AdminShellTab } from './AdminShell'
 
@@ -446,6 +446,10 @@ export default function AdminDashboard({
   const [waitlistLoaded, setWaitlistLoaded] = useState(false)
   const [waitlistInviteState, setWaitlistInviteState] = useState<Record<string, 'sending' | 'invited' | 'error'>>({})
   const [waitlistInviteError, setWaitlistInviteError] = useState<Record<string, string>>({})
+  const [waitlistRemovePending, setWaitlistRemovePending] = useState<string | null>(null)
+  const waitlistRemoveTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const [waitlistRemoving, setWaitlistRemoving] = useState<Record<string, boolean>>({})
+  const [waitlistRemoveError, setWaitlistRemoveError] = useState<Record<string, string>>({})
   const [saArtistId, setSaArtistId]         = useState('')
   const [saManagerId, setSaManagerId]       = useState('')
   const [saAssigning, setSaAssigning]       = useState(false)
@@ -764,6 +768,36 @@ export default function AdminDashboard({
     } catch {
       setWaitlistInviteState(prev => ({ ...prev, [entry.id]: 'error' }))
       setWaitlistInviteError(prev => ({ ...prev, [entry.id]: 'Network error — try again' }))
+    }
+  }
+
+  function handleWaitlistRemoveTap(id: string) {
+    if (waitlistRemovePending === id) {
+      if (waitlistRemoveTimerRef.current) clearTimeout(waitlistRemoveTimerRef.current)
+      setWaitlistRemovePending(null)
+      removeWaitlistEntry(id)
+    } else {
+      if (waitlistRemoveTimerRef.current) clearTimeout(waitlistRemoveTimerRef.current)
+      setWaitlistRemovePending(id)
+      waitlistRemoveTimerRef.current = setTimeout(() => setWaitlistRemovePending(null), 2500)
+    }
+  }
+
+  async function removeWaitlistEntry(id: string) {
+    setWaitlistRemoving(prev => ({ ...prev, [id]: true }))
+    setWaitlistRemoveError(prev => ({ ...prev, [id]: '' }))
+    try {
+      const res = await fetch('/api/admin/waitlist', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) })
+      const data = await res.json()
+      if (!res.ok) {
+        setWaitlistRemoveError(prev => ({ ...prev, [id]: data.error || 'Failed to remove' }))
+        setWaitlistRemoving(prev => ({ ...prev, [id]: false }))
+        return
+      }
+      setWaitlist(prev => prev.filter(e => e.id !== id))
+    } catch {
+      setWaitlistRemoveError(prev => ({ ...prev, [id]: 'Network error — try again' }))
+      setWaitlistRemoving(prev => ({ ...prev, [id]: false }))
     }
   }
 
@@ -1251,10 +1285,38 @@ export default function AdminDashboard({
                               {state === 'sending' ? 'Granting…' : 'Grant access'}
                             </button>
                           )}
+                          {(() => {
+                            const isArmed = waitlistRemovePending === entry.id
+                            const isRemoving = !!waitlistRemoving[entry.id]
+                            return (
+                              <button onClick={() => handleWaitlistRemoveTap(entry.id)} disabled={isRemoving}
+                                style={{
+                                  background: isArmed ? 'rgba(220,38,38,0.15)' : 'none',
+                                  border: isArmed ? '1px solid rgba(220,38,38,0.35)' : 'none',
+                                  borderRadius: 6,
+                                  color: isArmed ? '#f87171' : C.muted,
+                                  cursor: isRemoving ? 'not-allowed' : 'pointer',
+                                  padding: isArmed ? '4px 8px' : '4px 6px',
+                                  fontSize: isArmed ? 11 : 14,
+                                  lineHeight: 1,
+                                  opacity: isRemoving ? 0.5 : isArmed ? 1 : 0.5,
+                                  fontWeight: isArmed ? 700 : 400,
+                                  transition: 'all 0.15s ease',
+                                  fontFamily: 'inherit',
+                                  WebkitTapHighlightColor: 'transparent',
+                                  whiteSpace: 'nowrap',
+                                }}>
+                                {isRemoving ? '…' : isArmed ? '✕ Delete?' : '✕'}
+                              </button>
+                            )
+                          })()}
                         </div>
                       </div>
                       {state === 'error' && waitlistInviteError[entry.id] && (
                         <p style={{ fontSize: 11, color: C.red, margin: '4px 0 0 14px' }}>{waitlistInviteError[entry.id]}</p>
+                      )}
+                      {waitlistRemoveError[entry.id] && (
+                        <p style={{ fontSize: 11, color: C.red, margin: '4px 0 0 14px' }}>{waitlistRemoveError[entry.id]}</p>
                       )}
                     </div>
                   )
