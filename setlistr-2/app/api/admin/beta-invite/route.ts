@@ -6,6 +6,7 @@ import { ADMIN_EMAILS } from '@/lib/admin-config'
 
 const BASE_URL       = process.env.NEXT_PUBLIC_APP_URL || 'https://setlistr.ai'
 const RESEND_API_KEY = process.env.RESEND_API_KEY
+const APP_STORE_URL  = 'https://apps.apple.com/us/app/setlistr-live-performance/id6794425733'
 
 function getSupabase() {
   return createClient(
@@ -38,11 +39,11 @@ async function sendBetaInviteEmail({ to, name }: { to: string; name?: string | n
       <p style="font-size: 14px; color: #b8a888; margin: 0 0 24px; line-height: 1.6;">
         Takes 5 minutes to set up. Your first show is on us.
       </p>
-      <a href="${signupUrl}" style="display: inline-block; background: #c9a84c; color: #0a0908; font-size: 14px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; text-decoration: none; padding: 16px 32px; border-radius: 12px; margin-bottom: 24px;">
-        Create Your Account →
+      <a href="${APP_STORE_URL}" style="display: inline-block; background: #c9a84c; color: #0a0908; font-size: 14px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; text-decoration: none; padding: 16px 32px; border-radius: 12px; margin-bottom: 24px;">
+        Get the App →
       </a>
       <p style="font-size: 12px; color: #8a7a68; margin: 0 0 24px; line-height: 1.6;">
-        Or copy this link: <span style="color: #b8a888;">${signupUrl}</span>
+        On desktop or Android? Use this link instead: <span style="color: #b8a888;">${signupUrl}</span>
       </p>
       <hr style="border: none; border-top: 1px solid rgba(255,255,255,0.07); margin: 24px 0;" />
       <p style="font-size: 11px; color: #8a7a68; margin: 0;">

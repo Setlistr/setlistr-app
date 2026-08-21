@@ -444,6 +444,8 @@ export default function AdminDashboard({
   const [invites, setInvites]         = useState<BetaInvite[]>(betaInvites)
   const [waitlist, setWaitlist]       = useState<WaitlistEntry[]>([])
   const [waitlistLoaded, setWaitlistLoaded] = useState(false)
+  const [waitlistInviteState, setWaitlistInviteState] = useState<Record<string, 'sending' | 'invited' | 'error'>>({})
+  const [waitlistInviteError, setWaitlistInviteError] = useState<Record<string, string>>({})
   const [saArtistId, setSaArtistId]         = useState('')
   const [saManagerId, setSaManagerId]       = useState('')
   const [saAssigning, setSaAssigning]       = useState(false)
@@ -744,6 +746,25 @@ export default function AdminDashboard({
       const res = await fetch('/api/admin/beta-invite', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) })
       if (res.ok) setInvites(prev => prev.filter(i => i.id !== id))
     } catch {}
+  }
+
+  async function grantWaitlistAccess(entry: WaitlistEntry) {
+    setWaitlistInviteState(prev => ({ ...prev, [entry.id]: 'sending' }))
+    setWaitlistInviteError(prev => ({ ...prev, [entry.id]: '' }))
+    try {
+      const res = await fetch('/api/admin/beta-invite', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: entry.email.trim().toLowerCase(), name: entry.name || null }) })
+      const data = await res.json()
+      if (!res.ok) {
+        setWaitlistInviteState(prev => ({ ...prev, [entry.id]: 'error' }))
+        setWaitlistInviteError(prev => ({ ...prev, [entry.id]: data.error || 'Failed to invite' }))
+        return
+      }
+      setInvites(prev => [data.invite, ...prev])
+      setWaitlistInviteState(prev => ({ ...prev, [entry.id]: 'invited' }))
+    } catch {
+      setWaitlistInviteState(prev => ({ ...prev, [entry.id]: 'error' }))
+      setWaitlistInviteError(prev => ({ ...prev, [entry.id]: 'Network error — try again' }))
+    }
   }
 
   async function assignDelegate() {
@@ -1209,16 +1230,35 @@ export default function AdminDashboard({
             <div>
               <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, margin: '0 0 8px' }}>Waitlist · {waitlist.length}</p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                {waitlist.map(entry => (
-                  <div key={entry.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', background: C.card, border: `1px solid ${C.border}`, borderRadius: 10 }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <p style={{ fontSize: 13, fontWeight: 600, color: C.text, margin: 0 }}>{entry.email}</p>
-                      {entry.name && <p style={{ fontSize: 12, color: C.muted, margin: '1px 0 0' }}>{entry.name}</p>}
-                      {entry.note && <p style={{ fontSize: 11, color: C.muted, margin: '2px 0 0' }}>{entry.note}</p>}
+                {waitlist.map(entry => {
+                  const alreadyInvited = invites.some(i => i.email.trim().toLowerCase() === entry.email.trim().toLowerCase())
+                  const state = waitlistInviteState[entry.id] || (alreadyInvited ? 'invited' : undefined)
+                  return (
+                    <div key={entry.id}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', background: C.card, border: `1px solid ${C.border}`, borderRadius: 10 }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <p style={{ fontSize: 13, fontWeight: 600, color: C.text, margin: 0 }}>{entry.email}</p>
+                          {entry.name && <p style={{ fontSize: 12, color: C.muted, margin: '1px 0 0' }}>{entry.name}</p>}
+                          {entry.note && <p style={{ fontSize: 11, color: C.muted, margin: '2px 0 0' }}>{entry.note}</p>}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+                          <p style={{ fontSize: 11, color: C.muted, margin: 0, fontFamily: '"DM Mono", monospace' }}>{formatDate(entry.created_at)}</p>
+                          {state === 'invited' ? (
+                            <span style={{ fontSize: 11, color: C.muted, fontWeight: 600 }}>Invited</span>
+                          ) : (
+                            <button onClick={() => grantWaitlistAccess(entry)} disabled={state === 'sending'}
+                              style={{ padding: '6px 12px', background: C.gold, border: 'none', borderRadius: 8, color: '#0a0908', fontSize: 11, fontWeight: 700, cursor: state === 'sending' ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: state === 'sending' ? 0.7 : 1, whiteSpace: 'nowrap' }}>
+                              {state === 'sending' ? 'Granting…' : 'Grant access'}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      {state === 'error' && waitlistInviteError[entry.id] && (
+                        <p style={{ fontSize: 11, color: C.red, margin: '4px 0 0 14px' }}>{waitlistInviteError[entry.id]}</p>
+                      )}
                     </div>
-                    <p style={{ fontSize: 11, color: C.muted, margin: 0, fontFamily: '"DM Mono", monospace', flexShrink: 0 }}>{formatDate(entry.created_at)}</p>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
               {waitlistLoaded && waitlist.length === 0 && <EmptyState message="No one waiting." />}
             </div>
