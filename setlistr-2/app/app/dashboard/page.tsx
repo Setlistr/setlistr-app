@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Check, Calendar, ChevronDown, Users, X } from 'lucide-react'
 import { useActingAs } from '@/components/ActingAsProvider'
+import { SetlistrLoader, useLoaderVariant } from '@/components/SetlistrLoader'
 import {
   estimateRoyalties, aggregateUnclaimedEarnings,
   capacityToBand, type ShowEstimateInput,
@@ -118,6 +119,7 @@ function isCanadian(country?: string | null, city?: string | null) {
 export default function DashboardPage() {
   const router = useRouter()
   const { actingAs, setActingAs, resolved } = useActingAs()
+  const loaderVariant = useLoaderVariant()
 
   const [performances, setPerformances]         = useState<Performance[]>([])
   const [loading, setLoading]                   = useState(true)
@@ -464,15 +466,10 @@ export default function DashboardPage() {
   }
 
   if (loading) return (
-    <div style={{ minHeight: '100svh', background: C.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: '"DM Sans", system-ui, sans-serif' }}>
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
-        <div style={{ width: 44, height: 44, borderRadius: '50%', border: `1.5px solid ${C.gold}`, animation: 'breathe 1.8s ease-in-out infinite' }} />
-        <span style={{ color: C.muted, fontSize: 11, letterSpacing: '0.15em', textTransform: 'uppercase' }}>
-          {actingAs ? `Loading ${actingAs.artist_name}...` : 'Loading'}
-        </span>
-      </div>
-      <style>{`@keyframes breathe{0%,100%{transform:scale(1);opacity:.3}50%{transform:scale(1.2);opacity:.8}}`}</style>
-    </div>
+    <SetlistrLoader
+      variant={loaderVariant}
+      label={actingAs ? `Loading ${actingAs.artist_name}...` : 'Loading'}
+    />
   )
 
   return (
