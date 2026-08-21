@@ -1,5 +1,5 @@
 'use client'
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import AdminShell, { type AdminShellTab } from './AdminShell'
 
@@ -80,6 +80,14 @@ type BetaInvite = {
   added_by: string | null
   created_at: string
   accepted_at: string | null
+}
+
+type WaitlistEntry = {
+  id: string
+  email: string
+  name: string | null
+  note: string | null
+  created_at: string
 }
 
 // ── Reconciliation engine (Phase 1, read-only) ─────────────────────────────
@@ -434,6 +442,8 @@ export default function AdminDashboard({
   const [addError, setAddError]       = useState('')
   const [addSuccess, setAddSuccess]   = useState('')
   const [invites, setInvites]         = useState<BetaInvite[]>(betaInvites)
+  const [waitlist, setWaitlist]       = useState<WaitlistEntry[]>([])
+  const [waitlistLoaded, setWaitlistLoaded] = useState(false)
   const [saArtistId, setSaArtistId]         = useState('')
   const [saManagerId, setSaManagerId]       = useState('')
   const [saAssigning, setSaAssigning]       = useState(false)
@@ -445,6 +455,17 @@ export default function AdminDashboard({
   const [spotifyImporting, setSpotifyImporting] = useState<Record<string, 'idle' | 'loading' | 'done' | 'error'>>({})
   const [spotifyOverride, setSpotifyOverride]   = useState<Record<string, string>>({})
   const [localPerfs, setLocalPerfs]   = useState<Performance[]>(performances)
+
+  // Unlike betaInvites, which is server-fetched and passed in as a prop,
+  // waitlist has no such prop — fetched client-side here via the read-only
+  // GET route instead. waitlistLoaded just prevents the empty-state message
+  // from flashing before this resolves; there's no other loading UI for it.
+  useEffect(() => {
+    fetch('/api/admin/waitlist')
+      .then(res => res.json())
+      .then(data => { setWaitlist(data.entries || []); setWaitlistLoaded(true) })
+      .catch(() => setWaitlistLoaded(true))
+  }, [])
 
   // ── Detection stats ────────────────────────────────────────────────────────
   const det = useMemo(() => {
@@ -1184,6 +1205,23 @@ export default function AdminDashboard({
         {/* ════════════════════════════ BETA USERS ══════════════════════════ */}
         {tab === 'beta' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {/* ── Waitlist — the inbox. Read-only: no actions, no stats, just triage. ── */}
+            <div>
+              <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, margin: '0 0 8px' }}>Waitlist · {waitlist.length}</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {waitlist.map(entry => (
+                  <div key={entry.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', background: C.card, border: `1px solid ${C.border}`, borderRadius: 10 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontSize: 13, fontWeight: 600, color: C.text, margin: 0 }}>{entry.email}</p>
+                      {entry.name && <p style={{ fontSize: 12, color: C.muted, margin: '1px 0 0' }}>{entry.name}</p>}
+                      {entry.note && <p style={{ fontSize: 11, color: C.muted, margin: '2px 0 0' }}>{entry.note}</p>}
+                    </div>
+                    <p style={{ fontSize: 11, color: C.muted, margin: 0, fontFamily: '"DM Mono", monospace', flexShrink: 0 }}>{formatDate(entry.created_at)}</p>
+                  </div>
+                ))}
+              </div>
+              {waitlistLoaded && waitlist.length === 0 && <EmptyState message="No one waiting." />}
+            </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
               <Stat label="Total Invited" value={invites.length} />
               <Stat label="Accepted"      value={invites.filter(i => i.accepted_at).length} color={C.green} sub="signed up" />
