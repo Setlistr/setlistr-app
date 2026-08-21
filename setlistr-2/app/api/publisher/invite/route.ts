@@ -29,7 +29,7 @@ async function sendPublisherInviteEmail({
 
   const html = `
     <div style="font-family: system-ui, sans-serif; max-width: 480px; margin: 0 auto; background: #0a0908; color: #f0ece3; padding: 40px 32px; border-radius: 16px;">
-      <p style="font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: #c9a84c; margin: 0 0 24px;">Setlistr</p>
+      <img src="https://setlistr.ai/logo-white-tight.png" width="160" alt="Setlistr" style="display: block; height: auto; margin: 0 0 24px;" />
       <h1 style="font-size: 24px; font-weight: 800; color: #f0ece3; margin: 0 0 12px; letter-spacing: -0.025em; line-height: 1.2;">
         ${publisherName} is tracking your live royalties
       </h1>
@@ -50,7 +50,7 @@ async function sendPublisherInviteEmail({
       </p>
       <hr style="border: none; border-top: 1px solid rgba(255,255,255,0.07); margin: 24px 0;" />
       <p style="font-size: 11px; color: #8a7a68; margin: 0;">
-        Questions? <a href="mailto:support@setlistr.ai" style="color: #c9a84c;">support@setlistr.ai</a> · <a href="https://setlistr.ai" style="color: #c9a84c;">setlistr.ai</a>
+        Questions? <a href="mailto:info@setlistr.ai" style="color: #c9a84c;">info@setlistr.ai</a> · <a href="https://setlistr.ai" style="color: #c9a84c;">setlistr.ai</a>
       </p>
     </div>
   `
@@ -151,7 +151,7 @@ Most artists miss out on royalties simply because they don't submit their setlis
 
 Join here: ${inviteUrl}
 
-Questions? Reply to this email or reach us at support@setlistr.ai
+Questions? Reply to this email or reach us at info@setlistr.ai
 
 — The Setlistr Team`
 

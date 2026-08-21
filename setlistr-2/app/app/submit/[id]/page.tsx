@@ -240,7 +240,7 @@ function downloadSubmissionBrief({
     `  After submission, your PRO reviews and processes the claim.`,
     `  Royalty payments typically arrive 6–9 months after submission.`,
     `  You can track submission status in your PRO member portal.`,
-    `  Questions? ${proConfig?.supportUrl || 'support@setlistr.ai'}`,
+    `  Questions? ${proConfig?.supportUrl || 'info@setlistr.ai'}`,
     '',
     `SETLIST (${songs.length} songs)`,
     line('─', 30),
@@ -251,7 +251,7 @@ function downloadSubmissionBrief({
     steps,
     '',
     line(),
-    `Keep this file for your records. Questions? support@setlistr.ai`,
+    `Keep this file for your records. Questions? info@setlistr.ai`,
   ].filter(l => l !== null && l !== undefined).join('\n')
 
   const blob = new Blob([brief], { type: 'text/plain' })
