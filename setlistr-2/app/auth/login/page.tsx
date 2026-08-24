@@ -2,8 +2,12 @@
 import { useState, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { submitWaitlistEntry } from '@/lib/waitlist'
 import Image from 'next/image'
 import Link from 'next/link'
+
+const WAITLIST_ROLE_OPTIONS = ['Artist', 'Songwriter', 'Manager', 'Publisher', 'Label', 'Booking agent', 'Other']
+const WAITLIST_PRO_OPTIONS = ['SOCAN', 'ASCAP', 'BMI', 'PRS', 'APRA', 'SESAC', 'GMR', 'Other', 'Not sure', 'None']
 
 const C = {
   bg: '#0a0908', card: '#141210',
@@ -31,6 +35,8 @@ function LoginPageInner() {
 
   const [showWaitlist, setShowWaitlist]       = useState(false)
   const [waitlistName, setWaitlistName]       = useState('')
+  const [waitlistRoles, setWaitlistRoles]     = useState<string[]>([])
+  const [waitlistPro, setWaitlistPro]         = useState('')
   const [waitlistNote, setWaitlistNote]       = useState('')
   const [waitlistLoading, setWaitlistLoading] = useState(false)
   const [waitlistDone, setWaitlistDone]       = useState(false)
@@ -109,16 +115,22 @@ function LoginPageInner() {
     setLoading(false)
   }
 
+  function toggleWaitlistRole(role: string) {
+    const key = role.toLowerCase()
+    setWaitlistRoles(prev => prev.includes(key) ? prev.filter(r => r !== key) : [...prev, key])
+  }
+
   async function handleWaitlist(e?: React.FormEvent) {
     e?.preventDefault()
-    if (!email.trim()) return
+    if (!email.trim() || !waitlistName.trim() || waitlistRoles.length === 0) return
     setWaitlistLoading(true)
     setWaitlistError('')
-    const supabase = createClient()
-    const { error } = await supabase.from('waitlist').insert({
-      email: email.trim(),
-      name: waitlistName.trim() || null,
+    const { error } = await submitWaitlistEntry({
+      email,
+      name: waitlistName,
       note: waitlistNote.trim() || null,
+      roles: waitlistRoles,
+      pro: waitlistPro || null,
     })
     if (error) {
       setWaitlistError(error.code === '23505' ? 'You’ve already requested access — we’ll be in touch.' : error.message)
@@ -403,21 +415,46 @@ function LoginPageInner() {
                   <p style={{ fontSize: 13, color: C.muted, margin: '0 0 24px', lineHeight: 1.5 }}>Drop your info and we’ll be in touch.</p>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                     <div>
-                      <label style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.13em', textTransform: 'uppercase', color: C.muted, display: 'block', marginBottom: 6 }}>Your Name</label>
-                      <input type="text" value={waitlistName} onChange={e => setWaitlistName(e.target.value)} placeholder="e.g. John Smith"
-                        style={inp(waitlistName)}
-                        onFocus={e => (e.target.style.borderColor = 'rgba(201,168,76,0.4)')}
-                        onBlur={e => (e.target.style.borderColor = waitlistName.trim() ? C.borderGold : C.border)} />
-                    </div>
-                    <div>
-                      <label style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.13em', textTransform: 'uppercase', color: C.muted, display: 'block', marginBottom: 6 }}>Email <span style={{ color: C.gold }}>*</span></label>
+                      <label style={lbl}>Email <span style={{ color: C.gold }}>*</span></label>
                       <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com"
                         style={inp(email)}
                         onFocus={e => (e.target.style.borderColor = 'rgba(201,168,76,0.4)')}
                         onBlur={e => (e.target.style.borderColor = email.trim() ? C.borderGold : C.border)} />
                     </div>
                     <div>
-                      <label style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.13em', textTransform: 'uppercase', color: C.muted, display: 'block', marginBottom: 6 }}>Tell us about your gigs <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional)</span></label>
+                      <label style={lbl}>Full name <span style={{ color: C.gold }}>*</span></label>
+                      <input type="text" value={waitlistName} onChange={e => setWaitlistName(e.target.value)} placeholder="e.g. John Smith"
+                        style={inp(waitlistName)}
+                        onFocus={e => (e.target.style.borderColor = 'rgba(201,168,76,0.4)')}
+                        onBlur={e => (e.target.style.borderColor = waitlistName.trim() ? C.borderGold : C.border)} />
+                    </div>
+                    <div>
+                      <label style={lbl}>What best describes you? <span style={{ color: C.gold }}>*</span></label>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                        {WAITLIST_ROLE_OPTIONS.map(role => {
+                          const key = role.toLowerCase()
+                          const selected = waitlistRoles.includes(key)
+                          return (
+                            <button key={role} type="button" onClick={() => toggleWaitlistRole(role)}
+                              style={{ padding: '8px 14px', background: selected ? C.goldDim : 'transparent', border: `1px solid ${selected ? C.borderGold : C.border}`, borderRadius: 8, color: selected ? C.gold : C.secondary, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s ease' }}>
+                              {role}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                    <div>
+                      <label style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.13em', textTransform: 'uppercase', color: C.muted, display: 'block', marginBottom: 6 }}>PRO <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional)</span></label>
+                      <select value={waitlistPro} onChange={e => setWaitlistPro(e.target.value)}
+                        style={{ ...inp(waitlistPro), cursor: 'pointer' } as React.CSSProperties}>
+                        <option value="">Select your PRO</option>
+                        {WAITLIST_PRO_OPTIONS.map(opt => (
+                          <option key={opt} value={opt.toLowerCase()}>{opt}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.13em', textTransform: 'uppercase', color: C.muted, display: 'block', marginBottom: 6 }}>Anything else we should know? <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional)</span></label>
                       <textarea value={waitlistNote} onChange={e => setWaitlistNote(e.target.value)}
                         placeholder="e.g. Cover band, 3 nights a week in Nashville..." rows={3}
                         style={{ ...inp(waitlistNote), resize: 'none', lineHeight: 1.5 } as React.CSSProperties}
@@ -429,8 +466,8 @@ function LoginPageInner() {
                         <p style={{ fontSize: 13, color: C.red, margin: 0 }}>{waitlistError}</p>
                       </div>
                     )}
-                    <button onClick={handleWaitlist} disabled={waitlistLoading || !email.trim()}
-                      style={{ width: '100%', padding: '13px', background: email.trim() ? C.gold : C.muted, border: 'none', borderRadius: 10, color: '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: waitlistLoading || !email.trim() ? 'not-allowed' : 'pointer', opacity: waitlistLoading ? 0.7 : 1, transition: 'all 0.2s ease', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                    <button onClick={handleWaitlist} disabled={waitlistLoading || !email.trim() || !waitlistName.trim() || waitlistRoles.length === 0}
+                      style={{ width: '100%', padding: '13px', background: (email.trim() && waitlistName.trim() && waitlistRoles.length) ? C.gold : C.muted, border: 'none', borderRadius: 10, color: '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: (waitlistLoading || !email.trim() || !waitlistName.trim() || waitlistRoles.length === 0) ? 'not-allowed' : 'pointer', opacity: waitlistLoading ? 0.7 : 1, transition: 'all 0.2s ease', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
                       {waitlistLoading ? <><Spinner />Submitting...</> : 'Request Access'}
                     </button>
                   </div>

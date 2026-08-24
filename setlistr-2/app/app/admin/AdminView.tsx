@@ -87,6 +87,8 @@ type WaitlistEntry = {
   email: string
   name: string | null
   note: string | null
+  roles: string[] | null
+  pro: string | null
   created_at: string
 }
 
@@ -1273,9 +1275,19 @@ export default function AdminDashboard({
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <p style={{ fontSize: 13, fontWeight: 600, color: C.text, margin: 0 }}>{entry.email}</p>
                           {entry.name && <p style={{ fontSize: 12, color: C.muted, margin: '1px 0 0' }}>{entry.name}</p>}
-                          {entry.note && <p style={{ fontSize: 11, color: C.muted, margin: '2px 0 0' }}>{entry.note}</p>}
+                          {entry.roles && entry.roles.length > 0 && (
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, margin: '4px 0 0' }}>
+                              {entry.roles.map(role => (
+                                <span key={role} style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', padding: '2px 7px', borderRadius: 4, background: 'rgba(255,255,255,0.05)', border: `1px solid ${C.border}`, color: C.secondary }}>
+                                  {role}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                          {entry.note && <p style={{ fontSize: 11, color: C.muted, margin: '4px 0 0' }}>{entry.note}</p>}
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+                          {entry.pro && <span style={{ fontSize: 11, color: C.muted, textTransform: 'uppercase' }}>{entry.pro}</span>}
                           <p style={{ fontSize: 11, color: C.muted, margin: 0, fontFamily: '"DM Mono", monospace' }}>{formatDate(entry.created_at)}</p>
                           {state === 'invited' ? (
                             <span style={{ fontSize: 11, color: C.muted, fontWeight: 600 }}>Invited</span>

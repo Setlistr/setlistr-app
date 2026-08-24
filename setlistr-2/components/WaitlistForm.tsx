@@ -1,25 +1,48 @@
 'use client'
 import { useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { submitWaitlistEntry } from '@/lib/waitlist'
 
-type AccessType = 'artist' | 'publisher' | null
+const ROLE_OPTIONS = ['Artist', 'Songwriter', 'Manager', 'Publisher', 'Label', 'Booking agent', 'Other']
+const PRO_OPTIONS = ['SOCAN', 'ASCAP', 'BMI', 'PRS', 'APRA', 'SESAC', 'GMR', 'Other', 'Not sure', 'None']
+
+const fieldStyle: React.CSSProperties = {
+  width: '100%', boxSizing: 'border-box' as const,
+  background: 'rgba(255,255,255,0.04)',
+  border: '1px solid rgba(255,255,255,0.08)',
+  borderRadius: 10,
+  color: '#f5f3ef',
+  fontFamily: '"DM Sans", sans-serif',
+  fontSize: 15, fontWeight: 300,
+  padding: '14px 18px',
+  outline: 'none',
+}
 
 export default function WaitlistForm() {
-  const [accessType, setAccessType] = useState<AccessType>(null)
   const [email, setEmail]           = useState('')
+  const [name, setName]             = useState('')
+  const [roles, setRoles]           = useState<string[]>([])
+  const [pro, setPro]               = useState('')
+  const [note, setNote]             = useState('')
   const [loading, setLoading]       = useState(false)
   const [done, setDone]             = useState(false)
   const [error, setError]           = useState('')
 
+  function toggleRole(role: string) {
+    const key = role.toLowerCase()
+    setRoles(prev => prev.includes(key) ? prev.filter(r => r !== key) : [...prev, key])
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!email.trim() || !accessType) return
+    if (!email.trim() || !name.trim() || roles.length === 0) return
     setLoading(true)
     setError('')
-    const supabase = createClient()
-    const { error: err } = await supabase.from('waitlist').insert({
-      email: email.trim().toLowerCase(),
-      note: accessType === 'publisher' ? '[PUBLISHER]' : '[ARTIST]',
+    const { error: err } = await submitWaitlistEntry({
+      email,
+      name,
+      note: note.trim() || null,
+      roles,
+      pro: pro || null,
     })
     if (err) {
       setError(err.code === '23505' ? 'Already registered.' : 'Something went wrong.')
@@ -107,35 +130,6 @@ export default function WaitlistForm() {
 
       {/* ── Waitlist form ── */}
       <form onSubmit={handleSubmit}>
-        {/* Type toggle */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
-          {(['artist', 'publisher'] as AccessType[]).map(t => (
-            <button
-              key={t!}
-              type="button"
-              onClick={() => setAccessType(t)}
-              style={{
-                padding: '13px 8px',
-                background: accessType === t
-                  ? 'rgba(201,168,76,0.12)'
-                  : 'rgba(255,255,255,0.04)',
-                border: `1px solid ${accessType === t
-                  ? 'rgba(201,168,76,0.45)'
-                  : 'rgba(255,255,255,0.08)'}`,
-                color: accessType === t ? '#C9A84C' : 'rgba(232,228,219,0.75)',
-                fontFamily: '"DM Mono", monospace',
-                fontSize: 11, letterSpacing: '0.14em',
-                textTransform: 'uppercase' as const,
-                cursor: 'pointer',
-                borderRadius: 8,
-                transition: 'all 0.2s ease',
-              }}
-            >
-              {t === 'artist' ? 'Artist' : 'Publisher / Label'}
-            </button>
-          ))}
-        </div>
-
         {/* Email */}
         <div style={{ marginBottom: 10 }}>
           <input
@@ -144,17 +138,85 @@ export default function WaitlistForm() {
             placeholder="Email address"
             value={email}
             onChange={e => setEmail(e.target.value)}
-            style={{
-              width: '100%', boxSizing: 'border-box' as const,
-              background: 'rgba(255,255,255,0.04)',
-              border: '1px solid rgba(255,255,255,0.08)',
-              borderRadius: 10,
-              color: '#f5f3ef',
-              fontFamily: '"DM Sans", sans-serif',
-              fontSize: 15, fontWeight: 300,
-              padding: '14px 18px',
-              outline: 'none',
-            }}
+            style={fieldStyle}
+            onFocus={e  => { e.currentTarget.style.borderColor = 'rgba(201,168,76,0.4)' }}
+            onBlur={e   => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)' }}
+          />
+        </div>
+
+        {/* Full name */}
+        <div style={{ marginBottom: 10 }}>
+          <input
+            type="text"
+            required
+            placeholder="Full name"
+            value={name}
+            onChange={e => setName(e.target.value)}
+            style={fieldStyle}
+            onFocus={e  => { e.currentTarget.style.borderColor = 'rgba(201,168,76,0.4)' }}
+            onBlur={e   => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)' }}
+          />
+        </div>
+
+        {/* Role — multi-select pills */}
+        <div style={{ marginBottom: 10 }}>
+          <p style={{
+            fontFamily: '"DM Mono", monospace',
+            fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase' as const,
+            color: 'rgba(212,209,202,0.5)', margin: '0 0 6px',
+          }}>
+            What best describes you? <span style={{ color: '#C9A84C' }}>*</span>
+          </p>
+          <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: 6 }}>
+            {ROLE_OPTIONS.map(role => {
+              const key = role.toLowerCase()
+              const selected = roles.includes(key)
+              return (
+                <button
+                  key={role}
+                  type="button"
+                  onClick={() => toggleRole(role)}
+                  style={{
+                    padding: '8px 14px',
+                    background: selected ? 'rgba(201,168,76,0.12)' : 'rgba(255,255,255,0.04)',
+                    border: `1px solid ${selected ? 'rgba(201,168,76,0.45)' : 'rgba(255,255,255,0.08)'}`,
+                    color: selected ? '#C9A84C' : 'rgba(232,228,219,0.75)',
+                    fontFamily: '"DM Mono", monospace',
+                    fontSize: 11, letterSpacing: '0.06em',
+                    cursor: 'pointer',
+                    borderRadius: 8,
+                    transition: 'all 0.2s ease',
+                  }}
+                >
+                  {role}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* PRO — optional single-select */}
+        <div style={{ marginBottom: 10 }}>
+          <select
+            value={pro}
+            onChange={e => setPro(e.target.value)}
+            style={{ ...fieldStyle, cursor: 'pointer' }}
+          >
+            <option value="">PRO (optional)</option>
+            {PRO_OPTIONS.map(opt => (
+              <option key={opt} value={opt.toLowerCase()}>{opt}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Free text */}
+        <div style={{ marginBottom: 10 }}>
+          <textarea
+            value={note}
+            onChange={e => setNote(e.target.value)}
+            placeholder="Anything else we should know? (optional)"
+            rows={3}
+            style={{ ...fieldStyle, resize: 'none' as const, lineHeight: 1.5 }}
             onFocus={e  => { e.currentTarget.style.borderColor = 'rgba(201,168,76,0.4)' }}
             onBlur={e   => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)' }}
           />
@@ -172,15 +234,15 @@ export default function WaitlistForm() {
 
         <button
           type="submit"
-          disabled={loading || !email || !accessType}
+          disabled={loading || !email || !name || roles.length === 0}
           style={{
             width: '100%', padding: '16px',
-            background: email && accessType ? '#C9A84C' : 'rgba(201,168,76,0.32)',
+            background: email && name && roles.length ? '#C9A84C' : 'rgba(201,168,76,0.32)',
             border: 'none', borderRadius: 10,
-            color: email && accessType ? '#080706' : 'rgba(232,228,219,0.6)',
+            color: email && name && roles.length ? '#080706' : 'rgba(232,228,219,0.6)',
             fontFamily: '"Bebas Neue", sans-serif',
             fontSize: 18, letterSpacing: '0.12em',
-            cursor: email && accessType ? 'pointer' : 'not-allowed',
+            cursor: email && name && roles.length ? 'pointer' : 'not-allowed',
             transition: 'all 0.2s ease',
             opacity: loading ? 0.6 : 1,
           }}
