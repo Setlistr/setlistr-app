@@ -912,6 +912,9 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
           if (!song.title?.trim()) continue
           await writeUserSongFromReview(supabase, song.title, song.artist || '', actingAsArtistId || user.id, performance.id)
         }
+        // computeShowNumber uses performance.user_id, not actingAsArtistId like
+        // fetchIntelligence above — a show's number belongs to the artist whose
+        // career it is, not whoever's looking. Same rule as submit's PRO identity.
         fetchIntelligence(actingAsArtistId || user.id, performance.venue_name, kept.map(s => s.title).filter(Boolean))
         const num = await computeShowNumber(performance.user_id, performance.id)
         setComputedShowNumber(num)
