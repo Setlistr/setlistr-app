@@ -292,11 +292,6 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push('/auth/login'); return }
 
-      const { data: profileData } = await supabase
-        .from('profiles').select('pro_affiliation, legal_name, ipi_number, publisher_name, artist_name')
-        .eq('id', user.id).single()
-      setProfile(profileData)
-
       const { data: perf } = await supabase
         .from('performances').select('*, shows(show_type), venues(capacity)')
         .eq('id', params.id).single()
@@ -312,6 +307,14 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
       }
       setPerformance(perfRecord)
       setSubmitted(perf.submission_status === 'submitted')
+
+      // The identity on a PRO submission must follow the performance's
+      // owner, not the acting-as UI state — a delegate filing for an
+      // artist files as that artist. Same rule as computeShowNumber.
+      const { data: profileData } = await supabase
+        .from('profiles').select('pro_affiliation, legal_name, ipi_number, publisher_name, artist_name')
+        .eq('id', perf.user_id).single()
+      setProfile(profileData)
 
       let songData: any[] = []
       try {

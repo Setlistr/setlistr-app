@@ -587,7 +587,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
 
   useEffect(() => {
     const supabase = createClient()
-    supabase.auth.getUser().then(({ data: { user } }) => { if (user) setUserId(user.id) })
+    supabase.auth.getUser().then(({ data: { user } }) => { if (user) setUserId(actingAsArtistId || user.id) })
     supabase.from('performances').select('*, status, shows(show_type), venues(capacity)').eq('id', params.id).single()
       .then(async ({ data: perf }) => {
         if (!perf) { setLoading(false); return }
@@ -912,7 +912,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
           if (!song.title?.trim()) continue
           await writeUserSongFromReview(supabase, song.title, song.artist || '', actingAsArtistId || user.id, performance.id)
         }
-        fetchIntelligence(user.id, performance.venue_name, kept.map(s => s.title).filter(Boolean))
+        fetchIntelligence(actingAsArtistId || user.id, performance.venue_name, kept.map(s => s.title).filter(Boolean))
         const num = await computeShowNumber(performance.user_id, performance.id)
         setComputedShowNumber(num)
       }

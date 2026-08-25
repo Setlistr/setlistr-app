@@ -204,7 +204,7 @@ function VenueMap({ venueName, city, country, onCoordsResolved }: { venueName: s
 export default function NewShowPage() {
   const router       = useRouter()
   const searchParams = useSearchParams()
-  const { actingAs: providerActingAs, actingAsArtistId } = useActingAs()
+  const { actingAs: providerActingAs, actingAsArtistId, resolved } = useActingAs()
 
   const [artistName, setArtistName]     = useState('')
   const [showType, setShowType]         = useState<'single' | 'writers_round'>('single')
@@ -273,19 +273,21 @@ export default function NewShowPage() {
 
   // ── Pre-fill artist name from profile ──
   useEffect(() => {
+    if (!resolved) return
     const supabase = createClient()
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return
-      supabase.from('profiles').select('artist_name, full_name').eq('id', user.id).single()
+      supabase.from('profiles').select('artist_name, full_name').eq('id', actingAsArtistId || user.id).single()
         .then(({ data }) => {
           const n = data?.artist_name || data?.full_name || ''
           if (n) setArtistName(prev => prev === '' ? n : prev)
         })
     })
-  }, [])
+  }, [resolved, actingAsArtistId])
 
   // ── Pre-fill last used venue on mount (45-day recency window) ──
   useEffect(() => {
+    if (!resolved) return
     const supabase = createClient()
     async function loadLastVenue() {
       const { data: { user } } = await supabase.auth.getUser()
@@ -293,7 +295,7 @@ export default function NewShowPage() {
       const { data: lastPerf } = await supabase
         .from('performances')
         .select('id, venue_id, venue_name, city, country, started_at')
-        .eq('user_id', user.id)
+        .eq('user_id', actingAsArtistId || user.id)
         .in('status', ['review', 'complete', 'completed', 'exported'])
         .not('venue_name', 'is', null)
         .order('started_at', { ascending: false })
@@ -329,7 +331,7 @@ export default function NewShowPage() {
       }
     }
     loadLastVenue()
-  }, [])
+  }, [resolved, actingAsArtistId])
 
   // ── Load recent songs when quick-add mode opens ──
   useEffect(() => {
@@ -365,7 +367,7 @@ export default function NewShowPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return null
       const { data: perfs } = await supabase.from('performances').select('id, started_at')
-        .eq('venue_id', selectedVenueId).eq('user_id', user.id)
+        .eq('venue_id', selectedVenueId).eq('user_id', actingAsArtistId || user.id)
         .in('status', ['review', 'complete', 'completed', 'exported'])
         .order('started_at', { ascending: false }).limit(10)
       if (!perfs || perfs.length === 0) return null
@@ -512,6 +514,7 @@ export default function NewShowPage() {
 
   useEffect(() => {
     if (!showReuse || pastPerfs.length > 0) return
+    if (!resolved) return
     setPastLoading(true)
     const supabase = createClient()
     async function loadPast() {
@@ -519,7 +522,7 @@ export default function NewShowPage() {
       if (!user) { setPastLoading(false); return }
       const { data: perfs } = await supabase.from('performances')
         .select('id, venue_name, artist_name, started_at')
-        .eq('user_id', user.id).in('status', ['review', 'complete', 'completed', 'exported'])
+        .eq('user_id', actingAsArtistId || user.id).in('status', ['review', 'complete', 'completed', 'exported'])
         .order('started_at', { ascending: false }).limit(20)
       if (!perfs) { setPastLoading(false); return }
       const { data: songs } = await supabase.from('performance_songs_visible').select('performance_id')
@@ -533,7 +536,7 @@ export default function NewShowPage() {
       setPastLoading(false)
     }
     loadPast()
-  }, [showReuse])
+  }, [showReuse, resolved, actingAsArtistId])
 
   async function savePlannedSetlist(performanceId: string, userId: string, resolvedVenueId: string | null) {
     if (plannedSongs.length === 0) return

@@ -187,15 +187,25 @@ export default function DashboardPage() {
   }, [resolved])
 
   async function loadOwnPerformances(supabase: any) {
+    // Deliberately session-user-only, never actingAsArtistId — this is only
+    // ever called from the !actingAs branch of the load effect and from
+    // switchToOwn(), both meant to show just the logged-in user's own data.
+    // switchToOwn() in particular calls setActingAs(null) then this in the
+    // same tick; actingAsArtistId wouldn't reflect that until the next
+    // render, so consulting it here would still resolve to the artist being
+    // exited, not the user's own account.
+    const { data: { user } } = await supabase.auth.getUser()
+    const targetUserId = user?.id || ''
     const [{ data }, { data: profileCareer }] = await Promise.all([
       supabase
         .from('performances')
         .select(`id, venue_name, artist_name, city, country, status, submission_status, started_at, ended_at, created_at, captured_by_name, data_source, performance_date, photo_url, shows ( show_type ), venues ( capacity )`)
+        .eq('user_id', targetUserId)
         .order('created_at', { ascending: false }),
       supabase
         .from('profiles')
         .select('career_total_shows, career_start_year')
-        .eq('id', (await supabase.auth.getUser()).data.user?.id || '')
+        .eq('id', targetUserId)
         .single()
     ])
     if (profileCareer?.career_total_shows) setCareerTotalShows(profileCareer.career_total_shows)
