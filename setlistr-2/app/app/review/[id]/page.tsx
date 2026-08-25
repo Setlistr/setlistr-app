@@ -87,11 +87,11 @@ type Song = {
 }
 
 type Performance = {
-  id: string; artist_name: string; venue_name: string; city: string
+  id: string; user_id: string; artist_name: string; venue_name: string; city: string
   country: string; started_at: string; ended_at: string
   set_duration_minutes: number; setlist_id?: string | null
   show_id?: string | null; show_type?: string | null; venue_capacity?: number | null
-  status?: string | null; show_number?: number | null
+  status?: string | null
 }
 
 type PRO = 'SOCAN' | 'ASCAP' | 'BMI'
@@ -419,6 +419,8 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
   const [saving, setSaving]             = useState(false)
   const [saved, setSaved]               = useState(false)
   const [showComplete, setShowComplete] = useState(false)
+  const [justCompleted, setJustCompleted] = useState(false)
+  const [computedShowNumber, setComputedShowNumber] = useState<number | null>(null)
   const [activeCardIndex, setActiveCardIndex] = useState(0)
   const [newTitle, setNewTitle]         = useState('')
   const [newArtist, setNewArtist]       = useState('')
@@ -550,10 +552,43 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
     }
   }
 
+  // ── Show number — computed at read time, not stored ──────────────────────
+  // A performance's show number is its 1-based position in the owning artist's
+  // set of non-imported, review-or-later performances, ordered by started_at
+  // then created_at then id. The multi-key order is required for determinism:
+  // several rows share a midnight started_at timestamp.
+  async function computeShowNumber(artistUserId: string, performanceId: string): Promise<number | null> {
+    try {
+      const supabase = createClient()
+      const { data: rows } = await supabase
+        .from('performances')
+        .select('id, started_at, created_at')
+        .eq('user_id', artistUserId)
+        .in('status', ['complete', 'completed', 'review'])
+        .neq('data_source', 'setlistfm_imported')
+
+      if (!rows || rows.length === 0) return null
+
+      const sorted = [...rows].sort((a, b) => {
+        const byStarted = new Date(a.started_at).getTime() - new Date(b.started_at).getTime()
+        if (byStarted !== 0) return byStarted
+        const byCreated = new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+        if (byCreated !== 0) return byCreated
+        return a.id < b.id ? -1 : a.id > b.id ? 1 : 0
+      })
+
+      const idx = sorted.findIndex(p => p.id === performanceId)
+      return idx >= 0 ? idx + 1 : null
+    } catch (err) {
+      console.error('[ShowNumber] compute failed:', err)
+      return null
+    }
+  }
+
   useEffect(() => {
     const supabase = createClient()
     supabase.auth.getUser().then(({ data: { user } }) => { if (user) setUserId(user.id) })
-    supabase.from('performances').select('*, status, show_number, shows(show_type), venues(capacity)').eq('id', params.id).single()
+    supabase.from('performances').select('*, status, shows(show_type), venues(capacity)').eq('id', params.id).single()
       .then(async ({ data: perf }) => {
         if (!perf) { setLoading(false); return }
         setPerformance({ ...perf, show_type: perf.shows?.show_type || null, venue_capacity: perf.venues?.capacity || null })
@@ -601,17 +636,20 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
       })
   }, [params.id])
 
-  // Sequence: start when loading completes
+  // Sequence: start only right after the artist completes this review in
+  // this session — not on every load, or revisiting an already-completed
+  // show replays the whole reveal (including a show number that could have
+  // changed since).
   useEffect(() => {
-    if (loading) return
+    if (loading || !justCompleted) return
     const reduced = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    if (reduced) { setSeqPhase(7); return }
+    if (reduced) { setSeqPhase(7); setShowComplete(true); return }
 
     const cs = songs.filter(s => s.source !== 'planned' && !s.isRemoved)
     const pp = songs.filter(s => s.source === 'planned' && !s.isRemoved)
     const hasSongs  = cs.length > 0
     const hasGaps   = pp.length > 0
-    const hasShowNum = !!(performance as any)?.show_number
+    const hasShowNum = computedShowNumber != null
 
     // Each confirmed song gets 1400ms: 600ms fade-in, 400ms hold, 400ms fade-out.
     // Max 5 individual moments; if more, first 5 then "+N more" as one extra moment.
@@ -637,13 +675,13 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
     timers.push(setTimeout(() => setSeqPhase(5), royaltyAt))
     if (stampAt > 0) timers.push(setTimeout(() => setSeqPhase(6), stampAt))
     timers.push(setTimeout(() => setSeqFading(true), fadeAt))
-    timers.push(setTimeout(() => setSeqPhase(7), doneAt))
+    timers.push(setTimeout(() => { setSeqPhase(7); setShowComplete(true) }, doneAt))
 
     return () => {
       timers.forEach(clearTimeout)
       if (seqRafRef.current) cancelAnimationFrame(seqRafRef.current)
     }
-  }, [loading]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [loading, justCompleted]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Advance song index once per 1400ms while in phase 3
   useEffect(() => {
@@ -848,27 +886,6 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
     // Mark every row for this performance artist-reviewed
     await supabase.from('performance_songs').update({ artist_save_complete: true }).eq('performance_id', performance.id)
     await supabase.from('performances').update({ status: 'completed' }).eq('id', performance.id)
-    // Stamp show_number if not already set
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (user && !performance.show_number) {
-        const { count } = await supabase
-          .from('performances')
-          .select('*', { count: 'exact', head: true })
-          .eq('user_id', user.id)
-          .in('status', ['complete', 'completed', 'review'])
-          .neq('data_source', 'setlistfm_imported')
-
-        if (count !== null) {
-          await supabase
-            .from('performances')
-            .update({ show_number: count })
-            .eq('id', performance.id)
-        }
-      }
-    } catch (err) {
-      console.error('[show_number] stamp failed:', err)
-    }
     if (performance.show_id) await supabase.from('shows').update({ status: 'completed' }).eq('id', performance.show_id)
 
     // Geocode city → lat/lng silently, non-blocking
@@ -896,9 +913,11 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
           await writeUserSongFromReview(supabase, song.title, song.artist || '', actingAsArtistId || user.id, performance.id)
         }
         fetchIntelligence(user.id, performance.venue_name, kept.map(s => s.title).filter(Boolean))
+        const num = await computeShowNumber(performance.user_id, performance.id)
+        setComputedShowNumber(num)
       }
     } catch (err) { console.error('[ReviewSave]', err) }
-    setSaving(false); setSaved(true); setShowComplete(true)
+    setSaving(false); setSaved(true); setJustCompleted(true)
   }, [performance, songs, setlistId, actingAsArtistId])
 
   function generateExportCSV(pro: PRO) {
@@ -967,7 +986,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
 
     return (
       <div
-        onClick={() => { if (skipEnabled) setSeqPhase(7) }}
+        onClick={() => { if (skipEnabled) { setSeqPhase(7); setShowComplete(true) } }}
         style={{
           position: 'fixed', inset: 0, background: C.bg, zIndex: 50,
           display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
@@ -1057,11 +1076,11 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
           </div>
         )}
 
-        {/* Phase 6: SHOW #N stamp — only if show_number is defined */}
-        {seqPhase === 6 && performance?.show_number != null && (
+        {/* Phase 6: SHOW #N stamp — only if the computed show number is available */}
+        {seqPhase === 6 && computedShowNumber != null && (
           <div key="phase6" style={{ textAlign: 'center', opacity: 0, animation: 'fadeUp 0.4s ease forwards' }}>
             <span style={{ fontSize: 64, fontWeight: 800, color: C.gold, letterSpacing: '0.08em', display: 'inline-block', animation: 'showStamp 0.4s ease-out both', fontFamily: '"DM Mono", monospace' }}>
-              SHOW #{performance.show_number}
+              SHOW #{computedShowNumber}
             </span>
           </div>
         )}
@@ -1202,7 +1221,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
           {/* ── SHARE CARDS ── */}
           {(() => {
               const SPECIAL_MILESTONES = [1, 5, 10, 25, 50, 75, 100, 150, 200, 250]
-              const showNumber = performance?.show_number || intelligence?.capturedShows || 0
+              const showNumber = computedShowNumber || 0
               const isMilestone = showNumber > 0 && SPECIAL_MILESTONES.includes(showNumber)
               const royaltyAmount = estimate.expected
 
