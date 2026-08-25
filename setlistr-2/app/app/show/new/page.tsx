@@ -273,16 +273,17 @@ export default function NewShowPage() {
 
   // ── Pre-fill artist name from profile ──
   useEffect(() => {
+    if (!resolved) return
     const supabase = createClient()
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return
-      supabase.from('profiles').select('artist_name, full_name').eq('id', user.id).single()
+      supabase.from('profiles').select('artist_name, full_name').eq('id', actingAsArtistId || user.id).single()
         .then(({ data }) => {
           const n = data?.artist_name || data?.full_name || ''
           if (n) setArtistName(prev => prev === '' ? n : prev)
         })
     })
-  }, [])
+  }, [resolved, actingAsArtistId])
 
   // ── Pre-fill last used venue on mount (45-day recency window) ──
   useEffect(() => {

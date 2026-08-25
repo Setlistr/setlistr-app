@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Search, ChevronLeft, Music2, DollarSign } from 'lucide-react'
 import { estimateRoyalties, capacityToBand } from '@/lib/royalty-estimate'
+import { useActingAs } from '@/components/ActingAsProvider'
 
 const CARD = {
   background: 'linear-gradient(180deg, #171512 0%, #121009 100%)',
@@ -67,6 +68,7 @@ function getTerritory(country?: string, city?: string): string {
 
 export default function HistoryPage() {
   const router = useRouter()
+  const { actingAsArtistId, resolved } = useActingAs()
   const [performances, setPerformances] = useState<Performance[]>([])
   const [filtered, setFiltered]         = useState<Performance[]>([])
   const [loading, setLoading]           = useState(true)
@@ -77,6 +79,7 @@ export default function HistoryPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all')
 
   useEffect(() => {
+    if (!resolved) return
     const supabase = createClient()
     async function load() {
       const { data: { user } } = await supabase.auth.getUser()
@@ -85,7 +88,7 @@ export default function HistoryPage() {
       const { data, error } = await supabase
         .from('performances')
         .select('id, venue_name, venue_id, artist_name, city, country, status, submission_status, started_at, created_at, captured_by_name, photo_url, shows(show_type), venues(capacity)')
-        .eq('user_id', user.id)
+        .eq('user_id', actingAsArtistId || user.id)
         .not('status', 'in', '("live","pending")')
         .order('started_at', { ascending: false })
 
@@ -122,7 +125,7 @@ export default function HistoryPage() {
       setLoading(false)
     }
     load()
-  }, [])
+  }, [resolved, actingAsArtistId])
 
   useEffect(() => {
     let result = [...performances]

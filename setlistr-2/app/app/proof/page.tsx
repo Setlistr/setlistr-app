@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { useActingAs } from '@/components/ActingAsProvider'
 
 const C = {
   bg: '#0a0908', card: '#141210',
@@ -33,6 +34,7 @@ function formatDateLong(d: string) {
 
 export default function ProofPage() {
   const router = useRouter()
+  const { actingAsArtistId, resolved } = useActingAs()
   const [loading, setLoading]         = useState(true)
   const [artistName, setArtistName]   = useState('')
   const [proName, setProName]         = useState('')
@@ -42,21 +44,23 @@ export default function ProofPage() {
   const [generatedAt]                 = useState(new Date())
 
   useEffect(() => {
+    if (!resolved) return
     const supabase = createClient()
     async function load() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.replace('/login'); return }
+      const targetUserId = actingAsArtistId || user.id
 
       const [{ data: profile }, { data: perfs }, { data: uSongs }] = await Promise.all([
-        supabase.from('profiles').select('artist_name, full_name, pro_affiliation').eq('id', user.id).single(),
+        supabase.from('profiles').select('artist_name, full_name, pro_affiliation').eq('id', targetUserId).single(),
         supabase.from('performances')
           .select('id, venue_name, city, country, started_at, set_duration_minutes, status, submission_status')
-          .eq('user_id', user.id)
+          .eq('user_id', targetUserId)
           .in('status', ['completed', 'complete', 'exported', 'review'])
           .order('started_at', { ascending: false }),
         supabase.from('user_songs')
           .select('song_title, confirmed_count, last_confirmed_at, isrc, composer, publisher')
-          .eq('user_id', user.id)
+          .eq('user_id', targetUserId)
           .gt('confirmed_count', 0)
           .order('confirmed_count', { ascending: false }),
       ])
@@ -79,7 +83,7 @@ export default function ProofPage() {
       setLoading(false)
     }
     load()
-  }, [])
+  }, [resolved, actingAsArtistId])
 
   // ── Derived stats ─────────────────────────────────────────────────────────
   const totalShows     = performances.length

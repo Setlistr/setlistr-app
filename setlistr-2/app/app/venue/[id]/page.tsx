@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Mic2 } from 'lucide-react'
+import { useActingAs } from '@/components/ActingAsProvider'
 
 const C = {
   bg: '#0a0908', card: '#141210',
@@ -24,6 +25,7 @@ export default function VenueDetailPage() {
   const router = useRouter()
   const params = useParams()
   const venueId = params.id as string
+  const { actingAsArtistId, resolved } = useActingAs()
 
   const [venueName, setVenueName] = useState('')
   const [city, setCity] = useState('')
@@ -33,6 +35,7 @@ export default function VenueDetailPage() {
   const [expandedShow, setExpandedShow] = useState<string | null>(null)
 
   useEffect(() => {
+    if (!resolved) return
     const supabase = createClient()
     async function load() {
       const { data: { user } } = await supabase.auth.getUser()
@@ -55,7 +58,7 @@ export default function VenueDetailPage() {
       const { data: perfs } = await supabase
         .from('performances')
         .select('id, started_at, status, submitted_at')
-        .eq('user_id', user.id)
+        .eq('user_id', actingAsArtistId || user.id)
         .eq('venue_id', venueId)
         .in('status', ['complete', 'completed', 'review', 'exported'])
         .neq('data_source', 'setlistfm_imported')
@@ -86,7 +89,7 @@ export default function VenueDetailPage() {
       setLoading(false)
     }
     load()
-  }, [venueId])
+  }, [venueId, resolved, actingAsArtistId])
 
   function formatDate(d: string) {
     return new Date(d).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })

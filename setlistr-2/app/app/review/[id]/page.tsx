@@ -552,7 +552,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
 
   useEffect(() => {
     const supabase = createClient()
-    supabase.auth.getUser().then(({ data: { user } }) => { if (user) setUserId(user.id) })
+    supabase.auth.getUser().then(({ data: { user } }) => { if (user) setUserId(actingAsArtistId || user.id) })
     supabase.from('performances').select('*, status, show_number, shows(show_type), venues(capacity)').eq('id', params.id).single()
       .then(async ({ data: perf }) => {
         if (!perf) { setLoading(false); return }
