@@ -21,7 +21,7 @@ async function getPerformanceData(id: string) {
   if (!perf) return null
 
   const { data: songs } = await supabaseAdmin
-    .from('performance_songs')
+    .from('performance_songs_visible')
     .select('title, artist, position')
     .eq('performance_id', id)
     .not('title', 'is', null)

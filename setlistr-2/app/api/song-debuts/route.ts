@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
 
     const service = getServiceClient()
     const { data, error } = await service
-      .from('performance_songs')
+      .from('performance_songs_visible')
       .select('title, artist, performances!inner(performance_date)')
       .eq('performances.user_id', targetUserId)
 

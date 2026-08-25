@@ -94,7 +94,7 @@ export default function HistoryPage() {
       if (data) {
         const perfIds = data.map((p: any) => p.id)
         const { data: songData } = await supabase
-          .from('performance_songs')
+          .from('performance_songs_visible')
           .select('performance_id')
           .in('performance_id', perfIds)
 

@@ -120,7 +120,7 @@ function SongIntelligenceSheet({
         const supabase = createClient()
         // Step 1: get performance_ids for this song title
         const { data: pSongs } = await supabase
-          .from('performance_songs')
+          .from('performance_songs_visible')
           .select('performance_id')
           .eq('title', song.song_title)
           .limit(100)

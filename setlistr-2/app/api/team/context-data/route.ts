@@ -58,7 +58,7 @@ export async function GET(req: NextRequest) {
     let songCountMap: Record<string, number> = {}
     if (perfIds.length > 0) {
       const { data: songData } = await service
-        .from('performance_songs')
+        .from('performance_songs_visible')
         .select('performance_id')
         .in('performance_id', perfIds)
       songData?.forEach((s: any) => {

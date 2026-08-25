@@ -87,7 +87,7 @@ export async function GET(req: NextRequest) {
 
     if (perfIds.length > 0) {
       const { data: songs } = await supabase
-        .from('performance_songs')
+        .from('performance_songs_visible')
         .select('performance_id')
         .in('performance_id', perfIds)
 

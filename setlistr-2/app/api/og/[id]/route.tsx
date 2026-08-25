@@ -17,7 +17,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
       .single()
 
     const { data: songs } = await supabase
-      .from('performance_songs')
+      .from('performance_songs_visible')
       .select('title, source')
       .eq('performance_id', params.id)
       .order('position', { ascending: true })

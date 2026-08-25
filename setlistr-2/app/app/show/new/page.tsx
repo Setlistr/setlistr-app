@@ -302,7 +302,7 @@ export default function NewShowPage() {
       if (!lastPerf?.venue_name || lastPerf.venue_name.trim() === '.') return
       // Always load last setlist as a dismissible offer (no time gate)
       const { data: lastSongs } = await supabase
-        .from('performance_songs')
+        .from('performance_songs_visible')
         .select('title, artist')
         .eq('performance_id', lastPerf.id)
         .order('position', { ascending: true })
@@ -369,7 +369,7 @@ export default function NewShowPage() {
         .in('status', ['review', 'complete', 'completed', 'exported'])
         .order('started_at', { ascending: false }).limit(10)
       if (!perfs || perfs.length === 0) return null
-      const { data: songs } = await supabase.from('performance_songs')
+      const { data: songs } = await supabase.from('performance_songs_visible')
         .select('performance_id, title, artist')
         .in('performance_id', perfs.map(p => p.id))
       const countMap: Record<string, number> = {}
@@ -522,7 +522,7 @@ export default function NewShowPage() {
         .eq('user_id', user.id).in('status', ['review', 'complete', 'completed', 'exported'])
         .order('started_at', { ascending: false }).limit(20)
       if (!perfs) { setPastLoading(false); return }
-      const { data: songs } = await supabase.from('performance_songs').select('performance_id')
+      const { data: songs } = await supabase.from('performance_songs_visible').select('performance_id')
         .in('performance_id', perfs.map(p => p.id))
       const countMap: Record<string, number> = {}
       songs?.forEach(s => { countMap[s.performance_id] = (countMap[s.performance_id] || 0) + 1 })
@@ -651,7 +651,7 @@ export default function NewShowPage() {
         longitude: venueCoords?.lng ?? null,
       }).select().single()
       if (perfError) throw new Error('Performance insert failed: ' + perfError.message)
-      const { data: sourceSongs } = await supabase.from('performance_songs')
+      const { data: sourceSongs } = await supabase.from('performance_songs_visible')
         .select('title, artist, position').eq('performance_id', selectedPast.id)
         .order('position', { ascending: true })
       if (sourceSongs && sourceSongs.length > 0) {

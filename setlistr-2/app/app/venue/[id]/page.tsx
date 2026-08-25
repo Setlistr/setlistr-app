@@ -65,7 +65,7 @@ export default function VenueDetailPage() {
 
       // Load songs for each performance
       const { data: allSongs } = await supabase
-        .from('performance_songs')
+        .from('performance_songs_visible')
         .select('performance_id, title, artist')
         .in('performance_id', perfs.map(p => p.id))
         .order('position', { ascending: true })

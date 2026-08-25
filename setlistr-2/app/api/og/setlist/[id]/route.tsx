@@ -23,7 +23,7 @@ export async function GET(
   }
 
   const { data: songs } = await supabaseAdmin
-    .from('performance_songs')
+    .from('performance_songs_visible')
     .select('title, position')
     .eq('performance_id', params.id)
     .not('title', 'is', null)

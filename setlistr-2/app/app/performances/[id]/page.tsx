@@ -15,7 +15,7 @@ export default async function PerformanceDetailPage({ params }: { params: { id: 
   if (!performance) notFound()
 
   const { data: songs } = await supabase
-    .from('performance_songs')
+    .from('performance_songs_visible')
     .select('*')
     .eq('performance_id', params.id)
     .order('position')

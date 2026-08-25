@@ -68,7 +68,7 @@ export function PlannedVsPlayed({ performanceId }: { performanceId: string }) {
 
       // Get actual performance songs
       const { data: actualSongs } = await supabase
-        .from('performance_songs')
+        .from('performance_songs_visible')
         .select('title, artist, was_planned')
         .eq('performance_id', performanceId)
         .order('position')

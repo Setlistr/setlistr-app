@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
 
   // ── Primary source: performance_songs for this performance ─────────────────
   const { data: perfSongs, error } = await supabaseAdmin
-    .from('performance_songs')
+    .from('performance_songs_visible')
     .select('title, artist, isrc, composer, publisher')
     .eq('performance_id', performanceId)
     .order('position')
@@ -106,7 +106,7 @@ export async function GET(req: NextRequest) {
 
         // One batched query: all songs with non-null ISRC across user's history
         const { data: catalogRows } = await supabaseAdmin
-          .from('performance_songs')
+          .from('performance_songs_visible')
           .select('title, artist, isrc, composer, publisher, performance_id')
           .in('performance_id', userPerfIds)
           .not('isrc', 'is', null)

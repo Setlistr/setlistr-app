@@ -130,7 +130,7 @@ export default function StatsPage() {
       }
 
       if (perfList.length > 0) {
-        const { data: songs } = await supabase.from('performance_songs')
+        const { data: songs } = await supabase.from('performance_songs_visible')
           .select('title, artist, position, performance_id').in('performance_id', perfList.map(p => p.id))
         setAllSongs((songs || []) as Song[])
       }

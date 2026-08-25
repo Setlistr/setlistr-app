@@ -60,7 +60,7 @@ export async function GET(req: NextRequest) {
     if (venueId) {
       try {
         const { data: venueSongs } = await supabase
-          .from('performance_songs')
+          .from('performance_songs_visible')
           .select('title, performances!inner(venue_id)')
           .eq('performances.venue_id', venueId)
           .eq('performances.user_id', user.id)

@@ -70,7 +70,7 @@ export default function ProofPage() {
 
       if (perfList.length > 0) {
         const { data: pSongs } = await supabase
-          .from('performance_songs')
+          .from('performance_songs_visible')
           .select('performance_id, title')
           .in('performance_id', perfList.map(p => p.id))
         setPerfSongs(pSongs || [])

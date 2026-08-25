@@ -277,7 +277,7 @@ export default function DashboardPage() {
       buildEstimates(existingSongCountMap)
     } else {
       const supabase = createClient()
-      supabase.from('performance_songs').select('performance_id')
+      supabase.from('performance_songs_visible').select('performance_id')
         .in('performance_id', capturedPerfs.map(p => p.id))
         .then(({ data: songData }) => {
           const countMap: Record<string, number> = {}

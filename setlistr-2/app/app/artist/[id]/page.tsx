@@ -74,7 +74,7 @@ export default function ArtistProfilePage({ params }: { params: { id: string } }
 
       const perfIds = perfs.map(p => p.id)
       const { data: songs } = await supabase
-        .from('performance_songs')
+        .from('performance_songs_visible')
         .select('*')
         .in('performance_id', perfIds)
 
