@@ -6,6 +6,7 @@ import Image from 'next/image'
 import type { Profile } from '@/types'
 import { createClient } from '@/lib/supabase/client'
 import { tapNav, tapRecord } from '@/lib/haptics'
+import { useActingAs } from '@/components/ActingAsProvider'
 import { useState, useEffect } from 'react'
 
 const FULLSCREEN_ROUTES = ['/app/live/']
@@ -14,19 +15,20 @@ const GRAIN_URI = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/
 
 export function AppShell({ children, profile }: { children: React.ReactNode; profile: Profile }) {
   const pathname = usePathname()
+  const { actingAsArtistId, resolved } = useActingAs()
   const [needsReviewCount, setNeedsReviewCount] = useState(0)
 
   const isFullscreen = FULLSCREEN_ROUTES.some(r => pathname.startsWith(r))
 
   useEffect(() => {
-    if (!profile?.id) return
+    if (!profile?.id || !resolved) return
     const supabase = createClient()
     async function fetchCount() {
       try {
         const { count } = await supabase
           .from('performances')
           .select('*', { count: 'exact', head: true })
-          .eq('user_id', profile.id)
+          .eq('user_id', actingAsArtistId || profile.id)
           .eq('status', 'needs_review')
         setNeedsReviewCount(count ?? 0)
       } catch {
@@ -34,7 +36,7 @@ export function AppShell({ children, profile }: { children: React.ReactNode; pro
       }
     }
     fetchCount()
-  }, [pathname, profile?.id])
+  }, [pathname, profile?.id, actingAsArtistId, resolved])
 
   if (isFullscreen) return <>{children}</>
 

@@ -895,7 +895,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
           if (!song.title?.trim()) continue
           await writeUserSongFromReview(supabase, song.title, song.artist || '', actingAsArtistId || user.id, performance.id)
         }
-        fetchIntelligence(user.id, performance.venue_name, kept.map(s => s.title).filter(Boolean))
+        fetchIntelligence(actingAsArtistId || user.id, performance.venue_name, kept.map(s => s.title).filter(Boolean))
       }
     } catch (err) { console.error('[ReviewSave]', err) }
     setSaving(false); setSaved(true); setShowComplete(true)
