@@ -303,6 +303,8 @@ export async function POST(req: NextRequest) {
         userId = user?.id || null
       }
       if (!userId && performanceId) {
+        // Deliberately base table, not performances_visible — this only ever
+        // runs against an active capture's own known-valid performanceId.
         const { data: perfRow } = await supabase
           .from('performances')
           .select('user_id')

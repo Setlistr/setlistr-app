@@ -83,7 +83,7 @@ export async function GET(req: NextRequest) {
 
   if (songsNeedingBackfill.length > 0) {
     const { data: perfData } = await supabaseAdmin
-      .from('performances')
+      .from('performances_visible')
       .select('user_id')
       .eq('id', performanceId)
       .single()
@@ -92,7 +92,7 @@ export async function GET(req: NextRequest) {
     if (userId) {
       // All other performances for this user, most recent first
       const { data: userPerfs } = await supabaseAdmin
-        .from('performances')
+        .from('performances_visible')
         .select('id, started_at')
         .eq('user_id', userId)
         .neq('id', performanceId)

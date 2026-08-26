@@ -94,7 +94,9 @@ export async function POST(req: NextRequest) {
     const { shows, artistName, totalShows, careerStartYear } = await req.json()
     if (!shows?.length) return NextResponse.json({ saved: 0 })
 
-    // Check which dates already exist to avoid duplicates
+    // Check which dates already exist to avoid duplicates. Deliberately base
+    // table — must see deleted rows too, or re-importing recreates a show the
+    // artist deliberately deleted.
     const { data: existing } = await supabase
       .from('performances')
       .select('performance_date, venue_name')

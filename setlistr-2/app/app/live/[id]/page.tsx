@@ -207,7 +207,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
 
   useEffect(() => {
     const supabase = createClient()
-    supabase.from('performances').select('*, show_id, setlist_id, artist_id').eq('id', params.id).single()
+    supabase.from('performances_visible').select('*, show_id, setlist_id, artist_id').eq('id', params.id).single()
       .then(({ data }) => {
         if (data) {
           setPerformance(data); setShowId(data.show_id || null); setSetlistId(data.setlist_id || null); setArtistId(data.artist_id || null)

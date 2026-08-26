@@ -26,6 +26,8 @@ export function getAdminClient(): SupabaseClient {
 }
 
 export async function fetchPerformance(performanceId: string): Promise<PerformanceRow> {
+  // Deliberately base table — diagnostic CLI tool, wants to see everything
+  // including deleted rows.
   const { data, error } = await getAdminClient()
     .from('performances')
     .select('id, user_id, show_id, started_at, ended_at, artist_name, venue_name, performance_date')
