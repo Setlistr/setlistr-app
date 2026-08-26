@@ -293,7 +293,7 @@ export default function NewShowPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
       const { data: lastPerf } = await supabase
-        .from('performances')
+        .from('performances_visible')
         .select('id, venue_id, venue_name, city, country, started_at')
         .eq('user_id', actingAsArtistId || user.id)
         .in('status', ['review', 'complete', 'completed', 'exported'])
@@ -366,7 +366,7 @@ export default function NewShowPage() {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return null
-      const { data: perfs } = await supabase.from('performances').select('id, started_at')
+      const { data: perfs } = await supabase.from('performances_visible').select('id, started_at')
         .eq('venue_id', selectedVenueId).eq('user_id', actingAsArtistId || user.id)
         .in('status', ['review', 'complete', 'completed', 'exported'])
         .order('started_at', { ascending: false }).limit(10)
@@ -520,7 +520,7 @@ export default function NewShowPage() {
     async function loadPast() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { setPastLoading(false); return }
-      const { data: perfs } = await supabase.from('performances')
+      const { data: perfs } = await supabase.from('performances_visible')
         .select('id, venue_name, artist_name, started_at')
         .eq('user_id', actingAsArtistId || user.id).in('status', ['review', 'complete', 'completed', 'exported'])
         .order('started_at', { ascending: false }).limit(20)

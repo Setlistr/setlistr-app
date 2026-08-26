@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
 
     // Get performances
     const { data: perfsRaw } = await service
-      .from('performances')
+      .from('performances_visible')
       .select(`id, venue_name, artist_name, city, country, status, submission_status, started_at, ended_at, created_at, shows ( show_type ), venues ( capacity )`)
       .eq('user_id', artistId)
       .order('created_at', { ascending: false })

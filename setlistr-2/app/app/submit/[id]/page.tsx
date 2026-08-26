@@ -293,7 +293,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
       if (!user) { router.push('/auth/login'); return }
 
       const { data: perf } = await supabase
-        .from('performances').select('*, shows(show_type), venues(capacity)')
+        .from('performances_visible').select('*, shows(show_type), venues(capacity)')
         .eq('id', params.id).single()
 
       if (!perf) { setLoading(false); return }

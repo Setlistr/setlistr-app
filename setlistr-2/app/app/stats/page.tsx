@@ -103,7 +103,7 @@ export default function StatsPage() {
         if (!debutData.error) setSongDebuts(debutData.debuts || [])
       } else {
         const [perfsResult, uSongsResult, debutRes] = await Promise.all([
-          supabase.from('performances')
+          supabase.from('performances_visible')
             .select('id, venue_name, venue_id, city, country, started_at, ended_at, set_duration_minutes, submission_status, shows(show_type), venues(capacity)')
             .eq('user_id', user.id)
             .in('status', ['completed', 'complete', 'exported', 'review'])

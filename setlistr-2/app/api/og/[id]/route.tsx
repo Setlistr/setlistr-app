@@ -11,7 +11,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     )
 
     const { data: perf } = await supabase
-      .from('performances')
+      .from('performances_visible')
       .select('artist_name, venue_name, city, country, started_at')
       .eq('id', params.id)
       .single()

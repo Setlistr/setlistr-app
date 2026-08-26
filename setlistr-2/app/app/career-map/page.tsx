@@ -54,7 +54,7 @@ export default function CareerMapPage() {
         }
       } else {
         const { data } = await supabase
-          .from('performances')
+          .from('performances_visible')
           .select('city, country, venue_name, started_at')
           .eq('user_id', user.id)
           .in('status', ['complete', 'completed', 'review'])

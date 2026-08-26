@@ -92,7 +92,7 @@ export async function GET(req: NextRequest) {
   if (match) {
     // Found in Setlistr — get their show data
     const { data: shows } = await supabase
-      .from('performances')
+      .from('performances_visible')
       .select('id, started_at, submission_status')
       .eq('user_id', match.id)
       .not('status', 'in', '("live","pending")')

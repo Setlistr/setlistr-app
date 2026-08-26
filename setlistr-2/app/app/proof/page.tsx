@@ -53,7 +53,7 @@ export default function ProofPage() {
 
       const [{ data: profile }, { data: perfs }, { data: uSongs }] = await Promise.all([
         supabase.from('profiles').select('artist_name, full_name, pro_affiliation').eq('id', targetUserId).single(),
-        supabase.from('performances')
+        supabase.from('performances_visible')
           .select('id, venue_name, city, country, started_at, set_duration_minutes, status, submission_status')
           .eq('user_id', targetUserId)
           .in('status', ['completed', 'complete', 'exported', 'review'])

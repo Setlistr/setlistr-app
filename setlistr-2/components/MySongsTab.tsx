@@ -134,7 +134,7 @@ function SongIntelligenceSheet({
 
         // Step 2: get performance details for those IDs scoped to this user
         const { data: perfs } = await supabase
-          .from('performances')
+          .from('performances_visible')
           .select('venue_name, city, started_at')
           .in('id', perfIds)
           .eq('user_id', userId)

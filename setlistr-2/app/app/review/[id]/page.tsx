@@ -510,7 +510,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
       const [totalResult, venueResult, debutResult, profileResult] = await Promise.all([
         // Total completed captured shows (excludes Setlist.fm imports)
         supabase
-          .from('performances')
+          .from('performances_visible')
           .select('*', { count: 'exact', head: true })
           .eq('user_id', uid)
           .in('status', ['complete', 'completed', 'review'])
@@ -518,7 +518,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
 
         // Visits to this specific venue
         supabase
-          .from('performances')
+          .from('performances_visible')
           .select('*', { count: 'exact', head: true })
           .eq('user_id', uid)
           .eq('venue_name', venueName)
@@ -561,7 +561,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
     try {
       const supabase = createClient()
       const { data: rows } = await supabase
-        .from('performances')
+        .from('performances_visible')
         .select('id, started_at, created_at')
         .eq('user_id', artistUserId)
         .in('status', ['complete', 'completed', 'review'])
@@ -588,7 +588,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
   useEffect(() => {
     const supabase = createClient()
     supabase.auth.getUser().then(({ data: { user } }) => { if (user) setUserId(actingAsArtistId || user.id) })
-    supabase.from('performances').select('*, status, shows(show_type), venues(capacity)').eq('id', params.id).single()
+    supabase.from('performances_visible').select('*, status, shows(show_type), venues(capacity)').eq('id', params.id).single()
       .then(async ({ data: perf }) => {
         if (!perf) { setLoading(false); return }
         setPerformance({ ...perf, show_type: perf.shows?.show_type || null, venue_capacity: perf.venues?.capacity || null })

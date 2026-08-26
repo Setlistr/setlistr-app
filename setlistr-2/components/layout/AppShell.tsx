@@ -26,7 +26,7 @@ export function AppShell({ children, profile }: { children: React.ReactNode; pro
     async function fetchCount() {
       try {
         const { count } = await supabase
-          .from('performances')
+          .from('performances_visible')
           .select('*', { count: 'exact', head: true })
           .eq('user_id', actingAsArtistId || profile.id)
           .eq('status', 'needs_review')

@@ -7,7 +7,7 @@ export default async function PerformanceDetailPage({ params }: { params: { id: 
   const supabase = await createServerSupabaseClient()
 
   const { data: performance } = await supabase
-    .from('performances')
+    .from('performances_visible')
     .select('*')
     .eq('id', params.id)
     .single()

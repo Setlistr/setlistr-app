@@ -198,7 +198,7 @@ export default function DashboardPage() {
     const targetUserId = user?.id || ''
     const [{ data }, { data: profileCareer }] = await Promise.all([
       supabase
-        .from('performances')
+        .from('performances_visible')
         .select(`id, venue_name, artist_name, city, country, status, submission_status, started_at, ended_at, created_at, captured_by_name, data_source, performance_date, photo_url, shows ( show_type ), venues ( capacity )`)
         .eq('user_id', targetUserId)
         .order('created_at', { ascending: false }),

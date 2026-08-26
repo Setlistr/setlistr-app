@@ -56,7 +56,7 @@ export default function VenueDetailPage() {
 
       // Load all performances at this venue
       const { data: perfs } = await supabase
-        .from('performances')
+        .from('performances_visible')
         .select('id, started_at, status, submitted_at')
         .eq('user_id', actingAsArtistId || user.id)
         .eq('venue_id', venueId)

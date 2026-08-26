@@ -61,7 +61,7 @@ export default function ArtistProfilePage({ params }: { params: { id: string } }
       if (!user) { router.push('/login'); return }
 
       const { data: perfs } = await supabase
-        .from('performances')
+        .from('performances_visible')
         .select('*')
         .eq('user_id', params.id)
         .in('status', ['completed', 'exported', 'complete', 'review'])

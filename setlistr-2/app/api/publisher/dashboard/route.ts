@@ -75,7 +75,7 @@ export async function GET(req: NextRequest) {
 
     // Get all performances for roster artists
     const { data: performances } = await supabase
-      .from('performances')
+      .from('performances_visible')
       .select('id, user_id, venue_name, city, country, status, submission_status, started_at, ended_at, created_at, shows(show_type), venues(capacity)')
       .in('user_id', artistIds)
       .not('status', 'in', '("live","pending")')

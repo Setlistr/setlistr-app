@@ -12,7 +12,7 @@ type Props = { params: { id: string } }
 
 async function getPerformanceData(id: string) {
   const { data: perf } = await supabaseAdmin
-    .from('performances')
+    .from('performances_visible')
     .select('id, artist_name, venue_name, city, country, started_at, status')
     .eq('id', id)
     .in('status', ['review', 'complete', 'completed', 'exported'])

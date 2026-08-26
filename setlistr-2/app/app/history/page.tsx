@@ -86,7 +86,7 @@ export default function HistoryPage() {
       if (!user) { router.push('/auth/login'); return }
 
       const { data, error } = await supabase
-        .from('performances')
+        .from('performances_visible')
         .select('id, venue_name, venue_id, artist_name, city, country, status, submission_status, started_at, created_at, captured_by_name, photo_url, shows(show_type), venues(capacity)')
         .eq('user_id', actingAsArtistId || user.id)
         .not('status', 'in', '("live","pending")')

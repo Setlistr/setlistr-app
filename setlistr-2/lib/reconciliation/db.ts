@@ -128,7 +128,7 @@ export async function fetchPriorConfirmedSetlistCounts(
   const counts = new Map<string, number>()
 
   const { data: perfs, error: perfErr } = await admin
-    .from('performances').select('id').eq('user_id', userId).neq('id', excludePerformanceId)
+    .from('performances_visible').select('id').eq('user_id', userId).neq('id', excludePerformanceId)
   if (perfErr) throw new Error(`fetchPriorConfirmedSetlistCounts (performances) failed: ${perfErr.message}`)
   const perfIds = (perfs || []).map((p: any) => p.id)
   if (perfIds.length === 0) return counts
