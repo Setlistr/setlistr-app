@@ -468,21 +468,22 @@ export default function HistoryPage() {
                         </div>
                       </button>
 
-                      {/* Delete control — sibling button, not nested. Quiet by
-                          default, red only when armed. */}
+                      {/* Delete control — sibling button, not nested. Reads as
+                          a control at rest (people are deliberately looking
+                          for it here), red pill only when armed. */}
                       <button onClick={e => handleDeleteTap(e, perf.id)} disabled={isDeleting}
                         style={{
                           flexShrink: 0,
                           alignSelf: 'center',
                           background: isPendingDel ? 'rgba(220,38,38,0.15)' : 'none',
-                          border: isPendingDel ? '1px solid rgba(220,38,38,0.35)' : 'none',
+                          border: isPendingDel ? '1px solid rgba(220,38,38,0.35)' : `1px solid ${C.border}`,
                           borderRadius: 6,
                           color: isPendingDel ? '#f87171' : C.muted,
                           cursor: isDeleting ? 'not-allowed' : 'pointer',
                           padding: isPendingDel ? '4px 8px' : '4px 6px',
                           fontSize: isPendingDel ? 11 : 14,
                           lineHeight: 1,
-                          opacity: isDeleting ? 0.4 : isPendingDel ? 1 : 0.4,
+                          opacity: isDeleting ? 0.4 : 1,
                           fontWeight: isPendingDel ? 700 : 400,
                           transition: 'all 0.15s ease',
                           fontFamily: 'inherit',
