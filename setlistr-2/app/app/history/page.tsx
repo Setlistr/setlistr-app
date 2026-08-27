@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Search, ChevronLeft, Music2, DollarSign } from 'lucide-react'
@@ -78,54 +78,123 @@ export default function HistoryPage() {
   const [showFilters, setShowFilters]   = useState(false)
   const [statusFilter, setStatusFilter] = useState<string>('all')
 
+  const [deletePending, setDeletePending] = useState<string | null>(null)
+  const deletePendingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [deletingIds, setDeletingIds]     = useState<Record<string, boolean>>({})
+  const [deleteErrors, setDeleteErrors]   = useState<Record<string, string>>({})
+  const [undoBanner, setUndoBanner]       = useState<{ id: string; venueName: string } | null>(null)
+  const undoBannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [undoing, setUndoing]             = useState(false)
+  const [undoError, setUndoError]         = useState('')
+
+  async function loadPerformances() {
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) { router.push('/auth/login'); return }
+
+    const { data, error } = await supabase
+      .from('performances_visible')
+      .select('id, venue_name, venue_id, artist_name, city, country, status, submission_status, started_at, created_at, captured_by_name, photo_url, shows(show_type), venues(capacity)')
+      .eq('user_id', actingAsArtistId || user.id)
+      .not('status', 'in', '("live","pending")')
+      .order('started_at', { ascending: false })
+
+    if (error) console.error('History error:', error)
+
+    if (data) {
+      const perfIds = data.map((p: any) => p.id)
+      const { data: songData } = await supabase
+        .from('performance_songs_visible')
+        .select('performance_id')
+        .in('performance_id', perfIds)
+
+      const countMap: Record<string, number> = {}
+      songData?.forEach((s: any) => { countMap[s.performance_id] = (countMap[s.performance_id] || 0) + 1 })
+
+      const clean: Performance[] = data
+        .filter((p: any) => isRealVenue(p.venue_name))
+        .map((p: any) => ({
+          id: p.id, venue_name: p.venue_name, artist_name: p.artist_name,
+          city: p.city, country: p.country, status: p.status,
+          submission_status: p.submission_status || null,
+          started_at: p.started_at, created_at: p.created_at,
+          venue_capacity: p.venues?.capacity || null,
+          show_type: p.shows?.show_type || 'single',
+          song_count: countMap[p.id] || 0,
+          captured_by_name: p.captured_by_name || null,
+          venue_id: p.venue_id || null,
+          photo_url: p.photo_url || null,
+        }))
+
+      setPerformances(clean)
+      setFiltered(clean)
+    }
+    setLoading(false)
+  }
+
   useEffect(() => {
     if (!resolved) return
-    const supabase = createClient()
-    async function load() {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { router.push('/auth/login'); return }
-
-      const { data, error } = await supabase
-        .from('performances_visible')
-        .select('id, venue_name, venue_id, artist_name, city, country, status, submission_status, started_at, created_at, captured_by_name, photo_url, shows(show_type), venues(capacity)')
-        .eq('user_id', actingAsArtistId || user.id)
-        .not('status', 'in', '("live","pending")')
-        .order('started_at', { ascending: false })
-
-      if (error) console.error('History error:', error)
-
-      if (data) {
-        const perfIds = data.map((p: any) => p.id)
-        const { data: songData } = await supabase
-          .from('performance_songs_visible')
-          .select('performance_id')
-          .in('performance_id', perfIds)
-
-        const countMap: Record<string, number> = {}
-        songData?.forEach((s: any) => { countMap[s.performance_id] = (countMap[s.performance_id] || 0) + 1 })
-
-        const clean: Performance[] = data
-          .filter((p: any) => isRealVenue(p.venue_name))
-          .map((p: any) => ({
-            id: p.id, venue_name: p.venue_name, artist_name: p.artist_name,
-            city: p.city, country: p.country, status: p.status,
-            submission_status: p.submission_status || null,
-            started_at: p.started_at, created_at: p.created_at,
-            venue_capacity: p.venues?.capacity || null,
-            show_type: p.shows?.show_type || 'single',
-            song_count: countMap[p.id] || 0,
-            captured_by_name: p.captured_by_name || null,
-            venue_id: p.venue_id || null,
-            photo_url: p.photo_url || null,
-          }))
-
-        setPerformances(clean)
-        setFiltered(clean)
-      }
-      setLoading(false)
-    }
-    load()
+    loadPerformances()
   }, [resolved, actingAsArtistId])
+
+  function handleDeleteTap(e: React.MouseEvent, id: string) {
+    e.stopPropagation()
+    if (deletePending === id) {
+      if (deletePendingTimerRef.current) clearTimeout(deletePendingTimerRef.current)
+      setDeletePending(null)
+      deletePerformance(id)
+    } else {
+      if (deletePendingTimerRef.current) clearTimeout(deletePendingTimerRef.current)
+      setDeletePending(id)
+      deletePendingTimerRef.current = setTimeout(() => setDeletePending(null), 2500)
+    }
+  }
+
+  async function deletePerformance(id: string) {
+    const target = performances.find(p => p.id === id)
+    setDeletingIds(prev => ({ ...prev, [id]: true }))
+    setDeleteErrors(prev => ({ ...prev, [id]: '' }))
+    try {
+      const res = await fetch(`/api/performances/${id}/delete`, { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) {
+        setDeleteErrors(prev => ({ ...prev, [id]: data.error || 'Failed to delete' }))
+        setDeletingIds(prev => ({ ...prev, [id]: false }))
+        return
+      }
+      setPerformances(prev => prev.filter(p => p.id !== id))
+      setDeletingIds(prev => ({ ...prev, [id]: false }))
+      if (undoBannerTimerRef.current) clearTimeout(undoBannerTimerRef.current)
+      setUndoError('')
+      setUndoBanner({ id, venueName: target?.venue_name || 'Show' })
+      undoBannerTimerRef.current = setTimeout(() => setUndoBanner(null), 8000)
+    } catch {
+      setDeleteErrors(prev => ({ ...prev, [id]: 'Network error — try again' }))
+      setDeletingIds(prev => ({ ...prev, [id]: false }))
+    }
+  }
+
+  async function undoDelete() {
+    if (!undoBanner) return
+    setUndoing(true)
+    setUndoError('')
+    try {
+      const res = await fetch(`/api/performances/${undoBanner.id}/delete/undo`, { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) {
+        setUndoError(data.error || 'Failed to undo')
+        setUndoing(false)
+        return
+      }
+      if (undoBannerTimerRef.current) clearTimeout(undoBannerTimerRef.current)
+      setUndoBanner(null)
+      setUndoing(false)
+      await loadPerformances()
+    } catch {
+      setUndoError('Network error — try again')
+      setUndoing(false)
+    }
+  }
 
   useEffect(() => {
     let result = [...performances]
@@ -213,6 +282,20 @@ export default function HistoryPage() {
             {performances.length} shows
           </div>
         </div>
+
+        {/* ── Undo banner ── */}
+        {undoBanner && (
+          <div style={{ marginBottom: 16, background: 'rgba(96,165,250,0.06)', border: '1px solid rgba(96,165,250,0.2)', borderRadius: 12, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
+            <p style={{ flex: 1, minWidth: 0, fontSize: 13, color: C.secondary, margin: 0 }}>
+              {undoBanner.venueName} deleted
+            </p>
+            {undoError && <span style={{ fontSize: 12, color: C.red, flexShrink: 0 }}>{undoError}</span>}
+            <button onClick={undoDelete} disabled={undoing}
+              style={{ flexShrink: 0, background: 'none', border: 'none', color: C.blue, fontSize: 13, fontWeight: 700, cursor: undoing ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: undoing ? 0.6 : 1, padding: 0 }}>
+              {undoing ? 'Undoing…' : 'Undo'}
+            </button>
+          </div>
+        )}
 
         {/* ── Unclaimed earnings banner ── */}
         {unclaimedShows.length > 0 && (
@@ -328,57 +411,91 @@ export default function HistoryPage() {
                   territory: getTerritory(perf.country, perf.city),
                 }) : null
 
+                const isPendingDel = deletePending === perf.id
+                const isDeleting   = !!deletingIds[perf.id]
+
                 return (
-                  <button key={perf.id} onClick={() => navigateTo(perf)}
-                    style={{ background: CARD.background, border: `1px solid ${isClaimable ? 'rgba(201,168,76,0.15)' : 'rgba(255,255,255,0.04)'}`, borderRadius: 16, padding: '16px 18px', minHeight: 88, cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 12, fontFamily: 'inherit', width: '100%', transition: 'background 0.12s ease, border-color 0.12s ease', boxShadow: CARD.boxShadow }}
-                    onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.background = C.cardHover }}
-                    onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.background = CARD.background }}>
+                  <div key={perf.id}>
+                    <div style={{ display: 'flex', alignItems: 'stretch', gap: 6 }}>
+                      <button onClick={() => navigateTo(perf)} disabled={isPendingDel || isDeleting}
+                        style={{ background: CARD.background, border: `1px solid ${isPendingDel ? 'rgba(220,38,38,0.3)' : isClaimable ? 'rgba(201,168,76,0.15)' : 'rgba(255,255,255,0.04)'}`, borderRadius: 16, padding: '16px 18px', minHeight: 88, cursor: isPendingDel || isDeleting ? 'default' : 'pointer', opacity: isDeleting ? 0.5 : 1, textAlign: 'left', display: 'flex', alignItems: 'center', gap: 12, fontFamily: 'inherit', flex: 1, minWidth: 0, boxSizing: 'border-box' as const, transition: 'background 0.12s ease, border-color 0.2s ease, opacity 0.15s ease', boxShadow: CARD.boxShadow, WebkitTapHighlightColor: 'transparent' }}
+                        onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.background = C.cardHover }}
+                        onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.background = CARD.background }}>
 
-                    {/* Photo thumbnail */}
-                    {perf.photo_url && (
-                      <div style={{ width: 40, height: 40, borderRadius: 8, overflow: 'hidden', flexShrink: 0, background: '#171512' }}>
-                        <img
-                          src={perf.photo_url}
-                          alt=""
-                          aria-hidden="true"
-                          onLoad={e => { (e.target as HTMLImageElement).style.opacity = '1' }}
-                          style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', opacity: 0, transition: 'opacity 0.2s ease' }}
-                        />
-                      </div>
+                        {/* Photo thumbnail */}
+                        {perf.photo_url && (
+                          <div style={{ width: 40, height: 40, borderRadius: 8, overflow: 'hidden', flexShrink: 0, background: '#171512' }}>
+                            <img
+                              src={perf.photo_url}
+                              alt=""
+                              aria-hidden="true"
+                              onLoad={e => { (e.target as HTMLImageElement).style.opacity = '1' }}
+                              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', opacity: 0, transition: 'opacity 0.2s ease' }}
+                            />
+                          </div>
+                        )}
+
+                        {/* Date */}
+                        <div style={{ minWidth: 36, textAlign: 'center', flexShrink: 0 }}>
+                          <p style={{ fontSize: 20, fontWeight: 800, color: C.text, margin: 0, fontFamily: '"DM Mono", monospace', lineHeight: 1 }}>{date.getDate()}</p>
+                          <p style={{ fontSize: 11, color: C.muted, margin: '2px 0 0', textTransform: 'uppercase' as const, letterSpacing: '0.08em' }}>{date.toLocaleDateString('en-US', { month: 'short' })}</p>
+                        </div>
+
+                        <div style={{ width: 1, height: 40, background: C.border, flexShrink: 0 }} />
+
+                        {/* Venue + city · songs */}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <p style={{ fontSize: 17, fontWeight: 700, color: C.text, margin: '0 0 5px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {perf.venue_name}
+                          </p>
+                          <p style={{ fontSize: 13, color: C.muted, margin: 0 }}>
+                            {isPendingDel ? 'Tap ✕ again to delete' : [perf.city, (perf.song_count || 0) > 0 ? `${perf.song_count} songs` : null].filter(Boolean).join(' · ')}
+                          </p>
+                        </div>
+
+                        {/* Status + arrow */}
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 5, flexShrink: 0 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{ width: 9, height: 9, borderRadius: '50%', flexShrink: 0, display: 'inline-block', background: displayStatus.color === C.green ? C.gold : 'transparent', border: displayStatus.color === C.green ? 'none' : `1.5px solid ${C.gold}` }} />
+                            <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, color: displayStatus.color }}>{displayStatus.label}</span>
+                            <span style={{ fontSize: 14, color: C.muted }}>→</span>
+                          </div>
+                          {est && est.expected > 0 && (
+                            <span style={{ fontSize: 14, fontWeight: 700, color: C.gold, fontFamily: '"DM Mono", monospace' }}>
+                              ~${est.expected}
+                            </span>
+                          )}
+                        </div>
+                      </button>
+
+                      {/* Delete control — sibling button, not nested. Quiet by
+                          default, red only when armed. */}
+                      <button onClick={e => handleDeleteTap(e, perf.id)} disabled={isDeleting}
+                        style={{
+                          flexShrink: 0,
+                          alignSelf: 'center',
+                          background: isPendingDel ? 'rgba(220,38,38,0.15)' : 'none',
+                          border: isPendingDel ? '1px solid rgba(220,38,38,0.35)' : 'none',
+                          borderRadius: 6,
+                          color: isPendingDel ? '#f87171' : C.muted,
+                          cursor: isDeleting ? 'not-allowed' : 'pointer',
+                          padding: isPendingDel ? '4px 8px' : '4px 6px',
+                          fontSize: isPendingDel ? 11 : 14,
+                          lineHeight: 1,
+                          opacity: isDeleting ? 0.4 : isPendingDel ? 1 : 0.4,
+                          fontWeight: isPendingDel ? 700 : 400,
+                          transition: 'all 0.15s ease',
+                          fontFamily: 'inherit',
+                          WebkitTapHighlightColor: 'transparent',
+                          whiteSpace: 'nowrap' as const,
+                        }}>
+                        {isPendingDel ? '✕ Delete?' : '✕'}
+                      </button>
+                    </div>
+                    {deleteErrors[perf.id] && (
+                      <p style={{ fontSize: 11, color: C.red, margin: '4px 0 0 14px' }}>{deleteErrors[perf.id]}</p>
                     )}
-
-                    {/* Date */}
-                    <div style={{ minWidth: 36, textAlign: 'center', flexShrink: 0 }}>
-                      <p style={{ fontSize: 20, fontWeight: 800, color: C.text, margin: 0, fontFamily: '"DM Mono", monospace', lineHeight: 1 }}>{date.getDate()}</p>
-                      <p style={{ fontSize: 11, color: C.muted, margin: '2px 0 0', textTransform: 'uppercase' as const, letterSpacing: '0.08em' }}>{date.toLocaleDateString('en-US', { month: 'short' })}</p>
-                    </div>
-
-                    <div style={{ width: 1, height: 40, background: C.border, flexShrink: 0 }} />
-
-                    {/* Venue + city · songs */}
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <p style={{ fontSize: 17, fontWeight: 700, color: C.text, margin: '0 0 5px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {perf.venue_name}
-                      </p>
-                      <p style={{ fontSize: 13, color: C.muted, margin: 0 }}>
-                        {[perf.city, (perf.song_count || 0) > 0 ? `${perf.song_count} songs` : null].filter(Boolean).join(' · ')}
-                      </p>
-                    </div>
-
-                    {/* Status + arrow */}
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 5, flexShrink: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span style={{ width: 9, height: 9, borderRadius: '50%', flexShrink: 0, display: 'inline-block', background: displayStatus.color === C.green ? C.gold : 'transparent', border: displayStatus.color === C.green ? 'none' : `1.5px solid ${C.gold}` }} />
-                        <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, color: displayStatus.color }}>{displayStatus.label}</span>
-                        <span style={{ fontSize: 14, color: C.muted }}>→</span>
-                      </div>
-                      {est && est.expected > 0 && (
-                        <span style={{ fontSize: 14, fontWeight: 700, color: C.gold, fontFamily: '"DM Mono", monospace' }}>
-                          ~${est.expected}
-                        </span>
-                      )}
-                    </div>
-                  </button>
+                  </div>
                 )
               })}
             </div>

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
 import { createClient } from '@supabase/supabase-js'
+import { normalizeSongKey } from '@/lib/reconciliation/normalize'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -46,13 +47,6 @@ function cleanTitle(raw: string): string {
   return raw.replace(VERSION_SUFFIX_RE, '').replace(/\s+/g, ' ').trim()
 }
 
-// Aggressive key used for matching titles across catalogues + detection history.
-function normalizeSongKey(title: string): string {
-  return title.toLowerCase().trim()
-    .replace(/\(.*?\)/g, '').replace(/\[.*?\]/g, '')
-    .replace(/[-–—]/g, ' ').replace(/[^a-z0-9 ]/g, '')
-    .replace(/\s+/g, ' ').trim()
-}
 
 type DetectionSource = 'fingerprint' | 'humming'
 interface EnrichedSongData { isrc: string; composer: string; publisher: string }

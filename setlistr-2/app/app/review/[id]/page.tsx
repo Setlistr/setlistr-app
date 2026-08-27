@@ -3,6 +3,7 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useActingAs } from '@/components/ActingAsProvider'
+import { normalizeSongKey } from '@/lib/reconciliation/normalize'
 import {
   DndContext, closestCenter, KeyboardSensor, PointerSensor,
   useSensor, useSensors, DragEndEvent,
@@ -109,10 +110,7 @@ async function writeUserSongFromReview(
   title: string, artist: string, userId: string, performanceId: string
 ): Promise<void> {
   try {
-    const normalizedTitle = title.toLowerCase().trim()
-      .replace(/\(.*?\)/g, '').replace(/\[.*?\]/g, '')
-      .replace(/[-–—]/g, ' ').replace(/[^a-z0-9 ]/g, '')
-      .replace(/\s+/g, ' ').trim()
+    const normalizedTitle = normalizeSongKey(title)
     if (!normalizedTitle) return
     const { error: guardError } = await supabase
       .from('user_song_performances')

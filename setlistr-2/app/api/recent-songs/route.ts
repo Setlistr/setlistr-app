@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { normalizeSongKey } from '@/lib/reconciliation/normalize'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -27,12 +28,6 @@ function cleanTitle(title: string): string {
     .trim()
 }
 
-function normalizeSongKey(title: string): string {
-  return title.toLowerCase().trim()
-    .replace(/\(.*?\)/g, '').replace(/\[.*?\]/g, '')
-    .replace(/[-–—]/g, ' ').replace(/[^a-z0-9 ]/g, '')
-    .replace(/\s+/g, ' ').trim()
-}
 
 function rankingScore(confirmedCount: number, lastConfirmedAt: string, venueBoost = 1): number {
   const daysSince = (Date.now() - new Date(lastConfirmedAt).getTime()) / 86400000

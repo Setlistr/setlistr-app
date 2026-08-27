@@ -6,6 +6,7 @@ import { buzzLong } from '@/lib/haptics'
 import { useActingAs } from '@/components/ActingAsProvider'
 import { Check, X, RefreshCw, Upload } from 'lucide-react'
 import type { Performance } from '@/types'
+import { normalizeSongKey } from '@/lib/reconciliation/normalize'
 
 const C = {
   bg: '#0a0908', card: '#141210', border: 'rgba(255,255,255,0.07)',
@@ -58,12 +59,6 @@ type PendingCandidate = {
 type RecentSong = { id: string; title: string; artist: string; play_count: number }
 type EngineState = 'idle' | 'listening' | 'slow' | 'stalled'
 
-function normalizeSongKey(title: string): string {
-  return title.toLowerCase().trim()
-    .replace(/\(.*?\)/g, '').replace(/\[.*?\]/g, '')
-    .replace(/[-–—]/g, ' ').replace(/[^a-z0-9 ]/g, '')
-    .replace(/\s+/g, ' ').trim()
-}
 function isSameSong(a: { title: string }, b: { title: string }): boolean {
   return normalizeSongKey(a.title) === normalizeSongKey(b.title)
 }

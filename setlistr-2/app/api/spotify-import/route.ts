@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { normalizeSongKey } from '@/lib/reconciliation/normalize'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -21,13 +22,6 @@ async function getSpotifyToken(): Promise<string> {
   if (!res.ok) throw new Error('Failed to get Spotify token')
   const data = await res.json()
   return data.access_token
-}
-
-function normalizeSongKey(title: string): string {
-  return title.toLowerCase().trim()
-    .replace(/\(.*?\)/g, '').replace(/\[.*?\]/g, '')
-    .replace(/[-–—]/g, ' ').replace(/[^a-z0-9 ]/g, '')
-    .replace(/\s+/g, ' ').trim()
 }
 
 export async function POST(req: NextRequest) {
