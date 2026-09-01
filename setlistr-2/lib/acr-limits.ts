@@ -16,7 +16,7 @@
 // Lower this to a small number to exercise the limit-reached path, then raise
 // it again. It is a plain constant, so changing it requires a redeploy.
 
-export const ACR_DAILY_CALL_LIMIT = 2
+export const ACR_DAILY_CALL_LIMIT = 1500
 
 // Shown to the artist when the ceiling is hit. Capture deliberately keeps
 // running — only the paid calls stop — so the show can still be saved by hand.
