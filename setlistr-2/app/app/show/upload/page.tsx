@@ -80,6 +80,51 @@ export default function UploadShowPage() {
     setUploadState('uploading')
     setError('')
 
+    // ── DEV-ONLY TIMING INSTRUMENTATION — remove after the measurement run ──
+    // `now()` goes through `window.performance` explicitly, not the bare
+    // `performance` identifier, because this function later declares
+    // `const { data: performance } = ...` (the performances-table row),
+    // which shadows the global Performance API for the rest of the
+    // function's scope — a bare `performance.now()` call anywhere in this
+    // function would throw.
+    const now = () => window.performance.now()
+    const tStart = now()
+    const timings: {
+      storageUpload?: number; fileRead?: number; audioDecode?: number
+      chunkScan?: number; finalInsert?: number
+    } = {}
+    const identifyDurations: number[] = []
+    let identifySuccessCount = 0
+    let identifyFailCount = 0
+    let detectedResponseCount = 0
+    let totalChunksCaptured = 0
+    let confirmedSongsCaptured = 0
+
+    function logTimingSummary() {
+      const fmt = (ms: number | undefined) => ms === undefined ? 'n/a' : `${(ms / 1000).toFixed(2)}s`
+      const avgIdentify = identifyDurations.length > 0
+        ? identifyDurations.reduce((a, b) => a + b, 0) / identifyDurations.length
+        : undefined
+      const fastestIdentify = identifyDurations.length > 0 ? Math.min(...identifyDurations) : undefined
+      const slowestIdentify = identifyDurations.length > 0 ? Math.max(...identifyDurations) : undefined
+      console.log('[UploadTiming]', {
+        storageUpload: fmt(timings.storageUpload),
+        fileRead: fmt(timings.fileRead),
+        audioDecode: fmt(timings.audioDecode),
+        chunkScan: fmt(timings.chunkScan),
+        avgIdentify: fmt(avgIdentify),
+        fastestIdentify: fmt(fastestIdentify),
+        slowestIdentify: fmt(slowestIdentify),
+        finalInsert: fmt(timings.finalInsert),
+        total: fmt(now() - tStart),
+        totalChunks: totalChunksCaptured,
+        identifySuccessCount,
+        identifyFailCount,
+        detectedResponseCount,
+        confirmedSongs: confirmedSongsCaptured,
+      })
+    }
+
     try {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
@@ -96,9 +141,11 @@ export default function UploadShowPage() {
       // update those legal pages too.
       const recordingExt = recordingFile.name.split('.').pop()
       const recordingPath = `${user.id}/${Date.now()}-recording.${recordingExt}`
+      const tStorageStart = now()
       const { error: recordingError } = await supabase.storage
         .from('show-recordings')
         .upload(recordingPath, recordingFile, { upsert: false })
+      timings.storageUpload = now() - tStorageStart
       if (recordingError) throw new Error('Recording upload failed: ' + recordingError.message)
 
       // Upload setlist if provided
@@ -151,15 +198,22 @@ export default function UploadShowPage() {
       const detectedSongs: { title: string; artist: string | null; isrc: string | null; composer: string | null; publisher: string | null; source: string; inclusion_reason: string | null; threshold: number | null; score: number | null }[] = []
 
       try {
+        const tFileReadStart = now()
         const arrayBuffer = await recordingFile.arrayBuffer()
+        timings.fileRead = now() - tFileReadStart
+
         const AudioCtx    = window.AudioContext || (window as any).webkitAudioContext
         const ctx         = new AudioCtx()
+        const tDecodeStart = now()
         const audioBuffer = await ctx.decodeAudioData(arrayBuffer)
+        timings.audioDecode = now() - tDecodeStart
         ctx.close()
 
         const duration    = audioBuffer.duration
         const totalChunks = Math.max(1, Math.floor((duration - UPLOAD_CHUNK_SECONDS) / UPLOAD_CHUNK_STEP_SECONDS) + 1)
+        totalChunksCaptured = totalChunks
 
+        const tScanStart = now()
         for (let i = 0; i < totalChunks; i++) {
           const startSec = i * UPLOAD_CHUNK_STEP_SECONDS
           setProgress(`Scanning ${fmtClock(startSec)} / ${fmtClock(duration)}`)
@@ -171,9 +225,13 @@ export default function UploadShowPage() {
           form.append('performance_id', performance.id)
           form.append('previous_songs', JSON.stringify(detectedTitles))
 
+          const tIdentifyStart = now()
           try {
             const res  = await fetch('/api/identify', { method: 'POST', body: form })
             const data = await res.json()
+            identifyDurations.push(now() - tIdentifyStart)
+            identifySuccessCount++
+            if (data?.detected === true) detectedResponseCount++
             if (data?.detected && data.confidence_level === 'auto' && data.title) {
               const norm = data.title.toLowerCase().trim()
               if (!detectedTitles.some(t => t.toLowerCase().trim() === norm)) {
@@ -193,11 +251,18 @@ export default function UploadShowPage() {
                 setTimeout(() => setLastCaught(null), 3000)
               }
             }
-          } catch { /* skip failed chunk, keep going */ }
+          } catch {
+            identifyDurations.push(now() - tIdentifyStart)
+            identifyFailCount++
+          }
         }
+        timings.chunkScan = now() - tScanStart
       } catch { /* audio decode failed — proceed to review with whatever was detected */ }
 
+      confirmedSongsCaptured = detectedSongs.length
+
       if (detectedSongs.length > 0) {
+        const tInsertStart = now()
         await supabase.from('performance_songs').insert(
           detectedSongs.map((song, i) => ({
             performance_id: performance.id,
@@ -215,6 +280,7 @@ export default function UploadShowPage() {
             confusion_matrix_result: 'TBD',
           }))
         )
+        timings.finalInsert = now() - tInsertStart
       }
 
       setUploadState('done')
@@ -223,6 +289,8 @@ export default function UploadShowPage() {
     } catch (err: any) {
       setError(err.message || 'Something went wrong.')
       setUploadState('error')
+    } finally {
+      logTimingSummary()
     }
   }
 
