@@ -7,6 +7,7 @@ import { useActingAs } from '@/components/ActingAsProvider'
 import { Check, X, RefreshCw, Upload } from 'lucide-react'
 import type { Performance } from '@/types'
 import { evaluateGeolocation, toCoords } from '@/lib/geolocation'
+import { ACR_LIMIT_MESSAGE } from '@/lib/acr-limits'
 import { normalizeSongKey } from '@/lib/reconciliation/normalize'
 
 const C = {
@@ -152,6 +153,10 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   const [showSilenceWarning, setShowSilenceWarning] = useState(false)
   const [restarting, setRestarting]     = useState(false)
   const [captureStale, setCaptureStale] = useState(false)
+  // Daily ACRCloud ceiling hit: capture deliberately stays alive, only the
+  // paid calls stop. Mirrored into a ref because the health timers below run
+  // off intervals created once on mount.
+  const [detectionLimited, setDetectionLimited] = useState(false)
   const [plannedCount, setPlannedCount] = useState<number>(0)
   const plannedSongsRef = useRef<{ title: string; normalizedTitle: string; artist: string }[]>([])
 
@@ -190,6 +195,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   const autoStartFiredRef   = useRef(false)
   const performanceRef      = useRef<Performance | null>(null)
   const locationStampedRef  = useRef(false)
+  const detectionLimitedRef = useRef(false)
 
   useEffect(() => { pendingCandidateRef.current = pendingCandidate }, [pendingCandidate])
   useEffect(() => { confirmedSongsRef.current = songs }, [songs])
@@ -256,6 +262,16 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
     const interval = setInterval(() => {
       const now = Date.now()
       if (lastPingRef.current === 0 || !isListeningRef.current) { setEngineState('idle'); return }
+      if (detectionLimitedRef.current) {
+        // Detection is intentionally paused, so the absence of pings is not a
+        // fault: the SLOW/STALLED escalation and the silence auto-close would
+        // both fire as false alarms, and auto-close would end a show the
+        // artist is still adding songs to by hand. The hard ceiling stays as
+        // an absolute backstop.
+        setEngineState('idle')
+        if ((now - showStartRef.current) >= HARD_CEILING_MS && !endingRef.current) handleEndRef.current()
+        return
+      }
       const msSincePing = now - lastPingRef.current
       if (msSincePing < HEARTBEAT_SLOW_MS) setEngineState('listening')
       else if (msSincePing < HEARTBEAT_STALL_MS) setEngineState('slow')
@@ -282,6 +298,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   useEffect(() => {
     const interval = setInterval(() => {
       const stale = isListeningRef.current
+        && !detectionLimitedRef.current
         && lastAcrResponseRef.current > 0
         && (Date.now() - lastAcrResponseRef.current) > CAPTURE_HEALTH_WINDOW_MS
       if (stale) setCaptureStale(true)
@@ -405,6 +422,18 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   // decides inclusion exactly as it would for a live chunk. We add whatever the
   // route reports as added (trusting the server's decision, so the live-capture
   // timing gates don't apply).
+  // Stop sending paid calls without tearing the session down. The interval is
+  // cleared and detectSong short-circuits, but isListening stays true so the
+  // timer, manual add, and End Show all keep working — the artist can still
+  // save the night by hand.
+  const pauseDetectionForLimit = useCallback(() => {
+    if (detectionLimitedRef.current) return
+    detectionLimitedRef.current = true
+    setDetectionLimited(true)
+    if (listenIntervalRef.current) { clearInterval(listenIntervalRef.current); listenIntervalRef.current = null }
+    setDetectStatus('')
+  }, [])
+
   const processUploadedFile = useCallback(async (file: File) => {
     setUploadProcessing(true)
     setUploadProgress(0)
@@ -439,6 +468,12 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
           data = await res.json()
         } catch { /* skip a failed chunk, keep going */ }
 
+        if (data?.quota_exceeded) {
+          pauseDetectionForLimit()
+          setUploadLabel(ACR_LIMIT_MESSAGE)
+          break
+        }
+
         // 3. If the route added the song, drop it into the setlist.
         if (data?.detected && data.confidence_level === 'auto') {
           const already = confirmedSongsRef.current.filter(s => s.source !== 'planned').some(s => isSameSong(s, { title: data.title }))
@@ -462,9 +497,11 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
       setUploadProcessing(false)
       setTimeout(() => { setUploadLabel(''); setUploadProgress(0) }, 3000)
     }
-  }, [params.id, confirmCandidate])
+  }, [params.id, confirmCandidate, pauseDetectionForLimit])
 
   const detectSong = useCallback(async (audioBlob: Blob) => {
+    // Already over the ceiling — don't spend another request finding out again.
+    if (detectionLimitedRef.current) return
     setIsDetecting(true)
     const pingTime = Date.now(); lastPingRef.current = pingTime; setEngineState('listening')
     try {
@@ -477,6 +514,10 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
       const res = await fetch('/api/identify', { method: 'POST', body: formData })
       const data = await res.json()
       lastAcrResponseRef.current = Date.now()  // answered — capture is alive, whatever the verdict
+
+      // Daily ceiling reached. The route answered 200 with no detection, so
+      // capture health stays green; we just stop asking.
+      if (data?.quota_exceeded) { pauseDetectionForLimit(); return }
 
       // Trust the route's verdict — same as upload mode. No client-side cooldown,
       // pending card, or multi-hit gating; the route already decided.
@@ -496,7 +537,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         { isrc: data.isrc, composer: data.composer, publisher: data.publisher, inclusion_reason: data.inclusion_reason, threshold: data.threshold, score: data.score }
       )
     } catch { setDetectStatus('') } finally { setIsDetecting(false) }
-  }, [params.id, showId, setlistId, artistId, confirmCandidate, performance])
+  }, [params.id, showId, setlistId, artistId, confirmCandidate, performance, pauseDetectionForLimit])
 
   // Record where the device is at the moment capture starts, and measure it
   // against the venue's stored coordinates. Fire-and-forget by design: the
@@ -882,6 +923,12 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
             </div>
           )}
         </div>
+
+        {detectionLimited && (
+          <div style={{ marginTop: 18, width: '100%', maxWidth: 320, background: 'rgba(245,158,11,0.10)', border: '1px solid rgba(245,158,11,0.32)', borderRadius: 12, padding: '12px 16px', animation: 'fadeIn 0.2s ease' }}>
+            <span style={{ fontSize: 13, color: C.amber, lineHeight: 1.45, fontWeight: 600 }}>{ACR_LIMIT_MESSAGE}</span>
+          </div>
+        )}
 
         {/* ── Session health — is ACR still answering? ──────────────────────── */}
         {isListening && (

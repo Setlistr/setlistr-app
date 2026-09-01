@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
 import { createClient } from '@supabase/supabase-js'
+import { ACR_DAILY_CALL_LIMIT, ACR_LIMIT_MESSAGE } from '@/lib/acr-limits'
 import { normalizeSongKey } from '@/lib/reconciliation/normalize'
 
 export const runtime = 'nodejs'
@@ -307,6 +308,37 @@ export async function POST(req: NextRequest) {
         userId = perfRow?.user_id || null
       }
     } catch { /* non-blocking */ }
+
+    // ── Daily ACR quota ───────────────────────────────────────────────────────
+    // Sits after the user is resolved and before BOTH the forensic rows and the
+    // paid ACRCloud call, so a refused request costs one indexed UPDATE and
+    // nothing else — no audio_captures row, no recognition_jobs row, no spend.
+    //
+    // Detection logic below is untouched: this either returns early or falls
+    // through to exactly the previous behaviour.
+    //
+    // Fails open in every uncertain case — an unattributable caller (no userId)
+    // or an RPC error. A quota bug must never be the reason a real show fails
+    // to capture. Note that the unattributable path is also the open door
+    // documented in docs/api-auth-audit.md: until this route requires auth, a
+    // caller who sends no resolvable identity is not counted at all.
+    if (userId) {
+      try {
+        const { data: quota, error: quotaError } = await supabase
+          .rpc('increment_acr_usage', { p_user_id: userId, p_limit: ACR_DAILY_CALL_LIMIT })
+          .single<{ allowed: boolean; calls_today: number; calls_lifetime: number }>()
+        if (!quotaError && quota && quota.allowed === false) {
+          // 200, not 429: the client treats this as a normal "nothing detected"
+          // answer plus a flag, which keeps it out of the capture-health error
+          // paths. Capture stays alive; only the paid calls stop.
+          return NextResponse.json({
+            detected: false,
+            quota_exceeded: true,
+            message: ACR_LIMIT_MESSAGE,
+          })
+        }
+      } catch { /* non-blocking — fail open */ }
+    }
 
     // ── Pre-flight forensic rows (one capture + one job per chunk) ─────────────
     const { data: capture } = await supabase.from('audio_captures').insert({
