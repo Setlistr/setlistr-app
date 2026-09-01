@@ -28,16 +28,35 @@ function ResetPasswordInner() {
 
   useEffect(() => {
     const supabase = createClient()
+    const tokenHash = searchParams.get('token_hash')
+    const code      = searchParams.get('code')
 
-    async function tryPkce() {
-      const code = searchParams.get('code')
-      if (!code) return
-      const { error } = await supabase.auth.exchangeCodeForSession(code)
+    async function verifyTokenHash(hash: string) {
+      // type is the literal 'recovery' — this page only ever handles
+      // password recovery, and EmailOtpType is a strict union.
+      const { error } = await supabase.auth.verifyOtp({ token_hash: hash, type: 'recovery' })
       if (resolvedRef.current) return
-      if (!error) {
-        resolvedRef.current = true
-        setStatus('ready')
-      }
+      resolvedRef.current = true
+      setStatus(error ? 'invalid' : 'ready')
+    }
+
+    async function tryPkce(c: string) {
+      const { error } = await supabase.auth.exchangeCodeForSession(c)
+      if (resolvedRef.current) return
+      resolvedRef.current = true
+      setStatus(error ? 'invalid' : 'ready')
+    }
+
+    if (tokenHash) {
+      verifyTokenHash(tokenHash)
+      return
+    }
+
+    if (code) {
+      // Temporary — covers reset links already in flight before the
+      // Supabase email template switches to token_hash.
+      tryPkce(code)
+      return
     }
 
     const { data: listener } = supabase.auth.onAuthStateChange((event) => {
@@ -46,8 +65,6 @@ function ResetPasswordInner() {
         setStatus('ready')
       }
     })
-
-    tryPkce()
 
     const fallback = setTimeout(() => {
       if (!resolvedRef.current) {

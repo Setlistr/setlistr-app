@@ -8,6 +8,7 @@ import Link from 'next/link'
 
 const WAITLIST_ROLE_OPTIONS = ['Artist', 'Songwriter', 'Manager', 'Publisher', 'Label', 'Booking agent', 'Other']
 const WAITLIST_PRO_OPTIONS = ['SOCAN', 'ASCAP', 'BMI', 'PRS', 'APRA', 'SESAC', 'GMR', 'Other', 'Not sure', 'None']
+const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://setlistr.ai'
 
 const C = {
   bg: '#0a0908', card: '#141210',
@@ -148,7 +149,7 @@ function LoginPageInner() {
     setForgotError('')
     const supabase = createClient()
     const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-      redirectTo: 'https://setlistr.ai/auth/reset-password',
+      redirectTo: `${BASE_URL}/auth/reset-password`,
     })
     setForgotLoading(false)
     if (error) {
@@ -362,7 +363,7 @@ function LoginPageInner() {
                   <div style={{ width: 56, height: 56, borderRadius: '50%', margin: '0 auto 18px', background: C.goldDim, border: `1px solid ${C.borderGold}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }} />
                   <h2 style={{ fontSize: 20, fontWeight: 800, color: C.text, margin: '0 0 8px', letterSpacing: '-0.02em' }}>Check your email</h2>
                   <p style={{ fontSize: 13, color: C.secondary, margin: 0, lineHeight: 1.6 }}>
-                    We sent a password reset link to <span style={{ color: C.gold }}>{email.trim()}</span>. Open it on this device to set a new password.
+                    We sent a password reset link to <span style={{ color: C.gold }}>{email.trim()}</span>. The link expires in one hour.
                   </p>
                 </div>
               ) : (
