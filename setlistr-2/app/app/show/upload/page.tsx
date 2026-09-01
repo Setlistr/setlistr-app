@@ -17,12 +17,7 @@ type UploadState = 'idle' | 'uploading' | 'processing' | 'done' | 'error'
 
 const UPLOAD_CHUNK_SECONDS      = 14
 const UPLOAD_CHUNK_STEP_SECONDS = 20
-
-function fmtClock(sec: number): string {
-  const m = Math.floor(sec / 60)
-  const s = Math.floor(sec % 60)
-  return `${m}:${String(s).padStart(2, '0')}`
-}
+const UPLOAD_CONCURRENCY        = 10
 
 function sliceToMonoWav(audioBuffer: AudioBuffer, startSec: number, durSec: number): Blob {
   const sampleRate  = audioBuffer.sampleRate
@@ -160,40 +155,88 @@ export default function UploadShowPage() {
         const duration    = audioBuffer.duration
         const totalChunks = Math.max(1, Math.floor((duration - UPLOAD_CHUNK_SECONDS) / UPLOAD_CHUNK_STEP_SECONDS) + 1)
 
-        for (let i = 0; i < totalChunks; i++) {
-          const startSec = i * UPLOAD_CHUNK_STEP_SECONDS
-          setProgress(`Scanning ${fmtClock(startSec)} / ${fmtClock(duration)}`)
-          setScanProgress((i + 1) / totalChunks)
+        // Pre-allocated, index-addressed — each chunk writes only its own
+        // slot, so concurrent workers never contend over the same memory.
+        // Iterating this array 0..totalChunks-1 afterward IS the
+        // chronological sort, since index === chunk start-time order.
+        const results: ({ data: any } | undefined)[] = new Array(totalChunks)
+        let completedCount = 0
 
+        // Cosmetic-only "just caught" flash, kept separate from the
+        // authoritative detectedTitles/detectedSongs arrays below — those
+        // are only ever written during the single serial merge, never from
+        // a chunk's own completion callback. A duplicate flash for the same
+        // title (two chunks finishing near-simultaneously) is harmless.
+        const flashedTitles = new Set<string>()
+
+        const processChunk = async (i: number): Promise<void> => {
+          const startSec = i * UPLOAD_CHUNK_STEP_SECONDS
           const wav  = sliceToMonoWav(audioBuffer, startSec, UPLOAD_CHUNK_SECONDS)
           const form = new FormData()
           form.append('audio', wav, 'sample.wav')
           form.append('performance_id', performance.id)
-          form.append('previous_songs', JSON.stringify(detectedTitles))
+          // Intentionally sent empty during concurrent scanning — /api/identify only uses previous_songs for telemetry, not recognition/scoring/dedup.
+          form.append('previous_songs', '[]')
 
+          let data: any = null
           try {
-            const res  = await fetch('/api/identify', { method: 'POST', body: form })
-            const data = await res.json()
-            if (data?.detected && data.confidence_level === 'auto' && data.title) {
-              const norm = data.title.toLowerCase().trim()
-              if (!detectedTitles.some(t => t.toLowerCase().trim() === norm)) {
-                detectedTitles.push(data.title)
-                detectedSongs.push({
-                  title: data.title,
-                  artist: data.artist || null,
-                  isrc: data.isrc || null,
-                  composer: data.composer || null,
-                  publisher: data.publisher || null,
-                  source: data.source || 'recognized',
-                  inclusion_reason: data.inclusion_reason || null,
-                  threshold: data.threshold ?? null,
-                  score: data.score ?? null,
-                })
-                setLastCaught(data.title)
-                setTimeout(() => setLastCaught(null), 3000)
-              }
-            }
+            const res = await fetch('/api/identify', { method: 'POST', body: form })
+            data = await res.json()
           } catch { /* skip failed chunk, keep going */ }
+
+          results[i] = { data }
+          completedCount++
+          setProgress(`Scanned ${completedCount} / ${totalChunks} segments`)
+          setScanProgress(completedCount / totalChunks)
+
+          if (data?.detected === true && data.confidence_level === 'auto' && data.title) {
+            const norm = data.title.toLowerCase().trim()
+            if (!flashedTitles.has(norm)) {
+              flashedTitles.add(norm)
+              setLastCaught(data.title)
+              setTimeout(() => setLastCaught(null), 3000)
+            }
+          }
+        }
+
+        // Bounded-concurrency worker pool — at most UPLOAD_CONCURRENCY
+        // /api/identify requests in flight at once. Claiming nextIndex is
+        // synchronous (no await between read and increment), so JS's
+        // single-threaded execution makes this safe with no locking.
+        let nextIndex = 0
+        const worker = async (): Promise<void> => {
+          while (nextIndex < totalChunks) {
+            const i = nextIndex
+            nextIndex++
+            await processChunk(i)
+          }
+        }
+        const workerCount = Math.min(UPLOAD_CONCURRENCY, totalChunks)
+        await Promise.all(Array.from({ length: workerCount }, () => worker()))
+
+        // ── ONE serial chronological merge, after every chunk has resolved ──
+        // Same detected/confidence_level/title gate and same dedup check as
+        // before, just run once over the index-ordered results instead of
+        // inline per-request.
+        for (const result of results) {
+          const data = result?.data
+          if (data?.detected === true && data.confidence_level === 'auto' && data.title) {
+            const norm = data.title.toLowerCase().trim()
+            if (!detectedTitles.some(t => t.toLowerCase().trim() === norm)) {
+              detectedTitles.push(data.title)
+              detectedSongs.push({
+                title: data.title,
+                artist: data.artist || null,
+                isrc: data.isrc || null,
+                composer: data.composer || null,
+                publisher: data.publisher || null,
+                source: data.source || 'recognized',
+                inclusion_reason: data.inclusion_reason || null,
+                threshold: data.threshold ?? null,
+                score: data.score ?? null,
+              })
+            }
+          }
         }
       } catch { /* audio decode failed — proceed to review with whatever was detected */ }
 
