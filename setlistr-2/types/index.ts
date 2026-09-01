@@ -37,6 +37,15 @@ export interface Performance {
   notes: string | null
   created_at: string
   updated_at: string
+  // Device coordinates recorded when capture started, and the venue's own
+  // coordinates copied off the venues row at creation. See lib/geolocation.ts.
+  latitude?: number | null
+  longitude?: number | null
+  venue_latitude?: number | null
+  venue_longitude?: number | null
+  // Kilometres between venue_* and the device reading above.
+  location_distance_from_venue?: number | null
+  location_verified?: boolean | null
   venue?: Venue
   songs?: PerformanceSong[]
   attachments?: Attachment[]

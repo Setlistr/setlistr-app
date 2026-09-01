@@ -34,6 +34,8 @@
 	<string>Setlistr uses your camera to capture photo setlists.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Setlistr accesses your photo library to import setlist images.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Setlistr checks your location when a performance starts to verify you were at the venue, which strengthens your royalty claims.</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>

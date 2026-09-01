@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { buzzLong } from '@/lib/haptics'
 import { useActingAs } from '@/components/ActingAsProvider'
+import { toCoords } from '@/lib/geolocation'
 import { Calendar, ArrowRight, ArrowLeft, RefreshCw, Check, MapPin, Search, X, Plus, ChevronDown, ChevronUp, Camera, Upload, ListMusic } from 'lucide-react'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
@@ -31,7 +32,7 @@ const ALLOWED_MIME_TYPES = [
 ]
 const MAX_FILE_SIZE = 10 * 1024 * 1024
 
-type Venue = { id: string; name: string; city: string; country: string }
+type Venue = { id: string; name: string; city: string; country: string; latitude: number | null; longitude: number | null }
 type PastPerformance = { id: string; venue_name: string; artist_name: string; started_at: string; song_count: number }
 type VenueMemory = { lastDate: string; songCount: number; showCount: number; songs?: { title: string; artist: string }[] }
 type PlannedSong = { title: string; artist: string; position: number }
@@ -224,6 +225,10 @@ export default function NewShowPage() {
   const [venueMemory, setVenueMemory]       = useState<VenueMemory | null>(null)
   const [venueCapacity, setVenueCapacity]   = useState<string>('')
   const [venueCoords, setVenueCoords]       = useState<{ lat: number; lng: number } | null>(null)
+  // Coordinates as stored on the venues row — the value stamped onto the
+  // performance. Distinct from venueCoords above, which is the Mapbox
+  // geocode driving the map preview only and is never persisted.
+  const [venueRecordCoords, setVenueRecordCoords] = useState<{ lat: number; lng: number } | null>(null)
   const [isPrefilled, setIsPrefilled]       = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const searchTimer = useRef<NodeJS.Timeout | null>(null)
@@ -324,6 +329,9 @@ export default function NewShowPage() {
       setVenueSelected(true)
       setIsPrefilled(true)
       if (lastPerf.venue_id) {
+        const { data: lastVenue } = await supabase
+          .from('venues').select('latitude, longitude').eq('id', lastPerf.venue_id).single()
+        setVenueRecordCoords(toCoords(lastVenue?.latitude, lastVenue?.longitude))
         const memory = await fetchVenueMemory(lastPerf.venue_id)
         if (memory?.songs?.length) {
           setPlannedSongs(memory.songs.map((s, i) => ({ ...s, position: i })))
@@ -354,7 +362,7 @@ export default function NewShowPage() {
     if (query.trim().length < 2) { setVenueResults([]); setShowDropdown(false); return }
     setVenueSearching(true)
     const supabase = createClient()
-    const { data } = await supabase.from('venues').select('id, name, city, country').ilike('name', `%${query}%`).limit(6)
+    const { data } = await supabase.from('venues').select('id, name, city, country, latitude, longitude').ilike('name', `%${query}%`).limit(6)
     setVenueResults(data || [])
     setShowDropdown(true)
     setVenueSearching(false)
@@ -401,6 +409,7 @@ export default function NewShowPage() {
     setVenueCity('')
     setVenueCountry('')
     setVenueCoords(null)
+    setVenueRecordCoords(null)
     setIsPrefilled(false)
     setPlannedSongs([])
     setVenueResults([])
@@ -411,6 +420,7 @@ export default function NewShowPage() {
     setVenueQuery(val); setVenueId(null); setVenueSelected(false); setVenueMemory(null); setVenueCapacity('')
     setVenueCity(''); setVenueCountry('')
     setVenueCoords(null)
+    setVenueRecordCoords(null)
     if (isPrefilled) { setIsPrefilled(false); setPlannedSongs([]) }
     if (searchTimer.current) clearTimeout(searchTimer.current)
     searchTimer.current = setTimeout(() => searchVenues(val), 280)
@@ -421,6 +431,7 @@ export default function NewShowPage() {
     setVenueCity(v.city || ''); setVenueCountry(v.country || '')
     setVenueSelected(true); setShowDropdown(false); setVenueResults([])
     setVenueCoords(null)
+    setVenueRecordCoords(toCoords(v.latitude, v.longitude))
     setIsPrefilled(false)
     fetchVenueMemory(v.id)
   }
@@ -601,8 +612,8 @@ export default function NewShowPage() {
         captured_by: actingAsCtx ? user.id : null,
         captured_by_name: actingAsCtx ? selfName : null,
         setlist_photo_url: setlistPhotoUrl || null,
-        latitude: venueCoords?.lat ?? null,
-        longitude: venueCoords?.lng ?? null,
+        venue_latitude: venueRecordCoords?.lat ?? null,
+        venue_longitude: venueRecordCoords?.lng ?? null,
       }).select().single()
       if (perfError) throw new Error('Performance insert failed: ' + perfError.message)
       if (plannedSongs.length > 0) await savePlannedSetlist(performance.id, targetUserId, resolvedVenueId)
@@ -650,8 +661,8 @@ export default function NewShowPage() {
         user_id: targetUserId2,
         captured_by: actingAsCtx2 ? user.id : null,
         captured_by_name: actingAsCtx2 ? selfName2 : null,
-        latitude: venueCoords?.lat ?? null,
-        longitude: venueCoords?.lng ?? null,
+        venue_latitude: venueRecordCoords?.lat ?? null,
+        venue_longitude: venueRecordCoords?.lng ?? null,
       }).select().single()
       if (perfError) throw new Error('Performance insert failed: ' + perfError.message)
       const { data: sourceSongs } = await supabase.from('performance_songs_visible')

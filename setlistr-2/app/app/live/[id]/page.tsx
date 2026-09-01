@@ -6,6 +6,7 @@ import { buzzLong } from '@/lib/haptics'
 import { useActingAs } from '@/components/ActingAsProvider'
 import { Check, X, RefreshCw, Upload } from 'lucide-react'
 import type { Performance } from '@/types'
+import { evaluateGeolocation, toCoords } from '@/lib/geolocation'
 import { normalizeSongKey } from '@/lib/reconciliation/normalize'
 
 const C = {
@@ -187,11 +188,14 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   const endingRef           = useRef<boolean>(false)
   const wakeLockRef         = useRef<WakeLockSentinel | null>(null)
   const autoStartFiredRef   = useRef(false)
+  const performanceRef      = useRef<Performance | null>(null)
+  const locationStampedRef  = useRef(false)
 
   useEffect(() => { pendingCandidateRef.current = pendingCandidate }, [pendingCandidate])
   useEffect(() => { confirmedSongsRef.current = songs }, [songs])
   useEffect(() => { isListeningRef.current = isListening }, [isListening])
   useEffect(() => { endingRef.current = ending }, [ending])
+  useEffect(() => { performanceRef.current = performance }, [performance])
 
   useEffect(() => {
     return () => {
@@ -494,6 +498,42 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
     } catch { setDetectStatus('') } finally { setIsDetecting(false) }
   }, [params.id, showId, setlistId, artistId, confirmCandidate, performance])
 
+  // Record where the device is at the moment capture starts, and measure it
+  // against the venue's stored coordinates. Fire-and-forget by design: the
+  // GPS fix can take seconds, and nothing about listening for songs should
+  // wait on it. A failure here leaves the columns null — never false, which
+  // would read as "the artist wasn't at the venue" (see lib/geolocation.ts).
+  const stampCaptureLocation = useCallback(() => {
+    if (locationStampedRef.current) return
+    const perf = performanceRef.current
+    if (!perf) return
+    if (typeof navigator === 'undefined' || !navigator.geolocation) return
+    locationStampedRef.current = true
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const device = toCoords(pos.coords.latitude, pos.coords.longitude)
+        if (!device) return
+        const venue = toCoords(perf.venue_latitude, perf.venue_longitude)
+        const { distanceKm, verified } = evaluateGeolocation(venue, device)
+        try {
+          await createClient().from('performances').update({
+            latitude: device.lat,
+            longitude: device.lng,
+            location_distance_from_venue: distanceKm,
+            location_verified: verified,
+          }).eq('id', perf.id)
+        } catch (err) { console.error('[CaptureLocation]', err) }
+      },
+      () => {
+        // Denied, timed out, or unavailable. Clear the guard so an explicit
+        // restart can retry — a denial is remembered by the browser, so this
+        // re-prompts no one, but it does recover a GPS fix that was merely slow.
+        locationStampedRef.current = false
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 },
+    )
+  }, [])
+
   const startListening = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
@@ -516,8 +556,14 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         recorder.start(); setTimeout(() => { if (recorder.state === 'recording') recorder.stop() }, 14000)
       }
       recordAndDetect(); listenIntervalRef.current = setInterval(recordAndDetect, 20000)
-    } catch { setIsListening(false) }
-  }, [detectSong, isDetecting])
+    } catch { setIsListening(false) } finally {
+      // In `finally`, not the try body: a denied microphone must not also cost
+      // the artist their location evidence. Running here keeps the mic prompt
+      // first (getUserMedia is awaited above) while still asking for location
+      // when that prompt is refused.
+      stampCaptureLocation()
+    }
+  }, [detectSong, isDetecting, stampCaptureLocation])
 
   const stopListening = useCallback(() => {
     if (listenIntervalRef.current) { clearInterval(listenIntervalRef.current); listenIntervalRef.current = null }
