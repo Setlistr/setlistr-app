@@ -36,6 +36,17 @@ const ARTIST_CATALOGUE_THRESHOLD    = 30
 const FALLBACK_CATALOGUE_THRESHOLD  = 30
 const MULTIPLE_DETECTIONS_THRESHOLD = 2
 
+// ─── Upload-only: uploaded-setlist recognition context ───────────────────────
+// Not present in app/api/identify/route.ts — this is an upload-specific
+// addition, isolated to this route. Same threshold value and same role as
+// PLANNED_SETLIST_THRESHOLD (a title-match still requires ACR to have
+// returned *some* nonzero score on its own; this never substitutes for
+// audio evidence, it only lowers how strong that evidence needs to be for a
+// title that was also independently expected). Kept as its own named
+// constant rather than reusing PLANNED_SETLIST_THRESHOLD so the two sources
+// stay distinguishable in logs/observability, per instruction.
+const UPLOADED_SETLIST_THRESHOLD = 1
+
 type DetectionSource = 'fingerprint' | 'humming'
 interface EnrichedSongData { isrc: string; composer: string; publisher: string }
 
@@ -246,6 +257,25 @@ export async function POST(req: NextRequest) {
     const prevRaw  = incoming.get('previous_songs') as string | null
     const previousSongs: string[] = prevRaw ? JSON.parse(prevRaw) : []
 
+    // Optional recognition context from an uploaded setlist photo/file —
+    // parsed client-side once via /api/parse-setlist, sent compactly on every
+    // chunk. Absent entirely for the no-setlist case, matching prior behavior
+    // exactly. Malformed/oversized input degrades to "no context" rather than
+    // failing the request — this is a prior, not a required input.
+    const uploadedSetlistRaw = incoming.get('uploaded_setlist') as string | null
+    let uploadedSetlistTitles = new Set<string>()
+    if (uploadedSetlistRaw) {
+      try {
+        const parsed = JSON.parse(uploadedSetlistRaw)
+        if (Array.isArray(parsed)) {
+          for (const song of parsed.slice(0, 60)) {
+            const key = normalizeSongKey(String(song?.title || ''))
+            if (key) uploadedSetlistTitles.add(key)
+          }
+        }
+      } catch { /* malformed context — treat as no setlist provided */ }
+    }
+
     // Fixed values matching what upload's calls to api/identify already
     // resolve to today (it never sends these fields either) — kept as
     // named constants purely so the forensic-write shapes below read the
@@ -429,9 +459,20 @@ export async function POST(req: NextRequest) {
     let inclusionThreshold = 0
     let inclusionScore = 0
 
+    // Computed once, reused for both the cascade condition below and the
+    // observability fields on the response/detection_events row — this does
+    // NOT feed ACR, does not affect the fingerprint match itself, and (per
+    // the branch order below) can only ever raise inclusionScore for a title
+    // ACR already returned some nonzero score for on its own.
+    const uploadedSetlistMatch = uploadedSetlistTitles.has(normalizedTitle)
+
     if (plannedTitles.has(normalizedTitle) && score >= PLANNED_SETLIST_THRESHOLD) {
       inclusionReason    = 'planned setlist - detected'
       inclusionThreshold = PLANNED_SETLIST_THRESHOLD
+      inclusionScore     = score
+    } else if (uploadedSetlistMatch && score >= UPLOADED_SETLIST_THRESHOLD) {
+      inclusionReason    = 'uploaded setlist - detected'
+      inclusionThreshold = UPLOADED_SETLIST_THRESHOLD
       inclusionScore     = score
     } else if (artistCatalogueTitles.has(normalizedTitle) && score >= ARTIST_CATALOGUE_THRESHOLD) {
       inclusionReason    = 'artist catalogue'
@@ -468,12 +509,17 @@ export async function POST(req: NextRequest) {
         title, artist, source, score,
         inclusion_reason: inclusionReason, threshold: inclusionThreshold,
         detections: thisDetectionCount,
+        // Observability only — did this title appear in the uploaded
+        // setlist context, regardless of which branch (if any) fired.
+        // Not read by processUploadedFile; exists so we can tell whether
+        // the new prior actually influenced a decision.
+        uploaded_setlist_match: uploadedSetlistMatch,
       }],
     })
 
     // ── Not added → return a non-detection so processUploadedFile ignores it ──
     if (!added) {
-      return NextResponse.json({ detected: false })
+      return NextResponse.json({ detected: false, uploaded_setlist_match: uploadedSetlistMatch })
     }
 
     // ── Added → enrich + preserve the existing add-time side effects ─────────
@@ -498,7 +544,9 @@ export async function POST(req: NextRequest) {
       user_agent: req.headers.get('user-agent') ?? null,
     })
 
-    // ── Response — trimmed to only the fields processUploadedFile consumes ───
+    // ── Response — trimmed to only the fields processUploadedFile consumes,
+    // plus uploaded_setlist_match for observability/testing (unread by the
+    // client's own handling, additive only). ─────────────────────────────────
     return NextResponse.json({
       detected: true, title, artist,
       confidence_level: 'auto', source,
@@ -507,6 +555,7 @@ export async function POST(req: NextRequest) {
       score: Math.round(inclusionScore),
       isrc: enriched.isrc, composer: enriched.composer, publisher: enriched.publisher,
       setlist_item_id: setlistItemId,
+      uploaded_setlist_match: uploadedSetlistMatch,
     })
 
   } catch (err: any) {

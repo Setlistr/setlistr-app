@@ -267,11 +267,21 @@ export default function UploadNewPerformancePage() {
   const [setlistUploading, setSetlistUploading] = useState(false)
   const [setlistError, setSetlistError] = useState('')
   const [setlistPhotoUrl, setSetlistPhotoUrl] = useState<string | null>(null)
-  // Preserved for a deliberately deferred future accuracy pass — never sent
-  // to any recognition call in this pass (see file header comment).
+  // Used as recognition CONTEXT (a prior, not truth) — sent per chunk to
+  // /api/upload-identify. See handling in beginScan and the route's own
+  // header comment for the exact philosophy: this can only strengthen a
+  // detection ACR already found on its own; it never substitutes for audio
+  // evidence and is never written directly to performance_songs.
   const [parsedSetlistSongs, setParsedSetlistSongs] = useState<ParsedSetlistSong[]>([])
 
   const detectedSongsRef = useRef<DetectedSong[]>([])
+  // Mirrors parsedSetlistSongs for reads inside beginScan — beginScan is a
+  // useCallback with an empty dependency array, so a direct state reference
+  // would go stale: the setlist can finish parsing before a recording is
+  // even chosen (i.e., before beginScan's closure is created), same
+  // staleness hazard detectedSongsRef/confirmedSongsRef already solve
+  // elsewhere in this codebase.
+  const parsedSetlistSongsRef = useRef<ParsedSetlistSong[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const setlistInputRef = useRef<HTMLInputElement>(null)
@@ -280,6 +290,8 @@ export default function UploadNewPerformancePage() {
   // can invoke goToReview twice before that happens. This ref is checked and
   // set in the same synchronous tick, before any await.
   const finalizingRef = useRef(false)
+
+  useEffect(() => { parsedSetlistSongsRef.current = parsedSetlistSongs }, [parsedSetlistSongs])
 
   // ── Recent venues — reuses performances_visible exactly as show/new does
   // for its own venue memory. Read-only, no new API, no RLS change. ────────
@@ -341,6 +353,15 @@ export default function UploadNewPerformancePage() {
         form.append('audio', wav, 'sample.wav')
         form.append('performance_id', perfId)
         form.append('previous_songs', JSON.stringify(detectedSongsRef.current.map(s => s.title)))
+        // Compact recognition context from the already-parsed setlist photo/
+        // file, if one was provided — never re-runs /api/parse-setlist, never
+        // sends image bytes. Omitted entirely when there's no setlist, so the
+        // no-setlist path is byte-for-byte the same request it always was.
+        if (parsedSetlistSongsRef.current.length > 0) {
+          form.append('uploaded_setlist', JSON.stringify(
+            parsedSetlistSongsRef.current.map(s => ({ title: s.title, artist: s.artist || '' }))
+          ))
+        }
 
         let data: any = null
         const { data: { session } } = await supabase.auth.getSession()
