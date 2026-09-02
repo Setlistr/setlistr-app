@@ -847,6 +847,14 @@ export default function NewShowPage() {
               Next <ArrowRight size={15} strokeWidth={2.5} />
             </button>
 
+            {/* ── Upload Performance — secondary path, always visible ── */}
+            <button
+              onClick={() => router.push('/app/upload/new')}
+              style={{ width: '100%', padding: '13px', marginTop: 10, background: 'transparent', border: `1px solid ${C.border}`, borderRadius: 12, color: C.secondary, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+              <Upload size={13} />
+              Already played? Upload a performance
+            </button>
+
             {/* ── MORE OPTIONS ── */}
             <button
               onClick={() => setShowMoreOptions(v => !v)}
@@ -887,12 +895,6 @@ export default function NewShowPage() {
                     />
                   </div>
                 )}
-
-                <button
-                  onClick={() => router.push('/app/show/upload')}
-                  style={{ background: 'none', border: 'none', color: C.muted, fontSize: 12, cursor: 'pointer', letterSpacing: '0.04em', fontFamily: 'inherit', padding: '2px 0', textAlign: 'center' as const, width: '100%' }}>
-                  or upload a recording instead →
-                </button>
               </div>
             )}
 

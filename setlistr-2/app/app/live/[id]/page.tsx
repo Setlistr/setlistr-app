@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { buzzLong } from '@/lib/haptics'
 import { useActingAs } from '@/components/ActingAsProvider'
-import { Check, X, RefreshCw, Upload } from 'lucide-react'
+import { Check, X, RefreshCw } from 'lucide-react'
 import type { Performance } from '@/types'
 import { evaluateGeolocation, toCoords } from '@/lib/geolocation'
 import { ACR_LIMIT_MESSAGE } from '@/lib/acr-limits'
@@ -29,15 +29,6 @@ const SILENCE_WARNING_MS = 45 * 60 * 1000
 // 20s recordAndDetect interval + 14s recording), so 45s absorbs one slow or
 // skipped cycle without a false alarm while still catching a real death fast.
 const CAPTURE_HEALTH_WINDOW_MS = 45 * 1000
-
-// Upload mode: how the route is fed an uploaded file (mirrors live capture cadence)
-const UPLOAD_CHUNK_SECONDS      = 14   // length of each sample POSTed to /api/identify
-const UPLOAD_CHUNK_STEP_SECONDS = 20   // advance this far through the file between samples
-
-// Rotating status copy shown under the upload progress label, purely cosmetic.
-const SCAN_WORDS = ['Listening back', 'Working through the tape',
-  'Rolling the tape', 'Combing the recording', 'Going bar by bar',
-  'Marking the changes', 'Sorting the set', 'Cataloguing']
 
 type AcrCandidate = { title: string; artist: string; score: number }
 type DetectedSong = {
@@ -68,47 +59,6 @@ function timeAgo(ms: number): string {
   const sec = Math.floor((Date.now() - ms) / 1000)
   if (sec < 60) return `${sec}s ago`
   return `${Math.floor(sec / 60)} min ago`
-}
-
-// m:ss formatter for the upload progress label.
-function fmtClock(sec: number): string {
-  const m = Math.floor(sec / 60)
-  const s = Math.floor(sec % 60)
-  return `${m}:${String(s).padStart(2, '0')}`
-}
-
-// Extract one [startSec, startSec+durSec] window from a decoded AudioBuffer,
-// downmix to mono, and encode it as a 16-bit PCM WAV Blob. WAV is what we POST
-// to /api/identify for each uploaded-file sample (ACR accepts it fine).
-function sliceToMonoWav(audioBuffer: AudioBuffer, startSec: number, durSec: number): Blob {
-  const sampleRate  = audioBuffer.sampleRate
-  const startSample = Math.floor(startSec * sampleRate)
-  const endSample   = Math.min(audioBuffer.length, Math.floor((startSec + durSec) * sampleRate))
-  const len         = Math.max(0, endSample - startSample)
-  const channels    = audioBuffer.numberOfChannels
-
-  // Downmix every channel into one mono track.
-  const mono = new Float32Array(len)
-  for (let c = 0; c < channels; c++) {
-    const data = audioBuffer.getChannelData(c)
-    for (let i = 0; i < len; i++) mono[i] += data[startSample + i] / channels
-  }
-
-  // 44-byte WAV header + 16-bit samples.
-  const buffer = new ArrayBuffer(44 + len * 2)
-  const view   = new DataView(buffer)
-  const writeStr = (offset: number, s: string) => { for (let i = 0; i < s.length; i++) view.setUint8(offset + i, s.charCodeAt(i)) }
-  writeStr(0, 'RIFF'); view.setUint32(4, 36 + len * 2, true); writeStr(8, 'WAVE')
-  writeStr(12, 'fmt '); view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true)
-  view.setUint32(24, sampleRate, true); view.setUint32(28, sampleRate * 2, true); view.setUint16(32, 2, true); view.setUint16(34, 16, true)
-  writeStr(36, 'data'); view.setUint32(40, len * 2, true)
-  let offset = 44
-  for (let i = 0; i < len; i++) {
-    const s = Math.max(-1, Math.min(1, mono[i]))
-    view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true)
-    offset += 2
-  }
-  return new Blob([view], { type: 'audio/wav' })
 }
 
 async function writeUserSong(supabase: ReturnType<typeof createClient>, title: string, artist: string, userId: string, performanceId: string): Promise<void> {
@@ -159,13 +109,6 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   const [detectionLimited, setDetectionLimited] = useState(false)
   const [plannedCount, setPlannedCount] = useState<number>(0)
   const plannedSongsRef = useRef<{ title: string; normalizedTitle: string; artist: string }[]>([])
-
-  // Upload mode (process an audio file through the route instead of live capture)
-  const [uploadProcessing, setUploadProcessing] = useState(false)
-  const [uploadProgress, setUploadProgress]     = useState(0)   // 0..1
-  const [uploadLabel, setUploadLabel]           = useState('')
-  const [scanWordIdx, setScanWordIdx]           = useState(0)
-  const uploadInputRef = useRef<HTMLInputElement | null>(null)
 
   const [deletePending, setDeletePending] = useState<number | null>(null)
   const deletePendingTimerRef = useRef<NodeJS.Timeout | null>(null)
@@ -406,22 +349,6 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   const confirmPending = useCallback(() => { if (!pendingCandidateRef.current) return; confirmCandidate(pendingCandidateRef.current) }, [confirmCandidate])
   const dismissPending = useCallback(() => { setPendingCandidate(null); setDetectStatus('') }, [])
 
-  // Rotate the cosmetic "scanning" word under the upload progress label.
-  useEffect(() => {
-    if (!uploadProcessing) { setScanWordIdx(0); return }
-    const reduced = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    if (reduced) return
-    const interval = setInterval(() => setScanWordIdx(i => (i + 1) % SCAN_WORDS.length), 4000)
-    return () => clearInterval(interval)
-  }, [uploadProcessing])
-
-  // ── Upload mode ──────────────────────────────────────────────────────────────
-  // Lets a user pick an audio file instead of live-miking. We decode the file,
-  // walk it in UPLOAD_CHUNK_SECONDS samples every UPLOAD_CHUNK_STEP_SECONDS, and
-  // POST each sample to the real /api/identify for THIS performance — the route
-  // decides inclusion exactly as it would for a live chunk. We add whatever the
-  // route reports as added (trusting the server's decision, so the live-capture
-  // timing gates don't apply).
   // Stop sending paid calls without tearing the session down. The interval is
   // cleared and detectSong short-circuits, but isListening stays true so the
   // timer, manual add, and End Show all keep working — the artist can still
@@ -433,86 +360,6 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
     if (listenIntervalRef.current) { clearInterval(listenIntervalRef.current); listenIntervalRef.current = null }
     setDetectStatus('')
   }, [])
-
-  const processUploadedFile = useCallback(async (file: File) => {
-    setUploadProcessing(true)
-    setUploadProgress(0)
-    setUploadLabel('Reading file…')
-    const supabase = createClient()
-    try {
-      // 1. Decode the whole file to PCM via Web Audio.
-      const arrayBuffer = await file.arrayBuffer()
-      const AudioCtx    = window.AudioContext || (window as any).webkitAudioContext
-      const ctx         = new AudioCtx()
-      const audioBuffer = await ctx.decodeAudioData(arrayBuffer)
-      ctx.close()
-
-      const duration    = audioBuffer.duration
-      const totalChunks = Math.max(1, Math.floor((duration - UPLOAD_CHUNK_SECONDS) / UPLOAD_CHUNK_STEP_SECONDS) + 1)
-
-      // 2. Feed each sample to the route, in order, for the current performance.
-      for (let i = 0; i < totalChunks; i++) {
-        const startSec = i * UPLOAD_CHUNK_STEP_SECONDS
-        setUploadLabel(`Scanning ${fmtClock(startSec)} / ${fmtClock(duration)}`)
-        const wav = sliceToMonoWav(audioBuffer, startSec, UPLOAD_CHUNK_SECONDS)
-
-        const form = new FormData()
-        form.append('audio', wav, 'sample.wav')
-        form.append('performance_id', params.id)
-        form.append('previous_songs', JSON.stringify(
-          confirmedSongsRef.current.filter(s => s.source !== 'planned').map(s => s.title)
-        ))
-
-        // Fetch a fresh token per chunk rather than capturing one before the
-        // scan — getSession() reads the SDK's locally-cached (and
-        // auto-refreshed) session, so this is normally a local lookup, not a
-        // network round trip, and it can't go stale across a 10-20+ minute scan.
-        let data: any = null
-        const { data: { session } } = await supabase.auth.getSession()
-        if (!session?.access_token) {
-          // Fail safely — never send an unauthenticated recognition request.
-          // Treat this exactly like a failed chunk and keep going.
-        } else {
-          try {
-            const res = await fetch('/api/upload-identify', {
-              method: 'POST',
-              headers: { Authorization: `Bearer ${session.access_token}` },
-              body: form,
-            })
-            data = await res.json()
-          } catch { /* skip a failed chunk, keep going */ }
-        }
-
-        if (data?.quota_exceeded) {
-          pauseDetectionForLimit()
-          setUploadLabel(ACR_LIMIT_MESSAGE)
-          break
-        }
-
-        // 3. If the route added the song, drop it into the setlist.
-        if (data?.detected && data.confidence_level === 'auto') {
-          const already = confirmedSongsRef.current.filter(s => s.source !== 'planned').some(s => isSameSong(s, { title: data.title }))
-          if (!already) {
-            const now = Date.now()
-            confirmCandidate(
-              { title: data.title, artist: data.artist, source: data.source, confidence_level: 'auto', firstDetectedAt: now, lastDetectedAt: now, matchCount: 1 },
-              data.setlist_item_id,
-              { isrc: data.isrc, composer: data.composer, publisher: data.publisher, inclusion_reason: data.inclusion_reason, threshold: data.threshold, score: data.score }
-            )
-          }
-        }
-
-        setUploadProgress((i + 1) / totalChunks)
-      }
-      setUploadLabel('Done — review and end when ready')
-    } catch (err) {
-      console.error('[Upload] processing failed:', err)
-      setUploadLabel('Could not read that audio file')
-    } finally {
-      setUploadProcessing(false)
-      setTimeout(() => { setUploadLabel(''); setUploadProgress(0) }, 3000)
-    }
-  }, [params.id, confirmCandidate, pauseDetectionForLimit])
 
   const detectSong = useCallback(async (audioBlob: Blob) => {
     // Already over the ceiling — don't spend another request finding out again.
@@ -748,12 +595,11 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   // captureStale (the 45s latched health flag) trips well before engineState
   // reaches 'stalled' at 5 min, so it must win over engineState here.
   const ringMode    = captureStale ? 'alarm'
-    : uploadProcessing ? 'scanning'
     : engineState === 'stalled' ? 'alarm'
     : engineState === 'slow' ? 'weak'
     : 'healthy'
-  const engineDot   = uploadProcessing ? C.gold : engineState === 'listening' ? C.green : engineState === 'slow' ? C.amber : engineState === 'stalled' ? '#f87171' : C.muted
-  const engineLabel = uploadProcessing ? 'SCANNING' : engineState === 'listening' ? 'ON' : engineState === 'slow' ? 'SLOW' : engineState === 'stalled' ? 'STALLED' : 'IDLE'
+  const engineDot   = engineState === 'listening' ? C.green : engineState === 'slow' ? C.amber : engineState === 'stalled' ? '#f87171' : C.muted
+  const engineLabel = engineState === 'listening' ? 'ON' : engineState === 'slow' ? 'SLOW' : engineState === 'stalled' ? 'STALLED' : 'IDLE'
 
   function renderTrustSignal() {
     if (lastCaught) {
@@ -864,7 +710,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
 
       {/* Hero */}
       <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '40px 24px 28px', flexShrink: 0 }}>
-        {(isListening || catchFlash || uploadProcessing) && (
+        {(isListening || catchFlash) && (
           <>
             {[{ size: ringState === 'catch' ? 220 : 200, delay: '0s' }, { size: ringState === 'catch' ? 262 : 242, delay: '0.1s' }, { size: ringState === 'catch' ? 304 : 284, delay: '0.2s' }].map(({ size, delay }, idx) => {
               const ringColor = ringState === 'catch' ? C.gold
@@ -874,7 +720,6 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
               const ringAnim = ringState === 'catch' ? `ring-catch 0.85s ${delay} ease-out forwards`
                 : ringMode === 'alarm' ? `ring-alarm 2s ${delay} ease-out infinite`
                 : ringMode === 'weak' ? `ring-pulse-weak 4s ${delay} ease-out infinite`
-                : ringMode === 'scanning' ? `ring-scan 1.6s ${delay} ease-in-out infinite`
                 : `ring-pulse 2.6s ${delay} ease-out infinite`
               return (
                 <div key={idx} style={{ position: 'absolute', width: size, height: size, borderRadius: '50%', border: `1px solid ${ringColor + (ringState === 'catch' ? (idx === 0 ? 'cc' : idx === 1 ? '60' : '28') : (idx === 0 ? '28' : idx === 1 ? '14' : '08'))}`, animation: ringAnim, top: 40, left: '50%', transform: 'translateX(-50%)', pointerEvents: 'none' }} />
@@ -885,8 +730,8 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         {confirmRing && (
           <div style={{ position: 'absolute', width: 230, height: 230, borderRadius: '50%', border: `1.5px solid ${C.gold}cc`, top: 40, left: '50%', transform: 'translateX(-50%)', pointerEvents: 'none', animation: 'ring-confirm 600ms ease-out forwards' }} />
         )}
-        <button onClick={isListening ? stopListening : startListening} disabled={(isDetecting && !isListening) || uploadProcessing}
-          style={{ width: 160, height: 160, borderRadius: '50%', border: 'none', cursor: uploadProcessing ? 'not-allowed' : isDetecting && !isListening ? 'wait' : 'pointer', position: 'relative', zIndex: 2, opacity: 1, background: catchFlash ? `radial-gradient(circle at 40% 35%, #e8c76a, ${C.gold} 55%, #a07828)` : (isListening || uploadProcessing) ? `radial-gradient(circle at 40% 35%, ${C.gold}cc, ${C.gold} 55%, #8a6520)` : `radial-gradient(circle at 40% 35%, #2a2520, #1a1610 55%, #0f0e0c)`, boxShadow: catchFlash ? `0 0 60px ${C.gold}80, 0 0 120px ${C.gold}30, inset 0 1px 0 rgba(255,255,255,0.25)` : (isListening || uploadProcessing) ? `0 0 40px ${C.gold}40, 0 0 80px ${C.gold}18, inset 0 1px 0 rgba(255,255,255,0.12)` : `0 8px 40px rgba(0,0,0,0.6), 0 2px 8px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06)`, transform: catchFlash ? 'scale(1.05)' : 'scale(1)', transition: 'background 0.4s ease, box-shadow 0.4s ease, transform 0.2s ease', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6, WebkitTapHighlightColor: 'transparent', outline: 'none', touchAction: 'manipulation' }}>
+        <button onClick={isListening ? stopListening : startListening} disabled={isDetecting && !isListening}
+          style={{ width: 160, height: 160, borderRadius: '50%', border: 'none', cursor: isDetecting && !isListening ? 'wait' : 'pointer', position: 'relative', zIndex: 2, opacity: 1, background: catchFlash ? `radial-gradient(circle at 40% 35%, #e8c76a, ${C.gold} 55%, #a07828)` : isListening ? `radial-gradient(circle at 40% 35%, ${C.gold}cc, ${C.gold} 55%, #8a6520)` : `radial-gradient(circle at 40% 35%, #2a2520, #1a1610 55%, #0f0e0c)`, boxShadow: catchFlash ? `0 0 60px ${C.gold}80, 0 0 120px ${C.gold}30, inset 0 1px 0 rgba(255,255,255,0.25)` : isListening ? `0 0 40px ${C.gold}40, 0 0 80px ${C.gold}18, inset 0 1px 0 rgba(255,255,255,0.12)` : `0 8px 40px rgba(0,0,0,0.6), 0 2px 8px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06)`, transform: catchFlash ? 'scale(1.05)' : 'scale(1)', transition: 'background 0.4s ease, box-shadow 0.4s ease, transform 0.2s ease', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6, WebkitTapHighlightColor: 'transparent', outline: 'none', touchAction: 'manipulation' }}>
           <div style={{ width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             {isDetecting ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: 3, height: 28 }}>
@@ -894,50 +739,17 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
               </div>
             ) : (
               <svg width="28" height="32" viewBox="0 0 28 32" fill="none">
-                <rect x="8" y="0" width="12" height="20" rx="6" fill={(isListening || uploadProcessing) ? '#0a0908' : C.gold} opacity={(isListening || uploadProcessing) ? 1 : 0.9} />
-                <path d="M4 16c0 5.523 4.477 10 10 10s10-4.477 10-10" stroke={(isListening || uploadProcessing) ? '#0a0908' : C.gold} strokeWidth="2" strokeLinecap="round" fill="none" />
-                <line x1="14" y1="26" x2="14" y2="31" stroke={(isListening || uploadProcessing) ? '#0a0908' : C.gold} strokeWidth="2" strokeLinecap="round" />
-                <line x1="10" y1="31" x2="18" y2="31" stroke={(isListening || uploadProcessing) ? '#0a0908' : C.gold} strokeWidth="2" strokeLinecap="round" />
+                <rect x="8" y="0" width="12" height="20" rx="6" fill={isListening ? '#0a0908' : C.gold} opacity={isListening ? 1 : 0.9} />
+                <path d="M4 16c0 5.523 4.477 10 10 10s10-4.477 10-10" stroke={isListening ? '#0a0908' : C.gold} strokeWidth="2" strokeLinecap="round" fill="none" />
+                <line x1="14" y1="26" x2="14" y2="31" stroke={isListening ? '#0a0908' : C.gold} strokeWidth="2" strokeLinecap="round" />
+                <line x1="10" y1="31" x2="18" y2="31" stroke={isListening ? '#0a0908' : C.gold} strokeWidth="2" strokeLinecap="round" />
               </svg>
             )}
           </div>
-          <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: (isListening || uploadProcessing) ? '#0a0908' : C.gold }}>
-            {uploadProcessing ? 'scanning' : isDetecting ? 'catching' : isListening ? 'listening' : confirmedSongs.length > 0 ? 'resume' : 'tap to start'}
+          <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: isListening ? '#0a0908' : C.gold }}>
+            {isDetecting ? 'catching' : isListening ? 'listening' : confirmedSongs.length > 0 ? 'resume' : 'tap to start'}
           </span>
         </button>
-
-        {/* ── Upload a recording instead of live capture ──────────────────────── */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
-          <input
-            ref={uploadInputRef}
-            type="file"
-            accept="audio/*,audio/mp4,audio/x-m4a,audio/aac,.m4a,.mp3,.wav,.aac,.m4b,.aiff,.caf,.flac,.ogg"
-            style={{ display: 'none' }}
-            onChange={e => { const f = e.target.files?.[0]; if (f) processUploadedFile(f); e.target.value = '' }}
-          />
-          <button
-            onClick={() => uploadInputRef.current?.click()}
-            disabled={uploadProcessing || isListening || isDetecting}
-            style={{ marginTop: 20, padding: '12px 24px', background: 'rgba(255,255,255,0.03)', border: `1px solid ${C.border}`, borderRadius: 12, color: (uploadProcessing || isListening || isDetecting) ? C.muted : C.secondary, fontSize: 13, fontWeight: 700, cursor: (uploadProcessing || isListening || isDetecting) ? 'default' : 'pointer', fontFamily: 'inherit', opacity: (uploadProcessing || isListening || isDetecting) ? 0.45 : 1, WebkitTapHighlightColor: 'transparent', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Upload size={14} color={C.muted} />
-            Upload Performance
-          </button>
-          {(uploadProcessing || uploadProgress > 0) && (
-            <div style={{ width: 220, marginTop: 14 }}>
-              <div style={{ height: 6, background: 'rgba(255,255,255,0.08)', borderRadius: 3, overflow: 'hidden' }}>
-                <div style={{ height: '100%', width: `${Math.round(uploadProgress * 100)}%`, background: C.gold, borderRadius: 3, transition: 'width 0.3s ease' }} />
-              </div>
-              <div style={{ marginTop: 6, fontSize: 11, color: C.secondary, textAlign: 'center', fontFamily: '"DM Mono", monospace' }}>
-                {uploadLabel || `${Math.round(uploadProgress * 100)}%`}
-              </div>
-              {uploadProcessing && (
-                <div key={scanWordIdx} style={{ marginTop: 4, fontSize: 11, color: C.muted, textAlign: 'center', fontFamily: '"DM Mono", monospace', animation: 'fadeIn 0.4s ease' }}>
-                  {SCAN_WORDS[scanWordIdx]}…
-                </div>
-              )}
-            </div>
-          )}
-        </div>
 
         {detectionLimited && (
           <div style={{ marginTop: 18, width: '100%', maxWidth: 320, background: 'rgba(245,158,11,0.10)', border: '1px solid rgba(245,158,11,0.32)', borderRadius: 12, padding: '12px 16px', animation: 'fadeIn 0.2s ease' }}>
