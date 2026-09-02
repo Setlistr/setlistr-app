@@ -847,12 +847,17 @@ export default function NewShowPage() {
               Next <ArrowRight size={15} strokeWidth={2.5} />
             </button>
 
-            {/* ── Upload Performance — secondary path, always visible ── */}
+            {/* ── Upload Performance — clear secondary path, not a buried link ── */}
             <button
               onClick={() => router.push('/app/upload/new')}
-              style={{ width: '100%', padding: '13px', marginTop: 10, background: 'transparent', border: `1px solid ${C.border}`, borderRadius: 12, color: C.secondary, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-              <Upload size={13} />
-              Already played? Upload a performance
+              style={{ width: '100%', marginTop: 10, padding: '14px 16px', background: 'linear-gradient(180deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%)', border: `1px solid ${C.border}`, borderRadius: 14, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 12, textAlign: 'left' as const }}>
+              <div style={{ width: 36, height: 36, borderRadius: 10, background: C.goldDim, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <Upload size={16} color={C.gold} />
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' as const, color: C.gold, margin: '0 0 2px' }}>Upload Performance</p>
+                <p style={{ fontSize: 12, color: C.muted, margin: 0, lineHeight: 1.35 }}>Already played? Build your setlist from a recording.</p>
+              </div>
             </button>
 
             {/* ── MORE OPTIONS ── */}

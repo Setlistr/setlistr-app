@@ -104,7 +104,7 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const body = await req.json()
-    const { performance_id, venue_name, performance_date, start_time, show_type, songs } = body
+    const { performance_id, venue_name, performance_date, start_time, show_type, songs, setlist_photo_url } = body
     if (!performance_id) return NextResponse.json({ error: 'performance_id required' }, { status: 400 })
     if (!venue_name || !String(venue_name).trim()) return NextResponse.json({ error: 'venue_name required' }, { status: 400 })
     if (!performance_date) return NextResponse.json({ error: 'performance_date required' }, { status: 400 })
@@ -142,6 +142,7 @@ export async function PATCH(req: NextRequest) {
         performance_date,
         start_time: start_time || null,
         status: 'review',
+        ...(setlist_photo_url ? { setlist_photo_url } : {}),
       })
       .eq('id', performance_id)
       .eq('status', 'draft')
