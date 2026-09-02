@@ -405,18 +405,73 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
     setUploadProcessing(true)
     setUploadProgress(0)
     setUploadLabel('Reading file…')
+
+    // ── DEV-ONLY TIMING INSTRUMENTATION — remove after the measurement run ──
+    // `perfNow()` goes through `window.performance` explicitly, not a bare
+    // `performance` identifier, because this component's top-level state is
+    // `const [performance, setPerformance] = useState(...)` — that shadows
+    // the global Performance API for this entire component. A bare
+    // `performance.now()` anywhere in this file would resolve to that state
+    // variable, not the Performance API, and throw.
+    const perfNow = () => window.performance.now()
+    const tFnStart = perfNow()
+    const timings: { fileRead?: number; audioDecode?: number; chunkScan?: number } = {}
+    const identifyDurations: number[] = []
+    let identifySuccessCount = 0
+    let identifyFailCount = 0
+    let detectedResponseCount = 0
+    let confirmedCandidateCount = 0
+    let totalChunksCaptured = 0
+
+    function logLiveUploadTiming() {
+      const fmt = (ms: number | undefined) => ms === undefined ? 'n/a' : `${(ms / 1000).toFixed(2)}s`
+      const avgIdentify = identifyDurations.length > 0
+        ? identifyDurations.reduce((a, b) => a + b, 0) / identifyDurations.length
+        : undefined
+      const fastestIdentify = identifyDurations.length > 0 ? Math.min(...identifyDurations) : undefined
+      const slowestIdentify = identifyDurations.length > 0 ? Math.max(...identifyDurations) : undefined
+      const timingSummary = {
+        fileRead: fmt(timings.fileRead),
+        audioDecode: fmt(timings.audioDecode),
+        chunkScan: fmt(timings.chunkScan),
+        avgIdentify: fmt(avgIdentify),
+        fastestIdentify: fmt(fastestIdentify),
+        slowestIdentify: fmt(slowestIdentify),
+        total: fmt(perfNow() - tFnStart),
+        totalChunks: totalChunksCaptured,
+        identifySuccessCount,
+        identifyFailCount,
+        detectedResponseCount,
+        confirmedCandidateCount,
+      }
+      console.log('[LiveUploadTiming]', timingSummary)
+      // Written here — at the end of processUploadedFile itself, before any
+      // navigation exists in this flow — so it's retrievable as soon as the
+      // scan finishes, without needing to tap End.
+      try {
+        window.sessionStorage.setItem('setlistr_live_upload_timing', JSON.stringify(timingSummary))
+      } catch { /* sessionStorage unavailable — console log above still stands */ }
+    }
+
     try {
       // 1. Decode the whole file to PCM via Web Audio.
+      const tFileReadStart = perfNow()
       const arrayBuffer = await file.arrayBuffer()
+      timings.fileRead = perfNow() - tFileReadStart
+
       const AudioCtx    = window.AudioContext || (window as any).webkitAudioContext
       const ctx         = new AudioCtx()
+      const tDecodeStart = perfNow()
       const audioBuffer = await ctx.decodeAudioData(arrayBuffer)
+      timings.audioDecode = perfNow() - tDecodeStart
       ctx.close()
 
       const duration    = audioBuffer.duration
       const totalChunks = Math.max(1, Math.floor((duration - UPLOAD_CHUNK_SECONDS) / UPLOAD_CHUNK_STEP_SECONDS) + 1)
+      totalChunksCaptured = totalChunks
 
       // 2. Feed each sample to the route, in order, for the current performance.
+      const tScanStart = perfNow()
       for (let i = 0; i < totalChunks; i++) {
         const startSec = i * UPLOAD_CHUNK_STEP_SECONDS
         setUploadLabel(`Scanning ${fmtClock(startSec)} / ${fmtClock(duration)}`)
@@ -430,10 +485,18 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         ))
 
         let data: any = null
+        const tIdentifyStart = perfNow()
         try {
           const res = await fetch('/api/identify', { method: 'POST', body: form })
           data = await res.json()
-        } catch { /* skip a failed chunk, keep going */ }
+          identifyDurations.push(perfNow() - tIdentifyStart)
+          identifySuccessCount++
+          if (data?.detected === true) detectedResponseCount++
+        } catch {
+          identifyDurations.push(perfNow() - tIdentifyStart)
+          identifyFailCount++
+          /* skip a failed chunk, keep going */
+        }
 
         // 3. If the route added the song, drop it into the setlist.
         if (data?.detected && data.confidence_level === 'auto') {
@@ -445,16 +508,19 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
               data.setlist_item_id,
               { isrc: data.isrc, composer: data.composer, publisher: data.publisher, inclusion_reason: data.inclusion_reason, threshold: data.threshold, score: data.score }
             )
+            confirmedCandidateCount++
           }
         }
 
         setUploadProgress((i + 1) / totalChunks)
       }
+      timings.chunkScan = perfNow() - tScanStart
       setUploadLabel('Done — review and end when ready')
     } catch (err) {
       console.error('[Upload] processing failed:', err)
       setUploadLabel('Could not read that audio file')
     } finally {
+      logLiveUploadTiming()
       setUploadProcessing(false)
       setTimeout(() => { setUploadLabel(''); setUploadProgress(0) }, 3000)
     }
@@ -584,6 +650,11 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
     // Save all songs — planned (unverified) included so artist can confirm on review
     const songsToSave = confirmedSongsRef.current.filter(s => !(s.source === 'unidentified' && s.title === 'Unknown Song'))
     if (songsToSave.length > 0) {
+      // ── DEV-ONLY TIMING INSTRUMENTATION — remove after the measurement run ──
+      // Kept separate from processUploadedFile's scan timing on purpose — this
+      // measures handleEnd's own final write, a different moment in the flow.
+      const perfNow = () => window.performance.now()
+      const tInsertStart = perfNow()
       await supabase.from('performance_songs').insert(songsToSave.map((song, i) => {
         const cleanedTitle = song.source === 'unidentified' ? (song.title === 'Unknown Song' ? null : song.title) : song.title
 
@@ -614,6 +685,14 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
           inclusion_reason, threshold, score, confusion_matrix_result,
         }
       }))
+      const endTimingSummary = {
+        finalInsert: `${((perfNow() - tInsertStart) / 1000).toFixed(2)}s`,
+        songCount: songsToSave.length,
+      }
+      console.log('[LiveEndTiming]', endTimingSummary)
+      try {
+        window.sessionStorage.setItem('setlistr_live_end_timing', JSON.stringify(endTimingSummary))
+      } catch { /* sessionStorage unavailable — console log above still stands */ }
     }
     router.push(`/app/review/${performance.id}`)
   }, [performance, songs, router, stopListening, showId, setlistId])
