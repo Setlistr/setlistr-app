@@ -107,7 +107,7 @@ export default function UploadShowPage() {
         : undefined
       const fastestIdentify = identifyDurations.length > 0 ? Math.min(...identifyDurations) : undefined
       const slowestIdentify = identifyDurations.length > 0 ? Math.max(...identifyDurations) : undefined
-      console.log('[UploadTiming]', {
+      const timingSummary = {
         storageUpload: fmt(timings.storageUpload),
         fileRead: fmt(timings.fileRead),
         audioDecode: fmt(timings.audioDecode),
@@ -122,7 +122,15 @@ export default function UploadShowPage() {
         identifyFailCount,
         detectedResponseCount,
         confirmedSongs: confirmedSongsCaptured,
-      })
+      }
+      console.log('[UploadTiming]', timingSummary)
+      // Console output gets lost across the /app/review navigation (devtools
+      // clears on nav unless "preserve log" is on) — sessionStorage survives
+      // the client-side transition so the same run's numbers can still be
+      // pulled from devtools afterward. Diagnostic only; nothing reads this key.
+      try {
+        window.sessionStorage.setItem('setlistr_upload_timing', JSON.stringify(timingSummary))
+      } catch { /* sessionStorage unavailable — console log above still stands */ }
     }
 
     try {
