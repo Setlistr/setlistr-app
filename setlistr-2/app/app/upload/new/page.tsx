@@ -29,9 +29,14 @@ mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
 //
 // Setlist photo/file assist reuses the existing /api/parse-setlist route
 // exactly as show/new already calls it — same FormData shape, same image
-// compression. The parsed song list is used only for a lightweight "N songs
-// referenced" confirmation; it is NOT merged into performance_songs or a
-// planned-setlist match in this pass (see PATCH route comment).
+// compression. Parsed song names are kept in local state (parsedSetlistSongs)
+// for a deliberately deferred future accuracy pass — never sent to
+// /api/upload-identify's previous_songs, never merged into performance_songs
+// or a planned-setlist match, never used as recognition input in this pass.
+//
+// Recent-venue suggestions read performances_visible — the same
+// delegate-safe view every other page (show/new, live/[id], review/[id])
+// already reads for exactly this purpose. No new API, no RLS change.
 
 const C = {
   bg: '#0a0908', card: '#141210',
@@ -50,6 +55,30 @@ const ALLOWED_SETLIST_MIME_TYPES = [
   'image/jpeg', 'image/jpg', 'image/png', 'image/webp',
   'image/heic', 'image/heif',
   'application/pdf', 'text/plain',
+]
+
+// Sensible live-performance defaults — 24h values match the existing
+// start_time column's expected format exactly.
+const START_TIME_OPTIONS = [
+  { label: '7:00 PM', value: '19:00' },
+  { label: '7:30 PM', value: '19:30' },
+  { label: '8:00 PM', value: '20:00' },
+  { label: '8:30 PM', value: '20:30' },
+]
+
+// Five labels for the artist's mental model, mapped onto only the two
+// shows.show_type values already proven safe elsewhere in this app
+// (show/new/page.tsx only ever writes 'single' or 'writers_round' — no
+// CHECK constraint could be verified from this environment, so anything
+// beyond those two known-good values would be a guess against an unverified
+// DB constraint). Selection state is tracked by label, not by value, since
+// four labels intentionally share the same underlying value.
+const SHOW_TYPE_OPTIONS: { label: string; value: 'single' | 'writers_round' }[] = [
+  { label: 'Headline', value: 'single' },
+  { label: 'Support', value: 'single' },
+  { label: 'Festival', value: 'single' },
+  { label: "Writer's Round", value: 'writers_round' },
+  { label: 'Other', value: 'single' },
 ]
 
 function fmtClock(sec: number): string {
@@ -120,6 +149,17 @@ type DetectedSong = {
   title: string; artist: string | null; isrc: string | null; composer: string | null
   publisher: string | null; source: string; inclusion_reason: string | null
   threshold: number | null; score: number | null
+}
+type ParsedSetlistSong = { title: string; artist?: string }
+
+function chipStyle(active: boolean): React.CSSProperties {
+  return {
+    padding: '9px 13px', borderRadius: 9, cursor: 'pointer', fontFamily: 'inherit',
+    fontSize: 12.5, fontWeight: 700, whiteSpace: 'nowrap',
+    background: active ? C.goldDim : 'rgba(255,255,255,0.02)',
+    border: `1px solid ${active ? C.borderGold : C.border}`,
+    color: active ? C.gold : C.secondary,
+  }
 }
 
 // ─── Trimmed venue map preview ─────────────────────────────────────────────
@@ -208,7 +248,6 @@ export default function UploadNewPerformancePage() {
   const [scanDone, setScanDone] = useState(false)
   const [scanProgress, setScanProgress] = useState(0) // 0..1
   const [scanError, setScanError] = useState('')
-  const [lastCaught, setLastCaught] = useState<string | null>(null)
   const [detectedSongs, setDetectedSongs] = useState<DetectedSong[]>([])
   const [recordingDuration, setRecordingDuration] = useState(0)
   const [totalChunks, setTotalChunks] = useState(0)
@@ -217,7 +256,10 @@ export default function UploadNewPerformancePage() {
   const [venueName, setVenueName] = useState('')
   const [showDate, setShowDate] = useState(new Date().toISOString().slice(0, 10))
   const [startTime, setStartTime] = useState('')
+  const [otherStartTimeActive, setOtherStartTimeActive] = useState(false)
   const [showType, setShowType] = useState<'single' | 'writers_round'>('single')
+  const [showTypeLabel, setShowTypeLabel] = useState<string | null>(null)
+  const [recentVenues, setRecentVenues] = useState<string[]>([])
 
   const [finalizing, setFinalizing] = useState(false)
   const [finalizeError, setFinalizeError] = useState('')
@@ -225,8 +267,9 @@ export default function UploadNewPerformancePage() {
   const [setlistUploading, setSetlistUploading] = useState(false)
   const [setlistError, setSetlistError] = useState('')
   const [setlistPhotoUrl, setSetlistPhotoUrl] = useState<string | null>(null)
-  const [setlistSongCount, setSetlistSongCount] = useState<number | null>(null)
-  const [setlistSkipped, setSetlistSkipped] = useState(false)
+  // Preserved for a deliberately deferred future accuracy pass — never sent
+  // to any recognition call in this pass (see file header comment).
+  const [parsedSetlistSongs, setParsedSetlistSongs] = useState<ParsedSetlistSong[]>([])
 
   const detectedSongsRef = useRef<DetectedSong[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -237,6 +280,42 @@ export default function UploadNewPerformancePage() {
   // can invoke goToReview twice before that happens. This ref is checked and
   // set in the same synchronous tick, before any await.
   const finalizingRef = useRef(false)
+
+  // ── Recent venues — reuses performances_visible exactly as show/new does
+  // for its own venue memory. Read-only, no new API, no RLS change. ────────
+  useEffect(() => {
+    let cancelled = false
+    async function loadRecentVenues() {
+      try {
+        const supabase = createClient()
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) return
+        const targetUserId = actingAsArtistId || user.id
+        const { data } = await supabase
+          .from('performances_visible')
+          .select('venue_name, started_at')
+          .eq('user_id', targetUserId)
+          .not('venue_name', 'is', null)
+          .order('started_at', { ascending: false })
+          .limit(20)
+        if (cancelled || !data) return
+        const seen = new Set<string>()
+        const names: string[] = []
+        for (const row of data) {
+          const name = (row.venue_name || '').trim()
+          if (!name || name === '.') continue
+          const key = name.toLowerCase()
+          if (seen.has(key)) continue
+          seen.add(key)
+          names.push(name)
+          if (names.length >= 3) break
+        }
+        setRecentVenues(names)
+      } catch { /* non-blocking */ }
+    }
+    loadRecentVenues()
+    return () => { cancelled = true }
+  }, [actingAsArtistId])
 
   const beginScan = useCallback(async (file: File, perfId: string) => {
     setScanning(true)
@@ -292,8 +371,6 @@ export default function UploadNewPerformancePage() {
             }
             detectedSongsRef.current = [...detectedSongsRef.current, song]
             setDetectedSongs(detectedSongsRef.current)
-            setLastCaught(data.title)
-            setTimeout(() => setLastCaught(null), 2400)
           }
         }
 
@@ -342,12 +419,9 @@ export default function UploadNewPerformancePage() {
   }
 
   // ── Optional setlist assist — reuses /api/parse-setlist exactly as
-  // show/new/page.tsx already does. The returned song list is used only for
-  // a "N songs referenced" confirmation here; it's intentionally not merged
-  // into performance_songs/planned-setlist matching in this pass — doing
-  // that correctly would mean porting confirmCandidate's upgrade-in-place
-  // logic (recognition-adjacent behavior), which is out of scope for a UX
-  // pass. Only the returned setlist photo URL is persisted, via the existing
+  // show/new/page.tsx already does. Parsed song names are preserved in
+  // parsedSetlistSongs for a future accuracy pass; not used for recognition
+  // here. Only the returned setlist photo URL is persisted, via the existing
   // performances.setlist_photo_url column. ──────────────────────────────────
   async function handleSetlistFile(file: File) {
     setSetlistError('')
@@ -368,7 +442,7 @@ export default function UploadNewPerformancePage() {
       const res = await fetch('/api/parse-setlist', { method: 'POST', body: formData })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Upload failed')
-      setSetlistSongCount(Array.isArray(data.songs) ? data.songs.length : 0)
+      setParsedSetlistSongs(Array.isArray(data.songs) ? data.songs : [])
       if (data.setlistPhotoUrl) setSetlistPhotoUrl(data.setlistPhotoUrl)
     } catch (err: any) {
       setSetlistError(err.message || "Couldn't read that one. Try a clearer photo.")
@@ -383,6 +457,7 @@ export default function UploadNewPerformancePage() {
 
   const detailsValid = venueName.trim().length > 0 && showDate.length > 0
   const readyForReview = scanDone && detailsValid && !finalizing
+  const startTimeIsCustom = otherStartTimeActive || (startTime !== '' && !START_TIME_OPTIONS.some(o => o.value === startTime))
 
   async function goToReview() {
     if (finalizingRef.current) return
@@ -424,14 +499,47 @@ export default function UploadNewPerformancePage() {
           <button onClick={() => router.back()} style={{ background: 'none', border: 'none', color: C.muted, cursor: 'pointer', fontSize: 20, padding: 0 }}>←</button>
           <div>
             <h1 style={{ fontSize: 24, fontWeight: 800, color: C.text, margin: 0, letterSpacing: '-0.02em' }}>Upload a Performance</h1>
-            <p style={{ fontSize: 13, color: C.muted, margin: 0 }}>Already played? Setlistr will build the setlist from your recording.</p>
+            <p style={{ fontSize: 13, color: C.muted, margin: 0 }}>Setlistr will confirm what actually happened from the recording.</p>
           </div>
         </div>
 
-        {/* ── Choose Recording ──────────────────────────────────────────── */}
+        {/* ── Have the setlist? — shown first, optional, no forced skip ──── */}
+        {!recordingFile && !setlistPhotoUrl && (
+          <div style={{ marginBottom: 16, padding: '18px 20px', borderRadius: 16, border: `1px dashed rgba(255,255,255,0.12)`, background: 'rgba(255,255,255,0.015)' }}>
+            <p style={{ fontSize: 14, fontWeight: 700, color: C.text, margin: '0 0 4px' }}>Have the setlist?</p>
+            <p style={{ fontSize: 12, color: C.muted, margin: '0 0 14px', lineHeight: 1.5 }}>Optional — helps Setlistr verify your performance more accurately.</p>
+            <input ref={cameraInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" capture="environment" style={{ display: 'none' }} onChange={handleSetlistInputChange} />
+            <input ref={setlistInputRef} type="file" accept="image/jpeg,image/png,image/webp,application/pdf,text/plain" style={{ display: 'none' }} onChange={handleSetlistInputChange} />
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={() => cameraInputRef.current?.click()} disabled={setlistUploading}
+                style={{ flex: 1, padding: '11px 8px', background: 'rgba(255,255,255,0.03)', border: `1px solid ${C.border}`, borderRadius: 10, cursor: setlistUploading ? 'default' : 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, opacity: setlistUploading ? 0.5 : 1 }}>
+                <Camera size={15} color={C.secondary} />
+                <span style={{ fontSize: 11, fontWeight: 700, color: C.secondary }}>Take Photo</span>
+              </button>
+              <button onClick={() => setlistInputRef.current?.click()} disabled={setlistUploading}
+                style={{ flex: 1, padding: '11px 8px', background: 'rgba(255,255,255,0.03)', border: `1px solid ${C.border}`, borderRadius: 10, cursor: setlistUploading ? 'default' : 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, opacity: setlistUploading ? 0.5 : 1 }}>
+                <Upload size={15} color={C.secondary} />
+                <span style={{ fontSize: 11, fontWeight: 700, color: C.secondary }}>Upload Setlist</span>
+              </button>
+            </div>
+            {setlistUploading && <p style={{ fontSize: 11, color: C.muted, margin: '10px 0 0', textAlign: 'center' }}>Reading setlist…</p>}
+            {setlistError && <p style={{ fontSize: 12, color: C.red, margin: '10px 0 0' }}>{setlistError}</p>}
+          </div>
+        )}
+        {setlistPhotoUrl && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, padding: '10px 14px', background: C.greenDim, border: '1px solid rgba(74,222,128,0.25)', borderRadius: 10 }}>
+            <Check size={13} color={C.green} />
+            <span style={{ fontSize: 12, color: C.text }}>
+              Setlist attached{parsedSetlistSongs.length ? ` — ${parsedSetlistSongs.length} song${parsedSetlistSongs.length === 1 ? '' : 's'} referenced` : ''}
+            </span>
+          </div>
+        )}
+
+        {/* ── Add your recording ──────────────────────────────────────────── */}
         {!recordingFile && (
           <div style={{ padding: '20px', marginBottom: 12, borderRadius: 16, border: `1px solid ${C.border}` }}>
-            <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: C.muted, margin: '0 0 14px' }}>Choose Recording</p>
+            <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: C.muted, margin: '0 0 4px' }}>Add Your Recording</p>
+            <p style={{ fontSize: 12, color: C.muted, margin: '0 0 14px' }}>We'll analyze what was actually played.</p>
             <input
               ref={fileInputRef}
               type="file"
@@ -442,7 +550,7 @@ export default function UploadNewPerformancePage() {
             <button
               onClick={() => fileInputRef.current?.click()}
               style={{ width: '100%', padding: '18px', background: 'rgba(255,255,255,0.02)', border: `2px dashed rgba(255,255,255,0.12)`, borderRadius: 12, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, color: C.secondary, fontSize: 14, fontWeight: 600 }}>
-              Choose audio or video file
+              Choose Recording
             </button>
           </div>
         )}
@@ -459,14 +567,19 @@ export default function UploadNewPerformancePage() {
             <div style={{ position: 'absolute', top: -70, left: '50%', transform: 'translateX(-50%)', width: 320, height: 220, background: 'radial-gradient(ellipse at center, rgba(201,168,76,0.15) 0%, transparent 70%)', pointerEvents: 'none' }} />
             <div style={{ position: 'relative' }}>
               <p style={{ fontSize: 12, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: C.gold, margin: '0 0 6px', textAlign: 'center' }}>
-                {creatingDraft ? 'Starting…' : scanning ? 'Building Your Setlist' : 'Setlist Built'}
+                {creatingDraft ? 'Starting…'
+                  : scanning ? 'Building Your Setlist'
+                  : detectedSongs.length > 0 ? `${detectedSongs.length} Song${detectedSongs.length === 1 ? '' : 's'} Found`
+                  : 'Scan Complete'}
               </p>
+              {scanDone && detectedSongs.length > 0 && (
+                <p style={{ fontSize: 11, color: C.muted, textAlign: 'center', margin: '0 0 4px' }}>Identified from your recording</p>
+              )}
               {(scanning || scanDone) && recordingDuration > 0 && (
                 <p style={{ fontSize: 11, color: C.muted, textAlign: 'center', margin: '0 0 20px', fontFamily: '"DM Mono", monospace' }}>
                   {fmtClock(recordingDuration)} recording
                   {totalChunks > 0 ? ` · ${chunksScanned}/${totalChunks} segments` : ''}
                   {scanning ? ` · ${Math.round(scanProgress * 100)}%` : ''}
-                  {detectedSongs.length > 0 ? ` · ${detectedSongs.length} song${detectedSongs.length === 1 ? '' : 's'} found` : ''}
                 </p>
               )}
 
@@ -516,6 +629,14 @@ export default function UploadNewPerformancePage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div>
                 <label style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.muted, display: 'block', marginBottom: 6 }}>Venue <span style={{ color: C.red }}>*</span></label>
+                {recentVenues.length > 0 && venueName.trim().length === 0 && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.muted }}>Recent</span>
+                    {recentVenues.map(name => (
+                      <button key={name} type="button" onClick={() => setVenueName(name)} style={chipStyle(false)}>{name}</button>
+                    ))}
+                  </div>
+                )}
                 <input type="text" value={venueName} onChange={e => setVenueName(e.target.value)} placeholder="Where did you play?"
                   spellCheck={false} autoCorrect="off" autoCapitalize="words"
                   style={{ width: '100%', boxSizing: 'border-box', background: C.input, border: `1px solid ${venueName.trim() ? C.borderGold : C.border}`, borderRadius: 10, padding: '13px 14px', color: C.text, fontSize: 15, fontFamily: 'inherit', outline: 'none' }} />
@@ -528,54 +649,30 @@ export default function UploadNewPerformancePage() {
               </div>
               <div>
                 <label style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.muted, display: 'block', marginBottom: 6 }}>Start Time <span style={{ color: C.muted, textTransform: 'none', fontWeight: 400 }}>(optional)</span></label>
-                <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)}
-                  style={{ width: '100%', boxSizing: 'border-box', background: C.input, border: `1px solid ${C.border}`, borderRadius: 10, padding: '13px 14px', color: C.text, fontSize: 15, fontFamily: 'inherit', outline: 'none', colorScheme: 'dark' }} />
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {START_TIME_OPTIONS.map(opt => (
+                    <button key={opt.value} type="button"
+                      onClick={() => { setStartTime(opt.value); setOtherStartTimeActive(false) }}
+                      style={chipStyle(startTime === opt.value && !otherStartTimeActive)}>{opt.label}</button>
+                  ))}
+                  <button type="button" onClick={() => setOtherStartTimeActive(true)} style={chipStyle(startTimeIsCustom)}>Other</button>
+                </div>
+                {startTimeIsCustom && (
+                  <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)}
+                    style={{ marginTop: 8, width: '100%', boxSizing: 'border-box', background: C.input, border: `1px solid ${C.borderGold}`, borderRadius: 10, padding: '13px 14px', color: C.text, fontSize: 15, fontFamily: 'inherit', outline: 'none', colorScheme: 'dark' }} />
+                )}
               </div>
               <div>
                 <label style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.muted, display: 'block', marginBottom: 6 }}>Show Type <span style={{ color: C.muted, textTransform: 'none', fontWeight: 400 }}>(optional)</span></label>
-                <button type="button" onClick={() => setShowType(t => t === 'single' ? 'writers_round' : 'single')}
-                  style={{ display: 'flex', alignItems: 'center', gap: 8, background: showType === 'writers_round' ? C.goldDim : 'transparent', border: `1px solid ${showType === 'writers_round' ? C.borderGold : C.border}`, borderRadius: 10, padding: '11px 14px', cursor: 'pointer', fontFamily: 'inherit', width: '100%' }}>
-                  <span style={{ fontSize: 14, color: showType === 'writers_round' ? C.gold : C.muted }}>{showType === 'writers_round' ? '✓' : '○'}</span>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: showType === 'writers_round' ? C.gold : C.secondary }}>Writer's Round</span>
-                </button>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {SHOW_TYPE_OPTIONS.map(opt => (
+                    <button key={opt.label} type="button"
+                      onClick={() => { setShowTypeLabel(opt.label); setShowType(opt.value) }}
+                      style={chipStyle(showTypeLabel === opt.label)}>{opt.label}</button>
+                  ))}
+                </div>
               </div>
             </div>
-          </div>
-        )}
-
-        {/* ── Optional setlist assist ─────────────────────────────────────── */}
-        {performanceId && !setlistPhotoUrl && !setlistSkipped && (
-          <div style={{ marginBottom: 20, padding: '18px 20px', borderRadius: 16, border: `1px dashed rgba(255,255,255,0.12)`, background: 'rgba(255,255,255,0.015)' }}>
-            <p style={{ fontSize: 14, fontWeight: 700, color: C.text, margin: '0 0 4px' }}>Have the setlist?</p>
-            <p style={{ fontSize: 12, color: C.muted, margin: '0 0 14px', lineHeight: 1.5 }}>Add a photo or file to help Setlistr identify the performance.</p>
-            <input ref={cameraInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" capture="environment" style={{ display: 'none' }} onChange={handleSetlistInputChange} />
-            <input ref={setlistInputRef} type="file" accept="image/jpeg,image/png,image/webp,application/pdf,text/plain" style={{ display: 'none' }} onChange={handleSetlistInputChange} />
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={() => cameraInputRef.current?.click()} disabled={setlistUploading}
-                style={{ flex: 1, padding: '11px 8px', background: 'rgba(255,255,255,0.03)', border: `1px solid ${C.border}`, borderRadius: 10, cursor: setlistUploading ? 'default' : 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, opacity: setlistUploading ? 0.5 : 1 }}>
-                <Camera size={15} color={C.secondary} />
-                <span style={{ fontSize: 11, fontWeight: 700, color: C.secondary }}>Take Photo</span>
-              </button>
-              <button onClick={() => setlistInputRef.current?.click()} disabled={setlistUploading}
-                style={{ flex: 1, padding: '11px 8px', background: 'rgba(255,255,255,0.03)', border: `1px solid ${C.border}`, borderRadius: 10, cursor: setlistUploading ? 'default' : 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, opacity: setlistUploading ? 0.5 : 1 }}>
-                <Upload size={15} color={C.secondary} />
-                <span style={{ fontSize: 11, fontWeight: 700, color: C.secondary }}>Upload Setlist</span>
-              </button>
-              <button onClick={() => setSetlistSkipped(true)} disabled={setlistUploading}
-                style={{ padding: '11px 14px', background: 'none', border: 'none', cursor: setlistUploading ? 'default' : 'pointer', fontFamily: 'inherit', color: C.muted, fontSize: 12, fontWeight: 600 }}>
-                Skip
-              </button>
-            </div>
-            {setlistUploading && <p style={{ fontSize: 11, color: C.muted, margin: '10px 0 0', textAlign: 'center' }}>Reading setlist…</p>}
-            {setlistError && <p style={{ fontSize: 12, color: C.red, margin: '10px 0 0' }}>{setlistError}</p>}
-          </div>
-        )}
-        {setlistPhotoUrl && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20, padding: '10px 14px', background: C.greenDim, border: '1px solid rgba(74,222,128,0.25)', borderRadius: 10 }}>
-            <Check size={13} color={C.green} />
-            <span style={{ fontSize: 12, color: C.text }}>
-              Setlist attached{setlistSongCount ? ` — ${setlistSongCount} song${setlistSongCount === 1 ? '' : 's'} referenced` : ''}
-            </span>
           </div>
         )}
 
