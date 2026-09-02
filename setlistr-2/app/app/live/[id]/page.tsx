@@ -438,6 +438,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
     setUploadProcessing(true)
     setUploadProgress(0)
     setUploadLabel('Reading file…')
+    const supabase = createClient()
     try {
       // 1. Decode the whole file to PCM via Web Audio.
       const arrayBuffer = await file.arrayBuffer()
@@ -462,11 +463,25 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
           confirmedSongsRef.current.filter(s => s.source !== 'planned').map(s => s.title)
         ))
 
+        // Fetch a fresh token per chunk rather than capturing one before the
+        // scan — getSession() reads the SDK's locally-cached (and
+        // auto-refreshed) session, so this is normally a local lookup, not a
+        // network round trip, and it can't go stale across a 10-20+ minute scan.
         let data: any = null
-        try {
-          const res = await fetch('/api/identify', { method: 'POST', body: form })
-          data = await res.json()
-        } catch { /* skip a failed chunk, keep going */ }
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session?.access_token) {
+          // Fail safely — never send an unauthenticated recognition request.
+          // Treat this exactly like a failed chunk and keep going.
+        } else {
+          try {
+            const res = await fetch('/api/upload-identify', {
+              method: 'POST',
+              headers: { Authorization: `Bearer ${session.access_token}` },
+              body: form,
+            })
+            data = await res.json()
+          } catch { /* skip a failed chunk, keep going */ }
+        }
 
         if (data?.quota_exceeded) {
           pauseDetectionForLimit()
