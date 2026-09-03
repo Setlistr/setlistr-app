@@ -27,6 +27,28 @@ import { normalizeSongKey, cleanTitle } from '@/lib/reconciliation/normalize'
 // forensic writes) is a deliberate duplicate of app/api/upload-identify/
 // route.ts, not a shared import — that route is left completely untouched
 // and still works as the known-good sequential comparison path.
+//
+// PROGRESSIVE RECONCILIATION: this endpoint is called once per contiguous
+// chunk-index prefix as it becomes available (see app/app/upload/new/
+// page.tsx's tryAdvanceReconciliation), not just once per whole scan.
+// Verified safe for that BEFORE implementing the client side: every lookup
+// here (getPlannedSetlistTitles, getArtistCatalogueTitles,
+// isInFallbackCatalogue, getDetectionStats) reads by performance_id alone,
+// with no notion of "which HTTP call" wrote a given row — so a later batch
+// correctly sees every detection_events row an earlier batch persisted,
+// exactly like today's per-chunk calls already do. writeToUserSongs is
+// additionally guarded by user_song_performances' unique constraint.
+//
+// What this endpoint is NOT: idempotent against literal re-submission of
+// the same chunk range. detection_events has no chunk_index column (adding
+// one would be a schema change, out of scope here), so nothing here can
+// detect "I already reconciled chunk 7" — that guarantee lives entirely in
+// the client only ever sending a chunk index once, after a prior batch
+// covering it has already returned success. A response lost after the
+// server-side write already committed (rare) would cause a naive retry to
+// double-process that range; the client mitigates this by only advancing
+// its "reconciled" cursor on a confirmed successful response, so an
+// unresolved batch is retried, but a resolved one never has been.
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'

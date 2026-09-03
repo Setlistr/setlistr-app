@@ -3,6 +3,7 @@ import { useState, useRef, useCallback, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useActingAs } from '@/components/ActingAsProvider'
+import { normalizeSongKey } from '@/lib/reconciliation/normalize'
 import { Camera, Upload, Check } from 'lucide-react'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
@@ -144,10 +145,13 @@ function buildUploadParallelTimingAggregate(input: {
   chunkCount: number
   concurrency: number
   recognitionSamples: Array<{ ok: boolean; ms: number }>
-  reconciliationWallMs: number
+  reconciliationWallMsTotal: number
+  reconciliationBatchCount: number
   resultsProcessed: number
   songsAdded: number
   totalWallMs: number
+  timeToFirstSongMs: number | null
+  timeToFirst3SongsMs: number | null
 }) {
   const okTimes = input.recognitionSamples.filter(s => s.ok).map(s => s.ms).sort((a, b) => a - b)
   const okSum = okTimes.reduce((a, b) => a + b, 0)
@@ -167,11 +171,18 @@ function buildUploadParallelTimingAggregate(input: {
       },
     },
     reconciliation: {
-      wallMs: input.reconciliationWallMs,
+      // Cumulative across every progressive batch, not one final call.
+      wallMsTotal: input.reconciliationWallMsTotal,
+      batchCount: input.reconciliationBatchCount,
       resultsProcessed: input.resultsProcessed,
       songsAdded: input.songsAdded,
     },
+    // The product metric this pass exists for: how long before the artist
+    // sees ANY evidence the scan is working, not just when it finishes.
+    timeToFirstSongMs: input.timeToFirstSongMs,
+    timeToFirst3SongsMs: input.timeToFirst3SongsMs,
     totalWallMs: input.totalWallMs,
+    songsFound: input.songsAdded,
   }
 }
 
@@ -303,10 +314,12 @@ export default function UploadNewPerformancePage() {
 
   const [scanning, setScanning] = useState(false)
   const [scanDone, setScanDone] = useState(false)
+  // True only once every chunk has been recognized AND every contiguous
+  // result has been reconciled with no unresolved failure — the gate for
+  // allowing Continue to Review. scanDone can be true while this is still
+  // false (e.g. stuck on a reconciliation failure awaiting retry).
+  const [allReconciled, setAllReconciled] = useState(false)
   const [scanProgress, setScanProgress] = useState(0) // 0..1
-  // Drives the processing sub-label only ('Analyzing your recording…' vs
-  // 'Confirming your setlist…') — never rendered as a chunk/segment count.
-  const [scanPhase, setScanPhase] = useState<'idle' | 'recognizing' | 'reconciling'>('idle')
   const [scanError, setScanError] = useState('')
   const [reconcileFailed, setReconcileFailed] = useState(false)
   const [detectedSongs, setDetectedSongs] = useState<DetectedSong[]>([])
@@ -342,21 +355,46 @@ export default function UploadNewPerformancePage() {
   // staleness hazard detectedSongsRef/confirmedSongsRef already solve
   // elsewhere in this codebase.
   const parsedSetlistSongsRef = useRef<ParsedSetlistSong[]>([])
-  // Preview/dev-only aggregate timing collection for the parallel-recognition
-  // / ordered-reconciliation architecture. Populated per recognition request
-  // in beginScan, summarized once at scan end via
-  // buildUploadParallelTimingAggregate. Gated on hostname rather than a
-  // server-supplied flag (see beginScan) since /api/upload-recognize and
-  // /api/upload-reconcile don't carry their own _debug_timings field — never
-  // rendered in the UI either way.
-  const parallelTimingRef = useRef<Array<{ ok: boolean; ms: number }>>([])
-  // Raw recognition results kept in memory so a failed /api/upload-reconcile
-  // call can be retried WITHOUT re-running ACR recognition (failure/retry
-  // requirement) — not persisted across reload/crash, in-memory only.
-  const lastRawResultsRef = useRef<any[]>([])
-  const recognitionWallMsRef = useRef(0)
-  const totalChunksRef = useRef(0)
-  const scanWallStartRef = useRef(0)
+  // Mirrors performanceId for the same staleness reason — tryAdvanceReconciliation
+  // and retryReconciliation are stable useCallbacks (empty deps) so they can
+  // be safely referenced from anywhere without re-creating them per render.
+  const performanceIdRef = useRef<string | null>(null)
+  useEffect(() => { performanceIdRef.current = performanceId }, [performanceId])
+
+  // ── Progressive ordered reconciliation state ──────────────────────────────
+  // Recognition (concurrency = 2) fills rawBufferRef out of order as chunks
+  // complete; tryAdvanceReconciliation reconciles the longest contiguous
+  // completed-but-not-yet-reconciled prefix as soon as it exists, so songs
+  // can surface well before the whole scan finishes. See tryAdvanceReconciliation
+  // below for the exact ordering guarantee — this block only holds the state
+  // it operates on.
+  const rawBufferRef          = useRef<any[]>([])       // sparse, indexed by chunk_index
+  const attemptedRef          = useRef<boolean[]>([])    // true once chunk_index i is known to be permanently settled (succeeded, failed, or skipped for quota) — lets a gap be told apart from "still in flight"
+  const lastReconciledIndexRef = useRef(-1)              // highest chunk_index successfully reconciled so far
+  const totalChunksRef        = useRef(0)
+  const reconcilingRef        = useRef(false)            // true while an /api/upload-reconcile call is actually in flight — structural guarantee, never two at once
+  const reconcileHaltedRef    = useRef(false)            // true after a batch fails; blocks new batches until retryReconciliation clears it
+  const quotaExceededRef      = useRef(false)            // true once ACR quota is hit; blocks new recognition scheduling only
+  const recognitionFinishedRef = useRef(false)           // true once every recognition worker has stopped (success, or quota-triggered early stop)
+  const timingEmittedRef      = useRef(false)            // guards against emitting [UploadParallelTiming] more than once per scan
+  // Serializes every call into tryAdvanceReconciliation into a single chain —
+  // recognizeChunk fires triggerAdvance() without awaiting it (so recognition
+  // never blocks on reconciliation), but beginScan/retryReconciliation await
+  // this ref directly to know when the whole chain has settled. Belt-and-
+  // suspenders alongside reconcilingRef, not a replacement for it.
+  const advanceChainRef       = useRef<Promise<void>>(Promise.resolve())
+
+  // Preview/dev-only aggregate timing collection. Gated on hostname rather
+  // than a server-supplied flag (see emitTimingAggregate) since /api/upload-
+  // recognize and /api/upload-reconcile don't carry their own _debug_timings
+  // field — never rendered in the UI either way.
+  const parallelTimingRef        = useRef<Array<{ ok: boolean; ms: number }>>([]) // one entry per recognition request
+  const reconciliationBatchTimesRef = useRef<number[]>([]) // one entry per progressive reconciliation batch
+  const firstSongAtRef           = useRef<number | null>(null)
+  const first3SongsAtRef         = useRef<number | null>(null)
+  const recognitionStartRef      = useRef(0)
+  const recognitionWallMsRef     = useRef(0)
+  const scanWallStartRef         = useRef(0)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const setlistInputRef = useRef<HTMLInputElement>(null)
@@ -404,102 +442,193 @@ export default function UploadNewPerformancePage() {
     return () => { cancelled = true }
   }, [actingAsArtistId])
 
-  // ── Phase 2: reconciliation, run standalone so a failed /api/upload-
-  // reconcile call can be retried without repeating ACR recognition. Reads
-  // the ordered raw results kept in lastRawResultsRef — never re-fetches or
-  // re-slices audio. ─────────────────────────────────────────────────────
-  const runReconciliation = useCallback(async (perfId: string): Promise<boolean> => {
-    const supabase = createClient()
-    const { data: { session } } = await supabase.auth.getSession()
-    const accessToken = session?.access_token || null
-    const rawResults = lastRawResultsRef.current
+  const emitTimingAggregate = useCallback(() => {
+    if (timingEmittedRef.current) return
+    timingEmittedRef.current = true
+    const isPreviewOrDev = typeof window !== 'undefined' && window.location.hostname !== 'setlistr.ai'
+    if (!isPreviewOrDev) return
+    const reconciliationWallMsTotal = reconciliationBatchTimesRef.current.reduce((a, b) => a + b, 0)
+    const resultsProcessed = rawBufferRef.current.filter(x => x !== undefined).length
+    const aggregate = buildUploadParallelTimingAggregate({
+      recognitionWallMs: recognitionWallMsRef.current,
+      chunkCount: totalChunksRef.current,
+      concurrency: UPLOAD_RECOGNITION_CONCURRENCY,
+      recognitionSamples: parallelTimingRef.current,
+      reconciliationWallMsTotal,
+      reconciliationBatchCount: reconciliationBatchTimesRef.current.length,
+      resultsProcessed,
+      songsAdded: detectedSongsRef.current.length,
+      totalWallMs: Date.now() - scanWallStartRef.current,
+      timeToFirstSongMs: firstSongAtRef.current,
+      timeToFirst3SongsMs: first3SongsAtRef.current,
+    })
+    console.log('[UploadParallelTiming]', aggregate)
+    try {
+      sessionStorage.setItem('setlistr_upload_parallel_timing', JSON.stringify(aggregate))
+    } catch { /* sessionStorage unavailable/full — non-critical */ }
+  }, [])
 
-    setScanPhase('reconciling')
-    setScanProgress(p => Math.max(p, 0.9))
-    setReconcileFailed(false)
+  // Only actually finalizes (stops the spinner state, unlocks Continue,
+  // emits timing) once recognition has fully stopped AND every contiguous
+  // result has been reconciled AND nothing is currently stuck on a failure.
+  // Safe to call any time — a no-op otherwise.
+  const finalizeIfDone = useCallback(() => {
+    const total = totalChunksRef.current
+    if (
+      recognitionFinishedRef.current &&
+      !reconcileHaltedRef.current &&
+      lastReconciledIndexRef.current >= total - 1
+    ) {
+      emitTimingAggregate()
+      setScanning(false)
+      setScanDone(true)
+      setAllReconciled(true)
+      setScanProgress(1)
+    }
+  }, [emitTimingAggregate])
 
-    const reconcileStart = Date.now()
-    let addedSongs: DetectedSong[] = []
+  // ── Progressive, strictly-ordered reconciliation ──────────────────────────
+  // Finds the longest contiguous chunk_index prefix (starting right after
+  // lastReconciledIndexRef) that's ready — either a real raw result arrived,
+  // or that index is a KNOWN-permanent gap (attemptedRef[i] true with no raw
+  // result: the chunk failed, or was never scheduled because quota stopped
+  // recognition). An index that's simply still in flight is neither, so the
+  // scan stops there and waits — chunk N+1 is never reconciled before chunk
+  // N when N's outcome is still unknown. Never runs concurrently with itself
+  // (reconcilingRef), and every call is serialized through the same promise
+  // chain (see triggerAdvance) so there is never more than one
+  // /api/upload-reconcile request in flight for this scan at a time.
+  const tryAdvanceReconciliation = useCallback(async (): Promise<void> => {
+    if (reconcilingRef.current || reconcileHaltedRef.current) return
+    const total = totalChunksRef.current
+    const start = lastReconciledIndexRef.current + 1
+    if (start >= total) return
+
+    let end = start - 1
+    for (let i = start; i < total; i++) {
+      if (rawBufferRef.current[i] !== undefined) { end = i; continue }
+      if (attemptedRef.current[i]) { continue } // permanent gap — skip, keep scanning
+      break // genuinely still pending — stop here, do not reconcile past it
+    }
+    if (end < start) return // nothing new yet
+
+    reconcilingRef.current = true
+    const perfId = performanceIdRef.current
+    const batch: any[] = []
+    for (let i = start; i <= end; i++) {
+      if (rawBufferRef.current[i] !== undefined) batch.push(rawBufferRef.current[i])
+    }
+
+    const batchStart = Date.now()
     let ok = false
-
-    if (accessToken && rawResults.length > 0) {
-      try {
-        const res = await fetch('/api/upload-reconcile', {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            performance_id: perfId,
-            // Sent ONCE here, not per chunk — recognition never sees it.
-            uploaded_setlist: parsedSetlistSongsRef.current.length > 0
-              ? parsedSetlistSongsRef.current.map(s => ({ title: s.title, artist: s.artist || '' }))
-              : undefined,
-            results: rawResults,
-          }),
-        })
-        const data = await res.json()
-        if (res.ok && Array.isArray(data.songs)) {
-          addedSongs = data.songs
-          ok = true
+    try {
+      if (batch.length === 0) {
+        // The whole available range was permanent gaps — nothing to send,
+        // trivially "successful".
+        ok = true
+      } else if (perfId) {
+        const supabase = createClient()
+        const { data: { session } } = await supabase.auth.getSession()
+        const accessToken = session?.access_token || null
+        if (accessToken) {
+          const res = await fetch('/api/upload-reconcile', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              performance_id: perfId,
+              // Sent with every batch — cheap (small JSON, no audio) and
+              // keeps each batch self-contained; recognition itself never
+              // sees this field either way.
+              uploaded_setlist: parsedSetlistSongsRef.current.length > 0
+                ? parsedSetlistSongsRef.current.map(s => ({ title: s.title, artist: s.artist || '' }))
+                : undefined,
+              results: batch,
+            }),
+          })
+          const data = await res.json()
+          if (res.ok && Array.isArray(data.songs)) {
+            ok = true
+            if (data.songs.length > 0) {
+              // Merge (never replace), dedupe defensively against the same
+              // normalized title appearing twice, preserve arrival order —
+              // batches are always processed in increasing chunk_index
+              // order, so a simple append is already chronologically correct.
+              const existingKeys = new Set(detectedSongsRef.current.map(s => normalizeSongKey(s.title)))
+              const fresh = (data.songs as DetectedSong[]).filter(s => {
+                const key = normalizeSongKey(s.title)
+                if (!key || existingKeys.has(key)) return false
+                existingKeys.add(key)
+                return true
+              })
+              if (fresh.length > 0) {
+                detectedSongsRef.current = [...detectedSongsRef.current, ...fresh]
+                setDetectedSongs(detectedSongsRef.current)
+                const elapsed = Date.now() - scanWallStartRef.current
+                if (firstSongAtRef.current === null) firstSongAtRef.current = elapsed
+                if (first3SongsAtRef.current === null && detectedSongsRef.current.length >= 3) {
+                  first3SongsAtRef.current = elapsed
+                }
+              }
+            }
+          } else {
+            setScanError(data.error || 'Could not confirm your setlist. You can try again.')
+          }
         } else {
-          setScanError(data.error || 'Could not confirm your setlist. You can try again.')
+          setScanError('Could not confirm your setlist. You can try again.')
         }
-      } catch {
-        setScanError('Could not confirm your setlist. You can try again.')
       }
-    } else if (rawResults.length === 0) {
-      // Nothing was recognized at all (e.g. every chunk failed) — not a
-      // reconciliation failure, just zero songs. Matches the existing
-      // "No songs identified yet" empty state.
-      ok = true
-    } else {
+    } catch {
       setScanError('Could not confirm your setlist. You can try again.')
     }
 
-    const reconciliationWallMs = Date.now() - reconcileStart
+    reconciliationBatchTimesRef.current.push(Date.now() - batchStart)
+    reconcilingRef.current = false
 
     if (ok) {
-      detectedSongsRef.current = addedSongs
-      setDetectedSongs(addedSongs)
-      setScanProgress(1)
+      lastReconciledIndexRef.current = end
       setReconcileFailed(false)
+      // More may already be available (recognition kept running while this
+      // batch was in flight, or a gap-skip just unlocked a further stretch)
+      // — check again immediately rather than waiting for the next
+      // recognizeChunk completion to notice.
+      await tryAdvanceReconciliation()
     } else {
+      reconcileHaltedRef.current = true
       setReconcileFailed(true)
     }
-
-    // ── Preview/dev-only aggregate timing ──────────────────────────────────
-    // Gated on hostname (see parallelTimingRef declaration above) rather
-    // than a server _debug_timings flag — /api/upload-recognize and
-    // /api/upload-reconcile don't carry that field. Never rendered in the UI.
-    const isPreviewOrDev = typeof window !== 'undefined' && window.location.hostname !== 'setlistr.ai'
-    if (isPreviewOrDev) {
-      const aggregate = buildUploadParallelTimingAggregate({
-        recognitionWallMs: recognitionWallMsRef.current,
-        chunkCount: totalChunksRef.current,
-        concurrency: UPLOAD_RECOGNITION_CONCURRENCY,
-        recognitionSamples: parallelTimingRef.current,
-        reconciliationWallMs,
-        resultsProcessed: rawResults.length,
-        songsAdded: addedSongs.length,
-        totalWallMs: Date.now() - scanWallStartRef.current,
-      })
-      console.log('[UploadParallelTiming]', aggregate)
-      try {
-        sessionStorage.setItem('setlistr_upload_parallel_timing', JSON.stringify(aggregate))
-      } catch { /* sessionStorage unavailable/full — non-critical */ }
-    }
-
-    return ok
   }, [])
+
+  const triggerAdvance = useCallback((): Promise<void> => {
+    advanceChainRef.current = advanceChainRef.current.then(() => tryAdvanceReconciliation()).catch(() => {})
+    return advanceChainRef.current
+  }, [tryAdvanceReconciliation])
 
   const beginScan = useCallback(async (file: File, perfId: string) => {
     setScanning(true)
-    setScanPhase('recognizing')
+    setScanDone(false)
+    setAllReconciled(false)
     setScanProgress(0)
     setReconcileFailed(false)
-    const supabase = createClient()
+    setScanError('')
+
+    rawBufferRef.current = []
+    attemptedRef.current = []
+    lastReconciledIndexRef.current = -1
+    reconcilingRef.current = false
+    reconcileHaltedRef.current = false
+    quotaExceededRef.current = false
+    recognitionFinishedRef.current = false
+    timingEmittedRef.current = false
+    advanceChainRef.current = Promise.resolve()
     parallelTimingRef.current = []
-    lastRawResultsRef.current = []
+    reconciliationBatchTimesRef.current = []
+    firstSongAtRef.current = null
+    first3SongsAtRef.current = null
+    detectedSongsRef.current = []
+    setDetectedSongs([])
     scanWallStartRef.current = Date.now()
+
+    const supabase = createClient()
     try {
       const arrayBuffer = await file.arrayBuffer()
       const AudioCtx    = window.AudioContext || (window as any).webkitAudioContext
@@ -511,18 +640,14 @@ export default function UploadNewPerformancePage() {
       setRecordingDuration(duration)
       const total = Math.max(1, Math.floor((duration - UPLOAD_CHUNK_SECONDS) / UPLOAD_CHUNK_STEP_SECONDS) + 1)
       totalChunksRef.current = total
+      recognitionStartRef.current = Date.now()
 
-      // ── Phase 1: bounded-concurrency parallel raw recognition ────────────
-      // Recognition responses NEVER touch detectedSongs/detectedSongsRef —
-      // only reconciliation (below) is allowed to add a song to the visible
-      // setlist. rawResults is index-tagged, not order-dependent; a failed
-      // chunk simply never contributes an entry (a gap), indices are never
-      // renumbered/shifted.
-      const rawResults: any[] = []
-      let completedCount = 0
-      let quotaExceeded = false
-      const recognitionStart = Date.now()
-
+      // ── Bounded-concurrency parallel raw recognition ──────────────────────
+      // Recognition responses NEVER touch detectedSongs/detectedSongsRef
+      // directly — only tryAdvanceReconciliation (via a real server
+      // decision) is allowed to add a song to the visible setlist. A failed
+      // chunk simply never contributes a rawBufferRef entry (a permanent
+      // gap once attemptedRef[i] is set), indices are never renumbered.
       const recognizeChunk = async (i: number) => {
         const startSec = i * UPLOAD_CHUNK_STEP_SECONDS
         const wav = sliceToMonoWav(audioBuffer, startSec, UPLOAD_CHUNK_SECONDS)
@@ -548,28 +673,37 @@ export default function UploadNewPerformancePage() {
             const data = await res.json()
             ok = true
             if (data?.quota_exceeded) {
-              quotaExceeded = true
+              quotaExceededRef.current = true
               setScanError(data.message || 'Song detection limit reached for today.')
             } else if (data && !data.error) {
-              rawResults.push(data)
+              rawBufferRef.current[i] = data
             }
-          } catch { /* chunk failed — recorded as a gap, keep going */ }
+          } catch { /* chunk failed — recorded as a permanent gap below, keep going */ }
         }
+        attemptedRef.current[i] = true
         parallelTimingRef.current.push({ ok, ms: Date.now() - reqStart })
-        completedCount++
-        setScanProgress(Math.min(0.85, (completedCount / total) * 0.85))
+
+        const recognizedCount = attemptedRef.current.filter(Boolean).length
+        setScanProgress(p => Math.max(p, Math.min(0.95, recognizedCount / total)))
+
+        // Fire-and-forget on purpose — recognition never waits on
+        // reconciliation. triggerAdvance's own chain (and reconcilingRef
+        // inside tryAdvanceReconciliation) guarantee this never runs two
+        // reconciliation batches concurrently regardless of how many
+        // recognizeChunk calls trigger it back-to-back.
+        triggerAdvance()
       }
 
       // Bounded-concurrency worker pool — a fixed number of workers each
       // pull the next index off a shared cursor until none remain, or until
-      // quota is hit. This is the smallest correct implementation of
-      // "N in flight at a time" without adding a new dependency. Once quota
-      // is hit, no NEW work is scheduled, but any recognizeChunk() already
-      // in flight is allowed to finish (not aborted).
+      // quota is hit. Smallest correct implementation of "N in flight at a
+      // time" without a new dependency. Once quota is hit, no NEW work is
+      // scheduled, but any recognizeChunk() already in flight is allowed to
+      // finish (not aborted) — matches the prior turn's chosen behavior.
       let cursor = 0
       const worker = async () => {
         while (true) {
-          if (quotaExceeded) return
+          if (quotaExceededRef.current) return
           const i = cursor
           if (i >= total) return
           cursor++
@@ -579,30 +713,53 @@ export default function UploadNewPerformancePage() {
       const workerCount = Math.min(UPLOAD_RECOGNITION_CONCURRENCY, total)
       await Promise.all(Array.from({ length: workerCount }, () => worker()))
 
-      recognitionWallMsRef.current = Date.now() - recognitionStart
+      recognitionWallMsRef.current = Date.now() - recognitionStartRef.current
+      recognitionFinishedRef.current = true
 
-      // ── Phase 2: one ordered, sequential reconciliation call ─────────────
-      rawResults.sort((a, b) => a.chunk_index - b.chunk_index)
-      lastRawResultsRef.current = rawResults
-      await runReconciliation(perfId)
+      // If quota stopped us early, every index from here on was never even
+      // attempted — proactively close them out as permanent gaps now (we
+      // already know for certain none of them will ever arrive) rather than
+      // leaving tryAdvanceReconciliation waiting on them forever.
+      for (let i = cursor; i < total; i++) {
+        if (!attemptedRef.current[i]) attemptedRef.current[i] = true
+      }
+
+      // Final flush of whatever's left, then either finalize or — if the
+      // last batch failed — leave scanning/scanDone in the "stuck, retry"
+      // state the UI's reconcileFailed banner covers.
+      await triggerAdvance()
+      if (reconcileHaltedRef.current) {
+        setScanning(false)
+        setScanDone(true)
+      } else {
+        finalizeIfDone()
+      }
     } catch (err) {
       console.error('[UploadNew] scan failed:', err)
       setScanError('Could not read that audio file.')
-    } finally {
       setScanning(false)
       setScanDone(true)
     }
-  }, [runReconciliation])
+  }, [triggerAdvance, finalizeIfDone])
 
-  // Manual retry after a failed /api/upload-reconcile call — reuses the raw
-  // recognition results already sitting in lastRawResultsRef, never re-runs
-  // the audio scan. No persistent crash/reload recovery in this pass; this
-  // only covers "reconciliation failed while the tab is still open."
-  const retryReconciliation = useCallback(() => {
-    if (!performanceId) return
+  // Manual retry after a failed progressive /api/upload-reconcile batch —
+  // resumes from the first unreconciled chunk using raw results already
+  // sitting in rawBufferRef, never re-runs ACR recognition. Previously
+  // reconciled/confirmed songs are untouched (lastReconciledIndexRef and
+  // detectedSongsRef are never rolled back on failure). No persistent
+  // crash/reload recovery in this pass — in-memory only.
+  const retryReconciliation = useCallback(async () => {
+    if (!performanceIdRef.current) return
+    reconcileHaltedRef.current = false
     setScanError('')
-    runReconciliation(performanceId)
-  }, [performanceId, runReconciliation])
+    setReconcileFailed(false)
+    await triggerAdvance()
+    if (reconcileHaltedRef.current) {
+      // Failed again — stay in the same stuck-awaiting-retry state.
+      return
+    }
+    finalizeIfDone()
+  }, [triggerAdvance, finalizeIfDone])
 
   const handleFileSelected = useCallback(async (file: File) => {
     setRecordingFile(file)
@@ -674,12 +831,15 @@ export default function UploadNewPerformancePage() {
   }
 
   const detailsValid = venueName.trim().length > 0 && showDate.length > 0
-  const readyForReview = scanDone && detailsValid && !finalizing
+  // Gated on allReconciled, not just scanDone — scanDone can be true while
+  // the scan is stuck awaiting a reconciliation retry (unreconciled raw
+  // results still exist in that case), and review must never start then.
+  const readyForReview = allReconciled && detailsValid && !finalizing
   const startTimeIsCustom = otherStartTimeActive || (startTime !== '' && !START_TIME_OPTIONS.some(o => o.value === startTime))
 
   async function goToReview() {
     if (finalizingRef.current) return
-    if (!performanceId || !detailsValid) return
+    if (!performanceId || !detailsValid || !allReconciled) return
     finalizingRef.current = true
     setFinalizing(true)
     setFinalizeError('')
@@ -791,11 +951,23 @@ export default function UploadNewPerformancePage() {
                   : 'Scan Complete'}
               </p>
               {/* No chunk/segment counts anywhere in this card — only a
-                  plain-language phase description and a percentage. */}
+                  plain-language description, a live song count, and a
+                  percentage. Recognition and reconciliation now overlap
+                  continuously rather than running as two discrete phases,
+                  so there's a single constant label rather than one that
+                  switches mid-scan — songs from progressive reconciliation
+                  are what make this feel alive instead of stalled. */}
               {scanning && (
-                <p style={{ fontSize: 12, color: C.secondary, fontWeight: 600, textAlign: 'center', margin: '0 0 4px' }}>
-                  {scanPhase === 'reconciling' ? 'Confirming your setlist…' : 'Analyzing your recording…'}
-                </p>
+                <>
+                  <p style={{ fontSize: 12, color: C.secondary, fontWeight: 600, textAlign: 'center', margin: '0 0 4px' }}>
+                    Analyzing your recording…
+                  </p>
+                  {detectedSongs.length > 0 && (
+                    <p style={{ fontSize: 12, color: C.gold, fontWeight: 700, textAlign: 'center', margin: '0 0 14px' }}>
+                      {detectedSongs.length} song{detectedSongs.length === 1 ? '' : 's'} found
+                    </p>
+                  )}
+                </>
               )}
               {scanDone && detectedSongs.length > 0 && (
                 <p style={{ fontSize: 11, color: C.muted, textAlign: 'center', margin: '0 0 4px' }}>Identified from your recording</p>
@@ -835,9 +1007,7 @@ export default function UploadNewPerformancePage() {
               {scanning && (
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}>
                   <div style={{ width: 6, height: 6, borderRadius: '50%', background: C.gold, animation: 'pulse-dot 1.4s ease-in-out infinite' }} />
-                  <span style={{ fontSize: 12, color: C.muted, fontStyle: 'italic' }}>
-                    {scanPhase === 'reconciling' ? 'Just a moment…' : 'Listening for songs…'}
-                  </span>
+                  <span style={{ fontSize: 12, color: C.muted, fontStyle: 'italic' }}>Listening for songs…</span>
                 </div>
               )}
 
@@ -921,7 +1091,7 @@ export default function UploadNewPerformancePage() {
           </div>
         )}
 
-        {performanceId && !scanDone && detailsValid && (
+        {performanceId && !allReconciled && detailsValid && (
           <p style={{ fontSize: 12, color: C.muted, margin: '0 0 12px', textAlign: 'center' }}>Show details saved — Setlistr is still listening…</p>
         )}
 
@@ -932,7 +1102,7 @@ export default function UploadNewPerformancePage() {
             style={{ width: '100%', padding: '17px', background: readyForReview ? C.gold : C.muted, border: 'none', borderRadius: 14, color: '#0a0908', fontSize: 15, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: readyForReview ? 'pointer' : 'not-allowed', opacity: finalizing ? 0.7 : 1, fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
             {finalizing
               ? <><div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid #0a090840', borderTopColor: '#0a0908', animation: 'spin 0.7s linear infinite' }} />Saving…</>
-              : !scanDone ? 'Waiting for analysis…'
+              : !allReconciled ? 'Waiting for analysis…'
               : !detailsValid ? 'Complete show details'
               : 'Continue to Review →'}
           </button>
