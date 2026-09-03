@@ -47,8 +47,49 @@ const MULTIPLE_DETECTIONS_THRESHOLD = 2
 // stay distinguishable in logs/observability, per instruction.
 const UPLOADED_SETLIST_THRESHOLD = 1
 
+// ─── Speed pass: latency bound, NOT a recognition threshold ──────────────────
+// Caps how long enrichFromMusicBrainz's up-to-3 sequential external calls may
+// block the response. Never changes which song is added or its score/reason —
+// only whether composer/publisher are present on this response.
+const MUSICBRAINZ_TIMEOUT_MS = 2500
+
 type DetectionSource = 'fingerprint' | 'humming'
 interface EnrichedSongData { isrc: string; composer: string; publisher: string }
+
+// ─── Speed pass: upload-only timing instrumentation ───────────────────────────
+// Purely additive observability — never reorders, defers, or alters any
+// recognition-affecting call. Each blocking stage of one chunk request is
+// timed into `stages` and surfaced via a Server-Timing response header, a
+// structured server log line, and (non-production only) a `_debug_timings`
+// field on the JSON body. No stage's presence/absence changes ACR handling,
+// thresholds, or detection_events semantics.
+async function timed<T>(stages: Record<string, number>, label: string, fn: () => Promise<T>): Promise<T> {
+  const t0 = Date.now()
+  const result = await fn()
+  stages[label] = Date.now() - t0
+  return result
+}
+
+function timingHeader(stages: Record<string, number>): string {
+  return Object.entries(stages)
+    .map(([name, dur]) => `${name.replace(/[^a-zA-Z0-9_]/g, '_')};dur=${dur}`)
+    .join(', ')
+}
+
+function respondWithTiming(
+  body: Record<string, any>,
+  stages: Record<string, number>,
+  startTime: number,
+  init?: { status?: number }
+) {
+  stages.total = Date.now() - startTime
+  console.log('[UploadIdentifyTiming]', JSON.stringify(stages))
+  const includeDebug = process.env.VERCEL_ENV !== 'production'
+  const payload = includeDebug ? { ...body, _debug_timings: stages } : body
+  const res = NextResponse.json(payload, init)
+  res.headers.set('Server-Timing', timingHeader(stages))
+  return res
+}
 
 // ─── Planned setlist lookup (verbatim from api/identify/route.ts) ────────────
 async function getPlannedSetlistTitles(performanceId: string | null): Promise<Set<string>> {
@@ -248,6 +289,9 @@ export async function POST(req: NextRequest) {
   let performanceId: string | null = null
 
   try {
+    const stages: Record<string, number> = {}
+    const parseStart = Date.now()
+
     // ── Parse the upload-only contract: audio, performance_id, previous_songs ──
     // No show_id/setlist_id/artist_id/artist_name/venue_name/show_type — the
     // upload caller never sends these, and this route doesn't accept them.
@@ -288,6 +332,7 @@ export async function POST(req: NextRequest) {
 
     const audioBuffer = Buffer.from(await audio.arrayBuffer())
     audioBytes        = audioBuffer.length
+    stages.parse_request = Date.now() - parseStart
 
     // ── Authenticate ────────────────────────────────────────────────────────
     // Unlike api/identify, this header is REQUIRED, not an optional fallback.
@@ -298,7 +343,9 @@ export async function POST(req: NextRequest) {
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     )
+    const authStart = Date.now()
     const { data: { user }, error: userError } = await anonClient.auth.getUser(authHeader.replace('Bearer ', ''))
+    stages.auth = Date.now() - authStart
     if (userError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     const callerId = user.id
 
@@ -306,6 +353,7 @@ export async function POST(req: NextRequest) {
     // delegation from its owner. Nonexistent and unauthorized performances are
     // treated identically (403) so a caller can't distinguish "doesn't exist"
     // from "not yours" by probing ids.
+    const authorizeStart = Date.now()
     const { data: perfRow } = await supabase
       .from('performances')
       .select('user_id')
@@ -326,6 +374,7 @@ export async function POST(req: NextRequest) {
         .maybeSingle()
       authorized = !!delegation
     }
+    stages.authorize = Date.now() - authorizeStart
     if (!authorized) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
     // Recognition/catalogue identity is always the performance OWNER, never
@@ -338,31 +387,20 @@ export async function POST(req: NextRequest) {
     // runs — unlike api/identify, where it's skipped for any unattributable
     // caller. That's an intentional side effect of requiring auth, not a
     // deliberate quota-behavior change.
+    const quotaStart = Date.now()
     try {
       const { data: quota, error: quotaError } = await supabase
         .rpc('increment_acr_usage', { p_user_id: userId, p_limit: ACR_DAILY_CALL_LIMIT })
         .single<{ allowed: boolean; calls_today: number; calls_lifetime: number }>()
+      stages.quota = Date.now() - quotaStart
       if (!quotaError && quota && quota.allowed === false) {
-        return NextResponse.json({
+        return respondWithTiming({
           detected: false,
           quota_exceeded: true,
           message: ACR_LIMIT_MESSAGE,
-        })
+        }, stages, startTime)
       }
-    } catch { /* non-blocking — fail open */ }
-
-    // ── Pre-flight forensic rows (one capture + one job per chunk) ───────────
-    const { data: capture } = await supabase.from('audio_captures').insert({
-      show_id: null, artist_id: null, captured_by: null,
-      duration_seconds: 14, file_size_bytes: audioBytes,
-      mime_type: 'audio/webm', captured_at: new Date().toISOString(),
-    }).select().single()
-
-    const { data: job } = await supabase.from('recognition_jobs').insert({
-      audio_capture_id: capture?.id || null, vendor: 'acrcloud', status: 'processing',
-      submitted_at: new Date().toISOString(),
-      raw_request: { host: HOST, audio_bytes: audioBytes, performance_id: performanceId },
-    }).select().single()
+    } catch { stages.quota = Date.now() - quotaStart /* non-blocking — fail open */ }
 
     // ── Call ACRCloud (verbatim from api/identify/route.ts) ──────────────────
     const timestamp    = Math.floor(Date.now() / 1000).toString()
@@ -378,13 +416,44 @@ export async function POST(req: NextRequest) {
     acrForm.append('data_type', 'audio')
     acrForm.append('signature_version', '1')
 
-    const acrRes  = await fetch(`https://${HOST}/v1/identify`, { method: 'POST', body: acrForm })
-    const payload = await acrRes.json()
+    // ── Speed pass: pre-flight forensic rows (capture + job) now run
+    // CONCURRENTLY with the ACR call instead of blocking it. Neither the ACR
+    // request nor the inclusion decision below ever reads capture/job ids —
+    // this chain is still fully awaited (not fire-and-forget) purely so
+    // `job` is available for recognition_results/recognition_jobs below;
+    // only its position relative to the ACR call changed. ───────────────────
+    const [job, payload] = await Promise.all([
+      timed(stages, 'forensic_pre', async () => {
+        const { data: capture } = await supabase.from('audio_captures').insert({
+          show_id: null, artist_id: null, captured_by: null,
+          duration_seconds: 14, file_size_bytes: audioBytes,
+          mime_type: 'audio/webm', captured_at: new Date().toISOString(),
+        }).select().single()
+        const { data: job } = await supabase.from('recognition_jobs').insert({
+          audio_capture_id: capture?.id || null, vendor: 'acrcloud', status: 'processing',
+          submitted_at: new Date().toISOString(),
+          raw_request: { host: HOST, audio_bytes: audioBytes, performance_id: performanceId },
+        }).select().single()
+        return job
+      }),
+      timed(stages, 'acr_call', () =>
+        fetch(`https://${HOST}/v1/identify`, { method: 'POST', body: acrForm }).then(r => r.json())
+      ),
+    ])
     const durationSeconds = Math.round((Date.now() - startTime) / 1000)
 
+    // Reliability pass: restored to awaited. This route runs on the Vercel
+    // Node.js serverless runtime (runtime = 'nodejs') with no waitUntil/
+    // after() mechanism enabled anywhere in this project (no `experimental`
+    // block in next.config.js, no existing usage in the repo) — an
+    // unawaited promise here is not guaranteed to finish before the
+    // function invocation is frozen after the response is sent. Data
+    // integrity over a speculative latency win.
+    const jobUpdateStart = Date.now()
     if (job) await supabase.from('recognition_jobs').update({
       status: 'completed', completed_at: new Date().toISOString(), raw_response: payload,
     }).eq('id', job.id)
+    stages.job_update = Date.now() - jobUpdateStart
 
     // ── Read the ACR match + score (humming scores are scaled ×100) ──────────
     const humming     = payload?.metadata?.humming?.[0]
@@ -401,6 +470,7 @@ export async function POST(req: NextRequest) {
 
     // ── No ACR match → log a failed detection event and bail ─────────────────
     if (!acrDetected) {
+      const eventStart = Date.now()
       await logDetectionEvent({
         performance_id: performanceId,
         acr_score: 0, acr_state: 'failed',
@@ -410,8 +480,9 @@ export async function POST(req: NextRequest) {
         audio_duration_seconds: durationSeconds,
         detected_at: now.toISOString(),
       })
+      stages.detection_event_write = Date.now() - eventStart
       console.log(`${clock} — — — 0 — IGNORE — no_detection (upload)`)
-      return NextResponse.json({ detected: false })
+      return respondWithTiming({ detected: false }, stages, startTime)
     }
 
     // ── Clean the ACR title (strip "(Live)", "(Remix)", etc.) ────────────────
@@ -421,23 +492,28 @@ export async function POST(req: NextRequest) {
     const isrc             = acrMatch.external_ids?.isrc || ''
     const normalizedTitle = normalizeSongKey(title)
 
+    // Reliability pass: restored to awaited — see note above on why plain
+    // fire-and-forget is not safe on this runtime/config.
+    const resultsStart = Date.now()
     await supabase.from('recognition_results').insert({
       job_id: job?.id || null, rank: 1, title, artist_name: artist,
       score, raw_data: acrMatch,
     })
+    stages.recognition_results_insert = Date.now() - resultsStart
 
     // ── Gather everything the inclusion cascade needs (in parallel) ──────────
     const [plannedTitles, artistCatalogueTitles, inFallback, stats] = await Promise.all([
-      getPlannedSetlistTitles(performanceId),
-      getArtistCatalogueTitles(userId),
-      isInFallbackCatalogue(normalizedTitle, artist),
-      getDetectionStats(performanceId, normalizedTitle),
+      timed(stages, 'planned_setlist_lookup', () => getPlannedSetlistTitles(performanceId)),
+      timed(stages, 'artist_catalogue_lookup', () => getArtistCatalogueTitles(userId)),
+      timed(stages, 'fallback_catalogue_lookup', () => isInFallbackCatalogue(normalizedTitle, artist)),
+      timed(stages, 'detection_stats_lookup', () => getDetectionStats(performanceId, normalizedTitle)),
     ])
     const thisDetectionCount = stats.priorDetections + 1
 
     // ── ALREADY ADDED: an earlier chunk already added this song → never twice ─
     if (stats.alreadyAdded) {
       console.log(`${clock} — ${artist} — ${title} — ${score} — ALREADY ADDED (upload)`)
+      const eventStart = Date.now()
       await logDetectionEvent({
         performance_id: performanceId,
         acr_title: rawTitle, acr_artist: artist, acr_score: score,
@@ -451,7 +527,8 @@ export async function POST(req: NextRequest) {
         detected_at: now.toISOString(),
         candidate_pool: [{ title, artist, source, score, status: 'already_added' }],
       })
-      return NextResponse.json({ detected: false })
+      stages.detection_event_write = Date.now() - eventStart
+      return respondWithTiming({ detected: false }, stages, startTime)
     }
 
     // ── Inclusion cascade (first branch that matches wins) ───────────────────
@@ -492,6 +569,7 @@ export async function POST(req: NextRequest) {
 
     console.log(`${clock} — ${artist} — ${title} — ${score} — ${added ? 'ADD' : 'IGNORE'}${inclusionReason ? ` — ${inclusionReason}` : ''} (upload)`)
 
+    const finalEventStart = Date.now()
     await logDetectionEvent({
       performance_id: performanceId,
       acr_title: rawTitle, acr_artist: artist, acr_score: score,
@@ -516,14 +594,34 @@ export async function POST(req: NextRequest) {
         uploaded_setlist_match: uploadedSetlistMatch,
       }],
     })
+    stages.detection_event_write = Date.now() - finalEventStart
 
     // ── Not added → return a non-detection so processUploadedFile ignores it ──
     if (!added) {
-      return NextResponse.json({ detected: false, uploaded_setlist_match: uploadedSetlistMatch })
+      return respondWithTiming({ detected: false, uploaded_setlist_match: uploadedSetlistMatch }, stages, startTime)
     }
 
     // ── Added → enrich + preserve the existing add-time side effects ─────────
-    const enriched = await enrichFromMusicBrainz(title, artist, isrc)
+    // Bounded with a timeout: enrichFromMusicBrainz makes up to 3 sequential
+    // external HTTP calls with no bound of its own, which earlier latency
+    // recon on the near-identical api/identify route flagged as the single
+    // most plausible cause of large single-request outliers. On the happy
+    // path (MusicBrainz responds within MUSICBRAINZ_TIMEOUT_MS) behavior is
+    // byte-for-byte identical to before. On timeout, composer/publisher
+    // degrade to the same empty-string defaults enrichFromMusicBrainz itself
+    // already returns on a fetch failure — this is not a new failure mode,
+    // just a bound on how long the existing one is allowed to take. The
+    // abandoned MusicBrainz call keeps running but is never awaited again
+    // and never written anywhere, so there is no data-loss risk in letting
+    // it fall behind (unlike the DB fire-and-forgets above).
+    const enrichStart = Date.now()
+    const enriched = await Promise.race([
+      enrichFromMusicBrainz(title, artist, isrc),
+      new Promise<EnrichedSongData>(resolve =>
+        setTimeout(() => resolve({ isrc: isrc || '', composer: '', publisher: '' }), MUSICBRAINZ_TIMEOUT_MS)
+      ),
+    ])
+    stages.musicbrainz_enrich = Date.now() - enrichStart
 
     // No legacy setlist_items mirror — upload never sends setlist_id, and this
     // route doesn't accept it at all. setlist_item_id is always null here.
@@ -534,6 +632,9 @@ export async function POST(req: NextRequest) {
       writeToUserSongs(title, artist, userId, performanceId)
     }
 
+    // Reliability pass: restored to awaited — see note above on why plain
+    // fire-and-forget is not safe on this runtime/config.
+    const recognitionLogsStart = Date.now()
     await supabase.from('recognition_logs').insert({
       performance_id: performanceId || null,
       audio_bytes: audioBytes, duration_seconds: durationSeconds,
@@ -543,11 +644,12 @@ export async function POST(req: NextRequest) {
       source, raw_response: payload,
       user_agent: req.headers.get('user-agent') ?? null,
     })
+    stages.recognition_logs_insert = Date.now() - recognitionLogsStart
 
     // ── Response — trimmed to only the fields processUploadedFile consumes,
     // plus uploaded_setlist_match for observability/testing (unread by the
     // client's own handling, additive only). ─────────────────────────────────
-    return NextResponse.json({
+    return respondWithTiming({
       detected: true, title, artist,
       confidence_level: 'auto', source,
       inclusion_reason: inclusionReason,
@@ -556,7 +658,7 @@ export async function POST(req: NextRequest) {
       isrc: enriched.isrc, composer: enriched.composer, publisher: enriched.publisher,
       setlist_item_id: setlistItemId,
       uploaded_setlist_match: uploadedSetlistMatch,
-    })
+    }, stages, startTime)
 
   } catch (err: any) {
     console.error('[UploadIdentifyRoute] Error:', err)

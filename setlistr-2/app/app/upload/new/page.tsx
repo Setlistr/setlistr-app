@@ -118,6 +118,70 @@ function sliceToMonoWav(audioBuffer: AudioBuffer, startSec: number, durSec: numb
   return new Blob([view], { type: 'audio/wav' })
 }
 
+// ── Preview/dev-only aggregate scan timing ──────────────────────────────────
+// Summarizes the _debug_timings the server attaches to each /api/upload-
+// identify response (app/api/upload-identify/route.ts's respondWithTiming).
+// Pure/stateless — takes raw per-chunk samples, returns one aggregate object.
+// Never throws on a missing stage: every stage is filtered to only the
+// samples where it was actually present as a finite number before summing/
+// averaging, since not every response path carries every stage (e.g. a
+// quota-exceeded response never reaches acr_call or musicbrainz_enrich).
+const UPLOAD_SCAN_TIMING_STAGE_KEYS = [
+  'parse_request', 'auth', 'authorize', 'quota', 'forensic_pre', 'acr_call',
+  'planned_setlist_lookup', 'artist_catalogue_lookup', 'fallback_catalogue_lookup',
+  'detection_stats_lookup', 'detection_event_write', 'musicbrainz_enrich', 'total',
+] as const
+
+function percentileOf(sortedAsc: number[], p: number): number {
+  if (sortedAsc.length === 0) return 0
+  const idx = Math.min(sortedAsc.length - 1, Math.floor(p * sortedAsc.length))
+  return sortedAsc[idx]
+}
+
+function buildUploadScanTimingAggregate(input: {
+  totalScanWallMs: number
+  recordingDurationSeconds: number
+  totalChunks: number
+  successfulRequests: number
+  failedRequests: number
+  songsFound: number
+  samples: Record<string, number>[]
+}) {
+  const totals = input.samples
+    .map(s => s.total)
+    .filter((n): n is number => typeof n === 'number')
+    .sort((a, b) => a - b)
+  const totalsSum = totals.reduce((a, b) => a + b, 0)
+
+  const requestTotal = {
+    average: totals.length ? Math.round(totalsSum / totals.length) : 0,
+    median: percentileOf(totals, 0.5),
+    p90: percentileOf(totals, 0.9),
+    p95: percentileOf(totals, 0.95),
+    slowest: totals.length ? totals[totals.length - 1] : 0,
+  }
+
+  const stages: Record<string, { sum: number; average: number; count: number }> = {}
+  for (const key of UPLOAD_SCAN_TIMING_STAGE_KEYS) {
+    const values = input.samples
+      .map(s => s[key])
+      .filter((n): n is number => typeof n === 'number')
+    const sum = values.reduce((a, b) => a + b, 0)
+    stages[key] = { sum, average: values.length ? Math.round(sum / values.length) : 0, count: values.length }
+  }
+
+  return {
+    totalScanWallMs: input.totalScanWallMs,
+    recordingDurationSeconds: input.recordingDurationSeconds,
+    totalChunks: input.totalChunks,
+    successfulRequests: input.successfulRequests,
+    failedRequests: input.failedRequests,
+    songsFound: input.songsFound,
+    requestTotal,
+    stages,
+  }
+}
+
 // Same compression approach as show/new/page.tsx's compressImage — kept
 // duplicated for the same reason as the map component above.
 async function compressImage(file: File): Promise<File> {
@@ -282,6 +346,13 @@ export default function UploadNewPerformancePage() {
   // staleness hazard detectedSongsRef/confirmedSongsRef already solve
   // elsewhere in this codebase.
   const parsedSetlistSongsRef = useRef<ParsedSetlistSong[]>([])
+  // Preview/dev-only aggregate timing collection (speed-pass instrumentation).
+  // Populated every chunk in beginScan, summarized once at scan end. Self-
+  // gates on the server's own `_debug_timings` field (only present when
+  // VERCEL_ENV !== 'production' on app/api/upload-identify/route.ts) — in
+  // production every sample's `timings` stays null, so the summary is never
+  // built, logged, or written to sessionStorage. Never rendered in the UI.
+  const scanTimingRef = useRef<Array<{ ok: boolean; timings: Record<string, number> | null }>>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const setlistInputRef = useRef<HTMLInputElement>(null)
@@ -333,6 +404,8 @@ export default function UploadNewPerformancePage() {
     setScanning(true)
     setScanProgress(0)
     const supabase = createClient()
+    scanTimingRef.current = []
+    const scanWallStart = Date.now()
     try {
       const arrayBuffer = await file.arrayBuffer()
       const AudioCtx    = window.AudioContext || (window as any).webkitAudioContext
@@ -364,6 +437,7 @@ export default function UploadNewPerformancePage() {
         }
 
         let data: any = null
+        let chunkOk = false
         const { data: { session } } = await supabase.auth.getSession()
         if (session?.access_token) {
           try {
@@ -373,8 +447,17 @@ export default function UploadNewPerformancePage() {
               body: form,
             })
             data = await res.json()
+            chunkOk = true
           } catch { /* skip a failed chunk, keep going */ }
         }
+
+        // Preview/dev-only aggregate timing collection — see scanTimingRef
+        // above. Purely additive; does not affect chunkOk/data or anything
+        // read below.
+        scanTimingRef.current.push({
+          ok: chunkOk,
+          timings: (chunkOk && data && data._debug_timings) ? data._debug_timings : null,
+        })
 
         if (data?.detected && data.confidence_level === 'auto' && data.title) {
           const already = detectedSongsRef.current.some(s => isSameSong(s, { title: data.title }))
@@ -397,6 +480,27 @@ export default function UploadNewPerformancePage() {
 
         setChunksScanned(i + 1)
         setScanProgress((i + 1) / total)
+      }
+
+      // ── Preview/dev-only aggregate scan timing ────────────────────────────
+      // Skips entirely (no console.log, no sessionStorage write) whenever no
+      // chunk carried _debug_timings — i.e. in production, where the server
+      // never includes that field on the response. Not surfaced in the UI.
+      const timedSamples = scanTimingRef.current.filter(s => s.timings)
+      if (timedSamples.length > 0) {
+        const aggregate = buildUploadScanTimingAggregate({
+          totalScanWallMs: Date.now() - scanWallStart,
+          recordingDurationSeconds: duration,
+          totalChunks: total,
+          successfulRequests: scanTimingRef.current.filter(s => s.ok).length,
+          failedRequests: scanTimingRef.current.filter(s => !s.ok).length,
+          songsFound: detectedSongsRef.current.length,
+          samples: timedSamples.map(s => s.timings as Record<string, number>),
+        })
+        console.log('[UploadScanTiming]', aggregate)
+        try {
+          sessionStorage.setItem('setlistr_upload_scan_timing', JSON.stringify(aggregate))
+        } catch { /* sessionStorage unavailable/full — non-critical */ }
       }
     } catch (err) {
       console.error('[UploadNew] scan failed:', err)
