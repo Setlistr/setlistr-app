@@ -40,15 +40,16 @@ import { normalizeSongKey, cleanTitle } from '@/lib/reconciliation/normalize'
 // additionally guarded by user_song_performances' unique constraint.
 //
 // What this endpoint is NOT: idempotent against literal re-submission of
-// the same chunk range. detection_events has no chunk_index column (adding
-// one would be a schema change, out of scope here), so nothing here can
-// detect "I already reconciled chunk 7" — that guarantee lives entirely in
-// the client only ever sending a chunk index once, after a prior batch
-// covering it has already returned success. A response lost after the
-// server-side write already committed (rare) would cause a naive retry to
-// double-process that range; the client mitigates this by only advancing
-// its "reconciled" cursor on a confirmed successful response, so an
-// unresolved batch is retried, but a resolved one never has been.
+// the same chunk range. detection_events.chunk_index (see supabase/
+// migrations/0004_upload_chunk_index.sql) is written below for forensic/
+// reconciliation-evidence linkage only — nothing here reads it back to
+// detect "I already reconciled chunk 7", so that guarantee still lives
+// entirely in the client only ever sending a chunk index once, after a
+// prior batch covering it has already returned success. A response lost
+// after the server-side write already committed (rare) would cause a naive
+// retry to double-process that range; the client mitigates this by only
+// advancing its "reconciled" cursor on a confirmed successful response, so
+// an unresolved batch is retried, but a resolved one never has been.
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -382,6 +383,7 @@ export async function POST(req: NextRequest) {
           artist_name: artistName, venue_name: venueName, show_type: showType,
           audio_duration_seconds: Math.round((Date.now() - itemStart) / 1000),
           detected_at: now.toISOString(),
+          chunk_index: raw?.chunk_index ?? null,
         })
         console.log(`${clock} — — — 0 — IGNORE — no_detection (upload-parallel, chunk ${raw?.chunk_index})`)
         continue
@@ -423,6 +425,7 @@ export async function POST(req: NextRequest) {
           previous_song: confirmedTitles[confirmedTitles.length - 1] || null,
           detected_at: now.toISOString(),
           candidate_pool: [{ title, artist, source, score, status: 'already_added' }],
+          chunk_index: raw.chunk_index,
         })
         continue
       }
@@ -480,6 +483,7 @@ export async function POST(req: NextRequest) {
           detections: thisDetectionCount,
           uploaded_setlist_match: uploadedSetlistMatch,
         }],
+        chunk_index: raw.chunk_index,
       })
 
       if (!added) continue
