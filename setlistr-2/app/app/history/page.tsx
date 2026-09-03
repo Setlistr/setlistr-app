@@ -97,6 +97,14 @@ export default function HistoryPage() {
       .select('id, venue_name, venue_id, artist_name, city, country, status, submission_status, started_at, created_at, captured_by_name, photo_url, shows(show_type), venues(capacity)')
       .eq('user_id', actingAsArtistId || user.id)
       .not('status', 'in', '("live","pending")')
+      // Excludes Upload Performance drafts (status='draft', created the
+      // instant a file is picked, before any metadata/songs exist — see
+      // app/api/upload-performance's POST). Today these are only kept off
+      // this page by the isRealVenue(venue_name) filter below, since a
+      // draft's venue_name is always '' — that's an incidental side effect
+      // of a filter meant for something else, not a designed guarantee.
+      // Excluding by status directly closes the actual gap at the source.
+      .neq('status', 'draft')
       .order('started_at', { ascending: false })
 
     if (error) console.error('History error:', error)
