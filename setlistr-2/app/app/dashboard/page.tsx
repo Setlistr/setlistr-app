@@ -66,6 +66,10 @@ function useCountUp(target: number, duration: number = 1400, delay: number = 0):
   return count
 }
 
+// Deliberately no 'draft' case: capturedPerfs (this file's only source for
+// anything rendered via this function) now excludes status='draft' at the
+// filter level, so a draft performance never reaches here — the previous
+// fallback to "Needs Review" was the actual bug, not a missing label to add.
 function getDisplayStatus(p: Performance): { label: string; color: string; bg: string } {
   if (p.data_source === 'setlistfm_imported') return { label: 'Imported', color: C.muted, bg: 'rgba(255,255,255,0.04)' }
   if (p.submission_status === 'submitted') return { label: 'Submitted', color: C.green, bg: C.greenDim }
@@ -239,8 +243,14 @@ export default function DashboardPage() {
     }))
     setPerformances(perfs)
 
-    // Only captured shows feed operational flows
-    const capturedPerfs = perfs.filter(p => p.data_source !== 'setlistfm_imported')
+    // Only captured shows feed operational flows. Also excludes 'draft' —
+    // an Upload Performance draft row created the instant a file is picked
+    // (app/api/upload-performance's POST), before any metadata/songs exist.
+    // It only becomes a real, presentable record at status 'review' (the
+    // Continue-to-Review PATCH). An abandoned draft must never be treated
+    // as a real/captured show anywhere below (live/morningAfter/estimates
+    // all derive from this list).
+    const capturedPerfs = perfs.filter(p => p.data_source !== 'setlistfm_imported' && p.status !== 'draft')
 
     const live = capturedPerfs.find(p =>
       (p.status === 'live' || p.status === 'pending') &&
@@ -342,7 +352,12 @@ export default function DashboardPage() {
   const submittedAggregate = aggregateUnclaimedEarnings(submittedEstimates)
   const lifetimeTotal      = aggregate.totalExpected + submittedAggregate.totalExpected
 
-  const capturedPerfs    = performances.filter(p => p.data_source !== 'setlistfm_imported')
+  // Excludes 'draft' — see the matching capturedPerfs filter inside
+  // processPerformances above for why. Recent Shows, capturedCount,
+  // submittedCount, and road-memory all derive from this list, so this one
+  // filter is what keeps an abandoned Upload draft from appearing as a
+  // real show anywhere on this page.
+  const capturedPerfs    = performances.filter(p => p.data_source !== 'setlistfm_imported' && p.status !== 'draft')
   const importedPerfs    = performances.filter(p => p.data_source === 'setlistfm_imported')
   const totalCareerShows = performances.filter(p =>
     p.data_source !== 'setlistfm_imported' &&
@@ -364,13 +379,18 @@ export default function DashboardPage() {
   const dayOfYear = Math.floor((Date.now() - new Date(currentYear, 0, 0).getTime()) / 86400000)
   const daysInYear = 365
 
+  // Excludes 'draft' for the same reason as capturedPerfs above — these
+  // feed the "pace this year" trajectory stat, which must not count an
+  // abandoned Upload draft as a real show.
   const capturedPerfsThisYear = performances.filter(p =>
     p.data_source !== 'setlistfm_imported' &&
+    p.status !== 'draft' &&
     new Date(p.started_at).getFullYear() === currentYear
   ).length
 
   const capturedPerfsLastYear = performances.filter(p =>
     p.data_source !== 'setlistfm_imported' &&
+    p.status !== 'draft' &&
     new Date(p.started_at).getFullYear() === lastYear
   ).length
 

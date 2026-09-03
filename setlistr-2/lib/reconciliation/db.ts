@@ -40,7 +40,7 @@ export async function fetchPerformance(performanceId: string): Promise<Performan
 export async function fetchDetectionEvents(performanceId: string): Promise<DetectionEventRow[]> {
   const { data, error } = await getAdminClient()
     .from('detection_events')
-    .select('id, performance_id, detected_at, acr_title, acr_artist, acr_score, acr_state, final_title, final_artist, confidence_level, auto_confirmed, candidate_pool')
+    .select('id, performance_id, detected_at, acr_title, acr_artist, acr_score, acr_state, final_title, final_artist, confidence_level, auto_confirmed, candidate_pool, chunk_index')
     .eq('performance_id', performanceId)
     .order('detected_at', { ascending: true })
   if (error) throw new Error(`fetchDetectionEvents failed: ${error.message}`)
@@ -62,9 +62,15 @@ export async function fetchRecognitionLogs(performanceId: string): Promise<Recog
 // performances.show_id -> audio_captures.show_id -> recognition_jobs.audio_capture_id.
 // Coverage is sparse (most performances have zero audio_captures rows) —
 // callers must treat an empty result as normal, not an error.
+//
+// chunkIndex is parsed from raw_request.chunk_index — app/api/upload-
+// recognize/route.ts has always written this (no schema change involved
+// here, just newly SELECTing an existing JSONB field's contents so
+// evidence.ts can match Upload chunks exactly instead of by timestamp
+// proximity). Always null for Live Capture jobs, which never set it.
 export async function fetchRecognitionJobsForShow(
   showId: string | null
-): Promise<Array<{ id: string; timestamp: string; raw_response: any }>> {
+): Promise<Array<{ id: string; timestamp: string; raw_response: any; chunkIndex: number | null }>> {
   if (!showId) return []
   const admin = getAdminClient()
   const { data: captures, error: capErr } = await admin
@@ -79,18 +85,22 @@ export async function fetchRecognitionJobsForShow(
   const captureIds = captureRows.map(c => c.id)
   const { data: jobs, error: jobErr } = await admin
     .from('recognition_jobs')
-    .select('id, audio_capture_id, completed_at, raw_response')
+    .select('id, audio_capture_id, completed_at, raw_response, raw_request')
     .in('audio_capture_id', captureIds)
   if (jobErr) throw new Error(`fetchRecognitionJobsForShow (recognition_jobs) failed: ${jobErr.message}`)
 
   const captureTsById = new Map(captureRows.map(c => [c.id, c.captured_at]))
   return ((jobs || []) as RecognitionJobRow[])
     .filter(j => j.raw_response)
-    .map(j => ({
-      id: j.id,
-      timestamp: j.completed_at || captureTsById.get(j.audio_capture_id || '') || new Date(0).toISOString(),
-      raw_response: j.raw_response,
-    }))
+    .map(j => {
+      const parsedChunkIndex = j.raw_request?.chunk_index
+      return {
+        id: j.id,
+        timestamp: j.completed_at || captureTsById.get(j.audio_capture_id || '') || new Date(0).toISOString(),
+        raw_response: j.raw_response,
+        chunkIndex: typeof parsedChunkIndex === 'number' ? parsedChunkIndex : null,
+      }
+    })
     .sort((a, b) => a.timestamp.localeCompare(b.timestamp))
 }
 

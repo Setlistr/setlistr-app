@@ -120,6 +120,11 @@ export interface DetectionEventRow {
   confidence_level: string | null
   auto_confirmed: boolean | null
   candidate_pool: any
+  // Upload-only, nullable — see supabase/migrations/0004_upload_chunk_index.sql.
+  // NULL for every Live Capture row and any Upload row written before this
+  // column existed; those fall back to evidence.ts's existing timestamp-
+  // proximity matching, unchanged.
+  chunk_index: number | null
 }
 
 export interface AudioCaptureRow {
@@ -133,6 +138,11 @@ export interface RecognitionJobRow {
   audio_capture_id: string | null
   completed_at: string | null
   raw_response: any
+  // Already existed in the DB (app/api/upload-recognize/route.ts has always
+  // written { host, audio_bytes, performance_id, chunk_index } here) — only
+  // newly SELECTed by db.ts as of the chunk_index linkage fix, not a schema
+  // change.
+  raw_request: any
 }
 
 export interface PlannedSetlistSongRow {

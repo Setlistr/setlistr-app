@@ -7,6 +7,25 @@
 //   tier b — recognition_jobs.raw_response   (full ACR array, any chunk, sparse coverage)
 //   tier c — detection_events.candidate_pool (single collapsed guess, always present)
 // per the approved RESOLVE ladder (a, falling back to b, falling back to c).
+//
+// UPLOAD CHUNK_INDEX EXACT MATCH (see supabase/migrations/0004_upload_chunk_
+// index.sql): when a detection_event carries a non-null chunk_index (Upload
+// only), it is matched to recognition_jobs by EXACT chunk_index equality
+// instead of the timestamp-proximity ladder below. Root cause this exists
+// for — confirmed via read-only diagnostic, 2026-09-03: at Upload
+// concurrency 8, recognition_jobs.completed_at (async ACR completion order)
+// and detection_events.detected_at (later, strictly chunk-ordered
+// progressive reconciliation) are two different clocks that can drift and
+// interleave, causing the timestamp ladder to associate a detection_event
+// with the WRONG neighboring chunk's evidence. recognition_logs has no
+// chunk_index anywhere (not a column, not embedded in raw_response, which
+// is the raw ACR payload itself) and can't be exact-matched — tier a is
+// therefore skipped entirely for chunk_index-bearing events (RESOLVE scores
+// tier a and b identically, so this costs no scoring fidelity) in favor of
+// exact tier b, falling back to tier c if no exact job exists. Events with
+// chunk_index === null (every Live Capture row, and any Upload row written
+// before this column existed) fall through unchanged to the pre-existing
+// timestamp-proximity ladder.
 
 import { normalizeSongKey, cleanTitle } from './normalize'
 import {
@@ -93,6 +112,32 @@ export async function buildObservationTimeline(performance: PerformanceRow): Pro
   const usedJobIds = new Set<string>()
 
   return detectionEvents.map((event): Observation => {
+    // ── Upload exact chunk_index match — see this file's header comment.
+    // Bypasses the timestamp ladder entirely for chunk_index-bearing events;
+    // never touched for chunk_index === null (Live Capture / legacy rows).
+    if (event.chunk_index !== null && event.chunk_index !== undefined) {
+      const exactJob = recognitionJobs.find(j => j.chunkIndex === event.chunk_index)
+      if (exactJob) {
+        usedJobIds.add(exactJob.id)
+        return {
+          timestamp: event.detected_at,
+          tier: 'b',
+          sourceRowIds: { detectionEventId: event.id, recognitionLogId: null, recognitionJobId: exactJob.id },
+          candidates: extractCandidatesFromPayload(exactJob.raw_response),
+          autoConfirmed: !!event.auto_confirmed,
+        }
+      }
+      return {
+        timestamp: event.detected_at,
+        tier: 'c',
+        sourceRowIds: { detectionEventId: event.id, recognitionLogId: null, recognitionJobId: null },
+        candidates: extractTierCCandidates(event),
+        autoConfirmed: !!event.auto_confirmed,
+      }
+    }
+
+    // ── Legacy / Live Capture path — chunk_index is null, unchanged
+    // timestamp-proximity ladder exactly as before this fix. ──────────────
     const finalKey = event.final_title ? normalizeSongKey(event.final_title) : null
 
     let bestLog: RecognitionLogRow | null = null
