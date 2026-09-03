@@ -5,6 +5,7 @@ import { buildObservationTimeline } from './evidence'
 import { clusterObservations } from './cluster'
 import { resolveSlot, type Priors, type Resolution } from './resolve'
 import { concludeSlot } from './conclude'
+import { consolidateConclusions, type ConsolidatedConclusion } from './consolidate'
 import {
   fetchPerformance, fetchPlannedSetlistSongs, fetchArtistCatalogueTitles,
   fetchPriorConfirmedSetlistCounts,
@@ -40,6 +41,11 @@ export interface EngineRunResult {
   // so the harness's scoring step can distinguish "evidence existed but
   // lost slot resolution" from "no evidence existed anywhere."
   resolutions: Resolution[]
+  // CONSOLIDATE's output — conclusions with duplicate same-title CONFIRMED/
+  // LIKELY slots merged (see consolidate.ts for the exact rule). Purely
+  // additive: CLUSTER/RESOLVE/CONCLUDE's own outputs above are untouched by
+  // computing this.
+  consolidated: ConsolidatedConclusion[]
 }
 
 export async function runEngine(performanceId: string): Promise<EngineRunResult> {
@@ -72,5 +78,7 @@ export async function runEngine(performanceId: string): Promise<EngineRunResult>
     }
   }
 
-  return { performance, slots, conclusions, resolutions }
+  const consolidated = consolidateConclusions(conclusions)
+
+  return { performance, slots, conclusions, resolutions, consolidated }
 }
