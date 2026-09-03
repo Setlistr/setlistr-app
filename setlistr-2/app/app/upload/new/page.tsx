@@ -54,11 +54,12 @@ const UPLOAD_CHUNK_STEP_SECONDS = 20
 // Recognition (the ACR call) is stateless per chunk and safe to run with
 // bounded concurrency. Reconciliation (detection_events, the inclusion
 // cascade) is stateful across chunks and must stay strictly sequential — see
-// app/api/upload-reconcile/route.ts's own header comment for why. Second
-// step of the 2 → 4 → 6 → 8 test ladder (concurrency 2 measured ~2m51s
-// total, ~12.2s time-to-first-song at the same 34:11/102-chunk baseline) —
-// raise further only after measuring this step's real Preview timing.
-const UPLOAD_RECOGNITION_CONCURRENCY = 4
+// app/api/upload-reconcile/route.ts's own header comment for why. Third step
+// of the 2 → 4 → 6 → 8 test ladder (concurrency 4 measured ~1m27s total,
+// ~9.0s time-to-first-song, ~24.9s time-to-first-3-songs at the same
+// 34:11/102-chunk baseline) — raise further only after measuring this
+// step's real Preview timing.
+const UPLOAD_RECOGNITION_CONCURRENCY = 6
 
 const MAX_SETLIST_FILE_SIZE = 10 * 1024 * 1024
 const ALLOWED_SETLIST_MIME_TYPES = [
