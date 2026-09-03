@@ -85,9 +85,12 @@ export async function POST(req: NextRequest) {
     // ── Authorize — identical owner/delegate pattern to /api/upload-identify ──────
     // Nonexistent and unauthorized performances are treated identically
     // (403) so a caller can't distinguish "doesn't exist" from "not yours".
+    // Also fetches show_id here (same row, no extra lookup) so the
+    // forensic audio_captures write below can link to the real show
+    // instead of hardcoding null — see that insert's comment.
     const { data: perfRow } = await supabase
       .from('performances')
-      .select('user_id')
+      .select('user_id, show_id')
       .eq('id', performanceId)
       .single()
 
@@ -143,8 +146,13 @@ export async function POST(req: NextRequest) {
     // Both fully awaited before anything else happens.
     const [job, payload] = await Promise.all([
       (async () => {
+        // show_id: previously hardcoded null, which left this row (and the
+        // recognition_jobs row FK'd to it below) permanently undiscoverable
+        // via lib/reconciliation/db.ts's fetchRecognitionJobsForShow, which
+        // queries audio_captures by show_id. perfRow.show_id is the real
+        // value — already fetched above for authorization, no new lookup.
         const { data: capture } = await supabase.from('audio_captures').insert({
-          show_id: null, artist_id: null, captured_by: null,
+          show_id: perfRow.show_id, artist_id: null, captured_by: null,
           duration_seconds: 14, file_size_bytes: audioBytes,
           mime_type: 'audio/webm', captured_at: new Date().toISOString(),
         }).select().single()
