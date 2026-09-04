@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { logProductEvent, awaitWithTimeout } from '@/lib/telemetry'
 
 // ─── Standalone Upload Performance: draft creation + finalize ────────────────
 // Authorization pattern mirrors app/api/team/invite/route.ts exactly: the
@@ -91,6 +92,15 @@ export async function POST(req: NextRequest) {
       console.error('[UploadPerformance] performance insert failed:', perfError)
       return NextResponse.json({ error: 'Failed to create performance' }, { status: 500 })
     }
+
+    // Awaited (bounded), not fire-and-forget: unlike a browser tab, a
+    // serverless function's execution context is not guaranteed to keep
+    // running un-awaited work after its response is sent.
+    await awaitWithTimeout(logProductEvent(service, {
+      event_name: 'show_created', user_id: targetUserId, performance_id: performance.id,
+      show_id: show.id, flow_source: 'upload',
+      actor_type: user.id === targetUserId ? 'owner' : 'delegate',
+    }))
 
     return NextResponse.json({ performance_id: performance.id, show_id: show.id })
   } catch (err: any) {

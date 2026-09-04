@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useActingAs } from '@/components/ActingAsProvider'
 import { normalizeSongKey } from '@/lib/reconciliation/normalize'
+import { logProductEvent, awaitWithTimeout } from '@/lib/telemetry'
 import { Camera, Upload, Check } from 'lucide-react'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
@@ -361,6 +362,16 @@ export default function UploadNewPerformancePage() {
   // be safely referenced from anywhere without re-creating them per render.
   const performanceIdRef = useRef<string | null>(null)
   useEffect(() => { performanceIdRef.current = performanceId }, [performanceId])
+  // Telemetry-only — mirrors show_id/the effective owner id, populated once
+  // /api/upload-performance's POST returns, for capture_started/capture_ended
+  // logging inside beginScan/finalizeIfDone (both stable, empty-dep
+  // useCallbacks, so they read refs rather than state for the same
+  // staleness reason as performanceIdRef above).
+  const showIdRef = useRef<string | null>(null)
+  const targetUserIdRef = useRef<string | null>(null)
+  // Guards capture_ended against re-firing if finalizeIfDone is invoked
+  // again after already completing once — reset per-scan in beginScan.
+  const captureEndedLoggedRef = useRef(false)
 
   // ── Progressive ordered reconciliation state ──────────────────────────────
   // Recognition (concurrency = 2) fills rawBufferRef out of order as chunks
@@ -472,8 +483,13 @@ export default function UploadNewPerformancePage() {
   // Only actually finalizes (stops the spinner state, unlocks Continue,
   // emits timing) once recognition has fully stopped AND every contiguous
   // result has been reconciled AND nothing is currently stuck on a failure.
-  // Safe to call any time — a no-op otherwise.
-  const finalizeIfDone = useCallback(() => {
+  // Safe to call any time — a no-op otherwise. Can be invoked more than
+  // once after the done-condition is already true (called defensively from
+  // multiple points in the reconciliation-progress chain), so
+  // captureEndedLoggedRef guards the telemetry specifically against
+  // re-firing on a later redundant call within the same scan — reset at
+  // the top of beginScan for a fresh scan.
+  const finalizeIfDone = useCallback(async () => {
     const total = totalChunksRef.current
     if (
       recognitionFinishedRef.current &&
@@ -485,6 +501,16 @@ export default function UploadNewPerformancePage() {
       setScanDone(true)
       setAllReconciled(true)
       setScanProgress(1)
+      if (!captureEndedLoggedRef.current) {
+        captureEndedLoggedRef.current = true
+        await awaitWithTimeout(logProductEvent(createClient(), {
+          event_name: 'capture_ended', user_id: targetUserIdRef.current, performance_id: performanceIdRef.current,
+          show_id: showIdRef.current, flow_source: 'upload',
+          actor_type: actingAsArtistId ? 'delegate' : 'owner',
+          song_count_current: detectedSongsRef.current.length,
+          song_count_planned: parsedSetlistSongsRef.current.length,
+        }))
+      }
     }
   }, [emitTimingAggregate])
 
@@ -606,6 +632,13 @@ export default function UploadNewPerformancePage() {
 
   const beginScan = useCallback(async (file: File, perfId: string) => {
     setScanning(true)
+    captureEndedLoggedRef.current = false
+    logProductEvent(createClient(), {
+      event_name: 'capture_started', user_id: targetUserIdRef.current, performance_id: perfId,
+      show_id: showIdRef.current, flow_source: 'upload',
+      actor_type: actingAsArtistId ? 'delegate' : 'owner',
+      song_count_planned: parsedSetlistSongsRef.current.length,
+    })
     setScanDone(false)
     setAllReconciled(false)
     setScanProgress(0)
@@ -781,6 +814,8 @@ export default function UploadNewPerformancePage() {
       if (!res.ok) throw new Error(data.error || 'Could not start upload')
 
       setPerformanceId(data.performance_id)
+      showIdRef.current = data.show_id || null
+      targetUserIdRef.current = targetUserId
       setCreatingDraft(false)
       beginScan(file, data.performance_id)
     } catch (err: any) {
@@ -860,7 +895,7 @@ export default function UploadNewPerformancePage() {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Could not save show details')
-      router.push(`/app/review/${performanceId}`)
+      router.push(`/app/review/${performanceId}?source=upload`)
     } catch (err: any) {
       finalizingRef.current = false
       setFinalizing(false)

@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useActingAs } from '@/components/ActingAsProvider'
 import { normalizeSongKey } from '@/lib/reconciliation/normalize'
+import { logProductEvent, awaitWithTimeout, type ReviewActionType } from '@/lib/telemetry'
 import {
   DndContext, closestCenter, KeyboardSensor, PointerSensor,
   useSensor, useSensors, DragEndEvent,
@@ -432,6 +433,15 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
   const [photoUrl, setPhotoUrl] = useState<string | null>(null)
   const [photoUploading, setPhotoUploading] = useState(false)
   const shareCardRef = useRef<HTMLDivElement>(null)
+  // Telemetry-only. flow_source comes from the ?source=live|upload query
+  // param both entry points (Live's handleEnd, Upload's goToReview) already
+  // append when routing here — no new query, no schema-ambiguous column
+  // guessing. reviewOpenedAtRef/reviewOpenedLoggedRef guard review_opened
+  // against firing more than once per visit (StrictMode double-invoke,
+  // re-renders) and anchor review_duration_ms's start.
+  const flowSourceRef = useRef<'live' | 'upload' | null>(null)
+  const reviewOpenedLoggedRef = useRef(false)
+  const reviewOpenedAtRef = useRef<string | null>(null)
   const [seqPhase, setSeqPhase] = useState(0)
   const [skipEnabled, setSkipEnabled] = useState(false)
   const [seqRoyaltyCount, setSeqRoyaltyCount] = useState(0)
@@ -455,6 +465,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
     setSongs(prev => prev.map(s => s.id === assignSheet.songId
       ? { ...s, title: recent.title, artist: recent.artist, source: 'manual', reviewState: 'clean', isModified: true } : s))
     closeAssignSheet()
+    logReviewAction('edit_song')
   }
 
   function assignFromCatalog(catalogSong: CatalogSong, songId: string) {
@@ -475,6 +486,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
           }
         }).catch(() => {})
     }
+    logReviewAction('edit_song')
   }
 
   function handleRowTap(songId: string) {
@@ -484,11 +496,28 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
     else setEditSheet(song)
   }
 
+  // Telemetry-only. song_count_current mirrors the confirmedSongs filter
+  // used everywhere else in this file (source !== 'planned' && !isRemoved).
+  // Reads performance/songs/userId/actingAsArtistId fresh each call — this
+  // is a plain function re-created per render like the handlers around it,
+  // not a memoized callback, so there's no staleness to guard against.
+  function logReviewAction(actionType: ReviewActionType) {
+    if (!performance) return
+    logProductEvent(createClient(), {
+      event_name: 'review_action', user_id: actingAsArtistId || performance.user_id, performance_id: performance.id,
+      show_id: performance.show_id || null, flow_source: flowSourceRef.current,
+      actor_type: actingAsArtistId && actingAsArtistId !== performance.user_id ? 'delegate' : 'owner',
+      action_type: actionType,
+      song_count_current: songs.filter(s => s.source !== 'planned' && !s.isRemoved).length,
+    })
+  }
+
   function markPlannedAsPlayed(songId: string) {
     setSongs(prev => prev.map(s => s.id === songId
       ? { ...s, source: 'manual', was_planned: true, reviewState: 'clean' }
       : s
     ))
+    logReviewAction('confirm_song')
   }
 
   function removePlannedSong(songId: string) {
@@ -497,6 +526,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
       if (t?.isNew) return prev.filter(s => s.id !== songId)
       return prev.map(s => s.id === songId ? { ...s, isRemoved: true } : s)  // planned & not played → TN at save
     })
+    logReviewAction('remove_song')
   }
 
   // ── Fetch post-show intelligence after save ───────────────────────────────
@@ -591,6 +621,20 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
         if (!perf) { setLoading(false); return }
         setPerformance({ ...perf, show_type: perf.shows?.show_type || null, venue_capacity: perf.venues?.capacity || null })
         if (perf.photo_url) setPhotoUrl(perf.photo_url)
+        if (!reviewOpenedLoggedRef.current) {
+          reviewOpenedLoggedRef.current = true
+          const sp = new URLSearchParams(window.location.search)
+          const src = sp.get('source')
+          flowSourceRef.current = src === 'live' || src === 'upload' ? src : null
+          const openedAt = new Date().toISOString()
+          reviewOpenedAtRef.current = openedAt
+          logProductEvent(supabase, {
+            event_name: 'review_opened', user_id: actingAsArtistId || perf.user_id, performance_id: perf.id,
+            show_id: perf.show_id || null, flow_source: flowSourceRef.current,
+            actor_type: actingAsArtistId && actingAsArtistId !== perf.user_id ? 'delegate' : 'owner',
+            occurred_at: openedAt,
+          })
+        }
         const resolvedSetlistId = perf.setlist_id || null
         setSetlistId(resolvedSetlistId)
 
@@ -725,6 +769,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
         const newIndex = items.findIndex(i => i.id === over.id)
         return arrayMove(items, oldIndex, newIndex).map((s, i) => ({ ...s, position: i + 1 }))
       })
+      logReviewAction('reorder_song')
     }
   }
   function handleDelete(id: string) {
@@ -733,8 +778,12 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
       if (t?.isNew) return prev.filter(s => s.id !== id)                 // never persisted → just drop
       return prev.map(s => s.id === id ? { ...s, isRemoved: true } : s)  // keep the record, flag removed (→ FP/TN on save)
     })
+    logReviewAction('remove_song')
   }
-  function handleEdit(id: string, title: string, artist: string) { setSongs(prev => prev.map(s => s.id === id ? { ...s, title, artist, reviewState: 'clean', isModified: true } : s)) }
+  function handleEdit(id: string, title: string, artist: string) {
+    setSongs(prev => prev.map(s => s.id === id ? { ...s, title, artist, reviewState: 'clean', isModified: true } : s))
+    logReviewAction('edit_song')
+  }
 
   async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -886,6 +935,27 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
     await supabase.from('performances').update({ status: 'completed' }).eq('id', performance.id)
     if (performance.show_id) await supabase.from('shows').update({ status: 'completed' }).eq('id', performance.show_id)
 
+    // show_locked is not a separate emitted event today — review_completed
+    // IS that boundary in the current architecture (no separate finalize
+    // step exists). Reporting derives show_locked_at as
+    // review_completed.occurred_at. If a genuinely distinct immutable/
+    // submission lock boundary is added later (e.g. PRO submission), give
+    // IT its own show_locked event at that point rather than resurrecting
+    // this one speculatively.
+    //
+    // Started here (not awaited yet) so its network time overlaps with the
+    // writeUserSongFromReview loop / fetchIntelligence / computeShowNumber
+    // work below — awaited (bounded) right before this function's effective
+    // exit, since the artist may background/close the app the moment the
+    // "Saved" success screen appears.
+    const actorType: 'owner' | 'delegate' = actingAsArtistId && actingAsArtistId !== performance.user_id ? 'delegate' : 'owner'
+    const reviewCompletedLogged = logProductEvent(supabase, {
+      event_name: 'review_completed',
+      user_id: actingAsArtistId || performance.user_id, performance_id: performance.id, show_id: performance.show_id || null,
+      flow_source: flowSourceRef.current, actor_type: actorType,
+      song_count_current: kept.length, occurred_at: new Date().toISOString(),
+    })
+
     // NOTE: a city-centroid geocode used to overwrite latitude/longitude here.
     // Those columns now hold the device's coordinates at capture start, which
     // is evidence of attendance — a city centre would destroy it on every
@@ -906,10 +976,11 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
         setComputedShowNumber(num)
       }
     } catch (err) { console.error('[ReviewSave]', err) }
+    await awaitWithTimeout(reviewCompletedLogged)
     setSaving(false); setSaved(true); setJustCompleted(true)
   }, [performance, songs, setlistId, actingAsArtistId])
 
-  function generateExportCSV(pro: PRO) {
+  async function generateExportCSV(pro: PRO) {
     if (!performance) return
     const date = parseLocalDate(performance.started_at).toLocaleDateString()
     const confirmedSongs = songs.filter(s => s.source !== 'planned' && !s.isRemoved)
@@ -930,6 +1001,15 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
     const a = document.createElement('a'); a.href = url
     a.download = `${pro}-setlist-${performance.venue_name}-${parseLocalDate(performance.started_at).toLocaleDateString().replace(/\//g, '-')}.csv`
     a.click(); URL.revokeObjectURL(url)
+    // Download already triggered synchronously above — this only bounds
+    // how long we wait for the telemetry insert before the artist might
+    // navigate away, it never delays the export itself.
+    await awaitWithTimeout(logProductEvent(createClient(), {
+      event_name: 'export_generated', user_id: actingAsArtistId || performance.user_id, performance_id: performance.id,
+      show_id: performance.show_id || null, flow_source: flowSourceRef.current,
+      actor_type: actingAsArtistId && actingAsArtistId !== performance.user_id ? 'delegate' : 'owner',
+      song_count_current: confirmedSongs.length,
+    }))
   }
 
   function parseLocalDate(d: string): Date {
@@ -1456,6 +1536,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
                 const normalized = normalizeSong({ title: catalogSong.title, artist: catalogSong.artist || performance?.artist_name || '' })
                 setSongs(prev => [...prev, { id: `manual-${Date.now()}`, title: normalized.title, artist: normalized.artist, position: songs.length + 1, source: 'manual', recognition_decision_id: null, isrc: catalogSong.isrc || '', composer: catalogSong.composer || '', publisher: catalogSong.publisher || '', reviewState: 'clean', isNew: true }])
                 setShowAdd(false)
+                logReviewAction('add_song')
               }} />
             <button onClick={() => setShowAdd(false)} style={{ width: '100%', marginTop: 8, padding: '8px', background: 'transparent', border: 'none', color: C.muted, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
           </div>
