@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { buzzLong } from '@/lib/haptics'
 import { useActingAs } from '@/components/ActingAsProvider'
 import { toCoords } from '@/lib/geolocation'
+import { logProductEvent, actorTypeFor, awaitWithTimeout } from '@/lib/telemetry'
 import { Calendar, ArrowRight, ArrowLeft, RefreshCw, Check, MapPin, Search, X, Plus, ChevronDown, ChevronUp, Camera, Upload, ListMusic } from 'lucide-react'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
@@ -616,7 +617,18 @@ export default function NewShowPage() {
         venue_longitude: venueRecordCoords?.lng ?? null,
       }).select().single()
       if (perfError) throw new Error('Performance insert failed: ' + perfError.message)
+      // Start the canonical show_created insert now (don't await yet) so its
+      // network time overlaps with savePlannedSetlist's own awaited work
+      // below, instead of adding serially — then await (bounded) right
+      // before navigation, since router.push's client-side transition
+      // shouldn't be trusted to keep an un-awaited insert alive.
+      const showCreatedLogged = logProductEvent(supabase, {
+        event_name: 'show_created', user_id: targetUserId, performance_id: performance.id,
+        show_id: show.id, flow_source: 'live', actor_type: actorTypeFor(actingAsArtistId, user.id),
+        song_count_planned: plannedSongs.length,
+      })
       if (plannedSongs.length > 0) await savePlannedSetlist(performance.id, targetUserId, resolvedVenueId)
+      await awaitWithTimeout(showCreatedLogged)
       router.push(`/app/live/${performance.id}?autostart=1`)
     } catch (err: any) {
       setError(err?.message || 'Something went wrong. Please try again.')

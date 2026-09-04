@@ -9,6 +9,7 @@ import type { Performance } from '@/types'
 import { evaluateGeolocation, toCoords } from '@/lib/geolocation'
 import { ACR_LIMIT_MESSAGE } from '@/lib/acr-limits'
 import { normalizeSongKey } from '@/lib/reconciliation/normalize'
+import { logProductEvent, awaitWithTimeout } from '@/lib/telemetry'
 
 const C = {
   bg: '#0a0908', card: '#141210', border: 'rgba(255,255,255,0.07)',
@@ -139,6 +140,10 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   const performanceRef      = useRef<Performance | null>(null)
   const locationStampedRef  = useRef(false)
   const detectionLimitedRef = useRef(false)
+  // Fires capture_started once per mount (first successful startListening),
+  // not again on a restartListening() recovery cycle — that's the same
+  // capture session, not a new one.
+  const captureStartedLoggedRef = useRef(false)
 
   useEffect(() => { pendingCandidateRef.current = pendingCandidate }, [pendingCandidate])
   useEffect(() => { confirmedSongsRef.current = songs }, [songs])
@@ -441,6 +446,14 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       streamRef.current = stream; setIsListening(true)
+      if (!captureStartedLoggedRef.current && performanceRef.current) {
+        captureStartedLoggedRef.current = true
+        logProductEvent(createClient(), {
+          event_name: 'capture_started', user_id: performanceRef.current.user_id, performance_id: params.id,
+          show_id: showId, flow_source: 'live', actor_type: actingAsArtistId ? 'delegate' : 'owner',
+          song_count_planned: plannedCount,
+        })
+      }
       const pingTime = Date.now(); lastPingRef.current = pingTime; setEngineState('listening')
       // Grace period: the first real response is ~14s out, so seed the health
       // clock on start/resume instead of instantly reading as interrupted.
@@ -504,6 +517,17 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
       ? Math.round((endedAt.getTime() - new Date(performance.started_at).getTime()) / 60000)
       : null
     await supabase.from('performances').update({ status: 'review', ended_at: endedAt.toISOString(), set_duration_minutes: durationMinutes }).eq('id', performance.id)
+    // Started here (not awaited yet) so its network time overlaps with the
+    // rest of this function's already-awaited DB work below, rather than
+    // adding serially — awaited (bounded) right before router.push at the
+    // end, since navigation shouldn't be trusted to keep it alive.
+    const captureEndedLogged = logProductEvent(supabase, {
+      event_name: 'capture_ended', user_id: performance.user_id, performance_id: performance.id,
+      show_id: showId, flow_source: 'live', actor_type: actingAsArtistId ? 'delegate' : 'owner',
+      song_count_current: confirmedSongsRef.current.filter(s => s.source !== 'planned' && s.source !== 'unidentified').length,
+      song_count_planned: plannedCount,
+      occurred_at: endedAt.toISOString(),
+    })
     if (showId) await supabase.from('shows').update({ status: 'completed', ended_at: new Date().toISOString() }).eq('id', showId)
     await supabase.from('capture_sessions').update({ ended_at: new Date().toISOString(), status: 'ended' }).eq('performance_id', performance.id)
     if (setlistId) {
@@ -564,7 +588,8 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         }
       }))
     }
-    router.push(`/app/review/${performance.id}`)
+    await awaitWithTimeout(captureEndedLogged)
+    router.push(`/app/review/${performance.id}?source=live`)
   }, [performance, songs, router, stopListening, showId, setlistId])
 
   useEffect(() => { handleEndRef.current = handleEnd }, [handleEnd])
