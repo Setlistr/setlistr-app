@@ -51,6 +51,7 @@ type Performance = {
   started_at: string; start_time?: string | null; artist_name: string; show_type?: string | null
   venue_capacity?: number | null; submission_status?: string | null
   submitted_at?: string | null; setlist_id?: string | null
+  venue_city?: string | null; venue_country?: string | null
 }
 type Profile = {
   pro_affiliation: string | null; legal_name: string | null
@@ -227,7 +228,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
       if (!user) { router.push('/auth/login'); return }
 
       const { data: perf } = await supabase
-        .from('performances_visible').select('*, shows(show_type), venues(capacity)')
+        .from('performances_visible').select('*, shows(show_type), venues(capacity, city, country)')
         .eq('id', params.id).single()
 
       if (!perf) { setLoading(false); return }
@@ -243,6 +244,8 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
         submission_status: perf.submission_status || null,
         submitted_at:      perf.submitted_at || null,
         setlist_id:        perf.setlist_id || null,
+        venue_city:        perf.venues?.city || null,
+        venue_country:     perf.venues?.country || null,
       }
       setPerformance(perfRecord)
       setSubmitted(perf.submission_status === 'submitted')
@@ -433,7 +436,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
   // City is normally derived from the performance record and never shown as
   // an input. It only becomes an editable field when the performance has no
   // city on file AND the current PRO's claim actually asks for one.
-  const needsCityInput = !performance.city && !!rule?.fields.some(f => f.key === 'venue_city')
+  const needsCityInput = !performance.city && !performance.venue_city && !!rule?.fields.some(f => f.key === 'venue_city')
   const cityMissing = needsCityInput && !manualCity.trim()
 
   function fieldValue(key: ClaimFieldKey): string {
@@ -441,7 +444,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
     switch (key) {
       case 'setlist_title':    return suggestedTitle
       case 'venue_name':       return performance.venue_name || ''
-      case 'venue_city':       return performance.city || manualCity.trim() || ''
+      case 'venue_city':       return performance.city || performance.venue_city || manualCity.trim() || ''
       case 'performance_date': return formatClaimDate(showDate, rule.dateFormat)
       case 'start_time':       return startTime ? formatClaimTime(startTime, rule.homeTerritory) : ''
       case 'ticket_price':     return ticketPrice.trim()
