@@ -56,7 +56,7 @@ type Profile = {
   pro_affiliation: string | null; legal_name: string | null
   ipi_number: string | null; publisher_name: string | null; artist_name: string | null
 }
-type ClaimInputs = { promoter: string; ticketPrice: string; attendance: string; startTime: string }
+type ClaimInputs = { promoter: string; ticketPrice: string; attendance: string; startTime: string; city: string }
 
 // ─── Local persistence (per-device convenience only — not synced across
 // devices or to other users; a fresh device/browser starts with nothing) ────
@@ -111,6 +111,7 @@ function downloadSubmissionBrief({
 }) {
   const showDate = new Date(performance.started_at)
   const showDateLong = showDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
+  const resolvedCity = performance.city || inputs.city
   const line = (char = '─', n = 52) => char.repeat(n)
   const songLines = songs.map((s, i) => {
     const parts = [`${String(i + 1).padStart(2, ' ')}. ${s.title}`]
@@ -142,7 +143,7 @@ function downloadSubmissionBrief({
     `SHOW`,
     line('─', 30),
     `Artist:     ${profile?.artist_name || performance.artist_name}`,
-    `Venue:      ${performance.venue_name}${performance.city ? `, ${performance.city}` : ''}`,
+    `Venue:      ${performance.venue_name}${resolvedCity ? `, ${resolvedCity}` : ''}`,
     `Date:       ${showDateLong}`,
     time ? `Start time: ${time}` : null,
     effectiveCapacity ? `Capacity:   ~${effectiveCapacity.toLocaleString()}` : null,
@@ -215,6 +216,9 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
   const [ticketPrice, setTicketPrice] = useState('')
   const [attendance, setAttendance]   = useState('')
   const [startTime, setStartTime]     = useState('')
+  // Only used when performance.city is missing and the PRO needs it — see
+  // needsCityInput below. Never overrides a real performance.city.
+  const [manualCity, setManualCity]   = useState('')
 
   useEffect(() => {
     const supabase = createClient()
@@ -307,6 +311,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
       setTicketPrice(saved?.ticketPrice || '')
       setAttendance(saved?.attendance || '')
       setStartTime(saved?.startTime || defaultStartTime(perfRecord))
+      setManualCity(saved?.city || '')
       setInputsReady(true)
 
       setLoading(false)
@@ -316,8 +321,8 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
 
   useEffect(() => {
     if (!inputsReady) return
-    writeLocal(`setlistr:claim:${params.id}`, { promoter, ticketPrice, attendance, startTime })
-  }, [inputsReady, params.id, promoter, ticketPrice, attendance, startTime])
+    writeLocal(`setlistr:claim:${params.id}`, { promoter, ticketPrice, attendance, startTime, city: manualCity })
+  }, [inputsReady, params.id, promoter, ticketPrice, attendance, startTime, manualCity])
 
   function copyText(text: string, key: string) {
     try { navigator.clipboard.writeText(text) } catch {
@@ -421,16 +426,22 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
   const needsVenuePick = !performance.venue_capacity
   const capacityMatters = !!rule?.fields.some(f => f.key === 'capacity')
 
-  const inputs: ClaimInputs = { promoter, ticketPrice, attendance, startTime }
+  const inputs: ClaimInputs = { promoter, ticketPrice, attendance, startTime, city: manualCity }
   const inputFields = rule ? rule.fields.filter(f => INPUT_FIELDS.includes(f.key)) : []
   const preflightComplete = rule ? rule.preflight.every(p => preflightDone.includes(p.id)) : true
+
+  // City is normally derived from the performance record and never shown as
+  // an input. It only becomes an editable field when the performance has no
+  // city on file AND the current PRO's claim actually asks for one.
+  const needsCityInput = !performance.city && !!rule?.fields.some(f => f.key === 'venue_city')
+  const cityMissing = needsCityInput && !manualCity.trim()
 
   function fieldValue(key: ClaimFieldKey): string {
     if (!rule || !performance) return ''
     switch (key) {
       case 'setlist_title':    return suggestedTitle
       case 'venue_name':       return performance.venue_name || ''
-      case 'venue_city':       return performance.city || ''
+      case 'venue_city':       return performance.city || manualCity.trim() || ''
       case 'performance_date': return formatClaimDate(showDate, rule.dateFormat)
       case 'start_time':       return startTime ? formatClaimTime(startTime, rule.homeTerritory) : ''
       case 'ticket_price':     return ticketPrice.trim()
@@ -450,7 +461,8 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
   const sheetFields  = rule ? rule.fields : []
   const sheetDone    = sheetFields.filter(f => f.key === 'songs' ? allSongsCopied : copiedKeys.includes(f.key)).length
   const missingRequired = inputFields.filter(f => f.required && !fieldValue(f.key))
-  const detailsReady = missingRequired.length === 0
+  const detailsReady = missingRequired.length === 0 && !cityMissing
+  const missingCount = missingRequired.length + (cityMissing ? 1 : 0)
 
   const inputStyle = (filled: boolean) => ({
     width: '100%', background: '#0a0908', border: `1px solid ${filled ? C.borderGold : C.border}`,
@@ -647,11 +659,12 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
                   : `${daysLeft} day${daysLeft === 1 ? '' : 's'} left · ${deadline.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`}
               </p>
               <p style={{ fontSize: 12, color: C.secondary, margin: '3px 0 0', lineHeight: 1.4 }}>
-                {deadline.rule}
+                {deadline.confidence === 'unverified'
+                  ? `12-month working window · confirm in the ${proName} portal`
+                  : deadline.rule}
                 {deadline.confidence === 'official' && deadline.sourceUrl && (
                   <> · <a href={deadline.sourceUrl} target="_blank" rel="noreferrer" style={{ color: C.secondary, textDecoration: 'underline' }}>{proName} rule ↗</a></>
                 )}
-                {deadline.confidence === 'unverified' && ' · unverified, confirm in the portal'}
                 {deadline.confidence === 'reminder' && ' · Setlistr reminder, not a PRO deadline'}
               </p>
               {earlyStillOpen && deadline.earlyCutoff && (
@@ -759,15 +772,23 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
         )}
 
         {/* Show details the PRO asks for */}
-        {rule && inputFields.length > 0 && (
+        {rule && (inputFields.length > 0 || needsCityInput) && (
           <div style={{ background: CARD.background, border: `1px solid ${detailsReady ? 'rgba(74,222,128,0.2)' : C.border}`, borderRadius: 16, padding: '14px 18px 18px', marginBottom: 12, boxShadow: CARD.boxShadow }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
               <span style={{ fontSize: 13, fontWeight: 700, color: C.text }}>Show details</span>
               {detailsReady
                 ? <span style={{ fontSize: 11, color: C.green, background: C.greenDim, border: '1px solid rgba(74,222,128,0.2)', borderRadius: 20, padding: '2px 8px' }}>✓ Ready</span>
-                : <span style={{ fontSize: 11, color: C.amber }}>{missingRequired.length} needed by {proName}</span>}
+                : <span style={{ fontSize: 11, color: C.amber }}>{missingCount} needed by {proName}</span>}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {needsCityInput && (
+                <div>
+                  <label style={labelStyle}>City<span style={{ color: C.amber }}> *</span></label>
+                  <input type="text" value={manualCity} onChange={e => setManualCity(e.target.value)}
+                    placeholder="e.g. Austin, TX" style={inputStyle(!!manualCity.trim())} />
+                  <p style={{ fontSize: 10, color: C.muted, margin: '4px 0 0' }}>Not on file for this show — {proName} needs it.</p>
+                </div>
+              )}
               {inputFields.map(f => (
                 <div key={f.key}>
                   <label style={labelStyle}>
