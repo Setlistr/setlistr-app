@@ -112,7 +112,7 @@ function downloadSubmissionBrief({
 }) {
   const showDate = new Date(performance.started_at)
   const showDateLong = showDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
-  const resolvedCity = performance.city || inputs.city
+  const resolvedCity = performance.city || performance.venue_city || inputs.city.trim() || ''
   const line = (char = '─', n = 52) => char.repeat(n)
   const songLines = songs.map((s, i) => {
     const parts = [`${String(i + 1).padStart(2, ' ')}. ${s.title}`]
