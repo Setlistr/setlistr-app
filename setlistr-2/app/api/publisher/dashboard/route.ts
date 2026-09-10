@@ -2,17 +2,23 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { ADMIN_EMAILS } from '@/lib/admin-config'
+import { getDeadline, daysUntil, type DeadlineConfidence } from '@/lib/pro-rules'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-function daysUntilDeadline(startedAt: string): number {
-  const showDate = new Date(startedAt)
-  const deadline = new Date(showDate)
-  deadline.setFullYear(deadline.getFullYear() + 1)
-  return Math.ceil((deadline.getTime() - Date.now()) / 86400000)
+// Real per-PRO deadline, not a flat 365-day guess. Returns null days when the
+// PRO is unknown or when the rule is a Setlistr 'reminder' (SESAC/GMR) rather
+// than an actual filing cutoff — the Recovery Queue must never turn a
+// reminder into fake urgency.
+function computeDeadline(pro: string | null | undefined, startedAt: string): { days: number | null; confidence: DeadlineConfidence | null } {
+  const result = getDeadline(pro, new Date(startedAt))
+  if (!result || result.confidence === 'reminder') {
+    return { days: null, confidence: result?.confidence ?? null }
+  }
+  return { days: daysUntil(result.date), confidence: result.confidence }
 }
 
 function estimateShowValue(songCount: number, showType: string): number {
@@ -73,6 +79,16 @@ export async function GET(req: NextRequest) {
 
     const artistIds = roster.map(r => r.artist_user_id)
 
+    // One read-only lookup for each roster artist's PRO — everything else
+    // about the artist (name, added_at) already came from publisher_roster.
+    const { data: profilesData } = await supabase
+      .from('profiles')
+      .select('id, pro_affiliation')
+      .in('id', artistIds)
+
+    const proByArtist: Record<string, string | null> = {}
+    profilesData?.forEach(p => { proByArtist[p.id] = p.pro_affiliation })
+
     // Get all performances for roster artists
     const { data: performances } = await supabase
       .from('performances_visible')
@@ -113,19 +129,25 @@ export async function GET(req: NextRequest) {
           )
         })
 
-      const recentShows = artistPerfs.slice(0, 8).map(p => ({
-        id: p.id,
-        venue_name: p.venue_name,
-        city: p.city,
-        country: p.country,
-        started_at: p.started_at,
-        status: p.status,
-        submission_status: p.submission_status,
-        song_count: songCounts[p.id] || 0,
-        show_type: (p as any).shows?.show_type || 'single',
-        estimated_value: estimateShowValue(songCounts[p.id] || 0, (p as any).shows?.show_type || 'single'),
-        days_until_deadline: daysUntilDeadline(p.started_at),
-      }))
+      const pro = proByArtist[r.artist_user_id] ?? null
+
+      const recentShows = artistPerfs.slice(0, 8).map(p => {
+        const { days, confidence } = computeDeadline(pro, p.started_at)
+        return {
+          id: p.id,
+          venue_name: p.venue_name,
+          city: p.city,
+          country: p.country,
+          started_at: p.started_at,
+          status: p.status,
+          submission_status: p.submission_status,
+          song_count: songCounts[p.id] || 0,
+          show_type: (p as any).shows?.show_type || 'single',
+          estimated_value: estimateShowValue(songCounts[p.id] || 0, (p as any).shows?.show_type || 'single'),
+          days_until_deadline: days,
+          deadline_confidence: confidence,
+        }
+      })
 
       return {
         user_id: r.artist_user_id,
@@ -145,19 +167,27 @@ export async function GET(req: NextRequest) {
       }
     })
 
-    // ── Recovery Queue — all unsubmitted shows ranked by deadline urgency ──
+    // ── Recovery Queue — all unsubmitted shows, real deadlines ranked by
+    // urgency ascending, null-deadline shows (unknown PRO, or a
+    // reminder-only PRO like SESAC/GMR) always sorted last and never given
+    // critical/warning urgency. ──
     const recoveryQueue = artists
       .flatMap(a =>
         a.recentShows
-          .filter(s => s.submission_status !== 'submitted' && s.days_until_deadline > 0)
+          .filter(s => s.submission_status !== 'submitted' && (s.days_until_deadline === null || s.days_until_deadline > 0))
           .map(s => ({
             ...s,
             artist_name: a.artist_name,
             artist_user_id: a.user_id,
-            urgency: urgencyLevel(s.days_until_deadline),
+            urgency: s.days_until_deadline !== null ? urgencyLevel(s.days_until_deadline) : null,
           }))
       )
-      .sort((a, b) => a.days_until_deadline - b.days_until_deadline)
+      .sort((a, b) => {
+        if (a.days_until_deadline === null && b.days_until_deadline === null) return 0
+        if (a.days_until_deadline === null) return 1
+        if (b.days_until_deadline === null) return -1
+        return a.days_until_deadline - b.days_until_deadline
+      })
       .slice(0, 20)
 
     // ── Projected annual value ──

@@ -19,16 +19,21 @@ const PUBLISHER_ID = process.env.NEXT_PUBLIC_PUBLISHER_DEMO_ID || ''
 
 type ArtistStatus = 'active' | 'inactive' | 'invited' | 'not_activated'
 
+type DeadlineConfidence = 'official' | 'unverified' | 'reminder' | null
+
 type RecentShow = {
   id: string; venue_name: string; city: string; country: string
   started_at: string; status: string; submission_status: string | null
   song_count: number; show_type: string; estimated_value: number
-  days_until_deadline: number
+  // null when the artist has no PRO set, or the PRO's rule is a Setlistr
+  // reminder (SESAC/GMR) rather than a real filing cutoff.
+  days_until_deadline: number | null
+  deadline_confidence: DeadlineConfidence
 }
 
 type RecoveryItem = RecentShow & {
   artist_name: string; artist_user_id: string
-  urgency: 'critical' | 'warning' | 'monitor'
+  urgency: 'critical' | 'warning' | 'monitor' | null
 }
 
 type Artist = {
@@ -103,7 +108,17 @@ function StatusBadge({ status }: { status: ArtistStatus }) {
   )
 }
 
-function UrgencyBadge({ days }: { days: number }) {
+function UrgencyBadge({ days, confidence }: { days: number | null; confidence?: DeadlineConfidence }) {
+  if (days === null) {
+    // 'reminder' means a real PRO with a known non-deadline rule
+    // (SESAC/GMR) — anything else null means no PRO is set at all.
+    const label = confidence === 'reminder' ? 'No PRO deadline' : 'PRO unknown'
+    return (
+      <span style={{ fontSize: 10, fontWeight: 700, color: C.muted, background: 'rgba(255,255,255,0.03)', border: `1px solid ${C.border}`, borderRadius: 20, padding: '3px 9px', whiteSpace: 'nowrap' as const, fontFamily: '"DM Mono", monospace' }}>
+        {label}
+      </span>
+    )
+  }
   const color  = days <= 30 ? C.red   : days <= 90 ? C.amber : C.gold
   const bg     = days <= 30 ? 'rgba(248,113,113,0.1)' : days <= 90 ? 'rgba(245,158,11,0.1)' : C.goldDim
   const border = days <= 30 ? 'rgba(248,113,113,0.3)' : days <= 90 ? 'rgba(245,158,11,0.3)' : C.borderGold
@@ -130,8 +145,8 @@ function ArtistCard({ artist, expanded, onToggle }: { artist: Artist; expanded: 
   const submissionRate = artist.totalShows > 0
     ? Math.round(((artist.totalShows - artist.unsubmitted) / artist.totalShows) * 100)
     : 0
-  const atRisk = artist.recentShows.filter(s =>
-    s.submission_status !== 'submitted' && s.days_until_deadline < 90 && s.days_until_deadline > 0
+  const atRisk = artist.recentShows.filter((s): s is RecentShow & { days_until_deadline: number } =>
+    s.submission_status !== 'submitted' && s.days_until_deadline !== null && s.days_until_deadline < 90 && s.days_until_deadline > 0
   )
 
   return (
@@ -492,9 +507,12 @@ function RecoveryQueue({ items }: { items: RecoveryItem[] }) {
     </div>
   )
 
-  const critical = items.filter(i => i.urgency === 'critical')
-  const warning  = items.filter(i => i.urgency === 'warning')
-  const monitor  = items.filter(i => i.urgency === 'monitor')
+  const critical    = items.filter(i => i.urgency === 'critical')
+  const warning     = items.filter(i => i.urgency === 'warning')
+  const monitor     = items.filter(i => i.urgency === 'monitor')
+  // No PRO set, or a reminder-only PRO (SESAC/GMR) — never critical/warning,
+  // always last.
+  const noDeadline  = items.filter(i => i.urgency === null)
 
   function Section({ title, color, bg, sItems }: { title: string; color: string; bg: string; sItems: RecoveryItem[] }) {
     if (!sItems.length) return null
@@ -506,7 +524,7 @@ function RecoveryQueue({ items }: { items: RecoveryItem[] }) {
             <div key={item.id} style={{ background: bg, border: `1px solid ${color}30`, borderLeft: `3px solid ${color}`, borderRadius: 10, padding: '10px 12px' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3, gap: 6 }}>
                 <span style={{ fontSize: 11, fontWeight: 700, color: C.gold, whiteSpace: 'nowrap' as const, overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.artist_name}</span>
-                <UrgencyBadge days={item.days_until_deadline} />
+                <UrgencyBadge days={item.days_until_deadline} confidence={item.deadline_confidence} />
               </div>
               <p style={{ fontSize: 12, fontWeight: 600, color: C.text, margin: '0 0 3px', whiteSpace: 'nowrap' as const, overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.venue_name}</p>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
@@ -526,9 +544,10 @@ function RecoveryQueue({ items }: { items: RecoveryItem[] }) {
 
   return (
     <div>
-      <Section title={`Critical · ${critical.length}`} color={C.red}   bg="rgba(248,113,113,0.05)" sItems={critical} />
-      <Section title={`At Risk · ${warning.length}`}   color={C.amber} bg="rgba(245,158,11,0.05)"  sItems={warning} />
-      <Section title={`Monitor · ${monitor.length}`}   color={C.gold}  bg="rgba(201,168,76,0.04)"  sItems={monitor} />
+      <Section title={`Critical · ${critical.length}`}    color={C.red}   bg="rgba(248,113,113,0.05)" sItems={critical} />
+      <Section title={`At Risk · ${warning.length}`}      color={C.amber} bg="rgba(245,158,11,0.05)"  sItems={warning} />
+      <Section title={`Monitor · ${monitor.length}`}      color={C.gold}  bg="rgba(201,168,76,0.04)"  sItems={monitor} />
+      <Section title={`No Deadline · ${noDeadline.length}`} color={C.muted} bg="rgba(255,255,255,0.02)" sItems={noDeadline} />
     </div>
   )
 }

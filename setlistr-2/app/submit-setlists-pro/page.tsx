@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { ArticleShell, Crumb, Tag, H1, Standfirst, H2, P, Callout, EndCTA, Related, CheckRow, COLORS } from '@/components/article/ArticleKit'
 import Link from 'next/link'
+import { PRO_RULES } from '@/lib/pro-rules'
 
 export const metadata: Metadata = {
   title: 'How to Submit Setlists to ASCAP, BMI & SOCAN (Step-by-Step) | Setlistr',
@@ -17,7 +18,7 @@ export const metadata: Metadata = {
 
 const PROS = [
   {
-    name: 'SOCAN', deadline: '1 year', portal: 'https://memp.socan.com', portalLabel: 'memp.socan.com',
+    name: 'SOCAN', deadline: PRO_RULES.SOCAN.deadlineSummary, portal: 'https://memp.socan.com', portalLabel: 'memp.socan.com',
     steps: [
       { title: 'Log in to the new SOCAN portal', detail: 'Go to memp.socan.com. If you’ve only used the old portal, create a new login — they are separate systems.' },
       { title: 'Set Lists & Performances → Register New Set List', detail: 'Click “Register New Set List” from the main menu.' },
@@ -28,7 +29,7 @@ const PROS = [
     tip: 'Check your SOCAN account’s “Unidentified Concert Performances” section. Your show may already be logged from the venue — it just needs a setlist attached.',
   },
   {
-    name: 'ASCAP', deadline: 'Same quarter', portal: 'https://www.ascap.com/members', portalLabel: 'ascap.com/members',
+    name: 'ASCAP', deadline: PRO_RULES.ASCAP.deadlineSummary, portal: 'https://www.ascap.com/members', portalLabel: 'ascap.com/members',
     steps: [
       { title: 'Log in to ASCAP Member Access', detail: 'Go to ascap.com/members.' },
       { title: 'Works → OnStage → Setlists → Add+', detail: 'Name your setlist, check each song you performed, click “Add to Setlist”.' },
@@ -38,7 +39,7 @@ const PROS = [
     tip: 'ASCAP distributes quarterly. Submit before quarter-end for the fastest payment cycle.',
   },
   {
-    name: 'BMI', deadline: '9 months', portal: 'https://www.bmi.com', portalLabel: 'bmi.com',
+    name: 'BMI', deadline: PRO_RULES.BMI.deadlineSummary, portal: 'https://www.bmi.com', portalLabel: 'bmi.com',
     steps: [
       { title: 'Log in → your name dropdown → Online Services', detail: 'Click your name in the top right at bmi.com.' },
       { title: 'Click BMI Live in the applications panel', detail: 'Top left of the Online Services screen.' },
@@ -48,7 +49,7 @@ const PROS = [
     tip: 'Enroll in direct deposit first. Otherwise royalties sit uncollected even after a successful submission.',
   },
   {
-    name: 'PRS for Music', deadline: '1 year', portal: 'https://www.prsformusic.com/login', portalLabel: 'prsformusic.com/login',
+    name: 'PRS for Music', deadline: PRO_RULES.PRS.deadlineSummary, portal: 'https://www.prsformusic.com/login', portalLabel: 'prsformusic.com/login',
     steps: [
       { title: 'Log in → Live Music → Submit a setlist', detail: 'Find the Live Music section in your dashboard.' },
       { title: 'Enter venue name, postcode, date and ticket price', detail: 'All required fields.' },
@@ -87,9 +88,9 @@ export default function Page() {
 
       {PROS.map(pro => (
         <div key={pro.name} style={{ marginTop: 44 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+          <div style={{ marginBottom: 8 }}>
             <h2 style={{ fontFamily: '"Bebas Neue", sans-serif', fontSize: 'clamp(28px, 4vw, 40px)', letterSpacing: '.02em', margin: 0 }}>{pro.name}</h2>
-            <span style={{ fontFamily: '"DM Mono", monospace', fontSize: 11, color: 'rgba(212,209,202,0.55)', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 20, padding: '3px 11px' }}>Deadline: {pro.deadline}</span>
+            <p style={{ fontFamily: '"DM Mono", monospace', fontSize: 11, color: 'rgba(212,209,202,0.55)', margin: '4px 0 0', lineHeight: 1.5 }}>Deadline: {pro.deadline}</p>
           </div>
           <a href={pro.portal} target="_blank" rel="noopener noreferrer" style={{ fontFamily: '"DM Mono", monospace', fontSize: 12, color: '#C9A84C', textDecoration: 'none' }}>{pro.portalLabel} ↗</a>
           <div style={{ marginTop: 16 }}>

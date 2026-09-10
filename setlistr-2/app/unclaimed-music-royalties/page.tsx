@@ -17,7 +17,7 @@ export const metadata: Metadata = {
 
 const REASONS = [
   { label: "You don’t remember the setlist", detail: 'A 12-song set played at 11pm after a long day is hard to reconstruct accurately the next morning.' },
-  { label: 'The submission window feels distant', detail: 'SOCAN gives you a year. ASCAP wants same-quarter. The deadline feels far away — until it isn’t.' },
+  { label: 'The submission window feels distant', detail: 'SOCAN gives you about a year. ASCAP and BMI close on quarterly cutoffs. The deadline feels far away — until it isn’t.' },
   { label: 'The portal UX is genuinely painful', detail: 'PRO portals were not designed for mobile-first touring musicians. Clunky, desktop-centric, and slow.' },
   { label: 'The amounts feel too small to bother', detail: 'A single bar show might yield $30–75 in royalties. Across 100 shows a year, that’s $3,000–7,500 unclaimed.' },
 ]
