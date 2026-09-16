@@ -16,7 +16,7 @@ export async function GET() {
     // Find all artists this user manages (accepted delegates only)
     const { data: delegations } = await service
       .from('artist_delegates')
-      .select('artist_id, role, accepted_at')
+      .select('artist_id, role, grants, accepted_at')
       .eq('delegate_id', user.id)
       .not('accepted_at', 'is', null)
 
@@ -37,6 +37,7 @@ export async function GET() {
         artist_id: d.artist_id,
         artist_name: profile?.artist_name || profile?.full_name || 'Unknown Artist',
         role: d.role,
+        grants: d.grants,
         avatar_url: profile?.avatar_url || null,
       }
     })

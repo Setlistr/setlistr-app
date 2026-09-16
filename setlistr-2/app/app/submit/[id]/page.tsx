@@ -8,6 +8,7 @@ import {
   INPUT_FIELDS,
   type ProRule, type ClaimFieldKey, type DeadlineResult, type Urgency, type Territory,
 } from '@/lib/pro-rules'
+import { resolveRole, submissionAuthority, type TeamRole, type Grants } from '@/lib/permissions'
 
 const CARD = {
   background: 'linear-gradient(180deg, #171512 0%, #121009 100%)',
@@ -197,6 +198,8 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
   const [songs, setSongs]                 = useState<Song[]>([])
   const [profile, setProfile]             = useState<Profile | null>(null)
   const [isDelegate, setIsDelegate]       = useState(false)
+  const [role, setRole]                   = useState<TeamRole | null>(null)
+  const [grants, setGrants]               = useState<Grants>(null)
   const [loading, setLoading]             = useState(true)
   const [copied, setCopied]               = useState<string | null>(null)
   const [copiedKeys, setCopiedKeys]       = useState<string[]>([])
@@ -235,7 +238,6 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
 
       const ownerId = perf.user_id as string
       const delegateView = user.id !== ownerId
-      setIsDelegate(delegateView)
 
       const perfRecord: Performance = {
         ...perf,
@@ -262,6 +264,8 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
       // ipi_number/publisher_name, preserving the existing privacy
       // boundary that keeps those off a delegate's screen.
       let profileData: Profile | null = null
+      let resolvedRole: TeamRole | null = null
+      let resolvedGrants: Grants = null
       if (delegateView) {
         try {
           const ctxRes = await fetch(`/api/team/context-data?artist_id=${ownerId}`)
@@ -274,6 +278,14 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
               ipi_number:      null,
               publisher_name:  null,
             }
+            // context-data only ever returns a non-error response for an
+            // accepted delegation (it filters accepted_at IS NOT NULL server
+            // side before responding), so delegationAccepted is true here by
+            // construction.
+            resolvedRole = resolveRole({
+              viewerId: user.id, ownerId, delegateRole: ctx.role, delegationAccepted: true,
+            })
+            resolvedGrants = ctx.grants ?? null
           }
         } catch (e) { console.error('[SubmitPage] context-data fetch failed:', e) }
       } else {
@@ -281,8 +293,16 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
           .from('profiles').select('pro_affiliation, legal_name, ipi_number, publisher_name, artist_name')
           .eq('id', ownerId).single()
         profileData = data
+        resolvedRole = resolveRole({ viewerId: user.id, ownerId })
       }
       setProfile(profileData)
+      setRole(resolvedRole)
+      setGrants(resolvedGrants)
+      // Keeps every existing isDelegate-gated branch working unchanged —
+      // resolveRole() returns 'owner' only when viewerId === ownerId, so
+      // this is equivalent to the previous raw id comparison for who gets
+      // the delegate-facing UI, but now backed by the real role instead.
+      setIsDelegate(resolvedRole !== 'owner')
 
       let songData: any[] = []
       try {
@@ -406,6 +426,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
   const rule           = getProRule(pro)
   const hasPRO         = !!rule
   const proName        = rule?.name || pro || 'your PRO'
+  const authority      = submissionAuthority({ role, pro, grants })
   const stepsCompleted = stepsDone.filter(Boolean).length
   const totalSteps     = stepsDone.length
   const showDate       = new Date(performance.started_at)
@@ -943,10 +964,12 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
                 onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}>
                 <ExternalLink size={15} strokeWidth={2.5} />{rule.portalLabel}
               </button>
-            ) : isDelegate ? (
+            ) : authority.action === 'prepare_only' ? (
               <>
                 <p style={{ fontSize: 11, color: C.muted, textAlign: 'center', margin: '0 0 2px' }}>
-                  Only {artistDisplayName} can file in {rule.program}. Send them this claim sheet, or mark it once they’ve told you it’s done.
+                  {authority.reason === 'pro_requires_writer'
+                    ? `Only ${artistDisplayName} can file in ${rule.program}. Send them this claim sheet, or mark it once they’ve told you it’s done.`
+                    : `${artistDisplayName} or their manager submits this — you’re preparing it. Send them this claim sheet, or mark it once they’ve told you it’s done.`}
                 </p>
                 <button onClick={handleSendToArtist}
                   style={{ width: '100%', padding: '15px', background: 'transparent', border: `1px solid ${C.borderGold}`, borderRadius: 12, color: C.gold, fontSize: 14, fontWeight: 800, letterSpacing: '0.04em', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit' }}>

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { ASSIGNABLE_ROLES } from '@/lib/permissions'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -79,6 +80,10 @@ export async function POST(req: NextRequest) {
 
     if (!artist_id || !delegate_email) {
       return NextResponse.json({ error: 'artist_id and delegate_email required' }, { status: 400 })
+    }
+
+    if (!ASSIGNABLE_ROLES.includes(role)) {
+      return NextResponse.json({ error: 'Invalid role' }, { status: 400 })
     }
 
     // Caller must be authenticated before artist_id is trusted for anything.

@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
 
     const { data: delegation } = await service
       .from('artist_delegates')
-      .select('id, role')
+      .select('id, role, grants')
       .eq('artist_id', artistId)
       .eq('delegate_id', user.id)
       .not('accepted_at', 'is', null)
@@ -74,6 +74,7 @@ export async function GET(req: NextRequest) {
       career_total_shows: profile?.career_total_shows || null,
       career_start_year: profile?.career_start_year || null,
       role: delegation.role,
+      grants: delegation.grants,
       performances,
       songCountMap,
     })

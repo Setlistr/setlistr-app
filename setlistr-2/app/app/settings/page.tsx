@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Check, KeyRound, User, Music2, Search, Download, Radio, Users, Copy, X, Clock, AlertCircle, LogOut, Shield, Trash2 } from 'lucide-react'
 import { ADMIN_EMAILS } from '@/lib/admin-config'
+import { ASSIGNABLE_ROLES, ROLE_LABELS, ROLE_PRESETS, parseRole, type TeamRole } from '@/lib/permissions'
 
 const CARD = {
   background: 'linear-gradient(180deg, #171512 0%, #121009 100%)',
@@ -106,6 +107,7 @@ export default function SettingsPage() {
   const [delegates, setDelegates]             = useState<Delegate[]>([])
   const [delegateAvatars, setDelegateAvatars] = useState<Record<string, string | null>>({})
   const [delegateEmail, setDelegateEmail]     = useState('')
+  const [delegateRole, setDelegateRole]       = useState<TeamRole>('manager')
   const [inviting, setInviting]               = useState(false)
   const [inviteResult, setInviteResult]       = useState<{ invite_url: string; invite_message: string; delegate_name: string | null; delegate_found: boolean; email_sent: boolean } | null>(null)
   const [inviteError, setInviteError]         = useState('')
@@ -353,7 +355,7 @@ export default function SettingsPage() {
       const res = await fetch('/api/team/invite', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ artist_id: userId, delegate_email: delegateEmail.trim() }),
+        body: JSON.stringify({ artist_id: userId, delegate_email: delegateEmail.trim(), role: delegateRole }),
       })
       const data = await res.json()
       if (data.error) { setInviteError(data.error); return }
@@ -586,7 +588,7 @@ export default function SettingsPage() {
                       }
                     </div>
                     <p style={{ fontSize: 11, color: C.muted, margin: '1px 0 0' }}>
-                      {d.role} · {d.accepted ? `Joined ${timeAgo(d.accepted_at!)}` : `Invited ${timeAgo(d.invited_at)}`}
+                      {ROLE_LABELS[parseRole(d.role)]} · {d.accepted ? `Joined ${timeAgo(d.accepted_at!)}` : `Invited ${timeAgo(d.invited_at)}`}
                     </p>
                   </div>
 
@@ -632,6 +634,19 @@ export default function SettingsPage() {
                 {inviting ? '...' : 'Invite'}
               </button>
             </div>
+            <select
+              value={delegateRole}
+              onChange={e => setDelegateRole(e.target.value as TeamRole)}
+              style={{ ...inputStyle, marginTop: 8, width: '100%' }}
+              onFocus={e => (e.target as HTMLSelectElement).style.borderColor = C.borderGold}
+              onBlur={e => (e.target as HTMLSelectElement).style.borderColor = C.inputBorder}>
+              {ASSIGNABLE_ROLES.map(r => (
+                <option key={r} value={r}>{ROLE_LABELS[r]}</option>
+              ))}
+            </select>
+            <p style={{ fontSize: 11, color: C.muted, margin: '6px 0 0' }}>
+              {ROLE_LABELS[delegateRole]} — grants {ROLE_PRESETS[delegateRole].length} capabilities.
+            </p>
             <p style={{ fontSize: 11, color: C.muted, margin: '6px 0 0' }}>
               They'll get a link to accept access. If they don't have a Setlistr account yet, they can create one when they accept.
             </p>
