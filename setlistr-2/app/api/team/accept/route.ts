@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
 
   const { data: invite } = await supabase
     .from('artist_delegates')
-    .select('id, artist_id, delegate_id, role, accepted_at')
+    .select('id, artist_id, delegate_id, role, accepted_at, invited_email')
     .eq('invite_token', token)
     .maybeSingle()
 
@@ -33,10 +33,18 @@ export async function GET(req: NextRequest) {
     .eq('id', invite.artist_id)
     .single()
 
+  // A placeholder row (delegate_id === artist_id, written when the invited
+  // email had no Setlistr account yet) has no real delegate bound — the
+  // session's own email, matched case-insensitively against invited_email,
+  // is what identifies the intended recipient in that case.
+  const isPlaceholder = invite.delegate_id === invite.artist_id
+  const emailMatches = !!user?.email && !!invite.invited_email &&
+    invite.invited_email.toLowerCase() === user.email.toLowerCase()
+
   return NextResponse.json({
     id: invite.id,
     artist_id: invite.artist_id,
-    is_intended_recipient: !!user && invite.delegate_id === user.id,
+    is_intended_recipient: !!user && (invite.delegate_id === user.id || (isPlaceholder && emailMatches)),
     role: invite.role,
     artist_name: artist?.artist_name || artist?.full_name || 'An artist',
     artist_email: artist?.email || '',
@@ -62,30 +70,73 @@ export async function POST(req: NextRequest) {
     // Look up the invite
     const { data: invite } = await supabase
       .from('artist_delegates')
-      .select('id, artist_id, delegate_id, accepted_at')
+      .select('id, artist_id, delegate_id, accepted_at, invited_email')
       .eq('invite_token', token)
       .maybeSingle()
 
     if (!invite) return NextResponse.json({ error: 'Invite not found.' }, { status: 404 })
     if (invite.accepted_at) return NextResponse.json({ success: true, already_accepted: true })
 
-    // Verify the accepting session matches the intended delegate
-    if (invite.delegate_id !== user.id) {
+    // An artist is the owner of their own account and must never hold a
+    // delegate row for themselves — checked before anything below, since a
+    // placeholder row's delegate_id equals artist_id and would otherwise
+    // satisfy the "already bound" case for the artist's own session.
+    if (user.id === invite.artist_id) {
       return NextResponse.json({ error: 'This invite was sent to a different account.' }, { status: 403 })
     }
 
-    // Accept it
-    const { error } = await supabase
-      .from('artist_delegates')
-      .update({ accepted_at: new Date().toISOString() })
-      .eq('id', invite.id)
+    if (invite.delegate_id === user.id) {
+      // Already bound to this account — accept as today.
+      const { error } = await supabase
+        .from('artist_delegates')
+        .update({ accepted_at: new Date().toISOString() })
+        .eq('id', invite.id)
 
-    if (error) {
-      console.error('Accept invite error:', error)
-      return NextResponse.json({ error: 'Failed to accept invite.' }, { status: 500 })
+      if (error) {
+        console.error('Accept invite error:', error)
+        return NextResponse.json({ error: 'Failed to accept invite.' }, { status: 500 })
+      }
+
+      return NextResponse.json({ success: true })
     }
 
-    return NextResponse.json({ success: true })
+    // Unbound placeholder row (invited email had no Setlistr account at
+    // invite time) — a valid token alone is never sufficient to bind it;
+    // the session's email must match invited_email case-insensitively.
+    // Legacy placeholder rows with a null invited_email fall through to the
+    // 403 below rather than being treated as a match.
+    const isPlaceholder = invite.delegate_id === invite.artist_id
+    const emailMatches = !!invite.invited_email && !!user.email &&
+      invite.invited_email.toLowerCase() === user.email.toLowerCase()
+
+    if (isPlaceholder && emailMatches) {
+      // Rebind and accept in one guarded update — .eq('delegate_id', ...)
+      // ensures a concurrent accept can't double-bind the same placeholder
+      // row to two different accounts. The update's own returned row is
+      // the re-read: if the guard didn't match (another request already
+      // rebound it first), nothing comes back and this account is not
+      // treated as bound.
+      const { data: rebound, error } = await supabase
+        .from('artist_delegates')
+        .update({ delegate_id: user.id, accepted_at: new Date().toISOString() })
+        .eq('id', invite.id)
+        .eq('delegate_id', invite.artist_id)
+        .select('id, delegate_id')
+        .maybeSingle()
+
+      if (error) {
+        console.error('Accept invite error:', error)
+        return NextResponse.json({ error: 'Failed to accept invite.' }, { status: 500 })
+      }
+
+      if (!rebound || rebound.delegate_id !== user.id) {
+        return NextResponse.json({ error: 'This invite was sent to a different account.' }, { status: 403 })
+      }
+
+      return NextResponse.json({ success: true })
+    }
+
+    return NextResponse.json({ error: 'This invite was sent to a different account.' }, { status: 403 })
   } catch (err) {
     console.error('Accept invite route error:', err)
     return NextResponse.json({ error: 'Something went wrong.' }, { status: 500 })

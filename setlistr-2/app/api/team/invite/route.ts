@@ -150,8 +150,10 @@ export async function POST(req: NextRequest) {
       .from('artist_delegates')
       .insert(delegateUser ? {
         artist_id, delegate_id: delegateUser.id, role, invited_by: artist_id,
+        invited_email: delegate_email.toLowerCase().trim(),
       } : {
         artist_id, delegate_id: artist_id, role, invited_by: artist_id,
+        invited_email: delegate_email.toLowerCase().trim(),
       })
       .select('id, invite_token')
       .single()
