@@ -668,7 +668,9 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
           <div style={{ background: 'rgba(255,255,255,0.02)', border: `1px solid ${C.border}`, borderRadius: 12, padding: '10px 14px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 10 }}>
             <span style={{ fontSize: 11, color: C.muted, lineHeight: 1.5 }}>
               {authority.action === 'view_only' ? (
-                'You have view-only access to this claim.'
+                authority.reason === 'unverified'
+                  ? "We couldn’t verify your team permissions. Refresh the page or return to the dashboard."
+                  : 'You have view-only access to this claim.'
               ) : authority.action === 'submit' ? (
                 <>You’re submitting this claim for <strong style={{ color: C.secondary }}>{artistDisplayName}</strong> as their authorized manager.</>
               ) : authority.reason === 'pro_requires_writer' ? (

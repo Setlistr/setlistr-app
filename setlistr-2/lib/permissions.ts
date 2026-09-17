@@ -156,24 +156,37 @@ export function can(role: TeamRole | null, capability: Capability, grants?: Gran
 //
 // Evaluation order is load-bearing, not incidental:
 //   1. owner                              -> submit
-//   2. viewer                             -> view_only
-//   3. BMI/writer-only PRO (any other role) -> prepare_only / pro_requires_writer
-//   4. role holds submit_to_pro           -> submit
-//   5. everything else                    -> prepare_only / not_permitted
-// Viewer is checked immediately after owner and BEFORE the PRO/writer-only
-// check, so a viewer never falls into a prepare_only hand-off branch (Send to
-// artist / Artist filed it are still actionable claim-state controls a
+//   2. role === null                      -> view_only / unverified
+//   3. viewer                             -> view_only / viewer
+//   4. BMI/writer-only PRO (any other role) -> prepare_only / pro_requires_writer
+//   5. role holds submit_to_pro           -> submit
+//   6. remaining verified non-viewer roles -> prepare_only / not_permitted
+//
+// role: TeamRole | null makes null part of this function's contract, not an
+// unreachable edge case — resolveRole() returns null whenever a viewer's
+// identity/delegation couldn't be verified at all (see resolveRole's own
+// doc comment: no viewerId, or a delegation lookup that failed/returned
+// nothing). That is a STRICTLY WEAKER state than a confirmed 'viewer' row —
+// an unverified caller must never be treated as an authorized viewer, let
+// alone fall through toward a prepare_only hand-off branch, so it's checked
+// second, immediately after owner and BEFORE the confirmed-viewer check.
+//
+// A confirmed 'viewer' is checked next, still BEFORE the PRO/writer-only
+// check, so a viewer never falls into a prepare_only hand-off branch (Send
+// to artist / Artist filed it are still actionable claim-state controls a
 // view_workspace-only role must never see) — viewer = view_workspace only,
 // full stop, regardless of which PRO the show is for. parseRole() already
 // fails closed to 'viewer' for any unrecognized stored role string, so an
-// invalid/unknown role also lands here — never in a prepare_only or submit
-// branch.
+// invalid/unknown *stored* role also lands in the confirmed-viewer branch —
+// never in a prepare_only or submit branch. (An unrecognized stored role is
+// distinct from role===null: the former is a real, resolved delegation row
+// with a garbage role string; the latter is no verified delegation at all.)
 
 const WRITER_ONLY_PROS = new Set(['BMI'])
 
 export type SubmissionAuthority =
   | { action: 'submit' }
-  | { action: 'view_only' }
+  | { action: 'view_only'; reason: 'viewer' | 'unverified' }
   | { action: 'prepare_only'; reason: 'pro_requires_writer' | 'not_permitted' }
 
 export function submissionAuthority(args: {
@@ -183,7 +196,8 @@ export function submissionAuthority(args: {
 }): SubmissionAuthority {
   const { role, pro, grants } = args
   if (role === 'owner') return { action: 'submit' }
-  if (role === 'viewer') return { action: 'view_only' }
+  if (role === null) return { action: 'view_only', reason: 'unverified' }
+  if (role === 'viewer') return { action: 'view_only', reason: 'viewer' }
   if (pro && WRITER_ONLY_PROS.has(pro.trim().toUpperCase())) {
     return { action: 'prepare_only', reason: 'pro_requires_writer' }
   }
