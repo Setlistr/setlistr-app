@@ -667,7 +667,9 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
         {isDelegate && (
           <div style={{ background: 'rgba(255,255,255,0.02)', border: `1px solid ${C.border}`, borderRadius: 12, padding: '10px 14px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 10 }}>
             <span style={{ fontSize: 11, color: C.muted, lineHeight: 1.5 }}>
-              {authority.action === 'submit' ? (
+              {authority.action === 'view_only' ? (
+                'You have view-only access to this claim.'
+              ) : authority.action === 'submit' ? (
                 <>You’re submitting this claim for <strong style={{ color: C.secondary }}>{artistDisplayName}</strong> as their authorized manager.</>
               ) : authority.reason === 'pro_requires_writer' ? (
                 <>You’re preparing this claim for <strong style={{ color: C.secondary }}>{artistDisplayName}</strong>. Only {artistDisplayName} can file in {proName}’s portal — you can send this sheet to them or mark it filed once they have.</>
@@ -962,7 +964,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
 
         {/* CTAs — one obvious action */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {hasPRO && rule && (
+          {authority.action !== 'view_only' && hasPRO && rule && (
             !portalOpened ? (
               <button onClick={() => handleOpenPortal(rule.portalUrl)}
                 style={{ width: '100%', padding: '17px', background: C.gold, border: 'none', borderRadius: 12, color: '#0a0908', fontSize: 16, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' as const, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit', transition: 'opacity 0.15s ease' }}
@@ -1007,7 +1009,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
             )
           )}
 
-          {!hasPRO && (
+          {authority.action !== 'view_only' && !hasPRO && (
             <button onClick={markSubmitted} disabled={markingDone}
               style={{ width: '100%', padding: '14px', background: 'transparent', border: `1px solid ${C.border}`, borderRadius: 12, color: C.muted, fontSize: 15, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, fontFamily: 'inherit', opacity: markingDone ? 0.6 : 1 }}>
               <Check size={14} strokeWidth={2.5} />{markingDone ? 'Recording...' : 'Mark as Submitted'}

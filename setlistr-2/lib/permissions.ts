@@ -153,11 +153,27 @@ export function can(role: TeamRole | null, capability: Capability, grants?: Gran
 //
 // Pass the PRO code as a plain string (e.g. 'BMI') to keep this file free of
 // any dependency on lib/pro-rules.ts.
+//
+// Evaluation order is load-bearing, not incidental:
+//   1. owner                              -> submit
+//   2. viewer                             -> view_only
+//   3. BMI/writer-only PRO (any other role) -> prepare_only / pro_requires_writer
+//   4. role holds submit_to_pro           -> submit
+//   5. everything else                    -> prepare_only / not_permitted
+// Viewer is checked immediately after owner and BEFORE the PRO/writer-only
+// check, so a viewer never falls into a prepare_only hand-off branch (Send to
+// artist / Artist filed it are still actionable claim-state controls a
+// view_workspace-only role must never see) — viewer = view_workspace only,
+// full stop, regardless of which PRO the show is for. parseRole() already
+// fails closed to 'viewer' for any unrecognized stored role string, so an
+// invalid/unknown role also lands here — never in a prepare_only or submit
+// branch.
 
 const WRITER_ONLY_PROS = new Set(['BMI'])
 
 export type SubmissionAuthority =
   | { action: 'submit' }
+  | { action: 'view_only' }
   | { action: 'prepare_only'; reason: 'pro_requires_writer' | 'not_permitted' }
 
 export function submissionAuthority(args: {
@@ -167,6 +183,7 @@ export function submissionAuthority(args: {
 }): SubmissionAuthority {
   const { role, pro, grants } = args
   if (role === 'owner') return { action: 'submit' }
+  if (role === 'viewer') return { action: 'view_only' }
   if (pro && WRITER_ONLY_PROS.has(pro.trim().toUpperCase())) {
     return { action: 'prepare_only', reason: 'pro_requires_writer' }
   }
