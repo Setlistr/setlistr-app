@@ -667,7 +667,13 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
         {isDelegate && (
           <div style={{ background: 'rgba(255,255,255,0.02)', border: `1px solid ${C.border}`, borderRadius: 12, padding: '10px 14px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 10 }}>
             <span style={{ fontSize: 11, color: C.muted, lineHeight: 1.5 }}>
-              You’re preparing this claim for <strong style={{ color: C.secondary }}>{artistDisplayName}</strong>. Only {artistDisplayName} can file in {proName}’s portal — you can send this sheet to them or mark it filed once they have.
+              {authority.action === 'submit' ? (
+                <>You’re submitting this claim for <strong style={{ color: C.secondary }}>{artistDisplayName}</strong> as their authorized manager.</>
+              ) : authority.reason === 'pro_requires_writer' ? (
+                <>You’re preparing this claim for <strong style={{ color: C.secondary }}>{artistDisplayName}</strong>. Only {artistDisplayName} can file in {proName}’s portal — you can send this sheet to them or mark it filed once they have.</>
+              ) : (
+                <>{artistDisplayName} or their manager submits this claim — you’re preparing it.</>
+              )}
             </span>
           </div>
         )}
