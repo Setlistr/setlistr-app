@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { ArrowRight } from 'lucide-react'
+import { useSessionGuard } from '@/lib/useSessionGuard'
 
 const C = {
   bg: '#0a0908', card: '#141210',
@@ -45,8 +46,18 @@ export default function OnboardingPage() {
   const [artistName, setArtistName] = useState('')
   const [proAffiliation, setProAffiliation] = useState('')
   const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
   const [checking, setChecking] = useState(true)
   const careerFetchedRef = useRef(false)
+
+  // Session-bound write contract (hotfix/session-bound-forms): the subject
+  // this onboarding flow was loaded for, bound once at mount and never
+  // re-resolved from a fresh auth.getUser() call inside handleStep1. A
+  // later save always targets this exact subject — never whatever account
+  // happens to be authenticated at click time.
+  const [subjectId, setSubjectId] = useState<string | null>(null)
+  const [subjectUpdatedAt, setSubjectUpdatedAt] = useState<string | null>(null)
+  const sessionGuard = useSessionGuard(subjectId)
 
   // Career reveal state
   const [career, setCareer] = useState<CareerData>({
@@ -79,17 +90,28 @@ export default function OnboardingPage() {
     const supabase = createClient()
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) { router.replace('/auth/login'); return }
-      supabase.from('profiles').select('full_name, artist_name').eq('id', user.id).single()
+      supabase.from('profiles').select('full_name, artist_name, updated_at').eq('id', user.id).single()
         .then(({ data }) => {
           if (data?.artist_name?.trim()) {
             router.replace('/app/dashboard')
           } else {
             if (data?.full_name) setFullName(data.full_name)
+            setSubjectId(user.id)
+            setSubjectUpdatedAt(data?.updated_at ?? null)
             setChecking(false)
           }
         })
     })
   }, [router])
+
+  // The instant the browser's session stops being subjectId (a different
+  // account, or signed out), clear the fields this step collects — the
+  // blocking screen below (sessionGuard.invalid) then takes over and
+  // requires a reload before anything can be saved.
+  useEffect(() => {
+    if (!sessionGuard.invalid) return
+    setFullName(''); setArtistName(''); setProAffiliation('')
+  }, [sessionGuard.invalid])
 
   async function fetchCareerHistory(name: string) {
     if (careerFetchedRef.current) return
@@ -159,17 +181,47 @@ export default function OnboardingPage() {
 
   async function handleStep1() {
     if (!fullName.trim() || !artistName.trim() || saving) return
-    setSaving(true)
-    const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { router.push('/auth/login'); return }
+    if (sessionGuard.invalid || !subjectId) return
+    setSaving(true); setSaveError('')
 
-    await supabase.from('profiles').update({
-      full_name: fullName.trim(),
-      artist_name: artistName.trim(),
-      pro_affiliation: proAffiliation || null,
-      updated_at: new Date().toISOString(),
-    }).eq('id', user.id)
+    let res: Response
+    try {
+      res = await fetch('/api/profile/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          subjectId,
+          expectedUpdatedAt: subjectUpdatedAt,
+          fields: {
+            full_name: fullName.trim(),
+            artist_name: artistName.trim(),
+            pro_affiliation: proAffiliation || null,
+          },
+        }),
+      })
+    } catch {
+      setSaving(false)
+      setSaveError('Something went wrong. Please try again.')
+      return
+    }
+
+    if (!res.ok) {
+      setSaving(false)
+      if (res.status === 409) {
+        // The row changed (or was created concurrently) between load and
+        // this save — never silently retry over a version we didn't load.
+        // Shown, not auto-reloaded: an unexplained hard navigation is
+        // confusing, and the message tells the person what to do next.
+        setSaveError('This account was updated elsewhere — reload the page and try again.')
+        return
+      }
+      const data = await res.json().catch(() => ({}))
+      setSaveError(data.error || 'Something went wrong. Please try again.')
+      return
+    }
+
+    const data = await res.json().catch(() => ({}))
+    setSubjectUpdatedAt(data.profile?.updated_at ?? null)
 
     // Kick off career fetch immediately — runs while step 2 renders
     fetchCareerHistory(artistName.trim())
@@ -267,6 +319,23 @@ export default function OnboardingPage() {
     </div>
   )
 
+  if (sessionGuard.invalid) return (
+    <div style={{ minHeight: '100svh', background: C.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px 20px' }}>
+      <div style={{ maxWidth: 380, textAlign: 'center' }}>
+        <p style={{ fontSize: 15, fontWeight: 700, color: C.red, margin: '0 0 8px' }}>
+          {sessionGuard.reason === 'signed_out' ? 'You were signed out.' : 'Your account changed.'}
+        </p>
+        <p style={{ fontSize: 13, color: C.secondary, margin: '0 0 20px', lineHeight: 1.5 }}>
+          Reload this page and sign in again to continue setting up your account.
+        </p>
+        <button onClick={() => window.location.reload()}
+          style={{ padding: '12px 24px', background: C.gold, border: 'none', borderRadius: 12, color: '#0a0908', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
+          Reload
+        </button>
+      </div>
+    </div>
+  )
+
   const isStep1Valid = fullName.trim().length > 0 && artistName.trim().length > 0
 
   return (
@@ -351,6 +420,10 @@ export default function OnboardingPage() {
                   ))}
                 </div>
               </div>
+
+              {saveError && (
+                <p style={{ fontSize: 13, color: C.red, margin: '-4px 0 0' }}>{saveError}</p>
+              )}
 
               <button onClick={handleStep1} disabled={!isStep1Valid || saving}
                 style={{ width: '100%', padding: '16px', background: isStep1Valid ? C.gold : C.muted, border: 'none', borderRadius: 16, color: '#0a0908', fontSize: 15, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: isStep1Valid && !saving ? 'pointer' : 'not-allowed', opacity: saving ? 0.7 : isStep1Valid ? 1 : 0.4, transition: 'all 0.2s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit', marginTop: 4 }}>
