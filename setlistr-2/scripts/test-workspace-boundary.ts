@@ -6,13 +6,16 @@
 //
 //   npx ts-node --transpile-only -P scripts/tsconfig.json scripts/test-workspace-boundary.ts
 //
-// Each numbered test corresponds to a scenario from the Stage 1 task's
-// STEP 8 required-coverage list.
+// Sections 1-9 cover the original Stage 1 requirements. Section 10 covers
+// the follow-up patch: an invalid (present-but-corrupt) saved selection
+// must be treated as a DIFFERENT fact from an absent one — 'none' vs
+// 'invalid' vs 'valid', per SavedSelectionParseResult — never collapsed
+// into "no selection" -> own_workspace.
 
 import {
   resolveWorkspaceState, deriveWorkspaceOwnerId, deriveResolved, deriveIsBlocked,
   storageKeyFor, parseSavedSelection, isStaleResponse,
-  type WorkspaceState, type ManagedArtistRef,
+  type WorkspaceState, type ManagedArtistRef, type SavedSelectionParseResult,
 } from '../lib/workspaceStateLogic'
 
 // ─── tiny assertion harness (matches test-session-bound-forms.ts) ─────────
@@ -30,13 +33,17 @@ function check(name: string, cond: boolean, detail?: string) {
 
 const VIEWER_A = 'viewer-a-uuid'
 const VIEWER_B = 'viewer-b-uuid'
-const ARTIST: ManagedArtistRef = { artist_id: 'artist-uuid', artist_name: 'Ryder Vance' }
-const OTHER_ARTIST: ManagedArtistRef = { artist_id: 'other-artist-uuid', artist_name: 'Someone Else' }
+const ARTIST: ManagedArtistRef = { artist_id: '11111111-1111-1111-1111-111111111111', artist_name: 'Ryder Vance' }
+const OTHER_ARTIST: ManagedArtistRef = { artist_id: '22222222-2222-2222-2222-222222222222', artist_name: 'Someone Else' }
+
+const NONE: SavedSelectionParseResult = { kind: 'none' }
+const INVALID: SavedSelectionParseResult = { kind: 'invalid' }
+const valid = (ref: ManagedArtistRef): SavedSelectionParseResult => ({ kind: 'valid', selection: ref })
 
 // ─── 1. No saved selection -> own_workspace with workspaceOwnerId=viewerId
 console.log('1. No saved selection resolves to own_workspace')
 {
-  const state = resolveWorkspaceState({ viewerId: VIEWER_A, savedSelection: null, managedArtists: null })
+  const state = resolveWorkspaceState({ viewerId: VIEWER_A, savedSelection: NONE, managedArtists: null })
   check('status is own_workspace', state.status === 'own_workspace')
   check('workspaceOwnerId equals viewerId', deriveWorkspaceOwnerId(state) === VIEWER_A)
 }
@@ -45,7 +52,7 @@ console.log('1. No saved selection resolves to own_workspace')
 console.log('2. Verified saved selection resolves to managed_workspace')
 {
   const state = resolveWorkspaceState({
-    viewerId: VIEWER_A, savedSelection: ARTIST, managedArtists: [ARTIST, OTHER_ARTIST],
+    viewerId: VIEWER_A, savedSelection: valid(ARTIST), managedArtists: [ARTIST, OTHER_ARTIST],
   })
   check('status is managed_workspace', state.status === 'managed_workspace')
   check('workspaceOwnerId equals the verified artist id', deriveWorkspaceOwnerId(state) === ARTIST.artist_id)
@@ -56,16 +63,16 @@ console.log('2. Verified saved selection resolves to managed_workspace')
 console.log('3. Saved selection not present in a successful response resolves to unauthorized')
 {
   const state = resolveWorkspaceState({
-    viewerId: VIEWER_A, savedSelection: ARTIST, managedArtists: [OTHER_ARTIST], // ARTIST not in the list
+    viewerId: VIEWER_A, savedSelection: valid(ARTIST), managedArtists: [OTHER_ARTIST], // ARTIST not in the list
   })
   check('status is unauthorized', state.status === 'unauthorized')
   check('workspaceOwnerId is null', deriveWorkspaceOwnerId(state) === null)
 }
 
 // ─── 4. Verification/network failure -> verification_failed, workspaceOwnerId=null
-console.log('4. Fetch failure (managedArtists=null with a saved selection) resolves to verification_failed')
+console.log('4. Fetch failure (managedArtists=null with a VALID saved selection) resolves to verification_failed')
 {
-  const state = resolveWorkspaceState({ viewerId: VIEWER_A, savedSelection: ARTIST, managedArtists: null })
+  const state = resolveWorkspaceState({ viewerId: VIEWER_A, savedSelection: valid(ARTIST), managedArtists: null })
   check('status is verification_failed', state.status === 'verification_failed')
   check('workspaceOwnerId is null', deriveWorkspaceOwnerId(state) === null)
   check('NOT own_workspace — a network hiccup must never look like "no delegation"', state.status !== 'own_workspace')
@@ -103,23 +110,20 @@ console.log('7. Storage keys are namespaced per viewer, never shared')
 }
 
 // ─── 8. Unknown/invalid saved selection never produces managed_workspace
-console.log('8. Malformed/invalid saved-selection storage values fail closed')
+console.log('8. Malformed/invalid saved-selection storage values parse to invalid, never valid')
 {
-  check('null raw value parses to null', parseSavedSelection(null) === null)
-  check('empty string parses to null', parseSavedSelection('') === null)
-  check('garbage (non-JSON) parses to null', parseSavedSelection('not json at all {') === null)
-  check('JSON array parses to null', parseSavedSelection('[1,2,3]') === null)
-  check('object missing artist_id parses to null', parseSavedSelection(JSON.stringify({ artist_name: 'X' })) === null)
-  check('object missing artist_name parses to null', parseSavedSelection(JSON.stringify({ artist_id: 'x' })) === null)
-  check('artist_id as a number parses to null', parseSavedSelection(JSON.stringify({ artist_id: 123, artist_name: 'X' })) === null)
-  check('empty-string artist_id parses to null', parseSavedSelection(JSON.stringify({ artist_id: '', artist_name: 'X' })) === null)
+  check('null raw value parses to none', parseSavedSelection(null).kind === 'none')
+  check('empty string parses to invalid', parseSavedSelection('').kind === 'invalid')
+  check('garbage (non-JSON) parses to invalid', parseSavedSelection('not json at all {').kind === 'invalid')
+  check('JSON array parses to invalid', parseSavedSelection('[1,2,3]').kind === 'invalid')
+  check('object missing artist_id parses to invalid', parseSavedSelection(JSON.stringify({ artist_name: 'X' })).kind === 'invalid')
+  check('object missing artist_name parses to invalid', parseSavedSelection(JSON.stringify({ artist_id: ARTIST.artist_id })).kind === 'invalid')
+  check('artist_id as a number parses to invalid', parseSavedSelection(JSON.stringify({ artist_id: 123, artist_name: 'X' })).kind === 'invalid')
+  check('empty-string artist_id parses to invalid', parseSavedSelection(JSON.stringify({ artist_id: '', artist_name: 'X' })).kind === 'invalid')
+  check('non-UUID artist_id parses to invalid', parseSavedSelection(JSON.stringify({ artist_id: 'not-a-uuid', artist_name: 'X' })).kind === 'invalid')
 
-  // And end-to-end: even if somehow an invalid selection reached
-  // resolveWorkspaceState (it can't, via parseSavedSelection, but proving
-  // the decision table itself never manufactures managed_workspace from
-  // absence of real verified data):
-  const state = resolveWorkspaceState({ viewerId: VIEWER_A, savedSelection: null, managedArtists: [ARTIST] })
-  check('no selection never produces managed_workspace even with a valid managed list available', state.status !== 'managed_workspace')
+  const state = resolveWorkspaceState({ viewerId: VIEWER_A, savedSelection: NONE, managedArtists: [ARTIST] })
+  check('none never produces managed_workspace even with a valid managed list available', state.status !== 'managed_workspace')
 }
 
 // ─── 9. An old viewer/request result cannot be applied after a generation/viewer change
@@ -147,42 +151,134 @@ console.log('9. Stale-response detection: generation and viewer-id changes both 
   )
 }
 
-// ─── 10. Explicit return-to-own clears the managed identity and produces the viewer's workspace
-console.log('10. Return-to-own-workspace produces a clean own_workspace state for the real viewer')
+// ═══════════════════════════════════════════════════════════════════════
+// 10. INVALID SAVED WORKSPACE MUST FAIL CLOSED — the follow-up patch's
+// required coverage. An invalid (present-but-corrupt) stored value must
+// resolve differently from an absent one: 'none' -> own_workspace,
+// 'invalid' -> unauthorized (blocked, explicit return-to-own required,
+// never auto-downgraded to "no selection").
+// ═══════════════════════════════════════════════════════════════════════
+console.log('10. Invalid saved workspace fails closed (patch requirements 1-12)')
 {
-  // The provider constructs { status: 'own_workspace', viewerId } directly
-  // on an explicit return — proving the resulting state can never retain
-  // any artist reference, since the union type has no field for one in
-  // this branch (a structural guarantee, not just a runtime check).
-  const afterReturn: WorkspaceState = { status: 'own_workspace', viewerId: VIEWER_A }
-  check('status is own_workspace', afterReturn.status === 'own_workspace')
-  check('workspaceOwnerId is the real viewer, not an artist', deriveWorkspaceOwnerId(afterReturn) === VIEWER_A)
-  check('resolved is true immediately (no forced resolving detour required)', deriveResolved(afterReturn) === true)
-  // Structural proof: TypeScript's discriminated union means an
-  // 'own_workspace' state literally cannot carry an artistId field — this
-  // line intentionally would not compile if uncommented:
-  // const leak = (afterReturn as any).artistId
-}
+  // 1. Missing storage key -> own_workspace.
+  {
+    const state = resolveWorkspaceState({ viewerId: VIEWER_A, savedSelection: parseSavedSelection(null), managedArtists: null })
+    check('1. missing key -> own_workspace', state.status === 'own_workspace')
+    check('1. workspaceOwnerId is the viewer', deriveWorkspaceOwnerId(state) === VIEWER_A)
+  }
 
-// ─── 11. Retry preserves fail-closed state until successful verification
-console.log('11. Retrying a failed verification stays fail-closed until the fetch actually succeeds')
-{
-  const firstAttempt = resolveWorkspaceState({ viewerId: VIEWER_A, savedSelection: ARTIST, managedArtists: null })
-  const secondAttempt = resolveWorkspaceState({ viewerId: VIEWER_A, savedSelection: ARTIST, managedArtists: null })
-  check('first attempt is verification_failed', firstAttempt.status === 'verification_failed')
-  check('retry with the same (still-failing) facts is verification_failed again, not own_workspace', secondAttempt.status === 'verification_failed')
-  const successfulRetry = resolveWorkspaceState({ viewerId: VIEWER_A, savedSelection: ARTIST, managedArtists: [ARTIST] })
-  check('a retry that actually succeeds resolves to managed_workspace', successfulRetry.status === 'managed_workspace')
-}
+  // 2. Empty-string stored value -> blocked.
+  {
+    const parsed = parseSavedSelection('')
+    check('2. empty string parses to invalid', parsed.kind === 'invalid')
+    const state = resolveWorkspaceState({ viewerId: VIEWER_A, savedSelection: parsed, managedArtists: null })
+    check('2. empty string -> unauthorized (blocked)', state.status === 'unauthorized')
+    check('2. blocked', deriveIsBlocked(state) === true)
+  }
 
-// ─── 12. Unknown/external string input fails closed
-console.log('12. parseSavedSelection fails closed on every form of unexpected external input')
-{
-  check('undefined-as-null fails closed', parseSavedSelection(null as unknown as string | null) === null)
-  check('a bare JSON string fails closed', parseSavedSelection(JSON.stringify('just a string')) === null)
-  check('a bare JSON number fails closed', parseSavedSelection('42') === null)
-  check('a JSON null literal fails closed', parseSavedSelection('null') === null)
-  check('nested-but-wrong shape fails closed', parseSavedSelection(JSON.stringify({ artist: { id: 'x' } })) === null)
+  // 3. Malformed JSON -> blocked.
+  {
+    const parsed = parseSavedSelection('{not valid json')
+    check('3. malformed JSON parses to invalid', parsed.kind === 'invalid')
+    const state = resolveWorkspaceState({ viewerId: VIEWER_A, savedSelection: parsed, managedArtists: null })
+    check('3. malformed JSON -> unauthorized (blocked)', state.status === 'unauthorized')
+  }
+
+  // 4. Valid JSON with wrong shape -> blocked.
+  {
+    const parsed = parseSavedSelection(JSON.stringify({ foo: 'bar', baz: 42 }))
+    check('4. wrong shape parses to invalid', parsed.kind === 'invalid')
+    const state = resolveWorkspaceState({ viewerId: VIEWER_A, savedSelection: parsed, managedArtists: null })
+    check('4. wrong shape -> unauthorized (blocked)', state.status === 'unauthorized')
+  }
+
+  // 5. Missing artist ID -> blocked.
+  {
+    const parsed = parseSavedSelection(JSON.stringify({ artist_name: 'Ryder Vance' }))
+    check('5. missing artist_id parses to invalid', parsed.kind === 'invalid')
+    const state = resolveWorkspaceState({ viewerId: VIEWER_A, savedSelection: parsed, managedArtists: null })
+    check('5. missing artist_id -> unauthorized (blocked)', state.status === 'unauthorized')
+  }
+
+  // 6. Non-string artist ID -> blocked.
+  {
+    const parsed = parseSavedSelection(JSON.stringify({ artist_id: 999, artist_name: 'Ryder Vance' }))
+    check('6. non-string artist_id parses to invalid', parsed.kind === 'invalid')
+    const state = resolveWorkspaceState({ viewerId: VIEWER_A, savedSelection: parsed, managedArtists: null })
+    check('6. non-string artist_id -> unauthorized (blocked)', state.status === 'unauthorized')
+  }
+
+  // 7. Empty artist ID -> blocked.
+  {
+    const parsed = parseSavedSelection(JSON.stringify({ artist_id: '', artist_name: 'Ryder Vance' }))
+    check('7. empty artist_id parses to invalid', parsed.kind === 'invalid')
+    const state = resolveWorkspaceState({ viewerId: VIEWER_A, savedSelection: parsed, managedArtists: null })
+    check('7. empty artist_id -> unauthorized (blocked)', state.status === 'unauthorized')
+  }
+
+  // 8. Invalid UUID artist ID (ids are required to be UUIDs — Supabase
+  // profile ids throughout this schema) -> blocked.
+  {
+    const parsed = parseSavedSelection(JSON.stringify({ artist_id: 'not-a-real-uuid', artist_name: 'Ryder Vance' }))
+    check('8. non-UUID artist_id parses to invalid', parsed.kind === 'invalid')
+    const state = resolveWorkspaceState({ viewerId: VIEWER_A, savedSelection: parsed, managedArtists: null })
+    check('8. non-UUID artist_id -> unauthorized (blocked)', state.status === 'unauthorized')
+  }
+
+  // 9. Unknown extra fields do not make an otherwise invalid value valid
+  // (and, separately, do not make an otherwise VALID value invalid either
+  // — extra fields are simply irrelevant to validity either direction).
+  {
+    const stillInvalid = parseSavedSelection(JSON.stringify({ extra: 'field', another: 1 }))
+    check('9. extra fields alone (no real artist_id/name) still parses to invalid', stillInvalid.kind === 'invalid')
+    const stillValid = parseSavedSelection(JSON.stringify({ ...ARTIST, unexpected_extra_field: 'ignored' }))
+    check('9. extra fields on an otherwise-valid object do not break validity', stillValid.kind === 'valid')
+  }
+
+  // 10. Explicit return-to-own clears the invalid key and produces
+  // own_workspace. (ActingAsProvider.returnToOwnWorkspace() always calls
+  // localStorage.removeItem(storageKeyFor(uid)) unconditionally, regardless
+  // of what was stored, then constructs own_workspace directly — proven
+  // here at the state-shape level: the resulting state can structurally
+  // never carry a leftover artist reference.)
+  {
+    const afterExplicitReturn: WorkspaceState = { status: 'own_workspace', viewerId: VIEWER_A }
+    check('10. explicit return produces own_workspace', afterExplicitReturn.status === 'own_workspace')
+    check('10. workspaceOwnerId is the real viewer', deriveWorkspaceOwnerId(afterExplicitReturn) === VIEWER_A)
+    check('10. resolved immediately', deriveResolved(afterExplicitReturn) === true)
+  }
+
+  // 11. Retry against invalid storage remains blocked — re-parsing the SAME
+  // untouched invalid raw value (since parsing never auto-clears it)
+  // produces the same 'invalid' kind and the same blocked state every time.
+  {
+    const rawInvalid = JSON.stringify({ artist_id: 'garbage', artist_name: 'X' })
+    const firstParse = parseSavedSelection(rawInvalid)
+    const retryParse = parseSavedSelection(rawInvalid) // storage untouched between attempts
+    check('11. first parse is invalid', firstParse.kind === 'invalid')
+    check('11. retry parse of the same untouched value is invalid again', retryParse.kind === 'invalid')
+    const firstState = resolveWorkspaceState({ viewerId: VIEWER_A, savedSelection: firstParse, managedArtists: null })
+    const retryState = resolveWorkspaceState({ viewerId: VIEWER_A, savedSelection: retryParse, managedArtists: null })
+    check('11. first attempt is unauthorized (blocked)', firstState.status === 'unauthorized')
+    check('11. retry is unauthorized again, NOT own_workspace', retryState.status === 'unauthorized')
+  }
+
+  // 12. None of the invalid cases produce viewerId as workspaceOwnerId
+  // before the explicit action.
+  {
+    const invalidRawValues = [
+      '', '{not json', JSON.stringify({ foo: 'bar' }), JSON.stringify({ artist_name: 'X' }),
+      JSON.stringify({ artist_id: 1, artist_name: 'X' }), JSON.stringify({ artist_id: '', artist_name: 'X' }),
+      JSON.stringify({ artist_id: 'not-a-uuid', artist_name: 'X' }),
+    ]
+    let anyLeaked = false
+    for (const raw of invalidRawValues) {
+      const parsed = parseSavedSelection(raw)
+      const state = resolveWorkspaceState({ viewerId: VIEWER_A, savedSelection: parsed, managedArtists: null })
+      if (deriveWorkspaceOwnerId(state) === VIEWER_A) anyLeaked = true
+    }
+    check('12. no invalid case ever yields workspaceOwnerId === viewerId', anyLeaked === false)
+  }
 }
 
 // ─── summary ────────────────────────────────────────────────────────────
