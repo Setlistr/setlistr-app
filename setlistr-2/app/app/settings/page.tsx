@@ -6,6 +6,8 @@ import { createClient } from '@/lib/supabase/client'
 import { Check, KeyRound, User, Music2, Search, Download, Radio, Users, Copy, X, Clock, AlertCircle, LogOut, Shield, Trash2 } from 'lucide-react'
 import { ADMIN_EMAILS } from '@/lib/admin-config'
 import { ASSIGNABLE_ROLES, ROLE_LABELS, ROLE_PRESETS, parseRole, type TeamRole } from '@/lib/permissions'
+import { useSessionGuard } from '@/lib/useSessionGuard'
+import { diffFields, toWirePayload } from '@/lib/profileFormDiff'
 
 const CARD = {
   background: 'linear-gradient(180deg, #171512 0%, #121009 100%)',
@@ -31,6 +33,28 @@ const C = {
 }
 
 const PRO_OPTIONS = ['SOCAN', 'ASCAP', 'BMI', 'SESAC', 'GMR', 'APRA', 'PRS', 'Other', 'None']
+
+// The subset of `profiles` columns this page can write, in the same
+// raw-string domain the form fields use (empty string, not null) so a
+// loaded snapshot can be diffed against current form state with plain
+// equality — see diffFields(). Wire-format conversion (empty string →
+// null for the nullable text columns) happens only at the point a patch
+// is actually sent, in toWirePayload().
+type ProfileFieldSnapshot = {
+  full_name: string
+  artist_name: string
+  avatar_url: string | null
+  pro_affiliation: string
+  ipi_number: string
+  publisher_name: string
+  legal_name: string
+  bandsintown_artist_name: string
+  career_start_year: number | ''
+}
+
+const NULLABLE_ON_EMPTY = new Set<keyof ProfileFieldSnapshot>([
+  'artist_name', 'pro_affiliation', 'ipi_number', 'publisher_name', 'legal_name', 'bandsintown_artist_name',
+])
 
 type SpotifyArtist = {
   id: string
@@ -67,6 +91,18 @@ export default function SettingsPage() {
   const [avatarUrl, setAvatarUrl]           = useState<string | null>(null)
   const [avatarUploading, setAvatarUploading] = useState(false)
   const [avatarSaved, setAvatarSaved]         = useState(false)
+  const [avatarError, setAvatarError]         = useState('')
+
+  // Session-bound write contract (hotfix/session-bound-forms): the identity
+  // this form was loaded under, and the exact field values it was loaded
+  // with, bound once at load and never re-resolved from a fresh
+  // auth.getUser() call inside a save handler. Every save is diffed
+  // against loadedSnapshot and sent to a server route that re-derives the
+  // actor from the request's own session and requires it to equal
+  // loadedViewerId.
+  const [loadedViewerId, setLoadedViewerId]   = useState<string | null>(null)
+  const [loadedUpdatedAt, setLoadedUpdatedAt] = useState<string | null>(null)
+  const [loadedSnapshot, setLoadedSnapshot]   = useState<ProfileFieldSnapshot | null>(null)
 
   // Password
   const [newPassword, setNewPassword]         = useState('')
@@ -89,6 +125,7 @@ export default function SettingsPage() {
   const [bandsintownName, setBandsintownName]       = useState('')
   const [bandsintownSaving, setBandsintownSaving]   = useState(false)
   const [bandsintownSaved, setBandsintownSaved]     = useState(false)
+  const [bandsintownError, setBandsintownError]     = useState('')
   const [bandsintownTesting, setBandsintownTesting] = useState(false)
   const [bandsintownTestResult, setBandsintownTestResult] = useState<{ ok: boolean; count: number } | null>(null)
 
@@ -118,11 +155,32 @@ export default function SettingsPage() {
   const [careerStartYear, setCareerStartYear]         = useState<number | ''>('')
   const [careerStartYearSaving, setCareerStartYearSaving] = useState(false)
   const [careerStartYearSaved, setCareerStartYearSaved]   = useState(false)
+  const [careerStartYearError, setCareerStartYearError]   = useState('')
 
   // Account deletion
   const [deleteConfirmText, setDeleteConfirmText] = useState('')
   const [deleting, setDeleting]                   = useState(false)
   const [deleteError, setDeleteError]             = useState('')
+
+  const sessionGuard = useSessionGuard(loadedViewerId)
+
+  // The instant the browser's session stops being loadedViewerId (a
+  // different account, or signed out), clear every sensitive field this
+  // form holds and drop the loaded snapshot/version — this also has the
+  // side effect of disabling every save button below, since they all
+  // require loadedSnapshot to be non-null. No save is possible after this
+  // until the page is reloaded under the new identity.
+  useEffect(() => {
+    if (!sessionGuard.invalid) return
+    setFullName(''); setArtistName(''); setAvatarUrl(null)
+    setProAffiliation(''); setIpiNumber(''); setPublisherName(''); setLegalName('')
+    setBandsintownName(''); setCareerStartYear('')
+    setLoadedSnapshot(null); setLoadedUpdatedAt(null)
+    // Stale per-card errors from before the identity changed would be
+    // confusing sitting alongside the account-changed blocking banner —
+    // clear them too, not just the field values.
+    setProfileError(''); setProError(''); setBandsintownError(''); setCareerStartYearError(''); setAvatarError('')
+  }, [sessionGuard.invalid])
 
   useEffect(() => {
     async function load() {
@@ -131,10 +189,11 @@ export default function SettingsPage() {
       if (!user) return
       setEmail(user.email ?? '')
       setUserId(user.id)
+      setLoadedViewerId(user.id)
 
       const { data: profile } = await supabase
         .from('profiles')
-        .select('full_name, artist_name, avatar_url, pro_affiliation, ipi_number, publisher_name, legal_name, bandsintown_artist_name, career_start_year, career_total_shows')
+        .select('full_name, artist_name, avatar_url, pro_affiliation, ipi_number, publisher_name, legal_name, bandsintown_artist_name, career_start_year, career_total_shows, updated_at')
         .eq('id', user.id)
         .single()
 
@@ -150,6 +209,19 @@ export default function SettingsPage() {
         if (profile.career_start_year) setCareerStartYear(profile.career_start_year)
         if (profile.artist_name) setSpotifyQuery(profile.artist_name)
         if (!profile.pro_affiliation?.trim() || !profile.ipi_number?.trim()) setShowProPrompt(true)
+
+        setLoadedUpdatedAt(profile.updated_at)
+        setLoadedSnapshot({
+          full_name: profile.full_name ?? '',
+          artist_name: profile.artist_name ?? '',
+          avatar_url: profile.avatar_url ?? null,
+          pro_affiliation: profile.pro_affiliation ?? '',
+          ipi_number: profile.ipi_number ?? '',
+          publisher_name: profile.publisher_name ?? '',
+          legal_name: profile.legal_name ?? '',
+          bandsintown_artist_name: profile.bandsintown_artist_name ?? '',
+          career_start_year: profile.career_start_year ?? '',
+        })
       }
 
       const { count } = await supabase
@@ -188,16 +260,67 @@ export default function SettingsPage() {
     } catch { /* silently fail */ }
   }
 
+  // Shared write path for every profile-row save on this page (Profile,
+  // PRO, Bandsintown, Career, Avatar). Sends only the fields the caller
+  // has already diffed as changed, bound to loadedViewerId and
+  // loadedUpdatedAt. On success, folds the patch into loadedSnapshot and
+  // adopts the server's returned updated_at as the new canonical
+  // version — so a later save from a *different* card on this same page
+  // doesn't spuriously conflict with a save this card just made.
+  async function saveProfileFields(
+    patch: Partial<ProfileFieldSnapshot>,
+  ): Promise<{ ok: true } | { ok: false; error: string }> {
+    if (!loadedViewerId) return { ok: false, error: 'Still loading — try again in a moment.' }
+    try {
+      const res = await fetch('/api/profile/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          subjectId: loadedViewerId,
+          expectedUpdatedAt: loadedUpdatedAt,
+          fields: toWirePayload(patch, NULLABLE_ON_EMPTY),
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        if (res.status === 409) {
+          return { ok: false, error: 'This account was updated elsewhere — reload the page and try again.' }
+        }
+        return { ok: false, error: data.error || 'Something went wrong. Please try again.' }
+      }
+      setLoadedUpdatedAt(data.profile.updated_at)
+      setLoadedSnapshot(prev => (prev ? { ...prev, ...patch } : prev))
+      return { ok: true }
+    } catch {
+      return { ok: false, error: 'Something went wrong. Please try again.' }
+    }
+  }
+
   async function handleAvatarUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
-    setAvatarUploading(true)
+    if (sessionGuard.invalid) { setAvatarError('Your account changed — reload the page.'); return }
+    if (!loadedViewerId || !loadedSnapshot) { setAvatarError('Still loading — try again in a moment.'); return }
+    setAvatarUploading(true); setAvatarError('')
     try {
       const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
+
+      // Re-verify identity immediately before the storage write, not just
+      // at function entry — sessionGuard's own SIGNED_OUT/account-changed
+      // state can only update on the auth-state event Supabase actually
+      // emits, so this closes the (narrow) window between that check and
+      // the upload firing. Still compared against loadedViewerId, not
+      // trusted blindly — a fresh getUser() result is only used to
+      // confirm it still matches the bound identity, never to retarget
+      // the upload to whoever is currently authenticated.
+      const { data: { user: currentUser } } = await supabase.auth.getUser()
+      if (!currentUser || currentUser.id !== loadedViewerId) {
+        setAvatarError('Your account changed — reload the page.')
+        return
+      }
+
       const ext = file.name.split('.').pop()
-      const path = `${user.id}/avatar.${ext}`
+      const path = `${loadedViewerId}/avatar.${ext}`
       const { error: uploadError } = await supabase.storage
         .from('avatars')
         .upload(path, file, { upsert: true })
@@ -205,15 +328,23 @@ export default function SettingsPage() {
       const { data: { publicUrl } } = supabase.storage
         .from('avatars')
         .getPublicUrl(path)
-      await supabase.from('profiles').update({
-        avatar_url: publicUrl,
-        updated_at: new Date().toISOString(),
-      }).eq('id', user.id)
+      const patch = diffFields(loadedSnapshot, { avatar_url: publicUrl })
+      if (Object.keys(patch).length > 0) {
+        const result = await saveProfileFields(patch)
+        if (!result.ok) {
+          // The file is already in storage at this point, but the profile
+          // row was not updated to point at it — deliberately not shown as
+          // a success. See the hotfix report for this known limitation
+          // (the uploaded object itself is not rolled back).
+          setAvatarError(result.error)
+          return
+        }
+      }
       setAvatarUrl(publicUrl)
       setAvatarSaved(true)
       setTimeout(() => setAvatarSaved(false), 2000)
     } catch (err) {
-      console.error('Avatar upload failed:', err)
+      setAvatarError(err instanceof Error ? err.message : 'Upload failed. Please try again.')
     } finally {
       setAvatarUploading(false)
     }
@@ -221,17 +352,19 @@ export default function SettingsPage() {
 
   async function saveProfile() {
     if (!fullName.trim()) { setProfileError('Name is required'); return }
+    if (sessionGuard.invalid) { setProfileError('Your account changed — reload the page.'); return }
+    if (!loadedViewerId || !loadedSnapshot) { setProfileError('Still loading — try again in a moment.'); return }
     setProfileSaving(true); setProfileError('')
-    const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-    const { error } = await supabase.from('profiles').update({
+    const patch = diffFields(loadedSnapshot, {
       full_name: fullName.trim(),
-      artist_name: artistName.trim() || null,
-      updated_at: new Date().toISOString(),
-    }).eq('id', user.id)
+      artist_name: artistName.trim(),
+    })
+    if (Object.keys(patch).length === 0) {
+      setProfileSaving(false); setProfileSaved(true); setTimeout(() => setProfileSaved(false), 2000); return
+    }
+    const result = await saveProfileFields(patch)
     setProfileSaving(false)
-    if (error) { setProfileError(error.message); return }
+    if (!result.ok) { setProfileError(result.error); return }
     setProfileSaved(true)
     setTimeout(() => setProfileSaved(false), 2000)
   }
@@ -251,33 +384,36 @@ export default function SettingsPage() {
   }
 
   async function savePRO() {
+    if (sessionGuard.invalid) { setProError('Your account changed — reload the page.'); return }
+    if (!loadedViewerId || !loadedSnapshot) { setProError('Still loading — try again in a moment.'); return }
     setProSaving(true); setProError('')
-    const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-    const { error } = await supabase.from('profiles').update({
-      pro_affiliation: proAffiliation || null,
-      ipi_number: ipiNumber.trim() || null,
-      publisher_name: publisherName.trim() || null,
-      legal_name: legalName.trim() || null,
-      updated_at: new Date().toISOString(),
-    }).eq('id', user.id)
+    const patch = diffFields(loadedSnapshot, {
+      pro_affiliation: proAffiliation,
+      ipi_number: ipiNumber.trim(),
+      publisher_name: publisherName.trim(),
+      legal_name: legalName.trim(),
+    })
+    if (Object.keys(patch).length === 0) {
+      setProSaving(false); setProSaved(true); setTimeout(() => setProSaved(false), 2000); return
+    }
+    const result = await saveProfileFields(patch)
     setProSaving(false)
-    if (error) { setProError(error.message); return }
+    if (!result.ok) { setProError(result.error); return }
     setProSaved(true)
     setTimeout(() => setProSaved(false), 2000)
   }
 
   async function saveBandsintown() {
-    setBandsintownSaving(true)
-    const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-    await supabase.from('profiles').update({
-      bandsintown_artist_name: bandsintownName.trim() || null,
-      updated_at: new Date().toISOString(),
-    }).eq('id', user.id)
+    if (sessionGuard.invalid) { setBandsintownError('Your account changed — reload the page.'); return }
+    if (!loadedViewerId || !loadedSnapshot) { setBandsintownError('Still loading — try again in a moment.'); return }
+    setBandsintownSaving(true); setBandsintownError('')
+    const patch = diffFields(loadedSnapshot, { bandsintown_artist_name: bandsintownName.trim() })
+    if (Object.keys(patch).length === 0) {
+      setBandsintownSaving(false); setBandsintownSaved(true); setTimeout(() => setBandsintownSaved(false), 2000); return
+    }
+    const result = await saveProfileFields(patch)
     setBandsintownSaving(false)
+    if (!result.ok) { setBandsintownError(result.error); return }
     setBandsintownSaved(true)
     setTimeout(() => setBandsintownSaved(false), 2000)
   }
@@ -286,15 +422,16 @@ export default function SettingsPage() {
     if (!careerStartYear) return
     const year = Number(careerStartYear)
     if (isNaN(year) || year < 1900 || year > new Date().getFullYear()) return
-    setCareerStartYearSaving(true)
-    const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-    await supabase.from('profiles').update({
-      career_start_year: year,
-      updated_at: new Date().toISOString(),
-    }).eq('id', user.id)
+    if (sessionGuard.invalid) { setCareerStartYearError('Your account changed — reload the page.'); return }
+    if (!loadedViewerId || !loadedSnapshot) { setCareerStartYearError('Still loading — try again in a moment.'); return }
+    setCareerStartYearSaving(true); setCareerStartYearError('')
+    const patch = diffFields(loadedSnapshot, { career_start_year: year })
+    if (Object.keys(patch).length === 0) {
+      setCareerStartYearSaving(false); setCareerStartYearSaved(true); setTimeout(() => setCareerStartYearSaved(false), 2000); return
+    }
+    const result = await saveProfileFields(patch)
     setCareerStartYearSaving(false)
+    if (!result.ok) { setCareerStartYearError(result.error); return }
     setCareerStartYearSaved(true)
     setTimeout(() => setCareerStartYearSaved(false), 2000)
   }
@@ -451,9 +588,40 @@ export default function SettingsPage() {
       <div style={{ padding: '32px 16px 8px', maxWidth: 520, margin: '0 auto' }}>
         <p style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.3em', color: C.gold + '99', margin: '0 0 4px' }}>Account</p>
         <h1 style={{ fontSize: 28, fontWeight: 800, color: C.text, margin: 0, letterSpacing: '-0.025em' }}>Settings</h1>
+        {/* Anti-confusion identity line — not an authorization check (the
+            server route is the actual authority), just a visible statement
+            of whose account this personal Settings page is bound to, so a
+            manager viewing this while "acting as" a managed artist can't
+            reasonably mistake it for editing that artist's workspace.
+            Sourced from loadedSnapshot/email (the identity bound at load,
+            confirmed by a successful load or save), never from in-progress
+            unsaved form text — and gated on loadedSnapshot being non-null,
+            so it disappears the instant the session invalidates rather
+            than continuing to show a now-stale identity. */}
+        {!sessionGuard.invalid && loadedSnapshot && (
+          <p style={{ fontSize: 12, color: C.muted, margin: '6px 0 0' }}>
+            Editing <span style={{ color: C.secondary, fontWeight: 600 }}>{loadedSnapshot.full_name || 'your account'}</span> — {email}
+          </p>
+        )}
       </div>
 
       <div style={{ padding: '16px 16px 60px', maxWidth: 520, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+        {sessionGuard.invalid && (
+          <div style={{ background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.3)', borderRadius: 16, padding: '16px 18px', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <AlertCircle size={16} color={C.red} style={{ flexShrink: 0 }} />
+            <div style={{ flex: 1 }}>
+              <p style={{ fontSize: 13, fontWeight: 700, color: C.red, margin: '0 0 2px' }}>
+                {sessionGuard.reason === 'signed_out' ? 'You have been signed out.' : 'Your account changed in another tab.'}
+              </p>
+              <p style={{ fontSize: 12, color: C.secondary, margin: 0 }}>Reload this page before making any changes — nothing below can be saved until then.</p>
+            </div>
+            <button onClick={() => window.location.reload()}
+              style={{ background: 'none', border: `1px solid ${C.red}`, borderRadius: 8, padding: '7px 14px', color: C.red, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}>
+              Reload
+            </button>
+          </div>
+        )}
 
         {showProPrompt && (
           <div style={{ background: 'rgba(201,168,76,0.07)', border: '1px solid rgba(201,168,76,0.2)', borderRadius: 16, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -512,9 +680,12 @@ export default function SettingsPage() {
                   accept="image/*"
                   onChange={handleAvatarUpload}
                   style={{ display: 'none' }}
-                  disabled={avatarUploading}
+                  disabled={avatarUploading || sessionGuard.invalid}
                 />
               </label>
+              {avatarError && (
+                <p style={{ fontSize: 11, color: '#f87171', margin: '8px 0 0', lineHeight: 1.4 }}>{avatarError}</p>
+              )}
             </div>
           </div>
 
@@ -540,7 +711,7 @@ export default function SettingsPage() {
               <p style={{ fontSize: 13, color: '#f87171', margin: 0 }}>{profileError}</p>
             </div>
           )}
-          <button onClick={saveProfile} disabled={profileSaving || profileSaved}
+          <button onClick={saveProfile} disabled={profileSaving || profileSaved || sessionGuard.invalid}
             style={{ width: '100%', padding: '13px', background: profileSaved ? '#16a34a' : C.gold, border: 'none', borderRadius: 10, color: profileSaved ? '#fff' : '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontFamily: 'inherit', opacity: profileSaving ? 0.7 : 1, transition: 'opacity 0.15s ease' }}
             onMouseEnter={e => { if (!(e.currentTarget as HTMLButtonElement).disabled) (e.currentTarget as HTMLElement).style.opacity = '0.8' }}
             onMouseLeave={e => { if (!(e.currentTarget as HTMLButtonElement).disabled) (e.currentTarget as HTMLElement).style.opacity = '1' }}>
@@ -701,7 +872,7 @@ export default function SettingsPage() {
           </p>
           <div>
             <label style={labelStyle}>Your Artist Name</label>
-            <input value={bandsintownName} onChange={e => { setBandsintownName(e.target.value); setBandsintownTestResult(null) }} placeholder="Your artist name" style={inputStyle}
+            <input value={bandsintownName} onChange={e => { setBandsintownName(e.target.value); setBandsintownTestResult(null); setBandsintownError('') }} placeholder="Your artist name" style={inputStyle}
               onFocus={e => (e.target as HTMLInputElement).style.borderColor = C.borderGold}
               onBlur={e => (e.target as HTMLInputElement).style.borderColor = C.inputBorder} />
             <p style={{ fontSize: 11, color: C.muted, margin: '6px 0 0' }}>Must match exactly how your name appears on Bandsintown or Ticketmaster</p>
@@ -717,6 +888,11 @@ export default function SettingsPage() {
               </p>
             </div>
           )}
+          {bandsintownError && (
+            <div style={{ background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.2)', borderRadius: 10, padding: '11px 14px' }}>
+              <p style={{ fontSize: 13, color: '#f87171', margin: 0 }}>{bandsintownError}</p>
+            </div>
+          )}
           <div style={{ display: 'flex', gap: 8 }}>
             <button onClick={testBandsintown} disabled={!bandsintownName.trim() || bandsintownTesting}
               style={{ flex: 1, padding: '12px', background: 'transparent', border: `1px solid ${C.borderGold}`, borderRadius: 10, color: C.gold, fontSize: 13, fontWeight: 700, cursor: bandsintownName.trim() && !bandsintownTesting ? 'pointer' : 'not-allowed', fontFamily: 'inherit', opacity: !bandsintownName.trim() ? 0.4 : 1, transition: 'opacity 0.15s ease' }}
@@ -724,7 +900,7 @@ export default function SettingsPage() {
               onMouseLeave={e => { if (!(e.currentTarget as HTMLButtonElement).disabled) (e.currentTarget as HTMLElement).style.opacity = '1' }}>
               {bandsintownTesting ? 'Testing...' : 'Test Connection'}
             </button>
-            <button onClick={saveBandsintown} disabled={bandsintownSaving || bandsintownSaved}
+            <button onClick={saveBandsintown} disabled={bandsintownSaving || bandsintownSaved || sessionGuard.invalid}
               style={{ flex: 1, padding: '12px', background: bandsintownSaved ? '#16a34a' : C.gold, border: 'none', borderRadius: 10, color: bandsintownSaved ? '#fff' : '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontFamily: 'inherit', opacity: bandsintownSaving ? 0.7 : 1, transition: 'opacity 0.15s ease' }}
               onMouseEnter={e => { if (!(e.currentTarget as HTMLButtonElement).disabled) (e.currentTarget as HTMLElement).style.opacity = '0.8' }}
               onMouseLeave={e => { if (!(e.currentTarget as HTMLButtonElement).disabled) (e.currentTarget as HTMLElement).style.opacity = '1' }}>
@@ -747,7 +923,7 @@ export default function SettingsPage() {
             <input
               type="number"
               value={careerStartYear}
-              onChange={e => setCareerStartYear(e.target.value === '' ? '' : Number(e.target.value))}
+              onChange={e => { setCareerStartYear(e.target.value === '' ? '' : Number(e.target.value)); setCareerStartYearError('') }}
               placeholder={`e.g. ${new Date().getFullYear() - 5}`}
               min="1900"
               max={new Date().getFullYear()}
@@ -759,7 +935,12 @@ export default function SettingsPage() {
               Your entry overrides our estimate. This is shown as "X years performing" on your career record.
             </p>
           </div>
-          <button onClick={saveCareerStartYear} disabled={careerStartYearSaving || careerStartYearSaved || !careerStartYear}
+          {careerStartYearError && (
+            <div style={{ background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.2)', borderRadius: 10, padding: '11px 14px' }}>
+              <p style={{ fontSize: 13, color: '#f87171', margin: 0 }}>{careerStartYearError}</p>
+            </div>
+          )}
+          <button onClick={saveCareerStartYear} disabled={careerStartYearSaving || careerStartYearSaved || !careerStartYear || sessionGuard.invalid}
             style={{ width: '100%', padding: '13px', background: careerStartYearSaved ? '#16a34a' : C.gold, border: 'none', borderRadius: 10, color: careerStartYearSaved ? '#fff' : '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontFamily: 'inherit', opacity: careerStartYearSaving || !careerStartYear ? 0.7 : 1, transition: 'opacity 0.15s ease' }}
             onMouseEnter={e => { if (!(e.currentTarget as HTMLButtonElement).disabled) (e.currentTarget as HTMLElement).style.opacity = '0.8' }}
             onMouseLeave={e => { if (!(e.currentTarget as HTMLButtonElement).disabled) (e.currentTarget as HTMLElement).style.opacity = '1' }}>
@@ -820,7 +1001,7 @@ export default function SettingsPage() {
               <p style={{ fontSize: 13, color: '#f87171', margin: 0 }}>{proError}</p>
             </div>
           )}
-          <button onClick={savePRO} disabled={proSaving || proSaved}
+          <button onClick={savePRO} disabled={proSaving || proSaved || sessionGuard.invalid}
             style={{ width: '100%', padding: '13px', background: proSaved ? '#16a34a' : C.gold, border: 'none', borderRadius: 10, color: proSaved ? '#fff' : '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontFamily: 'inherit', opacity: proSaving ? 0.7 : 1, transition: 'opacity 0.15s ease' }}
             onMouseEnter={e => { if (!(e.currentTarget as HTMLButtonElement).disabled) (e.currentTarget as HTMLElement).style.opacity = '0.8' }}
             onMouseLeave={e => { if (!(e.currentTarget as HTMLButtonElement).disabled) (e.currentTarget as HTMLElement).style.opacity = '1' }}>
