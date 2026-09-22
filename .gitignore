@@ -45,3 +45,4 @@ setlistr-2/scripts/*
 !setlistr-2/scripts/tsconfig.json
 !setlistr-2/scripts/debug-inspect.ts
 !setlistr-2/scripts/test-session-bound-forms.ts
+!setlistr-2/scripts/test-workspace-boundary.ts

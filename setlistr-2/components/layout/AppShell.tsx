@@ -7,6 +7,7 @@ import type { Profile } from '@/types'
 import { createClient } from '@/lib/supabase/client'
 import { tapNav, tapRecord } from '@/lib/haptics'
 import { useActingAs } from '@/components/ActingAsProvider'
+import { WorkspaceGate } from '@/components/WorkspaceGate'
 import { useState, useEffect } from 'react'
 
 const FULLSCREEN_ROUTES = ['/app/live/']
@@ -15,7 +16,7 @@ const GRAIN_URI = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/
 
 export function AppShell({ children, profile }: { children: React.ReactNode; profile: Profile }) {
   const pathname = usePathname()
-  const { actingAsArtistId, resolved } = useActingAs()
+  const { actingAsArtistId, resolved, isBlocked } = useActingAs()
   const [needsReviewCount, setNeedsReviewCount] = useState(0)
 
   const isFullscreen = FULLSCREEN_ROUTES.some(r => pathname.startsWith(r))
@@ -37,6 +38,18 @@ export function AppShell({ children, profile }: { children: React.ReactNode; pro
     }
     fetchCount()
   }, [pathname, profile?.id, actingAsArtistId, resolved])
+
+  // Central workspace boundary — deliberately checked BEFORE the fullscreen
+  // branch below, so it covers every route rendered through this shell,
+  // including /app/live/ (protected capture code, never itself modified —
+  // this is the "proven parent boundary" that fails it closed without
+  // touching app/app/live/[id]/page.tsx: that page only mounts as
+  // `children` here, so it simply never mounts while isBlocked is true).
+  // WorkspaceGate itself renders the resolving spinner AND the
+  // verification_failed/unauthorized recovery card, branching internally
+  // on `state.status` — nothing else in this component needs to know which
+  // of the three blocked states it is.
+  if (isBlocked) return <WorkspaceGate />
 
   if (isFullscreen) return <>{children}</>
 
