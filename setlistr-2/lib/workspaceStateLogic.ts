@@ -22,25 +22,55 @@ export type WorkspaceState =
   | { status: 'verification_failed' }
   | { status: 'unauthorized' }
 
+// What localStorage actually held, before any server verification.
+// Deliberately three-way, not a nullable ManagedArtistRef: 'none' (the key
+// is genuinely absent — no workspace was ever requested) and 'invalid' (the
+// key EXISTS but cannot be safely parsed/validated — malformed JSON, wrong
+// shape, missing/non-string/empty/non-UUID artist_id, etc.) are DIFFERENT
+// facts and must resolve to different states. Collapsing them into one
+// "no selection" outcome was a real bug: it silently treated "a workspace
+// was requested but the request is corrupt" the same as "no workspace was
+// ever requested", producing own_workspace for both — exactly the silent
+// substitution this whole state machine exists to prevent.
+export type SavedSelectionParseResult =
+  | { kind: 'none' }
+  | { kind: 'valid'; selection: ManagedArtistRef }
+  | { kind: 'invalid' }
+
 // The one place "what state follows from these facts" is decided.
-//   - no saved selection            -> own_workspace (nothing to verify)
-//   - saved selection, fetch failed -> verification_failed (NOT own_workspace
-//     — a network hiccup is not the same as "no delegation exists", and must
-//     never be treated as permission to silently view/edit the viewer's own
-//     records while the UI still names the artist)
-//   - saved selection, fetch ok, no match -> unauthorized (a confirmed
+//   - none                                -> own_workspace (nothing was
+//     ever requested; nothing to verify)
+//   - invalid                             -> unauthorized (a corrupt/
+//     untrustworthy request is treated exactly like a confirmed-absent
+//     delegation: blocked, requiring an explicit return-to-own, never
+//     silently downgraded to "no selection")
+//   - valid, fetch failed                 -> verification_failed (NOT
+//     own_workspace — a network hiccup is not the same as "no delegation
+//     exists", and must never be treated as permission to silently
+//     view/edit the viewer's own records while the UI still names the
+//     artist)
+//   - valid, fetch ok, no match           -> unauthorized (a confirmed
 //     negative answer — the delegation is gone or never existed)
-//   - saved selection, fetch ok, match    -> managed_workspace, values taken
-//     from the VERIFIED list, never from the unverified saved selection
+//   - valid, fetch ok, match              -> managed_workspace, values
+//     taken from the VERIFIED list, never from the unverified saved
+//     selection
+//
+// 'unauthorized' is deliberately reused for both the invalid-parse and the
+// confirmed-no-longer-delegated cases rather than adding a sixth state —
+// both are "blocked, requires an explicit return-to-own, no retry-only
+// recovery path", and the caller (ActingAsProvider) is the layer that
+// decides whether the stored value should be auto-cleared (only for the
+// confirmed case — see its own comment), not this function.
 export function resolveWorkspaceState(args: {
   viewerId: string
-  savedSelection: ManagedArtistRef | null
+  savedSelection: SavedSelectionParseResult
   managedArtists: ManagedArtistRef[] | null // null = fetch failed; [] = fetch ok, empty
 }): WorkspaceState {
   const { viewerId, savedSelection, managedArtists } = args
-  if (!savedSelection) return { status: 'own_workspace', viewerId }
+  if (savedSelection.kind === 'none') return { status: 'own_workspace', viewerId }
+  if (savedSelection.kind === 'invalid') return { status: 'unauthorized' }
   if (managedArtists === null) return { status: 'verification_failed' }
-  const match = managedArtists.find(m => m.artist_id === savedSelection.artist_id)
+  const match = managedArtists.find(m => m.artist_id === savedSelection.selection.artist_id)
   if (match) return { status: 'managed_workspace', artistId: match.artist_id, artistName: match.artist_name }
   return { status: 'unauthorized' }
 }
@@ -80,26 +110,39 @@ export function storageKeyFor(viewerId: string): string {
 // ever deleted, its VALUE must never be read/trusted again.
 export const LEGACY_ACTING_AS_KEY = 'setlistr_acting_as'
 
-// Defensive localStorage parse. Malformed JSON, a non-object, or an object
-// missing either field all become "no saved selection" — never a thrown
-// error, never a half-populated object that could reach resolveWorkspaceState
-// with a garbage artist_id.
-export function parseSavedSelection(raw: string | null): ManagedArtistRef | null {
-  if (!raw) return null
+// Artist ids are Supabase profile ids — always UUIDs throughout this
+// schema (see e.g. lib/profileUpdateHandler.ts's identical check). A
+// stored artist_id that isn't a real UUID cannot be a genuine value this
+// app ever wrote itself, so it's treated as corrupt, not merely "unusual".
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+// Defensive localStorage parse, three-way (see SavedSelectionParseResult):
+//   - raw === null              -> 'none' (key genuinely absent)
+//   - raw exists but is empty,
+//     malformed JSON, wrong shape, missing/non-string/empty/non-UUID
+//     artist_id, or missing/non-string/empty artist_name -> 'invalid'
+//   - raw parses to a structurally valid selection -> 'valid'
+// Extra/unknown fields on an otherwise-valid object do not affect the
+// result either way — only the required fields are checked, and only
+// their presence/shape, never their absence of siblings.
+export function parseSavedSelection(raw: string | null): SavedSelectionParseResult {
+  if (raw === null) return { kind: 'none' }
   try {
     const parsed = JSON.parse(raw)
     if (
       parsed &&
       typeof parsed === 'object' &&
+      !Array.isArray(parsed) &&
       typeof parsed.artist_id === 'string' &&
-      parsed.artist_id.length > 0 &&
-      typeof parsed.artist_name === 'string'
+      UUID_RE.test(parsed.artist_id) &&
+      typeof parsed.artist_name === 'string' &&
+      parsed.artist_name.length > 0
     ) {
-      return { artist_id: parsed.artist_id, artist_name: parsed.artist_name }
+      return { kind: 'valid', selection: { artist_id: parsed.artist_id, artist_name: parsed.artist_name } }
     }
-    return null
+    return { kind: 'invalid' }
   } catch {
-    return null
+    return { kind: 'invalid' }
   }
 }
 

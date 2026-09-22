@@ -105,12 +105,23 @@ export function ActingAsProvider({ children }: { children: ReactNode }) {
     try { raw = localStorage.getItem(storageKeyFor(viewerId)) } catch { /* storage unavailable */ }
     const saved = parseSavedSelection(raw)
 
-    if (!saved) {
+    if (saved.kind !== 'valid') {
+      // 'none' -> own_workspace (nothing was ever requested, nothing to
+      // verify). 'invalid' -> unauthorized (the key exists but can't be
+      // trusted — resolveWorkspaceState blocks it exactly like a confirmed
+      // "no delegation" answer, without ever needing the network round
+      // trip, since neither outcome depends on managedArtists). Neither
+      // branch touches localStorage here — an invalid value is
+      // DELIBERATELY left in place; only the explicit
+      // returnToOwnWorkspace() action below may clear it. Auto-clearing
+      // during parsing would silently convert "a corrupt request exists"
+      // into "no request was ever made" on the very next reload, which is
+      // the same silent substitution this state machine exists to forbid.
       if (isStaleResponse({
         responseGeneration: myGeneration, currentGeneration: generationRef.current,
         responseViewerId: viewerId, currentViewerId: viewerIdRef.current,
       })) return
-      setState(resolveWorkspaceState({ viewerId, savedSelection: null, managedArtists: null }))
+      setState(resolveWorkspaceState({ viewerId, savedSelection: saved, managedArtists: null }))
       return
     }
 
@@ -141,9 +152,12 @@ export function ActingAsProvider({ children }: { children: ReactNode }) {
 
     const next = resolveWorkspaceState({ viewerId, savedSelection: saved, managedArtists })
     if (next.status === 'unauthorized') {
-      // Server proved the delegation no longer exists — a positive,
-      // confirmed answer, not a failure to reach the server. Clear the
-      // stale selection so it isn't re-attempted forever.
+      // Reached only when saved.kind === 'valid' (the 'invalid' case
+      // returned above, before this fetch ever ran) — this IS the server
+      // proving a real, well-formed delegation request no longer exists: a
+      // positive, confirmed answer, not a failure to reach the server and
+      // not a corrupt request. Safe and correct to clear so it isn't
+      // re-attempted forever.
       try { localStorage.removeItem(storageKeyFor(viewerId)) } catch { /* storage unavailable */ }
     }
     setState(next)
