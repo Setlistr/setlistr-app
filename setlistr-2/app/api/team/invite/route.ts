@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { canCreateInvite, isAssignableInviteRole } from '@/lib/inviteAuthorization'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -81,23 +82,34 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'artist_id and delegate_email required' }, { status: 400 })
     }
 
+    // Requested role must be one of the four assignable roles — 'owner' can
+    // never be assigned (it is resolved from identity equality, never
+    // stored), and an unrecognized value is rejected outright rather than
+    // silently defaulting to anything.
+    if (!isAssignableInviteRole(role)) {
+      return NextResponse.json({ error: 'Invalid role' }, { status: 400 })
+    }
+
     // Caller must be authenticated before artist_id is trusted for anything.
     const authSupabase = await createServerSupabaseClient()
     const { data: { user } } = await authSupabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    // Authorized only if the caller is the artist themselves, or an accepted
-    // delegate for this artist_id — same accepted-row check as context-data/route.ts.
+    // Authorized only if the caller IS the artist (identity equality, never
+    // a stored role string), or holds a currently accepted, non-revoked
+    // MANAGER delegation for this exact artist_id. Every other role
+    // (viewer, tour_manager, band_member), an unaccepted invitation, a
+    // revoked delegation, a delegation for a different artist, or no
+    // delegation row at all — all deny. See lib/inviteAuthorization.ts.
     if (user.id !== artist_id) {
       const { data: delegation } = await supabase
         .from('artist_delegates')
-        .select('id, role')
+        .select('artist_id, role, accepted_at, revoked_at')
         .eq('artist_id', artist_id)
         .eq('delegate_id', user.id)
-        .not('accepted_at', 'is', null)
         .maybeSingle()
 
-      if (!delegation) {
+      if (!canCreateInvite({ actorId: user.id, artistId: artist_id, delegation })) {
         return NextResponse.json({ error: 'Access denied' }, { status: 403 })
       }
     }
