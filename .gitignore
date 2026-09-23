@@ -49,3 +49,4 @@ setlistr-2/scripts/*
 !setlistr-2/scripts/test-invite-authorization.ts
 !setlistr-2/scripts/test-invite-http-integration.ts
 !setlistr-2/scripts/test-ownership-lock.ts
+!setlistr-2/scripts/test-performance-songs-auth.ts

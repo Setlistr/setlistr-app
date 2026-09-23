@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { createServerSupabaseClient } from '@/lib/supabase/server'
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
@@ -17,6 +18,62 @@ export async function GET(req: NextRequest) {
   }
 
   const supabaseAdmin = createClient(url, key)
+
+  // ── Auth: this route reads via the service-role client (bypasses RLS),
+  // so it must gate itself explicitly rather than relying on RLS or on
+  // /app/* middleware — the route is independently reachable regardless of
+  // which page (if any) a request came through.
+  const authSupabase = await createServerSupabaseClient()
+  const { data: { user } } = await authSupabase.auth.getUser()
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized', songs: [] }, { status: 401 })
+  }
+
+  // Resolve the performance's ACTUAL owner from the database — never trust
+  // a client-supplied artist/owner id, because there isn't one to trust:
+  // performanceId is the only input, and the owner is derived from the
+  // performance row itself. performances_visible already excludes
+  // soft-deleted rows (deleted_at IS NULL).
+  const { data: perf, error: perfLookupError } = await supabaseAdmin
+    .from('performances_visible')
+    .select('user_id')
+    .eq('id', performanceId)
+    .maybeSingle()
+
+  if (perfLookupError) {
+    // Fail closed: a lookup error is not proof of anything, least of all
+    // authorization — never fall through to returning song data.
+    return NextResponse.json({ error: 'Authorization check failed', songs: [] }, { status: 500 })
+  }
+  if (!perf) {
+    return NextResponse.json({ error: 'Not found', songs: [] }, { status: 404 })
+  }
+
+  const ownerId = perf.user_id
+  let authorized = user.id === ownerId
+  if (!authorized) {
+    // Every recognized team role holds view_workspace — this only needs to
+    // confirm a currently-accepted, non-revoked delegation exists, not
+    // which role it is. profiles.role is never consulted (see
+    // lib/permissions.ts: it's self-writable and authorizes nothing).
+    const { data: delegation, error: delegationError } = await supabaseAdmin
+      .from('artist_delegates')
+      .select('id')
+      .eq('artist_id', ownerId)
+      .eq('delegate_id', user.id)
+      .not('accepted_at', 'is', null)
+      .is('revoked_at', null)
+      .maybeSingle()
+
+    if (delegationError) {
+      return NextResponse.json({ error: 'Authorization check failed', songs: [] }, { status: 500 })
+    }
+    authorized = !!delegation
+  }
+
+  if (!authorized) {
+    return NextResponse.json({ error: 'Access denied', songs: [] }, { status: 403 })
+  }
 
   // ── Primary source: performance_songs for this performance ─────────────────
   const { data: perfSongs, error } = await supabaseAdmin
