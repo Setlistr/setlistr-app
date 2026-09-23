@@ -153,24 +153,60 @@ async function callRevoke(caller: Persona, rowId: string, artistId: string) {
 }
 
 async function getDelegationRow(artistId: string, delegateId: string) {
-  const { data } = await service.from('artist_delegates').select('*').eq('artist_id', artistId).eq('delegate_id', delegateId).maybeSingle()
+  const { data, error } = await service.from('artist_delegates').select('*').eq('artist_id', artistId).eq('delegate_id', delegateId).maybeSingle()
+  if (error) throw new Error(`getDelegationRow(${artistId}, ${delegateId}) failed: ${error.message}`)
   return data
 }
 async function getRowById(id: string) {
-  const { data } = await service.from('artist_delegates').select('*').eq('id', id).maybeSingle()
+  const { data, error } = await service.from('artist_delegates').select('*').eq('id', id).maybeSingle()
+  if (error) throw new Error(`getRowById(${id}) failed: ${error.message}`)
   return data
 }
 async function findByInvitedEmail(artistId: string, email: string) {
-  const { data } = await service.from('artist_delegates').select('*').eq('artist_id', artistId).eq('invited_email', email).maybeSingle()
+  const { data, error } = await service.from('artist_delegates').select('*').eq('artist_id', artistId).eq('invited_email', email).maybeSingle()
+  if (error) throw new Error(`findByInvitedEmail(${artistId}, ${email}) failed: ${error.message}`)
   return data
 }
 
+// Field-level equality for a full artist_delegates row snapshot. Strict
+// equality for scalars; JSON comparison for the one array column (`grants`)
+// so a same-contents array isn't reported as "changed" on reference
+// inequality alone.
+function rowsEqual(a: Record<string, unknown> | null, b: Record<string, unknown> | null): boolean {
+  if (a === null || b === null) return a === b
+  const aKeys = Object.keys(a).sort()
+  const bKeys = Object.keys(b).sort()
+  if (aKeys.length !== bKeys.length || aKeys.some((k, i) => k !== bKeys[i])) return false
+  return aKeys.every((k) => {
+    const av = a[k]
+    const bv = b[k]
+    if (av === bv) return true
+    if (typeof av === 'object' && typeof bv === 'object') return JSON.stringify(av) === JSON.stringify(bv)
+    return false
+  })
+}
+
 async function cleanup() {
-  await service.from('artist_delegates').delete().in('artist_id', createdUserIds)
-  await service.from('artist_delegates').delete().in('delegate_id', createdUserIds)
+  const errors: string[] = []
+
+  const { error: byArtistErr } = await service.from('artist_delegates').delete().in('artist_id', createdUserIds)
+  if (byArtistErr) errors.push(`delete artist_delegates by artist_id: ${byArtistErr.message}`)
+
+  const { error: byDelegateErr } = await service.from('artist_delegates').delete().in('delegate_id', createdUserIds)
+  if (byDelegateErr) errors.push(`delete artist_delegates by delegate_id: ${byDelegateErr.message}`)
+
   for (const id of createdUserIds) {
-    await service.from('profiles').delete().eq('id', id)
-    await admin.auth.admin.deleteUser(id).catch(() => {})
+    const { error: profErr } = await service.from('profiles').delete().eq('id', id)
+    if (profErr) errors.push(`delete profile ${id}: ${profErr.message}`)
+
+    const { error: userErr } = await admin.auth.admin.deleteUser(id)
+    if (userErr) errors.push(`delete auth user ${id}: ${userErr.message}`)
+  }
+
+  if (errors.length > 0) {
+    console.error(`Cleanup failed with ${errors.length} error(s):`)
+    for (const e of errors) console.error(`  ${e}`)
+    throw new Error(`cleanup failed with ${errors.length} error(s)`)
   }
 }
 
@@ -265,10 +301,17 @@ async function main() {
 
   console.log('\n12-13. Requested owner / invalid role rejected')
   {
-    const r1 = await callInvite(ownerA, { artist_id: ownerA.userId, delegate_email: `x-${RUN}@example.test`, role: 'owner' })
+    const email1 = `x-${RUN}@example.test`
+    const r1 = await callInvite(ownerA, { artist_id: ownerA.userId, delegate_email: email1, role: 'owner' })
     check('role=owner -> 400', r1.status === 400, JSON.stringify(r1.json))
-    const r2 = await callInvite(ownerA, { artist_id: ownerA.userId, delegate_email: `y-${RUN}@example.test`, role: 'superadmin' })
+    const row1 = await findByInvitedEmail(ownerA.userId, email1)
+    check('role=owner -> no invitation created', !row1)
+
+    const email2 = `y-${RUN}@example.test`
+    const r2 = await callInvite(ownerA, { artist_id: ownerA.userId, delegate_email: email2, role: 'superadmin' })
     check('role=superadmin -> 400', r2.status === 400, JSON.stringify(r2.json))
+    const row2 = await findByInvitedEmail(ownerA.userId, email2)
+    check('role=superadmin -> no invitation created', !row2)
   }
 
   console.log('\n14-15. Existing-account acceptance succeeds')
@@ -311,10 +354,11 @@ async function main() {
     const rowId = row!.id
     const token = row!.invite_token
 
+    const before = await getRowById(rowId)
     const wrongAccept = await callAccept(wrongRecipient, token)
     check('wrong-recipient accept -> 403', wrongAccept.status === 403, JSON.stringify(wrongAccept.json))
     const after = await getRowById(rowId)
-    check('row unchanged: still placeholder, not accepted', after?.delegate_id === ownerA.userId && !after?.accepted_at)
+    check('row completely unchanged after denied accept', rowsEqual(before, after), `before=${JSON.stringify(before)} after=${JSON.stringify(after)}`)
 
     // placeholderToken (from section 16) was already accepted by the
     // rightful recipient. The route short-circuits an already-accepted
@@ -324,21 +368,23 @@ async function main() {
     // is that this idempotent path can't be used to rebind: the row must
     // still belong to whoever legitimately accepted it, never to whoever
     // replays the token afterward.
+    const beforeReplay = await getRowById(placeholderRowId)
     const wrongAccept2 = await callAccept(wrongRecipient, placeholderToken)
     check('replaying an already-accepted token is a no-op (idempotent, not an error)', wrongAccept2.status === 200 && wrongAccept2.json.already_accepted === true, JSON.stringify(wrongAccept2.json))
-    const stillBound = await getRowById(placeholderRowId)
-    check('row still bound to the rightful recipient, not rebound to the replaying caller', stillBound?.delegate_id !== wrongRecipient.userId)
+    const afterReplay = await getRowById(placeholderRowId)
+    check('row completely unchanged after replaying an already-accepted token', rowsEqual(beforeReplay, afterReplay), `before=${JSON.stringify(beforeReplay)} after=${JSON.stringify(afterReplay)}`)
   }
 
   console.log('\n18-19. Owner revocation succeeds; non-owner revoke denied and leaves row unchanged')
   {
-    const { data: mgrRow } = await service.from('artist_delegates').select('id').eq('artist_id', ownerA.userId).eq('delegate_id', mgrAccepted.userId).single()
+    const mgrRow = await getDelegationRow(ownerA.userId, mgrAccepted.userId)
     const rowId = mgrRow!.id
 
+    const before = await getRowById(rowId)
     const deniedRevoke = await callRevoke(mgrAccepted, rowId, ownerA.userId)
     check('non-owner revoke -> 403', deniedRevoke.status === 403, JSON.stringify(deniedRevoke.json))
-    const stillThere = await getRowById(rowId)
-    check('row still present after denied revoke', !!stillThere)
+    const after = await getRowById(rowId)
+    check('row completely unchanged after denied revoke', rowsEqual(before, after), `before=${JSON.stringify(before)} after=${JSON.stringify(after)}`)
 
     const ownerRevoke = await callRevoke(ownerA, rowId, ownerA.userId)
     check('owner revoke -> 200', ownerRevoke.status === 200, JSON.stringify(ownerRevoke.json))
