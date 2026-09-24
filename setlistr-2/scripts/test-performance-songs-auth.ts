@@ -130,6 +130,18 @@ async function createPerformanceWithSong(ownerId: string, venueName: string, son
   return perf.id as string
 }
 
+// No performance_songs row at all — used to confirm the removed legacy
+// setlists/setlist_items fallback isn't needed for (and can't silently
+// change) the existing empty-result contract.
+async function createPerformanceWithoutSongs(ownerId: string, venueName: string) {
+  const { data: perf, error: perfErr } = await service.from('performances').insert({
+    user_id: ownerId, venue_name: venueName,
+  }).select().single()
+  if (perfErr || !perf) throw new Error(`performance insert failed: ${perfErr?.message}`)
+  createdPerformanceIds.push(perf.id)
+  return perf.id as string
+}
+
 async function callPerformanceSongs(caller: Persona, performanceId?: string) {
   const qs = performanceId !== undefined ? `?performanceId=${encodeURIComponent(performanceId)}` : ''
   const res = await fetch(`${APP_URL}/api/performance-songs${qs}`, {
@@ -271,6 +283,17 @@ async function main() {
     const r = await callPerformanceSongs(ownerA, '00000000-0000-4000-8000-000000000000')
     check('status 404', r.status === 404, JSON.stringify(r.json))
     check('no song data', hasNoSongData(r.json), JSON.stringify(r.json))
+  }
+
+  console.log('\n15. Authorized performance with no primary songs -> existing empty response, not an error')
+  {
+    const perfEmpty = await createPerformanceWithoutSongs(ownerA.userId, 'Venue Empty')
+    const r = await callPerformanceSongs(ownerA, perfEmpty)
+    check('status 200 (not an error status)', r.status === 200, JSON.stringify(r.json))
+    check('exact empty-response shape: songs: [], source: none, performanceId echoed',
+      Array.isArray(r.json.songs) && r.json.songs.length === 0 && r.json.source === 'none' && r.json.performanceId === perfEmpty,
+      JSON.stringify(r.json))
+    check('no error field on this successful empty response', r.json.error === undefined, JSON.stringify(r.json))
   }
 
   console.log(`\n${pass} passed, ${fail} failed`)

@@ -75,7 +75,13 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Access denied', songs: [] }, { status: 403 })
   }
 
-  // ── Primary source: performance_songs for this performance ─────────────────
+  // ── Song source: performance_songs for this performance ─────────────────
+  // A legacy fallback to setlists/setlist_items used to live here. Removed:
+  // it queried setlists.performance_id and setlist_items.isrc/composer/
+  // publisher, none of which exist in the live schema — confirmed via
+  // read-only metadata query, not inferred. The fallback's own errors were
+  // never checked, so it silently returned nothing rather than surfacing
+  // that it was broken. No replacement linkage is invented here.
   const { data: perfSongs, error } = await supabaseAdmin
     .from('performance_songs_visible')
     .select('title, artist, isrc, composer, publisher')
@@ -98,34 +104,6 @@ export async function GET(req: NextRequest) {
       publisher: s.publisher || null,
     }))
     source = 'performance_songs'
-  } else {
-    // ── Fallback: setlist_items ───────────────────────────────────────────────
-    const { data: setlist } = await supabaseAdmin
-      .from('setlists')
-      .select('id')
-      .eq('performance_id', performanceId)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single()
-
-    if (setlist?.id) {
-      const { data: setlistSongs } = await supabaseAdmin
-        .from('setlist_items')
-        .select('title, artist_name, isrc, composer, publisher')
-        .eq('setlist_id', setlist.id)
-        .order('position')
-
-      if (setlistSongs && setlistSongs.length > 0) {
-        songs = setlistSongs.map((s: any) => ({
-          title: s.title,
-          artist: s.artist_name || '',
-          isrc: s.isrc || null,
-          composer: s.composer || null,
-          publisher: s.publisher || null,
-        }))
-        source = 'setlist_items'
-      }
-    }
   }
 
   if (songs.length === 0) {
