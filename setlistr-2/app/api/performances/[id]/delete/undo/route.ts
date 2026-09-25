@@ -34,17 +34,19 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
     if (!perf) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-    // Same accepted-row check as the delete route, team/invite, and
-    // team/context-data.
+    // Same accepted/non-revoked check as the delete route, team/invite, and
+    // team/context-data. A lookup error must deny, not fall through.
     if (user.id !== perf.user_id) {
-      const { data: delegation } = await service
+      const { data: delegation, error: delegationError } = await service
         .from('artist_delegates')
         .select('id')
         .eq('artist_id', perf.user_id)
         .eq('delegate_id', user.id)
         .not('accepted_at', 'is', null)
+        .is('revoked_at', null)
         .maybeSingle()
 
+      if (delegationError) return NextResponse.json({ error: 'Authorization check failed' }, { status: 500 })
       if (!delegation) return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 

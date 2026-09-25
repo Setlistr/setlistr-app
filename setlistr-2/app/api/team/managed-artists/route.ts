@@ -13,13 +13,19 @@ export async function GET() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    // Find all artists this user manages (accepted delegates only)
-    const { data: delegations } = await service
+    // Find all artists this user manages (currently accepted, non-revoked
+    // delegations only). A lookup error must deny, not silently report
+    // "manages nobody" — that would look like a legitimate empty state.
+    const { data: delegations, error: delegationsError } = await service
       .from('artist_delegates')
       .select('artist_id, role, accepted_at')
       .eq('delegate_id', user.id)
       .not('accepted_at', 'is', null)
+      .is('revoked_at', null)
 
+    if (delegationsError) {
+      return NextResponse.json({ error: 'Authorization check failed' }, { status: 500 })
+    }
     if (!delegations || delegations.length === 0) {
       return NextResponse.json({ managed: [] })
     }

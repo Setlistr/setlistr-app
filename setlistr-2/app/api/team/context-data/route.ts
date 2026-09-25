@@ -12,19 +12,25 @@ export async function GET(req: NextRequest) {
     const artistId = req.nextUrl.searchParams.get('artist_id')
     if (!artistId) return NextResponse.json({ error: 'artist_id required' }, { status: 400 })
 
-    // Verify requesting user is an accepted delegate for this artist
+    // Verify requesting user is a currently accepted, non-revoked delegate
+    // for this artist. A lookup error must deny, not fall through to
+    // returning this artist's performance/financial-adjacent data.
     const supabase = await createServerSupabaseClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const { data: delegation } = await service
+    const { data: delegation, error: delegationError } = await service
       .from('artist_delegates')
       .select('id, role')
       .eq('artist_id', artistId)
       .eq('delegate_id', user.id)
       .not('accepted_at', 'is', null)
+      .is('revoked_at', null)
       .maybeSingle()
 
+    if (delegationError) {
+      return NextResponse.json({ error: 'Authorization check failed' }, { status: 500 })
+    }
     if (!delegation) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
