@@ -26,13 +26,22 @@ async function authenticate() {
 
 async function isAuthorizedFor(callerId: string, ownerId: string): Promise<boolean> {
   if (callerId === ownerId) return true
-  const { data: delegation } = await service
+  // Explicit fail-closed: a lookup error must never be treated the same
+  // as "no delegation found but the query succeeded" — both currently
+  // produce a falsy `data`, but only one of them means "no access";
+  // the other means "we don't actually know," which must also deny.
+  const { data: delegation, error } = await service
     .from('artist_delegates')
     .select('id')
     .eq('artist_id', ownerId)
     .eq('delegate_id', callerId)
     .not('accepted_at', 'is', null)
+    .is('revoked_at', null)
     .maybeSingle()
+  if (error) {
+    console.error('[UploadPerformance] delegation lookup failed, denying:', error)
+    return false
+  }
   return !!delegation
 }
 

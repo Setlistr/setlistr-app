@@ -53,3 +53,4 @@ setlistr-2/scripts/*
 !setlistr-2/scripts/test-song-parent-lock.ts
 !setlistr-2/scripts/test-show-link-lock.ts
 !setlistr-2/scripts/test-performance-creation-containment.ts
+!setlistr-2/scripts/test-delegation-revocation.ts
