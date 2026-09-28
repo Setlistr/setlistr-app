@@ -172,7 +172,15 @@ export default function UploadShowPage() {
           form.append('previous_songs', JSON.stringify(detectedTitles))
 
           try {
-            const res  = await fetch('/api/identify', { method: 'POST', body: form })
+            // Fresh session per call (not hoisted) — matches app/app/upload/new/
+            // page.tsx's per-request session fetch. /api/identify now requires
+            // this; see that route for why.
+            const { data: { session } } = await supabase.auth.getSession()
+            const res  = await fetch('/api/identify', {
+              method: 'POST',
+              headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : undefined,
+              body: form,
+            })
             const data = await res.json()
             if (data?.detected && data.confidence_level === 'auto' && data.title) {
               const norm = data.title.toLowerCase().trim()

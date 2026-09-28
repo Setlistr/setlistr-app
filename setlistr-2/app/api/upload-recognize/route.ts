@@ -32,9 +32,10 @@ import { normalizeSongKey, cleanTitle } from '@/lib/reconciliation/normalize'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-const HOST          = 'identify-us-west-2.acrcloud.com'
-const ACCESS_KEY    = '81af58b16d932703e6a233f054666f3b'
-const ACCESS_SECRET = 'vNLUzrw4OOaiKiaw4FTdPQlqTNTGj3VbCNmotS22'
+const HOST = 'identify-us-west-2.acrcloud.com'
+// ACR_ACCESS_KEY / ACR_ACCESS_SECRET — server-only env vars (no
+// NEXT_PUBLIC_ prefix), read and validated per-request in POST() below,
+// with no hardcoded fallback. See that guard for why.
 
 function getSupabase() {
   return createClient(
@@ -46,6 +47,16 @@ function getSupabase() {
 type DetectionSource = 'fingerprint' | 'humming'
 
 export async function POST(req: NextRequest) {
+  // Missing configuration returns a controlled error immediately — before
+  // formData parsing, auth, quota consumption, or any provider call. The
+  // actual values are never logged, only their presence is checked.
+  const ACR_ACCESS_KEY    = process.env.ACR_ACCESS_KEY
+  const ACR_ACCESS_SECRET = process.env.ACR_ACCESS_SECRET
+  if (!ACR_ACCESS_KEY || !ACR_ACCESS_SECRET) {
+    console.error('[UploadRecognizeRoute] ACR_ACCESS_KEY/ACR_ACCESS_SECRET are not configured.')
+    return NextResponse.json({ error: 'Recognition service is not configured' }, { status: 500 })
+  }
+
   const supabase = getSupabase()
   let audioBytes = 0
   let performanceId: string | null = null
@@ -129,11 +140,11 @@ export async function POST(req: NextRequest) {
 
     // ── Call ACRCloud — verbatim HMAC signing from /api/upload-identify ───────────
     const timestamp    = Math.floor(Date.now() / 1000).toString()
-    const stringToSign = ['POST', '/v1/identify', ACCESS_KEY, 'audio', '1', timestamp].join('\n')
-    const signature    = crypto.createHmac('sha1', ACCESS_SECRET).update(stringToSign).digest('base64')
+    const stringToSign = ['POST', '/v1/identify', ACR_ACCESS_KEY, 'audio', '1', timestamp].join('\n')
+    const signature    = crypto.createHmac('sha1', ACR_ACCESS_SECRET).update(stringToSign).digest('base64')
 
     const acrForm = new FormData()
-    acrForm.append('access_key', ACCESS_KEY)
+    acrForm.append('access_key', ACR_ACCESS_KEY)
     acrForm.append('sample_bytes', audioBuffer.length.toString())
     acrForm.append('sample', new Blob([audioBuffer]), 'sample.webm')
     acrForm.append('timestamp', timestamp)

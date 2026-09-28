@@ -3,13 +3,16 @@ import crypto from 'crypto'
 import { createClient } from '@supabase/supabase-js'
 import { ACR_DAILY_CALL_LIMIT, ACR_LIMIT_MESSAGE } from '@/lib/acr-limits'
 import { normalizeSongKey } from '@/lib/reconciliation/normalize'
+import { isWriteCapableRole } from '@/lib/writeCapableRoles'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-const HOST          = 'identify-us-west-2.acrcloud.com'
-const ACCESS_KEY    = '81af58b16d932703e6a233f054666f3b'
-const ACCESS_SECRET = 'vNLUzrw4OOaiKiaw4FTdPQlqTNTGj3VbCNmotS22'
+const HOST = 'identify-us-west-2.acrcloud.com'
+// ACR_ACCESS_KEY / ACR_ACCESS_SECRET — server-only env vars (no
+// NEXT_PUBLIC_ prefix: these must never reach the browser bundle), read
+// and validated per-request in POST() below, with no hardcoded fallback.
+// See that guard for why the check lives there rather than here.
 
 // ─── FIX: Use service role key for server-side writes ────────────────────────
 // The anon key client was causing ALL detection_events inserts to silently fail
@@ -258,10 +261,31 @@ async function logDetectionEvent(event: Record<string, any>): Promise<void> {
 }
 
 export async function POST(req: NextRequest) {
+  // Missing configuration returns a controlled error immediately — before
+  // formData parsing, auth, quota consumption, or any provider call. The
+  // actual values are never logged, only their presence is checked.
+  const ACR_ACCESS_KEY    = process.env.ACR_ACCESS_KEY
+  const ACR_ACCESS_SECRET = process.env.ACR_ACCESS_SECRET
+  if (!ACR_ACCESS_KEY || !ACR_ACCESS_SECRET) {
+    console.error('[IdentifyRoute] ACR_ACCESS_KEY/ACR_ACCESS_SECRET are not configured.')
+    return NextResponse.json({ error: 'Recognition service is not configured' }, { status: 500 })
+  }
+
   const supabase  = getSupabase()
   const startTime = Date.now()
   let audioBytes  = 0
   let performanceId: string | null = null
+  // Gates the catch-all's recognition_logs insert below. Only flips true
+  // once the caller is authenticated, authorized (owner or a write-
+  // capable, accepted, non-revoked delegate) for the STORED performance,
+  // AND any supplied setlist_id has been validated against it — i.e.
+  // only once a request has actually earned the right to have its
+  // failure logged against real forensic tables. An error that occurs
+  // before that point (malformed input, a bad/missing token, an
+  // unauthorized target) must never cause a database write; logging it
+  // would itself be an unauthorized write triggered by an unauthenticated
+  // or unauthorized caller.
+  let authorizationComplete = false
 
   try {
     // ── Parse the incoming request ────────────────────────────────────────────
@@ -275,39 +299,142 @@ export async function POST(req: NextRequest) {
     const venueName    = incoming.get('venue_name') as string | null
     const showType     = (incoming.get('show_type') as string | null) || 'single'
     const prevRaw      = incoming.get('previous_songs') as string | null
-    const previousSongs: string[] = prevRaw ? JSON.parse(prevRaw) : []
+
+    // Malformed input is rejected immediately — 400, no database write —
+    // regardless of authentication state. This must never reach the
+    // catch-all below: parsing a client-supplied field is not itself an
+    // authorized operation, and previously this fell through to the
+    // generic error handler, which unconditionally inserted a
+    // recognition_logs row even for a caller who was never authenticated.
+    let previousSongs: string[] = []
+    if (prevRaw) {
+      try {
+        previousSongs = JSON.parse(prevRaw)
+      } catch {
+        return NextResponse.json({ error: 'Malformed previous_songs' }, { status: 400 })
+      }
+    }
 
     if (!(audio instanceof File)) return NextResponse.json({ error: 'No audio file' }, { status: 400 })
 
     const audioBuffer = Buffer.from(await audio.arrayBuffer())
     audioBytes        = audioBuffer.length
 
-    // ── Resolve the current user (for catalogue lookup + user_songs writes) ────
-    // Primary: Authorization header (when sent).
-    // Fallback: look up user_id from the performance record using the service role key,
-    // so memory writes work even when the live capture page doesn't send auth headers.
-    let userId: string | null = null
-    try {
-      const authHeader = req.headers.get('authorization')
-      if (authHeader) {
-        const anonClient = createClient(
-          process.env.NEXT_PUBLIC_SUPABASE_URL!,
-          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-        )
-        const { data: { user } } = await anonClient.auth.getUser(authHeader.replace('Bearer ', ''))
-        userId = user?.id || null
+    // ── Authenticate the caller — mandatory, no performance-owner fallback ────
+    // Caller identity is NEVER derived from the target performance's own
+    // owner column — the previous fallback made "sent no credentials"
+    // indistinguishable from "I am the owner," which is exactly backwards.
+    // Both web callers (app/app/live/[id]/page.tsx, app/app/show/upload/
+    // page.tsx) now send a real Supabase access token — see those files for
+    // the matching client-side change. There is no separate native caller:
+    // Capacitor loads this same web app in a WebView (capacitor.config.ts),
+    // so both platforms share this one authenticated code path.
+    const authHeader = req.headers.get('authorization')
+    if (!authHeader) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+    const anonClient = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    )
+    const { data: { user }, error: userError } = await anonClient.auth.getUser(authHeader.replace('Bearer ', ''))
+    if (userError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const callerId = user.id
+
+    // ── Authorize: resolve the performance's OWNER from the stored row
+    // (never from the request), then require the caller BE that owner, or
+    // hold a currently accepted, non-revoked, write-capable-role delegation
+    // for them. Nonexistent and unauthorized performances answer identically
+    // (403) so a caller can't distinguish "doesn't exist" from "not yours"
+    // by probing ids — same pattern as app/api/upload-identify/route.ts.
+    const { data: perfRow, error: perfError } = await supabase
+      .from('performances')
+      .select('user_id, show_id, setlist_id, artist_id')
+      .eq('id', performanceId)
+      .single()
+    if (perfError || !perfRow) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    const ownerId = perfRow.user_id
+
+    let authorized = callerId === ownerId
+    if (!authorized) {
+      const { data: delegation, error: delegationError } = await supabase
+        .from('artist_delegates')
+        .select('role')
+        .eq('artist_id', ownerId)
+        .eq('delegate_id', callerId)
+        .not('accepted_at', 'is', null)
+        .is('revoked_at', null)
+        .maybeSingle()
+      if (delegationError) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      authorized = isWriteCapableRole(delegation?.role)
+    }
+    if (!authorized) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+    // Recognition/catalogue identity: this is a DELIBERATE CHANGE, not a
+    // preserved behavior. The previous code used the real caller's own id
+    // whenever an Authorization header was present, and only fell back to
+    // the performance's owner when no header was sent. Neither confirmed
+    // live caller (app/app/live/[id]/page.tsx, app/app/show/upload/
+    // page.tsx) has ever sent that header, so the owner-fallback branch was
+    // the only one ever exercised in practice — but the header-present
+    // branch's caller-attributed behavior was real, reachable code, not
+    // dead code, and this change removes it unconditionally. The route now
+    // always attributes catalogue growth and quota consumption to the
+    // performance OWNER, matching app/api/upload-identify/route.ts's own
+    // explicit, already-reviewed design choice ("the artist's own
+    // catalogue/memory is meant to grow regardless of who's running the
+    // scan") — intentionally aligning the two routes, not a no-op.
+    const userId: string | null = ownerId
+
+    // A supplied setlist_id is VALIDATED against the authorized, stored
+    // performance record — before quota consumption, the paid ACRCloud
+    // call, or any write — rather than rejected outright or silently
+    // trusted. Matching show_id alone would be insufficient: setlists
+    // carries its own artist_id and supports multiple artists per show,
+    // so show_id agreement alone can't prove the setlist actually belongs
+    // to this performance's artist — performances.artist_id (a real,
+    // live column, confirmed via information_schema.columns and via a
+    // live join against setlists.artist_id: 5 matches, 0 mismatches, 0
+    // missing ids) is what closes that gap. Any failure below (id
+    // mismatch, a missing setlist row, a lookup error, or a missing
+    // required id on the performance itself) denies the whole request
+    // outright — never a silent skip of the mirror write further down. A
+    // request with no setlist_id at all is unaffected and proceeds
+    // exactly as before.
+    let verifiedSetlistId: string | null = null
+    if (setlistId) {
+      // The supplied id must equal the performance's OWN stored
+      // setlist_id — a caller can't attach an arbitrary (even otherwise
+      // valid) setlist just because that setlist independently checks out.
+      if (!perfRow.setlist_id || setlistId !== perfRow.setlist_id) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       }
-      if (!userId && performanceId) {
-        // Deliberately base table, not performances_visible — this only ever
-        // runs against an active capture's own known-valid performanceId.
-        const { data: perfRow } = await supabase
-          .from('performances')
-          .select('user_id')
-          .eq('id', performanceId)
-          .single()
-        userId = perfRow?.user_id || null
+      // Both sides of the relationship must be present on the performance
+      // to verify against — a missing show_id or artist_id on the
+      // performance means there's nothing authoritative to check the
+      // setlist against, so this denies rather than assumes a match.
+      if (!perfRow.show_id || !perfRow.artist_id) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       }
-    } catch { /* non-blocking */ }
+      const { data: setlistRow, error: setlistError } = await supabase
+        .from('setlists')
+        .select('show_id, artist_id')
+        .eq('id', perfRow.setlist_id)
+        .single()
+      if (setlistError || !setlistRow) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
+      if (setlistRow.show_id !== perfRow.show_id || setlistRow.artist_id !== perfRow.artist_id) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
+      verifiedSetlistId = perfRow.setlist_id
+    }
+
+    // Caller is authenticated, authorized for this stored performance, and
+    // any supplied setlist_id has been validated — every check that could
+    // legitimately deny the request has now passed. From here on, a
+    // failure is a real operational error against an authorized request,
+    // which IS worth logging.
+    authorizationComplete = true
 
     // ── Daily ACR quota ───────────────────────────────────────────────────────
     // Sits after the user is resolved and before BOTH the forensic rows and the
@@ -317,11 +444,12 @@ export async function POST(req: NextRequest) {
     // Detection logic below is untouched: this either returns early or falls
     // through to exactly the previous behaviour.
     //
-    // Fails open in every uncertain case — an unattributable caller (no userId)
-    // or an RPC error. A quota bug must never be the reason a real show fails
-    // to capture. Note that the unattributable path is also the open door
-    // documented in docs/api-auth-audit.md: until this route requires auth, a
-    // caller who sends no resolvable identity is not counted at all.
+    // userId is always resolved here now (auth is mandatory, enforced above),
+    // so this gate always runs — unlike before, when an unattributable caller
+    // (no userId) skipped it entirely (the "open door" previously documented
+    // in docs/api-auth-audit.md; that door is closed by the authorization
+    // block above, not by this gate). Still fails open on an RPC error only —
+    // a quota bug must never be the reason a real show fails to capture.
     if (userId) {
       try {
         const { data: quota, error: quotaError } = await supabase
@@ -341,8 +469,24 @@ export async function POST(req: NextRequest) {
     }
 
     // ── Pre-flight forensic rows (one capture + one job per chunk) ─────────────
+    // show_id AND artist_id are both derived from the AUTHORIZED, STORED
+    // perfRow — never from the client-supplied showId/artistId form fields.
+    // The authorization block above only ever verified performance_id
+    // ownership/delegation, never that a separately-supplied show_id or
+    // artist_id actually belongs to this performance, so an unverified
+    // client value has no business landing in a forensic write regardless
+    // of how low-stakes that write looks. perfRow.artist_id is a real,
+    // live, verified column (see the setlist_id validation block above)
+    // — using it here attributes the capture to a value this route reads
+    // directly from the authorized performance row, not to the caller's
+    // own user id and not to anything the request itself supplied. It is
+    // null whenever the performance's own stored artist_id is null,
+    // which is the common case today (only 5 of 482 non-deleted
+    // performances have it set live) — this is a faithful reflection of
+    // the authorized record, not a new gap. The raw showId/artistId form
+    // fields are still parsed above but deliberately unused here.
     const { data: capture } = await supabase.from('audio_captures').insert({
-      show_id: showId, artist_id: artistId, captured_by: null,
+      show_id: perfRow.show_id, artist_id: perfRow.artist_id, captured_by: null,
       duration_seconds: 14, file_size_bytes: audioBytes,
       mime_type: 'audio/webm', captured_at: new Date().toISOString(),
     }).select().single()
@@ -355,11 +499,11 @@ export async function POST(req: NextRequest) {
 
     // ── Call ACRCloud ─────────────────────────────────────────────────────────
     const timestamp    = Math.floor(Date.now() / 1000).toString()
-    const stringToSign = ['POST', '/v1/identify', ACCESS_KEY, 'audio', '1', timestamp].join('\n')
-    const signature    = crypto.createHmac('sha1', ACCESS_SECRET).update(stringToSign).digest('base64')
+    const stringToSign = ['POST', '/v1/identify', ACR_ACCESS_KEY, 'audio', '1', timestamp].join('\n')
+    const signature    = crypto.createHmac('sha1', ACR_ACCESS_SECRET).update(stringToSign).digest('base64')
 
     const acrForm = new FormData()
-    acrForm.append('access_key', ACCESS_KEY)
+    acrForm.append('access_key', ACR_ACCESS_KEY)
     acrForm.append('sample_bytes', audioBuffer.length.toString())
     acrForm.append('sample', new Blob([audioBuffer]), 'sample.webm')
     acrForm.append('timestamp', timestamp)
@@ -512,15 +656,21 @@ export async function POST(req: NextRequest) {
     const enriched = await enrichFromMusicBrainz(title, artist, isrc)
 
     // Legacy setlist mirror (unchanged behaviour from the old 'auto' path).
+    // Only reachable with a value when the authorization block above
+    // independently verified the supplied setlist_id against the stored
+    // performance -> setlist relationship (matching id, show_id, AND
+    // artist_id) — see that block for the checks performed. A request
+    // with no setlist_id, or one that failed that verification (which
+    // denies the whole request before reaching here), never sets this.
     let setlistItemId: string | null = null
-    if (setlistId) {
+    if (verifiedSetlistId) {
       const { data: existing } = await supabase.from('setlist_items').select('id')
-        .eq('setlist_id', setlistId).ilike('title', title).single()
+        .eq('setlist_id', verifiedSetlistId).ilike('title', title).single()
       if (!existing) {
         const { data: lastItem } = await supabase.from('setlist_items').select('position')
-          .eq('setlist_id', setlistId).order('position', { ascending: false }).limit(1).single()
+          .eq('setlist_id', verifiedSetlistId).order('position', { ascending: false }).limit(1).single()
         const { data: newItem } = await supabase.from('setlist_items').insert({
-          setlist_id: setlistId, title, artist_name: artist,
+          setlist_id: verifiedSetlistId, title, artist_name: artist,
           position: (lastItem?.position || 0) + 1, source,
         }).select().single()
         if (newItem) setlistItemId = newItem.id
@@ -566,10 +716,16 @@ export async function POST(req: NextRequest) {
 
   } catch (err: any) {
     console.error('[IdentifyRoute] Error:', err)
-    await getSupabase().from('recognition_logs').insert({
-      performance_id: performanceId || null, audio_bytes: audioBytes, detected: false,
-      acr_message: err.message, raw_response: { error: err.message },
-    })
+    // Only write recognition_logs once authorization + target validation
+    // actually completed (see authorizationComplete above) — an error
+    // before that point (malformed input, missing/invalid credentials, an
+    // unauthorized target) must never cause a database write.
+    if (authorizationComplete) {
+      await getSupabase().from('recognition_logs').insert({
+        performance_id: performanceId || null, audio_bytes: audioBytes, detected: false,
+        acr_message: err.message, raw_response: { error: err.message },
+      })
+    }
     return NextResponse.json({ error: err.message }, { status: 500 })
   }
 }

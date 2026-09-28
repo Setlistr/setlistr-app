@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { logProductEvent, awaitWithTimeout } from '@/lib/telemetry'
+import { isWriteCapableRole } from '@/lib/writeCapableRoles'
 
 // ─── Standalone Upload Performance: draft creation + finalize ────────────────
 // Authorization pattern mirrors app/api/team/invite/route.ts exactly: the
@@ -32,7 +33,7 @@ async function isAuthorizedFor(callerId: string, ownerId: string): Promise<boole
   // the other means "we don't actually know," which must also deny.
   const { data: delegation, error } = await service
     .from('artist_delegates')
-    .select('id')
+    .select('id, role')
     .eq('artist_id', ownerId)
     .eq('delegate_id', callerId)
     .not('accepted_at', 'is', null)
@@ -42,7 +43,8 @@ async function isAuthorizedFor(callerId: string, ownerId: string): Promise<boole
     console.error('[UploadPerformance] delegation lookup failed, denying:', error)
     return false
   }
-  return !!delegation
+  if (!delegation) return false
+  return isWriteCapableRole(delegation.role)
 }
 
 // ── POST: create the minimal draft performance needed to obtain a

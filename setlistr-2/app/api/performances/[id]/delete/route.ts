@@ -3,6 +3,7 @@ import { createClient as createServiceClient } from '@supabase/supabase-js'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { normalizeSongKey } from '@/lib/reconciliation/normalize'
 import { recomputeLastConfirmedAt } from '@/lib/reconciliation/userSongLedger'
+import { isWriteCapableRole } from '@/lib/writeCapableRoles'
 
 const service = createServiceClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -27,13 +28,15 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     if (!perf) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
     // Authorized only if the caller is the performance's owner, or a
-    // currently accepted, non-revoked delegate for that owner — same
-    // accepted/non-revoked check as team/invite, team/context-data, and
-    // performance-songs. A lookup error must deny, not fall through.
+    // currently accepted, non-revoked delegate for that owner whose role
+    // is write-capable — same accepted/non-revoked check as team/invite,
+    // team/context-data, and performance-songs, plus viewer-write
+    // containment (explicit recognized-role allowlist, not role !==
+    // 'viewer'). A lookup error must deny, not fall through.
     if (user.id !== perf.user_id) {
       const { data: delegation, error: delegationError } = await service
         .from('artist_delegates')
-        .select('id')
+        .select('id, role')
         .eq('artist_id', perf.user_id)
         .eq('delegate_id', user.id)
         .not('accepted_at', 'is', null)
@@ -41,7 +44,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         .maybeSingle()
 
       if (delegationError) return NextResponse.json({ error: 'Authorization check failed' }, { status: 500 })
-      if (!delegation) return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+      if (!delegation || !isWriteCapableRole(delegation.role)) {
+        return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+      }
     }
 
     if (perf.deleted_at) {

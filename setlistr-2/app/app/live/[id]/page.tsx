@@ -378,7 +378,15 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
       if (performance?.artist_name) formData.append('artist_name', performance.artist_name); if (performance?.venue_name) formData.append('venue_name', performance.venue_name)
       formData.append('show_type', (performance as any).show_type || 'single')
       formData.append('previous_songs', JSON.stringify(confirmedSongsRef.current.filter(s => s.source !== 'planned').map(s => s.title)))
-      const res = await fetch('/api/identify', { method: 'POST', body: formData })
+      // Fresh session per call (not hoisted) — matches app/app/upload/new/page.tsx's
+      // per-request session fetch, so a token refresh mid-capture is handled the
+      // same way. /api/identify now requires this; see that route for why.
+      const { data: { session } } = await createClient().auth.getSession()
+      const res = await fetch('/api/identify', {
+        method: 'POST',
+        headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : undefined,
+        body: formData,
+      })
       const data = await res.json()
       lastAcrResponseRef.current = Date.now()  // answered — capture is alive, whatever the verdict
 

@@ -55,3 +55,8 @@ setlistr-2/scripts/*
 !setlistr-2/scripts/test-performance-creation-containment.ts
 !setlistr-2/scripts/test-delegation-revocation.ts
 !setlistr-2/scripts/test-team-route-revocation-parity.ts
+!setlistr-2/scripts/test-viewer-write-containment.ts
+!setlistr-2/scripts/test-identify-authorization.ts
+!setlistr-2/scripts/acr-stub-preload.js
+!setlistr-2/scripts/test-upload-identify-authorization.ts
+!setlistr-2/scripts/local-fixture-setup.sql

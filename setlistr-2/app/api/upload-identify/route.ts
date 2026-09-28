@@ -3,6 +3,7 @@ import crypto from 'crypto'
 import { createClient } from '@supabase/supabase-js'
 import { ACR_DAILY_CALL_LIMIT, ACR_LIMIT_MESSAGE } from '@/lib/acr-limits'
 import { normalizeSongKey, cleanTitle } from '@/lib/reconciliation/normalize'
+import { isWriteCapableRole } from '@/lib/writeCapableRoles'
 
 // ─── Upload-only recognition route ────────────────────────────────────────────
 // Phase 1: isolates processUploadedFile()'s traffic from the shared, fragile
@@ -11,17 +12,27 @@ import { normalizeSongKey, cleanTitle } from '@/lib/reconciliation/normalize'
 // duplicate for now, not a rewrite — recognition-critical logic below is
 // reproduced verbatim from api/identify/route.ts, not "improved."
 //
-// Unlike api/identify, this route REQUIRES a verified session and proves the
-// caller owns (or has an accepted delegation on) performance_id before any
-// service-role read/write happens — api/identify currently has no such check
-// (see docs/api-auth-audit.md). That gap is intentionally not reproduced here.
+// This route already required a verified session and proved the caller
+// owns (or has an accepted delegation on) performance_id before any
+// service-role read/write — api/identify now has an equivalent mandatory-
+// auth guard too (both routes require Authorization and resolve ownership
+// from the stored performance row). What this route was still missing,
+// fixed here: the delegation check accepted ANY accepted, non-revoked
+// delegate regardless of role or revocation, identical to the gap 0015
+// fixed in can_act_for() and the app/api/upload-performance/route.ts
+// family — a viewer-role or revoked delegate could still trigger a paid
+// recognition call and its writes. Now requires a write-capable role
+// (see lib/writeCapableRoles.ts) and checks revoked_at, matching the
+// pattern already correct elsewhere in this codebase (performance-songs,
+// upload-performance, api/identify).
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-const HOST          = 'identify-us-west-2.acrcloud.com'
-const ACCESS_KEY    = '81af58b16d932703e6a233f054666f3b'
-const ACCESS_SECRET = 'vNLUzrw4OOaiKiaw4FTdPQlqTNTGj3VbCNmotS22'
+const HOST = 'identify-us-west-2.acrcloud.com'
+// ACR_ACCESS_KEY / ACR_ACCESS_SECRET — server-only env vars (no
+// NEXT_PUBLIC_ prefix), read and validated per-request in POST() below,
+// with no hardcoded fallback. See that guard for why.
 
 function getSupabase() {
   return createClient(
@@ -283,6 +294,16 @@ async function logDetectionEvent(event: Record<string, any>): Promise<void> {
 }
 
 export async function POST(req: NextRequest) {
+  // Missing configuration returns a controlled error immediately — before
+  // formData parsing, auth, quota consumption, or any provider call. The
+  // actual values are never logged, only their presence is checked.
+  const ACR_ACCESS_KEY    = process.env.ACR_ACCESS_KEY
+  const ACR_ACCESS_SECRET = process.env.ACR_ACCESS_SECRET
+  if (!ACR_ACCESS_KEY || !ACR_ACCESS_SECRET) {
+    console.error('[UploadIdentifyRoute] ACR_ACCESS_KEY/ACR_ACCESS_SECRET are not configured.')
+    return NextResponse.json({ error: 'Recognition service is not configured' }, { status: 500 })
+  }
+
   const supabase  = getSupabase()
   const startTime = Date.now()
   let audioBytes  = 0
@@ -349,10 +370,11 @@ export async function POST(req: NextRequest) {
     if (userError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     const callerId = user.id
 
-    // ── Authorize: caller must own performance_id, or hold an accepted ────────
-    // delegation from its owner. Nonexistent and unauthorized performances are
-    // treated identically (403) so a caller can't distinguish "doesn't exist"
-    // from "not yours" by probing ids.
+    // ── Authorize: caller must own performance_id, or hold a currently ───────
+    // accepted, non-revoked, write-capable-role delegation from its owner.
+    // Nonexistent and unauthorized performances are treated identically
+    // (403) so a caller can't distinguish "doesn't exist" from "not yours"
+    // by probing ids. A delegation-lookup error must deny, not fall through.
     const authorizeStart = Date.now()
     const { data: perfRow } = await supabase
       .from('performances')
@@ -365,14 +387,16 @@ export async function POST(req: NextRequest) {
 
     let authorized = callerId === ownerId
     if (!authorized) {
-      const { data: delegation } = await supabase
+      const { data: delegation, error: delegationError } = await supabase
         .from('artist_delegates')
-        .select('id')
+        .select('role')
         .eq('artist_id', ownerId)
         .eq('delegate_id', callerId)
         .not('accepted_at', 'is', null)
+        .is('revoked_at', null)
         .maybeSingle()
-      authorized = !!delegation
+      if (delegationError) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      authorized = isWriteCapableRole(delegation?.role)
     }
     stages.authorize = Date.now() - authorizeStart
     if (!authorized) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
@@ -404,11 +428,11 @@ export async function POST(req: NextRequest) {
 
     // ── Call ACRCloud (verbatim from api/identify/route.ts) ──────────────────
     const timestamp    = Math.floor(Date.now() / 1000).toString()
-    const stringToSign = ['POST', '/v1/identify', ACCESS_KEY, 'audio', '1', timestamp].join('\n')
-    const signature    = crypto.createHmac('sha1', ACCESS_SECRET).update(stringToSign).digest('base64')
+    const stringToSign = ['POST', '/v1/identify', ACR_ACCESS_KEY, 'audio', '1', timestamp].join('\n')
+    const signature    = crypto.createHmac('sha1', ACR_ACCESS_SECRET).update(stringToSign).digest('base64')
 
     const acrForm = new FormData()
-    acrForm.append('access_key', ACCESS_KEY)
+    acrForm.append('access_key', ACR_ACCESS_KEY)
     acrForm.append('sample_bytes', audioBuffer.length.toString())
     acrForm.append('sample', new Blob([audioBuffer]), 'sample.webm')
     acrForm.append('timestamp', timestamp)
