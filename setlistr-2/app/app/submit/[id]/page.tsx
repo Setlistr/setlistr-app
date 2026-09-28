@@ -8,6 +8,8 @@ import {
   INPUT_FIELDS,
   type ProRule, type ClaimFieldKey, type DeadlineResult, type Urgency, type Territory,
 } from '@/lib/pro-rules'
+import { isWriteCapableRole } from '@/lib/writeCapableRoles'
+import { missingIdentityFields } from '@/lib/submission-identity'
 
 const CARD = {
   background: 'linear-gradient(180deg, #171512 0%, #121009 100%)',
@@ -197,6 +199,13 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
   const [songs, setSongs]                 = useState<Song[]>([])
   const [profile, setProfile]             = useState<Profile | null>(null)
   const [isDelegate, setIsDelegate]       = useState(false)
+  // Whether the current caller is actually allowed to write performances
+  // (owner, or a delegate with an accepted, non-revoked, write-capable
+  // role). Defaults true — the owner path never needs this checked, and a
+  // delegate's real value is set once their artist_delegates row loads.
+  // Never the sole guard: markSubmitted() re-verifies the write itself.
+  const [canWriteSubmission, setCanWriteSubmission] = useState(true)
+  const [submitError, setSubmitError]     = useState<string | null>(null)
   const [loading, setLoading]             = useState(true)
   const [copied, setCopied]               = useState<string | null>(null)
   const [copiedKeys, setCopiedKeys]       = useState<string[]>([])
@@ -276,6 +285,27 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
             }
           }
         } catch (e) { console.error('[SubmitPage] context-data fetch failed:', e) }
+
+        // Whether THIS delegate can actually write to performances —
+        // artist_delegates_select's RLS lets a delegate read their own row
+        // (auth.uid() = delegate_id), same table/columns performances_
+        // write's RLS check (can_write_for) itself keys on. A failed read
+        // is treated as "cannot write" (fail closed), not "assume yes".
+        try {
+          const { data: delegation, error: delegationErr } = await supabase
+            .from('artist_delegates')
+            .select('role, accepted_at, revoked_at')
+            .eq('artist_id', ownerId)
+            .eq('delegate_id', user.id)
+            .maybeSingle()
+          const writeCapable = !delegationErr && !!delegation
+            && !!delegation.accepted_at && !delegation.revoked_at
+            && isWriteCapableRole(delegation.role)
+          setCanWriteSubmission(writeCapable)
+        } catch (e) {
+          console.error('[SubmitPage] delegation role fetch failed:', e)
+          setCanWriteSubmission(false)
+        }
       } else {
         const { data } = await supabase
           .from('profiles').select('pro_affiliation, legal_name, ipi_number, publisher_name, artist_name')
@@ -353,19 +383,43 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
     setPortalOpened(true)
   }
 
+  // Records that the caller manually submitted this performance to their
+  // PRO — Setlistr never files with a PRO itself and has no way to verify
+  // a PRO actually received or accepted anything. This function only ever
+  // flips a self-attested flag; the wording throughout this page reflects
+  // that deliberately.
   async function markSubmitted() {
     if (markingDone) return
+    // Defense in depth — the CTAs below already don't render a working
+    // control for a non-write-capable delegate, but this function must
+    // never silently proceed to a false success even if reached some
+    // other way.
+    if (isDelegate && !canWriteSubmission) {
+      setSubmitError(`You don't have permission to mark this as submitted. Send this claim to ${artistDisplayName || 'the artist'} instead.`)
+      return
+    }
     setMarkingDone(true)
+    setSubmitError(null)
     const supabase = createClient()
     const now = new Date().toISOString()
-    await supabase.from('performances').update({
+    // RLS can return HTTP 200 with zero rows updated (a denied or
+    // otherwise-unmatched write is not an error) — .select('id') is what
+    // makes that visible: without it, .update() returns no data at all,
+    // and a caller checking only { error } would call a zero-row update a
+    // success. Only exactly one updated row counts as success.
+    const { data, error } = await supabase.from('performances').update({
       submission_status: 'submitted', submitted_at: now,
-    }).eq('id', params.id)
+    }).eq('id', params.id).select('id')
+    setMarkingDone(false)
+    if (error || !data || data.length !== 1) {
+      console.error('[SubmitPage] markSubmitted failed:', { error, rowsUpdated: data?.length ?? 0 })
+      setSubmitError('Couldn’t save that. Nothing here was lost — your claim sheet and details are still here. Try again.')
+      return
+    }
     setSubmittedAt(now)
     setFiledPulse(true)
     await new Promise(r => setTimeout(r, 400))
     setSubmitted(true)
-    setMarkingDone(false)
   }
 
   // Delegate handoff: copies a link back to this same claim sheet so the
@@ -467,6 +521,16 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
   const detailsReady = missingRequired.length === 0 && !cityMissing
   const missingCount = missingRequired.length + (cityMissing ? 1 : 0)
 
+  // Identity fields the claim sheet carries when present (legal name, IPI
+  // — see the "Identity" block below). One shared check (lib/submission-
+  // identity.ts) drives both notices below: for the owner, "these are
+  // missing from your own account, go fill them in"; for a delegate,
+  // "these aren't visible to you" — profileData never carries them for a
+  // delegate at all (the existing privacy boundary, see load()), so this
+  // is never false for one but not the other; it reflects whatever the
+  // actual profile object in hand actually has.
+  const missingFields = missingIdentityFields(profile)
+
   const inputStyle = (filled: boolean) => ({
     width: '100%', background: '#0a0908', border: `1px solid ${filled ? C.borderGold : C.border}`,
     borderRadius: 10, padding: '11px 14px', color: C.text, fontSize: 14, fontFamily: 'inherit',
@@ -487,7 +551,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
         </div>
         <h1 style={{ fontSize: 36, fontWeight: 800, color: C.text, margin: '0 0 8px', letterSpacing: '-0.02em' }}>Added to your claim record.</h1>
         <p style={{ fontSize: 17, color: C.secondary, margin: '0 0 6px' }}>
-          Marked as filed with {proName}{isDelegate ? ` for ${artistDisplayName}` : ''}
+          You recorded a manual submission to {proName}{isDelegate ? ` for ${artistDisplayName}` : ''}
         </p>
         <p style={{ fontSize: 15, color: C.muted, margin: '0 0 28px' }}>
           {performance.venue_name}{performance.city ? ` · ${performance.city}` : ''} · {showDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
@@ -935,6 +999,13 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
 
         {/* CTAs — one obvious action */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {submitError && (
+            <div style={{ background: C.redDim, border: '1px solid rgba(248,113,113,0.25)', borderRadius: 12, padding: '12px 14px', display: 'flex', gap: 10 }}>
+              <AlertTriangle size={16} color={C.red} style={{ flexShrink: 0, marginTop: 1 }} />
+              <p style={{ fontSize: 12, color: C.secondary, margin: 0, lineHeight: 1.5 }}>{submitError}</p>
+            </div>
+          )}
+
           {hasPRO && rule && (
             !portalOpened ? (
               <button onClick={() => handleOpenPortal(rule.portalUrl)}
@@ -944,27 +1015,47 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
                 <ExternalLink size={15} strokeWidth={2.5} />{rule.portalLabel}
               </button>
             ) : isDelegate ? (
-              <>
-                <p style={{ fontSize: 11, color: C.muted, textAlign: 'center', margin: '0 0 2px' }}>
-                  Only {artistDisplayName} can file in {rule.program}. Send them this claim sheet, or mark it once they’ve told you it’s done.
-                </p>
-                <button onClick={handleSendToArtist}
-                  style={{ width: '100%', padding: '15px', background: 'transparent', border: `1px solid ${C.borderGold}`, borderRadius: 12, color: C.gold, fontSize: 14, fontWeight: 800, letterSpacing: '0.04em', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit' }}>
-                  {copied === 'send-link' ? <><Check size={14} strokeWidth={2.5} />Link copied</> : `Send to ${artistDisplayName}`}
-                </button>
-                <button onClick={handleArtistFiledIt} disabled={markingDone}
-                  style={{ width: '100%', padding: '17px', background: filedPulse ? C.green : markingDone ? C.greenDim : C.green, border: 'none', borderRadius: 12, color: filedPulse ? '#0a0908' : markingDone ? C.green : '#0a0908', fontSize: 16, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' as const, cursor: markingDone ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit', animation: 'fadeUp 0.3s ease', transform: filedPulse ? 'scale(1.03)' : 'scale(1)', transition: 'all 0.3s ease' }}>
-                  <Check size={15} strokeWidth={2.5} />
-                  {markingDone ? 'Recording...' : 'Artist filed it'}
-                </button>
-                <button onClick={() => handleOpenPortal(rule.portalUrl)}
-                  style={{ background: 'none', border: 'none', color: C.muted, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', padding: '4px' }}>
-                  Reopen {rule.program} ↗
-                </button>
-              </>
+              canWriteSubmission ? (
+                <>
+                  <p style={{ fontSize: 11, color: C.muted, textAlign: 'center', margin: '0 0 2px' }}>
+                    Only {artistDisplayName} can file in {rule.program}. Send them this claim sheet, or record it here once they’ve told you they submitted it — Setlistr doesn’t file with {proName} or verify receipt.
+                  </p>
+                  <button onClick={handleSendToArtist}
+                    style={{ width: '100%', padding: '15px', background: 'transparent', border: `1px solid ${C.borderGold}`, borderRadius: 12, color: C.gold, fontSize: 14, fontWeight: 800, letterSpacing: '0.04em', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit' }}>
+                    {copied === 'send-link' ? <><Check size={14} strokeWidth={2.5} />Link copied</> : `Send to ${artistDisplayName}`}
+                  </button>
+                  <button onClick={handleArtistFiledIt} disabled={markingDone}
+                    style={{ width: '100%', padding: '17px', background: filedPulse ? C.green : markingDone ? C.greenDim : C.green, border: 'none', borderRadius: 12, color: filedPulse ? '#0a0908' : markingDone ? C.green : '#0a0908', fontSize: 16, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' as const, cursor: markingDone ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit', animation: 'fadeUp 0.3s ease', transform: filedPulse ? 'scale(1.03)' : 'scale(1)', transition: 'all 0.3s ease' }}>
+                    <Check size={15} strokeWidth={2.5} />
+                    {markingDone ? 'Recording...' : 'Artist filed it'}
+                  </button>
+                  <button onClick={() => handleOpenPortal(rule.portalUrl)}
+                    style={{ background: 'none', border: 'none', color: C.muted, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', padding: '4px' }}>
+                    Reopen {rule.program} ↗
+                  </button>
+                </>
+              ) : (
+                // View-only delegate (viewer role, pending, or revoked):
+                // no control here writes anything — sending the sheet is
+                // read-only, and there is no "mark filed" button to fail
+                // silently or falsely succeed.
+                <>
+                  <p style={{ fontSize: 11, color: C.muted, textAlign: 'center', margin: '0 0 2px' }}>
+                    You can prepare and send this claim, but only {artistDisplayName} or a team member with submission access can mark it filed.
+                  </p>
+                  <button onClick={handleSendToArtist}
+                    style={{ width: '100%', padding: '17px', background: 'transparent', border: `1px solid ${C.borderGold}`, borderRadius: 12, color: C.gold, fontSize: 16, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' as const, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit' }}>
+                    {copied === 'send-link' ? <><Check size={14} strokeWidth={2.5} />Link copied</> : `Send to ${artistDisplayName}`}
+                  </button>
+                  <button onClick={() => handleOpenPortal(rule.portalUrl)}
+                    style={{ background: 'none', border: 'none', color: C.muted, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', padding: '4px' }}>
+                    Reopen {rule.program} ↗
+                  </button>
+                </>
+              )
             ) : (
               <>
-                <p style={{ fontSize: 11, color: C.muted, textAlign: 'center', margin: '0 0 2px' }}>Tap once you’ve hit Submit in {rule.program}. You’re confirming these songs were performed at this show.</p>
+                <p style={{ fontSize: 11, color: C.muted, textAlign: 'center', margin: '0 0 2px' }}>Tap once you’ve submitted in {rule.program}. This records that you manually submitted — Setlistr doesn’t file with {proName} or verify receipt.</p>
                 <button onClick={markSubmitted} disabled={markingDone}
                   style={{ width: '100%', padding: '17px', background: filedPulse ? C.green : markingDone ? C.greenDim : C.green, border: 'none', borderRadius: 12, color: filedPulse ? '#0a0908' : markingDone ? C.green : '#0a0908', fontSize: 16, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' as const, cursor: markingDone ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit', animation: 'fadeUp 0.3s ease', transform: filedPulse ? 'scale(1.03)' : 'scale(1)', transition: 'all 0.3s ease' }}>
                   <Check size={15} strokeWidth={2.5} />
@@ -978,21 +1069,52 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
             )
           )}
 
-          {!hasPRO && (
+          {!hasPRO && (isDelegate ? (
+            canWriteSubmission ? (
+              <button onClick={markSubmitted} disabled={markingDone}
+                style={{ width: '100%', padding: '14px', background: 'transparent', border: `1px solid ${C.border}`, borderRadius: 12, color: C.muted, fontSize: 15, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, fontFamily: 'inherit', opacity: markingDone ? 0.6 : 1 }}>
+                <Check size={14} strokeWidth={2.5} />{markingDone ? 'Recording...' : 'Mark as Submitted'}
+              </button>
+            ) : (
+              <button onClick={handleSendToArtist}
+                style={{ width: '100%', padding: '14px', background: 'transparent', border: `1px solid ${C.border}`, borderRadius: 12, color: C.secondary, fontSize: 15, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, fontFamily: 'inherit' }}>
+                {copied === 'send-link' ? <><Check size={14} strokeWidth={2.5} />Link copied</> : `Send to ${artistDisplayName}`}
+              </button>
+            )
+          ) : (
             <button onClick={markSubmitted} disabled={markingDone}
               style={{ width: '100%', padding: '14px', background: 'transparent', border: `1px solid ${C.border}`, borderRadius: 12, color: C.muted, fontSize: 15, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, fontFamily: 'inherit', opacity: markingDone ? 0.6 : 1 }}>
               <Check size={14} strokeWidth={2.5} />{markingDone ? 'Recording...' : 'Mark as Submitted'}
             </button>
+          ))}
+
+          {songs.length > 0 && !isDelegate && missingFields.length > 0 && (
+            <div style={{ background: C.amberDim, border: '1px solid rgba(245,158,11,0.25)', borderRadius: 12, padding: '11px 14px', display: 'flex', gap: 10 }}>
+              <AlertTriangle size={15} color={C.amber} style={{ flexShrink: 0, marginTop: 1 }} />
+              <p style={{ fontSize: 11.5, color: C.secondary, margin: 0, lineHeight: 1.5 }}>
+                Your claim sheet will be missing {missingFields.join(' and ')} — some PROs need {missingFields.length > 1 ? 'these' : 'this'} to process a claim.{' '}
+                <button onClick={() => router.push('/app/settings')} style={{ background: 'none', border: 'none', padding: 0, color: C.amber, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', fontSize: 11.5, textDecoration: 'underline' }}>
+                  Add it in Settings →
+                </button>
+              </p>
+            </div>
+          )}
+
+          {songs.length > 0 && isDelegate && missingFields.length > 0 && (
+            <p style={{ fontSize: 10.5, color: C.muted, textAlign: 'center', margin: 0, lineHeight: 1.5 }}>
+              {artistDisplayName}’s legal name and IPI aren’t shown to you — send this sheet to them for the complete version.
+            </p>
           )}
 
           {songs.length > 0 && (
             <button
               onClick={() => downloadSubmissionBrief({ performance, songs, profile, rule, deadline, suggestedTitle, effectiveCapacity: effectiveCapacity ?? null, inputs })}
-              style={{ width: '100%', padding: '13px', background: 'transparent', border: `1px solid ${C.border}`, borderRadius: 12, color: C.secondary, fontSize: 14, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit', transition: 'opacity 0.15s ease' }}
+              style={{ width: '100%', padding: '13px', background: 'transparent', border: `1px solid ${!isDelegate && missingFields.length > 0 ? 'rgba(245,158,11,0.3)' : C.border}`, borderRadius: 12, color: C.secondary, fontSize: 14, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit', transition: 'opacity 0.15s ease' }}
               onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.7'}
               onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}>
               <FileText size={14} strokeWidth={2} />
               {rule && !rule.selfServe ? `Download sheet for your ${proName} rep` : 'Download claim sheet'}
+              {!isDelegate && missingFields.length > 0 ? ' (incomplete)' : ''}
             </button>
           )}
 
