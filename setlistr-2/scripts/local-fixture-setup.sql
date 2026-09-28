@@ -33,12 +33,25 @@
 -- Apply via:
 --   docker exec <container> psql -U postgres -d postgres -f - < scripts/local-fixture-setup.sql
 
--- performances.artist_id: no FK, default, or other constraint is
--- asserted here — none was confirmed live (only the column's type and
--- its direct comparability with setlists.artist_id were), so none is
--- invented locally. Nullable, matching the live finding that only 5 of
--- 482 non-deleted performances have it set.
+-- performances.artist_id: nullable, matching the live finding that only
+-- 5 of 482 non-deleted performances have it set.
 ALTER TABLE public.performances ADD COLUMN IF NOT EXISTS artist_id uuid;
+
+-- CORRECTION (2026-09-28): production confirmed
+-- FOREIGN KEY (artist_id) REFERENCES artists(id) ON DELETE SET NULL —
+-- superseding the earlier comment above (removed) that no FK was
+-- confirmed live. Added here to match. Idempotent (DO block checks
+-- pg_constraint first — Postgres has no ADD CONSTRAINT IF NOT EXISTS).
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'performances_artist_id_fkey'
+  ) THEN
+    ALTER TABLE public.performances
+      ADD CONSTRAINT performances_artist_id_fkey
+      FOREIGN KEY (artist_id) REFERENCES public.artists(id) ON DELETE SET NULL;
+  END IF;
+END $$;
 
 -- performances_visible: appends artist_id to the LOCAL view's existing
 -- column list. Postgres's CREATE OR REPLACE VIEW can only add columns at

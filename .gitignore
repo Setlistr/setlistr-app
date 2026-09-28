@@ -60,3 +60,4 @@ setlistr-2/scripts/*
 !setlistr-2/scripts/acr-stub-preload.js
 !setlistr-2/scripts/test-upload-identify-authorization.ts
 !setlistr-2/scripts/local-fixture-setup.sql
+!setlistr-2/scripts/test-performance-artist-lock.ts
