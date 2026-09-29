@@ -24,6 +24,7 @@ import SongDebutCard from '@/components/share-cards/SongDebutCard'
 import RoyaltyMomentCard from '@/components/share-cards/RoyaltyMomentCard'
 import MilestoneCard from '@/components/share-cards/MilestoneCard'
 import html2canvas from 'html2canvas'
+import { countAt, capturedLabel, type FlowSource } from '@/lib/ceremony-display'
 
 const C = {
   bg: '#0a0908', card: '#141210', cardGrad: 'linear-gradient(180deg, #171512 0%, #121009 100%)', cardHover: '#181614',
@@ -42,8 +43,7 @@ function useCountUp(target: number, duration: number = 1200, delay: number = 0):
       function step(timestamp: number) {
         if (!startTime) startTime = timestamp
         const progress = Math.min((timestamp - startTime) / duration, 1)
-        const eased = 1 - Math.pow(1 - progress, 3)
-        setCount(Math.floor(eased * target))
+        setCount(countAt(progress, target))
         if (progress < 1) animFrame = requestAnimationFrame(step)
         else setCount(target)
       }
@@ -343,10 +343,10 @@ function PlannedSongRow({ song, onPlayed, onRemove }: {
 }
 
 
-function CeremonyCountCard({ songCount, showDate, verifiedCount, autoCount, manualCount, songs }: {
+function CeremonyCountCard({ songCount, showDate, verifiedCount, autoCount, manualCount, songs, flowSource }: {
   songCount: number; showDate: string
   verifiedCount: number; autoCount: number; manualCount: number
-  songs: Song[]
+  songs: Song[]; flowSource: FlowSource
 }) {
   const count = useCountUp(songCount, 1000, 500)
   return (
@@ -361,7 +361,7 @@ function CeremonyCountCard({ songCount, showDate, verifiedCount, autoCount, manu
           </span>
         </div>
         <p style={{ fontSize: 13, color: '#8a7a68', margin: 0, letterSpacing: '0.04em' }}>
-          Captured live · {showDate}
+          {capturedLabel(flowSource)} · {showDate}
         </p>
       </div>
       <div style={{ padding: '16px 0 8px' }}>
@@ -741,7 +741,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
     const territory = getTerritory(performance.country, performance.city)
     const confirmedForEst = songs.filter(s => s.source !== 'planned' && !s.isRemoved)
     const est = estimateRoyalties({
-      songCount: confirmedForEst.length || 8,
+      songCount: confirmedForEst.length,
       venueCapacityBand: capacityToBand(performance.venue_capacity),
       showType: (performance.show_type as any) || 'single',
       territory,
@@ -1174,7 +1174,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
 
   if (showComplete) {
     const territory = getTerritory(performance?.country, performance?.city)
-    const songCount = confirmedSongs.length > 0 ? confirmedSongs.length : 8
+    const songCount = confirmedSongs.length
     const estimate  = estimateRoyalties({ songCount, venueCapacityBand: capacityToBand(performance?.venue_capacity), showType: (performance?.show_type as any) || 'single', territory })
     const showDate  = performance?.started_at ? parseLocalDate(performance.started_at).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) : ''
     const durMins   = performance?.started_at && performance?.ended_at ? Math.round((new Date(performance.ended_at).getTime() - new Date(performance.started_at).getTime()) / 60000) : null
@@ -1228,6 +1228,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
             autoCount={autoCount}
             manualCount={manualCount}
             songs={confirmedSongs}
+            flowSource={flowSourceRef.current}
           />
 
           {/* ── INTELLIGENCE ── */}

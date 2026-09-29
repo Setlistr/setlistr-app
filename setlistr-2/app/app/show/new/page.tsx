@@ -257,6 +257,15 @@ export default function NewShowPage() {
   const [step, setStep] = useState<1 | 2>(1)
   const [showSkipConfirm, setShowSkipConfirm] = useState(false)
 
+  // Gates step 1's content: null shows an explicit, equally-weighted choice
+  // between live capture and uploading a recording BEFORE any form fields
+  // appear. Previously "Upload Performance" was a secondary, visually
+  // muted link below the venue form's own "Next" button — easy to miss
+  // entirely, since a returning artist's eye goes straight to the primary
+  // gold CTA. Independent of `step` so it doesn't touch that flow's own
+  // state/type.
+  const [captureChoice, setCaptureChoice] = useState<'live' | 'upload' | null>(null)
+
   // Camera: capture="environment" opens native camera on iOS + Android
   const cameraInputRef = useRef<HTMLInputElement>(null)
   // Gallery/file: no capture attribute — opens file picker
@@ -723,10 +732,47 @@ export default function NewShowPage() {
         </div>
 
         {/* ══════════════════════════════════════════
-            STEP 1 — VENUE
+            STEP 1a — CHOICE: live capture or upload a recording
+            Shown before any form fields, so both paths are equally
+            visible — neither is a secondary link buried under the other.
         ══════════════════════════════════════════ */}
-        {step === 1 && (
+        {step === 1 && captureChoice === null && (
+          <div key="capture-choice" style={{ animation: 'fadeUp 0.3s ease' }}>
+            <h1 style={{ fontSize: 30, fontWeight: 800, color: C.text, margin: '0 0 8px', letterSpacing: '-0.025em' }}>Where tonight?</h1>
+            <p style={{ fontSize: 14, color: C.secondary, margin: '0 0 24px' }}>Playing now, or already played?</p>
+
+            <button
+              onClick={() => setCaptureChoice('live')}
+              style={{ width: '100%', marginBottom: 10, padding: '20px 18px', background: C.gold, border: 'none', borderRadius: 16, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 14, textAlign: 'left' as const }}>
+              <div style={{ width: 42, height: 42, borderRadius: 12, background: 'rgba(10,9,8,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <MapPin size={19} color="#0a0908" />
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ fontSize: 16, fontWeight: 800, color: '#0a0908', margin: '0 0 2px' }}>Start Live Capture</p>
+                <p style={{ fontSize: 12.5, color: 'rgba(10,9,8,0.7)', margin: 0, lineHeight: 1.35 }}>Playing tonight — Setlistr listens as you go.</p>
+              </div>
+            </button>
+
+            <button
+              onClick={() => router.push('/app/upload/new')}
+              style={{ width: '100%', padding: '20px 18px', background: CARD.background, border: `1px solid ${C.borderGold}`, borderRadius: 16, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 14, textAlign: 'left' as const, boxShadow: CARD.boxShadow }}>
+              <div style={{ width: 42, height: 42, borderRadius: 12, background: C.goldDim, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <Upload size={19} color={C.gold} />
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ fontSize: 16, fontWeight: 800, color: C.gold, margin: '0 0 2px' }}>Upload a Recording</p>
+                <p style={{ fontSize: 12.5, color: C.muted, margin: 0, lineHeight: 1.35 }}>Already played? Build your setlist from a recording.</p>
+              </div>
+            </button>
+          </div>
+        )}
+
+        {/* ══════════════════════════════════════════
+            STEP 1b — VENUE (live capture, after the choice above)
+        ══════════════════════════════════════════ */}
+        {step === 1 && captureChoice === 'live' && (
           <div key="step1" style={{ animation: 'fadeUp 0.3s ease' }}>
+            <button onClick={() => setCaptureChoice(null)} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', padding: 0, marginBottom: 14 }}>← Not tonight's show?</button>
             <h1 style={{ fontSize: 30, fontWeight: 800, color: C.text, margin: '0 0 16px', letterSpacing: '-0.025em' }}>Where tonight?</h1>
 
             {/* ── VENUE CARD ── */}
@@ -859,19 +905,6 @@ export default function NewShowPage() {
               Next <ArrowRight size={15} strokeWidth={2.5} />
             </button>
 
-            {/* ── Upload Performance — clear secondary path, not a buried link ── */}
-            <button
-              onClick={() => router.push('/app/upload/new')}
-              style={{ width: '100%', marginTop: 10, padding: '14px 16px', background: 'linear-gradient(180deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%)', border: `1px solid ${C.border}`, borderRadius: 14, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 12, textAlign: 'left' as const }}>
-              <div style={{ width: 36, height: 36, borderRadius: 10, background: C.goldDim, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <Upload size={16} color={C.gold} />
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' as const, color: C.gold, margin: '0 0 2px' }}>Upload Performance</p>
-                <p style={{ fontSize: 12, color: C.muted, margin: 0, lineHeight: 1.35 }}>Already played? Build your setlist from a recording.</p>
-              </div>
-            </button>
-
             {/* ── MORE OPTIONS ── */}
             <button
               onClick={() => setShowMoreOptions(v => !v)}
@@ -998,8 +1031,8 @@ export default function NewShowPage() {
                   disabled={uploading}
                   style={{ flex: 1, padding: '14px 10px', background: 'rgba(255,255,255,0.02)', border: `1px solid ${C.border}`, borderRadius: 10, cursor: uploading ? 'default' : 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, opacity: uploading ? 0.5 : 1, WebkitTapHighlightColor: 'transparent' }}>
                   <Upload size={16} color={C.secondary} strokeWidth={1.75} />
-                  <span style={{ fontSize: 12, fontWeight: 700, color: C.secondary }}>Upload a setlist</span>
-                  <span style={{ fontSize: 10, color: C.muted }}>PDF or from library</span>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: C.secondary }}>Upload Setlist Photo/PDF</span>
+                  <span style={{ fontSize: 10, color: C.muted }}>Not audio — a PDF or photo from your library</span>
                 </button>
 
                 {/* 4. Pick from your catalog */}

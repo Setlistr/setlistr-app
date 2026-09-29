@@ -125,7 +125,7 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const body = await req.json()
-    const { performance_id, venue_name, performance_date, start_time, show_type, songs, setlist_photo_url } = body
+    const { performance_id, venue_name, venue_city, performance_date, start_time, show_type, songs, setlist_photo_url } = body
     if (!performance_id) return NextResponse.json({ error: 'performance_id required' }, { status: 400 })
     if (!venue_name || !String(venue_name).trim()) return NextResponse.json({ error: 'venue_name required' }, { status: 400 })
     if (!performance_date) return NextResponse.json({ error: 'performance_date required' }, { status: 400 })
@@ -160,8 +160,17 @@ export async function PATCH(req: NextRequest) {
       .from('performances')
       .update({
         venue_name: String(venue_name).trim(),
+        // The draft row's started_at was set to "now" (upload time) at
+        // create-draft, before the artist had entered the actual show
+        // date — every other screen (review, dashboard, history, the
+        // claim sheet) reads started_at as the show's date, not
+        // performance_date, so leaving it un-updated here is exactly what
+        // made the two columns disagree. Both now carry the artist's
+        // actual chosen date.
         performance_date,
+        started_at: performance_date,
         start_time: start_time || null,
+        city: venue_city ? String(venue_city).trim() : null,
         status: 'review',
         ...(setlist_photo_url ? { setlist_photo_url } : {}),
       })

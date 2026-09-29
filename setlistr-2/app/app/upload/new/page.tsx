@@ -8,6 +8,8 @@ import { logProductEvent, awaitWithTimeout } from '@/lib/telemetry'
 import { Camera, Upload, Check } from 'lucide-react'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
+import { todayLocalDateInputValue } from '@/lib/date-format'
+import { pickGeocodeMatch } from '@/lib/geocode-match'
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
 
@@ -235,7 +237,16 @@ function chipStyle(active: boolean): React.CSSProperties {
 // ─── Trimmed venue map preview ─────────────────────────────────────────────
 // Visual confirmation only — geocodes the typed venue name for a preview
 // pin, never reads device location, never persists coordinates.
-function VenueMapPreview({ venueName }: { venueName: string }) {
+//
+// When `city` is known, candidates are validated against it via the same
+// pickGeocodeMatch() app/app/show/new/page.tsx's VenueMap uses — a venue
+// name that exists in more than one place must never silently resolve to
+// the wrong one just because Mapbox's un-constrained top result happened to
+// be near wherever the artist is uploading FROM right now, rather than
+// where the show actually was. Without a city, there's nothing to validate
+// against, so the top result is accepted as-is, same as VenueMap's own
+// no-city fallback.
+function VenueMapPreview({ venueName, city }: { venueName: string; city?: string }) {
   const mapContainer = useRef<HTMLDivElement>(null)
   const map = useRef<mapboxgl.Map | null>(null)
   const marker = useRef<mapboxgl.Marker | null>(null)
@@ -252,14 +263,14 @@ function VenueMapPreview({ venueName }: { venueName: string }) {
     debounceRef.current = setTimeout(async () => {
       try {
         const params = new URLSearchParams({
-          q: query, limit: '1', types: 'poi', language: 'en',
+          q: query, limit: '5', types: 'poi', language: 'en',
           access_token: mapboxgl.accessToken as string,
         })
         const res = await fetch(`https://api.mapbox.com/search/searchbox/v1/forward?${params.toString()}`)
         const data = await res.json()
         if (attempt !== attemptRef.current) return
-        const top = data.features?.[0]
-        const c = top?.properties?.coordinates
+        const chosen = pickGeocodeMatch(data.features || [], city)
+        const c = chosen?.properties?.coordinates
         if (!c || typeof c.latitude !== 'number' || typeof c.longitude !== 'number') { setFailed(true); return }
         setCoords({ lat: c.latitude, lng: c.longitude })
         setFailed(false)
@@ -268,7 +279,7 @@ function VenueMapPreview({ venueName }: { venueName: string }) {
       }
     }, 500)
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
-  }, [venueName])
+  }, [venueName, city])
 
   useEffect(() => {
     if (!coords || !mapContainer.current) return
@@ -328,7 +339,9 @@ export default function UploadNewPerformancePage() {
   const [recordingDuration, setRecordingDuration] = useState(0)
 
   const [venueName, setVenueName] = useState('')
-  const [showDate, setShowDate] = useState(new Date().toISOString().slice(0, 10))
+  const [venueCity, setVenueCity] = useState('')
+  // Local calendar day, not UTC — see lib/date-format.ts's doc comment.
+  const [showDate, setShowDate] = useState(todayLocalDateInputValue())
   const [startTime, setStartTime] = useState('')
   const [otherStartTimeActive, setOtherStartTimeActive] = useState(false)
   const [showType, setShowType] = useState<'single' | 'writers_round'>('single')
@@ -886,6 +899,7 @@ export default function UploadNewPerformancePage() {
         body: JSON.stringify({
           performance_id: performanceId,
           venue_name: venueName.trim(),
+          venue_city: venueCity.trim() || null,
           performance_date: new Date(showDate).toISOString(),
           start_time: startTime || null,
           show_type: showType,
@@ -1085,7 +1099,14 @@ export default function UploadNewPerformancePage() {
                 <input type="text" value={venueName} onChange={e => setVenueName(e.target.value)} placeholder="Where did you play?"
                   spellCheck={false} autoCorrect="off" autoCapitalize="words"
                   style={{ width: '100%', boxSizing: 'border-box', background: C.input, border: `1px solid ${venueName.trim() ? C.borderGold : C.border}`, borderRadius: 10, padding: '13px 14px', color: C.text, fontSize: 15, fontFamily: 'inherit', outline: 'none' }} />
-                {venueName.trim().length >= 2 && <VenueMapPreview venueName={venueName} />}
+                {/* City disambiguates same-named venues in different places
+                    (see VenueMapPreview above) — optional, but without it a
+                    common venue name can't be confirmed against anywhere in
+                    particular. */}
+                <input type="text" value={venueCity} onChange={e => setVenueCity(e.target.value)} placeholder="City (helps confirm the location)"
+                  spellCheck={false} autoCorrect="off" autoCapitalize="words"
+                  style={{ width: '100%', boxSizing: 'border-box', marginTop: 6, background: C.input, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 14px', color: C.text, fontSize: 13, fontFamily: 'inherit', outline: 'none' }} />
+                {venueName.trim().length >= 2 && <VenueMapPreview venueName={venueName} city={venueCity} />}
               </div>
               <div>
                 <label style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.muted, display: 'block', marginBottom: 6 }}>Date <span style={{ color: C.red }}>*</span></label>

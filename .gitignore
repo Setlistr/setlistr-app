@@ -64,3 +64,7 @@ setlistr-2/scripts/*
 !setlistr-2/scripts/test-submission-status-write.ts
 !setlistr-2/scripts/test-filing-status.ts
 !setlistr-2/scripts/test-performance-status.ts
+!setlistr-2/scripts/test-date-format.ts
+!setlistr-2/scripts/test-ceremony-display.ts
+!setlistr-2/scripts/test-geocode-match.ts
+!setlistr-2/scripts/test-upload-performance-date-city.ts

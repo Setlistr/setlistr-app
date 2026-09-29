@@ -10,6 +10,7 @@ import {
 } from '@/lib/pro-rules'
 import { isWriteCapableRole } from '@/lib/writeCapableRoles'
 import { missingIdentityFields } from '@/lib/submission-identity'
+import { parseLocalDate } from '@/lib/date-format'
 
 const CARD = {
   background: 'linear-gradient(180deg, #171512 0%, #121009 100%)',
@@ -112,7 +113,7 @@ function downloadSubmissionBrief({
   rule: ProRule | null; deadline: DeadlineResult | null
   suggestedTitle: string; effectiveCapacity: number | null; inputs: ClaimInputs
 }) {
-  const showDate = new Date(performance.started_at)
+  const showDate = parseLocalDate(performance.started_at)
   const showDateLong = showDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
   const resolvedCity = performance.city || performance.venue_city || inputs.city.trim() || ''
   const line = (char = '─', n = 52) => char.repeat(n)
@@ -462,7 +463,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
   const proName        = rule?.name || pro || 'your PRO'
   const stepsCompleted = stepsDone.filter(Boolean).length
   const totalSteps     = stepsDone.length
-  const showDate       = new Date(performance.started_at)
+  const showDate       = parseLocalDate(performance.started_at)
   const artistDisplayName = profile?.artist_name || performance.artist_name
   const suggestedTitle = `${artistDisplayName} - ${performance.venue_name}`
   const fullCount    = songs.filter(s => s.matchConfidence === 'full').length
