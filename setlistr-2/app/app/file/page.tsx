@@ -142,7 +142,17 @@ export default function FilingQueuePage() {
 
         <button onClick={() => router.push('/app/dashboard')} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit', padding: '0 0 20px', letterSpacing: '0.04em' }}>← Back</button>
 
-        <h1 style={{ fontSize: 32, fontWeight: 800, color: C.text, margin: '0 0 4px', letterSpacing: '-0.02em' }}>Filing Queue</h1>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 4 }}>
+          <h1 style={{ fontSize: 32, fontWeight: 800, color: C.text, margin: 0, letterSpacing: '-0.02em' }}>Filing Queue</h1>
+          {/* This page only ever shows unfinished, actionable shows —
+             submitted ones are excluded outright (see buildRows below).
+             Your Record is where the full history, submitted shows
+             included, actually lives — always one tap away from here. */}
+          <button onClick={() => router.push('/app/history')}
+            style={{ flexShrink: 0, marginTop: 6, background: 'none', border: 'none', color: C.muted, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', padding: 0, whiteSpace: 'nowrap' as const }}>
+            Full History →
+          </button>
+        </div>
         <p style={{ fontSize: 14, color: C.secondary, margin: '0 0 24px' }}>
           {actingAs ? `${artistName || actingAs.artist_name}'s unfiled shows` : 'Your unfiled shows'} — what's ready, what still needs something.
         </p>

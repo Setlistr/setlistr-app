@@ -26,11 +26,16 @@ export function AppShell({ children, profile }: { children: React.ReactNode; pro
     const supabase = createClient()
     async function fetchCount() {
       try {
+        // 'review' is the real status value (draft → live → processing →
+        // review → complete) — 'needs_review' never occurs as a stored
+        // status, so this count silently returned 0 always. Now that the
+        // Submissions tab lands on the Filing Queue, a badge that never
+        // lights up defeats the point of pointing it there.
         const { count } = await supabase
           .from('performances_visible')
           .select('*', { count: 'exact', head: true })
           .eq('user_id', actingAsArtistId || profile.id)
-          .eq('status', 'needs_review')
+          .eq('status', 'review')
         setNeedsReviewCount(count ?? 0)
       } catch {
         setNeedsReviewCount(0)
@@ -56,9 +61,16 @@ export function AppShell({ children, profile }: { children: React.ReactNode; pro
   const initials = (profile.full_name || profile.email)
     .split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2)
 
+  // Submissions previously landed on /app/history (Your Record — the full
+  // searchable log, submitted shows included), while carrying a
+  // needsReviewCount badge that only makes sense for a to-do surface. That
+  // mismatch is exactly what /app/file (Filing Queue) is for: unfinished,
+  // actionable shows only, same badge concept, and it links back to Your
+  // Record for anyone who wants the full history. Your Record itself is
+  // unchanged and still reachable from there.
   const LEFT_NAV = [
     { href: '/app/dashboard', icon: LayoutDashboard, label: 'Home',        badge: 0 },
-    { href: '/app/history',   icon: Send,            label: 'Submissions', badge: needsReviewCount },
+    { href: '/app/file',      icon: Send,            label: 'Submissions', badge: needsReviewCount },
   ]
   const RIGHT_NAV = [
     { href: '/app/stats',    label: 'Career',  badge: 0 },
@@ -86,7 +98,16 @@ export function AppShell({ children, profile }: { children: React.ReactNode; pro
       <div aria-hidden="true" style={{ position: 'fixed', inset: 0, zIndex: 100, pointerEvents: 'none', backgroundImage: GRAIN_URI, backgroundRepeat: 'repeat', opacity: 0.03 }} />
 
       {/* ── Main content ── */}
-      <main style={{ flex: 1, paddingBottom: 96 }}>{children}</main>
+      {/* The fixed bottom nav's own real height is minHeight:64 + its
+         internal padding + env(safe-area-inset-bottom) — on any iPhone
+         with a home-indicator safe area (effectively all current models),
+         that total can exceed a flat 96px, so the last ~10-40px of a
+         page's own content sits behind the nav rather than above it. This
+         is what made Upload Performance's "Continue to Review" button (and
+         potentially any other page's trailing content) end up covered.
+         Matching the nav's own safe-area term here, instead of a flat
+         number, is what actually clears it on every device. */}
+      <main style={{ flex: 1, paddingBottom: 'calc(96px + env(safe-area-inset-bottom))' }}>{children}</main>
 
       {/* ── Bottom nav ── */}
       <nav style={{

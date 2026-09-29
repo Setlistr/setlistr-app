@@ -375,8 +375,11 @@ export default function HistoryPage() {
               style={{ width: '100%', background: C.card, border: `1px solid ${search ? C.borderGold : C.border}`, borderRadius: 12, padding: '13px 16px 13px 44px', color: C.text, fontSize: 16, fontFamily: 'inherit', transition: 'border-color 0.15s ease', boxSizing: 'border-box' as const }} />
           </div>
 
-          {/* Status tabs */}
-          <div style={{ display: 'flex', gap: 6, marginBottom: 8, overflowX: 'auto' as const }}>
+          {/* Status tabs — paddingRight (not just gap) so the last chip
+             gets real breathing room at the scrolled-end edge instead of
+             sitting flush against it, which read as "cut off" even though
+             the row was already scrollable. */}
+          <div style={{ display: 'flex', gap: 6, marginBottom: 8, overflowX: 'auto' as const, paddingRight: 16, WebkitOverflowScrolling: 'touch' as const }}>
             {([
               { key: 'all',       label: 'All',             color: C.muted,  count: counts.all },
               { key: 'review',    label: 'Needs Review',    color: C.gold,   count: counts.review },
@@ -461,69 +464,78 @@ export default function HistoryPage() {
 
                 return (
                   <div key={perf.id}>
-                    <div style={{ display: 'flex', alignItems: 'stretch', gap: 6 }}>
+                    {/* Two-line row — venue gets its own full-width line
+                       instead of sharing horizontal space with a date
+                       column, status column, and delete button all at
+                       once, which is what squeezed long venue names down
+                       to "Peter…" before. Status/estimate moved to a
+                       second line under city/songs; the decorative arrow
+                       (redundant — the whole card is obviously tappable)
+                       is dropped to give status room without crowding. */}
+                    <div style={{ display: 'flex', alignItems: 'stretch', gap: 4 }}>
                       <button onClick={() => navigateTo(perf)} disabled={isPendingDel || isDeleting}
-                        style={{ background: CARD.background, border: `1px solid ${isPendingDel ? 'rgba(220,38,38,0.3)' : isClaimable ? 'rgba(201,168,76,0.15)' : 'rgba(255,255,255,0.04)'}`, borderRadius: 16, padding: '16px 18px', minHeight: 88, cursor: isPendingDel || isDeleting ? 'default' : 'pointer', opacity: isDeleting ? 0.5 : 1, textAlign: 'left', display: 'flex', alignItems: 'center', gap: 12, fontFamily: 'inherit', flex: 1, minWidth: 0, boxSizing: 'border-box' as const, transition: 'background 0.12s ease, border-color 0.2s ease, opacity 0.15s ease', boxShadow: CARD.boxShadow, WebkitTapHighlightColor: 'transparent' }}
+                        style={{ background: CARD.background, border: `1px solid ${isPendingDel ? 'rgba(220,38,38,0.3)' : isClaimable ? 'rgba(201,168,76,0.15)' : 'rgba(255,255,255,0.04)'}`, borderRadius: 16, padding: '14px 16px', cursor: isPendingDel || isDeleting ? 'default' : 'pointer', opacity: isDeleting ? 0.5 : 1, textAlign: 'left', display: 'flex', flexDirection: 'column', gap: 6, fontFamily: 'inherit', flex: 1, minWidth: 0, boxSizing: 'border-box' as const, transition: 'background 0.12s ease, border-color 0.2s ease, opacity 0.15s ease', boxShadow: CARD.boxShadow, WebkitTapHighlightColor: 'transparent' }}
                         onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.background = C.cardHover }}
                         onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.background = CARD.background }}>
 
-                        {/* Photo thumbnail */}
-                        {perf.photo_url && (
-                          <div style={{ width: 40, height: 40, borderRadius: 8, overflow: 'hidden', flexShrink: 0, background: '#171512' }}>
-                            <img
-                              src={perf.photo_url}
-                              alt=""
-                              aria-hidden="true"
-                              onLoad={e => { (e.target as HTMLImageElement).style.opacity = '1' }}
-                              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', opacity: 0, transition: 'opacity 0.2s ease' }}
-                            />
-                          </div>
-                        )}
-
-                        {/* Date */}
-                        <div style={{ minWidth: 36, textAlign: 'center', flexShrink: 0 }}>
-                          <p style={{ fontSize: 20, fontWeight: 800, color: C.text, margin: 0, fontFamily: '"DM Mono", monospace', lineHeight: 1 }}>{date.getDate()}</p>
-                          <p style={{ fontSize: 11, color: C.muted, margin: '2px 0 0', textTransform: 'uppercase' as const, letterSpacing: '0.08em' }}>{date.toLocaleDateString('en-US', { month: 'short' })}</p>
-                        </div>
-
-                        <div style={{ width: 1, height: 40, background: C.border, flexShrink: 0 }} />
-
-                        {/* Venue + city · songs */}
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <p style={{ fontSize: 17, fontWeight: 700, color: C.text, margin: '0 0 5px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {/* Row 1: photo (if any) + date + venue — venue is
+                           the only thing here fighting for width against a
+                           compact date, never against status too. */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                          {perf.photo_url && (
+                            <div style={{ width: 28, height: 28, borderRadius: 7, overflow: 'hidden', flexShrink: 0, background: '#171512' }}>
+                              <img
+                                src={perf.photo_url}
+                                alt=""
+                                aria-hidden="true"
+                                onLoad={e => { (e.target as HTMLImageElement).style.opacity = '1' }}
+                                style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', opacity: 0, transition: 'opacity 0.2s ease' }}
+                              />
+                            </div>
+                          )}
+                          <span style={{ flexShrink: 0, fontSize: 11, fontWeight: 700, color: C.muted, fontFamily: '"DM Mono", monospace', letterSpacing: '0.02em' }}>
+                            {date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                          </span>
+                          <p style={{ flex: 1, minWidth: 0, fontSize: 16, fontWeight: 700, color: C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                             {perf.venue_name}
                           </p>
-                          <p style={{ fontSize: 13, color: C.muted, margin: 0 }}>
-                            {isPendingDel ? 'Tap ✕ again to delete' : [perf.city, (perf.song_count || 0) > 0 ? `${perf.song_count} songs` : null].filter(Boolean).join(' · ')}
-                          </p>
                         </div>
 
-                        {/* Status + arrow */}
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 5, flexShrink: 0 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <span style={{ width: 9, height: 9, borderRadius: '50%', flexShrink: 0, display: 'inline-block', background: displayStatus.color === C.green ? C.gold : 'transparent', border: displayStatus.color === C.green ? 'none' : `1.5px solid ${C.gold}` }} />
-                            <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, color: displayStatus.color }}>{displayStatus.label}</span>
-                            <span style={{ fontSize: 14, color: C.muted }}>→</span>
-                          </div>
-                          {est && est.expected > 0 && (
-                            <span style={{ fontSize: 14, fontWeight: 700, color: C.gold, fontFamily: '"DM Mono", monospace' }}>
-                              ~${est.expected}
+                        {/* Row 2: city/songs (or pending-delete notice) +
+                           status/estimate — each side truncates/shrinks
+                           independently instead of both squeezing venue. */}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                          <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: C.muted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {isPendingDel ? 'Tap ✕ again to delete' : [perf.city, (perf.song_count || 0) > 0 ? `${perf.song_count} songs` : null].filter(Boolean).join(' · ')}
+                          </span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                            {est && est.expected > 0 && (
+                              <span style={{ fontSize: 12.5, fontWeight: 700, color: C.gold, fontFamily: '"DM Mono", monospace' }}>
+                                ~${est.expected}
+                              </span>
+                            )}
+                            <span style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
+                              <span style={{ width: 7, height: 7, borderRadius: '50%', flexShrink: 0, display: 'inline-block', background: displayStatus.color === C.green ? C.gold : 'transparent', border: displayStatus.color === C.green ? 'none' : `1.5px solid ${C.gold}` }} />
+                              <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' as const, color: displayStatus.color, whiteSpace: 'nowrap' as const }}>{displayStatus.label}</span>
                             </span>
-                          )}
+                          </div>
                         </div>
                       </button>
 
-                      {/* Delete control — sibling button, not nested. Reads as
-                          a control at rest (people are deliberately looking
-                          for it here), red pill only when armed. */}
+                      {/* Delete control — sibling button, not nested; small
+                          and quiet at rest (a full bordered pill sitting
+                          fully exposed on every row read as clutter),
+                          still a visible tap target, red pill only once
+                          armed — the tap-to-arm/confirm safety is
+                          unchanged. */}
                       <button onClick={e => handleDeleteTap(e, perf.id)} disabled={isDeleting}
                         style={{
                           flexShrink: 0,
                           alignSelf: 'center',
-                          background: isPendingDel ? 'rgba(220,38,38,0.15)' : 'none',
-                          border: isPendingDel ? '1px solid rgba(220,38,38,0.35)' : `1px solid ${C.border}`,
+                          background: isPendingDel ? 'rgba(220,38,38,0.15)' : 'transparent',
+                          border: isPendingDel ? '1px solid rgba(220,38,38,0.35)' : 'none',
                           borderRadius: 6,
-                          color: isPendingDel ? '#f87171' : C.muted,
+                          color: isPendingDel ? '#f87171' : 'rgba(160,144,112,0.55)',
                           cursor: isDeleting ? 'not-allowed' : 'pointer',
                           padding: isPendingDel ? '4px 8px' : '4px 6px',
                           fontSize: isPendingDel ? 11 : 14,

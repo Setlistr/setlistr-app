@@ -1089,10 +1089,17 @@ export default function UploadNewPerformancePage() {
               <div>
                 <label style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.muted, display: 'block', marginBottom: 6 }}>Venue <span style={{ color: C.red }}>*</span></label>
                 {recentVenues.length > 0 && venueName.trim().length === 0 && (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-                    <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.muted }}>Recent</span>
+                  // Single scrollable line instead of wrapping — 3 real
+                  // venue names (no length limit on what an artist might
+                  // call a venue) wrapped to 2-3 lines was what "crowded"
+                  // this form, pushing the actual input down. Each chip
+                  // also caps its own width with an ellipsis so one long
+                  // name can't dominate the row by itself.
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, overflowX: 'auto' as const, flexWrap: 'nowrap' as const, paddingBottom: 2 }}>
+                    <span style={{ flexShrink: 0, fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.muted }}>Recent</span>
                     {recentVenues.map(name => (
-                      <button key={name} type="button" onClick={() => setVenueName(name)} style={chipStyle(false)}>{name}</button>
+                      <button key={name} type="button" onClick={() => setVenueName(name)}
+                        style={{ ...chipStyle(false), flexShrink: 0, maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis' }}>{name}</button>
                     ))}
                   </div>
                 )}
@@ -1110,8 +1117,18 @@ export default function UploadNewPerformancePage() {
               </div>
               <div>
                 <label style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.muted, display: 'block', marginBottom: 6 }}>Date <span style={{ color: C.red }}>*</span></label>
-                <input type="date" value={showDate} onChange={e => setShowDate(e.target.value)}
-                  style={{ width: '100%', boxSizing: 'border-box', background: C.input, border: `1px solid ${C.borderGold}`, borderRadius: 10, padding: '13px 14px', color: C.text, fontSize: 15, fontFamily: 'inherit', outline: 'none', colorScheme: 'dark' }} />
+                {/* iOS Safari's native <input type="date"> renders its own
+                   locale-formatted widget at a fixed intrinsic width and
+                   does not shrink to fit a narrower CSS width the way a
+                   text input does — on a narrow iPhone it can extend past
+                   the input's own box. The overflow:hidden wrapper clips
+                   that rather than letting it push into the page's right
+                   edge; maxWidth backs up width so nothing here can claim
+                   more than the column actually has. */}
+                <div style={{ width: '100%', maxWidth: '100%', overflow: 'hidden', borderRadius: 10 }}>
+                  <input type="date" value={showDate} onChange={e => setShowDate(e.target.value)}
+                    style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box', background: C.input, border: `1px solid ${C.borderGold}`, borderRadius: 10, padding: '13px 10px', color: C.text, fontSize: 15, fontFamily: 'inherit', outline: 'none', colorScheme: 'dark' }} />
+                </div>
               </div>
               <div>
                 <label style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.muted, display: 'block', marginBottom: 6 }}>Start Time <span style={{ color: C.muted, textTransform: 'none', fontWeight: 400 }}>(optional)</span></label>
@@ -1124,8 +1141,11 @@ export default function UploadNewPerformancePage() {
                   <button type="button" onClick={() => setOtherStartTimeActive(true)} style={chipStyle(startTimeIsCustom)}>Other</button>
                 </div>
                 {startTimeIsCustom && (
-                  <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)}
-                    style={{ marginTop: 8, width: '100%', boxSizing: 'border-box', background: C.input, border: `1px solid ${C.borderGold}`, borderRadius: 10, padding: '13px 14px', color: C.text, fontSize: 15, fontFamily: 'inherit', outline: 'none', colorScheme: 'dark' }} />
+                  // Same native-widget-width issue as the Date field above.
+                  <div style={{ marginTop: 8, width: '100%', maxWidth: '100%', overflow: 'hidden', borderRadius: 10 }}>
+                    <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)}
+                      style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box', background: C.input, border: `1px solid ${C.borderGold}`, borderRadius: 10, padding: '13px 10px', color: C.text, fontSize: 15, fontFamily: 'inherit', outline: 'none', colorScheme: 'dark' }} />
+                  </div>
                 )}
               </div>
               <div>

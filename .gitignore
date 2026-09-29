@@ -68,3 +68,4 @@ setlistr-2/scripts/*
 !setlistr-2/scripts/test-ceremony-display.ts
 !setlistr-2/scripts/test-geocode-match.ts
 !setlistr-2/scripts/test-upload-performance-date-city.ts
+!setlistr-2/scripts/test-mobile-layout-invariants.ts
