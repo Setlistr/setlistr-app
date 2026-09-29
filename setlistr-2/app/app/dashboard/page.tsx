@@ -75,9 +75,9 @@ function getDisplayStatus(p: Performance): { label: string; color: string; bg: s
   if (p.data_source === 'setlistfm_imported') return { label: 'Imported', color: C.muted, bg: 'rgba(255,255,255,0.04)' }
   // Purely the artist's own self-reported action (see markSubmitted() in
   // app/app/submit/[id]/page.tsx) — Setlistr never files with a PRO or
-  // verifies receipt. "Marked submitted" says that; "Submitted" alone
+  // verifies receipt. "Marked Submitted" says that; "Submitted" alone
   // reads as a confirmed fact.
-  if (p.submission_status === 'submitted') return { label: 'Marked submitted', color: C.green, bg: C.greenDim }
+  if (p.submission_status === 'submitted') return { label: 'Marked Submitted', color: C.green, bg: C.greenDim }
   const map: Record<string, { label: string; color: string; bg: string }> = {
     live:      { label: 'Live',         color: C.red,   bg: C.redDim  },
     pending:   { label: 'Live',         color: C.red,   bg: C.redDim  },
@@ -367,7 +367,7 @@ export default function DashboardPage() {
   // Same isCapturedShow() definition app/app/history.tsx's "Your Record"
   // list and app/app/file's Filing Queue use — this headline count and
   // "filed" count must agree with history's own "N shows" chip and
-  // "Marked submitted" tab, since both describe the exact same underlying shows.
+  // "Marked Submitted" tab, since both describe the exact same underlying shows.
   // Previously this used its own status whitelist (missing 'processing',
   // and carrying a dead 'submitted' entry that can never match a `status`
   // value) and never excluded placeholder-venue rows the way history did,

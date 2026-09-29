@@ -54,9 +54,9 @@ type Performance = {
 function getDisplayStatus(p: Performance): { label: string; color: string } {
   // 'submitted' is purely the artist's own self-reported action — Setlistr
   // never files with a PRO or verifies receipt (see markSubmitted() in
-  // app/app/submit/[id]/page.tsx). "Marked submitted" says exactly that;
+  // app/app/submit/[id]/page.tsx). "Marked Submitted" says exactly that;
   // "Submitted" on its own reads as if someone/something confirmed it.
-  if (p.submission_status === 'submitted') return { label: 'Marked submitted', color: C.green }
+  if (p.submission_status === 'submitted') return { label: 'Marked Submitted', color: C.green }
   if (p.status === 'live' || p.status === 'pending') return { label: 'Live', color: C.red }
   if (p.filing.state === 'ready') return { label: 'Ready to Claim', color: C.gold }
   return { label: 'Needs Review', color: C.gold }
@@ -381,7 +381,7 @@ export default function HistoryPage() {
               { key: 'all',       label: 'All',             color: C.muted,  count: counts.all },
               { key: 'review',    label: 'Needs Review',    color: C.gold,   count: counts.review },
               { key: 'complete',  label: 'Ready to Claim',  color: C.gold,   count: counts.complete },
-              { key: 'submitted', label: 'Marked submitted', color: C.green,  count: counts.submitted },
+              { key: 'submitted', label: 'Marked Submitted', color: C.green,  count: counts.submitted },
             ] as const).map(tab => {
               const active = statusFilter === tab.key
               return (
