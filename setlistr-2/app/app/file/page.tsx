@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { AlertTriangle, Clock } from 'lucide-react'
+import { AlertTriangle } from 'lucide-react'
 import { useActingAs } from '@/components/ActingAsProvider'
 import { SetlistrLoader, useLoaderVariant } from '@/components/SetlistrLoader'
 import { computeFilingStatus, filingActionPath, type FilingStatusResult, type FilingAction } from '@/lib/filing-status'
@@ -11,6 +11,8 @@ import { loadFilingProfile, type FilingProfileContext } from '@/lib/load-filing-
 import { readClaimInputs } from '@/lib/claim-inputs-storage'
 import { loadSubmissionsNavCounts, type SubmissionsNavCounts } from '@/lib/submissions-nav-counts'
 import { SubmissionsSwitcher } from '@/components/SubmissionsSwitcher'
+import { SubmissionEntryRow } from '@/components/SubmissionEntryRow'
+import { filingDeadlineLabel } from '@/lib/filing-deadline-label'
 
 const C = {
   bg: '#0a0908', card: '#141210',
@@ -30,6 +32,7 @@ type ShowRow = {
   id: string; venue_name: string; city: string | null; started_at: string
   status: FilingStatusResult
   action: FilingAction
+  deadline: { label: string; color: string } | null
 }
 
 function parseLocalDate(d: string): Date {
@@ -116,7 +119,8 @@ export default function FilingQueuePage() {
         const claimInputs = readClaimInputs(p.id)
         const status = computeFilingStatus(perfFields, songCount, ctx.profile, ctx.isDelegate, claimInputs)
         const action = filingActionPath(p.id, p.status, songCount)
-        return { id: p.id, venue_name: p.venue_name, city: p.city || null, started_at: p.started_at, status, action }
+        const deadline = p.started_at ? filingDeadlineLabel(ctx.profile.pro_affiliation, parseLocalDate(p.started_at)) : null
+        return { id: p.id, venue_name: p.venue_name, city: p.city || null, started_at: p.started_at, status, action, deadline }
       })
 
       built.sort((a, b) => {
@@ -149,7 +153,7 @@ export default function FilingQueuePage() {
   return (
     <div style={{ minHeight: '100svh', background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif' }}>
       <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '50vh', pointerEvents: 'none', zIndex: 0, background: 'radial-gradient(ellipse at 50% 0%, rgba(201,168,76,0.06) 0%, transparent 65%)' }} />
-      <div style={{ position: 'relative', zIndex: 1, maxWidth: 480, width: '100%', margin: '0 auto', padding: '28px 16px 80px', boxSizing: 'border-box' as const }}>
+      <div className="subm-page" style={{ position: 'relative', zIndex: 1, width: '100%', padding: '28px 16px 80px', boxSizing: 'border-box' as const }}>
 
         <button onClick={() => router.push('/app/dashboard')} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit', padding: '0 0 20px', letterSpacing: '0.04em' }}>← Back</button>
 
@@ -185,42 +189,26 @@ export default function FilingQueuePage() {
         )}
 
         {!loadError && rows.length > 0 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div className="subm-list">
             {rows.map(row => {
               const pill = statePill(row.status.state)
               const d = parseLocalDate(row.started_at)
               return (
-                <div key={row.id} style={{ background: CARD.background, border: `1px solid ${C.border}`, borderRadius: 16, padding: '14px 16px', boxShadow: CARD.boxShadow, display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-                    <div style={{ minWidth: 36, flexShrink: 0, textAlign: 'center' }}>
-                      <p style={{ fontSize: 17, fontWeight: 700, color: C.text, margin: 0, fontFamily: '"DM Mono", monospace', lineHeight: 1 }}>{d.getDate()}</p>
-                      <p style={{ fontSize: 10, color: C.muted, margin: '1px 0 0', textTransform: 'uppercase' as const, letterSpacing: '0.06em' }}>{d.toLocaleDateString('en-US', { month: 'short' })}</p>
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <p style={{ fontSize: 15, fontWeight: 600, color: C.text, margin: '0 0 2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.venue_name}</p>
-                      <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>
-                        {row.city ? `${row.city} · ` : ''}{row.status.proName || 'No PRO selected'}
-                      </p>
-                    </div>
-                    <span style={{ flexShrink: 0, fontSize: 10, fontWeight: 700, letterSpacing: '0.04em', color: pill.color, background: pill.bg, border: `1px solid ${pill.border}`, borderRadius: 20, padding: '4px 10px', display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}>
-                      {row.status.state === 'needs_review' && <Clock size={10} strokeWidth={2.5} />}
-                      {pill.label}
-                    </span>
-                  </div>
-
-                  {row.status.state === 'needs_review' && row.status.missing.length > 0 && (
-                    <p style={{ fontSize: 12, color: C.secondary, margin: 0, lineHeight: 1.4, paddingLeft: 48 }}>
-                      Missing: {row.status.missing.join(', ')}
-                    </p>
-                  )}
-
-                  <div style={{ paddingLeft: 48 }}>
-                    <button onClick={() => router.push(row.action.href)}
-                      style={{ background: 'none', border: `1px solid ${C.borderGold}`, borderRadius: 8, padding: '8px 14px', color: C.gold, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
-                      {row.action.label} →
-                    </button>
-                  </div>
-                </div>
+                <SubmissionEntryRow
+                  key={row.id}
+                  onNavigate={() => router.push(row.action.href)}
+                  emphasized={row.status.state === 'ready'}
+                  dateLabel={d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                  venueName={row.venue_name}
+                  metaLine={[row.city, row.status.proName || 'No PRO selected'].filter(Boolean).join(' · ')}
+                  statusLabel={pill.label}
+                  statusColor={pill.color}
+                  statusDotFilled={row.status.state === 'ready'}
+                  missing={row.status.state === 'needs_review' ? row.status.missing : undefined}
+                  deadlineLabel={row.deadline?.label}
+                  deadlineColor={row.deadline?.color}
+                  actionLabel={row.action.label}
+                />
               )
             })}
           </div>
@@ -230,6 +218,22 @@ export default function FilingQueuePage() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500;700&display=swap');
         * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
+
+        /* Shared with app/app/history — a phone-width centered column on
+           every screen size wasted the available width on desktop. The
+           row itself never reflows (its 2-line structure already handles
+           any container width via ellipsis truncation); only the page
+           column and the list's column count change. */
+        .subm-page { max-width: 480px; margin: 0 auto; }
+        @media (min-width: 640px) { .subm-page { max-width: 720px; } }
+        @media (min-width: 1024px) { .subm-page { max-width: 1100px; } }
+        .subm-list { display: flex; flex-direction: column; gap: 10px; }
+        @media (min-width: 768px) {
+          .subm-list { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; align-items: start; }
+        }
+        @media (min-width: 1280px) {
+          .subm-list { grid-template-columns: repeat(3, 1fr); }
+        }
       `}</style>
     </div>
   )

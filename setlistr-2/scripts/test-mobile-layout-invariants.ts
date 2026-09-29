@@ -51,11 +51,10 @@ function read(rel: string): string {
   check('Upload form: recent-venue chips cap their own width (long names truncate individually)', src.includes('maxWidth: 140'))
 }
 
-// ── Your Record: row layout and filter-chip trailing space ───────────────
+// ── Your Record: filter-chip trailing space, delete control unchanged ────
 {
   const src = read('app/app/history/page.tsx')
   check('Your Record: status-tab row has trailing padding past the last chip', /overflowX:\s*'auto' as const,\s*paddingRight:\s*16/.test(src))
-  check('Your Record: row is a two-line column layout, not one cramped horizontal line', src.includes("flexDirection: 'column', gap: 6, fontFamily: 'inherit', flex: 1"))
   check('Your Record: delete control is visually quiet at rest (no border/background until armed)', src.includes("border: isPendingDel ? '1px solid rgba(220,38,38,0.35)' : 'none'"))
 }
 
@@ -72,6 +71,25 @@ function read(rel: string): string {
   check('Dashboard: dedicated Filing Queue nav button removed', !dashboard.includes("router.push('/app/file')") || !dashboard.includes('Filing queue</span>'))
   check('Dashboard: unused ClipboardList import removed', !dashboard.includes('ClipboardList'))
   check('Dashboard: "File them" now routes to the Filing Queue, not history', dashboard.includes("onClick={() => router.push('/app/file')}\n              style={{ background: C.gold"))
+}
+
+// ── One coherent Submissions design: shared row component + deadline,
+//    used by both pages; responsive page/list containers on both. ────────
+{
+  const filePage = read('app/app/file/page.tsx')
+  const historyPage = read('app/app/history/page.tsx')
+
+  check('Filing Queue: renders show entries via the shared SubmissionEntryRow', filePage.includes('<SubmissionEntryRow'))
+  check('Your Record: renders show entries via the same shared SubmissionEntryRow', historyPage.includes('<SubmissionEntryRow'))
+  check('Filing Queue: computes a deadline per row via the dedicated, untouched pro-rules deadline()', filePage.includes('filingDeadlineLabel('))
+  check('Filing Queue: passes missing-fields through to the shared row', filePage.includes('missing={row.status.state'))
+  check('Your Record: passes the $ estimate through to the shared row', historyPage.includes('estimate={est?.expected}'))
+
+  for (const [label, src] of [['Filing Queue', filePage], ['Your Record', historyPage]] as const) {
+    check(`${label}: responsive page container (phone/tablet/desktop breakpoints)`, src.includes('className="subm-page"') && src.includes('@media (min-width: 640px)') && src.includes('@media (min-width: 1024px)'))
+    check(`${label}: row list becomes a multi-column grid at tablet/desktop widths`, src.includes('className="subm-list"') && src.includes('@media (min-width: 768px)') && src.includes('grid-template-columns'))
+    check(`${label}: no fixed maxWidth left on the old phone-width column`, !/maxWidth:\s*(480|600),\s*(width:\s*'100%',\s*)?margin:\s*'0 auto'/.test(src))
+  }
 }
 
 console.log(`\n${pass} passed, ${fail} failed`)

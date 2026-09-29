@@ -70,3 +70,4 @@ setlistr-2/scripts/*
 !setlistr-2/scripts/test-upload-performance-date-city.ts
 !setlistr-2/scripts/test-mobile-layout-invariants.ts
 !setlistr-2/scripts/test-submissions-nav-counts.ts
+!setlistr-2/scripts/test-filing-deadline-label.ts

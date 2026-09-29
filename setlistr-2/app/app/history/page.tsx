@@ -11,6 +11,7 @@ import { loadFilingProfile } from '@/lib/load-filing-profile'
 import { readClaimInputs } from '@/lib/claim-inputs-storage'
 import { loadSubmissionsNavCounts, type SubmissionsNavCounts } from '@/lib/submissions-nav-counts'
 import { SubmissionsSwitcher } from '@/components/SubmissionsSwitcher'
+import { SubmissionEntryRow } from '@/components/SubmissionEntryRow'
 
 const CARD = {
   background: 'linear-gradient(180deg, #171512 0%, #121009 100%)',
@@ -326,7 +327,7 @@ export default function HistoryPage() {
     <div style={{ minHeight: '100svh', background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif' }}>
       <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '40vh', pointerEvents: 'none', zIndex: 0, background: 'radial-gradient(ellipse at 50% 0%, rgba(201,168,76,0.05) 0%, transparent 65%)' }} />
 
-      <div style={{ maxWidth: 600, margin: '0 auto', padding: '0 16px', position: 'relative', zIndex: 1 }}>
+      <div className="subm-page" style={{ padding: '0 16px', position: 'relative', zIndex: 1 }}>
 
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '20px 0 24px' }}>
@@ -462,7 +463,7 @@ export default function HistoryPage() {
               )}
             </div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div className="subm-list">
               {filtered.map((perf) => {
                 const displayStatus  = getDisplayStatus(perf)
                 const dateStr        = perf.started_at || perf.created_at
@@ -480,71 +481,35 @@ export default function HistoryPage() {
 
                 return (
                   <div key={perf.id}>
-                    {/* Two-line row — venue gets its own full-width line
-                       instead of sharing horizontal space with a date
-                       column, status column, and delete button all at
-                       once, which is what squeezed long venue names down
-                       to "Peter…" before. Status/estimate moved to a
-                       second line under city/songs; the decorative arrow
-                       (redundant — the whole card is obviously tappable)
-                       is dropped to give status room without crowding. */}
-                    <div style={{ display: 'flex', alignItems: 'stretch', gap: 4 }}>
-                      <button onClick={() => navigateTo(perf)} disabled={isPendingDel || isDeleting}
-                        style={{ background: CARD.background, border: `1px solid ${isPendingDel ? 'rgba(220,38,38,0.3)' : isClaimable ? 'rgba(201,168,76,0.15)' : 'rgba(255,255,255,0.04)'}`, borderRadius: 16, padding: '14px 16px', cursor: isPendingDel || isDeleting ? 'default' : 'pointer', opacity: isDeleting ? 0.5 : 1, textAlign: 'left', display: 'flex', flexDirection: 'column', gap: 6, fontFamily: 'inherit', flex: 1, minWidth: 0, boxSizing: 'border-box' as const, transition: 'background 0.12s ease, border-color 0.2s ease, opacity 0.15s ease', boxShadow: CARD.boxShadow, WebkitTapHighlightColor: 'transparent' }}
-                        onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.background = C.cardHover }}
-                        onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.background = CARD.background }}>
+                  <div style={{ display: 'flex', alignItems: 'stretch', gap: 4 }}>
+                    {/* Shared with app/app/file's Filing Queue rows — same
+                       date+venue line, same city/songs+status line. Your
+                       Record's own purpose (the $ estimate, and statuses
+                       that include Marked Submitted) stays visible via the
+                       component's optional slots rather than a different
+                       row shape. */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <SubmissionEntryRow
+                        onNavigate={() => navigateTo(perf)}
+                        disabled={isPendingDel || isDeleting}
+                        emphasized={isClaimable}
+                        photoUrl={perf.photo_url}
+                        dateLabel={date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                        venueName={perf.venue_name}
+                        metaLine={isPendingDel ? 'Tap ✕ again to delete' : [perf.city, (perf.song_count || 0) > 0 ? `${perf.song_count} songs` : null].filter(Boolean).join(' · ')}
+                        estimate={est?.expected}
+                        statusLabel={displayStatus.label}
+                        statusColor={displayStatus.color}
+                        statusDotFilled={displayStatus.color === C.green || perf.filing.state === 'ready'}
+                      />
+                    </div>
 
-                        {/* Row 1: photo (if any) + date + venue — venue is
-                           the only thing here fighting for width against a
-                           compact date, never against status too. */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-                          {perf.photo_url && (
-                            <div style={{ width: 28, height: 28, borderRadius: 7, overflow: 'hidden', flexShrink: 0, background: '#171512' }}>
-                              <img
-                                src={perf.photo_url}
-                                alt=""
-                                aria-hidden="true"
-                                onLoad={e => { (e.target as HTMLImageElement).style.opacity = '1' }}
-                                style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', opacity: 0, transition: 'opacity 0.2s ease' }}
-                              />
-                            </div>
-                          )}
-                          <span style={{ flexShrink: 0, fontSize: 11, fontWeight: 700, color: C.muted, fontFamily: '"DM Mono", monospace', letterSpacing: '0.02em' }}>
-                            {date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                          </span>
-                          <p style={{ flex: 1, minWidth: 0, fontSize: 16, fontWeight: 700, color: C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            {perf.venue_name}
-                          </p>
-                        </div>
-
-                        {/* Row 2: city/songs (or pending-delete notice) +
-                           status/estimate — each side truncates/shrinks
-                           independently instead of both squeezing venue. */}
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-                          <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: C.muted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            {isPendingDel ? 'Tap ✕ again to delete' : [perf.city, (perf.song_count || 0) > 0 ? `${perf.song_count} songs` : null].filter(Boolean).join(' · ')}
-                          </span>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                            {est && est.expected > 0 && (
-                              <span style={{ fontSize: 12.5, fontWeight: 700, color: C.gold, fontFamily: '"DM Mono", monospace' }}>
-                                ~${est.expected}
-                              </span>
-                            )}
-                            <span style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
-                              <span style={{ width: 7, height: 7, borderRadius: '50%', flexShrink: 0, display: 'inline-block', background: displayStatus.color === C.green ? C.gold : 'transparent', border: displayStatus.color === C.green ? 'none' : `1.5px solid ${C.gold}` }} />
-                              <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' as const, color: displayStatus.color, whiteSpace: 'nowrap' as const }}>{displayStatus.label}</span>
-                            </span>
-                          </div>
-                        </div>
-                      </button>
-
-                      {/* Delete control — sibling button, not nested; small
-                          and quiet at rest (a full bordered pill sitting
-                          fully exposed on every row read as clutter),
-                          still a visible tap target, red pill only once
-                          armed — the tap-to-arm/confirm safety is
-                          unchanged. */}
-                      <button onClick={e => handleDeleteTap(e, perf.id)} disabled={isDeleting}
+                    {/* Delete control — sibling, not nested; small and
+                        quiet at rest (a full bordered pill sitting fully
+                        exposed on every row read as clutter), still a
+                        visible tap target, red pill only once armed — the
+                        tap-to-arm/confirm safety is unchanged. */}
+                    <button onClick={e => handleDeleteTap(e, perf.id)} disabled={isDeleting}
                         style={{
                           flexShrink: 0,
                           alignSelf: 'center',
@@ -565,7 +530,7 @@ export default function HistoryPage() {
                         }}>
                         {isPendingDel ? '✕ Delete?' : '✕'}
                       </button>
-                    </div>
+                  </div>
                     {deleteErrors[perf.id] && (
                       <p style={{ fontSize: 11, color: C.red, margin: '4px 0 0 14px' }}>{deleteErrors[perf.id]}</p>
                     )}
@@ -585,6 +550,21 @@ export default function HistoryPage() {
         input::placeholder { color: #6a6050; }
         input:focus { border-color: rgba(201,168,76,0.4) !important; outline: none; }
         input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.5); cursor: pointer; }
+
+        /* Shared with app/app/file — see that page's own copy of this
+           block for why: a phone-width centered column wasted the
+           available width on desktop, and the row itself never needs to
+           reflow internally to fix that. */
+        .subm-page { max-width: 480px; margin: 0 auto; }
+        @media (min-width: 640px) { .subm-page { max-width: 720px; } }
+        @media (min-width: 1024px) { .subm-page { max-width: 1100px; } }
+        .subm-list { display: flex; flex-direction: column; gap: 6px; }
+        @media (min-width: 768px) {
+          .subm-list { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; align-items: start; }
+        }
+        @media (min-width: 1280px) {
+          .subm-list { grid-template-columns: repeat(3, 1fr); }
+        }
       `}</style>
     </div>
   )
