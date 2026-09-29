@@ -21,7 +21,11 @@ const CARD = {
 const C = {
   bg: '#0a0908', card: '#141210', cardHover: '#181614',
   border: 'rgba(255,255,255,0.07)', borderGold: 'rgba(201,168,76,0.3)',
-  input: '#0f0e0c', text: '#f0ece3', secondary: '#a09070', muted: '#6a6050',
+  // secondary/muted match app/app/file and SubmissionEntryRow's own
+  // tokens — previously darker here specifically, which meant lower
+  // text contrast on this page than its Submissions sibling for no
+  // reason tied to this page's own content.
+  input: '#0f0e0c', text: '#f0ece3', secondary: '#b8a888', muted: '#8a7a68',
   gold: '#c9a84c', goldDim: 'rgba(201,168,76,0.1)',
   green: '#4ade80', greenDim: 'rgba(74,222,128,0.08)',
   red: '#f87171', redDim: 'rgba(248,113,113,0.08)',
@@ -395,8 +399,15 @@ export default function HistoryPage() {
           {/* Status tabs — paddingRight (not just gap) so the last chip
              gets real breathing room at the scrolled-end edge instead of
              sitting flush against it, which read as "cut off" even though
-             the row was already scrollable. */}
-          <div style={{ display: 'flex', gap: 6, marginBottom: 8, overflowX: 'auto' as const, paddingRight: 16, WebkitOverflowScrolling: 'touch' as const }}>
+             the row was already scrollable. className hides the native
+             horizontal scrollbar (globals.css's ::-webkit-scrollbar rule
+             is sized for a thin vertical thumb — width:4px, no height —
+             so a horizontal track here rendered at the browser's default,
+             much thicker height, all in the same gold thumb color: a
+             heavy gold bar sitting right under the filters). Touch/trackpad
+             scrolling and every filter stay reachable — only the visible
+             track/thumb is hidden, not the scroll behavior itself. */}
+          <div className="subm-filter-scroll" style={{ display: 'flex', gap: 6, marginBottom: 8, overflowX: 'auto' as const, paddingRight: 16, WebkitOverflowScrolling: 'touch' as const }}>
             {([
               { key: 'all',       label: 'All',             color: C.muted,  count: counts.all },
               { key: 'review',    label: 'Needs Review',    color: C.gold,   count: counts.review },
@@ -517,7 +528,13 @@ export default function HistoryPage() {
                     <button onClick={e => handleDeleteTap(e, perf.id)} disabled={isDeleting}
                         style={{
                           flexShrink: 0,
-                          alignSelf: 'center',
+                          // flex-start + matching top offset (not center)
+                          // so this sits level with the row's own date/
+                          // venue line instead of floating mid-height,
+                          // unrelated-looking, against a now-taller,
+                          // borderless row.
+                          alignSelf: 'flex-start',
+                          marginTop: 16,
                           background: isPendingDel ? 'rgba(220,38,38,0.15)' : 'transparent',
                           border: isPendingDel ? '1px solid rgba(220,38,38,0.35)' : 'none',
                           borderRadius: 6,
@@ -560,8 +577,14 @@ export default function HistoryPage() {
            width, not a card grid. Grows only to a comfortable reading
            measure on larger screens, not to fill the viewport. */
         .subm-page { max-width: 480px; margin: 0 auto; }
-        @media (min-width: 768px) { .subm-page { max-width: 640px; } }
+        @media (min-width: 768px) { .subm-page { max-width: 700px; } }
         .subm-list { display: flex; flex-direction: column; }
+
+        /* Hides only the visible scrollbar track/thumb on the status-tab
+           row — scroll behavior and reachability of every filter are
+           untouched, this is purely cosmetic. */
+        .subm-filter-scroll::-webkit-scrollbar { display: none; }
+        .subm-filter-scroll { scrollbar-width: none; }
       `}</style>
     </div>
   )

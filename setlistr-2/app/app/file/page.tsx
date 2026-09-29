@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { AlertTriangle } from 'lucide-react'
+import { AlertTriangle, ChevronLeft } from 'lucide-react'
 import { useActingAs } from '@/components/ActingAsProvider'
 import { SetlistrLoader, useLoaderVariant } from '@/components/SetlistrLoader'
 import { computeFilingStatus, filingActionPath, type FilingStatusResult, type FilingAction } from '@/lib/filing-status'
@@ -159,11 +159,24 @@ export default function FilingQueuePage() {
   return (
     <div style={{ minHeight: '100svh', background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif' }}>
       <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '50vh', pointerEvents: 'none', zIndex: 0, background: 'radial-gradient(ellipse at 50% 0%, rgba(201,168,76,0.06) 0%, transparent 65%)' }} />
-      <div className="subm-page" style={{ position: 'relative', zIndex: 1, width: '100%', padding: '28px 16px 80px', boxSizing: 'border-box' as const }}>
+      <div className="subm-page" style={{ position: 'relative', zIndex: 1, width: '100%', padding: '0 16px 80px', boxSizing: 'border-box' as const }}>
 
-        <button onClick={() => router.push('/app/dashboard')} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit', padding: '0 0 20px', letterSpacing: '0.04em' }}>← Back</button>
+        {/* Header — same structure, spacing, and back-button style as
+           app/app/history's, so the two Submissions screens read as one
+           navigation, not two differently-built pages. */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '20px 0 24px' }}>
+          <button onClick={() => router.push('/app/dashboard')}
+            style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, padding: '7px 10px', color: C.secondary, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 4, fontSize: 14 }}>
+            <ChevronLeft size={14} /> Back
+          </button>
+          <h1 style={{ fontSize: 28, fontWeight: 800, color: C.text, margin: 0, letterSpacing: '-0.02em', flex: 1 }}>
+            Submissions
+          </h1>
+          <div style={{ fontSize: 13, color: C.muted, background: C.card, border: `1px solid ${C.border}`, borderRadius: 20, padding: '5px 10px' }}>
+            {rows.length} to file
+          </div>
+        </div>
 
-        <h1 style={{ fontSize: 32, fontWeight: 800, color: C.text, margin: '0 0 4px', letterSpacing: '-0.02em' }}>Submissions</h1>
         <p style={{ fontSize: 14, color: C.secondary, margin: '0 0 16px' }}>
           {actingAs ? `${artistName || actingAs.artist_name}'s unfiled shows` : 'Your unfiled shows'} — what's ready, what still needs something.
         </p>
@@ -203,9 +216,14 @@ export default function FilingQueuePage() {
               // (review-stage, then PRO, then songs, then identity, then
               // per-field), so its first entry is that reason. The rest
               // lives on the show's own page, one tap away via the action
-              // below, not repeated here.
-              const blocker = row.status.state === 'needs_review' && row.status.missing.length > 0
-                ? `Needs: ${row.status.missing[0]}`
+              // below, not repeated here. When that reason is "the setlist
+              // hasn't been reviewed yet," it's dropped entirely — the
+              // status label ("Needs review") and the action ("Review
+              // Setlist") already say exactly that between them; showing
+              // it a third time added no new information, just repetition.
+              const topReason = row.status.state === 'needs_review' ? row.status.missing[0] : undefined
+              const blocker = topReason && topReason !== 'setlist not yet reviewed'
+                ? `Needs: ${topReason}`
                 : undefined
               return (
                 <SubmissionEntryRow
@@ -237,7 +255,7 @@ export default function FilingQueuePage() {
            purpose; on larger screens it grows only as far as a comfortable
            reading measure, not to fill the whole viewport. */
         .subm-page { max-width: 480px; margin: 0 auto; }
-        @media (min-width: 768px) { .subm-page { max-width: 640px; } }
+        @media (min-width: 768px) { .subm-page { max-width: 700px; } }
         .subm-list { display: flex; flex-direction: column; }
       `}</style>
     </div>

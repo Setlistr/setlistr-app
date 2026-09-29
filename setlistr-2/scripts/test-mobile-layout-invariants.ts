@@ -99,5 +99,29 @@ function read(rel: string): string {
   check('SubmissionEntryRow: dot color is fixed gold, independent of the status text color prop', rowSrc.includes('C.gold') && !/dotFilled \? statusTextColor/.test(rowSrc))
 }
 
+// ── This pass: scrollbar, header consistency, desktop width, contrast,
+//    redundant blocker text, delete-control alignment ────────────────────
+{
+  const filePage = read('app/app/file/page.tsx')
+  const historyPage = read('app/app/history/page.tsx')
+
+  check('Your Record: status-tab scrollbar is hidden cosmetically (scroll behavior untouched)', historyPage.includes('subm-filter-scroll') && historyPage.includes('::-webkit-scrollbar { display: none; }') && historyPage.includes("overflowX: 'auto'"))
+  check('Your Record: scrollbar-hiding does not touch the global ::-webkit-scrollbar rule', !historyPage.includes('*::-webkit-scrollbar'))
+
+  check('Filing Queue header uses the same back-button style as Your Record (bordered pill + ChevronLeft)', filePage.includes('<ChevronLeft size={14} /> Back') && filePage.includes("border: `1px solid ${C.border}`, borderRadius: 8, padding: '7px 10px'"))
+  check('Filing Queue header H1 matches Your Record\'s size/weight/spacing rhythm', filePage.includes("fontSize: 28, fontWeight: 800, color: C.text, margin: 0, letterSpacing: '-0.02em', flex: 1"))
+  check('Filing Queue header carries a count chip like Your Record does', filePage.includes('{rows.length} to file'))
+
+  for (const [label, src] of [['Filing Queue', filePage], ['Your Record', historyPage]] as const) {
+    check(`${label}: desktop reading width widened for a more intentional feel (700px, not the cramped 640px)`, src.includes('max-width: 700px'))
+  }
+
+  check('Your Record: muted/secondary tokens match Filing Queue\'s (contrast + cross-page consistency)', historyPage.includes("secondary: '#b8a888', muted: '#8a7a68'"))
+
+  check('Filing Queue: the redundant "setlist not yet reviewed" blocker line is suppressed (status label + action already say it)', filePage.includes("topReason !== 'setlist not yet reviewed'"))
+
+  check('Your Record: delete control aligns with the row\'s own top line, not floating mid-height', historyPage.includes("alignSelf: 'flex-start'") && historyPage.includes('marginTop: 16'))
+}
+
 console.log(`\n${pass} passed, ${fail} failed`)
 if (fail > 0) process.exit(1)
