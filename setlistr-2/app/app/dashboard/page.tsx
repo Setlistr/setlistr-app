@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { Check, Calendar, ChevronDown, Users, X, ClipboardList } from 'lucide-react'
+import { Check, Calendar, ChevronDown, Users, X } from 'lucide-react'
 import { useActingAs } from '@/components/ActingAsProvider'
 import { SetlistrLoader, useLoaderVariant } from '@/components/SetlistrLoader'
 import { isCapturedShow, isSubmitted } from '@/lib/performance-status'
@@ -569,16 +569,12 @@ export default function DashboardPage() {
               </div>
             )}
           </div>
-
-          {/* Entry point to the filing queue — the artist's shows grouped
-             by whether they still need something before filing, are ready,
-             or are already marked filed. Respects whatever artist is
-             currently acted-as, same as the rest of this page. */}
-          <button onClick={() => router.push('/app/file')}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(255,255,255,0.03)', border: `1px solid ${C.border}`, borderRadius: 20, padding: '7px 12px', cursor: 'pointer', fontFamily: 'inherit' }}>
-            <ClipboardList size={13} color={C.secondary} strokeWidth={2} />
-            <span style={{ fontSize: 12, fontWeight: 700, color: C.secondary }}>Filing queue</span>
-          </button>
+          {/* The dedicated "Filing queue" nav button that used to live here
+             was removed — it duplicated the bottom Submissions tab, which
+             now lands on the Filing Queue directly. The summary signal it
+             offered (something needs filing) lives on in the Unclaimed
+             Earnings banner below, whose "File them →" now correctly
+             routes to the Filing Queue instead of the full history. */}
         </div>
 
         {/* ── ACTING-AS BANNER ── */}
@@ -790,7 +786,11 @@ export default function DashboardPage() {
             <p style={{ fontSize: 34, fontWeight: 700, color: C.gold, margin: 0, fontFamily: '"DM Mono", monospace', letterSpacing: '-0.02em', lineHeight: 1 }}>~${aggregate.unclaimedExpected.toLocaleString()}</p>
             <p style={{ fontSize: 13, color: C.muted, margin: '6px 0 4px' }}>{aggregate.unclaimedCount} nights not yet filed</p>
             <p style={{ fontSize: 10, color: C.muted, margin: '0 0 16px', opacity: 0.7 }}>Estimate only, not guaranteed — actual payouts vary by PRO.</p>
-            <button onClick={() => router.push('/app/history')}
+            {/* Routes to the Filing Queue, not the full history — "file
+               them" is literally what that page is for now that it
+               exists, and it's the same summary signal the removed
+               dashboard nav button used to point at. */}
+            <button onClick={() => router.push('/app/file')}
               style={{ background: C.gold, border: 'none', borderRadius: 20, padding: '8px 18px', color: '#0a0908', fontWeight: 800, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', letterSpacing: '0.04em', transition: 'opacity 0.15s ease' }}
               onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.7'}
               onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}>

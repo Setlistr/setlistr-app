@@ -9,6 +9,8 @@ import { isRealVenue } from '@/lib/performance-status'
 import { computeFilingStatus, type FilingStatusResult } from '@/lib/filing-status'
 import { loadFilingProfile } from '@/lib/load-filing-profile'
 import { readClaimInputs } from '@/lib/claim-inputs-storage'
+import { loadSubmissionsNavCounts, type SubmissionsNavCounts } from '@/lib/submissions-nav-counts'
+import { SubmissionsSwitcher } from '@/components/SubmissionsSwitcher'
 
 const CARD = {
   background: 'linear-gradient(180deg, #171512 0%, #121009 100%)',
@@ -90,6 +92,7 @@ export default function HistoryPage() {
   const undoBannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [undoing, setUndoing]             = useState(false)
   const [undoError, setUndoError]         = useState('')
+  const [navCounts, setNavCounts]         = useState<SubmissionsNavCounts | null>(null)
 
   async function loadPerformances() {
     const supabase = createClient()
@@ -177,6 +180,17 @@ export default function HistoryPage() {
   useEffect(() => {
     if (!resolved) return
     loadPerformances()
+  }, [resolved, actingAsArtistId])
+
+  // Independent of the main list load, for the Filing Queue / Full History
+  // switcher at the top — never blocks the page's own content on a second
+  // round trip; renders with a placeholder until this resolves.
+  useEffect(() => {
+    if (!resolved) return
+    setNavCounts(null)
+    loadSubmissionsNavCounts(createClient(), actingAs)
+      .then(setNavCounts)
+      .catch(err => console.error('[History] nav counts failed:', err))
   }, [resolved, actingAsArtistId])
 
   function handleDeleteTap(e: React.MouseEvent, id: string) {
@@ -327,6 +341,8 @@ export default function HistoryPage() {
             {performances.length} shows
           </div>
         </div>
+
+        <SubmissionsSwitcher active="history" filingQueueCount={navCounts?.filingQueueCount} fullHistoryCount={navCounts?.fullHistoryCount} />
 
         {/* ── Undo banner ── */}
         {undoBanner && (

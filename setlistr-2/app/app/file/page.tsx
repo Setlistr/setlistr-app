@@ -9,6 +9,8 @@ import { computeFilingStatus, filingActionPath, type FilingStatusResult, type Fi
 import { isCapturedShow } from '@/lib/performance-status'
 import { loadFilingProfile, type FilingProfileContext } from '@/lib/load-filing-profile'
 import { readClaimInputs } from '@/lib/claim-inputs-storage'
+import { loadSubmissionsNavCounts, type SubmissionsNavCounts } from '@/lib/submissions-nav-counts'
+import { SubmissionsSwitcher } from '@/components/SubmissionsSwitcher'
 
 const C = {
   bg: '#0a0908', card: '#141210',
@@ -59,6 +61,7 @@ export default function FilingQueuePage() {
   const [artistName, setArtistName] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(false)
+  const [navCounts, setNavCounts] = useState<SubmissionsNavCounts | null>(null)
 
   useEffect(() => {
     if (!resolved) return
@@ -129,6 +132,14 @@ export default function FilingQueuePage() {
     setLoadError(false)
     run().catch(err => { console.error('[FilingQueue] load failed:', err); setLoadError(true) })
       .finally(() => setLoading(false))
+
+    // Independent of the main list load — the switcher renders immediately
+    // with its counts filling in separately, never blocking the page on a
+    // second network round trip.
+    setNavCounts(null)
+    loadSubmissionsNavCounts(supabase, actingAs)
+      .then(setNavCounts)
+      .catch(err => console.error('[FilingQueue] nav counts failed:', err))
   }, [resolved, actingAs])
 
   if (loading) return (
@@ -142,20 +153,17 @@ export default function FilingQueuePage() {
 
         <button onClick={() => router.push('/app/dashboard')} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit', padding: '0 0 20px', letterSpacing: '0.04em' }}>← Back</button>
 
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 4 }}>
-          <h1 style={{ fontSize: 32, fontWeight: 800, color: C.text, margin: 0, letterSpacing: '-0.02em' }}>Filing Queue</h1>
-          {/* This page only ever shows unfinished, actionable shows —
-             submitted ones are excluded outright (see buildRows below).
-             Your Record is where the full history, submitted shows
-             included, actually lives — always one tap away from here. */}
-          <button onClick={() => router.push('/app/history')}
-            style={{ flexShrink: 0, marginTop: 6, background: 'none', border: 'none', color: C.muted, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', padding: 0, whiteSpace: 'nowrap' as const }}>
-            Full History →
-          </button>
-        </div>
-        <p style={{ fontSize: 14, color: C.secondary, margin: '0 0 24px' }}>
+        <h1 style={{ fontSize: 32, fontWeight: 800, color: C.text, margin: '0 0 4px', letterSpacing: '-0.02em' }}>Submissions</h1>
+        <p style={{ fontSize: 14, color: C.secondary, margin: '0 0 16px' }}>
           {actingAs ? `${artistName || actingAs.artist_name}'s unfiled shows` : 'Your unfiled shows'} — what's ready, what still needs something.
         </p>
+
+        {/* This page only ever shows unfinished, actionable shows —
+           submitted ones are excluded outright (see buildRows below). Your
+           Record (Full History here) is where the complete log, submitted
+           shows included, actually lives — an equally prominent choice,
+           not a small link, so it's never a second-class option. */}
+        <SubmissionsSwitcher active="file" filingQueueCount={navCounts?.filingQueueCount} fullHistoryCount={navCounts?.fullHistoryCount} />
 
         {loadError && (
           <div style={{ background: C.amberDim, border: '1px solid rgba(245,158,11,0.25)', borderRadius: 12, padding: '14px 16px', display: 'flex', gap: 10 }}>

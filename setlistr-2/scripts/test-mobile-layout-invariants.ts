@@ -31,6 +31,8 @@ function read(rel: string): string {
   check('AppShell: Submissions tab points at the Filing Queue', /href:\s*'\/app\/file'.*label:\s*'Submissions'/.test(src) || /label:\s*'Submissions'/.test(src) && src.includes("href: '/app/file'"))
   check('AppShell: needsReviewCount query uses the real status value', src.includes(".eq('status', 'review')"), "'needs_review' never occurs as a real status")
   check('AppShell: the query itself no longer filters on the wrong status string (a mention in the explanatory comment is fine)', !src.includes(".eq('status', 'needs_review')"))
+  check('AppShell: Submissions tab activePaths cover both /app/file and /app/history', src.includes("activePaths: ['/app/file', '/app/history']"), 'the tab must stay lit on both, not just the one it navigates to')
+  check('AppShell: isActive is computed from activePaths, not a single href', src.includes('tab.activePaths.some('))
 }
 
 // ── Upload Performance: date/time native-widget overflow containment ─────
@@ -55,6 +57,21 @@ function read(rel: string): string {
   check('Your Record: status-tab row has trailing padding past the last chip', /overflowX:\s*'auto' as const,\s*paddingRight:\s*16/.test(src))
   check('Your Record: row is a two-line column layout, not one cramped horizontal line', src.includes("flexDirection: 'column', gap: 6, fontFamily: 'inherit', flex: 1"))
   check('Your Record: delete control is visually quiet at rest (no border/background until armed)', src.includes("border: isPendingDel ? '1px solid rgba(220,38,38,0.35)' : 'none'"))
+}
+
+// ── Submissions switcher: wired into both pages, dashboard duplicate gone ─
+{
+  const filePage = read('app/app/file/page.tsx')
+  check('Filing Queue: renders the shared switcher with active="file"', filePage.includes('<SubmissionsSwitcher active="file"'))
+  check('Filing Queue: no leftover standalone "Full History →" link', !filePage.includes('Full History →'))
+
+  const historyPage = read('app/app/history/page.tsx')
+  check('Your Record: renders the shared switcher with active="history"', historyPage.includes('<SubmissionsSwitcher active="history"'))
+
+  const dashboard = read('app/app/dashboard/page.tsx')
+  check('Dashboard: dedicated Filing Queue nav button removed', !dashboard.includes("router.push('/app/file')") || !dashboard.includes('Filing queue</span>'))
+  check('Dashboard: unused ClipboardList import removed', !dashboard.includes('ClipboardList'))
+  check('Dashboard: "File them" now routes to the Filing Queue, not history', dashboard.includes("onClick={() => router.push('/app/file')}\n              style={{ background: C.gold"))
 }
 
 console.log(`\n${pass} passed, ${fail} failed`)

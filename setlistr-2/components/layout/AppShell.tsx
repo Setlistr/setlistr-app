@@ -68,9 +68,13 @@ export function AppShell({ children, profile }: { children: React.ReactNode; pro
   // actionable shows only, same badge concept, and it links back to Your
   // Record for anyone who wants the full history. Your Record itself is
   // unchanged and still reachable from there.
+  // activePaths beyond the tab's own href: Submissions now covers both
+  // /app/file (Filing Queue, where it lands) and /app/history (Full
+  // History, one tap away via the switcher at the top of either page) —
+  // the tab must stay lit on both, not just the one it navigates to.
   const LEFT_NAV = [
-    { href: '/app/dashboard', icon: LayoutDashboard, label: 'Home',        badge: 0 },
-    { href: '/app/file',      icon: Send,            label: 'Submissions', badge: needsReviewCount },
+    { href: '/app/dashboard', icon: LayoutDashboard, label: 'Home',        badge: 0, activePaths: ['/app/dashboard'] },
+    { href: '/app/file',      icon: Send,            label: 'Submissions', badge: needsReviewCount, activePaths: ['/app/file', '/app/history'] },
   ]
   const RIGHT_NAV = [
     { href: '/app/stats',    label: 'Career',  badge: 0 },
@@ -122,7 +126,7 @@ export function AppShell({ children, profile }: { children: React.ReactNode; pro
 
           {/* Left two tabs */}
           {LEFT_NAV.map((tab) => {
-            const isActive = pathname === tab.href || (tab.href !== '/app/dashboard' && pathname.startsWith(tab.href))
+            const isActive = tab.activePaths.some(p => pathname === p || (p !== '/app/dashboard' && pathname.startsWith(p)))
             const Icon = tab.icon
             return (
               <Link key={tab.href} href={tab.href} onClick={tapNav} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '8px 4px 10px', textDecoration: 'none', position: 'relative', WebkitTapHighlightColor: 'transparent', minHeight: 56 }}>
