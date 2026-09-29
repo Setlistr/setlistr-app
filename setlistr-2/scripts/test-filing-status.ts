@@ -1,19 +1,27 @@
-// Focused, DB-free tests for lib/filing-status.ts's computeFilingStatus() —
-// the state calculation behind app/app/file/page.tsx's filing queue. Pure
-// function, no network/DB required; imports the ACTUAL production function,
-// not a re-typed copy.
+// Focused, DB-free tests for lib/filing-status.ts — the state calculation
+// and navigation decision behind app/app/file/page.tsx's Filing Queue.
+// Pure functions, no network/DB required; imports the ACTUAL production
+// functions, not re-typed copies.
 //
-// Core requirement under test: a show must not be called "ready" merely
-// because it exists — computeFilingStatus must only return 'ready' once
-// every field the show's actual PRO rule requires is genuinely present,
-// and must keep the owner/delegate identity-privacy boundary from
-// app/app/submit/[id]/page.tsx intact (a delegate's redacted profile must
-// never be misread as "the artist is missing this").
+// Core requirements under test:
+//   - A show must not be called "ready" merely because it exists — neither
+//     because its PRO/identity/required fields happen to be filled in
+//     while the setlist itself hasn't been reviewed yet (the review-stage
+//     gate), nor by omission of a required field check.
+//   - The owner/delegate identity-privacy boundary from
+//     app/app/submit/[id]/page.tsx stays intact.
+//   - A PRO field is only ever treated as a blocker when lib/pro-rules.ts
+//     actually marks it required FOR THAT PRO — never a hardcoded/assumed
+//     universal requirement (e.g. promoter is required for SOCAN/ASCAP but
+//     optional for BMI/GMR).
+//   - filingActionPath() sends an unfinished show to the review step, not
+//     a dead-end Submit page.
 //
 // Run via:
 //   npx ts-node --transpile-only -P scripts/tsconfig.json scripts/test-filing-status.ts
 
-import { computeFilingStatus, type FilingPerformanceFields, type FilingProfileFields } from '../lib/filing-status'
+import { computeFilingStatus, filingActionPath, type FilingPerformanceFields, type FilingProfileFields } from '../lib/filing-status'
+import { PRO_RULES, type ProCode } from '../lib/pro-rules'
 
 let pass = 0
 let fail = 0
@@ -23,6 +31,7 @@ function check(name: string, cond: boolean, detail?: string) {
 }
 
 const BASE_PERF: FilingPerformanceFields = {
+  status: 'complete',
   submission_status: null,
   started_at: '2026-01-15T21:00:00Z',
   city: 'Austin',
@@ -48,7 +57,7 @@ const COMPLETE_OWNER_PROFILE: FilingProfileFields = {
   check('2. no songs: reason listed', r.missing.includes('no songs added'), JSON.stringify(r.missing))
 }
 
-// ── 3. Owner, SOCAN, missing promoter (required) — needs_review ──────────
+// ── 3. Owner, SOCAN, missing promoter (required for SOCAN) — needs_review ─
 {
   const r = computeFilingStatus(BASE_PERF, 5, COMPLETE_OWNER_PROFILE, false, {})
   check('3. owner/SOCAN, no promoter: state is needs_review', r.state === 'needs_review', r.state)
@@ -94,9 +103,9 @@ const COMPLETE_OWNER_PROFILE: FilingProfileFields = {
 
 // ── 8. Already submitted — 'submitted' wins regardless of completeness ───
 {
-  const perf: FilingPerformanceFields = { ...BASE_PERF, submission_status: 'submitted' }
+  const perf: FilingPerformanceFields = { ...BASE_PERF, status: 'review', submission_status: 'submitted' }
   const r = computeFilingStatus(perf, 0, { pro_affiliation: null }, false, {})
-  check('8. submitted: state is submitted even with no PRO/songs', r.state === 'submitted', r.state)
+  check('8. submitted: state is submitted even with no PRO/songs/review', r.state === 'submitted', r.state)
   check('8. submitted: no missing reasons surfaced', r.missing.length === 0, JSON.stringify(r.missing))
 }
 
@@ -129,6 +138,63 @@ const COMPLETE_OWNER_PROFILE: FilingProfileFields = {
   const noCapacity: FilingPerformanceFields = { ...BASE_PERF, venue_capacity: null }
   const r = computeFilingStatus(noCapacity, 5, profile, false, { ticketPrice: '10', attendance: '80' })
   check('11. SESAC, no venue_capacity (optional field): not flagged, state ready', !r.missing.includes('venue capacity') && r.state === 'ready', JSON.stringify(r))
+}
+
+// ── 12. Review-stage gate: a show still in 'review' (or any other
+//    pre-complete status) must never read 'ready', even when every PRO
+//    field happens to already be filled in — it hasn't been reviewed yet.
+//    This is the exact class of bug the dashboard/history count mismatch
+//    traced back to: something being "otherwise complete" is not the same
+//    as actually being complete. ───────────────────────────────────────
+{
+  const reviewStage: FilingPerformanceFields = { ...BASE_PERF, status: 'review' }
+  const r = computeFilingStatus(reviewStage, 5, COMPLETE_OWNER_PROFILE, false, { promoter: 'Live Nation' })
+  check('12a. review-stage, otherwise complete: state is needs_review, not ready', r.state === 'needs_review', JSON.stringify(r))
+  check('12a. review-stage: reason listed', r.missing.includes('setlist not yet reviewed'), JSON.stringify(r.missing))
+
+  const processingStage: FilingPerformanceFields = { ...BASE_PERF, status: 'processing' }
+  const rp = computeFilingStatus(processingStage, 5, COMPLETE_OWNER_PROFILE, false, { promoter: 'Live Nation' })
+  check('12b. processing-stage, otherwise complete: state is needs_review', rp.state === 'needs_review', JSON.stringify(rp))
+
+  const completeStage: FilingPerformanceFields = { ...BASE_PERF, status: 'exported' }
+  const re = computeFilingStatus(completeStage, 5, COMPLETE_OWNER_PROFILE, false, { promoter: 'Live Nation' })
+  check('12c. exported (complete-family): state is ready', re.state === 'ready', JSON.stringify(re))
+}
+
+// ── 13. Promoter requirement traced directly from lib/pro-rules.ts for
+//    every PRO — never a hardcoded/assumed universal requirement. All
+//    OTHER required fields are supplied so promoter is the only variable
+//    under test; the expectation is computed from PRO_RULES itself, not
+//    restated by hand, so this can't silently drift from the source of
+//    truth it's supposed to verify. ───────────────────────────────────
+{
+  const generousInputs = { ticketPrice: '20', attendance: '150', startTime: '20:30', city: 'Austin' }
+  for (const code of Object.keys(PRO_RULES) as ProCode[]) {
+    const expectedRequired = PRO_RULES[code].fields.some(f => f.key === 'promoter' && f.required)
+    const profile: FilingProfileFields = { pro_affiliation: code, legal_name: 'Jane', ipi_number: '1' }
+    const r = computeFilingStatus(BASE_PERF, 5, profile, false, generousInputs)
+    const flagged = r.missing.includes('promoter')
+    check(`13. ${code}: promoter required=${expectedRequired}, flagged=${flagged}`, flagged === expectedRequired, JSON.stringify(r.missing))
+  }
+}
+
+// ── 14. filingActionPath — an unfinished show must route to the review
+//    step, never a dead-end Submit page. ─────────────────────────────────
+{
+  const noSongs = filingActionPath('perf-1', 'complete', 0)
+  check('14a. no songs: routes to review', noSongs.href === '/app/review/perf-1', JSON.stringify(noSongs))
+
+  const reviewStage = filingActionPath('perf-2', 'review', 5)
+  check('14b. review-stage with songs: still routes to review', reviewStage.href === '/app/review/perf-2', JSON.stringify(reviewStage))
+
+  const processingStage = filingActionPath('perf-3', 'processing', 5)
+  check('14c. processing-stage with songs: routes to review', processingStage.href === '/app/review/perf-3', JSON.stringify(processingStage))
+
+  const readyToFile = filingActionPath('perf-4', 'complete', 5)
+  check('14d. complete stage with songs: routes to submit', readyToFile.href === '/app/submit/perf-4', JSON.stringify(readyToFile))
+
+  const exportedReady = filingActionPath('perf-5', 'exported', 3)
+  check('14e. exported stage with songs: routes to submit', exportedReady.href === '/app/submit/perf-5', JSON.stringify(exportedReady))
 }
 
 console.log(`\n${pass} passed, ${fail} failed`)

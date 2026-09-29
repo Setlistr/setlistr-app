@@ -9,6 +9,7 @@
 
 import { getProRule } from './pro-rules'
 import { missingIdentityFields, type IdentityProfileFields } from './submission-identity'
+import { isCompleteStage } from './performance-status'
 
 export type FilingState = 'needs_review' | 'ready' | 'submitted'
 
@@ -26,6 +27,7 @@ export interface FilingClaimInputs {
 }
 
 export interface FilingPerformanceFields {
+  status?: string | null
   submission_status?: string | null
   started_at?: string | null
   city?: string | null
@@ -65,6 +67,13 @@ export function computeFilingStatus(
 
   const missing: string[] = []
 
+  // A show still in 'review' (or any other pre-complete status, e.g.
+  // 'processing') has not had its setlist confirmed/finalized yet — it
+  // must never read as ready just because a PRO/identity/field check
+  // happens to already pass. This is checked independently of songCount
+  // below: a show can be missing either, both, or neither.
+  if (!isCompleteStage({ status: performance.status ?? null })) missing.push('setlist not yet reviewed')
+
   if (!rule) missing.push('No PRO selected')
   if (songCount === 0) missing.push('no songs added')
 
@@ -96,4 +105,21 @@ export function computeFilingStatus(
   }
 
   return { state: missing.length > 0 ? 'needs_review' : 'ready', proName, missing }
+}
+
+export interface FilingAction {
+  href: string
+  label: string
+}
+
+// Where "work on this show" should actually send someone. A show with no
+// songs yet, or one that hasn't finished the review step, has nothing for
+// the Submit page to show — sending someone there is a dead end. Shared so
+// the Filing Queue and any other caller route identically rather than
+// re-deriving this decision inline.
+export function filingActionPath(performanceId: string, status: string | null | undefined, songCount: number): FilingAction {
+  if (songCount === 0 || !isCompleteStage({ status: status ?? null })) {
+    return { href: `/app/review/${performanceId}`, label: 'Review Setlist' }
+  }
+  return { href: `/app/submit/${performanceId}`, label: 'Open Submit' }
 }

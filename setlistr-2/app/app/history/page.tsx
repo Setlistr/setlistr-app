@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Search, ChevronLeft, Music2, DollarSign } from 'lucide-react'
 import { estimateRoyalties, capacityToBand } from '@/lib/royalty-estimate'
 import { useActingAs } from '@/components/ActingAsProvider'
+import { isRealVenue, isCompleteStage } from '@/lib/performance-status'
 
 const CARD = {
   background: 'linear-gradient(180deg, #171512 0%, #121009 100%)',
@@ -50,12 +51,6 @@ function getDisplayStatus(p: Performance): { label: string; color: string } {
     case 'exported':   return { label: 'Exported',     color: C.green }
     default:           return { label: 'Needs Review', color: C.gold }
   }
-}
-
-function isRealVenue(name: string | null): boolean {
-  if (!name) return false
-  const t = name.trim()
-  return t !== '' && t !== '.' && t !== '..'
 }
 
 function getTerritory(country?: string, city?: string): string {
@@ -240,14 +235,19 @@ export default function HistoryPage() {
   const counts = {
     all:       performances.length,
     review:    performances.filter(p => p.status === 'review' && p.submission_status !== 'submitted').length,
-    complete:  performances.filter(p => ['complete','completed','exported'].includes(p.status) && p.submission_status !== 'submitted').length,
+    complete:  performances.filter(p => isCompleteStage(p) && p.submission_status !== 'submitted').length,
     submitted: performances.filter(p => p.submission_status === 'submitted').length,
   }
 
-  // Unclaimed shows with songs
+  // Unclaimed shows with songs — same population as the "Ready to Claim"
+  // tab above (isCompleteStage, not submitted), not a looser definition.
+  // This used to also include 'review' shows, which haven't actually been
+  // reviewed/finalized yet — that's what produced a banner claiming far
+  // more shows were "ready to submit" than the tab right next to it (which
+  // only counts isCompleteStage) actually showed once you clicked through.
   const unclaimedShows = performances.filter(p =>
     p.submission_status !== 'submitted' &&
-    (p.status === 'complete' || p.status === 'completed' || p.status === 'review') &&
+    isCompleteStage(p) &&
     (p.song_count || 0) > 0
   )
 
@@ -411,7 +411,7 @@ export default function HistoryPage() {
                 const displayStatus  = getDisplayStatus(perf)
                 const dateStr        = perf.started_at || perf.created_at
                 const date           = new Date(dateStr)
-                const isClaimable    = perf.submission_status !== 'submitted' && (perf.status === 'complete' || perf.status === 'completed') && (perf.song_count || 0) > 0
+                const isClaimable    = perf.submission_status !== 'submitted' && isCompleteStage(perf) && (perf.song_count || 0) > 0
                 const est            = isClaimable ? estimateRoyalties({
                   songCount: perf.song_count || 0,
                   venueCapacityBand: capacityToBand(perf.venue_capacity),

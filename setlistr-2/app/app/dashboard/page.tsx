@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Check, Calendar, ChevronDown, Users, X, ClipboardList } from 'lucide-react'
 import { useActingAs } from '@/components/ActingAsProvider'
 import { SetlistrLoader, useLoaderVariant } from '@/components/SetlistrLoader'
+import { isCapturedShow, isSubmitted } from '@/lib/performance-status'
 import {
   estimateRoyalties, aggregateUnclaimedEarnings,
   capacityToBand, type ShowEstimateInput,
@@ -359,14 +360,19 @@ export default function DashboardPage() {
   // real show anywhere on this page.
   const capturedPerfs    = performances.filter(p => p.data_source !== 'setlistfm_imported' && p.status !== 'draft')
   const importedPerfs    = performances.filter(p => p.data_source === 'setlistfm_imported')
-  const totalCareerShows = performances.filter(p =>
-    p.data_source !== 'setlistfm_imported' &&
-    ['complete', 'completed', 'review', 'submitted', 'exported'].includes(p.status)
-  ).length
+  // Same isCapturedShow() definition app/app/history.tsx's "Your Record"
+  // list and app/app/file's Filing Queue use — this headline count and
+  // "filed" count must agree with history's own "N shows" chip and
+  // "Submitted" tab, since both describe the exact same underlying shows.
+  // Previously this used its own status whitelist (missing 'processing',
+  // and carrying a dead 'submitted' entry that can never match a `status`
+  // value) and never excluded placeholder-venue rows the way history did,
+  // which is exactly what let the two screens disagree.
+  const totalCareerShows = performances.filter(isCapturedShow).length
   const animatedCareerShows = useCountUp(totalCareerShows, 900, 100)
   const animatedRoyalties   = useCountUp(lifetimeTotal, 900, 200)
   const capturedCount    = capturedPerfs.filter(p => p.status !== 'live' && p.status !== 'pending').length
-  const submittedCount   = capturedPerfs.filter(p => p.submission_status === 'submitted').length
+  const submittedCount   = performances.filter(p => isCapturedShow(p) && isSubmitted(p)).length
   const recentPerfs      = capturedPerfs.slice(0, 5)
 
   const uniqueCities = Array.from(new Set(

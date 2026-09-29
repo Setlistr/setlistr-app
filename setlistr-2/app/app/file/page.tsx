@@ -2,10 +2,11 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { AlertTriangle, Check, Clock } from 'lucide-react'
+import { AlertTriangle, Clock } from 'lucide-react'
 import { useActingAs } from '@/components/ActingAsProvider'
 import { SetlistrLoader, useLoaderVariant } from '@/components/SetlistrLoader'
-import { computeFilingStatus, type FilingClaimInputs, type FilingStatusResult } from '@/lib/filing-status'
+import { computeFilingStatus, filingActionPath, type FilingClaimInputs, type FilingStatusResult, type FilingAction } from '@/lib/filing-status'
+import { isCapturedShow } from '@/lib/performance-status'
 
 const C = {
   bg: '#0a0908', card: '#141210',
@@ -24,6 +25,7 @@ const CARD = {
 type ShowRow = {
   id: string; venue_name: string; city: string | null; started_at: string
   status: FilingStatusResult
+  action: FilingAction
 }
 
 function readClaimInputs(performanceId: string): FilingClaimInputs {
@@ -41,13 +43,14 @@ function parseLocalDate(d: string): Date {
 }
 
 // Priority order for a queue: what needs action first, then what's ready to
-// go, then what's already filed — not just reverse-chronological, since the
-// entire point of this list is surfacing what still needs the artist's
-// attention.
+// go — not just reverse-chronological, since the entire point of this list
+// is surfacing what still needs the artist's attention. Already-submitted
+// shows are excluded from this page entirely (see buildRows below) — this
+// is a to-do list, not a record; 'submitted' can't reach this UI, but the
+// key stays so this remains a total function over FilingStatusResult['state'].
 const STATE_ORDER: Record<FilingStatusResult['state'], number> = { needs_review: 0, ready: 1, submitted: 2 }
 
 function statePill(state: FilingStatusResult['state']) {
-  if (state === 'submitted') return { label: 'Marked submitted by you', color: C.green, bg: C.greenDim, border: 'rgba(74,222,128,0.2)' }
   if (state === 'ready') return { label: 'Ready to file', color: C.green, bg: C.greenDim, border: 'rgba(74,222,128,0.2)' }
   return { label: 'Needs review', color: C.amber, bg: C.amberDim, border: 'rgba(245,158,11,0.25)' }
 }
@@ -107,10 +110,14 @@ export default function FilingQueuePage() {
       isDelegate: boolean,
       knownSongCountMap?: Record<string, number>,
     ) {
-      // Only real captured shows are filing-relevant — matches the
-      // dashboard's own capturedPerfs filter (excludes imported history and
-      // abandoned upload drafts, neither of which is a show to file).
-      const captured = perfs.filter(p => (p.data_source || 'captured') !== 'setlistfm_imported' && p.status !== 'draft')
+      // isCapturedShow is the same canonical definition app/app/dashboard
+      // and app/app/history ("Your Record") use — excludes imported
+      // history, live/in-progress/draft rows, and placeholder-venue rows.
+      // On top of that, this queue additionally excludes anything already
+      // submitted: it's a to-do list of unfinished, actionable shows, not
+      // a record of everything — Your Record stays the place to search the
+      // full history including submitted shows.
+      const captured = perfs.filter(p => isCapturedShow(p) && p.submission_status !== 'submitted')
 
       let songCountMap = knownSongCountMap
       if (!songCountMap) {
@@ -125,15 +132,18 @@ export default function FilingQueuePage() {
 
       const built: ShowRow[] = captured.map(p => {
         const perfFields = {
+          status: p.status || null,
           submission_status: p.submission_status || null,
           started_at: p.started_at || null,
           city: p.city || null,
           venue_city: p.venues?.city || null,
           venue_capacity: p.venues?.capacity || p.venue_capacity || null,
         }
+        const songCount = songCountMap![p.id] || 0
         const claimInputs = readClaimInputs(p.id)
-        const status = computeFilingStatus(perfFields, songCountMap![p.id] || 0, profile, isDelegate, claimInputs)
-        return { id: p.id, venue_name: p.venue_name, city: p.city || null, started_at: p.started_at, status }
+        const status = computeFilingStatus(perfFields, songCount, profile, isDelegate, claimInputs)
+        const action = filingActionPath(p.id, p.status, songCount)
+        return { id: p.id, venue_name: p.venue_name, city: p.city || null, started_at: p.started_at, status, action }
       })
 
       built.sort((a, b) => {
@@ -164,8 +174,11 @@ export default function FilingQueuePage() {
         <button onClick={() => router.push('/app/dashboard')} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit', padding: '0 0 20px', letterSpacing: '0.04em' }}>← Back</button>
 
         <h1 style={{ fontSize: 32, fontWeight: 800, color: C.text, margin: '0 0 4px', letterSpacing: '-0.02em' }}>Filing Queue</h1>
-        <p style={{ fontSize: 14, color: C.secondary, margin: '0 0 24px' }}>
-          {actingAs ? `${artistName || actingAs.artist_name}'s shows` : 'Your shows'} — what's ready, what still needs something.
+        <p style={{ fontSize: 14, color: C.secondary, margin: '0 0 6px' }}>
+          {actingAs ? `${artistName || actingAs.artist_name}'s unfiled shows` : 'Your unfiled shows'} — what's ready, what still needs something.
+        </p>
+        <p style={{ fontSize: 11, color: C.muted, margin: '0 0 24px', lineHeight: 1.5 }}>
+          Submitted shows live in Your Record. A show only counts as Ready to file here once its PRO, identity, and any details that PRO requires are actually filled in — not just once its setlist is marked complete.
         </p>
 
         {loadError && (
@@ -206,7 +219,6 @@ export default function FilingQueuePage() {
                       </p>
                     </div>
                     <span style={{ flexShrink: 0, fontSize: 10, fontWeight: 700, letterSpacing: '0.04em', color: pill.color, background: pill.bg, border: `1px solid ${pill.border}`, borderRadius: 20, padding: '4px 10px', display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}>
-                      {row.status.state === 'submitted' && <Check size={10} strokeWidth={3} />}
                       {row.status.state === 'needs_review' && <Clock size={10} strokeWidth={2.5} />}
                       {pill.label}
                     </span>
@@ -219,9 +231,9 @@ export default function FilingQueuePage() {
                   )}
 
                   <div style={{ paddingLeft: 48 }}>
-                    <button onClick={() => router.push(`/app/submit/${row.id}`)}
+                    <button onClick={() => router.push(row.action.href)}
                       style={{ background: 'none', border: `1px solid ${C.borderGold}`, borderRadius: 8, padding: '8px 14px', color: C.gold, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
-                      Open Submit →
+                      {row.action.label} →
                     </button>
                   </div>
                 </div>

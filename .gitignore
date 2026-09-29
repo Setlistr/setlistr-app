@@ -63,3 +63,4 @@ setlistr-2/scripts/*
 !setlistr-2/scripts/test-performance-artist-lock.ts
 !setlistr-2/scripts/test-submission-status-write.ts
 !setlistr-2/scripts/test-filing-status.ts
+!setlistr-2/scripts/test-performance-status.ts
