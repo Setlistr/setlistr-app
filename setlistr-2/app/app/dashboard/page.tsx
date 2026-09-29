@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { Check, Calendar, ChevronDown, Users, X } from 'lucide-react'
+import { Check, Calendar, ChevronDown, Users, X, ClipboardList } from 'lucide-react'
 import { useActingAs } from '@/components/ActingAsProvider'
 import { SetlistrLoader, useLoaderVariant } from '@/components/SetlistrLoader'
 import {
@@ -559,6 +559,16 @@ export default function DashboardPage() {
               </div>
             )}
           </div>
+
+          {/* Entry point to the filing queue — the artist's shows grouped
+             by whether they still need something before filing, are ready,
+             or are already marked filed. Respects whatever artist is
+             currently acted-as, same as the rest of this page. */}
+          <button onClick={() => router.push('/app/file')}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(255,255,255,0.03)', border: `1px solid ${C.border}`, borderRadius: 20, padding: '7px 12px', cursor: 'pointer', fontFamily: 'inherit' }}>
+            <ClipboardList size={13} color={C.secondary} strokeWidth={2} />
+            <span style={{ fontSize: 12, fontWeight: 700, color: C.secondary }}>Filing queue</span>
+          </button>
         </div>
 
         {/* ── ACTING-AS BANNER ── */}
