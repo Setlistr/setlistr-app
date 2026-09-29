@@ -5,7 +5,10 @@ import { createClient } from '@/lib/supabase/client'
 import { Search, ChevronLeft, Music2, DollarSign } from 'lucide-react'
 import { estimateRoyalties, capacityToBand } from '@/lib/royalty-estimate'
 import { useActingAs } from '@/components/ActingAsProvider'
-import { isRealVenue, isCompleteStage } from '@/lib/performance-status'
+import { isRealVenue } from '@/lib/performance-status'
+import { computeFilingStatus, type FilingStatusResult } from '@/lib/filing-status'
+import { loadFilingProfile } from '@/lib/load-filing-profile'
+import { readClaimInputs } from '@/lib/claim-inputs-storage'
 
 const CARD = {
   background: 'linear-gradient(180deg, #171512 0%, #121009 100%)',
@@ -38,19 +41,25 @@ type Performance = {
   captured_by_name?: string | null
   venue_id?:         string | null
   photo_url?:        string | null
+  // The actual filing-readiness result — the SAME computeFilingStatus()
+  // app/app/file (Filing Queue) uses, so "Ready to Claim" here and "Ready
+  // to file" there are never two different rules wearing two different
+  // names. A show whose setlist still needs review, or whose PRO/identity/
+  // required details aren't filled in, is 'needs_review' here exactly like
+  // it is on the Filing Queue — not "Ready to Claim" merely because its
+  // raw `status` says complete/completed/exported.
+  filing: FilingStatusResult
 }
 
 function getDisplayStatus(p: Performance): { label: string; color: string } {
-  if (p.submission_status === 'submitted') return { label: 'Submitted',    color: C.green }
-  switch (p.status) {
-    case 'live':
-    case 'pending':    return { label: 'Live',         color: C.red }
-    case 'review':     return { label: 'Needs Review', color: C.gold }
-    case 'complete':
-    case 'completed':  return { label: 'Ready to Claim', color: C.gold }
-    case 'exported':   return { label: 'Exported',     color: C.green }
-    default:           return { label: 'Needs Review', color: C.gold }
-  }
+  // 'submitted' is purely the artist's own self-reported action — Setlistr
+  // never files with a PRO or verifies receipt (see markSubmitted() in
+  // app/app/submit/[id]/page.tsx). "Marked submitted" says exactly that;
+  // "Submitted" on its own reads as if someone/something confirmed it.
+  if (p.submission_status === 'submitted') return { label: 'Marked submitted', color: C.green }
+  if (p.status === 'live' || p.status === 'pending') return { label: 'Live', color: C.red }
+  if (p.filing.state === 'ready') return { label: 'Ready to Claim', color: C.gold }
+  return { label: 'Needs Review', color: C.gold }
 }
 
 function getTerritory(country?: string, city?: string): string {
@@ -63,7 +72,7 @@ function getTerritory(country?: string, city?: string): string {
 
 export default function HistoryPage() {
   const router = useRouter()
-  const { actingAsArtistId, resolved } = useActingAs()
+  const { actingAs, actingAsArtistId, resolved } = useActingAs()
   const [performances, setPerformances] = useState<Performance[]>([])
   const [filtered, setFiltered]         = useState<Performance[]>([])
   const [loading, setLoading]           = useState(true)
@@ -86,6 +95,20 @@ export default function HistoryPage() {
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { router.push('/auth/login'); return }
+
+    // Same profile fetch (and the same owner/delegate identity-privacy
+    // boundary) app/app/file (Filing Queue) uses — see
+    // lib/load-filing-profile.ts. Fails closed to "no PRO selected" rather
+    // than crashing the page if the delegate-context lookup errors, since
+    // that's the same as any other case computeFilingStatus already
+    // treats as not-yet-ready.
+    let filingCtx
+    try {
+      filingCtx = await loadFilingProfile(supabase, actingAs)
+    } catch (e) {
+      console.error('History: filing profile load failed:', e)
+      filingCtx = { profile: { pro_affiliation: null, legal_name: null, ipi_number: null }, isDelegate: !!actingAsArtistId }
+    }
 
     const { data, error } = await supabase
       .from('performances_visible')
@@ -116,18 +139,34 @@ export default function HistoryPage() {
 
       const clean: Performance[] = data
         .filter((p: any) => isRealVenue(p.venue_name))
-        .map((p: any) => ({
-          id: p.id, venue_name: p.venue_name, artist_name: p.artist_name,
-          city: p.city, country: p.country, status: p.status,
-          submission_status: p.submission_status || null,
-          started_at: p.started_at, created_at: p.created_at,
-          venue_capacity: p.venues?.capacity || null,
-          show_type: p.shows?.show_type || 'single',
-          song_count: countMap[p.id] || 0,
-          captured_by_name: p.captured_by_name || null,
-          venue_id: p.venue_id || null,
-          photo_url: p.photo_url || null,
-        }))
+        .map((p: any) => {
+          const songCount = countMap[p.id] || 0
+          const claimInputs = readClaimInputs(p.id)
+          const filing = computeFilingStatus(
+            {
+              status: p.status,
+              submission_status: p.submission_status || null,
+              started_at: p.started_at,
+              city: p.city || null,
+              venue_city: null,
+              venue_capacity: p.venues?.capacity || null,
+            },
+            songCount, filingCtx.profile, filingCtx.isDelegate, claimInputs,
+          )
+          return {
+            id: p.id, venue_name: p.venue_name, artist_name: p.artist_name,
+            city: p.city, country: p.country, status: p.status,
+            submission_status: p.submission_status || null,
+            started_at: p.started_at, created_at: p.created_at,
+            venue_capacity: p.venues?.capacity || null,
+            show_type: p.shows?.show_type || 'single',
+            song_count: songCount,
+            captured_by_name: p.captured_by_name || null,
+            venue_id: p.venue_id || null,
+            photo_url: p.photo_url || null,
+            filing,
+          }
+        })
 
       setPerformances(clean)
       setFiltered(clean)
@@ -211,9 +250,9 @@ export default function HistoryPage() {
     }
     if (statusFilter !== 'all') {
       result = result.filter(p => {
-        if (statusFilter === 'submitted') return p.submission_status === 'submitted'
-        if (statusFilter === 'review')    return p.status === 'review' && p.submission_status !== 'submitted'
-        if (statusFilter === 'complete')  return (p.status === 'complete' || p.status === 'completed' || p.status === 'exported') && p.submission_status !== 'submitted'
+        if (statusFilter === 'submitted') return p.filing.state === 'submitted'
+        if (statusFilter === 'review')    return p.filing.state === 'needs_review'
+        if (statusFilter === 'complete')  return p.filing.state === 'ready'
         return true
       })
     }
@@ -232,24 +271,22 @@ export default function HistoryPage() {
 
   const hasFilters = search || dateFrom || dateTo || statusFilter !== 'all'
 
+  // counts, the banner below, and the "File them" action all key off the
+  // exact same p.filing.state computeFilingStatus() produced — the same
+  // rule the Filing Queue uses. A show still needing its setlist reviewed
+  // or a required filing detail filled in is 'needs_review' here too, not
+  // "Ready to Claim" just because its raw status says complete.
   const counts = {
     all:       performances.length,
-    review:    performances.filter(p => p.status === 'review' && p.submission_status !== 'submitted').length,
-    complete:  performances.filter(p => isCompleteStage(p) && p.submission_status !== 'submitted').length,
-    submitted: performances.filter(p => p.submission_status === 'submitted').length,
+    review:    performances.filter(p => p.filing.state === 'needs_review').length,
+    complete:  performances.filter(p => p.filing.state === 'ready').length,
+    submitted: performances.filter(p => p.filing.state === 'submitted').length,
   }
 
-  // Unclaimed shows with songs — same population as the "Ready to Claim"
-  // tab above (isCompleteStage, not submitted), not a looser definition.
-  // This used to also include 'review' shows, which haven't actually been
-  // reviewed/finalized yet — that's what produced a banner claiming far
-  // more shows were "ready to submit" than the tab right next to it (which
-  // only counts isCompleteStage) actually showed once you clicked through.
-  const unclaimedShows = performances.filter(p =>
-    p.submission_status !== 'submitted' &&
-    isCompleteStage(p) &&
-    (p.song_count || 0) > 0
-  )
+  // Same population as the "Ready to Claim" tab above — computeFilingStatus
+  // already requires songs > 0 for 'ready', so no separate song_count check
+  // is needed here to keep this in lockstep with that count.
+  const unclaimedShows = performances.filter(p => p.filing.state === 'ready')
 
   const totalUnclaimed = unclaimedShows.reduce((sum, p) => {
     const est = estimateRoyalties({
@@ -344,7 +381,7 @@ export default function HistoryPage() {
               { key: 'all',       label: 'All',             color: C.muted,  count: counts.all },
               { key: 'review',    label: 'Needs Review',    color: C.gold,   count: counts.review },
               { key: 'complete',  label: 'Ready to Claim',  color: C.gold,   count: counts.complete },
-              { key: 'submitted', label: 'Submitted',       color: C.green,  count: counts.submitted },
+              { key: 'submitted', label: 'Marked submitted', color: C.green,  count: counts.submitted },
             ] as const).map(tab => {
               const active = statusFilter === tab.key
               return (
@@ -411,7 +448,7 @@ export default function HistoryPage() {
                 const displayStatus  = getDisplayStatus(perf)
                 const dateStr        = perf.started_at || perf.created_at
                 const date           = new Date(dateStr)
-                const isClaimable    = perf.submission_status !== 'submitted' && isCompleteStage(perf) && (perf.song_count || 0) > 0
+                const isClaimable    = perf.filing.state === 'ready'
                 const est            = isClaimable ? estimateRoyalties({
                   songCount: perf.song_count || 0,
                   venueCapacityBand: capacityToBand(perf.venue_capacity),

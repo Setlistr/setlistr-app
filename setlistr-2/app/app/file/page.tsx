@@ -5,8 +5,10 @@ import { createClient } from '@/lib/supabase/client'
 import { AlertTriangle, Clock } from 'lucide-react'
 import { useActingAs } from '@/components/ActingAsProvider'
 import { SetlistrLoader, useLoaderVariant } from '@/components/SetlistrLoader'
-import { computeFilingStatus, filingActionPath, type FilingClaimInputs, type FilingStatusResult, type FilingAction } from '@/lib/filing-status'
+import { computeFilingStatus, filingActionPath, type FilingStatusResult, type FilingAction } from '@/lib/filing-status'
 import { isCapturedShow } from '@/lib/performance-status'
+import { loadFilingProfile, type FilingProfileContext } from '@/lib/load-filing-profile'
+import { readClaimInputs } from '@/lib/claim-inputs-storage'
 
 const C = {
   bg: '#0a0908', card: '#141210',
@@ -26,13 +28,6 @@ type ShowRow = {
   id: string; venue_name: string; city: string | null; started_at: string
   status: FilingStatusResult
   action: FilingAction
-}
-
-function readClaimInputs(performanceId: string): FilingClaimInputs {
-  try {
-    const raw = window.localStorage.getItem(`setlistr:claim:${performanceId}`)
-    return raw ? (JSON.parse(raw) as FilingClaimInputs) : {}
-  } catch { return {} }
 }
 
 function parseLocalDate(d: string): Date {
@@ -69,47 +64,33 @@ export default function FilingQueuePage() {
     if (!resolved) return
     const supabase = createClient()
 
-    async function loadOwn() {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { router.push('/auth/login'); return }
+    async function run() {
+      const ctx: FilingProfileContext = await loadFilingProfile(supabase, actingAs)
+      setArtistName(ctx.artistName)
 
-      const [{ data: perfs }, { data: profile }] = await Promise.all([
-        supabase
+      let perfs: any[]
+      let songCountMap: Record<string, number>
+      if (ctx.delegatePerformances) {
+        perfs = ctx.delegatePerformances
+        songCountMap = ctx.delegateSongCountMap || {}
+      } else {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) { router.push('/auth/login'); return }
+        const { data } = await supabase
           .from('performances_visible')
           .select('id, venue_name, city, country, status, submission_status, started_at, data_source, venues ( capacity )')
           .eq('user_id', user.id)
-          .order('started_at', { ascending: false }),
-        supabase
-          .from('profiles')
-          .select('pro_affiliation, legal_name, ipi_number, artist_name')
-          .eq('id', user.id).single(),
-      ])
+          .order('started_at', { ascending: false })
+        perfs = data || []
+        const ids = perfs.map(p => p.id)
+        songCountMap = {}
+        if (ids.length > 0) {
+          const { data: songData } = await supabase
+            .from('performance_songs_visible').select('performance_id').in('performance_id', ids)
+          songData?.forEach((s: any) => { songCountMap[s.performance_id] = (songCountMap[s.performance_id] || 0) + 1 })
+        }
+      }
 
-      return buildRows(perfs || [], { pro_affiliation: profile?.pro_affiliation ?? null, legal_name: profile?.legal_name ?? null, ipi_number: profile?.ipi_number ?? null }, false)
-    }
-
-    async function loadDelegate(artistId: string) {
-      const res = await fetch(`/api/team/context-data?artist_id=${artistId}`)
-      const data = await res.json()
-      if (data.error) throw new Error(data.error)
-      setArtistName(data.artist_name || null)
-      const perfs = (data.performances || []).map((p: any) => ({
-        ...p,
-        venue_capacity: p.venue_capacity ?? null,
-      }))
-      const songCountMap: Record<string, number> = data.songCountMap || {}
-      // Delegate profile deliberately omits legal_name/ipi_number — the
-      // same privacy boundary app/app/submit/[id]/page.tsx enforces via
-      // /api/team/context-data (that route never returns them at all).
-      return buildRows(perfs, { pro_affiliation: data.pro_affiliation ?? null, legal_name: null, ipi_number: null }, true, songCountMap)
-    }
-
-    async function buildRows(
-      perfs: any[],
-      profile: { pro_affiliation: string | null; legal_name: string | null; ipi_number: string | null },
-      isDelegate: boolean,
-      knownSongCountMap?: Record<string, number>,
-    ) {
       // isCapturedShow is the same canonical definition app/app/dashboard
       // and app/app/history ("Your Record") use — excludes imported
       // history, live/in-progress/draft rows, and placeholder-venue rows.
@@ -118,17 +99,6 @@ export default function FilingQueuePage() {
       // a record of everything — Your Record stays the place to search the
       // full history including submitted shows.
       const captured = perfs.filter(p => isCapturedShow(p) && p.submission_status !== 'submitted')
-
-      let songCountMap = knownSongCountMap
-      if (!songCountMap) {
-        const ids = captured.map(p => p.id)
-        songCountMap = {}
-        if (ids.length > 0) {
-          const { data: songData } = await supabase
-            .from('performance_songs_visible').select('performance_id').in('performance_id', ids)
-          songData?.forEach((s: any) => { songCountMap![s.performance_id] = (songCountMap![s.performance_id] || 0) + 1 })
-        }
-      }
 
       const built: ShowRow[] = captured.map(p => {
         const perfFields = {
@@ -139,9 +109,9 @@ export default function FilingQueuePage() {
           venue_city: p.venues?.city || null,
           venue_capacity: p.venues?.capacity || p.venue_capacity || null,
         }
-        const songCount = songCountMap![p.id] || 0
+        const songCount = songCountMap[p.id] || 0
         const claimInputs = readClaimInputs(p.id)
-        const status = computeFilingStatus(perfFields, songCount, profile, isDelegate, claimInputs)
+        const status = computeFilingStatus(perfFields, songCount, ctx.profile, ctx.isDelegate, claimInputs)
         const action = filingActionPath(p.id, p.status, songCount)
         return { id: p.id, venue_name: p.venue_name, city: p.city || null, started_at: p.started_at, status, action }
       })
@@ -157,8 +127,7 @@ export default function FilingQueuePage() {
 
     setLoading(true)
     setLoadError(false)
-    const run = actingAs ? loadDelegate(actingAs.artist_id) : loadOwn()
-    run.catch(err => { console.error('[FilingQueue] load failed:', err); setLoadError(true) })
+    run().catch(err => { console.error('[FilingQueue] load failed:', err); setLoadError(true) })
       .finally(() => setLoading(false))
   }, [resolved, actingAs])
 
@@ -174,11 +143,8 @@ export default function FilingQueuePage() {
         <button onClick={() => router.push('/app/dashboard')} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit', padding: '0 0 20px', letterSpacing: '0.04em' }}>← Back</button>
 
         <h1 style={{ fontSize: 32, fontWeight: 800, color: C.text, margin: '0 0 4px', letterSpacing: '-0.02em' }}>Filing Queue</h1>
-        <p style={{ fontSize: 14, color: C.secondary, margin: '0 0 6px' }}>
+        <p style={{ fontSize: 14, color: C.secondary, margin: '0 0 24px' }}>
           {actingAs ? `${artistName || actingAs.artist_name}'s unfiled shows` : 'Your unfiled shows'} — what's ready, what still needs something.
-        </p>
-        <p style={{ fontSize: 11, color: C.muted, margin: '0 0 24px', lineHeight: 1.5 }}>
-          Submitted shows live in Your Record. A show only counts as Ready to file here once its PRO, identity, and any details that PRO requires are actually filled in — not just once its setlist is marked complete.
         </p>
 
         {loadError && (
