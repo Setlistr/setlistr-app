@@ -37,7 +37,7 @@ function check(name: string, cond: boolean, detail?: string) {
 {
   const oldShow = new Date(Date.now() - 400 * 24 * 60 * 60 * 1000) // ~400 days ago
   const r = filingDeadlineLabel('SOCAN', oldShow)
-  check('3. expired window: label says closed', r?.label.startsWith('Window closed'), JSON.stringify(r))
+  check('3. expired window: label says closed', r !== null && r.label.startsWith('Window closed'), JSON.stringify(r))
   check('3. expired window: red urgency color', r?.color === '#f87171', JSON.stringify(r))
 }
 
@@ -46,7 +46,7 @@ function check(name: string, cond: boolean, detail?: string) {
   const showDate = new Date(2026, 0, 15) // Jan 15, 2026 -> ASCAP deadline end of Q2 2026 (Jun 30)
   const r = filingDeadlineLabel('ASCAP', showDate)
   check('4. ASCAP: label present', r !== null, JSON.stringify(r))
-  check('4. ASCAP: date component matches the real rule (Jun 30, 2026)', r?.label.includes('Jun 30, 2026'), JSON.stringify(r))
+  check('4. ASCAP: date component matches the real rule (Jun 30, 2026)', r !== null && r.label.includes('Jun 30, 2026'), JSON.stringify(r))
 }
 
 // ── 5. Every real PRO code produces SOME result (never throws) ────────
