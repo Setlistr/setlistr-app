@@ -6,7 +6,7 @@
 // Run via:
 //   npx ts-node --transpile-only -P scripts/tsconfig.json scripts/test-filing-deadline-label.ts
 
-import { filingDeadlineLabel } from '../lib/filing-deadline-label'
+import { filingDeadlineLabel, deadlineNeedsAttention } from '../lib/filing-deadline-label'
 
 let pass = 0
 let fail = 0
@@ -31,6 +31,8 @@ function check(name: string, cond: boolean, detail?: string) {
   const r = filingDeadlineLabel('SOCAN', showDate)
   check('2. SOCAN, recent show: returns a label', r !== null && r.label.includes('day'), JSON.stringify(r))
   check('2. SOCAN, recent show: open urgency color (not red/amber)', r?.color === '#8a7a68', JSON.stringify(r))
+  check('2. SOCAN, recent show: urgency is "open"', r?.urgency === 'open', JSON.stringify(r))
+  check('2. open urgency does NOT need attention — this is what keeps a comfortable deadline off the row', r !== null && !deadlineNeedsAttention(r.urgency), JSON.stringify(r))
 }
 
 // ── 3. A show far enough in the past that the window has closed ───────
@@ -39,6 +41,16 @@ function check(name: string, cond: boolean, detail?: string) {
   const r = filingDeadlineLabel('SOCAN', oldShow)
   check('3. expired window: label says closed', r !== null && r.label.startsWith('Window closed'), JSON.stringify(r))
   check('3. expired window: red urgency color', r?.color === '#f87171', JSON.stringify(r))
+  check('3. expired window: needs attention', r !== null && deadlineNeedsAttention(r.urgency), JSON.stringify(r))
+}
+
+// ── 3b. A show whose deadline is close but not yet expired — 'urgent' or
+//    'soon' should also need attention, same as 'expired'. ────────────────
+{
+  const soonShow = new Date(Date.now() - 340 * 24 * 60 * 60 * 1000) // SOCAN's 12-month window, ~25 days left
+  const r = filingDeadlineLabel('SOCAN', soonShow)
+  check('3b. near-deadline show: urgency is soon or urgent, not open', r !== null && r.urgency !== 'open', JSON.stringify(r))
+  check('3b. near-deadline show: needs attention', r !== null && deadlineNeedsAttention(r.urgency), JSON.stringify(r))
 }
 
 // ── 4. ASCAP — official quarter-based deadline, computed not guessed ──

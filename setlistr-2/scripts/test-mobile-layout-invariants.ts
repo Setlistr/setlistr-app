@@ -82,14 +82,21 @@ function read(rel: string): string {
   check('Filing Queue: renders show entries via the shared SubmissionEntryRow', filePage.includes('<SubmissionEntryRow'))
   check('Your Record: renders show entries via the same shared SubmissionEntryRow', historyPage.includes('<SubmissionEntryRow'))
   check('Filing Queue: computes a deadline per row via the dedicated, untouched pro-rules deadline()', filePage.includes('filingDeadlineLabel('))
-  check('Filing Queue: passes missing-fields through to the shared row', filePage.includes('missing={row.status.state'))
+  check('Filing Queue: only ever shows the single most important blocker, not the full list', filePage.includes('row.status.missing[0]'))
+  check('Filing Queue: a comfortably-open deadline is filtered out before it ever reaches a row', filePage.includes('deadlineNeedsAttention('))
   check('Your Record: passes the $ estimate through to the shared row', historyPage.includes('estimate={est?.expected}'))
+  check('Your Record: dot fill is restored to the original condition (Marked Submitted only, not Ready to Claim)', historyPage.includes("dotFilled={displayStatus.color === C.green}"))
 
   for (const [label, src] of [['Filing Queue', filePage], ['Your Record', historyPage]] as const) {
-    check(`${label}: responsive page container (phone/tablet/desktop breakpoints)`, src.includes('className="subm-page"') && src.includes('@media (min-width: 640px)') && src.includes('@media (min-width: 1024px)'))
-    check(`${label}: row list becomes a multi-column grid at tablet/desktop widths`, src.includes('className="subm-list"') && src.includes('@media (min-width: 768px)') && src.includes('grid-template-columns'))
+    check(`${label}: responsive page container caps at a readable width, not a wide multi-column layout`, src.includes('className="subm-page"') && src.includes('@media (min-width: 768px)') && !src.includes('@media (min-width: 1024px)'))
+    check(`${label}: row list stays a single column at every width (no grid reflow)`, src.includes('className="subm-list"') && !src.includes('grid-template-columns'))
     check(`${label}: no fixed maxWidth left on the old phone-width column`, !/maxWidth:\s*(480|600),\s*(width:\s*'100%',\s*)?margin:\s*'0 auto'/.test(src))
   }
+
+  const rowSrc = read('components/SubmissionEntryRow.tsx')
+  check('SubmissionEntryRow: venue name is allowed to wrap, not truncated with ellipsis', !rowSrc.includes("textOverflow: 'ellipsis'") || !/venueName[\s\S]{0,200}textOverflow/.test(rowSrc))
+  check('SubmissionEntryRow: flat list row (bottom divider), not a bordered card', rowSrc.includes('borderBottom:') && !rowSrc.includes('boxShadow:'))
+  check('SubmissionEntryRow: dot color is fixed gold, independent of the status text color prop', rowSrc.includes('C.gold') && !/dotFilled \? statusTextColor/.test(rowSrc))
 }
 
 console.log(`\n${pass} passed, ${fail} failed`)

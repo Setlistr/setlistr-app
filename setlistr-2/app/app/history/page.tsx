@@ -492,15 +492,20 @@ export default function HistoryPage() {
                       <SubmissionEntryRow
                         onNavigate={() => navigateTo(perf)}
                         disabled={isPendingDel || isDeleting}
-                        emphasized={isClaimable}
                         photoUrl={perf.photo_url}
                         dateLabel={date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                         venueName={perf.venue_name}
                         metaLine={isPendingDel ? 'Tap ✕ again to delete' : [perf.city, (perf.song_count || 0) > 0 ? `${perf.song_count} songs` : null].filter(Boolean).join(' · ')}
                         estimate={est?.expected}
                         statusLabel={displayStatus.label}
-                        statusColor={displayStatus.color}
-                        statusDotFilled={displayStatus.color === C.green || perf.filing.state === 'ready'}
+                        statusTextColor={displayStatus.color}
+                        // Restored exactly as it was originally: the dot is
+                        // filled (gold) only for the one truly self-reported
+                        // -done state, Marked Submitted (green text) — not
+                        // for Ready to Claim, which stays an outline like
+                        // Needs Review. The gold hue itself is fixed inside
+                        // SubmissionEntryRow; this only decides fill state.
+                        dotFilled={displayStatus.color === C.green}
                       />
                     </div>
 
@@ -551,20 +556,12 @@ export default function HistoryPage() {
         input:focus { border-color: rgba(201,168,76,0.4) !important; outline: none; }
         input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.5); cursor: pointer; }
 
-        /* Shared with app/app/file — see that page's own copy of this
-           block for why: a phone-width centered column wasted the
-           available width on desktop, and the row itself never needs to
-           reflow internally to fix that. */
+        /* Shared with app/app/file — one calm, readable column at every
+           width, not a card grid. Grows only to a comfortable reading
+           measure on larger screens, not to fill the viewport. */
         .subm-page { max-width: 480px; margin: 0 auto; }
-        @media (min-width: 640px) { .subm-page { max-width: 720px; } }
-        @media (min-width: 1024px) { .subm-page { max-width: 1100px; } }
-        .subm-list { display: flex; flex-direction: column; gap: 6px; }
-        @media (min-width: 768px) {
-          .subm-list { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; align-items: start; }
-        }
-        @media (min-width: 1280px) {
-          .subm-list { grid-template-columns: repeat(3, 1fr); }
-        }
+        @media (min-width: 768px) { .subm-page { max-width: 640px; } }
+        .subm-list { display: flex; flex-direction: column; }
       `}</style>
     </div>
   )

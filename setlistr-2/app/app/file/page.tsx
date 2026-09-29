@@ -12,14 +12,13 @@ import { readClaimInputs } from '@/lib/claim-inputs-storage'
 import { loadSubmissionsNavCounts, type SubmissionsNavCounts } from '@/lib/submissions-nav-counts'
 import { SubmissionsSwitcher } from '@/components/SubmissionsSwitcher'
 import { SubmissionEntryRow } from '@/components/SubmissionEntryRow'
-import { filingDeadlineLabel } from '@/lib/filing-deadline-label'
+import { filingDeadlineLabel, deadlineNeedsAttention, type DeadlineLabel } from '@/lib/filing-deadline-label'
 
 const C = {
   bg: '#0a0908', card: '#141210',
   border: 'rgba(255,255,255,0.07)', borderGold: 'rgba(201,168,76,0.3)',
   text: '#f0ece3', secondary: '#b8a888', muted: '#8a7a68',
   gold: '#c9a84c', goldDim: 'rgba(201,168,76,0.1)',
-  green: '#4ade80', greenDim: 'rgba(74,222,128,0.08)',
   amber: '#f59e0b', amberDim: 'rgba(245,158,11,0.08)',
 }
 
@@ -32,7 +31,10 @@ type ShowRow = {
   id: string; venue_name: string; city: string | null; started_at: string
   status: FilingStatusResult
   action: FilingAction
-  deadline: { label: string; color: string } | null
+  // Only ever set when the deadline itself decided it needs attention
+  // (see deadlineNeedsAttention below) — a comfortably-open deadline is
+  // simply not carried here at all, not merely hidden at render time.
+  deadline: DeadlineLabel | null
 }
 
 function parseLocalDate(d: string): Date {
@@ -50,9 +52,12 @@ function parseLocalDate(d: string): Date {
 // key stays so this remains a total function over FilingStatusResult['state'].
 const STATE_ORDER: Record<FilingStatusResult['state'], number> = { needs_review: 0, ready: 1, submitted: 2 }
 
-function statePill(state: FilingStatusResult['state']) {
-  if (state === 'ready') return { label: 'Ready to file', color: C.green, bg: C.greenDim, border: 'rgba(74,222,128,0.2)' }
-  return { label: 'Needs review', color: C.amber, bg: C.amberDim, border: 'rgba(245,158,11,0.25)' }
+// Text stays one calm, consistent color for both states here — the dot
+// (always gold, filled only when ready — see SubmissionEntryRow) is what
+// actually distinguishes them, so status text isn't one more competing
+// color on the row.
+function statusLabelFor(state: FilingStatusResult['state']): string {
+  return state === 'ready' ? 'Ready to file' : 'Needs review'
 }
 
 export default function FilingQueuePage() {
@@ -119,7 +124,8 @@ export default function FilingQueuePage() {
         const claimInputs = readClaimInputs(p.id)
         const status = computeFilingStatus(perfFields, songCount, ctx.profile, ctx.isDelegate, claimInputs)
         const action = filingActionPath(p.id, p.status, songCount)
-        const deadline = p.started_at ? filingDeadlineLabel(ctx.profile.pro_affiliation, parseLocalDate(p.started_at)) : null
+        const computedDeadline = p.started_at ? filingDeadlineLabel(ctx.profile.pro_affiliation, parseLocalDate(p.started_at)) : null
+        const deadline = computedDeadline && deadlineNeedsAttention(computedDeadline.urgency) ? computedDeadline : null
         return { id: p.id, venue_name: p.venue_name, city: p.city || null, started_at: p.started_at, status, action, deadline }
       })
 
@@ -191,20 +197,27 @@ export default function FilingQueuePage() {
         {!loadError && rows.length > 0 && (
           <div className="subm-list">
             {rows.map(row => {
-              const pill = statePill(row.status.state)
               const d = parseLocalDate(row.started_at)
+              // The single most important reason this show isn't ready —
+              // computeFilingStatus already orders `missing` by importance
+              // (review-stage, then PRO, then songs, then identity, then
+              // per-field), so its first entry is that reason. The rest
+              // lives on the show's own page, one tap away via the action
+              // below, not repeated here.
+              const blocker = row.status.state === 'needs_review' && row.status.missing.length > 0
+                ? `Needs: ${row.status.missing[0]}`
+                : undefined
               return (
                 <SubmissionEntryRow
                   key={row.id}
                   onNavigate={() => router.push(row.action.href)}
-                  emphasized={row.status.state === 'ready'}
                   dateLabel={d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                   venueName={row.venue_name}
                   metaLine={[row.city, row.status.proName || 'No PRO selected'].filter(Boolean).join(' · ')}
-                  statusLabel={pill.label}
-                  statusColor={pill.color}
-                  statusDotFilled={row.status.state === 'ready'}
-                  missing={row.status.state === 'needs_review' ? row.status.missing : undefined}
+                  statusLabel={statusLabelFor(row.status.state)}
+                  statusTextColor={C.secondary}
+                  dotFilled={row.status.state === 'ready'}
+                  blocker={blocker}
                   deadlineLabel={row.deadline?.label}
                   deadlineColor={row.deadline?.color}
                   actionLabel={row.action.label}
@@ -219,21 +232,13 @@ export default function FilingQueuePage() {
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500;700&display=swap');
         * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
 
-        /* Shared with app/app/history — a phone-width centered column on
-           every screen size wasted the available width on desktop. The
-           row itself never reflows (its 2-line structure already handles
-           any container width via ellipsis truncation); only the page
-           column and the list's column count change. */
+        /* Shared with app/app/history — one calm, readable column at every
+           width, not a card grid. A phone-width column stayed narrow on
+           purpose; on larger screens it grows only as far as a comfortable
+           reading measure, not to fill the whole viewport. */
         .subm-page { max-width: 480px; margin: 0 auto; }
-        @media (min-width: 640px) { .subm-page { max-width: 720px; } }
-        @media (min-width: 1024px) { .subm-page { max-width: 1100px; } }
-        .subm-list { display: flex; flex-direction: column; gap: 10px; }
-        @media (min-width: 768px) {
-          .subm-list { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; align-items: start; }
-        }
-        @media (min-width: 1280px) {
-          .subm-list { grid-template-columns: repeat(3, 1fr); }
-        }
+        @media (min-width: 768px) { .subm-page { max-width: 640px; } }
+        .subm-list { display: flex; flex-direction: column; }
       `}</style>
     </div>
   )

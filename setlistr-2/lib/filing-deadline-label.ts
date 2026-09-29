@@ -1,6 +1,13 @@
 import { getProRule, daysUntil, urgencyFor, type Urgency } from './pro-rules'
 
-export interface DeadlineLabel { label: string; color: string }
+export interface DeadlineLabel { label: string; color: string; urgency: Urgency }
+
+// Callers should only surface a deadline prominently once it needs
+// attention — a comfortably-open deadline on every row is noise, not
+// useful. 'open' is the one urgency tier that doesn't.
+export function deadlineNeedsAttention(urgency: Urgency): boolean {
+  return urgency !== 'open'
+}
 
 const URGENCY_COLOR: Record<Urgency, string> = {
   expired: '#f87171', urgent: '#f87171', soon: '#f59e0b', open: '#8a7a68',
@@ -21,5 +28,5 @@ export function filingDeadlineLabel(proCode: string | null | undefined, showDate
   const label = days < 0
     ? `Window closed ${dateStr}`
     : `${days} day${days === 1 ? '' : 's'} left · ${dateStr}`
-  return { label, color: URGENCY_COLOR[urgency] }
+  return { label, color: URGENCY_COLOR[urgency], urgency }
 }
