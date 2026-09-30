@@ -14,8 +14,9 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { ManagerPerformanceRow } from './managerOverview'
+import type { SongRow } from './managerAnalytics'
 
-const MANAGER_ROW_COLUMNS = 'id, user_id, status, submission_status, data_source, venue_name, started_at, performance_date'
+const MANAGER_ROW_COLUMNS = 'id, user_id, status, submission_status, data_source, venue_name, city, started_at, performance_date'
 const PAGE_SIZE = 500
 
 // Paginates via .range() until a page returns fewer than PAGE_SIZE rows —
@@ -69,4 +70,37 @@ export async function fetchLatestShowPerArtist(
     return (data || []) as ManagerPerformanceRow[]
   }))
   return results.flat()
+}
+
+// Song rows for a known, already-authorized set of performance ids — used
+// by Song Rotation, always called with ids drawn from a prior
+// fetchCapturedShowsInRange() result, so the same date-range/artist scope
+// that produced the aggregate is exactly what the song data is scoped to
+// as well. performance_songs_visible already excludes artist-removed rows
+// at the view level (WHERE ps.artist_removed IS NOT TRUE — supabase/
+// migrations/0005_track_live_access_control.sql) — "existing review
+// semantics" enforced by the view itself, not reimplemented here. Paginated
+// for the same reason fetchCapturedShowsInRange is: one performance can
+// have many songs, and a large roster's combined song list can exceed a
+// single request's row cap.
+export async function fetchSongsForPerformances(
+  supabase: SupabaseClient,
+  performanceIds: string[],
+): Promise<SongRow[]> {
+  if (performanceIds.length === 0) return []
+  const all: SongRow[] = []
+  let offset = 0
+  for (;;) {
+    const { data, error } = await supabase
+      .from('performance_songs_visible')
+      .select('performance_id, title, artist')
+      .in('performance_id', performanceIds)
+      .range(offset, offset + PAGE_SIZE - 1)
+    if (error) throw error
+    const page = (data || []) as SongRow[]
+    all.push(...page)
+    if (page.length < PAGE_SIZE) break
+    offset += PAGE_SIZE
+  }
+  return all
 }

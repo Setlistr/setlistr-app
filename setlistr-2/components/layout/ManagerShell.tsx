@@ -2,7 +2,7 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
-import { LayoutDashboard, Users } from 'lucide-react'
+import { LayoutDashboard, Users, BarChart3 } from 'lucide-react'
 import type { Profile } from '@/types'
 import { useActingAs } from '@/components/ActingAsProvider'
 
@@ -24,9 +24,13 @@ const C = {
   gold: '#c9a84c', goldDim: 'rgba(201,168,76,0.12)',
 }
 
+// Analytics only added once it's a real, working destination (this pass) —
+// per instruction, an empty/placeholder nav entry must never ship ahead of
+// the page it points to.
 const NAV = [
   { href: '/app/manager', icon: LayoutDashboard, label: 'Overview' },
   { href: '/app/manager/artists', icon: Users, label: 'Artists' },
+  { href: '/app/manager/analytics', icon: BarChart3, label: 'Analytics' },
 ]
 
 export function ManagerShell({ children, profile }: { children: React.ReactNode; profile: Profile }) {
