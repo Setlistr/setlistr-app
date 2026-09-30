@@ -1,14 +1,24 @@
 'use client'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Send, TrendingUp } from 'lucide-react'
+import { usePathname, useRouter } from 'next/navigation'
+import { LayoutDashboard, Send, TrendingUp, ArrowLeft } from 'lucide-react'
 import Image from 'next/image'
 import type { Profile } from '@/types'
 import { createClient } from '@/lib/supabase/client'
 import { tapNav, tapRecord } from '@/lib/haptics'
 import { useActingAs } from '@/components/ActingAsProvider'
 import { WorkspaceGate } from '@/components/WorkspaceGate'
+import { ManagerShell } from '@/components/layout/ManagerShell'
 import { useState, useEffect } from 'react'
+
+// Set by app/app/manager/artists/[artistId]/page.tsx right before it
+// selects a managed workspace and navigates into an existing artist-facing
+// flow (history/file/review/submit) — namespaced to the specific artistId
+// it applies to so it can never resurface a stale "Back to Manager" pill
+// after the ordinary dashboard switcher (unrelated to Manager) later acts
+// as a DIFFERENT managed artist. Exported so that page and this one agree
+// on the exact key without a copy-pasted string literal.
+export const MANAGER_RETURN_KEY = 'setlistr_manager_return_artist_id'
 
 const FULLSCREEN_ROUTES = ['/app/live/']
 
@@ -16,10 +26,27 @@ const GRAIN_URI = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/
 
 export function AppShell({ children, profile }: { children: React.ReactNode; profile: Profile }) {
   const pathname = usePathname()
-  const { actingAsArtistId, resolved, isBlocked } = useActingAs()
+  const router = useRouter()
+  const { actingAsArtistId, resolved, isBlocked, returnToOwnWorkspace } = useActingAs()
   const [needsReviewCount, setNeedsReviewCount] = useState(0)
+  const [managerReturnArtistId, setManagerReturnArtistId] = useState<string | null>(null)
 
   const isFullscreen = FULLSCREEN_ROUTES.some(r => pathname.startsWith(r))
+  const isManagerRoute = pathname.startsWith('/app/manager')
+
+  // sessionStorage read is client-only — guarded to a mount-time effect so
+  // this never runs during server rendering. Re-checked on every navigation
+  // (pathname change) so the pill appears the instant a manager-originated
+  // flow link lands, without waiting for an unrelated re-render.
+  useEffect(() => {
+    try { setManagerReturnArtistId(sessionStorage.getItem(MANAGER_RETURN_KEY)) } catch { setManagerReturnArtistId(null) }
+  }, [pathname])
+
+  function backToManager() {
+    try { sessionStorage.removeItem(MANAGER_RETURN_KEY) } catch {}
+    returnToOwnWorkspace()
+    router.push('/app/manager/artists')
+  }
 
   useEffect(() => {
     if (!profile?.id || !resolved) return
@@ -43,6 +70,18 @@ export function AppShell({ children, profile }: { children: React.ReactNode; pro
     }
     fetchCount()
   }, [pathname, profile?.id, actingAsArtistId, resolved])
+
+  // Manager routes are checked BEFORE the acting-as isBlocked gate below —
+  // Manager Overview/Artists operate across MULTIPLE authorized artists at
+  // once via RLS directly (see lib/managerFetch.ts) and never depend on, or
+  // set, a single acting-as artist selection. A stale/failed single-artist
+  // selection left over from an earlier session must never block entry
+  // into Manager mode, which has nothing to do with it. (Artist Detail,
+  // app/app/manager/artists/[artistId]/page.tsx, is the one manager page
+  // that DOES eventually call selectManagedArtist() — only at the moment
+  // it hands off into an existing artist-facing flow, never for its own
+  // rendering.)
+  if (isManagerRoute) return <ManagerShell profile={profile}>{children}</ManagerShell>
 
   // Central workspace boundary — deliberately checked BEFORE the fullscreen
   // branch below, so it covers every route rendered through this shell,
@@ -84,10 +123,11 @@ export function AppShell({ children, profile }: { children: React.ReactNode; pro
   return (
     <div style={{ minHeight: '100svh', display: 'flex', flexDirection: 'column', background: '#0a0908' }}>
 
-      {/* ── Header — logo only ── */}
+      {/* ── Header — logo, plus a Back to Manager pill when this acting-as
+           session was entered from Manager mode ── */}
       <header style={{
         height: 56, padding: '0 16px',
-        display: 'flex', alignItems: 'center',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         position: 'sticky', top: 0, zIndex: 40,
         background: 'rgba(10,9,8,0.88)',
         backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)',
@@ -96,6 +136,16 @@ export function AppShell({ children, profile }: { children: React.ReactNode; pro
         <Link href="/app/dashboard" style={{ display: 'flex', alignItems: 'center', textDecoration: 'none' }}>
           <Image src="/logo-white.png" alt="Setlistr" width={120} height={32} priority style={{ objectFit: 'contain' }} />
         </Link>
+        {/* Only ever true for a user who (a) manages at least one artist,
+            (b) opened this exact artist's flow from Artist Detail, and (c)
+            is still acting as that same artist — invisible to every other
+            user and every other existing flow, including a plain dashboard-
+            switcher session acting as a different artist. */}
+        {actingAsArtistId && managerReturnArtistId === actingAsArtistId && (
+          <button onClick={backToManager} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.25)', borderRadius: 20, padding: '6px 12px 6px 10px', color: '#c9a84c', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent' }}>
+            <ArrowLeft size={13} /> Back to Manager
+          </button>
+        )}
       </header>
 
       {/* Grain layer — fixed noise texture over all shell surfaces, excluded from fullscreen routes */}

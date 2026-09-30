@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Check, Calendar, ChevronDown, Users, X } from 'lucide-react'
 import { useActingAs } from '@/components/ActingAsProvider'
@@ -575,6 +576,16 @@ export default function DashboardPage() {
              offered (something needs filing) lives on in the Unclaimed
              Earnings banner below, whose "File them →" now correctly
              routes to the Filing Queue instead of the full history. */}
+          {/* Manager entry point — the only place this page reaches into
+             the new Manager workspace. Gated on managedArtists.length,
+             already loaded by this page's own existing load() effect for
+             the switcher above; this adds zero new query. Invisible to any
+             user managing no one, so nothing changes for the common case. */}
+          {managedArtists.length > 0 && (
+            <Link href="/app/manager" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px', background: 'rgba(201,168,76,0.08)', border: `1px solid ${C.borderGold}`, borderRadius: 20, color: C.gold, fontSize: 12, fontWeight: 700, textDecoration: 'none', flexShrink: 0 }}>
+              <Users size={13} /> Manager
+            </Link>
+          )}
         </div>
 
         {/* ── ACTING-AS BANNER ── */}

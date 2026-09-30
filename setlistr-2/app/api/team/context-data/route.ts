@@ -43,9 +43,15 @@ export async function GET(req: NextRequest) {
       .single()
 
     // Get performances
+    // data_source and performance_date are additive fields (no existing
+    // field removed/renamed) — added so a caller can apply the canonical
+    // isCapturedShow() predicate (lib/performance-status.ts) correctly,
+    // which needs data_source to exclude imported history. Every existing
+    // consumer of this route (app/app/dashboard's loadDelegateContext)
+    // simply ignores the two new properties; unaffected.
     const { data: perfsRaw } = await service
       .from('performances_visible')
-      .select(`id, venue_name, artist_name, city, country, status, submission_status, started_at, ended_at, created_at, shows ( show_type ), venues ( capacity )`)
+      .select(`id, venue_name, artist_name, city, country, status, submission_status, started_at, ended_at, created_at, data_source, performance_date, shows ( show_type ), venues ( capacity )`)
       .eq('user_id', artistId)
       .order('created_at', { ascending: false })
 
@@ -55,6 +61,8 @@ export async function GET(req: NextRequest) {
       submission_status: p.submission_status || null,
       started_at: p.started_at, ended_at: p.ended_at || null,
       created_at: p.created_at,
+      data_source: p.data_source || null,
+      performance_date: p.performance_date || null,
       show_type: p.shows?.show_type || 'single',
       venue_capacity: p.venues?.capacity || null,
     }))
