@@ -10,6 +10,7 @@ import { evaluateGeolocation, toCoords } from '@/lib/geolocation'
 import { ACR_LIMIT_MESSAGE } from '@/lib/acr-limits'
 import { normalizeSongKey } from '@/lib/reconciliation/normalize'
 import { logProductEvent, awaitWithTimeout } from '@/lib/telemetry'
+import { shouldFireInterruption, foregroundTrackStatus, attachTrackInterruptionListeners, type InterruptionKind } from '@/lib/capture-interruption'
 
 const C = {
   bg: '#0a0908', card: '#141210', border: 'rgba(255,255,255,0.07)',
@@ -155,11 +156,12 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   const captureStartedLoggedRef = useRef(false)
   const userPausedRef       = useRef(false)
   const interruptedRef      = useRef(false)
-  // Set by stopListening's real interruption caller (handleAudioInterrupted,
-  // defined after it below) so startListening can attach a single 'ended'
-  // listener per track without the two functions needing to be declared in
-  // dependency order — same indirection pattern as handleEndRef above.
-  const handleAudioInterruptedRef = useRef<() => void>(() => {})
+  // Set by handleAudioInterrupted/handleAudioRecovered (defined after
+  // stopListening below) so startListening can wire up track listeners
+  // without the two functions needing to be declared in dependency order —
+  // same indirection pattern as handleEndRef above.
+  const handleAudioInterruptedRef = useRef<(kind: InterruptionKind) => void>(() => {})
+  const handleAudioRecoveredRef   = useRef<() => void>(() => {})
 
   useEffect(() => { pendingCandidateRef.current = pendingCandidate }, [pendingCandidate])
   useEffect(() => { confirmedSongsRef.current = songs }, [songs])
@@ -277,20 +279,24 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   // ── Returning from background: verify the mic is actually still alive ────
   // A backgrounded tab/webview can be frozen long enough that neither the 20s
   // recordAndDetect interval nor the 45s ACR-silence health check below gets
-  // a chance to run — the OS may already have revoked the microphone (an
-  // incoming call, or another app such as Instagram taking it to record a
-  // Story) without the track's own 'ended' listener ever firing while
-  // frozen. Checking the moment we're back in the foreground closes that
-  // gap instead of leaving "Listening" on screen until the slower heartbeat
-  // notices. This only ever flags an INTERRUPTION, never a pause — a
-  // deliberate pause already sets isListeningRef false itself, so this
-  // early-returns before it would ever run.
+  // a chance to run — the OS may already have revoked or muted the
+  // microphone (an incoming call, or another app such as Instagram taking
+  // it to record a Story) without the track's own listeners ever firing
+  // while frozen. Checking the moment we're back in the foreground closes
+  // that gap instead of leaving "Listening" on screen until the slower
+  // heartbeat notices — and re-derives DEAD vs MUTED from the track's own
+  // properties (foregroundTrackStatus) rather than assuming a revoked track
+  // is the only way this can happen. This only ever flags an interruption,
+  // never a pause — shouldFireInterruption already excludes that case, so
+  // this early-returns before it would ever run.
   useEffect(() => {
     function onVisibilityChange() {
       if (document.visibilityState !== 'visible') return
-      if (!isListeningRef.current || userPausedRef.current || endingRef.current) return
+      if (!shouldFireInterruption({ userPaused: userPausedRef.current, ending: endingRef.current, isListening: isListeningRef.current })) return
       const track = streamRef.current?.getAudioTracks()[0]
-      if (!track || track.readyState === 'ended') handleAudioInterruptedRef.current()
+      const status = foregroundTrackStatus(track ? { readyState: track.readyState, muted: track.muted } : null)
+      if (status === 'dead') handleAudioInterruptedRef.current('hard')
+      else if (status === 'muted') handleAudioInterruptedRef.current('soft')
     }
     document.addEventListener('visibilitychange', onVisibilityChange)
     return () => document.removeEventListener('visibilitychange', onVisibilityChange)
@@ -499,13 +505,29 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       streamRef.current = stream; setIsListening(true)
-      // The OS can kill this track on its own — a phone call, or another
-      // app (e.g. Instagram) taking the microphone to record a Story — which
-      // fires 'ended' on the track itself. Catching that directly, rather
-      // than only inferring it from ACR silence, is what lets the UI flag an
-      // INTERRUPTION immediately instead of up to 45s late (see
-      // CAPTURE_HEALTH_WINDOW_MS above) or not at all while backgrounded.
-      stream.getAudioTracks().forEach(t => t.addEventListener('ended', () => handleAudioInterruptedRef.current()))
+      // The OS can kill or mute this track on its own — a phone call, or
+      // another app (e.g. Instagram) taking the microphone to record a
+      // Story. 'ended' is permanent (hard); 'mute'/'unmute' is temporary
+      // and usually self-recovers (soft) — many AVAudioSession
+      // interruptions on iOS mute the input rather than ending the track,
+      // so treating every interruption as if it ended the track would miss
+      // this case. Catching either directly, rather than only inferring it
+      // from ACR silence, is what lets the UI flag an interruption
+      // immediately instead of up to 45s late (see CAPTURE_HEALTH_WINDOW_MS
+      // above) or not at all while backgrounded. isCurrentTrack guards
+      // against a STALE track: once streamRef.current has moved on (a
+      // pause, an End Show, or a fresh restart), this exact track's
+      // listeners become permanent no-ops for the rest of its life, even
+      // though they're never explicitly removed.
+      stream.getAudioTracks().forEach(t => {
+        const isCurrentTrack = () => streamRef.current?.getAudioTracks()[0] === t
+        attachTrackInterruptionListeners(
+          t, isCurrentTrack,
+          () => handleAudioInterruptedRef.current('hard'),
+          () => handleAudioInterruptedRef.current('soft'),
+          () => handleAudioRecoveredRef.current(),
+        )
+      })
       if (!captureStartedLoggedRef.current && performanceRef.current) {
         captureStartedLoggedRef.current = true
         logProductEvent(createClient(), {
@@ -560,17 +582,33 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
     stopListening()
   }, [stopListening])
 
-  // Fires when the mic track dies on its own — never from the Pause button.
-  // Stops the (already-dead) pipeline immediately so the UI can never keep
-  // claiming "Listening" once capture has actually stopped, and marks it as
-  // an interruption so the recovery copy/action reads correctly instead of
-  // looking like a deliberate pause.
-  const handleAudioInterrupted = useCallback(() => {
-    if (userPausedRef.current || endingRef.current || !isListeningRef.current) return
+  // Fires when the mic track leaves a healthy state on its own — never
+  // from the Pause button. `kind: 'hard'` (the track ENDED — permanent)
+  // stops the pipeline immediately so the UI can never keep claiming
+  // "Listening" once capture has actually stopped, and requires an
+  // explicit Resume. `kind: 'soft'` (the track MUTED — usually temporary)
+  // flags the same interrupted state for the UI but deliberately leaves
+  // the recorder/interval/stream running, since the track itself is still
+  // alive and typically un-mutes on its own — see handleAudioRecovered.
+  const handleAudioInterrupted = useCallback((kind: InterruptionKind) => {
+    if (!shouldFireInterruption({ userPaused: userPausedRef.current, ending: endingRef.current, isListening: isListeningRef.current })) return
     interruptedRef.current = true; setInterrupted(true)
-    stopListening()
+    if (kind === 'hard') stopListening()
   }, [stopListening])
   useEffect(() => { handleAudioInterruptedRef.current = handleAudioInterrupted }, [handleAudioInterrupted])
+
+  // The soft/mute counterpart's self-recovery: the track un-muted on its
+  // own (audio resumed), so clear the interrupted flag without tearing
+  // anything down — nothing was stopped, so nothing needs restarting. A
+  // hard interruption never reaches this: stopListening() already cleared
+  // streamRef.current, so a stale track's later 'unmute' is caught by
+  // attachTrackInterruptionListeners' own isCurrentTrack guard before this
+  // is ever called for it.
+  const handleAudioRecovered = useCallback(() => {
+    if (userPausedRef.current || endingRef.current || !isListeningRef.current) return
+    interruptedRef.current = false; setInterrupted(false)
+  }, [])
+  useEffect(() => { handleAudioRecoveredRef.current = handleAudioRecovered }, [handleAudioRecovered])
 
   const restartListening = useCallback(async () => {
     setRestarting(true); stopListening()
@@ -758,6 +796,12 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         </div>
       )
     }
+    // Must win over both branches below: a soft (muted) interruption leaves
+    // isListening true — the recorder/interval keep running so it can
+    // self-recover on unmute — but nothing useful is actually being heard
+    // right now, so neither "Last song…" nor "Listening…" may be shown
+    // while this is true.
+    if (interrupted) return <span style={{ fontSize: 12, color: '#f87171', fontWeight: 600 }}>Audio interrupted</span>
     if (lastSongAt > 0 && isListening) return <span style={{ fontSize: 11, color: C.muted + '90' }}>Last song {timeAgo(lastSongAt)}</span>
     if (isDetecting) {
       return (
@@ -823,7 +867,10 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
 
       {/* Hero */}
       <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '40px 24px 28px', flexShrink: 0 }}>
-        {(isListening || catchFlash) && (
+        {/* Suppressed during an interruption — including the soft/muted case
+            where isListening stays true — so the "everything's healthy"
+            glow never renders while nothing useful is actually being heard. */}
+        {((isListening && !interrupted) || catchFlash) && (
           <>
             {[{ size: ringState === 'catch' ? 220 : 200, delay: '0s' }, { size: ringState === 'catch' ? 262 : 242, delay: '0.1s' }, { size: ringState === 'catch' ? 304 : 284, delay: '0.2s' }].map(({ size, delay }, idx) => {
               const ringColor = ringState === 'catch' ? C.gold
@@ -877,19 +924,26 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
               Session Health
             </span>
             {interrupted ? (
-              // Detected via the track's own 'ended' event or a foreground
-              // recheck (see handleAudioInterrupted / the visibilitychange
-              // effect above) — capture died on its own, not by the
-              // artist's choice, so this reads differently than Paused.
+              // Detected via the track's own 'ended'/'mute' event or a
+              // foreground recheck (see handleAudioInterrupted / the
+              // visibilitychange effect above) — capture broke on its own,
+              // not by the artist's choice, so this reads differently than
+              // Paused. Still isListening (soft/muted — e.g. a temporary
+              // AVAudioSession interruption) reads differently from a hard,
+              // already-stopped interruption, since the pipeline itself is
+              // still running and usually self-recovers on its own; the
+              // same button still offers a manual way out either way.
               <button onClick={restartListening} disabled={restarting}
                 style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, width: '100%', padding: '11px 16px', background: 'rgba(220,38,38,0.12)', border: '1px solid rgba(220,38,38,0.3)', borderRadius: 20, color: '#f87171', fontSize: 12, fontWeight: 700, cursor: restarting ? 'default' : 'pointer', fontFamily: 'inherit', opacity: restarting ? 0.6 : 1, WebkitTapHighlightColor: 'transparent', textAlign: 'center' as const, animation: 'fadeIn 0.2s ease' }}>
                 <RefreshCw size={12} style={{ flexShrink: 0, animation: restarting ? 'spin 0.7s linear infinite' : 'none' }} />
-                {restarting ? 'Resuming...' : 'Audio Interrupted — Resume Capture'}
+                {restarting ? 'Resuming...' : isListening ? 'Audio Muted — Tap to Reset' : 'Audio Interrupted — Resume Capture'}
               </button>
             ) : userPaused ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                 <div style={{ width: 6, height: 6, borderRadius: '50%', background: C.muted }} />
-                <span style={{ fontSize: 12, color: C.secondary, fontWeight: 600, letterSpacing: '0.04em' }}>Paused — captured songs saved</span>
+                {/* Not yet written to performance_songs — that only
+                    happens at End Show. Must not say "saved". */}
+                <span style={{ fontSize: 12, color: C.secondary, fontWeight: 600, letterSpacing: '0.04em' }}>Paused — captured songs kept</span>
               </div>
             ) : captureStale ? (
               // Same underlying problem as `interrupted` (capture is dead),
