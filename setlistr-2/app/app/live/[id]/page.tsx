@@ -104,6 +104,15 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   const [showSilenceWarning, setShowSilenceWarning] = useState(false)
   const [restarting, setRestarting]     = useState(false)
   const [captureStale, setCaptureStale] = useState(false)
+  // Explicit capture-control state, distinct from each other and from plain
+  // `isListening`: userPaused is set ONLY by the artist's own Pause button;
+  // interrupted is set ONLY when the OS/browser kills the mic on its own (a
+  // call, or another app — e.g. Instagram recording a Story — taking the
+  // microphone). Both push isListening false, but the UI must tell them
+  // apart so it never shows "Listening" once capture has actually stopped,
+  // and never confuses a deliberate pause with a broken session.
+  const [userPaused, setUserPaused]     = useState(false)
+  const [interrupted, setInterrupted]   = useState(false)
   // Daily ACRCloud ceiling hit: capture deliberately stays alive, only the
   // paid calls stop. Mirrored into a ref because the health timers below run
   // off intervals created once on mount.
@@ -144,12 +153,21 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   // not again on a restartListening() recovery cycle — that's the same
   // capture session, not a new one.
   const captureStartedLoggedRef = useRef(false)
+  const userPausedRef       = useRef(false)
+  const interruptedRef      = useRef(false)
+  // Set by stopListening's real interruption caller (handleAudioInterrupted,
+  // defined after it below) so startListening can attach a single 'ended'
+  // listener per track without the two functions needing to be declared in
+  // dependency order — same indirection pattern as handleEndRef above.
+  const handleAudioInterruptedRef = useRef<() => void>(() => {})
 
   useEffect(() => { pendingCandidateRef.current = pendingCandidate }, [pendingCandidate])
   useEffect(() => { confirmedSongsRef.current = songs }, [songs])
   useEffect(() => { isListeningRef.current = isListening }, [isListening])
   useEffect(() => { endingRef.current = ending }, [ending])
   useEffect(() => { performanceRef.current = performance }, [performance])
+  useEffect(() => { userPausedRef.current = userPaused }, [userPaused])
+  useEffect(() => { interruptedRef.current = interrupted }, [interrupted])
 
   useEffect(() => {
     return () => {
@@ -255,6 +273,28 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   }, [])
 
   useEffect(() => { return () => stopListening() }, [])
+
+  // ── Returning from background: verify the mic is actually still alive ────
+  // A backgrounded tab/webview can be frozen long enough that neither the 20s
+  // recordAndDetect interval nor the 45s ACR-silence health check below gets
+  // a chance to run — the OS may already have revoked the microphone (an
+  // incoming call, or another app such as Instagram taking it to record a
+  // Story) without the track's own 'ended' listener ever firing while
+  // frozen. Checking the moment we're back in the foreground closes that
+  // gap instead of leaving "Listening" on screen until the slower heartbeat
+  // notices. This only ever flags an INTERRUPTION, never a pause — a
+  // deliberate pause already sets isListeningRef false itself, so this
+  // early-returns before it would ever run.
+  useEffect(() => {
+    function onVisibilityChange() {
+      if (document.visibilityState !== 'visible') return
+      if (!isListeningRef.current || userPausedRef.current || endingRef.current) return
+      const track = streamRef.current?.getAudioTracks()[0]
+      if (!track || track.readyState === 'ended') handleAudioInterruptedRef.current()
+    }
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange)
+  }, [])
 
   useEffect(() => {
     const confirmedCount = songs.filter(s => s.source !== 'planned' && s.source !== 'unidentified').length
@@ -451,9 +491,21 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   }, [])
 
   const startListening = useCallback(async () => {
+    // Starting (fresh or resumed) always means neither paused nor
+    // interrupted anymore — both flags are stale the moment a new stream
+    // is live.
+    userPausedRef.current = false; setUserPaused(false)
+    interruptedRef.current = false; setInterrupted(false)
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       streamRef.current = stream; setIsListening(true)
+      // The OS can kill this track on its own — a phone call, or another
+      // app (e.g. Instagram) taking the microphone to record a Story — which
+      // fires 'ended' on the track itself. Catching that directly, rather
+      // than only inferring it from ACR silence, is what lets the UI flag an
+      // INTERRUPTION immediately instead of up to 45s late (see
+      // CAPTURE_HEALTH_WINDOW_MS above) or not at all while backgrounded.
+      stream.getAudioTracks().forEach(t => t.addEventListener('ended', () => handleAudioInterruptedRef.current()))
       if (!captureStartedLoggedRef.current && performanceRef.current) {
         captureStartedLoggedRef.current = true
         logProductEvent(createClient(), {
@@ -496,6 +548,29 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
     setIsListening(false); setEngineState('idle'); setDetectStatus('')
     if (wakeLockRef.current) { try { wakeLockRef.current.release() } catch {}; wakeLockRef.current = null }
   }, [])
+
+  // Explicit, artist-initiated pause — the only caller allowed to set
+  // userPaused. Captured songs live in the `songs` state, which this never
+  // touches, so they're preserved exactly as-is across pause → resume; the
+  // artist re-taps the same control (now reading "Resume Capture") to pick
+  // back up, which just calls startListening() again.
+  const pauseCapture = useCallback(() => {
+    userPausedRef.current = true; setUserPaused(true)
+    interruptedRef.current = false; setInterrupted(false)
+    stopListening()
+  }, [stopListening])
+
+  // Fires when the mic track dies on its own — never from the Pause button.
+  // Stops the (already-dead) pipeline immediately so the UI can never keep
+  // claiming "Listening" once capture has actually stopped, and marks it as
+  // an interruption so the recovery copy/action reads correctly instead of
+  // looking like a deliberate pause.
+  const handleAudioInterrupted = useCallback(() => {
+    if (userPausedRef.current || endingRef.current || !isListeningRef.current) return
+    interruptedRef.current = true; setInterrupted(true)
+    stopListening()
+  }, [stopListening])
+  useEffect(() => { handleAudioInterruptedRef.current = handleAudioInterrupted }, [handleAudioInterrupted])
 
   const restartListening = useCallback(async () => {
     setRestarting(true); stopListening()
@@ -631,8 +706,13 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
     : engineState === 'stalled' ? 'alarm'
     : engineState === 'slow' ? 'weak'
     : 'healthy'
-  const engineDot   = engineState === 'listening' ? C.green : engineState === 'slow' ? C.amber : engineState === 'stalled' ? '#f87171' : C.muted
-  const engineLabel = engineState === 'listening' ? 'ON' : engineState === 'slow' ? 'SLOW' : engineState === 'stalled' ? 'STALLED' : 'IDLE'
+  // Paused/interrupted win over the ACR-heartbeat-derived engineState: both
+  // already force isListening false (so engineState is already 'idle' by
+  // the time either is true), but they carry more specific, more honest
+  // information than a generic IDLE about WHY nothing is being heard right
+  // now, and must never be shown as if capture were still healthy.
+  const engineDot   = userPaused ? C.muted : interrupted ? '#f87171' : engineState === 'listening' ? C.green : engineState === 'slow' ? C.amber : engineState === 'stalled' ? '#f87171' : C.muted
+  const engineLabel = userPaused ? 'PAUSED' : interrupted ? 'INTERRUPTED' : engineState === 'listening' ? 'ON' : engineState === 'slow' ? 'SLOW' : engineState === 'stalled' ? 'STALLED' : 'IDLE'
 
   function renderTrustSignal() {
     if (lastCaught) {
@@ -763,7 +843,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         {confirmRing && (
           <div style={{ position: 'absolute', width: 230, height: 230, borderRadius: '50%', border: `1.5px solid ${C.gold}cc`, top: 40, left: '50%', transform: 'translateX(-50%)', pointerEvents: 'none', animation: 'ring-confirm 600ms ease-out forwards' }} />
         )}
-        <button onClick={isListening ? stopListening : startListening} disabled={isDetecting && !isListening}
+        <button onClick={isListening ? pauseCapture : startListening} disabled={isDetecting && !isListening}
           style={{ width: 160, height: 160, borderRadius: '50%', border: 'none', cursor: isDetecting && !isListening ? 'wait' : 'pointer', position: 'relative', zIndex: 2, opacity: 1, background: catchFlash ? `radial-gradient(circle at 40% 35%, #e8c76a, ${C.gold} 55%, #a07828)` : isListening ? `radial-gradient(circle at 40% 35%, ${C.gold}cc, ${C.gold} 55%, #8a6520)` : `radial-gradient(circle at 40% 35%, #2a2520, #1a1610 55%, #0f0e0c)`, boxShadow: catchFlash ? `0 0 60px ${C.gold}80, 0 0 120px ${C.gold}30, inset 0 1px 0 rgba(255,255,255,0.25)` : isListening ? `0 0 40px ${C.gold}40, 0 0 80px ${C.gold}18, inset 0 1px 0 rgba(255,255,255,0.12)` : `0 8px 40px rgba(0,0,0,0.6), 0 2px 8px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06)`, transform: catchFlash ? 'scale(1.05)' : 'scale(1)', transition: 'background 0.4s ease, box-shadow 0.4s ease, transform 0.2s ease', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6, WebkitTapHighlightColor: 'transparent', outline: 'none', touchAction: 'manipulation' }}>
           <div style={{ width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             {isDetecting ? (
@@ -780,7 +860,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
             )}
           </div>
           <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: isListening ? '#0a0908' : C.gold }}>
-            {isDetecting ? 'catching' : isListening ? 'listening' : confirmedSongs.length > 0 ? 'resume' : 'tap to start'}
+            {isDetecting ? 'catching' : isListening ? 'pause capture' : (userPaused || interrupted || confirmedSongs.length > 0) ? 'resume capture' : 'tap to start'}
           </span>
         </button>
 
@@ -790,13 +870,33 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
           </div>
         )}
 
-        {/* ── Session health — is ACR still answering? ──────────────────────── */}
-        {isListening && (
+        {/* ── Session health — is ACR still answering, paused, or interrupted? ── */}
+        {(isListening || userPaused || interrupted) && (
           <div style={{ marginTop: 18, width: '100%', maxWidth: 320, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
             <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.muted, opacity: 0.7 }}>
               Session Health
             </span>
-            {captureStale ? (
+            {interrupted ? (
+              // Detected via the track's own 'ended' event or a foreground
+              // recheck (see handleAudioInterrupted / the visibilitychange
+              // effect above) — capture died on its own, not by the
+              // artist's choice, so this reads differently than Paused.
+              <button onClick={restartListening} disabled={restarting}
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, width: '100%', padding: '11px 16px', background: 'rgba(220,38,38,0.12)', border: '1px solid rgba(220,38,38,0.3)', borderRadius: 20, color: '#f87171', fontSize: 12, fontWeight: 700, cursor: restarting ? 'default' : 'pointer', fontFamily: 'inherit', opacity: restarting ? 0.6 : 1, WebkitTapHighlightColor: 'transparent', textAlign: 'center' as const, animation: 'fadeIn 0.2s ease' }}>
+                <RefreshCw size={12} style={{ flexShrink: 0, animation: restarting ? 'spin 0.7s linear infinite' : 'none' }} />
+                {restarting ? 'Resuming...' : 'Audio Interrupted — Resume Capture'}
+              </button>
+            ) : userPaused ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                <div style={{ width: 6, height: 6, borderRadius: '50%', background: C.muted }} />
+                <span style={{ fontSize: 12, color: C.secondary, fontWeight: 600, letterSpacing: '0.04em' }}>Paused — captured songs saved</span>
+              </div>
+            ) : captureStale ? (
+              // Same underlying problem as `interrupted` (capture is dead),
+              // just caught by the slower 45s ACR-silence fallback instead
+              // of the track/visibility checks above — kept as its own
+              // branch (not folded into `interrupted`) since it's a real,
+              // distinct detection path that must keep working on its own.
               <button onClick={restartListening} disabled={restarting}
                 style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, width: '100%', padding: '11px 16px', background: 'rgba(220,38,38,0.12)', border: '1px solid rgba(220,38,38,0.3)', borderRadius: 20, color: '#f87171', fontSize: 12, fontWeight: 700, cursor: restarting ? 'default' : 'pointer', fontFamily: 'inherit', opacity: restarting ? 0.6 : 1, WebkitTapHighlightColor: 'transparent', textAlign: 'center' as const, animation: 'fadeIn 0.2s ease' }}>
                 <RefreshCw size={12} style={{ flexShrink: 0, animation: restarting ? 'spin 0.7s linear infinite' : 'none' }} />
