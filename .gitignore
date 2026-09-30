@@ -72,4 +72,3 @@ setlistr-2/scripts/*
 !setlistr-2/scripts/test-submissions-nav-counts.ts
 !setlistr-2/scripts/test-filing-deadline-label.ts
 !setlistr-2/scripts/test-live-capture-controls.ts
-!setlistr-2/scripts/test-capture-interruption-logic.ts

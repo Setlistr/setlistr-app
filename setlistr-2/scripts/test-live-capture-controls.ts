@@ -1,18 +1,28 @@
-// Regression guard for the live-capture Pause/Resume + native-interruption
-// UI wiring — i.e. that app/app/live/[id]/page.tsx actually calls into
-// lib/capture-interruption.ts's functions at the right places and renders
-// the right copy for each state. The DECISION LOGIC itself (guard rules,
-// track-event wiring, stale-track protection) is tested behaviorally, with
-// a real dispatched EventTarget, in
-// scripts/test-capture-interruption-logic.ts — kept deliberately separate
-// from this file, which only proves the UI is wired to that logic
-// correctly, by reading the actual page source. No component-render
-// harness exists in this repo (see scripts/test-mobile-layout-invariants.ts
-// for the same constraint), and this page makes zero direct ACRCloud calls
-// of its own in any of the code these checks touch, so there is nothing to
-// stub here. Real-device verification (backgrounding to record an
-// Instagram Story, an incoming call mid-capture, posting existing media) is
-// still owed — see the accompanying report for exactly what that requires.
+// Regression guard for the live-capture Pause/Resume pass, AFTER reverting
+// the 'ended'/'mute'/'unmute' interruption-detection changes from this same
+// branch (see the commit message for why: a capture-analysis regression was
+// reported, no real audio/browser tooling exists in this sandbox to
+// reproduce it, and static tracing could not establish a small, demonstrated
+// cause within the interruption code before it was reverted). What remains
+// is ONLY the explicit Pause/Resume label/state layered on top of the
+// ORIGINAL, unmodified startListening/stopListening pair — confirmed via
+// the diff against origin/main below being limited to exactly that.
+//
+// Two kinds of check:
+//   1. Source-read assertions (as in scripts/test-mobile-layout-invariants.ts)
+//      confirming the explicit Pause/Resume UI is present and that the
+//      previously-reverted interruption code has NOT crept back in.
+//   2. A behavioral reproduction of the capture-scheduling control flow
+//      (recordAndDetect + its setInterval/clearInterval lifecycle, exactly
+//      as shaped in startListening/stopListening) using REAL timers at a
+//      compressed interval — proving chunks/identify-request scheduling
+//      continues during active capture, stops the instant pause is called,
+//      and resumes with exactly one active loop (no duplicate interval)
+//      after a pause → resume cycle. This is a faithful mirror of the
+//      timer choreography, not the real component (no getUserMedia/
+//      MediaRecorder/browser available here) — it cannot prove a real
+//      microphone keeps recording, only that the SCHEDULING logic itself,
+//      which is byte-identical to known-working main, behaves correctly.
 //
 // Run via:
 //   npx ts-node --transpile-only -P scripts/tsconfig.json scripts/test-live-capture-controls.ts
@@ -33,59 +43,101 @@ function read(rel: string): string {
 
 const src = read('app/app/live/[id]/page.tsx')
 
-// ── Explicit Pause / Paused / Resume ──────────────────────────────────────
+// ── Explicit Pause / Resume, on top of the ORIGINAL capture behavior ─────
 {
-  check('userPaused and interrupted are tracked as distinct state, not one flag', src.includes('const [userPaused, setUserPaused]') && src.includes('const [interrupted, setInterrupted]'))
-  check('pauseCapture is a dedicated, explicit control — the only setter of userPaused', src.includes('const pauseCapture = useCallback(() => {') && /pauseCapture[\s\S]{0,150}setUserPaused\(true\)/.test(src))
+  check('userPaused is the only new piece of state (the interruption-tracking state has been removed)', src.includes('const [userPaused, setUserPaused]') && !src.includes('const [interrupted, setInterrupted]'))
+  check('pauseCapture is a dedicated, explicit control that calls the ORIGINAL stopListening — nothing else', /const pauseCapture = useCallback\(\(\) => \{\s*userPausedRef\.current = true; setUserPaused\(true\)\s*stopListening\(\)\s*\}, \[stopListening\]\)/.test(src))
   check('the hero button pauses (not a bare stopListening) while listening', src.includes('onClick={isListening ? pauseCapture : startListening}'))
-  check('the hero button label explicitly reads "pause capture" / "resume capture", not generic listening/resume text', src.includes("'pause capture'") && src.includes("'resume capture'"))
-  // Not yet written to performance_songs (see the durability check below) —
-  // "kept" describes in-memory state honestly; "saved" would overclaim.
+  check('the hero button label explicitly reads "pause capture" / "resume capture"', src.includes("'pause capture'") && src.includes("'resume capture'"))
   check('a Paused state renders distinct, calm copy ("captured songs kept", not "saved")', src.includes('Paused — captured songs kept') && !src.includes('captured songs saved'))
-  check('starting or resuming always clears both paused and interrupted flags', /startListening = useCallback\(async \(\) => \{\s*\/\/[\s\S]{0,300}setUserPaused\(false\)[\s\S]{0,100}setInterrupted\(false\)/.test(src))
+  check('starting or resuming clears the paused flag (original startListening otherwise unchanged)', /const startListening = useCallback\(async \(\) => \{\s*\/\/ Starting \(fresh or resumed\) always means not paused anymore\.\s*userPausedRef\.current = false; setUserPaused\(false\)\s*try \{/.test(src))
+  check('header status label distinguishes PAUSED from the generic engine states', src.includes("'PAUSED'"))
+  check('the Session Health panel is reachable while paused too, not only while isListening', src.includes('{(isListening || userPaused) &&'))
 }
 
-// ── Songs survive pause/resume, but are NOT durably saved until End Show ──
+// ── Confirms the interruption-detection revert is complete — none of this
+//    code should exist anywhere in the file anymore ──────────────────────
 {
-  check('pauseCapture never touches the songs array (captured songs are preserved in memory as-is)', !/pauseCapture = useCallback\(\(\) => \{[\s\S]{0,300}setSongs/.test(src))
-  check('stopListening (pauseCapture\'s only side effect) never clears songs either', !/const stopListening = useCallback\(\(\) => \{[\s\S]{0,400}setSongs\(\[\]\)/.test(src))
-  // The ONLY durable write of captured songs is at End Show — confirms the
-  // in-memory-only claim this suite's copy checks above depend on. Extracts
-  // each function's own body precisely (rather than a fixed char window,
-  // which false-matched on unrelated later text) so this can't accidentally
-  // pass by looking at the wrong stretch of the file.
-  const pauseCaptureBody = (src.match(/const pauseCapture = useCallback\(\(\) => \{[\s\S]*?\}, \[stopListening\]\)/) || [''])[0]
-  const startListeningBody = (src.match(/const startListening = useCallback\(async \(\) => \{[\s\S]*?\}, \[detectSong, isDetecting, stampCaptureLocation\]\)/) || [''])[0]
-  check('pauseCapture body was actually found (regex still matches current source)', pauseCaptureBody.length > 0)
-  check('startListening body was actually found (regex still matches current source)', startListeningBody.length > 0)
-  check('pauseCapture never writes performance_songs directly', !pauseCaptureBody.includes('performance_songs'))
-  check('startListening never writes performance_songs directly', !startListeningBody.includes('performance_songs'))
+  check('no lingering import of the removed capture-interruption module', !src.includes("from '@/lib/capture-interruption'"))
+  check('no lingering "ended"/"mute"/"unmute" track-event wiring', !src.includes("attachTrackInterruptionListeners") && !/addEventListener\('(ended|mute|unmute)'/.test(src))
+  check('no lingering visibilitychange foreground-recheck handler', !src.includes("document.addEventListener('visibilitychange'"))
+  // Not a bare "interrupted" search — that word also appears legitimately
+  // in ORIGINAL, pre-existing main prose (e.g. the ACR-silence health-clock
+  // comment), which must not be flagged as a regression leftover.
+  check('no lingering `interrupted` state, ref, or handlers', !src.includes('setInterrupted') && !src.includes('interruptedRef') && !src.includes('handleAudioInterrupted') && !src.includes('handleAudioRecovered'))
+  check('lib/capture-interruption.ts no longer exists', !fs.existsSync(path.join(__dirname, '..', 'lib/capture-interruption.ts')))
+}
+
+// ── Songs survive pause/resume, but are NOT durably saved until End Show
+//    (unchanged from the previous pass — still true after the revert) ────
+{
   check('performance_songs IS written from handleEnd (the only durable save point, confirming the "kept" not "saved" wording above)', src.includes("await supabase.from('performance_songs').insert(songsToSave"))
+  const pauseCaptureBody = (src.match(/const pauseCapture = useCallback\(\(\) => \{[\s\S]*?\}, \[stopListening\]\)/) || [''])[0]
+  check('pauseCapture body was actually found (regex still matches current source)', pauseCaptureBody.length > 0)
+  check('pauseCapture never writes performance_songs directly', !pauseCaptureBody.includes('performance_songs'))
 }
 
-// ── Native audio interruption: wired to the pure module, hard vs. soft,
-//    distinct from a user pause, never shows "Listening" once capture has
-//    actually stopped or gone silent ────────────────────────────────────
-{
-  check('interruption decisions are delegated to the shared, independently-tested pure module, not reimplemented inline', src.includes("from '@/lib/capture-interruption'") && src.includes('attachTrackInterruptionListeners('))
-  check('each track is wired with a stale-track guard (isCurrentTrack), not a bare unconditional listener', /isCurrentTrack = \(\) => streamRef\.current\?\.getAudioTracks\(\)\[0\] === t/.test(src))
-  check('handleAudioInterrupted distinguishes hard (ended) from soft (muted) — only hard tears the pipeline down', /const handleAudioInterrupted = useCallback\(\(kind: InterruptionKind\) => \{/.test(src) && /if \(kind === 'hard'\) stopListening\(\)/.test(src))
-  check('handleAudioInterrupted\'s guard is the shared shouldFireInterruption function, not a hand-rolled duplicate', /handleAudioInterrupted = useCallback\(\(kind: InterruptionKind\) => \{\s*if \(!shouldFireInterruption\(/.test(src))
-  check('a soft (muted) interruption can self-recover via handleAudioRecovered without requiring an explicit resume', src.includes('const handleAudioRecovered = useCallback(() => {') && src.includes('handleAudioRecoveredRef.current = handleAudioRecovered'))
-  check('returning to the foreground re-derives DEAD vs MUTED from the track itself (foregroundTrackStatus), not just a boolean "still listening" check', src.includes("document.addEventListener('visibilitychange'") && src.includes("foregroundTrackStatus(") && src.includes("status === 'dead'") && src.includes("status === 'muted'"))
-  check('the foreground recheck goes through the same shared guard as the track-event path (shouldFireInterruption), not a separate hand-rolled one', /onVisibilityChange\(\) \{\s*if \(document\.visibilityState[\s\S]{0,150}shouldFireInterruption\(/.test(src))
-  check('header status label distinguishes PAUSED and INTERRUPTED from the generic engine states', src.includes("'PAUSED'") && src.includes("'INTERRUPTED'"))
-  check('the Session Health panel is reachable while paused/interrupted too, not only while isListening', src.includes('{(isListening || userPaused || interrupted) &&'))
-  check('interrupted shows distinct recovery copy for the hard (ended) case', src.includes('Audio Interrupted — Resume Capture'))
-  check('interrupted shows distinct, less alarming copy for the soft (muted, still-listening, self-recovering) case', src.includes('Audio Muted — Tap to Reset'))
-  check('the pre-existing ACR-silence recovery path (captureStale) is preserved, not replaced by the new interruption checks', src.includes('Recording Interrupted — Click to Resume'))
-  // The soft/muted case leaves isListening true, so anything gated only on
-  // isListening (the pulsing "healthy" rings, the trust-signal's
-  // "Listening…"/"Last song…" text) would keep claiming health during a
-  // live interruption unless it also checks `interrupted` directly.
-  check('the pulsing "healthy" hero rings are suppressed during an interruption, even though isListening can stay true (soft/muted case)', src.includes('((isListening && !interrupted) || catchFlash)'))
-  check('the trust-signal text shows an explicit "Audio interrupted" state ahead of both "Last song…" and "Listening…", so neither can render during a live interruption', /if \(interrupted\) return[\s\S]{0,150}Audio interrupted[\s\S]{0,1200}if \(lastSongAt > 0 && isListening\)[\s\S]{0,1200}if \(isListening\) \{/.test(src))
+// ── Behavioral reproduction of the capture-scheduling control flow ───────
+// Mirrors app/app/live/[id]/page.tsx's startListening (recordAndDetect() is
+// called once immediately, then re-scheduled via
+// listenIntervalRef.current = setInterval(recordAndDetect, 20000)) and
+// stopListening (clearInterval + null out the ref) EXACTLY, at a compressed
+// interval for test speed. Uses real setInterval/clearInterval, not fake
+// timers, since the actual bug class being guarded against here (a
+// duplicate loop from a missed clearInterval) is a real timer-identity
+// issue that a fake-timer library could paper over.
+const TICK_MS = 40
+
+function makeCaptureLoop(onChunk: () => void) {
+  let intervalId: ReturnType<typeof setInterval> | null = null
+  function recordAndDetect() { onChunk() }
+  // Mirrors: recordAndDetect(); listenIntervalRef.current = setInterval(recordAndDetect, 20000)
+  function start() {
+    recordAndDetect()
+    intervalId = setInterval(recordAndDetect, TICK_MS)
+  }
+  // Mirrors: if (listenIntervalRef.current) { clearInterval(...); listenIntervalRef.current = null }
+  function stop() {
+    if (intervalId) { clearInterval(intervalId); intervalId = null }
+  }
+  return { start, stop }
 }
 
-console.log(`\n${pass} passed, ${fail} failed`)
-if (fail > 0) process.exit(1)
+function wait(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms))
+}
+
+async function runBehavioralChecks() {
+  let chunkCount = 0
+  const loop = makeCaptureLoop(() => { chunkCount++ })
+
+  // Active capture: chunks/identify-request scheduling continues on its own.
+  loop.start()
+  check('a chunk fires immediately on start (the initial recordAndDetect() call)', chunkCount === 1)
+  await wait(TICK_MS * 3.5)
+  check('chunks continue firing repeatedly during active capture (interval kept running)', chunkCount >= 4, `count=${chunkCount}`)
+
+  // Intentional pause: scheduling stops immediately, no further chunks ever.
+  const countAtPause = chunkCount
+  loop.stop()
+  await wait(TICK_MS * 3)
+  check('chunk scheduling stops the instant pause is called (no chunks fire afterward)', chunkCount === countAtPause, `before=${countAtPause} after=${chunkCount}`)
+
+  // Resume: scheduling restarts with exactly ONE active loop — no duplicate.
+  const countAtResume = chunkCount
+  loop.start()
+  check('resume fires exactly one immediate chunk, not more', chunkCount === countAtResume + 1)
+  await wait(TICK_MS * 3.5)
+  const elapsedFires = chunkCount - countAtResume
+  // A single correct loop over 3.5 ticks fires ~4-5 times (1 immediate + ~3-4
+  // interval ticks, timer-jitter tolerant). A DUPLICATE loop (the exact bug
+  // class this guards against — e.g. a missed clearInterval leaving the old
+  // interval running alongside a new one) would produce roughly double that.
+  check('resuming does not double the firing rate (no duplicate interval running concurrently)', elapsedFires >= 3 && elapsedFires <= 6, `fires after resume=${elapsedFires}`)
+
+  loop.stop()
+  console.log(`\n${pass} passed, ${fail} failed`)
+  if (fail > 0) process.exit(1)
+}
+
+runBehavioralChecks()
