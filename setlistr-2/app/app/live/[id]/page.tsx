@@ -780,7 +780,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
             )}
           </div>
           <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: isListening ? '#0a0908' : C.gold }}>
-            {isDetecting ? 'catching' : isListening ? 'listening' : confirmedSongs.length > 0 ? 'resume' : 'tap to start'}
+            {isDetecting ? 'catching' : isListening ? 'pause capture' : confirmedSongs.length > 0 ? 'resume capture' : 'tap to start'}
           </span>
         </button>
 
