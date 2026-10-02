@@ -2,17 +2,18 @@
 import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { Users, ChevronRight, RefreshCw } from 'lucide-react'
+import { Users, ChevronRight, RefreshCw, Calendar, Send, FileSearch } from 'lucide-react'
 import {
   dateRangeFor, countCapturedShows, recentActivityFeed, countNotYetSubmitted,
+  countAwaitingReview, awaitingReviewFeed,
   type ManagerDateRangeKey, type ManagerPerformanceRow,
 } from '@/lib/managerOverview'
 import { fetchCapturedShowsInRange } from '@/lib/managerFetch'
 
 const C = {
-  bg: '#0a0908', card: '#141210', border: 'rgba(255,255,255,0.07)',
+  bg: '#0a0908', card: '#141210', card2: '#1a1814', border: 'rgba(255,255,255,0.07)', borderGold: 'rgba(201,168,76,0.25)',
   text: '#f0ece3', secondary: '#b8a888', muted: '#8a7a68',
-  gold: '#c9a84c', green: '#4ade80', red: '#f87171',
+  gold: '#c9a84c', goldDim: 'rgba(201,168,76,0.08)', green: '#4ade80', red: '#f87171',
 }
 
 type ManagedArtist = { artist_id: string; artist_name: string; role: string; avatar_url?: string | null }
@@ -29,12 +30,36 @@ function initialsFor(name: string): string {
 
 function Avatar({ name, url, size = 36 }: { name: string; url?: string | null; size?: number }) {
   return (
-    <div style={{ width: size, height: size, borderRadius: '50%', background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
+    <div style={{ width: size, height: size, borderRadius: '50%', background: 'linear-gradient(145deg, rgba(201,168,76,0.18), rgba(201,168,76,0.06))', border: `1px solid ${C.borderGold}`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
       {url
         ? <img src={url} alt={name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
         : <span style={{ fontSize: size * 0.34, fontWeight: 800, color: C.gold }}>{initialsFor(name)}</span>}
     </div>
   )
+}
+
+// A plain shimmer block standing in for a number/line that genuinely isn't
+// known yet — never a stale number left dimmed in place. Reused for the
+// stat row during both the initial roster load and every range switch.
+function SkeletonBlock({ width, height = 26 }: { width: number | string; height?: number }) {
+  return <div className="mgr-skeleton" style={{ width, height, borderRadius: 6 }} />
+}
+
+function StatCard({ icon: Icon, label, value, loading, tone, href }: {
+  icon: React.ElementType; label: string; value: number; loading: boolean; tone?: 'gold' | 'default'; href?: string
+}) {
+  const content = (
+    <div className="mgr-stat-card" style={{ background: `linear-gradient(165deg, ${C.card2}, ${C.card})`, border: `1px solid ${C.border}`, borderRadius: 16, padding: '18px 20px', height: '100%' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+        <Icon size={14} color={C.muted} strokeWidth={2} />
+        <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: C.muted, margin: 0 }}>{label}</p>
+      </div>
+      {loading
+        ? <SkeletonBlock width={48} />
+        : <p style={{ fontSize: 28, fontWeight: 800, color: tone === 'gold' && value > 0 ? C.gold : C.text, margin: 0, fontFamily: '"DM Mono", monospace', letterSpacing: '-0.02em' }}>{value}</p>}
+    </div>
+  )
+  return href ? <Link href={href} style={{ textDecoration: 'none', display: 'block' }}>{content}</Link> : content
 }
 
 export default function ManagerOverviewPage() {
@@ -44,6 +69,7 @@ export default function ManagerOverviewPage() {
   const [range, setRange] = useState<ManagerDateRangeKey>('30d')
   const [rows, setRows] = useState<ManagerPerformanceRow[]>([])
   const [rangeLoading, setRangeLoading] = useState(false)
+  const [showReviewList, setShowReviewList] = useState(false)
   const artistNameById = new Map(managed.map(a => [a.artist_id, a.artist_name]))
   const artistAvatarById = new Map(managed.map(a => [a.artist_id, a.avatar_url || null]))
 
@@ -79,13 +105,19 @@ export default function ManagerOverviewPage() {
   const rangeInfo = dateRangeFor(range)
   const capturedCount = countCapturedShows(rows)
   const notSubmittedCount = countNotYetSubmitted(rows)
+  const awaitingReviewCount = countAwaitingReview(rows)
+  const needsReview = awaitingReviewFeed(rows, 6)
   const recent = recentActivityFeed(rows, 8)
 
   if (loading) {
     return (
-      <div style={{ minHeight: '60svh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ width: 36, height: 36, borderRadius: '50%', border: `2px solid ${C.gold}`, borderTopColor: 'transparent', animation: 'mgrSpin 0.8s linear infinite' }} />
-        <style>{`@keyframes mgrSpin { to { transform: rotate(360deg) } }`}</style>
+      <div style={{ padding: '24px 20px 40px', maxWidth: 880, margin: '0 auto' }} className="mgr-page">
+        <SkeletonBlock width={160} height={30} />
+        <div style={{ marginTop: 10, marginBottom: 28 }}><SkeletonBlock width={140} height={16} /></div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
+          {[0, 1, 2, 3].map(i => <div key={i} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '18px 20px' }}><SkeletonBlock width={60} height={14} /><div style={{ marginTop: 10 }}><SkeletonBlock width={40} /></div></div>)}
+        </div>
+        <style>{`@keyframes mgrShimmer { 0% { background-position: -200px 0 } 100% { background-position: 200px 0 } } .mgr-skeleton { background: linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.08) 37%, rgba(255,255,255,0.04) 63%); background-size: 400px 100%; animation: mgrShimmer 1.4s ease infinite; } @media (prefers-reduced-motion: reduce) { .mgr-skeleton { animation: none; opacity: 0.5; } }`}</style>
       </div>
     )
   }
@@ -116,42 +148,63 @@ export default function ManagerOverviewPage() {
 
   return (
     <div style={{ padding: '24px 20px 40px', maxWidth: 880, margin: '0 auto' }} className="mgr-page">
-      <h1 style={{ fontSize: 26, fontWeight: 800, color: C.text, margin: '0 0 4px', letterSpacing: '-0.02em' }}>Overview</h1>
-      <p style={{ fontSize: 14, color: C.secondary, margin: '0 0 24px' }}>
+      <h1 style={{ fontSize: 28, fontWeight: 800, color: C.text, margin: '0 0 5px', letterSpacing: '-0.025em' }}>Overview</h1>
+      <p style={{ fontSize: 14, color: C.secondary, margin: '0 0 26px' }}>
         {managed.length} connected artist{managed.length === 1 ? '' : 's'}
       </p>
 
       {/* ── Stat row ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 28 }}>
-        <Link href="/app/manager/artists" style={{ textDecoration: 'none' }}>
-          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '16px 18px' }}>
-            <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: C.muted, margin: '0 0 6px' }}>Roster</p>
-            <p style={{ fontSize: 26, fontWeight: 800, color: C.gold, margin: 0, fontFamily: '"DM Mono", monospace' }}>{managed.length}</p>
-          </div>
-        </Link>
-        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '16px 18px' }}>
-          <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: C.muted, margin: '0 0 6px' }}>Recorded shows · {rangeInfo.label}</p>
-          <p style={{ fontSize: 26, fontWeight: 800, color: C.text, margin: 0, fontFamily: '"DM Mono", monospace', opacity: rangeLoading ? 0.4 : 1 }}>{capturedCount}</p>
-        </div>
-        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '16px 18px' }}>
-          <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: C.muted, margin: '0 0 6px' }}>Not yet submitted · {rangeInfo.label}</p>
-          <p style={{ fontSize: 26, fontWeight: 800, color: notSubmittedCount > 0 ? C.gold : C.text, margin: 0, fontFamily: '"DM Mono", monospace', opacity: rangeLoading ? 0.4 : 1 }}>{notSubmittedCount}</p>
-        </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 24 }}>
+        <StatCard icon={Users} label="Roster" value={managed.length} loading={false} href="/app/manager/artists" />
+        <StatCard icon={Calendar} label={`Recorded · ${rangeInfo.label}`} value={capturedCount} loading={rangeLoading} />
+        <StatCard icon={FileSearch} label="Awaiting review" value={awaitingReviewCount} loading={rangeLoading} tone="gold" />
+        <StatCard icon={Send} label={`Not submitted · ${rangeInfo.label}`} value={notSubmittedCount} loading={rangeLoading} tone="gold" />
       </div>
 
       {/* ── Date range ── */}
-      <div style={{ display: 'flex', gap: 6, marginBottom: 20 }}>
+      <div style={{ display: 'flex', gap: 6, marginBottom: 24 }}>
         {RANGE_OPTIONS.map(opt => (
           <button key={opt.key} onClick={() => setRange(opt.key)} style={{
             padding: '6px 14px', borderRadius: 20, cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 700,
             background: range === opt.key ? 'rgba(201,168,76,0.14)' : 'transparent',
             border: `1px solid ${range === opt.key ? 'rgba(201,168,76,0.35)' : C.border}`,
             color: range === opt.key ? C.gold : C.secondary,
+            transition: 'background 0.15s ease, border-color 0.15s ease, color 0.15s ease',
           }}>
             {opt.label}
           </button>
         ))}
       </div>
+
+      {/* ── Awaiting review — a real observation: states its period, opens
+          the exact shows it's counting ── */}
+      {awaitingReviewCount > 0 && (
+        <div style={{ marginBottom: 24, background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 14, overflow: 'hidden' }}>
+          <button onClick={() => setShowReviewList(v => !v)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '14px 16px', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' as const }}>
+            <FileSearch size={15} color={C.gold} style={{ flexShrink: 0 }} />
+            <span style={{ flex: 1, fontSize: 13, fontWeight: 700, color: C.text }}>
+              {awaitingReviewCount} show{awaitingReviewCount === 1 ? '' : 's'} awaiting review this period — not yet finalized by the artist
+            </span>
+            <ChevronRight size={14} color={C.gold} style={{ flexShrink: 0, transform: showReviewList ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s ease' }} />
+          </button>
+          {showReviewList && (
+            <div style={{ borderTop: `1px solid ${C.borderGold}` }}>
+              {needsReview.map(r => {
+                const artistName = artistNameById.get(r.user_id) || 'Artist'
+                const dateStr = (r.started_at || r.performance_date || '').slice(0, 10)
+                return (
+                  <Link key={r.id} href={`/app/review/${r.id}`} className="mgr-row-hover" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 16px', textDecoration: 'none', borderBottom: `1px solid rgba(201,168,76,0.12)` }}>
+                    <Avatar name={artistName} url={artistAvatarById.get(r.user_id)} size={26} />
+                    <span style={{ flex: 1, fontSize: 13, color: C.text, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{artistName} · {r.venue_name || 'Unknown venue'}</span>
+                    <span style={{ fontSize: 11, color: C.muted, flexShrink: 0, fontFamily: '"DM Mono", monospace' }}>{dateStr}</span>
+                    <ChevronRight size={13} color={C.muted} style={{ flexShrink: 0 }} />
+                  </Link>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── Recent activity ── */}
       <p style={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: C.muted, margin: '0 0 10px' }}>
@@ -170,7 +223,7 @@ export default function ManagerOverviewPage() {
             const submitted = row.submission_status === 'submitted'
             const dateStr = (row.started_at || row.performance_date || '').slice(0, 10)
             return (
-              <Link key={row.id} href={`/app/manager/artists/${row.user_id}`} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', background: C.card, textDecoration: 'none' }}>
+              <Link key={row.id} href={`/app/manager/artists/${row.user_id}`} className="mgr-row-hover" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', background: C.card, textDecoration: 'none' }}>
                 <Avatar name={artistName} url={artistAvatarById.get(row.user_id)} size={34} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <p style={{ fontSize: 14, fontWeight: 700, color: C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{artistName}</p>
@@ -191,7 +244,20 @@ export default function ManagerOverviewPage() {
         </div>
       )}
 
-      <style>{`@media (min-width: 900px) { .mgr-page { padding: 40px 32px 60px; } }`}</style>
+      <style>{`
+        @media (min-width: 900px) { .mgr-page { padding: 40px 32px 60px; } }
+        .mgr-stat-card { transition: transform 0.15s ease, border-color 0.15s ease; }
+        a:has(.mgr-stat-card):hover .mgr-stat-card { transform: translateY(-2px); border-color: ${C.borderGold}; }
+        .mgr-row-hover { transition: background 0.12s ease; }
+        .mgr-row-hover:hover { background: ${C.card2} !important; }
+        @keyframes mgrShimmer { 0% { background-position: -200px 0 } 100% { background-position: 200px 0 } }
+        .mgr-skeleton { background: linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.08) 37%, rgba(255,255,255,0.04) 63%); background-size: 400px 100%; animation: mgrShimmer 1.4s ease infinite; border-radius: 6px; }
+        @media (prefers-reduced-motion: reduce) {
+          .mgr-stat-card, .mgr-row-hover, .mgr-skeleton { transition: none !important; animation: none !important; }
+          a:has(.mgr-stat-card):hover .mgr-stat-card { transform: none; }
+          .mgr-skeleton { opacity: 0.5; }
+        }
+      `}</style>
     </div>
   )
 }

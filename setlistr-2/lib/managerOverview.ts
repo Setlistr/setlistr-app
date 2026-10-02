@@ -11,7 +11,7 @@
 // Record, and the Filing Queue already agree on — rather than
 // reimplementing "what counts as a real recorded show."
 
-import { isCapturedShow, type PerformanceLifecycleFields } from './performance-status'
+import { isCapturedShow, isCompleteStage, type PerformanceLifecycleFields } from './performance-status'
 
 export type ManagerDateRangeKey = '30d' | '90d' | 'ytd'
 
@@ -133,4 +133,35 @@ export function countNotYetSubmitted(rows: ManagerPerformanceRow[]): number {
     if (isCapturedShow(r) && r.submission_status !== 'submitted') count++
   }
   return count
+}
+
+// A captured show that hasn't reached isCompleteStage() yet — i.e. still
+// sitting at 'processing' or 'review' — reusing the exact same two
+// canonical predicates every other screen agrees on, not a new definition
+// of "needs attention." Distinct from countNotYetSubmitted: a show can be
+// complete-stage AND unsubmitted (ready to file) without being awaiting
+// review at all; this only counts the ones still short of that stage.
+export function countAwaitingReview(rows: ManagerPerformanceRow[]): number {
+  const seen = new Set<string>()
+  let count = 0
+  for (const r of rows) {
+    if (seen.has(r.id)) continue
+    seen.add(r.id)
+    if (isCapturedShow(r) && !isCompleteStage(r)) count++
+  }
+  return count
+}
+
+// The drill-through list behind countAwaitingReview — same predicate,
+// same dedupe, so the number and what tapping into it reveals can never
+// disagree. Sorted most-recent first, like recentActivityFeed.
+export function awaitingReviewFeed(rows: ManagerPerformanceRow[], limit: number): ManagerPerformanceRow[] {
+  const seen = new Set<string>()
+  const deduped: ManagerPerformanceRow[] = []
+  for (const r of rows) {
+    if (seen.has(r.id)) continue
+    seen.add(r.id)
+    if (isCapturedShow(r) && !isCompleteStage(r)) deduped.push(r)
+  }
+  return deduped.sort((a, b) => sortKey(b).localeCompare(sortKey(a))).slice(0, limit)
 }

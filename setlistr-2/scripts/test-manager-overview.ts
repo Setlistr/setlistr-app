@@ -12,7 +12,8 @@
 
 import {
   dateRangeFor, countCapturedShows, countCapturedShowsByArtist, latestShowPerArtist,
-  recentActivityFeed, countNotYetSubmitted, type ManagerPerformanceRow,
+  recentActivityFeed, countNotYetSubmitted, countAwaitingReview, awaitingReviewFeed,
+  type ManagerPerformanceRow,
 } from '../lib/managerOverview'
 
 let pass = 0
@@ -97,6 +98,21 @@ function row(over: Partial<ManagerPerformanceRow> & { id: string; user_id: strin
     row({ id: 'd', user_id: 'x', status: 'draft', submission_status: null }), // not a captured show — excluded
   ]
   check('only captured, non-submitted shows count', countNotYetSubmitted(rows) === 2, `got ${countNotYetSubmitted(rows)}`)
+}
+
+// ── countAwaitingReview / awaitingReviewFeed: reuses isCapturedShow +
+//    isCompleteStage exactly, no new status category invented ────────────
+{
+  const rows = [
+    row({ id: 'a', user_id: 'x', status: 'processing' }),       // captured, not complete-stage — awaiting review
+    row({ id: 'b', user_id: 'x', status: 'review' }),            // captured, not complete-stage — awaiting review
+    row({ id: 'c', user_id: 'x', status: 'complete' }),          // complete-stage — not awaiting review
+    row({ id: 'd', user_id: 'x', status: 'draft' }),             // not captured at all — excluded
+    row({ id: 'a', user_id: 'x', status: 'processing' }),        // duplicate id — not double-counted
+  ]
+  check('only captured, not-yet-complete-stage shows count as awaiting review', countAwaitingReview(rows) === 2, `got ${countAwaitingReview(rows)}`)
+  const feed = awaitingReviewFeed(rows, 10)
+  check('awaitingReviewFeed returns exactly the rows the count is built from', feed.length === 2 && feed.every(r => r.id === 'a' || r.id === 'b'))
 }
 
 console.log(`\n${pass} passed, ${fail} failed`)

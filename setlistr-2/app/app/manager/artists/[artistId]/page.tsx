@@ -103,9 +103,22 @@ export default function ManagerArtistDetailPage({ params }: { params: { artistId
 
   if (loading) {
     return (
-      <div style={{ minHeight: '60svh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ width: 36, height: 36, borderRadius: '50%', border: `2px solid ${C.gold}`, borderTopColor: 'transparent', animation: 'mgrSpin3 0.8s linear infinite' }} />
-        <style>{`@keyframes mgrSpin3 { to { transform: rotate(360deg) } }`}</style>
+      <div style={{ padding: '20px 20px 40px', maxWidth: 640, margin: '0 auto' }} className="mgr-page">
+        <div className="mgr-skeleton" style={{ width: 80, height: 14, borderRadius: 4, marginBottom: 18 }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 24 }}>
+          <div className="mgr-skeleton" style={{ width: 52, height: 52, borderRadius: '50%' }} />
+          <div className="mgr-skeleton" style={{ width: 160, height: 22, borderRadius: 4 }} />
+        </div>
+        <div className="mgr-skeleton" style={{ width: 120, height: 13, borderRadius: 4, marginBottom: 10 }} />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 1, background: C.border, borderRadius: 14, overflow: 'hidden', border: `1px solid ${C.border}` }}>
+          {[0, 1, 2].map(i => (
+            <div key={i} style={{ padding: '14px 16px', background: C.card }}>
+              <div className="mgr-skeleton" style={{ width: '50%', height: 14, borderRadius: 4, marginBottom: 6 }} />
+              <div className="mgr-skeleton" style={{ width: '70%', height: 12, borderRadius: 4 }} />
+            </div>
+          ))}
+        </div>
+        <style>{`@keyframes mgrShimmer { 0% { background-position: -200px 0 } 100% { background-position: 200px 0 } } .mgr-skeleton { background: linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.08) 37%, rgba(255,255,255,0.04) 63%); background-size: 400px 100%; animation: mgrShimmer 1.4s ease infinite; } @media (prefers-reduced-motion: reduce) { .mgr-skeleton { animation: none; opacity: 0.5; } }`}</style>
       </div>
     )
   }
@@ -146,11 +159,11 @@ export default function ManagerArtistDetailPage({ params }: { params: { artistId
       </Link>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 24 }}>
-        <div style={{ width: 52, height: 52, borderRadius: '50%', background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+        <div style={{ width: 52, height: 52, borderRadius: '50%', background: 'linear-gradient(145deg, rgba(201,168,76,0.2), rgba(201,168,76,0.06))', border: '1px solid rgba(201,168,76,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
           <span style={{ fontSize: 18, fontWeight: 800, color: C.gold }}>{initialsFor(data.artist_name)}</span>
         </div>
         <div>
-          <h1 style={{ fontSize: 22, fontWeight: 800, color: C.text, margin: 0, letterSpacing: '-0.01em' }}>{data.artist_name}</h1>
+          <h1 style={{ fontSize: 24, fontWeight: 800, color: C.text, margin: 0, letterSpacing: '-0.02em' }}>{data.artist_name}</h1>
           {data.pro_affiliation && <p style={{ fontSize: 13, color: C.secondary, margin: '3px 0 0' }}>{data.pro_affiliation}</p>}
         </div>
       </div>
@@ -187,7 +200,7 @@ export default function ManagerArtistDetailPage({ params }: { params: { artistId
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
                   <div style={{ width: 6, height: 6, borderRadius: '50%', background: submitted ? C.green : C.gold, opacity: submitted ? 1 : 0.4 }} />
                   <span style={{ fontSize: 11, fontWeight: 700, color: submitted ? C.green : C.muted }}>{submitted ? 'Marked Submitted' : 'Not submitted'}</span>
-                  <button onClick={() => openFlow(flow.href)} disabled={selecting} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 10px', background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.25)', borderRadius: 8, color: C.gold, fontSize: 11, fontWeight: 700, cursor: selecting ? 'default' : 'pointer', fontFamily: 'inherit', opacity: selecting ? 0.6 : 1, whiteSpace: 'nowrap' as const }}>
+                  <button onClick={() => openFlow(flow.href)} disabled={selecting} className="mgr-flow-btn" style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 10px', background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.25)', borderRadius: 8, color: C.gold, fontSize: 11, fontWeight: 700, cursor: selecting ? 'default' : 'pointer', fontFamily: 'inherit', opacity: selecting ? 0.6 : 1, whiteSpace: 'nowrap' as const }}>
                     {flow.label} <ChevronRight size={12} />
                   </button>
                 </div>
@@ -209,7 +222,15 @@ export default function ManagerArtistDetailPage({ params }: { params: { artistId
         </button>
       </div>
 
-      <style>{`@media (min-width: 900px) { .mgr-page { padding: 32px; } }`}</style>
+      <style>{`
+        @media (min-width: 900px) { .mgr-page { padding: 32px; } }
+        .mgr-flow-btn { transition: background 0.15s ease, transform 0.1s ease; }
+        .mgr-flow-btn:hover:not(:disabled) { background: rgba(201,168,76,0.18); }
+        .mgr-flow-btn:active:not(:disabled) { transform: scale(0.97); }
+        @keyframes mgrShimmer { 0% { background-position: -200px 0 } 100% { background-position: 200px 0 } }
+        .mgr-skeleton { background: linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.08) 37%, rgba(255,255,255,0.04) 63%); background-size: 400px 100%; animation: mgrShimmer 1.4s ease infinite; }
+        @media (prefers-reduced-motion: reduce) { .mgr-flow-btn, .mgr-skeleton { transition: none !important; animation: none !important; } .mgr-flow-btn:active:not(:disabled) { transform: none; } .mgr-skeleton { opacity: 0.5; } }
+      `}</style>
     </div>
   )
 }

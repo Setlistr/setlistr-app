@@ -11,7 +11,7 @@ import {
 } from '@/lib/managerAnalytics'
 
 const C = {
-  bg: '#0a0908', card: '#141210', border: 'rgba(255,255,255,0.07)',
+  bg: '#0a0908', card: '#141210', border: 'rgba(255,255,255,0.07)', borderGold: 'rgba(201,168,76,0.25)',
   text: '#f0ece3', secondary: '#b8a888', muted: '#8a7a68',
   gold: '#c9a84c', green: '#4ade80', red: '#f87171',
 }
@@ -105,12 +105,25 @@ export default function ManagerAnalyticsPage() {
   const songRotation: SongRotationEntry[] = useMemo(() => aggregateSongRotation(songRows), [songRows])
   const byCity: LocationEntry[] = useMemo(() => aggregateByCity(rows), [rows])
   const byVenue: LocationEntry[] = useMemo(() => aggregateByVenue(rows), [rows])
+  const rowsById = useMemo(() => new Map(rows.map(r => [r.id, r])), [rows])
+  const [expandedSong, setExpandedSong] = useState<string | null>(null)
+
+  // Top-of-period highlights — omitted entirely when there's nothing
+  // evidence-backed to say, never a placeholder or a zero dressed up as a
+  // finding. The top city excludes the "Unknown city" bucket: an unnamed
+  // location isn't a real observation to headline, even if it happens to
+  // have the most rows.
+  const topSong = songRotation[0] || null
+  const topCity = byCity.find(c => !c.isUnknown) || null
 
   if (loading) {
     return (
-      <div style={{ minHeight: '60svh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ width: 36, height: 36, borderRadius: '50%', border: `2px solid ${C.gold}`, borderTopColor: 'transparent', animation: 'mgrSpin4 0.8s linear infinite' }} />
-        <style>{`@keyframes mgrSpin4 { to { transform: rotate(360deg) } }`}</style>
+      <div style={{ padding: '24px 20px 48px', maxWidth: 880, margin: '0 auto' }} className="mgr-page">
+        <div className="mgr-skeleton" style={{ width: 140, height: 28, borderRadius: 6, marginBottom: 10 }} />
+        <div className="mgr-skeleton" style={{ width: 280, height: 14, borderRadius: 4, marginBottom: 24 }} />
+        <div className="mgr-skeleton" style={{ width: '100%', maxWidth: 420, height: 36, borderRadius: 10, marginBottom: 24 }} />
+        <div className="mgr-skeleton" style={{ width: '100%', height: 180, borderRadius: 14 }} />
+        <style>{`@keyframes mgrShimmer { 0% { background-position: -200px 0 } 100% { background-position: 200px 0 } } .mgr-skeleton { background: linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.08) 37%, rgba(255,255,255,0.04) 63%); background-size: 400px 100%; animation: mgrShimmer 1.4s ease infinite; } @media (prefers-reduced-motion: reduce) { .mgr-skeleton { animation: none; opacity: 0.5; } }`}</style>
       </div>
     )
   }
@@ -166,6 +179,36 @@ export default function ManagerAnalyticsPage() {
         </div>
       </div>
 
+      {/* ── Highlights — evidence-backed, each states its period and links
+          straight to the supporting records below. Omitted (not shown as
+          zero or a placeholder) when there's nothing to say yet. ── */}
+      {(topSong || topCity) && !dataLoading && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12, marginBottom: 28 }}>
+          {topSong && (
+            <a href="#song-rotation" style={{ textDecoration: 'none' }}>
+              <div className="mgr-highlight-card" style={{ background: 'linear-gradient(165deg, #1a1814, #141210)', border: `1px solid ${C.border}`, borderRadius: 14, padding: '16px 18px' }}>
+                <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.muted, margin: '0 0 8px', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <Music2 size={11} /> Most-performed song · {rangeInfo.label}
+                </p>
+                <p style={{ fontSize: 15, fontWeight: 800, color: C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{topSong.title}</p>
+                <p style={{ fontSize: 12, color: C.gold, margin: '4px 0 0', fontWeight: 700 }}>{topSong.distinctShowCount} distinct show{topSong.distinctShowCount === 1 ? '' : 's'}{topSong.artist ? ` · ${topSong.artist}` : ''}</p>
+              </div>
+            </a>
+          )}
+          {topCity && (
+            <a href="#cities-venues" style={{ textDecoration: 'none' }}>
+              <div className="mgr-highlight-card" style={{ background: 'linear-gradient(165deg, #1a1814, #141210)', border: `1px solid ${C.border}`, borderRadius: 14, padding: '16px 18px' }}>
+                <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.muted, margin: '0 0 8px', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <MapPin size={11} /> Most-recorded city · {rangeInfo.label}
+                </p>
+                <p style={{ fontSize: 15, fontWeight: 800, color: C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{topCity.label}</p>
+                <p style={{ fontSize: 12, color: C.gold, margin: '4px 0 0', fontWeight: 700 }}>{topCity.showCount} recorded show{topCity.showCount === 1 ? '' : 's'}</p>
+              </div>
+            </a>
+          )}
+        </div>
+      )}
+
       {/* ── 1. Live activity ── */}
       <section style={{ marginBottom: 36 }}>
         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 4 }}>
@@ -186,14 +229,14 @@ export default function ManagerAnalyticsPage() {
             <p style={{ color: C.secondary, fontSize: 14, margin: 0 }}>{dataLoading ? 'Loading…' : 'No recorded shows in this period.'}</p>
           </div>
         ) : (
-          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '20px 18px', display: 'flex', alignItems: 'flex-end', gap: 10, height: 140 }}>
+          <div className="mgr-chart" style={{ background: `linear-gradient(180deg, ${C.card}, #100f0d)`, border: `1px solid ${C.border}`, borderRadius: 16, padding: '24px 20px 20px', display: 'flex', alignItems: 'flex-end', gap: 12, height: 200, opacity: dataLoading ? 0.5 : 1 }}>
             {buckets.map(b => {
               const count = monthCounts.get(b.key) || 0
-              const heightPct = Math.max(4, (count / maxMonthCount) * 100)
+              const heightPct = Math.max(3, (count / maxMonthCount) * 100)
               return (
-                <div key={b.key} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, height: '100%', justifyContent: 'flex-end' }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: C.text, fontFamily: '"DM Mono", monospace' }}>{count}</span>
-                  <div style={{ width: '100%', maxWidth: 34, height: `${heightPct}%`, background: b.isPartial ? 'rgba(201,168,76,0.35)' : C.gold, borderRadius: '4px 4px 0 0', minHeight: 3 }} />
+                <div key={b.key} className="mgr-bar-col" style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, height: '100%', justifyContent: 'flex-end' }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: C.text, fontFamily: '"DM Mono", monospace' }}>{count}</span>
+                  <div className="mgr-bar" style={{ width: '100%', maxWidth: 40, height: `${heightPct}%`, background: b.isPartial ? 'rgba(201,168,76,0.35)' : 'linear-gradient(180deg, #e0bf6e, #c9a84c)', borderRadius: '6px 6px 0 0', minHeight: 3 }} />
                   <span style={{ fontSize: 10, color: C.muted, fontWeight: 600, whiteSpace: 'nowrap' as const }}>{b.label.split(' ')[0]}{b.isPartial ? '*' : ''}</span>
                 </div>
               )
@@ -206,7 +249,7 @@ export default function ManagerAnalyticsPage() {
       </section>
 
       {/* ── 2. Song rotation ── */}
-      <section style={{ marginBottom: 36 }}>
+      <section id="song-rotation" style={{ marginBottom: 36, scrollMarginTop: 20 }}>
         <p style={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: C.muted, margin: '0 0 4px', display: 'flex', alignItems: 'center', gap: 6 }}>
           <Music2 size={13} /> Song rotation · {rangeInfo.label}
         </p>
@@ -217,22 +260,42 @@ export default function ManagerAnalyticsPage() {
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 1, background: C.border, borderRadius: 14, overflow: 'hidden', border: `1px solid ${C.border}` }}>
-            {songRotation.slice(0, 12).map((s, i) => (
-              <div key={s.key} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 16px', background: C.card }}>
-                <span style={{ fontSize: 11, color: C.muted, fontFamily: '"DM Mono", monospace', width: 18, flexShrink: 0 }}>{i + 1}</span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ fontSize: 14, fontWeight: 700, color: C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.title}</p>
-                  {s.artist && <p style={{ fontSize: 12, color: C.secondary, margin: '2px 0 0' }}>{s.artist}</p>}
+            {songRotation.slice(0, 12).map((s, i) => {
+              const expanded = expandedSong === s.key
+              return (
+                <div key={s.key} style={{ background: C.card }}>
+                  <button onClick={() => setExpandedSong(expanded ? null : s.key)} className="mgr-row-hover" style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: '11px 16px', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' as const }}>
+                    <span style={{ fontSize: 11, color: C.muted, fontFamily: '"DM Mono", monospace', width: 18, flexShrink: 0 }}>{i + 1}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontSize: 14, fontWeight: 700, color: C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.title}</p>
+                      {s.artist && <p style={{ fontSize: 12, color: C.secondary, margin: '2px 0 0' }}>{s.artist}</p>}
+                    </div>
+                    <span style={{ fontSize: 13, fontWeight: 800, color: C.gold, fontFamily: '"DM Mono", monospace', flexShrink: 0 }}>{s.distinctShowCount} show{s.distinctShowCount === 1 ? '' : 's'}</span>
+                    {expanded ? <ChevronUp size={14} color={C.muted} style={{ flexShrink: 0 }} /> : <ChevronDown size={14} color={C.muted} style={{ flexShrink: 0 }} />}
+                  </button>
+                  {expanded && (
+                    <div style={{ padding: '0 16px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {s.performanceIds.map(pid => {
+                        const r = rowsById.get(pid)
+                        if (!r) return null
+                        return (
+                          <div key={pid} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 12, color: C.secondary, padding: '6px 10px', background: 'rgba(255,255,255,0.03)', borderRadius: 8 }}>
+                            <span>{artistNameById.get(r.user_id) || 'Artist'}{r.venue_name ? ` · ${r.venue_name}` : ''}</span>
+                            <span style={{ flexShrink: 0, fontFamily: '"DM Mono", monospace' }}>{dstr(r.started_at || r.performance_date || '')}</span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
                 </div>
-                <span style={{ fontSize: 13, fontWeight: 800, color: C.gold, fontFamily: '"DM Mono", monospace', flexShrink: 0 }}>{s.distinctShowCount} show{s.distinctShowCount === 1 ? '' : 's'}</span>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </section>
 
       {/* ── 3. City / venue history ── */}
-      <section>
+      <section id="cities-venues" style={{ scrollMarginTop: 20 }}>
         <p style={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: C.muted, margin: '0 0 4px', display: 'flex', alignItems: 'center', gap: 6 }}>
           <MapPin size={13} /> Cities &amp; venues · {rangeInfo.label}
         </p>
@@ -281,7 +344,24 @@ export default function ManagerAnalyticsPage() {
         )}
       </section>
 
-      <style>{`@media (min-width: 900px) { .mgr-page { padding: 40px 32px 60px; } }`}</style>
+      <style>{`
+        @media (min-width: 900px) { .mgr-page { padding: 40px 32px 60px; } }
+        .mgr-chart { transition: opacity 0.2s ease; }
+        .mgr-bar { transition: height 0.5s cubic-bezier(0.22, 1, 0.36, 1); }
+        .mgr-bar-col:hover .mgr-bar { filter: brightness(1.15); }
+        .mgr-highlight-card { transition: transform 0.15s ease, border-color 0.15s ease; }
+        a:hover .mgr-highlight-card { transform: translateY(-2px); border-color: ${C.borderGold}; }
+        .mgr-row-hover { transition: background 0.12s ease; }
+        .mgr-row-hover:hover { background: rgba(255,255,255,0.03); }
+        @keyframes mgrShimmer { 0% { background-position: -200px 0 } 100% { background-position: 200px 0 } }
+        .mgr-skeleton { background: linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.08) 37%, rgba(255,255,255,0.04) 63%); background-size: 400px 100%; animation: mgrShimmer 1.4s ease infinite; }
+        @media (prefers-reduced-motion: reduce) {
+          html { scroll-behavior: auto; }
+          .mgr-chart, .mgr-bar, .mgr-highlight-card, .mgr-row-hover, .mgr-skeleton { transition: none !important; animation: none !important; }
+          a:hover .mgr-highlight-card { transform: none; }
+          .mgr-skeleton { opacity: 0.5; }
+        }
+      `}</style>
     </div>
   )
 }
