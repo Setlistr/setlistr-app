@@ -266,7 +266,17 @@ export async function middleware(request: NextRequest) {
   // Logged in — check access
   if (isAppRoute && user) {
     if (isAdmin || isInvited) {
-      return withInviteCookie(supabaseResponse, inviteToken)
+      // Clear the pending-invite cookie the moment accept-invite is actually
+      // reached, however the user got here (direct nav, not only the /beta
+      // resume path below) — otherwise a stale cookie from an invite that's
+      // since been accepted or revoked would resurrect it on a later visit
+      // to / or /beta, since those branches blindly redirect to it whenever
+      // the cookie is present. Reaching accept-invite at all means the
+      // cookie's one job (not losing the invite) is done.
+      const res = request.nextUrl.pathname === '/app/accept-invite' && getPendingInviteToken(request)
+        ? clearPendingInviteCookie(supabaseResponse)
+        : supabaseResponse
+      return withInviteCookie(res, inviteToken)
     }
     const betaRedirect = NextResponse.redirect(new URL('/beta', request.url))
     const withBeta = request.nextUrl.pathname === '/app/accept-invite'
