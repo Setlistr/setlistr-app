@@ -73,3 +73,4 @@ setlistr-2/scripts/*
 !setlistr-2/scripts/test-filing-deadline-label.ts
 !setlistr-2/scripts/test-manager-overview.ts
 !setlistr-2/scripts/test-manager-analytics.ts
+!setlistr-2/scripts/test-next-path-guard.ts

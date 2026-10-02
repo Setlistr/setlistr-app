@@ -3,6 +3,7 @@ import { useState, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { submitWaitlistEntry } from '@/lib/waitlist'
+import { sanitizeNextPath } from '@/lib/nextPathGuard'
 import Image from 'next/image'
 import Link from 'next/link'
 
@@ -24,6 +25,7 @@ type Mode = 'signin' | 'signup'
 function LoginPageInner() {
   const searchParams = useSearchParams()
   const fromStart    = searchParams.get('from') === 'start'
+  const next         = sanitizeNextPath(searchParams.get('next'))
 
   const [mode, setMode]             = useState<Mode>('signin')
   const [email, setEmail]           = useState('')
@@ -69,7 +71,11 @@ function LoginPageInner() {
       setLoading(false)
       return
     }
-    window.location.href = '/app/dashboard'
+    // Preserves a pending team-invite accept through a plain sign-in —
+    // previously hardcoded to /app/dashboard regardless of how the user
+    // arrived here, which silently dropped the invite every time an
+    // existing account had to log in first to accept one.
+    window.location.href = next || '/app/dashboard'
   }
 
   async function handleSignUp(e?: React.FormEvent) {
@@ -86,7 +92,21 @@ function LoginPageInner() {
       email: email.trim(),
       password,
       options: {
-        emailRedirectTo: `${window.location.origin}/app/dashboard`,
+        // Points at the new public confirmation callback
+        // (app/auth/confirm/page.tsx), never straight at the final
+        // destination — email confirmation isn't just a page visit, it
+        // has to actually EXCHANGE whatever Supabase appends
+        // (token_hash+type, or a PKCE code) for a real session before
+        // anything protected can be reached. /auth/confirm does that,
+        // then redirects to `next` only on a confirmed success — the same
+        // "verify first, select/redirect only after" shape already used
+        // by app/app/accept-invite/page.tsx's own acceptance flow.
+        // `next` is carried as this callback's OWN query param (not
+        // relied upon from whatever Supabase's template does with
+        // RedirectTo) and must be encoded — it's nested inside an outer
+        // query string now, unlike the previous direct-destination
+        // version of this URL.
+        emailRedirectTo: `${window.location.origin}/auth/confirm?next=${encodeURIComponent(next || '/app/dashboard')}`,
         data: {
           terms_accepted: true,
           terms_accepted_at: termsAcceptedAt,
@@ -111,7 +131,11 @@ function LoginPageInner() {
       setSuccess('Account created! Check your email to confirm, then sign in.')
       switchMode('signin')
     } else {
-      window.location.href = '/app/onboarding'
+      // Project has email confirmation disabled, so signUp signed the user
+      // in immediately — same invite-preservation as the confirmation-
+      // required path above, for the project configuration where this
+      // branch is actually reached instead.
+      window.location.href = next || '/app/onboarding'
     }
     setLoading(false)
   }

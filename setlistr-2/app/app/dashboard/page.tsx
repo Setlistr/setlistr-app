@@ -140,6 +140,12 @@ export default function DashboardPage() {
   const [ownArtistName, setOwnArtistName]       = useState<string | null>(null)
   const [ownAvatarUrl, setOwnAvatarUrl]         = useState<string | null>(null)
   const [artistName, setArtistName]             = useState<string | null>(null)
+  // Set only when loadDelegateContext's own re-verification of the
+  // acting-as artist fails — previously a silent `if (data.error) return`
+  // that left whatever the PREVIOUS render had (another artist's name,
+  // another artist's shows) on screen with no indication anything had
+  // gone wrong. Cleared on every successful load.
+  const [contextLoadError, setContextLoadError] = useState(false)
   const [showEstimates, setShowEstimates]       = useState<ShowEstimateInput[]>([])
   const [submittedEstimates, setSubmittedEstimates] = useState<ShowEstimateInput[]>([])
   const [songCountMap, setSongCountMap]         = useState<Record<string, number>>({})
@@ -226,7 +232,20 @@ export default function DashboardPage() {
   async function loadDelegateContext(artistId: string, artistDisplayName: string) {
     const res  = await fetch(`/api/team/context-data?artist_id=${artistId}`)
     const data = await res.json()
-    if (data.error) return
+    if (data.error) {
+      // This route independently re-verifies the accepted/non-revoked
+      // delegation on every call (app/api/team/context-data/route.ts) —
+      // an error here means that re-check just failed, not a transient
+      // fetch hiccup. Clearing rather than leaving whatever a PREVIOUS
+      // successful load (this artist, or a different one) left behind is
+      // what makes the failure visible instead of silently showing
+      // stale/wrong-context data under a page that still looks normal.
+      setArtistName(null); setPerformances([]); setLookupName(null)
+      setCareerTotalShows(0); setCareerStartYear(0)
+      setContextLoadError(true)
+      return
+    }
+    setContextLoadError(false)
     setArtistName(data.artist_name)
     if (data.bandsintown_artist_name) setLookupName(data.bandsintown_artist_name)
     if (data.career_total_shows) setCareerTotalShows(data.career_total_shows)
@@ -587,6 +606,19 @@ export default function DashboardPage() {
             </Link>
           )}
         </div>
+
+        {/* ── CONTEXT LOAD ERROR — never render the rest of this page's
+             acting-as content as if it succeeded when it didn't. ── */}
+        {contextLoadError && actingAs && (
+          <div style={{ marginBottom: 16, animation: 'fadeUp 0.3s ease' }}>
+            <div style={{ background: C.redDim, border: `1px solid rgba(248,113,113,0.25)`, borderRadius: 12, padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: C.red }}>Couldn't load {actingAs.artist_name}'s data — access may have changed.</span>
+              <button onClick={switchToOwn} style={{ background: 'none', border: '1px solid rgba(248,113,113,0.3)', borderRadius: 8, padding: '4px 10px', color: C.red, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
+                Exit
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* ── ACTING-AS BANNER ── */}
         {actingAs && (

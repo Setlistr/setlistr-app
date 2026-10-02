@@ -20,11 +20,22 @@ export async function GET(req: NextRequest) {
 
   const { data: invite } = await supabase
     .from('artist_delegates')
-    .select('id, artist_id, delegate_id, role, accepted_at, invited_email')
+    .select('id, artist_id, delegate_id, role, accepted_at, revoked_at, invited_email')
     .eq('invite_token', token)
     .maybeSingle()
 
   if (!invite) return NextResponse.json({ error: 'Invite not found or already used.' }, { status: 404 })
+
+  // Defense in depth, matching can_act_for()'s own revoked_at check
+  // (supabase/migrations/0015_delegation_revocation_enforcement.sql): the
+  // only revoke path reachable from the UI today is a hard DELETE
+  // (app/api/team/delegates DELETE), which already makes this unreachable
+  // in practice — a deleted row never matches the token lookup above at
+  // all. This exists only so a future writer that sets revoked_at instead
+  // of deleting (direct seeding, an admin path, anything else) can never
+  // silently let a revoked invite be read or accepted, exactly the gap
+  // that migration closed for can_act_for() itself.
+  if (invite.revoked_at) return NextResponse.json({ error: 'This invite is no longer valid.' }, { status: 404 })
 
   // Get artist profile
   const { data: artist } = await supabase
@@ -70,11 +81,14 @@ export async function POST(req: NextRequest) {
     // Look up the invite
     const { data: invite } = await supabase
       .from('artist_delegates')
-      .select('id, artist_id, delegate_id, accepted_at, invited_email')
+      .select('id, artist_id, delegate_id, accepted_at, revoked_at, invited_email')
       .eq('invite_token', token)
       .maybeSingle()
 
     if (!invite) return NextResponse.json({ error: 'Invite not found.' }, { status: 404 })
+    // See the matching check in GET above — defense in depth, not reachable
+    // via any revoke path that exists today.
+    if (invite.revoked_at) return NextResponse.json({ error: 'This invite is no longer valid.' }, { status: 404 })
     if (invite.accepted_at) return NextResponse.json({ success: true, already_accepted: true })
 
     // An artist is the owner of their own account and must never hold a
