@@ -2,7 +2,60 @@
 import { useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { useActingAs } from '@/components/ActingAsProvider'
 import { Check, Users } from 'lucide-react'
+
+// What the recipient is actually told before accepting must match what the
+// role actually grants in code (lib/writeCapableRoles.ts), never a
+// hardcoded "manager" regardless of the real invite.role — the bug this
+// pass fixes. 'viewer' is the one role the codebase materially
+// distinguishes today (read-only — isWriteCapableRole excludes it); no
+// sending UI currently lets an artist choose tour_manager/band_member over
+// manager, and the codebase doesn't yet differentiate their capabilities
+// beyond the write-capable set, so they share manager's copy but still
+// show their own real role name/label rather than silently relabeling as
+// "manager".
+const ROLE_INFO: Record<string, { label: string; capabilities: string[] }> = {
+  manager: {
+    label: 'Manager',
+    capabilities: [
+      'Capture live shows on their behalf',
+      'Review and clean up setlists',
+      'Submit performances to their PRO',
+      'View their show history and royalty estimates',
+    ],
+  },
+  tour_manager: {
+    label: 'Tour Manager',
+    capabilities: [
+      'Capture live shows on their behalf',
+      'Review and clean up setlists',
+      'Submit performances to their PRO',
+      'View their show history and royalty estimates',
+    ],
+  },
+  band_member: {
+    label: 'Band Member',
+    capabilities: [
+      'Capture live shows on their behalf',
+      'Review and clean up setlists',
+      'Submit performances to their PRO',
+      'View their show history and royalty estimates',
+    ],
+  },
+  viewer: {
+    label: 'Viewer',
+    capabilities: [
+      'View their show history and royalty estimates',
+      'See setlists and submission status',
+      'Read-only — cannot capture, edit, or submit anything',
+    ],
+  },
+}
+
+function roleInfoFor(role: string | undefined): { label: string; capabilities: string[] } {
+  return ROLE_INFO[role || 'manager'] || ROLE_INFO.manager
+}
 
 const C = {
   bg: '#0a0908', card: '#141210',
@@ -27,6 +80,7 @@ export default function AcceptInvitePage() {
   const router       = useRouter()
   const searchParams = useSearchParams()
   const token        = searchParams.get('token')
+  const { selectManagedArtist } = useActingAs()
 
   const [loading, setLoading]       = useState(true)
   const [invite, setInvite]         = useState<InviteData | null>(null)
@@ -63,6 +117,11 @@ export default function AcceptInvitePage() {
       }
 
       if (data.already_accepted) {
+        // Revisiting an already-accepted link (e.g. clicking the original
+        // email again later) is safe to re-enter the workspace from too —
+        // the GET above already re-verified is_intended_recipient against
+        // the live session before this branch is ever reached.
+        selectManagedArtist({ artist_id: data.artist_id, artist_name: data.artist_name })
         setAccepted(true)
         setInvite(data)
         setLoading(false)
@@ -87,6 +146,15 @@ export default function AcceptInvitePage() {
       })
       const data = await res.json()
       if (data.error) { setError(data.error); return }
+      // The POST response itself is the fresh, authoritative confirmation
+      // that this binding now exists — selecting the workspace only on
+      // this success, never speculatively before it, and only with the
+      // artist identity already verified by the GET load above (never a
+      // client-supplied value). This is what makes "Go to Dashboard" below
+      // actually land in the artist's workspace instead of the recipient's
+      // own, which previously required manually finding the new artist in
+      // the switcher after the fact.
+      if (invite) selectManagedArtist({ artist_id: invite.artist_id, artist_name: invite.artist_name })
       setAccepted(true)
     } catch {
       setError('Something went wrong. Try again.')
@@ -128,7 +196,7 @@ export default function AcceptInvitePage() {
           You're in
         </h1>
         <p style={{ fontSize: 14, color: C.secondary, margin: '0 0 6px' }}>
-          You now have manager access to
+          You now have {roleInfoFor(invite?.role).label.toLowerCase()} access to
         </p>
         <p style={{ fontSize: 18, fontWeight: 800, color: C.gold, margin: '0 0 28px' }}>
           {invite?.artist_name}'s account
@@ -136,17 +204,15 @@ export default function AcceptInvitePage() {
 
         <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '16px 20px', marginBottom: 20, textAlign: 'left' }}>
           <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, color: C.muted, margin: '0 0 10px' }}>What you can do</p>
-          {[
-            'Capture shows on their behalf',
-            'Review and clean up setlists',
-            'Submit to their PRO for royalties',
-            'All actions are logged under their account',
-          ].map((item, i) => (
-            <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: i < 3 ? 8 : 0 }}>
-              <Check size={13} color={C.green} strokeWidth={2.5} style={{ flexShrink: 0, marginTop: 2 }} />
-              <span style={{ fontSize: 13, color: C.secondary }}>{item}</span>
-            </div>
-          ))}
+          {(() => {
+            const items = [...roleInfoFor(invite?.role).capabilities, 'All actions are logged under their account']
+            return items.map((item, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: i < items.length - 1 ? 8 : 0 }}>
+                <Check size={13} color={C.green} strokeWidth={2.5} style={{ flexShrink: 0, marginTop: 2 }} />
+                <span style={{ fontSize: 13, color: C.secondary }}>{item}</span>
+              </div>
+            ))
+          })()}
         </div>
 
         <button onClick={() => router.push('/app/dashboard')}
@@ -195,27 +261,31 @@ export default function AcceptInvitePage() {
           <Users size={24} color={C.gold} strokeWidth={2} />
         </div>
 
-        {/* Heading */}
+        {/* Heading — role shown explicitly here, not just implied by the
+            capability list below, since this is the one place a recipient
+            decides whether to accept at all. */}
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
-          <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: C.gold, margin: '0 0 8px', opacity: 0.8 }}>Team Invite</p>
+          <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: C.gold, margin: '0 0 8px', opacity: 0.8 }}>
+            Team Invite · {roleInfoFor(invite?.role).label}
+          </p>
           <h1 style={{ fontSize: 26, fontWeight: 800, color: C.text, margin: '0 0 8px', letterSpacing: '-0.025em', lineHeight: 1.1 }}>
             {invite?.artist_name} invited you
           </h1>
           <p style={{ fontSize: 14, color: C.secondary, margin: 0, lineHeight: 1.5 }}>
-            Accept to manage their shows and royalty submissions on their behalf.
+            {invite?.role === 'viewer'
+              ? 'Accept to view their shows, setlists, and submission status.'
+              : 'Accept to manage their shows and royalty submissions on their behalf.'}
           </p>
         </div>
 
-        {/* What this means */}
+        {/* What this means — reflects the invite's actual role, never a
+            hardcoded assumption. */}
         <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '16px 20px', marginBottom: 16 }}>
-          <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, color: C.muted, margin: '0 0 12px' }}>As a manager you can</p>
-          {[
-            'Capture live shows on their behalf',
-            'Review and clean up setlists',
-            'Submit performances to their PRO',
-            'View their show history and royalty estimates',
-          ].map((item, i) => (
-            <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: i < 3 ? 8 : 0 }}>
+          <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, color: C.muted, margin: '0 0 12px' }}>
+            As a {roleInfoFor(invite?.role).label.toLowerCase()} you can
+          </p>
+          {roleInfoFor(invite?.role).capabilities.map((item, i, arr) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: i < arr.length - 1 ? 8 : 0 }}>
               <Check size={13} color={C.green} strokeWidth={2.5} style={{ flexShrink: 0, marginTop: 2 }} />
               <span style={{ fontSize: 13, color: C.secondary, lineHeight: 1.4 }}>{item}</span>
             </div>
@@ -232,7 +302,7 @@ export default function AcceptInvitePage() {
         {/* Accept CTA */}
         <button onClick={acceptInvite} disabled={accepting}
           style={{ width: '100%', padding: '15px', background: C.gold, border: 'none', borderRadius: 12, color: '#0a0908', fontSize: 14, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' as const, cursor: accepting ? 'default' : 'pointer', fontFamily: 'inherit', opacity: accepting ? 0.7 : 1, marginBottom: 10 }}>
-          {accepting ? 'Accepting...' : `Accept — Manage ${invite?.artist_name}`}
+          {accepting ? 'Accepting...' : invite?.role === 'viewer' ? `Accept — View ${invite?.artist_name}` : `Accept — Manage ${invite?.artist_name}`}
         </button>
 
         <button onClick={() => router.push('/app/dashboard')}

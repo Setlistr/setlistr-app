@@ -21,9 +21,25 @@ const C = {
 
 type Mode = 'signin' | 'signup'
 
+// Strict allowlist, not a general redirect-preservation mechanism: only the
+// team-invite accept flow (app/app/accept-invite/page.tsx, which constructs
+// `?next=/app/accept-invite?token=...`) may be preserved through login/
+// signup/email-verification. Rejects protocol-relative ("//host") and
+// absolute ("https://...") values outright — a `next` query param is
+// attacker-controlled input, and this is the one thing standing between it
+// and an open redirect. Returns null (never a fallback guess) for anything
+// that isn't exactly this one destination.
+function sanitizeNextPath(raw: string | null): string | null {
+  if (!raw) return null
+  if (raw.startsWith('//') || raw.includes('://')) return null
+  if (!raw.startsWith('/app/accept-invite')) return null
+  return raw
+}
+
 function LoginPageInner() {
   const searchParams = useSearchParams()
   const fromStart    = searchParams.get('from') === 'start'
+  const next         = sanitizeNextPath(searchParams.get('next'))
 
   const [mode, setMode]             = useState<Mode>('signin')
   const [email, setEmail]           = useState('')
@@ -69,7 +85,11 @@ function LoginPageInner() {
       setLoading(false)
       return
     }
-    window.location.href = '/app/dashboard'
+    // Preserves a pending team-invite accept through a plain sign-in —
+    // previously hardcoded to /app/dashboard regardless of how the user
+    // arrived here, which silently dropped the invite every time an
+    // existing account had to log in first to accept one.
+    window.location.href = next || '/app/dashboard'
   }
 
   async function handleSignUp(e?: React.FormEvent) {
@@ -86,7 +106,15 @@ function LoginPageInner() {
       email: email.trim(),
       password,
       options: {
-        emailRedirectTo: `${window.location.origin}/app/dashboard`,
+        // When this signup is completing a pending team-invite accept,
+        // the email-confirmation link must land back on that exact page —
+        // previously hardcoded to /app/dashboard unconditionally, which
+        // meant a brand-new account confirming their email lost the
+        // invite entirely and had to dig the original email back out to
+        // retry. The confirmation callback already establishes the
+        // session before this redirect fires, so landing directly on
+        // /app/accept-invite works the same way a plain page load would.
+        emailRedirectTo: `${window.location.origin}${next || '/app/dashboard'}`,
         data: {
           terms_accepted: true,
           terms_accepted_at: termsAcceptedAt,
@@ -111,7 +139,11 @@ function LoginPageInner() {
       setSuccess('Account created! Check your email to confirm, then sign in.')
       switchMode('signin')
     } else {
-      window.location.href = '/app/onboarding'
+      // Project has email confirmation disabled, so signUp signed the user
+      // in immediately — same invite-preservation as the confirmation-
+      // required path above, for the project configuration where this
+      // branch is actually reached instead.
+      window.location.href = next || '/app/onboarding'
     }
     setLoading(false)
   }
