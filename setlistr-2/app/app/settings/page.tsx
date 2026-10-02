@@ -7,6 +7,8 @@ import { Check, KeyRound, User, Music2, Search, Download, Radio, Users, Copy, X,
 import { ADMIN_EMAILS } from '@/lib/admin-config'
 import { useSessionGuard } from '@/lib/useSessionGuard'
 import { diffFields, toWirePayload } from '@/lib/profileFormDiff'
+import { ASSIGNABLE_INVITE_ROLES, type AssignableInviteRole } from '@/lib/inviteAuthorization'
+import { roleInfoFor } from '@/lib/teamRoleInfo'
 
 const CARD = {
   background: 'linear-gradient(180deg, #171512 0%, #121009 100%)',
@@ -143,6 +145,7 @@ export default function SettingsPage() {
   const [delegates, setDelegates]             = useState<Delegate[]>([])
   const [delegateAvatars, setDelegateAvatars] = useState<Record<string, string | null>>({})
   const [delegateEmail, setDelegateEmail]     = useState('')
+  const [inviteRole, setInviteRole]           = useState<AssignableInviteRole>('manager')
   const [inviting, setInviting]               = useState(false)
   const [inviteResult, setInviteResult]       = useState<{ invite_url: string; invite_message: string; delegate_name: string | null; delegate_found: boolean; email_sent: boolean } | null>(null)
   const [inviteError, setInviteError]         = useState('')
@@ -490,7 +493,7 @@ export default function SettingsPage() {
       const res = await fetch('/api/team/invite', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ artist_id: userId, delegate_email: delegateEmail.trim() }),
+        body: JSON.stringify({ artist_id: userId, delegate_email: delegateEmail.trim(), role: inviteRole }),
       })
       const data = await res.json()
       if (data.error) { setInviteError(data.error); return }
@@ -757,7 +760,7 @@ export default function SettingsPage() {
                       }
                     </div>
                     <p style={{ fontSize: 11, color: C.muted, margin: '1px 0 0' }}>
-                      {d.role} · {d.accepted ? `Joined ${timeAgo(d.accepted_at!)}` : `Invited ${timeAgo(d.invited_at)}`}
+                      {roleInfoFor(d.role).label} · {d.accepted ? `Joined ${timeAgo(d.accepted_at!)}` : `Invited ${timeAgo(d.invited_at)}`}
                     </p>
                   </div>
 
@@ -784,6 +787,35 @@ export default function SettingsPage() {
 
           {/* Invite form */}
           <div>
+            <label style={labelStyle}>Role</label>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+              {ASSIGNABLE_INVITE_ROLES.map(r => {
+                const active = inviteRole === r
+                return (
+                  <button key={r} type="button" onClick={() => { setInviteRole(r); setInviteError(''); setInviteResult(null) }}
+                    style={{
+                      padding: '7px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer',
+                      background: active ? C.goldDim : 'transparent',
+                      border: `1px solid ${active ? C.borderGold : C.inputBorder}`,
+                      color: active ? C.gold : C.secondary,
+                    }}>
+                    {roleInfoFor(r).label}
+                  </button>
+                )
+              })}
+            </div>
+            <div style={{ background: C.input, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 12px', marginBottom: 12 }}>
+              <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: C.muted, margin: '0 0 6px' }}>
+                What {roleInfoFor(inviteRole).label.toLowerCase()} access grants
+              </p>
+              <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {roleInfoFor(inviteRole).capabilities.map((c, i) => (
+                  <li key={i} style={{ fontSize: 12, color: C.secondary, display: 'flex', gap: 6 }}>
+                    <span style={{ color: C.gold, flexShrink: 0 }}>·</span>{c}
+                  </li>
+                ))}
+              </ul>
+            </div>
             <label style={labelStyle}>Invite by email</label>
             <div style={{ display: 'flex', gap: 8 }}>
               <input
@@ -804,7 +836,7 @@ export default function SettingsPage() {
               </button>
             </div>
             <p style={{ fontSize: 11, color: C.muted, margin: '6px 0 0' }}>
-              They'll get a link to accept access. If they don't have a Setlistr account yet, they can create one when they accept.
+              They'll get a link to accept access. If they don't have a Setlistr account yet, they can create one when they accept. If they're not yet approved for the Setlistr beta, they'll be guided to request access first — your invite waits for them.
             </p>
           </div>
 

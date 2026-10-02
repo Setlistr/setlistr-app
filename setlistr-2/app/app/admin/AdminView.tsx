@@ -443,6 +443,8 @@ export default function AdminDashboard({
   const [addingUser, setAddingUser]   = useState(false)
   const [addError, setAddError]       = useState('')
   const [addSuccess, setAddSuccess]   = useState('')
+  const [addSuccessNoEmail, setAddSuccessNoEmail] = useState(false)
+  const [recruitKind, setRecruitKind] = useState<'artist' | 'manager'>('artist')
   const [invites, setInvites]         = useState<BetaInvite[]>(betaInvites)
   const [waitlist, setWaitlist]       = useState<WaitlistEntry[]>([])
   const [waitlistLoaded, setWaitlistLoaded] = useState(false)
@@ -736,12 +738,16 @@ export default function AdminDashboard({
 
   async function addBetaUser() {
     if (!newEmail.trim()) return
-    setAddingUser(true); setAddError(''); setAddSuccess('')
+    setAddingUser(true); setAddError(''); setAddSuccess(''); setAddSuccessNoEmail(false)
     try {
       const res = await fetch('/api/admin/beta-invite', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: newEmail.trim().toLowerCase(), name: newName.trim() || null }) })
       const data = await res.json()
       if (!res.ok) { setAddError(data.error || 'Failed to add user') }
-      else { setInvites(prev => [data.invite, ...prev]); setNewEmail(''); setNewName(''); setAddSuccess(`${data.invite.email} ${data.email_sent ? '— invite email sent' : '— added (email not sent)'}`); setTimeout(() => setAddSuccess(''), 4000) }
+      else {
+        setInvites(prev => [data.invite, ...prev]); setNewEmail(''); setNewName('')
+        setAddSuccess(`${data.invite.email} ${data.email_sent ? '— invite email sent' : '— added, no email sent'}`)
+        setAddSuccessNoEmail(!data.email_sent)
+      }
     } catch { setAddError('Network error — try again') }
     setAddingUser(false)
   }
@@ -1352,7 +1358,23 @@ export default function AdminDashboard({
               </button>
             </div>
             <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: '18px 20px' }}>
-              <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, margin: '0 0 14px' }}>Add Beta Artist</p>
+              <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, margin: '0 0 14px' }}>Recruit to Beta</p>
+              <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
+                <button type="button" onClick={() => setRecruitKind('artist')}
+                  style={{ flex: 1, padding: '9px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer',
+                    background: recruitKind === 'artist' ? C.goldDim : 'transparent', border: `1px solid ${recruitKind === 'artist' ? C.borderGold : C.border}`,
+                    color: recruitKind === 'artist' ? C.gold : C.secondary }}>
+                  Invite an Artist
+                </button>
+                <button type="button" disabled title="Standalone manager workspace ships on a separate branch (feature/manager-workspace) — not available on this build yet."
+                  style={{ flex: 1, padding: '9px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700, fontFamily: 'inherit', cursor: 'not-allowed',
+                    background: 'transparent', border: `1px solid ${C.border}`, color: C.muted, opacity: 0.5 }}>
+                  Invite a Manager
+                </button>
+              </div>
+              <p style={{ fontSize: 11, color: C.muted, margin: '-6px 0 14px', lineHeight: 1.5 }}>
+                Standalone manager accounts aren't available on this build yet (manager workspace ships separately) — recruit managers once that lands.
+              </p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 <div style={{ display: 'flex', gap: 8 }}>
                   <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Name (optional)"
@@ -1362,6 +1384,15 @@ export default function AdminDashboard({
                 </div>
                 {addError   && <p style={{ fontSize: 12, color: C.red,   margin: 0 }}>{addError}</p>}
                 {addSuccess && <p style={{ fontSize: 12, color: C.green, margin: 0 }}>✓ {addSuccess}</p>}
+                {addSuccessNoEmail && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <p style={{ fontSize: 11, color: C.muted, margin: 0, flex: 1 }}>No email was sent — share this link with them instead:</p>
+                    <button onClick={() => navigator.clipboard.writeText(window.location.origin + '/auth/login')}
+                      style={{ padding: '6px 10px', background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 6, color: C.gold, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}>
+                      Copy Link
+                    </button>
+                  </div>
+                )}
                 <button onClick={addBetaUser} disabled={addingUser || !newEmail.trim()}
                   style={{ padding: '11px', background: newEmail.trim() ? C.gold : C.muted, border: 'none', borderRadius: 8, color: '#0a0908', fontSize: 12, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: addingUser || !newEmail.trim() ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: addingUser ? 0.7 : newEmail.trim() ? 1 : 0.4 }}>
                   {addingUser ? 'Adding...' : 'Add to Beta'}

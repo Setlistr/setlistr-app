@@ -118,6 +118,43 @@ function withInviteCookie(response: NextResponse, inviteToken: string | null): N
   return response
 }
 
+// ── Pending team-invite cookie ────────────────────────────────────────────
+// Not to be confused with INVITE_COOKIE above (the beta-gate cache) — this
+// holds a Setlistr team-invite token (artist_delegates.invite_token) for a
+// user who followed a real invite link but isn't beta-admitted yet. Without
+// this, hitting /app/accept-invite while un-admitted falls straight into
+// the generic /beta redirect below and the token is gone for good — a dead
+// end for a legitimate invite, not a security boundary being enforced (beta
+// admission itself is never bypassed; only WHERE to resume afterward is
+// preserved). Only ever set FROM /app/accept-invite and only ever consumed
+// to redirect back TO it — never trusted for anything else.
+const PENDING_INVITE_COOKIE = 'sl_pending_team_invite'
+const PENDING_INVITE_TTL_SECONDS = 60 * 60 * 24 * 30 // 30 days — generous; this only ever gates where a now-admitted user lands next, not access itself
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+function getPendingInviteToken(request: NextRequest): string | null {
+  const raw = request.cookies.get(PENDING_INVITE_COOKIE)?.value
+  return raw && UUID_RE.test(raw) ? raw : null
+}
+
+function withPendingInviteCookie(response: NextResponse, token: string | null): NextResponse {
+  if (token && UUID_RE.test(token)) {
+    response.cookies.set(PENDING_INVITE_COOKIE, token, {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'lax',
+      maxAge: PENDING_INVITE_TTL_SECONDS,
+      path: '/',
+    })
+  }
+  return response
+}
+
+function clearPendingInviteCookie(response: NextResponse): NextResponse {
+  response.cookies.set(PENDING_INVITE_COOKIE, '', { httpOnly: true, secure: true, sameSite: 'lax', maxAge: 0, path: '/' })
+  return response
+}
+
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
 
@@ -217,7 +254,10 @@ export async function middleware(request: NextRequest) {
   // ── Root route: if logged in with access, skip marketing and go straight to app
   if (isRootRoute && user) {
     if (isAdmin || isInvited) {
-      return withInviteCookie(NextResponse.redirect(new URL('/app/dashboard', request.url)), inviteToken)
+      const pending = getPendingInviteToken(request)
+      const dest = pending ? `/app/accept-invite?token=${pending}` : '/app/dashboard'
+      const res = NextResponse.redirect(new URL(dest, request.url))
+      return withInviteCookie(pending ? clearPendingInviteCookie(res) : res, inviteToken)
     }
     // Not a beta user — let them see the landing page
     return withInviteCookie(supabaseResponse, inviteToken)
@@ -228,13 +268,21 @@ export async function middleware(request: NextRequest) {
     if (isAdmin || isInvited) {
       return withInviteCookie(supabaseResponse, inviteToken)
     }
-    return withInviteCookie(NextResponse.redirect(new URL('/beta', request.url)), inviteToken)
+    const betaRedirect = NextResponse.redirect(new URL('/beta', request.url))
+    const withBeta = request.nextUrl.pathname === '/app/accept-invite'
+      ? withPendingInviteCookie(betaRedirect, request.nextUrl.searchParams.get('token'))
+      : betaRedirect
+    return withInviteCookie(withBeta, inviteToken)
   }
 
-  // Logged in and has access — skip beta page
+  // Logged in and has access — skip beta page, resuming a pending team
+  // invite if that's what sent them to /beta in the first place.
   if (isBetaPage && user) {
     if (isAdmin || isInvited) {
-      return withInviteCookie(NextResponse.redirect(new URL('/app/dashboard', request.url)), inviteToken)
+      const pending = getPendingInviteToken(request)
+      const dest = pending ? `/app/accept-invite?token=${pending}` : '/app/dashboard'
+      const res = NextResponse.redirect(new URL(dest, request.url))
+      return withInviteCookie(pending ? clearPendingInviteCookie(res) : res, inviteToken)
     }
   }
 

@@ -4,58 +4,12 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useActingAs } from '@/components/ActingAsProvider'
 import { Check, Users } from 'lucide-react'
+import { roleInfoFor } from '@/lib/teamRoleInfo'
 
 // What the recipient is actually told before accepting must match what the
-// role actually grants in code (lib/writeCapableRoles.ts), never a
-// hardcoded "manager" regardless of the real invite.role — the bug this
-// pass fixes. 'viewer' is the one role the codebase materially
-// distinguishes today (read-only — isWriteCapableRole excludes it); no
-// sending UI currently lets an artist choose tour_manager/band_member over
-// manager, and the codebase doesn't yet differentiate their capabilities
-// beyond the write-capable set, so they share manager's copy but still
-// show their own real role name/label rather than silently relabeling as
-// "manager".
-const ROLE_INFO: Record<string, { label: string; capabilities: string[] }> = {
-  manager: {
-    label: 'Manager',
-    capabilities: [
-      'Capture live shows on their behalf',
-      'Review and clean up setlists',
-      'Submit performances to their PRO',
-      'View their show history and royalty estimates',
-    ],
-  },
-  tour_manager: {
-    label: 'Tour Manager',
-    capabilities: [
-      'Capture live shows on their behalf',
-      'Review and clean up setlists',
-      'Submit performances to their PRO',
-      'View their show history and royalty estimates',
-    ],
-  },
-  band_member: {
-    label: 'Band Member',
-    capabilities: [
-      'Capture live shows on their behalf',
-      'Review and clean up setlists',
-      'Submit performances to their PRO',
-      'View their show history and royalty estimates',
-    ],
-  },
-  viewer: {
-    label: 'Viewer',
-    capabilities: [
-      'View their show history and royalty estimates',
-      'See setlists and submission status',
-      'Read-only — cannot capture, edit, or submit anything',
-    ],
-  },
-}
-
-function roleInfoFor(role: string | undefined): { label: string; capabilities: string[] } {
-  return ROLE_INFO[role || 'manager'] || ROLE_INFO.manager
-}
+// role actually grants in code — shared with the sender's own pre-send
+// description (app/app/settings/page.tsx) via lib/teamRoleInfo.ts, so the
+// two can never drift into describing the same role differently.
 
 const C = {
   bg: '#0a0908', card: '#141210',
