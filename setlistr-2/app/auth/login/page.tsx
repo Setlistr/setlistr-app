@@ -3,6 +3,7 @@ import { useState, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { submitWaitlistEntry } from '@/lib/waitlist'
+import { sanitizeNextPath } from '@/lib/nextPathGuard'
 import Image from 'next/image'
 import Link from 'next/link'
 
@@ -20,21 +21,6 @@ const C = {
 }
 
 type Mode = 'signin' | 'signup'
-
-// Strict allowlist, not a general redirect-preservation mechanism: only the
-// team-invite accept flow (app/app/accept-invite/page.tsx, which constructs
-// `?next=/app/accept-invite?token=...`) may be preserved through login/
-// signup/email-verification. Rejects protocol-relative ("//host") and
-// absolute ("https://...") values outright — a `next` query param is
-// attacker-controlled input, and this is the one thing standing between it
-// and an open redirect. Returns null (never a fallback guess) for anything
-// that isn't exactly this one destination.
-function sanitizeNextPath(raw: string | null): string | null {
-  if (!raw) return null
-  if (raw.startsWith('//') || raw.includes('://')) return null
-  if (!raw.startsWith('/app/accept-invite')) return null
-  return raw
-}
 
 function LoginPageInner() {
   const searchParams = useSearchParams()
@@ -106,15 +92,21 @@ function LoginPageInner() {
       email: email.trim(),
       password,
       options: {
-        // When this signup is completing a pending team-invite accept,
-        // the email-confirmation link must land back on that exact page —
-        // previously hardcoded to /app/dashboard unconditionally, which
-        // meant a brand-new account confirming their email lost the
-        // invite entirely and had to dig the original email back out to
-        // retry. The confirmation callback already establishes the
-        // session before this redirect fires, so landing directly on
-        // /app/accept-invite works the same way a plain page load would.
-        emailRedirectTo: `${window.location.origin}${next || '/app/dashboard'}`,
+        // Points at the new public confirmation callback
+        // (app/auth/confirm/page.tsx), never straight at the final
+        // destination — email confirmation isn't just a page visit, it
+        // has to actually EXCHANGE whatever Supabase appends
+        // (token_hash+type, or a PKCE code) for a real session before
+        // anything protected can be reached. /auth/confirm does that,
+        // then redirects to `next` only on a confirmed success — the same
+        // "verify first, select/redirect only after" shape already used
+        // by app/app/accept-invite/page.tsx's own acceptance flow.
+        // `next` is carried as this callback's OWN query param (not
+        // relied upon from whatever Supabase's template does with
+        // RedirectTo) and must be encoded — it's nested inside an outer
+        // query string now, unlike the previous direct-destination
+        // version of this URL.
+        emailRedirectTo: `${window.location.origin}/auth/confirm?next=${encodeURIComponent(next || '/app/dashboard')}`,
         data: {
           terms_accepted: true,
           terms_accepted_at: termsAcceptedAt,

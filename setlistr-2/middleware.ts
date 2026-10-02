@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { ADMIN_EMAILS } from '@/lib/admin-config'
+import { sanitizeNextPath } from '@/lib/nextPathGuard'
 
 // ── Hardcoded admin safety net ────────────────────────────────────────────────
 // Admins always have access regardless of DB state — protects against being
@@ -144,8 +145,30 @@ export async function middleware(request: NextRequest) {
   const isAuthRoute = request.nextUrl.pathname.startsWith('/auth')
   const isBetaPage  = request.nextUrl.pathname === '/beta'
 
-  // Not logged in trying to access app — no invite check needed either way
+  // Not logged in trying to access app — no invite check needed either way.
+  //
+  // This redirect runs on the very FIRST hop for a cold click on the
+  // original team-invite email link (https://.../app/accept-invite?token=
+  // ...) when the recipient has no session yet — i.e. the common case, not
+  // an edge case. Without the narrow exception below, the Setlistr invite
+  // token in the URL is discarded right here, before accept-invite's own
+  // client-side "preserve it through login" logic (app/app/accept-invite/
+  // page.tsx) ever gets a chance to run — that page never even renders,
+  // since this is a server-side redirect. Scoped to exactly
+  // /app/accept-invite, not a general "preserve any /app/* destination"
+  // change: every other /app/* route keeps the exact same bare redirect
+  // as before, and this still requires full authentication either way —
+  // only WHERE to land afterward is preserved, nothing about whether auth
+  // is required.
   if (isAppRoute && !user) {
+    if (request.nextUrl.pathname === '/app/accept-invite') {
+      const destination = sanitizeNextPath(request.nextUrl.pathname + request.nextUrl.search)
+      if (destination) {
+        const loginUrl = new URL('/auth/login', request.url)
+        loginUrl.searchParams.set('next', destination)
+        return NextResponse.redirect(loginUrl)
+      }
+    }
     return NextResponse.redirect(new URL('/auth/login', request.url))
   }
 
