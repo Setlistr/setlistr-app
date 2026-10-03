@@ -213,7 +213,7 @@ function ManagerAccountMenu({ profile, initials, onSwitchToArtist, placement }: 
           <Link role="menuitem" href="/app/settings" onClick={() => setOpen(false)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px', color: C.text, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
             <Settings size={15} color={C.secondary} /> Settings &amp; Profile
           </Link>
-          <Link role="menuitem" href="/app/settings" onClick={() => setOpen(false)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px 13px', color: C.text, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
+          <Link role="menuitem" href="/app/settings#team-access" onClick={() => setOpen(false)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px 13px', color: C.text, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
             <Users size={15} color={C.secondary} /> Team
           </Link>
         </div>

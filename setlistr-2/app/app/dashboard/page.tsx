@@ -183,7 +183,18 @@ export default function DashboardPage() {
         // one accepted delegation) goes straight to their actual workspace
         // instead. Only a genuinely new user with neither identity still
         // goes through onboarding, preserving that check exactly as before.
-        if (!profile?.artist_name?.trim()) {
+        //
+        // Scoped to !actingAs: a manager-only account's own artist_name is
+        // STILL empty while they're acting as one of their managed artists —
+        // that's expected and fine, since this page is about to render that
+        // ARTIST's dashboard, not the viewer's own. Without this guard, a
+        // pure-manager delegate landing here while acting-as (e.g. via the
+        // workspace switcher, or navigating back from live capture) was
+        // bounced straight back to /app/manager on every load, discarding
+        // the acting-as selection and making the whole flow unusable for
+        // exactly this account type — confirmed as the real cause behind
+        // "can't find how to enter/use the acting-as dashboard."
+        if (!profile?.artist_name?.trim() && !actingAs) {
           if (managed.length > 0) { router.replace('/app/manager'); return }
           router.replace('/app/onboarding'); return
         }

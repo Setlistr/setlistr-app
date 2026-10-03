@@ -721,7 +721,7 @@ export default function SettingsPage() {
         </div>
 
         {/* ── Team ── */}
-        <div style={{ background: CARD.background, border: `1px solid ${C.border}`, borderRadius: 16, padding: '20px', display: 'flex', flexDirection: 'column', gap: 16, boxShadow: CARD.boxShadow }}>
+        <div id="team-access" style={{ background: CARD.background, border: `1px solid ${C.border}`, borderRadius: 16, padding: '20px', display: 'flex', flexDirection: 'column', gap: 16, boxShadow: CARD.boxShadow }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <Users size={15} color={C.gold} />
