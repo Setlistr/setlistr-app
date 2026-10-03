@@ -1,8 +1,9 @@
 'use client'
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
-import { LayoutDashboard, Users, BarChart3, Calendar } from 'lucide-react'
+import { LayoutDashboard, Users, BarChart3, Calendar, Settings } from 'lucide-react'
 import type { Profile } from '@/types'
 import { useActingAs } from '@/components/ActingAsProvider'
 
@@ -98,20 +99,7 @@ export function ManagerShell({ children, profile }: { children: React.ReactNode;
 
         <div style={{ flex: 1 }} />
 
-        <button onClick={switchToArtist} style={{
-          display: 'flex', alignItems: 'center', gap: 10,
-          padding: '11px 12px', borderRadius: 10,
-          background: 'transparent', border: `1px solid ${C.border}`,
-          color: C.secondary, fontSize: 13, fontWeight: 700,
-          cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' as const,
-        }}>
-          <div style={{ width: 22, height: 22, borderRadius: '50%', background: 'rgba(255,255,255,0.08)', border: `1.5px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
-            {profile.avatar_url
-              ? <img src={profile.avatar_url} alt={initials} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-              : <span style={{ fontSize: 8, fontWeight: 800, color: C.secondary }}>{initials}</span>}
-          </div>
-          Switch to Artist
-        </button>
+        <ManagerAccountMenu profile={profile} initials={initials} onSwitchToArtist={switchToArtist} placement="sidebar" />
       </aside>
 
       {/* ── Main content ── */}
@@ -128,9 +116,12 @@ export function ManagerShell({ children, profile }: { children: React.ReactNode;
           <Link href="/app/manager" style={{ display: 'flex', alignItems: 'center', textDecoration: 'none' }}>
             <Image src="/logo-white.png" alt="Setlistr" width={104} height={28} priority style={{ objectFit: 'contain' }} />
           </Link>
-          <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.gold, background: C.goldDim, border: `1px solid rgba(201,168,76,0.25)`, borderRadius: 20, padding: '4px 10px' }}>
-            Manager
-          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.gold, background: C.goldDim, border: `1px solid rgba(201,168,76,0.25)`, borderRadius: 20, padding: '4px 10px' }}>
+              Manager
+            </span>
+            <ManagerAccountMenu profile={profile} initials={initials} onSwitchToArtist={switchToArtist} placement="header" />
+          </div>
         </header>
 
         <main style={{ flex: 1, paddingBottom: 'calc(88px + env(safe-area-inset-bottom))' }} className="mgr-main">
@@ -157,14 +148,6 @@ export function ManagerShell({ children, profile }: { children: React.ReactNode;
               </Link>
             )
           })}
-          <button onClick={switchToArtist} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '8px 4px 10px', background: 'none', border: 'none', minHeight: 56, WebkitTapHighlightColor: 'transparent', cursor: 'pointer', fontFamily: 'inherit' }}>
-            <div style={{ width: 20, height: 20, borderRadius: '50%', background: 'rgba(255,255,255,0.08)', border: `1.5px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-              {profile.avatar_url
-                ? <img src={profile.avatar_url} alt={initials} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                : <span style={{ fontSize: 7, fontWeight: 800, color: C.secondary }}>{initials}</span>}
-            </div>
-            <span style={{ fontSize: 10, fontWeight: 500, color: C.muted, marginTop: 4, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Artist</span>
-          </button>
         </div>
       </nav>
 
@@ -176,6 +159,65 @@ export function ManagerShell({ children, profile }: { children: React.ReactNode;
         }
         * { -webkit-tap-highlight-color: transparent; }
       `}</style>
+    </div>
+  )
+}
+
+// Consolidates what used to be a dedicated "Switch to Artist" nav slot
+// (a 5th mobile bottom-tab, a 6th once the sidebar footer button is
+// counted the same way) into one avatar menu, reused for both the
+// sidebar footer and the mobile header — Settings and Team live here too,
+// matching the artist-side AccountMenu's own structure, no new routes.
+function ManagerAccountMenu({ profile, initials, onSwitchToArtist, placement }: {
+  profile: Profile; initials: string; onSwitchToArtist: () => void; placement: 'sidebar' | 'header'
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    function onClick(e: MouseEvent) { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false) }
+    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') setOpen(false) }
+    document.addEventListener('mousedown', onClick)
+    document.addEventListener('keydown', onKey)
+    return () => { document.removeEventListener('mousedown', onClick); document.removeEventListener('keydown', onKey) }
+  }, [open])
+
+  const avatar = (
+    <div style={{ width: placement === 'sidebar' ? 22 : 26, height: placement === 'sidebar' ? 22 : 26, borderRadius: '50%', background: 'rgba(255,255,255,0.08)', border: `1.5px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
+      {profile.avatar_url
+        ? <img src={profile.avatar_url} alt={initials} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        : <span style={{ fontSize: placement === 'sidebar' ? 8 : 9, fontWeight: 800, color: C.secondary }}>{initials}</span>}
+    </div>
+  )
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button onClick={() => setOpen(v => !v)} aria-haspopup="menu" aria-expanded={open} aria-label="Account menu" style={
+        placement === 'sidebar'
+          ? { display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '11px 12px', borderRadius: 10, background: 'transparent', border: `1px solid ${C.border}`, color: C.secondary, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' as const }
+          : { display: 'flex', alignItems: 'center', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }
+      }>
+        {avatar}
+        {placement === 'sidebar' && 'Account'}
+      </button>
+
+      {open && (
+        <div role="menu" style={{
+          position: 'absolute', zIndex: 60, width: 220, background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, overflow: 'hidden', boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+          ...(placement === 'sidebar' ? { bottom: 'calc(100% + 8px)', left: 0 } : { top: 'calc(100% + 8px)', right: 0 }),
+        }}>
+          <button role="menuitem" onClick={() => { onSwitchToArtist(); setOpen(false) }} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px', background: 'none', border: 'none', borderBottom: `1px solid ${C.border}`, color: C.text, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' as const }}>
+            <Users size={15} color={C.gold} /> Switch to Artist
+          </button>
+          <Link role="menuitem" href="/app/settings" onClick={() => setOpen(false)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px', color: C.text, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
+            <Settings size={15} color={C.secondary} /> Settings &amp; Profile
+          </Link>
+          <Link role="menuitem" href="/app/settings" onClick={() => setOpen(false)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px 13px', color: C.text, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
+            <Users size={15} color={C.secondary} /> Team
+          </Link>
+        </div>
+      )}
     </div>
   )
 }

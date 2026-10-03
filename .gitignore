@@ -74,4 +74,5 @@ setlistr-2/scripts/*
 !setlistr-2/scripts/test-manager-overview.ts
 !setlistr-2/scripts/test-manager-analytics.ts
 !setlistr-2/scripts/test-schedule-time.ts
+!setlistr-2/scripts/test-timezone-labels.ts
 !setlistr-2/scripts/test-next-path-guard.ts

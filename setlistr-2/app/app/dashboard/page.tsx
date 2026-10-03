@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
@@ -154,7 +154,6 @@ export default function DashboardPage() {
   const [upcomingShows, setUpcomingShows]       = useState<BitEvent[]>([])
   const [todayShow, setTodayShow]               = useState<BitEvent | null>(null)
   const [managedArtists, setManagedArtists]     = useState<ManagedArtist[]>([])
-  const [switcherOpen, setSwitcherOpen]         = useState(false)
   const [careerTotalShows, setCareerTotalShows] = useState<number>(0)
   const [careerStartYear, setCareerStartYear]   = useState<number>(0)
 
@@ -340,16 +339,8 @@ export default function DashboardPage() {
     }
   }
 
-  async function switchToArtist(artist: ManagedArtist) {
-    setSwitcherOpen(false); setLoading(true)
-    setLookupName(null); setUpcomingShows([]); setTodayShow(null)
-    setActingAs({ artist_id: artist.artist_id, artist_name: artist.artist_name })
-    await loadDelegateContext(artist.artist_id, artist.artist_name)
-    setLoading(false)
-  }
-
   async function switchToOwn() {
-    setSwitcherOpen(false); setLoading(true)
+    setLoading(true)
     setActingAs(null)
     setLookupName(null); setUpcomingShows([]); setTodayShow(null)
     setArtistName(ownArtistName)
@@ -359,6 +350,38 @@ export default function DashboardPage() {
     await loadOwnPerformances(supabase)
     setLoading(false)
   }
+
+  // Workspace switching now also happens from AccountMenu (the shared
+  // AppShell header), outside this page entirely — the main load effect
+  // above only reads `actingAs` once, at initial resolve, to pick the
+  // right FIRST load path; it does not react to `actingAs` changing
+  // later. Without this, switching via AccountMenu would update the
+  // shared provider state but leave this page showing the PREVIOUS
+  // context's stale artistName/performances/lookupName under a new,
+  // mismatched banner. Tracks the previously-observed artist id so the
+  // very first observation (already handled by the main load effect,
+  // including a page load that restores an existing selection) is never
+  // double-fetched — only a genuine, later change clears stale state and
+  // reloads, exactly as switchToOwn above already does for its own
+  // button, just reactively instead of only from a local handler.
+  const prevActingAsIdRef = useRef<string | null | undefined>(undefined)
+  useEffect(() => {
+    if (!resolved) return
+    const currentId = actingAs?.artist_id ?? null
+    if (prevActingAsIdRef.current === undefined) { prevActingAsIdRef.current = currentId; return }
+    if (prevActingAsIdRef.current === currentId) return
+    prevActingAsIdRef.current = currentId
+
+    setLoading(true)
+    setLookupName(null); setUpcomingShows([]); setTodayShow(null)
+    if (actingAs) {
+      loadDelegateContext(actingAs.artist_id, actingAs.artist_name).then(() => setLoading(false))
+    } else {
+      setArtistName(ownArtistName)
+      const supabase = createClient()
+      loadOwnPerformances(supabase).then(() => setLoading(false))
+    }
+  }, [resolved, actingAs])
 
   useEffect(() => {
     if (!lookupName) return
@@ -546,73 +569,14 @@ export default function DashboardPage() {
 
       <div style={{ maxWidth: 480, margin: '0 auto', padding: '0 16px', position: 'relative', zIndex: 1 }}>
 
-        {/* ── NAV ── */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 0 24px' }}>
-          <div style={{ position: 'relative' }}>
-            {managedArtists.length > 0 ? (
-              <button onClick={() => setSwitcherOpen(v => !v)}
-                style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ fontSize: 17, fontWeight: 800, color: C.text, letterSpacing: '-0.01em' }}>
-                  {actingAs ? actingAs.artist_name : artistName || 'Setlistr'}
-                </span>
-                <ChevronDown size={14} color={C.muted} style={{ transform: switcherOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s ease', flexShrink: 0 }} />
-              </button>
-            ) : (
-              <span style={{ fontSize: 17, fontWeight: 800, color: C.text, letterSpacing: '-0.01em' }}>
-                {actingAs ? actingAs.artist_name : artistName || 'Setlistr'}
-              </span>
-            )}
-            {switcherOpen && (
-              <div style={{ position: 'absolute', top: 'calc(100% + 8px)', left: 0, width: 260, background: CARD.background, border: `1px solid ${C.border}`, borderRadius: 12, overflow: 'hidden', zIndex: 50, boxShadow: '0 8px 24px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.04)', animation: 'fadeUp 0.15s ease' }}>
-                <button onClick={switchToOwn}
-                  style={{ width: '100%', padding: '12px 16px', background: !actingAs ? 'rgba(201,168,76,0.06)' : 'transparent', border: 'none', borderBottom: `1px solid ${C.border}`, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left' }}>
-                  <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'rgba(255,255,255,0.04)', border: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
-                    {ownAvatarUrl
-                      ? <img src={ownAvatarUrl} alt={ownArtistName || 'Y'} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                      : <span style={{ fontSize: 11, fontWeight: 800, color: C.secondary }}>{(ownArtistName || 'Y').charAt(0).toUpperCase()}</span>
-                    }
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <p style={{ fontSize: 13, fontWeight: 600, color: C.text, margin: 0 }}>{ownArtistName || 'Your Account'}</p>
-                    <p style={{ fontSize: 10, color: C.muted, margin: 0 }}>Your account</p>
-                  </div>
-                  {!actingAs && <Check size={12} color={C.gold} strokeWidth={2.5} />}
-                </button>
-                {managedArtists.map(artist => (
-                  <button key={artist.artist_id} onClick={() => switchToArtist(artist)}
-                    style={{ width: '100%', padding: '12px 16px', background: actingAs?.artist_id === artist.artist_id ? C.goldDim : 'transparent', border: 'none', borderBottom: `1px solid ${C.border}`, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left' }}>
-                    <div style={{ width: 28, height: 28, borderRadius: '50%', background: C.goldDim, border: `1px solid ${C.borderGold}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
-                      {artist.avatar_url
-                        ? <img src={artist.avatar_url} alt={artist.artist_name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                        : <span style={{ fontSize: 11, fontWeight: 800, color: C.gold }}>{artist.artist_name.charAt(0).toUpperCase()}</span>
-                      }
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <p style={{ fontSize: 13, fontWeight: 600, color: C.text, margin: 0 }}>{artist.artist_name}</p>
-                      <p style={{ fontSize: 10, color: C.muted, margin: 0 }}>Managing · {artist.role}</p>
-                    </div>
-                    {actingAs?.artist_id === artist.artist_id && <Check size={12} color={C.gold} strokeWidth={2.5} />}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-          {/* The dedicated "Filing queue" nav button that used to live here
-             was removed — it duplicated the bottom Submissions tab, which
-             now lands on the Filing Queue directly. The summary signal it
-             offered (something needs filing) lives on in the Unclaimed
-             Earnings banner below, whose "File them →" now correctly
-             routes to the Filing Queue instead of the full history. */}
-          {/* Manager entry point — the only place this page reaches into
-             the new Manager workspace. Gated on managedArtists.length,
-             already loaded by this page's own existing load() effect for
-             the switcher above; this adds zero new query. Invisible to any
-             user managing no one, so nothing changes for the common case. */}
-          {managedArtists.length > 0 && (
-            <Link href="/app/manager" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px', background: 'rgba(201,168,76,0.08)', border: `1px solid ${C.borderGold}`, borderRadius: 20, color: C.gold, fontSize: 12, fontWeight: 700, textDecoration: 'none', flexShrink: 0 }}>
-              <Users size={13} /> Manager
-            </Link>
-          )}
+        {/* ── NAV ── Workspace switching and the Manager entry point now
+             live in the shared AccountMenu (components/layout/AppShell.tsx
+             header), available on every page, not just here — this is now
+             just a plain title, matching whatever workspace is active. */}
+        <div style={{ padding: '20px 0 24px' }}>
+          <span style={{ fontSize: 17, fontWeight: 800, color: C.text, letterSpacing: '-0.01em' }}>
+            {actingAs ? actingAs.artist_name : artistName || 'Setlistr'}
+          </span>
         </div>
 
         {/* ── CONTEXT LOAD ERROR — never render the rest of this page's
@@ -642,8 +606,6 @@ export default function DashboardPage() {
             </div>
           </div>
         )}
-
-        {switcherOpen && <div onClick={() => setSwitcherOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 40 }} />}
 
         {/* ── CAREER HERO ZONE ── */}
         {totalCareerShows > 0 && (

@@ -9,6 +9,7 @@ import { tapNav, tapRecord } from '@/lib/haptics'
 import { useActingAs } from '@/components/ActingAsProvider'
 import { WorkspaceGate } from '@/components/WorkspaceGate'
 import { ManagerShell } from '@/components/layout/ManagerShell'
+import { AccountMenu } from '@/components/layout/AccountMenu'
 import { useState, useEffect } from 'react'
 
 // Set by app/app/manager/artists/[artistId]/page.tsx right before it
@@ -115,10 +116,14 @@ export function AppShell({ children, profile }: { children: React.ReactNode; pro
     { href: '/app/dashboard', icon: LayoutDashboard, label: 'Home',        badge: 0, activePaths: ['/app/dashboard'] },
     { href: '/app/file',      icon: Send,            label: 'Submissions', badge: needsReviewCount, activePaths: ['/app/file', '/app/history'] },
   ]
+  // Exactly 5 bottom-bar positions total: Home, Submissions, [capture],
+  // Career, Schedule — Profile moved to the account menu in the header
+  // (AccountMenu below). Keeping this at 2 items restores the original
+  // 2-2 symmetry the absolutely-positioned center capture button assumes;
+  // a 3rd item here is what caused it to visually collide.
   const RIGHT_NAV = [
-    { href: '/app/schedule', icon: Calendar,    label: 'Schedule', badge: 0 },
-    { href: '/app/stats',    icon: TrendingUp,  label: 'Career',   badge: 0 },
-    { href: '/app/settings', icon: null,        label: 'Profile',  badge: 0 },
+    { href: '/app/stats',    icon: TrendingUp, label: 'Career',   badge: 0 },
+    { href: '/app/schedule', icon: Calendar,   label: 'Schedule', badge: 0 },
   ]
 
   return (
@@ -137,16 +142,19 @@ export function AppShell({ children, profile }: { children: React.ReactNode; pro
         <Link href="/app/dashboard" style={{ display: 'flex', alignItems: 'center', textDecoration: 'none' }}>
           <Image src="/logo-white.png" alt="Setlistr" width={120} height={32} priority style={{ objectFit: 'contain' }} />
         </Link>
-        {/* Only ever true for a user who (a) manages at least one artist,
-            (b) opened this exact artist's flow from Artist Detail, and (c)
-            is still acting as that same artist — invisible to every other
-            user and every other existing flow, including a plain dashboard-
-            switcher session acting as a different artist. */}
-        {actingAsArtistId && managerReturnArtistId === actingAsArtistId && (
-          <button onClick={backToManager} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.25)', borderRadius: 20, padding: '6px 12px 6px 10px', color: '#c9a84c', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent' }}>
-            <ArrowLeft size={13} /> Back to Manager
-          </button>
-        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {/* Only ever true for a user who (a) manages at least one artist,
+              (b) opened this exact artist's flow from Artist Detail, and (c)
+              is still acting as that same artist — invisible to every other
+              user and every other existing flow, including a plain dashboard-
+              switcher session acting as a different artist. */}
+          {actingAsArtistId && managerReturnArtistId === actingAsArtistId && (
+            <button onClick={backToManager} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.25)', borderRadius: 20, padding: '6px 12px 6px 10px', color: '#c9a84c', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent' }}>
+              <ArrowLeft size={13} /> Back to Manager
+            </button>
+          )}
+          <AccountMenu profile={profile} />
+        </div>
       </header>
 
       {/* Grain layer — fixed noise texture over all shell surfaces, excluded from fullscreen routes */}
@@ -201,20 +209,10 @@ export function AppShell({ children, profile }: { children: React.ReactNode; pro
           {/* Right two tabs */}
           {RIGHT_NAV.map((tab) => {
             const isActive = pathname === tab.href || pathname.startsWith(tab.href)
-            const isProfile = tab.href === '/app/settings'
             const Icon = tab.icon
             return (
               <Link key={tab.href} href={tab.href} onClick={tapNav} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '8px 4px 10px', textDecoration: 'none', position: 'relative', WebkitTapHighlightColor: 'transparent', minHeight: 56 }}>
-                {isProfile ? (
-                  <div style={{ width: 22, height: 22, borderRadius: '50%', background: isActive ? 'rgba(201,168,76,0.2)' : 'rgba(255,255,255,0.08)', border: `1.5px solid ${isActive ? 'rgba(201,168,76,0.5)' : 'rgba(255,255,255,0.12)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
-                    {profile.avatar_url
-                      ? <img src={profile.avatar_url} alt={initials} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                      : <span style={{ fontSize: 8, fontWeight: 800, color: isActive ? '#c9a84c' : '#5a5040', letterSpacing: '0.02em' }}>{initials}</span>
-                    }
-                  </div>
-                ) : Icon ? (
-                  <Icon size={22} strokeWidth={isActive ? 2.5 : 1.8} color={isActive ? '#c9a84c' : '#5a5040'} />
-                ) : null}
+                <Icon size={22} strokeWidth={isActive ? 2.5 : 1.8} color={isActive ? '#c9a84c' : '#5a5040'} />
                 <span style={{ fontSize: 10, fontWeight: isActive ? 700 : 500, color: isActive ? '#c9a84c' : '#5a5040', marginTop: 4, letterSpacing: '0.06em', textTransform: 'uppercase', lineHeight: 1 }}>
                   {tab.label}
                 </span>

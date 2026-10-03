@@ -1,7 +1,7 @@
 'use client'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { MapPin, Calendar, X, Pencil, Play, RefreshCw, AlertCircle } from 'lucide-react'
+import { MapPin, Calendar, X, Pencil, Play, RefreshCw, AlertCircle, MoreVertical } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { zonedLocalTimeToUtc, utcToZonedParts } from '@/lib/scheduleTime'
 import { getTimezoneOptions, labelForZone } from '@/lib/timezoneLabels'
@@ -209,16 +209,7 @@ export function UpcomingShows({ artistId, canManage, onBeforeStart }: { artistId
                       </p>
                     )}
                   </div>
-                  {canManage && (
-                    <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                      <button onClick={() => { setEditing(show); setFormOpen(true) }} title="Edit" style={{ padding: 7, background: 'rgba(255,255,255,0.04)', border: `1px solid ${C.border}`, borderRadius: 8, color: C.secondary, cursor: 'pointer' }}>
-                        <Pencil size={13} />
-                      </button>
-                      <button onClick={() => handleCancel(show)} title="Cancel" style={{ padding: 7, background: 'rgba(255,255,255,0.04)', border: `1px solid ${C.border}`, borderRadius: 8, color: C.red, cursor: 'pointer' }}>
-                        <X size={13} />
-                      </button>
-                    </div>
-                  )}
+                  {canManage && <ShowActionsMenu show={show} onEdit={() => { setEditing(show); setFormOpen(true) }} onCancel={() => handleCancel(show)} />}
                 </div>
                 {isNext && (
                   <button onClick={() => handleStart(show)} disabled={starting === show.id} style={{
@@ -262,11 +253,15 @@ function ScheduleForm({ artistId, existing, onClose, onSaved }: {
   const [venueCountry, setVenueCountry] = useState(existing?.venues?.country || '')
   const [venueResults, setVenueResults] = useState<Venue[]>([])
   const [showDropdown, setShowDropdown] = useState(false)
-  const [localDateTime, setLocalDateTime] = useState(() => {
+  const [localDate, setLocalDate] = useState(() => {
     if (!existing) return ''
-    const { dateStr, timeStr } = utcToZonedParts(new Date(existing.scheduled_at), existing.timezone)
-    return `${dateStr}T${timeStr}`
+    return utcToZonedParts(new Date(existing.scheduled_at), existing.timezone).dateStr
   })
+  const [localTime, setLocalTime] = useState(() => {
+    if (!existing) return ''
+    return utcToZonedParts(new Date(existing.scheduled_at), existing.timezone).timeStr
+  })
+  const localDateTime = localDate && localTime ? `${localDate}T${localTime}` : ''
   const [timezone, setTimezone] = useState(existing?.timezone || deviceTz)
   // Set only when a real coordinate-derived suggestion was just applied —
   // shown as a dismissible "detected from venue location" note, never a
@@ -305,12 +300,15 @@ function ScheduleForm({ artistId, existing, onClose, onSaved }: {
   async function submit(confirmDuplicate = false, resolvedUtc?: string) {
     setError(''); setAmbiguousOptions(null)
     if (!venueQuery.trim()) { setError('A venue is required.'); return }
-    if (!localDateTime) { setError('A date and time are required.'); return }
+    if (!venueId && !venueCity.trim()) { setError("Add a city for this venue so it can be told apart from others with the same name — never guessed."); return }
+    if (!localDate) { setError('A date is required.'); return }
+    if (!localTime) { setError('A time is required.'); return }
+    if (!timezone) { setError('A timezone is required.'); return }
     setSaving(true)
     try {
       const path = existing ? `/api/shows/schedule/${existing.id}` : '/api/shows/schedule'
       const body: any = existing
-        ? { expected_updated_at: existing.updated_at, venue_id: venueId || undefined, local_date_time: localDateTime, timezone, resolved_utc: resolvedUtc }
+        ? { expected_updated_at: existing.updated_at, venue_id: venueId || undefined, venue_name: venueId ? undefined : venueQuery.trim(), venue_city: venueCity, venue_country: venueCountry, local_date_time: localDateTime, timezone, resolved_utc: resolvedUtc }
         : { artist_id: artistId, venue_id: venueId || undefined, venue_name: venueId ? undefined : venueQuery.trim(), venue_city: venueCity, venue_country: venueCountry, local_date_time: localDateTime, timezone, confirm_duplicate: confirmDuplicate, resolved_utc: resolvedUtc }
       const res = await fetch(path, { method: existing ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
       const json = await res.json()
@@ -333,23 +331,48 @@ function ScheduleForm({ artistId, existing, onClose, onSaved }: {
         <h3 style={{ fontSize: 18, fontWeight: 800, color: C.text, margin: '0 0 16px' }}>{existing ? 'Edit show' : 'Schedule a show'}</h3>
 
         <label style={{ fontSize: 11, fontWeight: 700, color: C.muted, display: 'block', marginBottom: 6 }}>Venue</label>
-        <div style={{ position: 'relative', marginBottom: 14 }}>
-          <input value={venueQuery} onChange={e => { setVenueQuery(e.target.value); setVenueId(null); searchVenues(e.target.value) }} placeholder="Search or enter a new venue"
+        <div style={{ position: 'relative', marginBottom: venueId ? 14 : 8 }}>
+          <input value={venueQuery} onChange={e => { setVenueQuery(e.target.value); setVenueId(null); setVenueCity(''); setVenueCountry(''); searchVenues(e.target.value) }} placeholder="Search or enter a new venue"
             style={{ width: '100%', background: '#0f0e0c', border: `1px solid ${C.border}`, borderRadius: 10, padding: '11px 12px', color: C.text, fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' as const }} />
           {showDropdown && venueResults.length > 0 && (
             <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: C.card2, border: `1px solid ${C.border}`, borderRadius: 10, marginTop: 4, zIndex: 10, maxHeight: 160, overflowY: 'auto' as const }}>
-              {venueResults.map(v => (
-                <button key={v.id} onClick={() => selectVenue(v)} style={{ width: '100%', textAlign: 'left' as const, padding: '9px 12px', background: 'none', border: 'none', color: C.text, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>
-                  {v.name}{v.city ? ` · ${v.city}` : ''}
-                </button>
-              ))}
+              {venueResults.map(v => {
+                const location = [v.city, v.country].filter(Boolean).join(', ')
+                return (
+                  <button key={v.id} onClick={() => selectVenue(v)} style={{ width: '100%', textAlign: 'left' as const, padding: '9px 12px', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
+                    <p style={{ fontSize: 13, fontWeight: 700, color: C.text, margin: 0 }}>{v.name}</p>
+                    <p style={{ fontSize: 11, color: location ? C.secondary : C.muted, margin: '2px 0 0', fontStyle: location ? 'normal' as const : 'italic' as const }}>
+                      {location || 'No location on file — add city/country below so this venue can be told apart from others with the same name'}
+                    </p>
+                  </button>
+                )
+              })}
             </div>
           )}
         </div>
 
-        <label style={{ fontSize: 11, fontWeight: 700, color: C.muted, display: 'block', marginBottom: 6 }}>Date & time (venue-local)</label>
-        <input type="datetime-local" value={localDateTime} onChange={e => setLocalDateTime(e.target.value)}
-          style={{ width: '100%', background: '#0f0e0c', border: `1px solid ${C.border}`, borderRadius: 10, padding: '11px 12px', color: C.text, fontSize: 14, fontFamily: 'inherit', outline: 'none', marginBottom: 14, boxSizing: 'border-box' as const, colorScheme: 'dark' as const }} />
+        {/* Visible only for a brand-new venue (no existing row selected) —
+            the identifying location search/geocoding can't resolve a venue
+            that doesn't exist yet in the venues table, so this collects the
+            minimum needed to tell it apart from a same-named venue
+            elsewhere. Never used to invent coordinates — just city/country
+            text, stored as-is. */}
+        {!venueId && venueQuery.trim() && (
+          <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+            <input value={venueCity} onChange={e => setVenueCity(e.target.value)} placeholder="City"
+              style={{ flex: 1, background: '#0f0e0c', border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 12px', color: C.text, fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' as const }} />
+            <input value={venueCountry} onChange={e => setVenueCountry(e.target.value)} placeholder="Country"
+              style={{ flex: 1, background: '#0f0e0c', border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 12px', color: C.text, fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' as const }} />
+          </div>
+        )}
+
+        <label style={{ fontSize: 11, fontWeight: 700, color: C.muted, display: 'block', marginBottom: 6 }}>Date &amp; time (venue-local)</label>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+          <input type="date" value={localDate} onChange={e => setLocalDate(e.target.value)} aria-label="Date"
+            style={{ flex: '1 1 55%', minWidth: 0, background: '#0f0e0c', border: `1px solid ${C.border}`, borderRadius: 10, padding: '11px 10px', color: C.text, fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' as const, colorScheme: 'dark' as const }} />
+          <input type="time" value={localTime} onChange={e => setLocalTime(e.target.value)} aria-label="Time"
+            style={{ flex: '1 1 45%', minWidth: 0, background: '#0f0e0c', border: `1px solid ${C.border}`, borderRadius: 10, padding: '11px 10px', color: C.text, fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' as const, colorScheme: 'dark' as const }} />
+        </div>
 
         <label style={{ fontSize: 11, fontWeight: 700, color: C.muted, display: 'block', marginBottom: 6 }}>Timezone</label>
         <TimezoneCombobox value={timezone} onChange={tz => { setTimezone(tz); setTzSuggested(false) }} />
@@ -385,7 +408,12 @@ function ScheduleForm({ artistId, existing, onClose, onSaved }: {
           </div>
         )}
 
-        {error && <p style={{ fontSize: 12, color: C.red, margin: '0 0 14px' }}>{error}</p>}
+        {error && (
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 12px', marginBottom: 14, background: C.redDim, border: '1px solid rgba(248,113,113,0.25)', borderRadius: 10 }}>
+            <AlertCircle size={14} color={C.red} style={{ flexShrink: 0, marginTop: 1 }} />
+            <p style={{ fontSize: 12, color: C.red, margin: 0 }}>{error}</p>
+          </div>
+        )}
 
         <div style={{ display: 'flex', gap: 10 }}>
           <button onClick={onClose} style={{ flex: 1, padding: '12px', background: 'transparent', border: `1px solid ${C.border}`, borderRadius: 10, color: C.secondary, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
@@ -404,6 +432,45 @@ function ScheduleForm({ artistId, existing, onClose, onSaved }: {
 // IANA strings — type a city, region, or offset ("chicago", "central",
 // "-05") to filter; selecting one is the only way to change the value, so
 // a typo never silently becomes an unintended real timezone.
+// Replaces the previous unlabeled, icon-only red X — a destructive action
+// with no explanation of what it does or why it's red. Edit stays
+// secondary (plain text label, no emphasis); Cancel is clearly labeled
+// and still requires the existing confirm() before anything happens.
+function ShowActionsMenu({ show, onEdit, onCancel }: { show: ScheduledShow; onEdit: () => void; onCancel: () => void }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    function onClick(e: MouseEvent) { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false) }
+    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') setOpen(false) }
+    document.addEventListener('mousedown', onClick)
+    document.addEventListener('keydown', onKey)
+    return () => { document.removeEventListener('mousedown', onClick); document.removeEventListener('keydown', onKey) }
+  }, [open])
+
+  return (
+    <div ref={ref} style={{ position: 'relative', flexShrink: 0 }}>
+      <button
+        onClick={() => setOpen(v => !v)}
+        aria-haspopup="menu" aria-expanded={open} aria-label={`Actions for ${show.venues?.name || 'this show'}`}
+        style={{ padding: 7, background: 'rgba(255,255,255,0.04)', border: `1px solid ${C.border}`, borderRadius: 8, color: C.secondary, cursor: 'pointer' }}>
+        <MoreVertical size={15} />
+      </button>
+      {open && (
+        <div role="menu" style={{ position: 'absolute', top: 'calc(100% + 6px)', right: 0, width: 180, background: C.card2, border: `1px solid ${C.border}`, borderRadius: 10, overflow: 'hidden', zIndex: 30, boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }}>
+          <button role="menuitem" onClick={() => { onEdit(); setOpen(false) }} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: 'none', border: 'none', borderBottom: `1px solid ${C.border}`, color: C.text, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' as const }}>
+            <Pencil size={13} color={C.secondary} /> Edit show
+          </button>
+          <button role="menuitem" onClick={() => { onCancel(); setOpen(false) }} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: 'none', border: 'none', color: C.red, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' as const }}>
+            <X size={13} /> Cancel show
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function TimezoneCombobox({ value, onChange }: { value: string; onChange: (tz: string) => void }) {
   const [query, setQuery] = useState('')
   const [open, setOpen] = useState(false)
