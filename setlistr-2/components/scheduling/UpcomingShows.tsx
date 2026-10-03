@@ -36,6 +36,17 @@ function timeLabel(timeStr: string): string {
   return `${h12}:${String(m).padStart(2, '0')} ${period}`
 }
 
+// The real abbreviation for THIS show's specific date/zone (e.g. "MDT" vs
+// "MST") — computed from the actual UTC instant, not the zone's current
+// offset "right now", so a show scheduled across a DST boundary still
+// shows the correct one.
+function zoneAbbreviation(utcIso: string, zone: string): string {
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', { timeZone: zone, timeZoneName: 'short' }).formatToParts(new Date(utcIso))
+    return parts.find(p => p.type === 'timeZoneName')?.value || ''
+  } catch { return '' }
+}
+
 // Compact, info-only card for the dashboard — the single next scheduled
 // show (if any) plus a link to the full /app/schedule experience. No
 // add/edit/cancel/start actions here at all, so there is exactly one
@@ -89,7 +100,7 @@ export function NextShowSummary({ artistId }: { artistId: string }) {
   )
 }
 
-export function UpcomingShows({ artistId, canManage, onBeforeStart }: { artistId: string; canManage: boolean; onBeforeStart?: () => void }) {
+export function UpcomingShows({ artistId, artistName, canManage, onBeforeStart }: { artistId: string; artistName?: string | null; canManage: boolean; onBeforeStart?: () => void }) {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
@@ -119,6 +130,20 @@ export function UpcomingShows({ artistId, canManage, onBeforeStart }: { artistId
     })
     if (res.ok) load()
     else { const j = await res.json().catch(() => ({})); alert(j.error || 'Could not cancel — reload and try again.') }
+  }
+
+  function confirmAndStart(show: ScheduledShow) {
+    const { dateStr, timeStr } = utcToZonedParts(new Date(show.scheduled_at), show.timezone)
+    const who = artistName ? `${artistName} — ` : ''
+    const venue = show.venues?.name || 'this venue'
+    const when = `${dayLabel(dateStr)}, ${timeLabel(timeStr)} ${zoneAbbreviation(show.scheduled_at, show.timezone)}`.trim()
+    // Only ever call it "early" when it actually is — a show whose
+    // scheduled time has already arrived or passed is just being started,
+    // not started ahead of schedule.
+    const isFuture = new Date(show.scheduled_at).getTime() > Date.now()
+    const note = isFuture ? 'This starts the show early, ahead of its scheduled time.' : 'This starts the show now.'
+    const ok = confirm(`Start capture now for ${who}${venue}, scheduled for ${when}?\n\n${note}`)
+    if (ok) handleStart(show)
   }
 
   async function handleStart(show: ScheduledShow) {
@@ -193,7 +218,9 @@ export function UpcomingShows({ artistId, canManage, onBeforeStart }: { artistId
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 4 }}>
                       <span style={{ fontSize: isNext ? 13 : 12, fontWeight: 800, color: C.gold, letterSpacing: '0.02em' }}>{dayLabel(dateStr)}</span>
-                      <span style={{ fontSize: isNext ? 13 : 12, color: C.secondary, fontFamily: '"DM Mono", monospace' }}>{timeLabel(timeStr)}</span>
+                      <span style={{ fontSize: isNext ? 13 : 12, color: C.secondary, fontFamily: '"DM Mono", monospace' }}>
+                        {timeLabel(timeStr)} <span style={{ color: C.secondary }}>{zoneAbbreviation(show.scheduled_at, show.timezone)}</span>
+                      </span>
                     </div>
                     <p style={{ fontSize: isNext ? 18 : 15, fontWeight: 800, color: C.text, margin: '0 0 2px', letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {show.venues?.name || 'Venue TBD'}
@@ -209,17 +236,22 @@ export function UpcomingShows({ artistId, canManage, onBeforeStart }: { artistId
                       </p>
                     )}
                   </div>
-                  {canManage && <ShowActionsMenu show={show} onEdit={() => { setEditing(show); setFormOpen(true) }} onCancel={() => handleCancel(show)} />}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                    {isNext && canManage && (() => {
+                      const isFuture = new Date(show.scheduled_at).getTime() > Date.now()
+                      return (
+                        <button onClick={() => confirmAndStart(show)} disabled={starting === show.id} style={{
+                          padding: '7px 11px', display: 'flex', alignItems: 'center', gap: 5,
+                          background: 'transparent', border: `1px solid ${C.borderGold}`, borderRadius: 8, color: C.gold, fontSize: 11, fontWeight: 700,
+                          cursor: starting === show.id ? 'default' : 'pointer', fontFamily: 'inherit', opacity: starting === show.id ? 0.7 : 1, whiteSpace: 'nowrap' as const,
+                        }}>
+                          <Play size={11} /> {starting === show.id ? 'Starting…' : isFuture ? 'Start early' : 'Start Capture'}
+                        </button>
+                      )
+                    })()}
+                    {canManage && <ShowActionsMenu show={show} onEdit={() => { setEditing(show); setFormOpen(true) }} onCancel={() => handleCancel(show)} />}
+                  </div>
                 </div>
-                {isNext && (
-                  <button onClick={() => handleStart(show)} disabled={starting === show.id} style={{
-                    width: '100%', marginTop: 16, padding: '13px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                    background: C.gold, border: 'none', borderRadius: 10, color: '#0a0908', fontSize: 13, fontWeight: 800,
-                    cursor: starting === show.id ? 'default' : 'pointer', fontFamily: 'inherit', opacity: starting === show.id ? 0.7 : 1,
-                  }}>
-                    <Play size={14} /> {starting === show.id ? 'Starting…' : 'Start capture'}
-                  </button>
-                )}
               </div>
             )
           })}

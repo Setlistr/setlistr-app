@@ -50,7 +50,7 @@ export default function SchedulePage() {
         <h1 style={{ fontSize: 26, fontWeight: 800, color: C.text, margin: '0 0 4px', letterSpacing: '-0.02em' }}>Schedule</h1>
         {displayName && <p style={{ fontSize: 14, color: C.secondary, margin: '0 0 24px' }}>{displayName}</p>}
 
-        <UpcomingShows artistId={artistId} canManage={true} />
+        <UpcomingShows artistId={artistId} artistName={displayName} canManage={true} />
       </div>
     </div>
   )

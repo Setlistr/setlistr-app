@@ -36,7 +36,7 @@ export default function ManagerSchedulePage() {
   useEffect(() => { load() }, [load])
 
   if (loading) {
-    return <div style={{ padding: '24px 20px', maxWidth: 640, margin: '0 auto' }} className="mgr-page"><div className="mgr-skeleton" style={{ width: 140, height: 28, borderRadius: 6 }} /><style>{`@keyframes mgrShimmer5 { 0% { background-position: -200px 0 } 100% { background-position: 200px 0 } } .mgr-skeleton { background: linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.08) 37%, rgba(255,255,255,0.04) 63%); background-size: 400px 100%; animation: mgrShimmer5 1.4s ease infinite; }`}</style></div>
+    return <div style={{ padding: '24px 20px', maxWidth: 880, margin: '0 auto' }} className="mgr-page"><div className="mgr-skeleton" style={{ width: 140, height: 28, borderRadius: 6 }} /><style>{`@keyframes mgrShimmer5 { 0% { background-position: -200px 0 } 100% { background-position: 200px 0 } } .mgr-skeleton { background: linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.08) 37%, rgba(255,255,255,0.04) 63%); background-size: 400px 100%; animation: mgrShimmer5 1.4s ease infinite; }`}</style></div>
   }
 
   if (managed.length === 0) {
@@ -50,7 +50,7 @@ export default function ManagerSchedulePage() {
   }
 
   return (
-    <div style={{ padding: '24px 20px 48px', maxWidth: 640, margin: '0 auto' }} className="mgr-page">
+    <div style={{ padding: '24px 20px 48px', maxWidth: 880, margin: '0 auto' }} className="mgr-page">
       <h1 style={{ fontSize: 28, fontWeight: 800, color: C.text, margin: '0 0 16px', letterSpacing: '-0.025em' }}>Schedule</h1>
 
       {managed.length > 1 && (
@@ -71,6 +71,7 @@ export default function ManagerSchedulePage() {
       {selected && (
         <UpcomingShows
           artistId={selected}
+          artistName={managed.find(a => a.artist_id === selected)?.artist_name}
           canManage={true}
           onBeforeStart={() => {
             const artist = managed.find(a => a.artist_id === selected)

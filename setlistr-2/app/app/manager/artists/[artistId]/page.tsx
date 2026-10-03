@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { ChevronLeft, ChevronRight, History, Send } from 'lucide-react'
 import { useActingAs } from '@/components/ActingAsProvider'
 import { MANAGER_RETURN_KEY } from '@/components/layout/AppShell'
-import { isCapturedShow } from '@/lib/performance-status'
+import { isCapturedShow, isCompleteStage, isSubmitted } from '@/lib/performance-status'
 import { isWriteCapableRole } from '@/lib/writeCapableRoles'
 import { UpcomingShows } from '@/components/scheduling/UpcomingShows'
 
@@ -38,13 +38,34 @@ function initialsFor(name: string): string {
 
 // Every destination is an EXISTING artist-facing route, unmodified —
 // Artist Detail only decides how to get there safely, never reimplements
-// what's on the other side.
+// what's on the other side. The three-way split (and its labels) mirrors
+// the same canonical lifecycle predicates every other screen uses — never
+// a route-local status whitelist — and the labels are deliberately never
+// "Submit"/"File": Setlistr prepares a royalty claim, the artist's PRO is
+// the one who actually receives and processes it.
 function flowFor(p: ContextPerformance, songCount: number): { href: string; label: string } {
-  if (songCount === 0 || !isCapturedShow({ status: p.status, data_source: p.data_source, venue_name: p.venue_name })) {
-    return { href: `/app/review/${p.id}`, label: 'Review' }
+  if (songCount === 0 || !isCompleteStage({ status: p.status })) {
+    return { href: `/app/review/${p.id}`, label: 'Review Setlist' }
   }
-  if (p.submission_status === 'submitted') return { href: `/app/history`, label: 'View in Your Record' }
-  return { href: `/app/submit/${p.id}`, label: 'Open Submit' }
+  if (isSubmitted({ submission_status: p.submission_status })) {
+    return { href: `/app/history`, label: 'View Record' }
+  }
+  return { href: `/app/submit/${p.id}`, label: 'Prepare Claim' }
+}
+
+// The one real moment this show happened — never insertion order, never
+// whatever order the API query incidentally returned rows in.
+function eventTimeOf(p: ContextPerformance): number {
+  const t = p.started_at || p.performance_date || p.created_at
+  const ms = t ? new Date(t).getTime() : NaN
+  return Number.isNaN(ms) ? 0 : ms
+}
+
+function readableDate(p: ContextPerformance): string {
+  const t = p.started_at || p.performance_date || p.created_at
+  if (!t) return 'Unknown date'
+  const d = new Date(t)
+  return Number.isNaN(d.getTime()) ? 'Unknown date' : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
 export default function ManagerArtistDetailPage({ params }: { params: { artistId: string } }) {
@@ -105,7 +126,7 @@ export default function ManagerArtistDetailPage({ params }: { params: { artistId
 
   if (loading) {
     return (
-      <div style={{ padding: '20px 20px 40px', maxWidth: 640, margin: '0 auto' }} className="mgr-page">
+      <div style={{ padding: '20px 20px 40px', maxWidth: 880, margin: '0 auto' }} className="mgr-page">
         <div className="mgr-skeleton" style={{ width: 80, height: 14, borderRadius: 4, marginBottom: 18 }} />
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 24 }}>
           <div className="mgr-skeleton" style={{ width: 52, height: 52, borderRadius: '50%' }} />
@@ -152,10 +173,11 @@ export default function ManagerArtistDetailPage({ params }: { params: { artistId
 
   const shows = data.performances
     .filter(p => isCapturedShow({ status: p.status, data_source: p.data_source, venue_name: p.venue_name }))
+    .sort((a, b) => eventTimeOf(b) - eventTimeOf(a))
     .slice(0, 20)
 
   return (
-    <div style={{ padding: '20px 20px 40px', maxWidth: 640, margin: '0 auto' }} className="mgr-page">
+    <div style={{ padding: '20px 20px 40px', maxWidth: 880, margin: '0 auto' }} className="mgr-page">
       <Link href="/app/manager/artists" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: C.secondary, fontSize: 13, fontWeight: 700, textDecoration: 'none', marginBottom: 18 }}>
         <ChevronLeft size={14} /> Artists
       </Link>
@@ -178,6 +200,7 @@ export default function ManagerArtistDetailPage({ params }: { params: { artistId
 
       <UpcomingShows
         artistId={params.artistId}
+        artistName={data.artist_name}
         canManage={isWriteCapableRole(data.role)}
         onBeforeStart={() => {
           try { sessionStorage.setItem(MANAGER_RETURN_KEY, params.artistId) } catch {}
@@ -199,7 +222,7 @@ export default function ManagerArtistDetailPage({ params }: { params: { artistId
             const songCount = data.songCountMap[p.id] || 0
             const submitted = p.submission_status === 'submitted'
             const flow = flowFor(p, songCount)
-            const dateStr = (p.started_at || p.created_at || '').slice(0, 10)
+            const dateStr = readableDate(p)
             return (
               <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', background: C.card }}>
                 <div style={{ flex: 1, minWidth: 0 }}>

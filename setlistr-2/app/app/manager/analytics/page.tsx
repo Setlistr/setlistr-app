@@ -38,6 +38,8 @@ export default function ManagerAnalyticsPage() {
   const [prevRows, setPrevRows] = useState<AnalyticsPerformanceRow[]>([])
   const [songRows, setSongRows] = useState<{ performance_id: string; title: string; artist: string | null }[]>([])
   const [dataLoading, setDataLoading] = useState(false)
+  const [dataError, setDataError] = useState(false)
+  const [dataRetryTick, setDataRetryTick] = useState(0)
   const [expandedLocation, setExpandedLocation] = useState<string | null>(null)
 
   const artistNameById = useMemo(() => new Map(managed.map(a => [a.artist_id, a.artist_name])), [managed])
@@ -67,9 +69,15 @@ export default function ManagerAnalyticsPage() {
   const periodPair = useMemo(() => equalPeriodComparison(rangeInfo.fromISO), [rangeInfo.fromISO])
 
   useEffect(() => {
-    if (managed.length === 0 || scopedArtistIds.length === 0) { setRows([]); setPrevRows([]); setSongRows([]); return }
+    if (managed.length === 0 || scopedArtistIds.length === 0) { setRows([]); setPrevRows([]); setSongRows([]); setDataError(false); return }
     let cancelled = false
-    setDataLoading(true)
+    // Clear the previous filter/range's aggregates immediately, in the
+    // same tick that starts the new fetch — never leave a stale chart,
+    // song list, or city/venue breakdown sitting next to a "Loading…"
+    // label for a DIFFERENT filter. Every section's own loading/empty
+    // branch below reads off this cleared state, so they all agree.
+    setDataLoading(true); setDataError(false)
+    setRows([]); setPrevRows([]); setSongRows([])
     const supabase = createClient()
     Promise.all([
       fetchCapturedShowsInRange(supabase, scopedArtistIds, periodPair.current.fromISO),
@@ -88,10 +96,10 @@ export default function ManagerAnalyticsPage() {
       const ids = current.map(r => r.id)
       const songs = await fetchSongsForPerformances(supabase, ids)
       if (!cancelled) setSongRows(songs)
-    }).catch(() => { if (!cancelled) { setRows([]); setPrevRows([]); setSongRows([]) } })
+    }).catch(() => { if (!cancelled) { setRows([]); setPrevRows([]); setSongRows([]); setDataError(true) } })
       .finally(() => { if (!cancelled) setDataLoading(false) })
     return () => { cancelled = true }
-  }, [scopedArtistIds, managed.length, periodPair])
+  }, [scopedArtistIds, managed.length, periodPair, dataRetryTick])
 
   const buckets = useMemo(() => monthBucketsInRange(periodPair.current.fromISO, periodPair.current.toISO), [periodPair])
   const monthCounts = useMemo(() => groupCapturedShowsByMonth(rows, buckets), [rows, buckets])
@@ -179,6 +187,15 @@ export default function ManagerAnalyticsPage() {
         </div>
       </div>
 
+      {dataError && !dataLoading && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 20, padding: '12px 16px', background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.25)', borderRadius: 12 }}>
+          <span style={{ fontSize: 13, color: C.red }}>Couldn't load analytics for this filter — the figures below are not shown rather than risk showing stale or wrong ones.</span>
+          <button onClick={() => setDataRetryTick(t => t + 1)} style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: 'transparent', border: `1px solid rgba(248,113,113,0.4)`, borderRadius: 8, color: C.red, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+            <RefreshCw size={12} /> Retry
+          </button>
+        </div>
+      )}
+
       {/* ── Highlights — evidence-backed, each states its period and links
           straight to the supporting records below. Omitted (not shown as
           zero or a placeholder) when there's nothing to say yet. ── */}
@@ -217,7 +234,7 @@ export default function ManagerAnalyticsPage() {
           </p>
         </div>
         <p style={{ fontSize: 13, color: C.secondary, margin: '0 0 16px' }}>
-          {dataLoading ? 'Loading…' : (
+          {dataLoading ? 'Loading…' : dataError ? 'Not shown — couldn’t load.' : (
             periodComparison.percentChange === null
               ? `${periodComparison.current} recorded show${periodComparison.current === 1 ? '' : 's'} this period — no comparable activity in the prior period, so no trend is shown.`
               : `${periodComparison.current} recorded shows this period, ${periodComparison.previous} in the period before (${periodComparison.percentChange > 0 ? '+' : ''}${periodComparison.percentChange}%).`
@@ -226,7 +243,7 @@ export default function ManagerAnalyticsPage() {
 
         {buckets.length === 0 || currentTotal === 0 ? (
           <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '28px 20px', textAlign: 'center' as const }}>
-            <p style={{ color: C.secondary, fontSize: 14, margin: 0 }}>{dataLoading ? 'Loading…' : 'No recorded shows in this period.'}</p>
+            <p style={{ color: C.secondary, fontSize: 14, margin: 0 }}>{dataLoading ? 'Loading…' : dataError ? 'Not shown — couldn’t load.' : 'No recorded shows in this period.'}</p>
           </div>
         ) : (
           <div className="mgr-chart" style={{ background: `linear-gradient(180deg, ${C.card}, #100f0d)`, border: `1px solid ${C.border}`, borderRadius: 16, padding: '24px 20px 20px', display: 'flex', alignItems: 'flex-end', gap: 12, height: 200, opacity: dataLoading ? 0.5 : 1 }}>
@@ -256,7 +273,7 @@ export default function ManagerAnalyticsPage() {
         <p style={{ fontSize: 12, color: C.muted, margin: '0 0 12px' }}>Most-performed songs, by number of distinct shows.</p>
         {songRotation.length === 0 ? (
           <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '24px 20px', textAlign: 'center' as const }}>
-            <p style={{ color: C.secondary, fontSize: 14, margin: 0 }}>{dataLoading ? 'Loading…' : 'No songs recorded in this period.'}</p>
+            <p style={{ color: C.secondary, fontSize: 14, margin: 0 }}>{dataLoading ? 'Loading…' : dataError ? 'Not shown — couldn’t load.' : 'No songs recorded in this period.'}</p>
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 1, background: C.border, borderRadius: 14, overflow: 'hidden', border: `1px solid ${C.border}` }}>
@@ -303,7 +320,7 @@ export default function ManagerAnalyticsPage() {
 
         {byCity.length === 0 ? (
           <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '24px 20px', textAlign: 'center' as const }}>
-            <p style={{ color: C.secondary, fontSize: 14, margin: 0 }}>{dataLoading ? 'Loading…' : 'No recorded shows in this period.'}</p>
+            <p style={{ color: C.secondary, fontSize: 14, margin: 0 }}>{dataLoading ? 'Loading…' : dataError ? 'Not shown — couldn’t load.' : 'No recorded shows in this period.'}</p>
           </div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>

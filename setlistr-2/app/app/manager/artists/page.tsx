@@ -135,11 +135,11 @@ export default function ManagerArtistsPage() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                 <Avatar name={artist.artist_name} url={artist.avatar_url} size={52} />
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ fontSize: 16, fontWeight: 800, color: C.text, margin: 0, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{artist.artist_name}</p>
+                  <p style={{ fontSize: 16, fontWeight: 800, color: C.text, margin: 0, letterSpacing: '-0.01em', overflowWrap: 'anywhere' as const }}>{artist.artist_name}</p>
                   {latest && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 3 }}>
                       <div style={{ width: 6, height: 6, borderRadius: '50%', background: submitted ? C.green : C.gold, opacity: submitted ? 1 : 0.5, flexShrink: 0 }} />
-                      <span style={{ fontSize: 11, fontWeight: 700, color: submitted ? C.green : C.muted }}>{submitted ? 'Marked Submitted' : 'Not submitted'}</span>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: submitted ? C.green : C.muted }}>Latest show: {submitted ? 'Marked Submitted' : 'Not submitted'}</span>
                     </div>
                   )}
                 </div>

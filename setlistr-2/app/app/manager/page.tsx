@@ -157,7 +157,7 @@ export default function ManagerOverviewPage() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 24 }}>
         <StatCard icon={Users} label="Roster" value={managed.length} loading={false} href="/app/manager/artists" />
         <StatCard icon={Calendar} label={`Recorded · ${rangeInfo.label}`} value={capturedCount} loading={rangeLoading} />
-        <StatCard icon={FileSearch} label="Awaiting review" value={awaitingReviewCount} loading={rangeLoading} tone="gold" />
+        <StatCard icon={FileSearch} label={`Awaiting review · ${rangeInfo.label}`} value={awaitingReviewCount} loading={rangeLoading} tone="gold" />
         <StatCard icon={Send} label={`Not submitted · ${rangeInfo.label}`} value={notSubmittedCount} loading={rangeLoading} tone="gold" />
       </div>
 
@@ -192,12 +192,28 @@ export default function ManagerOverviewPage() {
               {needsReview.map(r => {
                 const artistName = artistNameById.get(r.user_id) || 'Artist'
                 const dateStr = (r.started_at || r.performance_date || '').slice(0, 10)
-                return (
-                  <Link key={r.id} href={`/app/review/${r.id}`} className="mgr-row-hover" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 16px', textDecoration: 'none', borderBottom: `1px solid rgba(201,168,76,0.12)` }}>
+                // 'processing' is still mid-pipeline — not yet handed to the
+                // artist to review — so it gets no Review Setlist link here;
+                // only 'review'-stage shows are actually ready for that.
+                const stillProcessing = r.status === 'processing'
+                const rowContent = (
+                  <>
                     <Avatar name={artistName} url={artistAvatarById.get(r.user_id)} size={26} />
-                    <span style={{ flex: 1, fontSize: 13, color: C.text, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{artistName} · {r.venue_name || 'Unknown venue'}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <span style={{ display: 'block', fontSize: 13, color: C.text, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{artistName} · {r.venue_name || 'Unknown venue'}</span>
+                      <span style={{ fontSize: 11, color: stillProcessing ? C.muted : C.gold, fontWeight: 700 }}>{stillProcessing ? 'Still processing' : 'Ready for review'}</span>
+                    </div>
                     <span style={{ fontSize: 11, color: C.muted, flexShrink: 0, fontFamily: '"DM Mono", monospace' }}>{dateStr}</span>
-                    <ChevronRight size={13} color={C.muted} style={{ flexShrink: 0 }} />
+                    {!stillProcessing && <ChevronRight size={13} color={C.muted} style={{ flexShrink: 0 }} />}
+                  </>
+                )
+                return stillProcessing ? (
+                  <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 16px', borderBottom: `1px solid rgba(201,168,76,0.12)` }}>
+                    {rowContent}
+                  </div>
+                ) : (
+                  <Link key={r.id} href={`/app/review/${r.id}`} className="mgr-row-hover" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 16px', textDecoration: 'none', borderBottom: `1px solid rgba(201,168,76,0.12)` }}>
+                    {rowContent}
                   </Link>
                 )
               })}
@@ -226,7 +242,7 @@ export default function ManagerOverviewPage() {
               <Link key={row.id} href={`/app/manager/artists/${row.user_id}`} className="mgr-row-hover" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', background: C.card, textDecoration: 'none' }}>
                 <Avatar name={artistName} url={artistAvatarById.get(row.user_id)} size={34} />
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ fontSize: 14, fontWeight: 700, color: C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{artistName}</p>
+                  <p style={{ fontSize: 14, fontWeight: 700, color: C.text, margin: 0, overflowWrap: 'anywhere' as const }}>{artistName}</p>
                   <p style={{ fontSize: 12, color: C.secondary, margin: '2px 0 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {row.venue_name || 'Unknown venue'}{dateStr ? ` · ${dateStr}` : ''}
                   </p>

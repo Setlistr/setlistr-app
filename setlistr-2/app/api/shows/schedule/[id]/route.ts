@@ -2,15 +2,18 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { zonedLocalTimeToUtc } from '@/lib/scheduleTime'
 
-// PATCH — edit a still-scheduled show. Concurrency: the client must send
-// back the expected_updated_at it last read; the UPDATE's own WHERE
-// clause includes it, so a stale edit affects zero rows atomically — no
-// separate SELECT-then-UPDATE gap. Authorization (can_write_for) and "no
-// editing after capture started" (SCHEDULE_LOCKED) are enforced by
-// Postgres itself (0020_shared_show_scheduling.sql's trigger), not
-// re-checked here — this route does not claim to be the enforcement
-// boundary, only to shape the request and translate the DB's rejection
-// into a clear response.
+// PATCH — edit a still-scheduled show. Concurrency: venue creation (when
+// introducing a brand-new venue) and the show update now happen inside a
+// single DB transaction — supabase/migrations/0021_schedule_patch_atomic_
+// venue.sql's patch_scheduled_show_with_venue(), which locks the show row
+// (FOR UPDATE), re-checks status/updated_at under that lock, and only
+// then creates the venue and applies the update. A stale or locked edit
+// raises before the venue insert ever runs, so nothing is left orphaned —
+// a JS-side pre-check followed by separate insert/update calls could not
+// close that window (confirmed by actually hitting the race: a stale/
+// locked edit that also introduced a new venue left that venue row behind
+// anyway). Authorization (can_write_for) is re-checked inside the
+// function itself, same as before.
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const supabase = await createServerSupabaseClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -20,41 +23,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const { expected_updated_at, venue_id, venue_name, venue_city, venue_country, local_date_time, timezone, name, show_type, resolved_utc } = body
   if (!expected_updated_at) return NextResponse.json({ error: 'expected_updated_at required' }, { status: 400 })
 
-  // Creating a new venue is a real side effect that must not happen for an
-  // edit that's obviously going to be rejected anyway (a stale token, or a
-  // show that's already live/completed/cancelled) — this pre-check is not
-  // itself the concurrency guarantee (the final UPDATE's own WHERE clause
-  // plus the DB trigger still are, against a genuine race), it only avoids
-  // leaving an orphaned venues row behind in the common, non-racing case
-  // where the edit was simply never going to succeed. Confirmed necessary
-  // by actually hitting it: without this, a stale/locked edit that also
-  // tried to introduce a new venue left that venue row behind anyway.
-  if (venue_name && !venue_id) {
-    const { data: current } = await supabase.from('shows').select('status, updated_at').eq('id', params.id).maybeSingle()
-    if (!current || current.updated_at !== expected_updated_at) {
-      return NextResponse.json({ error: 'This was changed elsewhere — reload and try again.' }, { status: 409 })
-    }
-    if (current.status !== 'scheduled') {
-      return NextResponse.json({ error: 'This show can no longer be edited — it may have already started.' }, { status: 409 })
-    }
+  if (venue_name && !venue_id && !venue_city?.trim()) {
+    return NextResponse.json({ error: 'Add a city for this venue so it can be told apart from others with the same name.' }, { status: 400 })
   }
 
   const patch: Record<string, any> = {}
-  if (venue_id) {
-    patch.venue_id = venue_id
-  } else if (venue_name) {
-    // Editing to a brand-new venue (not re-pointing to an existing one) —
-    // mirrors the POST route's own creation logic exactly, same
-    // never-invent-coordinates rule: city/country are stored as given,
-    // nothing geocoded or guessed here.
-    if (!venue_city?.trim()) return NextResponse.json({ error: 'Add a city for this venue so it can be told apart from others with the same name.' }, { status: 400 })
-    const { data: newVenue, error: venueError } = await supabase
-      .from('venues')
-      .insert({ name: venue_name.trim(), city: venue_city.trim(), country: venue_country?.trim() || null })
-      .select('id').single()
-    if (venueError) return NextResponse.json({ error: 'Could not save venue' }, { status: 500 })
-    patch.venue_id = newVenue.id
-  }
   if (name !== undefined) patch.name = name?.trim() || null
   if (show_type) patch.show_type = show_type
 
@@ -79,19 +52,32 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     patch.timezone = timezone
   }
 
-  const { data, error } = await supabase
-    .from('shows')
-    .update(patch)
-    .eq('id', params.id)
-    .eq('updated_at', expected_updated_at)
-    .select('id, name, show_type, scheduled_at, timezone, status, updated_at, venue_id')
+  const { data, error } = await supabase.rpc('patch_scheduled_show_with_venue', {
+    p_show_id: params.id,
+    p_expected_updated_at: expected_updated_at,
+    p_venue_id: venue_id || null,
+    p_new_venue_name: venue_id ? null : (venue_name?.trim() || null),
+    p_new_venue_city: venue_id ? null : (venue_city?.trim() || null),
+    p_new_venue_country: venue_id ? null : (venue_country?.trim() || null),
+    p_patch: patch,
+  })
 
   if (error) {
-    // SCHEDULE_LOCKED from the DB trigger — a real rejection, not "nothing matched."
-    return NextResponse.json({ error: 'This show can no longer be edited — it may have already started.' }, { status: 409 })
+    if (error.message?.includes('STALE_VERSION')) {
+      return NextResponse.json({ error: 'This was changed elsewhere — reload and try again.' }, { status: 409 })
+    }
+    if (error.message?.includes('SHOW_LOCKED')) {
+      return NextResponse.json({ error: 'This show can no longer be edited — it may have already started.' }, { status: 409 })
+    }
+    if (error.message?.includes('NOT_AUTHORIZED') || error.message?.includes('NOT_AUTHENTICATED')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
+    }
+    if (error.message?.includes('SHOW_NOT_FOUND')) {
+      return NextResponse.json({ error: 'This show no longer exists.' }, { status: 404 })
+    }
+    return NextResponse.json({ error: 'Could not save this edit.' }, { status: 500 })
   }
-  if (!data || data.length === 0) {
-    return NextResponse.json({ error: 'This was changed elsewhere — reload and try again.' }, { status: 409 })
-  }
-  return NextResponse.json({ show: data[0] })
+
+  const row = Array.isArray(data) ? data[0] : data
+  return NextResponse.json({ show: row })
 }
