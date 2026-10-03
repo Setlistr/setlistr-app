@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Check, Calendar, ChevronDown, Users, X } from 'lucide-react'
 import { useActingAs } from '@/components/ActingAsProvider'
 import { SetlistrLoader, useLoaderVariant } from '@/components/SetlistrLoader'
+import { UpcomingShows } from '@/components/scheduling/UpcomingShows'
 import { isCapturedShow, isSubmitted } from '@/lib/performance-status'
 import {
   estimateRoyalties, aggregateUnclaimedEarnings,
@@ -842,7 +843,12 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* ── UPCOMING SHOWS ── */}
+        {/* ── Scheduled shows (real, Setlistr-owned schedule) ── */}
+        {userId && (
+          <UpcomingShows artistId={actingAs?.artist_id || userId} canManage={true} />
+        )}
+
+        {/* ── UPCOMING SHOWS (external Bandsintown/Ticketmaster lookup) ── */}
         {upcomingShows.length > 0 && (
           <div style={{ marginBottom: 16, animation: 'fadeUp 0.38s ease' }}>
             <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.muted, margin: '0 0 8px', display: 'flex', alignItems: 'center', gap: 6 }}>

@@ -6,6 +6,8 @@ import { ChevronLeft, ChevronRight, History, Send } from 'lucide-react'
 import { useActingAs } from '@/components/ActingAsProvider'
 import { MANAGER_RETURN_KEY } from '@/components/layout/AppShell'
 import { isCapturedShow } from '@/lib/performance-status'
+import { isWriteCapableRole } from '@/lib/writeCapableRoles'
+import { UpcomingShows } from '@/components/scheduling/UpcomingShows'
 
 const C = {
   bg: '#0a0908', card: '#141210', border: 'rgba(255,255,255,0.07)',
@@ -173,6 +175,15 @@ export default function ManagerArtistDetailPage({ params }: { params: { artistId
           <p style={{ fontSize: 13, color: C.red, margin: 0 }}>Couldn't confirm your access to this artist right now. Nothing was opened — try again.</p>
         </div>
       )}
+
+      <UpcomingShows
+        artistId={params.artistId}
+        canManage={isWriteCapableRole(data.role)}
+        onBeforeStart={() => {
+          try { sessionStorage.setItem(MANAGER_RETURN_KEY, params.artistId) } catch {}
+          selectManagedArtist({ artist_id: params.artistId, artist_name: data.artist_name })
+        }}
+      />
 
       <p style={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: C.muted, margin: '0 0 10px' }}>
         Recorded shows
