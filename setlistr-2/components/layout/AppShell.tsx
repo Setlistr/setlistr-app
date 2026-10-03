@@ -1,7 +1,7 @@
 'use client'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { LayoutDashboard, Send, TrendingUp, ArrowLeft } from 'lucide-react'
+import { LayoutDashboard, Send, TrendingUp, Calendar, ArrowLeft } from 'lucide-react'
 import Image from 'next/image'
 import type { Profile } from '@/types'
 import { createClient } from '@/lib/supabase/client'
@@ -116,8 +116,9 @@ export function AppShell({ children, profile }: { children: React.ReactNode; pro
     { href: '/app/file',      icon: Send,            label: 'Submissions', badge: needsReviewCount, activePaths: ['/app/file', '/app/history'] },
   ]
   const RIGHT_NAV = [
-    { href: '/app/stats',    label: 'Career',  badge: 0 },
-    { href: '/app/settings', label: 'Profile', badge: 0 },
+    { href: '/app/schedule', icon: Calendar,    label: 'Schedule', badge: 0 },
+    { href: '/app/stats',    icon: TrendingUp,  label: 'Career',   badge: 0 },
+    { href: '/app/settings', icon: null,        label: 'Profile',  badge: 0 },
   ]
 
   return (
@@ -201,6 +202,7 @@ export function AppShell({ children, profile }: { children: React.ReactNode; pro
           {RIGHT_NAV.map((tab) => {
             const isActive = pathname === tab.href || pathname.startsWith(tab.href)
             const isProfile = tab.href === '/app/settings'
+            const Icon = tab.icon
             return (
               <Link key={tab.href} href={tab.href} onClick={tapNav} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '8px 4px 10px', textDecoration: 'none', position: 'relative', WebkitTapHighlightColor: 'transparent', minHeight: 56 }}>
                 {isProfile ? (
@@ -210,9 +212,9 @@ export function AppShell({ children, profile }: { children: React.ReactNode; pro
                       : <span style={{ fontSize: 8, fontWeight: 800, color: isActive ? '#c9a84c' : '#5a5040', letterSpacing: '0.02em' }}>{initials}</span>
                     }
                   </div>
-                ) : (
-                  <TrendingUp size={22} strokeWidth={isActive ? 2.5 : 1.8} color={isActive ? '#c9a84c' : '#5a5040'} />
-                )}
+                ) : Icon ? (
+                  <Icon size={22} strokeWidth={isActive ? 2.5 : 1.8} color={isActive ? '#c9a84c' : '#5a5040'} />
+                ) : null}
                 <span style={{ fontSize: 10, fontWeight: isActive ? 700 : 500, color: isActive ? '#c9a84c' : '#5a5040', marginTop: 4, letterSpacing: '0.06em', textTransform: 'uppercase', lineHeight: 1 }}>
                   {tab.label}
                 </span>

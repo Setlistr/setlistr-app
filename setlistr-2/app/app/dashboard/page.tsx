@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Check, Calendar, ChevronDown, Users, X } from 'lucide-react'
 import { useActingAs } from '@/components/ActingAsProvider'
 import { SetlistrLoader, useLoaderVariant } from '@/components/SetlistrLoader'
-import { UpcomingShows } from '@/components/scheduling/UpcomingShows'
+import { NextShowSummary } from '@/components/scheduling/UpcomingShows'
 import { isCapturedShow, isSubmitted } from '@/lib/performance-status'
 import {
   estimateRoyalties, aggregateUnclaimedEarnings,
@@ -171,21 +171,28 @@ export default function DashboardPage() {
       if (user) setUserId(user.id)
 
       if (user) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('bandsintown_artist_name, artist_name, full_name, avatar_url')
-          .eq('id', user.id).single()
+        const [{ data: profile }, managedRes] = await Promise.all([
+          supabase.from('profiles').select('bandsintown_artist_name, artist_name, full_name, avatar_url').eq('id', user.id).single(),
+          fetch('/api/team/managed-artists'),
+        ])
+        const managedData = await managedRes.json()
+        const managed: ManagedArtist[] = managedData.managed || []
 
-        if (!profile?.artist_name?.trim()) { router.replace('/app/onboarding'); return }
+        // Onboarding sets up an ARTIST identity — never required of someone
+        // who only ever manages other artists and has no artist_name of
+        // their own to invent. A pure manager (no artist_name, but at least
+        // one accepted delegation) goes straight to their actual workspace
+        // instead. Only a genuinely new user with neither identity still
+        // goes through onboarding, preserving that check exactly as before.
+        if (!profile?.artist_name?.trim()) {
+          if (managed.length > 0) { router.replace('/app/manager'); return }
+          router.replace('/app/onboarding'); return
+        }
 
         const name = profile?.artist_name || profile?.full_name || null
         setOwnArtistName(name)
         setOwnAvatarUrl(profile?.avatar_url ?? null)
         if (profile?.bandsintown_artist_name) setLookupName(profile.bandsintown_artist_name)
-
-        const managedRes  = await fetch('/api/team/managed-artists')
-        const managedData = await managedRes.json()
-        const managed: ManagedArtist[] = managedData.managed || []
 
         setManagedArtists(managed)
 
@@ -843,9 +850,10 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* ── Scheduled shows (real, Setlistr-owned schedule) ── */}
+        {/* ── Scheduled shows: compact summary only — full agenda, create/
+            edit/cancel/start all live on /app/schedule, not here. ── */}
         {userId && (
-          <UpcomingShows artistId={actingAs?.artist_id || userId} canManage={true} />
+          <NextShowSummary artistId={actingAs?.artist_id || userId} />
         )}
 
         {/* ── UPCOMING SHOWS (external Bandsintown/Ticketmaster lookup) ── */}

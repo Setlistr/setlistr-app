@@ -2,7 +2,7 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
-import { LayoutDashboard, Users, BarChart3 } from 'lucide-react'
+import { LayoutDashboard, Users, BarChart3, Calendar } from 'lucide-react'
 import type { Profile } from '@/types'
 import { useActingAs } from '@/components/ActingAsProvider'
 
@@ -30,6 +30,7 @@ const C = {
 const NAV = [
   { href: '/app/manager', icon: LayoutDashboard, label: 'Overview' },
   { href: '/app/manager/artists', icon: Users, label: 'Artists' },
+  { href: '/app/manager/schedule', icon: Calendar, label: 'Schedule' },
   { href: '/app/manager/analytics', icon: BarChart3, label: 'Analytics' },
 ]
 
