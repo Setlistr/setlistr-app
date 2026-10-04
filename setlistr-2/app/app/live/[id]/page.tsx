@@ -108,6 +108,16 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   // paid calls stop. Mirrored into a ref because the health timers below run
   // off intervals created once on mount.
   const [detectionLimited, setDetectionLimited] = useState(false)
+  // /api/identify answered with a non-2xx (e.g. misconfigured recognition
+  // credentials in this environment) rather than a real verdict. Distinct
+  // from captureStale (which only tracks whether the server answered AT
+  // ALL) and from detectionLimited (a real, expected quota stop) — this is
+  // "it answered, but with an error," which previously got silently parsed
+  // as data.detected === undefined and treated identically to a genuine
+  // "no song this time," with Session Health still showing green. No
+  // detection/scoring logic changes — this only makes an existing failure
+  // visible instead of silent.
+  const [recognitionUnavailable, setRecognitionUnavailable] = useState(false)
   const [plannedCount, setPlannedCount] = useState<number>(0)
   const plannedSongsRef = useRef<{ title: string; normalizedTitle: string; artist: string }[]>([])
 
@@ -387,8 +397,15 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : undefined,
         body: formData,
       })
-      const data = await res.json()
       lastAcrResponseRef.current = Date.now()  // answered — capture is alive, whatever the verdict
+
+      // A non-2xx means the route rejected the request before ever reaching
+      // a real verdict (e.g. recognition credentials not configured in this
+      // environment) — surface that, don't parse its error body as if it
+      // were {detected: false}.
+      if (!res.ok) { setRecognitionUnavailable(true); setDetectStatus(''); return }
+      setRecognitionUnavailable(false)
+      const data = await res.json()
 
       // Daily ceiling reached. The route answered 200 with no detection, so
       // capture health stays green; we just stop asking.
@@ -787,6 +804,12 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         {detectionLimited && (
           <div style={{ marginTop: 18, width: '100%', maxWidth: 320, background: 'rgba(245,158,11,0.10)', border: '1px solid rgba(245,158,11,0.32)', borderRadius: 12, padding: '12px 16px', animation: 'fadeIn 0.2s ease' }}>
             <span style={{ fontSize: 13, color: C.amber, lineHeight: 1.45, fontWeight: 600 }}>{ACR_LIMIT_MESSAGE}</span>
+          </div>
+        )}
+
+        {recognitionUnavailable && (
+          <div style={{ marginTop: 18, width: '100%', maxWidth: 320, background: 'rgba(220,38,38,0.10)', border: '1px solid rgba(220,38,38,0.3)', borderRadius: 12, padding: '12px 16px', animation: 'fadeIn 0.2s ease' }}>
+            <span style={{ fontSize: 13, color: C.red, lineHeight: 1.45, fontWeight: 600 }}>Song recognition isn't available right now — you can still add songs manually below.</span>
           </div>
         )}
 
