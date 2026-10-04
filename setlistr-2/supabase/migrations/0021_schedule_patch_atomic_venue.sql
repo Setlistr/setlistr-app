@@ -9,10 +9,14 @@
 -- replaces it with one locked, single-transaction RPC so the venue insert
 -- and the show update either both happen or neither does.
 --
--- Local-only. Not applied to production. Additive: no existing column,
--- constraint, policy, or trigger on shows/venues is altered or dropped —
--- this only adds a new function the PATCH route can call instead of its
--- previous three separate round trips.
+-- Additive only: no existing column, constraint, policy, or trigger on
+-- shows/venues is altered or dropped — this only adds a new function the
+-- PATCH route can call instead of its previous three separate round
+-- trips. Reviewed against the real shows/venues/performances schema,
+-- existing triggers (reject_unauthorized_performance_creation,
+-- reject_show_owner_change, et al.), and can_write_for() before being
+-- applied outside local dev — see the migration-review record for the
+-- full compatibility check.
 
 BEGIN;
 
