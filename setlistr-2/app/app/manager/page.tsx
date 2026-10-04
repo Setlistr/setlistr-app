@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Users, ChevronRight, RefreshCw, Calendar, Send, FileSearch } from 'lucide-react'
@@ -45,8 +45,8 @@ function SkeletonBlock({ width, height = 26 }: { width: number | string; height?
   return <div className="mgr-skeleton" style={{ width, height, borderRadius: 6 }} />
 }
 
-function StatCard({ icon: Icon, label, value, loading, tone, href }: {
-  icon: React.ElementType; label: string; value: number; loading: boolean; tone?: 'gold' | 'default'; href?: string
+function StatCard({ icon: Icon, label, value, loading, error, tone, href }: {
+  icon: React.ElementType; label: string; value: number; loading: boolean; error?: boolean; tone?: 'gold' | 'default'; href?: string
 }) {
   const content = (
     <div className="mgr-stat-card" style={{ background: `linear-gradient(165deg, ${C.card2}, ${C.card})`, border: `1px solid ${C.border}`, borderRadius: 16, padding: '18px 20px', height: '100%' }}>
@@ -56,6 +56,10 @@ function StatCard({ icon: Icon, label, value, loading, tone, href }: {
       </div>
       {loading
         ? <SkeletonBlock width={48} />
+        : error
+        // Never a bare "0" when the fetch actually failed — that reads as
+        // a real, confirmed zero, which this explicitly is not.
+        ? <p style={{ fontSize: 28, fontWeight: 800, color: C.muted, margin: 0, fontFamily: '"DM Mono", monospace', letterSpacing: '-0.02em' }}>—</p>
         : <p style={{ fontSize: 28, fontWeight: 800, color: tone === 'gold' && value > 0 ? C.gold : C.text, margin: 0, fontFamily: '"DM Mono", monospace', letterSpacing: '-0.02em' }}>{value}</p>}
     </div>
   )
@@ -68,7 +72,17 @@ export default function ManagerOverviewPage() {
   const [managed, setManaged] = useState<ManagedArtist[]>([])
   const [range, setRange] = useState<ManagerDateRangeKey>('30d')
   const [rows, setRows] = useState<ManagerPerformanceRow[]>([])
-  const [rangeLoading, setRangeLoading] = useState(false)
+  // Starts true: the data effect below always kicks off a fetch on a
+  // fresh mount (as long as there's a managed artist), so a false initial
+  // value let the very first render show a genuine "0 shows" empty state
+  // for one frame before the effect could flip it — same bug confirmed on
+  // the Analytics page via DOM sampling, same fix.
+  const [rangeLoading, setRangeLoading] = useState(true)
+  // Distinct from a genuine zero: a failed fetch must never present the
+  // same all-zero StatCards and "no shows" copy as a workspace that
+  // truly has no recorded activity in this range.
+  const [rangeError, setRangeError] = useState(false)
+  const [rangeRetryTick, setRangeRetryTick] = useState(0)
   const [showReviewList, setShowReviewList] = useState(false)
   const artistNameById = new Map(managed.map(a => [a.artist_id, a.artist_name]))
   const artistAvatarById = new Map(managed.map(a => [a.artist_id, a.avatar_url || null]))
@@ -90,19 +104,20 @@ export default function ManagerOverviewPage() {
   useEffect(() => { loadRoster() }, [loadRoster])
 
   useEffect(() => {
-    if (managed.length === 0) { setRows([]); return }
+    if (managed.length === 0) { setRows([]); setRangeError(false); setRangeLoading(false); return }
     let cancelled = false
-    setRangeLoading(true)
+    setRangeLoading(true); setRangeError(false)
+    setRows([]) // never leave a different range's rows visible under a fresh "Loading…" label
     const supabase = createClient()
     const { fromISO } = dateRangeFor(range)
     fetchCapturedShowsInRange(supabase, managed.map(a => a.artist_id), fromISO)
       .then(r => { if (!cancelled) setRows(r) })
-      .catch(() => { if (!cancelled) setRows([]) })
+      .catch(() => { if (!cancelled) { setRows([]); setRangeError(true) } })
       .finally(() => { if (!cancelled) setRangeLoading(false) })
     return () => { cancelled = true }
-  }, [managed, range])
+  }, [managed, range, rangeRetryTick])
 
-  const rangeInfo = dateRangeFor(range)
+  const rangeInfo = useMemo(() => dateRangeFor(range), [range])
   const capturedCount = countCapturedShows(rows)
   const notSubmittedCount = countNotYetSubmitted(rows)
   const awaitingReviewCount = countAwaitingReview(rows)
@@ -156,9 +171,9 @@ export default function ManagerOverviewPage() {
       {/* ── Stat row ── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 24 }}>
         <StatCard icon={Users} label="Roster" value={managed.length} loading={false} href="/app/manager/artists" />
-        <StatCard icon={Calendar} label={`Recorded · ${rangeInfo.label}`} value={capturedCount} loading={rangeLoading} />
-        <StatCard icon={FileSearch} label={`Awaiting review · ${rangeInfo.label}`} value={awaitingReviewCount} loading={rangeLoading} tone="gold" />
-        <StatCard icon={Send} label={`Not submitted · ${rangeInfo.label}`} value={notSubmittedCount} loading={rangeLoading} tone="gold" />
+        <StatCard icon={Calendar} label={`Recorded · ${rangeInfo.label}`} value={capturedCount} loading={rangeLoading} error={rangeError} />
+        <StatCard icon={FileSearch} label={`Awaiting review · ${rangeInfo.label}`} value={awaitingReviewCount} loading={rangeLoading} error={rangeError} tone="gold" />
+        <StatCard icon={Send} label={`Not submitted · ${rangeInfo.label}`} value={notSubmittedCount} loading={rangeLoading} error={rangeError} tone="gold" />
       </div>
 
       {/* ── Date range ── */}
@@ -175,6 +190,15 @@ export default function ManagerOverviewPage() {
           </button>
         ))}
       </div>
+
+      {rangeError && !rangeLoading && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 24, padding: '12px 16px', background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.25)', borderRadius: 12 }}>
+          <span style={{ fontSize: 13, color: C.red }}>Couldn't load activity for this range — the counts above aren't shown rather than risk showing zero when that isn't actually true.</span>
+          <button onClick={() => setRangeRetryTick(t => t + 1)} style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: 'transparent', border: `1px solid rgba(248,113,113,0.4)`, borderRadius: 8, color: C.red, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+            <RefreshCw size={12} /> Retry
+          </button>
+        </div>
+      )}
 
       {/* ── Awaiting review — a real observation: states its period, opens
           the exact shows it's counting ── */}
@@ -228,9 +252,14 @@ export default function ManagerOverviewPage() {
       </p>
       {recent.length === 0 ? (
         <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '28px 20px', textAlign: 'center' as const }}>
-          <p style={{ color: C.secondary, fontSize: 14, margin: 0 }}>
-            {rangeLoading ? 'Loading…' : `No recorded shows in the ${rangeInfo.label.toLowerCase()}.`}
+          <p style={{ color: C.secondary, fontSize: 14, margin: rangeLoading || rangeError ? 0 : '0 0 12px' }}>
+            {rangeLoading ? 'Loading…' : rangeError ? "Not shown — couldn't load." : `No recorded shows in the ${rangeInfo.label.toLowerCase()}.`}
           </p>
+          {!rangeLoading && !rangeError && (
+            <Link href="/app/manager/schedule" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, color: C.gold, textDecoration: 'none' }}>
+              <Calendar size={13} /> Select an artist and add their first scheduled show
+            </Link>
+          )}
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 1, background: C.border, borderRadius: 14, overflow: 'hidden', border: `1px solid ${C.border}` }}>

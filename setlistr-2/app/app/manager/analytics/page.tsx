@@ -37,7 +37,13 @@ export default function ManagerAnalyticsPage() {
   const [rows, setRows] = useState<AnalyticsPerformanceRow[]>([])
   const [prevRows, setPrevRows] = useState<AnalyticsPerformanceRow[]>([])
   const [songRows, setSongRows] = useState<{ performance_id: string; title: string; artist: string | null }[]>([])
-  const [dataLoading, setDataLoading] = useState(false)
+  // Starts true, not false: on every fresh mount the data effect below
+  // WILL kick off a fetch (as long as there's a managed artist), so a
+  // false initial value let the very first render present a genuinely
+  // misleading "0 recorded shows / empty" state for one frame before the
+  // effect had a chance to flip it — confirmed via DOM sampling on
+  // navigate-away-and-back, where that one frame was directly observed.
+  const [dataLoading, setDataLoading] = useState(true)
   const [dataError, setDataError] = useState(false)
   const [dataRetryTick, setDataRetryTick] = useState(0)
   const [expandedLocation, setExpandedLocation] = useState<string | null>(null)
@@ -65,11 +71,22 @@ export default function ManagerAnalyticsPage() {
     return managed.some(a => a.artist_id === artistFilter) ? [artistFilter] : []
   }, [artistFilter, managed])
 
-  const rangeInfo = dateRangeFor(range)
+  // Memoized against `range` alone — dateRangeFor('30d'/'90d') builds its
+  // boundary from `new Date()` internally, so calling it unmemoized in the
+  // render body produced a fromISO that drifted by a few milliseconds on
+  // every re-render. That drift fed straight into periodPair below (its
+  // only dependency), which then looked "new" to the fetch effect further
+  // down on every single render it caused — re-fetching, re-rendering,
+  // re-drifting, forever. Confirmed via DOM sampling: the chart and
+  // "Loading…" label were observed flipping back and forth continuously,
+  // never settling. 'ytd' was unaffected (its boundary is just Jan 1 of
+  // the current year, stable regardless of exact render time), which is
+  // why the loop was only ever visible on 30d/90d.
+  const rangeInfo = useMemo(() => dateRangeFor(range), [range])
   const periodPair = useMemo(() => equalPeriodComparison(rangeInfo.fromISO), [rangeInfo.fromISO])
 
   useEffect(() => {
-    if (managed.length === 0 || scopedArtistIds.length === 0) { setRows([]); setPrevRows([]); setSongRows([]); setDataError(false); return }
+    if (managed.length === 0 || scopedArtistIds.length === 0) { setRows([]); setPrevRows([]); setSongRows([]); setDataError(false); setDataLoading(false); return }
     let cancelled = false
     // Clear the previous filter/range's aggregates immediately, in the
     // same tick that starts the new fetch — never leave a stale chart,
