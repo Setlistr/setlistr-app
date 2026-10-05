@@ -88,19 +88,30 @@ export default function OnboardingPage() {
 
   useEffect(() => {
     const supabase = createClient()
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
       if (!user) { router.replace('/auth/login'); return }
-      supabase.from('profiles').select('full_name, artist_name, updated_at').eq('id', user.id).single()
-        .then(({ data }) => {
-          if (data?.artist_name?.trim()) {
-            router.replace('/app/dashboard')
-          } else {
-            if (data?.full_name) setFullName(data.full_name)
-            setSubjectId(user.id)
-            setSubjectUpdatedAt(data?.updated_at ?? null)
-            setChecking(false)
-          }
-        })
+      const [{ data }, { data: betaInvite }] = await Promise.all([
+        supabase.from('profiles').select('full_name, artist_name, updated_at').eq('id', user.id).single(),
+        // Same RLS-bounded self-read as app/app/dashboard/page.tsx — this
+        // page is reachable by direct navigation (not just the dashboard's
+        // own redirect), so it needs its own copy of this guard rather
+        // than trusting every caller routed through dashboard first.
+        user.email
+          ? supabase.from('beta_invites').select('invited_role').eq('email', user.email).maybeSingle()
+          : Promise.resolve({ data: null }),
+      ])
+      if (data?.artist_name?.trim()) {
+        router.replace('/app/dashboard')
+      } else if (betaInvite?.invited_role === 'manager') {
+        // Recruited as a manager, no artist identity invented yet — never
+        // land them in this form at all, including via a direct/stale link.
+        router.replace('/app/manager')
+      } else {
+        if (data?.full_name) setFullName(data.full_name)
+        setSubjectId(user.id)
+        setSubjectUpdatedAt(data?.updated_at ?? null)
+        setChecking(false)
+      }
     })
   }, [router])
 

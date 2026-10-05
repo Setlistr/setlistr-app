@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { ADMIN_EMAILS } from '@/lib/admin-config'
+import { escapeHtml } from '@/lib/escapeHtml'
 
 const BASE_URL       = process.env.NEXT_PUBLIC_APP_URL || 'https://setlistr.ai'
 const RESEND_API_KEY = process.env.RESEND_API_KEY
@@ -15,35 +16,43 @@ function getSupabase() {
   )
 }
 
-async function sendBetaInviteEmail({ to, name }: { to: string; name?: string | null }) {
+async function sendBetaInviteEmail({ to, name, invitedRole }: { to: string; name?: string | null; invitedRole: 'artist' | 'manager' }) {
   if (!RESEND_API_KEY) {
     console.warn('RESEND_API_KEY not set — skipping beta invite email')
     return false
   }
 
   const signupUrl  = `${BASE_URL}/auth/login`
-  const displayName = name || 'there'
+  // Escaped: name is admin-entered but goes verbatim into HTML — an admin
+  // typo or paste should never become a markup break, same discipline as
+  // any other user-provided string reaching an email template.
+  const displayName = escapeHtml(name) || 'there'
+
+  const isManager = invitedRole === 'manager'
+  const heading = isManager ? "You're in — as a manager." : "You're in."
+  const bodyCopy = isManager
+    ? `You've been invited to the Setlistr beta as a manager. Once you sign up, you'll land in your Manager workspace — no artist profile to set up. From there you can request access to the artists you work with.`
+    : `You've been invited to the Setlistr beta. We're building the system that ensures every live performance turns into royalties — automatically.`
+  const ctaCopy = isManager ? 'Set Up Your Workspace →' : 'Get the App →'
+  const ctaHref = isManager ? signupUrl : APP_STORE_URL
 
   const html = `
     <div style="font-family: system-ui, sans-serif; max-width: 480px; margin: 0 auto; background: #0a0908; color: #f0ece3; padding: 40px 32px; border-radius: 16px;">
       <img src="https://setlistr.ai/logo-white-tight.png" width="160" alt="Setlistr" style="display: block; height: auto; margin: 0 0 24px;" />
       <h1 style="font-size: 24px; font-weight: 800; color: #f0ece3; margin: 0 0 12px; letter-spacing: -0.025em; line-height: 1.2;">
-        You're in.
+        ${heading}
       </h1>
       <p style="font-size: 14px; color: #b8a888; margin: 0 0 16px; line-height: 1.6;">
         Hi ${displayName},
       </p>
-      <p style="font-size: 14px; color: #b8a888; margin: 0 0 16px; line-height: 1.6;">
-        You've been invited to the Setlistr beta. We're building the system that ensures every live performance turns into royalties — automatically.
-      </p>
       <p style="font-size: 14px; color: #b8a888; margin: 0 0 24px; line-height: 1.6;">
-        Takes 5 minutes to set up. Your first show is on us.
+        ${bodyCopy}
       </p>
-      <a href="${APP_STORE_URL}" style="display: inline-block; background: #c9a84c; color: #0a0908; font-size: 14px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; text-decoration: none; padding: 16px 32px; border-radius: 12px; margin-bottom: 24px;">
-        Get the App →
+      <a href="${ctaHref}" style="display: inline-block; background: #c9a84c; color: #0a0908; font-size: 14px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; text-decoration: none; padding: 16px 32px; border-radius: 12px; margin-bottom: 24px;">
+        ${ctaCopy}
       </a>
       <p style="font-size: 12px; color: #8a7a68; margin: 0 0 24px; line-height: 1.6;">
-        On desktop or Android? Use this link instead: <span style="color: #b8a888;">${signupUrl}</span>
+        ${isManager ? 'Sign in here:' : 'On desktop or Android? Use this link instead:'} <span style="color: #b8a888;">${signupUrl}</span>
       </p>
       <hr style="border: none; border-top: 1px solid rgba(255,255,255,0.07); margin: 24px 0;" />
       <p style="font-size: 11px; color: #8a7a68; margin: 0;">
@@ -108,11 +117,13 @@ export async function POST(req: NextRequest) {
       callerEmail = user?.email || ''
     }
 
-    const { email, name } = await req.json()
+    const { email, name, role } = await req.json()
 
     if (!email) {
       return NextResponse.json({ error: 'Email required' }, { status: 400 })
     }
+
+    const invitedRole: 'artist' | 'manager' = role === 'manager' ? 'manager' : 'artist'
 
     const { data: invite, error } = await supabase
       .from('beta_invites')
@@ -120,6 +131,7 @@ export async function POST(req: NextRequest) {
         email:    email.toLowerCase().trim(),
         name:     name || null,
         added_by: callerEmail || 'admin',
+        invited_role: invitedRole,
       })
       .select()
       .single()
@@ -132,7 +144,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Send the invite email via Resend
-    const emailSent = await sendBetaInviteEmail({ to: email.toLowerCase().trim(), name })
+    const emailSent = await sendBetaInviteEmail({ to: email.toLowerCase().trim(), name, invitedRole })
 
     return NextResponse.json({ invite, email_sent: emailSent })
   } catch (err: any) {

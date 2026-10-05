@@ -20,11 +20,23 @@ export async function GET(req: NextRequest) {
 
   const { data: invite } = await supabase
     .from('artist_delegates')
-    .select('id, artist_id, delegate_id, role, accepted_at, revoked_at, invited_email')
+    .select('id, artist_id, delegate_id, role, accepted_at, revoked_at, invited_by, invited_email')
     .eq('invite_token', token)
     .maybeSingle()
 
   if (!invite) return NextResponse.json({ error: 'Invite not found or already used.' }, { status: 404 })
+
+  // This route is the ARTIST-initiated invite flow only (the delegate
+  // accepts). A manager-initiated REQUEST (invited_by === delegate_id,
+  // see migration 0023) must never be acceptable here — that would let
+  // the requesting manager grant themselves access by hitting this
+  // endpoint with their own row's token, bypassing the artist's approval
+  // in app/api/team/respond entirely. Treated identically to "not found"
+  // rather than a distinct message, since a caller with a valid token
+  // doesn't need to be told which kind of row it is.
+  if (invite.invited_by === invite.delegate_id) {
+    return NextResponse.json({ error: 'Invite not found or already used.' }, { status: 404 })
+  }
 
   // Defense in depth, matching can_act_for()'s own revoked_at check
   // (supabase/migrations/0015_delegation_revocation_enforcement.sql): the
@@ -81,11 +93,21 @@ export async function POST(req: NextRequest) {
     // Look up the invite
     const { data: invite } = await supabase
       .from('artist_delegates')
-      .select('id, artist_id, delegate_id, accepted_at, revoked_at, invited_email')
+      .select('id, artist_id, delegate_id, accepted_at, revoked_at, invited_by, invited_email')
       .eq('invite_token', token)
       .maybeSingle()
 
     if (!invite) return NextResponse.json({ error: 'Invite not found.' }, { status: 404 })
+
+    // Same direction guard as GET above: a manager-initiated request can
+    // never be self-accepted through this route. Checked here too, not
+    // just in GET, since GET is only ever a read used to render the
+    // accept screen — this POST is the actual write path and must not
+    // rely on the client having honored what GET displayed.
+    if (invite.invited_by === invite.delegate_id) {
+      return NextResponse.json({ error: 'Invite not found.' }, { status: 404 })
+    }
+
     // See the matching check in GET above — defense in depth, not reachable
     // via any revoke path that exists today.
     if (invite.revoked_at) return NextResponse.json({ error: 'This invite is no longer valid.' }, { status: 404 })

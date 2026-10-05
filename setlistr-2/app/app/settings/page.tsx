@@ -70,8 +70,10 @@ type Delegate = {
   delegate_id: string
   name: string
   role: string
+  direction: 'invited_by_artist' | 'requested_by_manager'
   accepted: boolean
   accepted_at: string | null
+  declined_at: string | null
   invited_at: string
   invite_url: string | null
   invite_token: string | null
@@ -151,6 +153,8 @@ export default function SettingsPage() {
   const [inviteError, setInviteError]         = useState('')
   const [copiedInvite, setCopiedInvite]       = useState(false)
   const [revoking, setRevoking]               = useState<string | null>(null)
+  const [responding, setResponding]           = useState<string | null>(null)
+  const [respondError, setRespondError]       = useState<Record<string, string>>({})
 
   // Career history
   const [careerStartYear, setCareerStartYear]         = useState<number | ''>('')
@@ -523,6 +527,40 @@ export default function SettingsPage() {
     }
   }
 
+  // Approve/decline an incoming manager-initiated request. Calls the
+  // artist-only app/api/team/respond route — never the delegate-accept
+  // route — which conditionally updates only a still-fully-pending row
+  // (never role/grants) and rejects anything already resolved, so a
+  // double-click or a stale retry here can't duplicate or resurrect
+  // access. On a 409 (already handled, e.g. by a concurrent tab), this
+  // re-syncs from the server rather than trusting the optimistic local
+  // removal below.
+  async function respondToRequest(delegationId: string, decision: 'approve' | 'decline') {
+    if (!userId) return
+    setResponding(delegationId); setRespondError(prev => ({ ...prev, [delegationId]: '' }))
+    try {
+      const res = await fetch('/api/team/respond', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ delegation_id: delegationId, decision }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setRespondError(prev => ({ ...prev, [delegationId]: data.error || 'Could not respond — try again.' }))
+        if (res.status === 409) await loadDelegates(userId)
+        return
+      }
+      if (decision === 'decline') {
+        setDelegates(prev => prev.filter(d => d.id !== delegationId))
+      } else {
+        setDelegates(prev => prev.map(d => d.id === delegationId ? { ...d, accepted: true, accepted_at: data.decision ? new Date().toISOString() : d.accepted_at } : d))
+      }
+    } catch {
+      setRespondError(prev => ({ ...prev, [delegationId]: 'Network error — try again.' }))
+    } finally {
+      setResponding(null)
+    }
+  }
+
   async function signOut() {
     const supabase = createClient()
     await supabase.auth.signOut()
@@ -738,10 +776,44 @@ export default function SettingsPage() {
             Give your manager, tour manager, or band member access to capture shows and submit royalties on your behalf. Every action they take is logged under your account.
           </p>
 
-          {/* Existing delegates */}
-          {delegates.length > 0 && (
+          {/* Incoming requests — a manager asked for access to THIS
+              account. Approve/decline only, never the invite "Resend" or
+              "Remove" actions below, which are for invites this artist
+              sent out, a different direction entirely. */}
+          {delegates.some(d => d.direction === 'requested_by_manager' && !d.accepted && !d.declined_at) && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {delegates.map(d => (
+              <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: C.gold, margin: '0 0 2px' }}>Requesting Access</p>
+              {delegates.filter(d => d.direction === 'requested_by_manager' && !d.accepted && !d.declined_at).map(d => (
+                <div key={d.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px', background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 10 }}>
+                  <div style={{ width: 32, height: 32, borderRadius: '50%', background: C.goldDim, border: `1px solid ${C.borderGold}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
+                    {d.avatar_url
+                      ? <img src={d.avatar_url} alt={d.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      : <span style={{ fontSize: 12, fontWeight: 800, color: C.gold }}>{d.name.charAt(0).toUpperCase()}</span>}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontSize: 13, fontWeight: 600, color: C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{d.name}</p>
+                    <p style={{ fontSize: 11, color: C.muted, margin: '1px 0 0' }}>Wants {roleInfoFor(d.role as AssignableInviteRole).label.toLowerCase()} access · Requested {timeAgo(d.invited_at)}</p>
+                    {respondError[d.id] && <p style={{ fontSize: 11, color: C.red, margin: '3px 0 0' }}>{respondError[d.id]}</p>}
+                  </div>
+                  <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                    <button onClick={() => respondToRequest(d.id, 'decline')} disabled={responding === d.id}
+                      style={{ background: 'none', border: '1px solid rgba(248,113,113,0.2)', borderRadius: 8, padding: '5px 10px', color: C.red, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', opacity: responding === d.id ? 0.5 : 1 }}>
+                      Decline
+                    </button>
+                    <button onClick={() => respondToRequest(d.id, 'approve')} disabled={responding === d.id}
+                      style={{ background: C.gold, border: 'none', borderRadius: 8, padding: '5px 10px', color: '#0a0908', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', opacity: responding === d.id ? 0.5 : 1 }}>
+                      {responding === d.id ? '...' : 'Approve'}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Existing delegates */}
+          {delegates.filter(d => d.direction !== 'requested_by_manager' || d.accepted).length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {delegates.filter(d => d.direction !== 'requested_by_manager' || d.accepted).map(d => (
                 <div key={d.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px', background: 'rgba(255,255,255,0.02)', border: `1px solid ${d.accepted ? 'rgba(74,222,128,0.15)' : C.border}`, borderRadius: 10 }}>
                   {/* Avatar */}
                   <div style={{ width: 32, height: 32, borderRadius: '50%', background: d.accepted ? C.greenDim : C.goldDim, border: `1px solid ${d.accepted ? 'rgba(74,222,128,0.2)' : C.borderGold}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>

@@ -740,12 +740,12 @@ export default function AdminDashboard({
     if (!newEmail.trim()) return
     setAddingUser(true); setAddError(''); setAddSuccess(''); setAddSuccessNoEmail(false)
     try {
-      const res = await fetch('/api/admin/beta-invite', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: newEmail.trim().toLowerCase(), name: newName.trim() || null }) })
+      const res = await fetch('/api/admin/beta-invite', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: newEmail.trim().toLowerCase(), name: newName.trim() || null, role: recruitKind }) })
       const data = await res.json()
       if (!res.ok) { setAddError(data.error || 'Failed to add user') }
       else {
         setInvites(prev => [data.invite, ...prev]); setNewEmail(''); setNewName('')
-        setAddSuccess(`${data.invite.email} ${data.email_sent ? '— invite email sent' : '— added, no email sent'}`)
+        setAddSuccess(`${data.invite.email} (${recruitKind}) ${data.email_sent ? '— invite email sent' : '— added, no email sent'}`)
         setAddSuccessNoEmail(!data.email_sent)
       }
     } catch { setAddError('Network error — try again') }
@@ -1366,14 +1366,17 @@ export default function AdminDashboard({
                     color: recruitKind === 'artist' ? C.gold : C.secondary }}>
                   Invite an Artist
                 </button>
-                <button type="button" disabled title="Standalone manager workspace ships on a separate branch (feature/manager-workspace) — not available on this build yet."
-                  style={{ flex: 1, padding: '9px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700, fontFamily: 'inherit', cursor: 'not-allowed',
-                    background: 'transparent', border: `1px solid ${C.border}`, color: C.muted, opacity: 0.5 }}>
+                <button type="button" onClick={() => setRecruitKind('manager')}
+                  style={{ flex: 1, padding: '9px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer',
+                    background: recruitKind === 'manager' ? C.goldDim : 'transparent', border: `1px solid ${recruitKind === 'manager' ? C.borderGold : C.border}`,
+                    color: recruitKind === 'manager' ? C.gold : C.secondary }}>
                   Invite a Manager
                 </button>
               </div>
               <p style={{ fontSize: 11, color: C.muted, margin: '-6px 0 14px', lineHeight: 1.5 }}>
-                Standalone manager accounts aren't available on this build yet (manager workspace ships separately) — recruit managers once that lands.
+                {recruitKind === 'manager'
+                  ? 'A manager lands directly in the Manager workspace after signup — no artist profile to invent. They request access to artists from there; nothing is granted automatically.'
+                  : 'An artist sets up their own profile and PRO affiliation after signup.'}
               </p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 <div style={{ display: 'flex', gap: 8 }}>

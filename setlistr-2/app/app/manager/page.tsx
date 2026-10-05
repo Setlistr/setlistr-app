@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { Users, ChevronRight, RefreshCw, Calendar, Send, FileSearch } from 'lucide-react'
+import { Users, ChevronRight, RefreshCw, Calendar, Send, FileSearch, Mail } from 'lucide-react'
 import {
   dateRangeFor, countCapturedShows, recentActivityFeed, countNotYetSubmitted,
   countAwaitingReview, awaitingReviewFeed,
@@ -34,6 +34,106 @@ function Avatar({ name, url, size = 36 }: { name: string; url?: string | null; s
       {url
         ? <img src={url} alt={name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
         : <span style={{ fontSize: size * 0.34, fontWeight: 800, color: C.gold }}>{initialsFor(name)}</span>}
+    </div>
+  )
+}
+
+type MyRequest = { id: string; artist_name: string; invited_email: string; invited_at: string; status: 'pending' | 'accepted' | 'declined' | 'revoked' }
+
+// The manager's own empty-roster entry point: request access by the
+// artist's email. Never grants anything itself — POST /api/team/request
+// only ever creates a pending row the artist must explicitly approve
+// (app/app/settings's Team section). The response text is intentionally
+// generic on first contact with any given email (see that route's own
+// comment on why) — only a request this SAME manager has already made
+// before gets a more specific status, which is their own history, not
+// new information about an email they haven't reached before.
+function RequestArtistAccess() {
+  const [email, setEmail] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [resultMessage, setResultMessage] = useState<string | null>(null)
+  const [resultOk, setResultOk] = useState(true)
+  const [requests, setRequests] = useState<MyRequest[]>([])
+  const [requestsLoaded, setRequestsLoaded] = useState(false)
+
+  const loadRequests = useCallback(async () => {
+    try {
+      const res = await fetch('/api/team/requests')
+      const data = await res.json()
+      setRequests(data.requests || [])
+    } finally {
+      setRequestsLoaded(true)
+    }
+  }, [])
+
+  useEffect(() => { loadRequests() }, [loadRequests])
+
+  async function submit() {
+    if (!email.trim() || submitting) return
+    setSubmitting(true); setResultMessage(null)
+    try {
+      const res = await fetch('/api/team/request', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ artist_email: email.trim() }),
+      })
+      const data = await res.json()
+      setResultOk(res.ok)
+      setResultMessage(data.message || data.error || 'Something went wrong.')
+      if (res.ok) { setEmail(''); loadRequests() }
+    } catch {
+      setResultOk(false); setResultMessage('Network error — try again.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const statusLabel: Record<MyRequest['status'], { text: string; color: string }> = {
+    pending: { text: 'Pending', color: C.gold },
+    accepted: { text: 'Approved', color: C.green },
+    declined: { text: 'Declined', color: C.red },
+    revoked: { text: 'Access removed', color: C.muted },
+  }
+
+  return (
+    <div style={{ padding: '60px 24px 40px', maxWidth: 420, margin: '0 auto' }}>
+      <div style={{ textAlign: 'center' as const, marginBottom: 28 }}>
+        <Users size={32} color={C.muted} style={{ marginBottom: 16 }} />
+        <p style={{ color: C.text, fontSize: 17, fontWeight: 800, margin: '0 0 8px' }}>No connected artists yet</p>
+        <p style={{ color: C.secondary, fontSize: 14, lineHeight: 1.5, margin: 0 }}>
+          Request access using an artist's email — they'll need to approve it before anything connects. You can also be invited directly from an artist's own Settings.
+        </p>
+      </div>
+
+      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 18 }}>
+        <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: C.muted, margin: '0 0 10px' }}>Request Artist Access</p>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <input value={email} onChange={e => setEmail(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()}
+            placeholder="artist@email.com" type="email"
+            style={{ flex: 1, background: '#0f0e0c', border: `1px solid ${C.border}`, borderRadius: 10, padding: '11px 12px', color: C.text, fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' as const }} />
+          <button onClick={submit} disabled={submitting || !email.trim()}
+            style={{ padding: '11px 16px', background: email.trim() ? C.gold : 'rgba(255,255,255,0.04)', border: 'none', borderRadius: 10, color: email.trim() ? '#0a0908' : C.muted, fontSize: 13, fontWeight: 700, cursor: submitting || !email.trim() ? 'default' : 'pointer', fontFamily: 'inherit', flexShrink: 0, opacity: submitting ? 0.7 : 1 }}>
+            {submitting ? '...' : 'Request'}
+          </button>
+        </div>
+        {resultMessage && (
+          <p style={{ fontSize: 12, color: resultOk ? C.secondary : C.red, margin: '10px 0 0', lineHeight: 1.5 }}>{resultMessage}</p>
+        )}
+      </div>
+
+      {requestsLoaded && requests.length > 0 && (
+        <div style={{ marginTop: 20 }}>
+          <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: C.muted, margin: '0 0 8px' }}>Your Requests</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {requests.map(r => (
+              <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: C.card, border: `1px solid ${C.border}`, borderRadius: 10 }}>
+                <Mail size={13} color={C.muted} style={{ flexShrink: 0 }} />
+                <span style={{ flex: 1, fontSize: 13, color: C.text, textAlign: 'left' as const, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.artist_name}</span>
+                <span style={{ fontSize: 11, fontWeight: 700, color: statusLabel[r.status].color, flexShrink: 0 }}>{statusLabel[r.status].text}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -150,15 +250,7 @@ export default function ManagerOverviewPage() {
   }
 
   if (managed.length === 0) {
-    return (
-      <div style={{ padding: '60px 24px', textAlign: 'center' as const, maxWidth: 380, margin: '0 auto' }}>
-        <Users size={32} color={C.muted} style={{ marginBottom: 16 }} />
-        <p style={{ color: C.text, fontSize: 17, fontWeight: 800, margin: '0 0 8px' }}>No connected artists yet</p>
-        <p style={{ color: C.secondary, fontSize: 14, lineHeight: 1.5, margin: 0 }}>
-          When an artist invites you as a delegate and you accept, they'll show up here. Invitations are sent from an artist's own Settings.
-        </p>
-      </div>
-    )
+    return <RequestArtistAccess />
   }
 
   return (

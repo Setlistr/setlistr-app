@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
   try {
     const { data: delegates } = await supabase
       .from('artist_delegates')
-      .select('id, delegate_id, role, accepted_at, invited_at, invite_token')
+      .select('id, delegate_id, role, accepted_at, declined_at, invited_at, invited_by, invited_email, invite_token')
       .eq('artist_id', artistId)
       .order('invited_at', { ascending: false })
 
@@ -28,9 +28,12 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ delegates: [] })
     }
 
-    // Get delegate profiles (exclude self-referential placeholders)
+    // A manager-initiated request (invited_by === delegate_id) always
+    // has a real, already-authenticated account behind delegate_id — no
+    // placeholder case to exclude, unlike an artist-initiated invite to
+    // an email with no account yet.
     const realDelegateIds = delegates
-      .filter(d => d.delegate_id !== artistId && d.accepted_at)
+      .filter(d => (d.delegate_id !== artistId && d.accepted_at) || d.invited_by === d.delegate_id)
       .map(d => d.delegate_id)
 
     let profiles: Record<string, { artist_name: string | null; full_name: string | null; avatar_url: string | null }> = {}
@@ -49,18 +52,26 @@ export async function GET(req: NextRequest) {
 
     const result = delegates.map(d => {
       const profile = profiles[d.delegate_id]
-      const isPending = !d.accepted_at
+      const isRequest = d.invited_by === d.delegate_id
+      const isPending = !d.accepted_at && !d.declined_at
       const name = profile?.artist_name || profile?.full_name || null
 
       return {
         id: d.id,
         delegate_id: d.delegate_id,
-        name: isPending ? 'Invite pending' : name || 'Unknown',
+        // A request always has a real account to name; an invite shows
+        // "Invite pending" exactly as before until accepted.
+        name: isRequest ? (name || d.invited_email || 'Unknown') : (isPending ? 'Invite pending' : name || 'Unknown'),
         role: d.role,
+        direction: isRequest ? 'requested_by_manager' : 'invited_by_artist',
         accepted: !!d.accepted_at,
         accepted_at: d.accepted_at,
+        declined_at: d.declined_at,
         invited_at: d.invited_at,
-        invite_url: isPending ? `${BASE_URL}/app/accept-invite?token=${d.invite_token}` : null,
+        invited_email: d.invited_email,
+        // Resend-link affordance only ever applies to the invite direction
+        // this route already sent — never to an incoming request.
+        invite_url: (!isRequest && isPending) ? `${BASE_URL}/app/accept-invite?token=${d.invite_token}` : null,
         avatar_url: profile?.avatar_url || null,
       }
     })

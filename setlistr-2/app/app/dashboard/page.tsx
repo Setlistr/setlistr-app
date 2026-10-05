@@ -170,19 +170,36 @@ export default function DashboardPage() {
       if (user) setUserId(user.id)
 
       if (user) {
-        const [{ data: profile }, managedRes] = await Promise.all([
+        const [{ data: profile }, managedRes, { data: betaInvite }] = await Promise.all([
           supabase.from('profiles').select('bandsintown_artist_name, artist_name, full_name, avatar_url').eq('id', user.id).single(),
           fetch('/api/team/managed-artists'),
+          // RLS (users_read_own_invite: email = auth.jwt()->>'email') is
+          // the authorization boundary here — this can only ever read the
+          // signed-in user's own row, never another email's. Read-only,
+          // selects workspace routing below; never consulted by
+          // can_act_for/can_write_for or any other grant of real access.
+          user.email
+            ? supabase.from('beta_invites').select('invited_role').eq('email', user.email).maybeSingle()
+            : Promise.resolve({ data: null }),
         ])
         const managedData = await managedRes.json()
         const managed: ManagedArtist[] = managedData.managed || []
+        const recruitedAsManager = betaInvite?.invited_role === 'manager'
 
         // Onboarding sets up an ARTIST identity — never required of someone
         // who only ever manages other artists and has no artist_name of
         // their own to invent. A pure manager (no artist_name, but at least
-        // one accepted delegation) goes straight to their actual workspace
-        // instead. Only a genuinely new user with neither identity still
-        // goes through onboarding, preserving that check exactly as before.
+        // one accepted delegation, OR recruited as a manager with none yet)
+        // goes straight to their actual workspace instead. Only a genuinely
+        // new user with neither identity still goes through onboarding,
+        // preserving that check exactly as before.
+        //
+        // recruitedAsManager only ever matters inside this same outer
+        // !artist_name branch — an established artist (real artist_name
+        // already set) never reaches this block regardless of what they
+        // were originally recruited as, so this can never redirect someone
+        // who has already built a real artist identity, including a real
+        // artist who also happens to manage other artists.
         //
         // Scoped to !actingAs: a manager-only account's own artist_name is
         // STILL empty while they're acting as one of their managed artists —
@@ -195,7 +212,7 @@ export default function DashboardPage() {
         // exactly this account type — confirmed as the real cause behind
         // "can't find how to enter/use the acting-as dashboard."
         if (!profile?.artist_name?.trim() && !actingAs) {
-          if (managed.length > 0) { router.replace('/app/manager'); return }
+          if (managed.length > 0 || recruitedAsManager) { router.replace('/app/manager'); return }
           router.replace('/app/onboarding'); return
         }
 
