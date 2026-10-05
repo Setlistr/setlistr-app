@@ -4,10 +4,16 @@
 -- request, and the artist approving/declining it) go through a
 -- service-role route with its own explicit authorization check — the
 -- same established pattern app/api/team/invite and app/api/team/accept
--- already use, confirmed by reading both before writing this. The
--- existing artist_delegates_insert/_update RLS policies (auth.uid() =
--- artist_id / delegate_id respectively) are untouched and still govern
--- any direct client write, which this feature never performs.
+-- already use, confirmed by reading both before writing this.
+--
+-- Verified directly against information_schema.table_privileges on both
+-- local and production: authenticated/anon hold SELECT only on
+-- artist_delegates — no INSERT/UPDATE/DELETE grant exists for those
+-- roles, so the artist_delegates_insert/_update RLS policies can never
+-- actually be exercised via PostgREST regardless of their text (Postgres
+-- checks the table-level grant before RLS is even consulted). The real
+-- and only enforcement boundary for these writes is the service-role
+-- route's explicit authorization check, not any RLS policy.
 --
 -- Directionality reuses the existing invited_by column rather than a new
 -- one — confirmed via grep that it is only ever written as artist_id
