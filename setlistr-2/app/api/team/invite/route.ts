@@ -2,13 +2,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { canCreateInvite, isAssignableInviteRole } from '@/lib/inviteAuthorization'
+import { getBaseUrl } from '@/lib/baseUrl'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://setlistr.ai'
+const BASE_URL = getBaseUrl()
 const RESEND_API_KEY = process.env.RESEND_API_KEY
 
 async function sendInviteEmail({

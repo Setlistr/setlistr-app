@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { getBaseUrl } from '@/lib/baseUrl'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -48,7 +49,7 @@ export async function GET(req: NextRequest) {
       })
     }
 
-    const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://setlistr.ai'
+    const BASE_URL = getBaseUrl()
 
     const result = delegates.map(d => {
       const profile = profiles[d.delegate_id]

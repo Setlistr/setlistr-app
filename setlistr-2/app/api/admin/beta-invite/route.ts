@@ -4,8 +4,9 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { ADMIN_EMAILS } from '@/lib/admin-config'
 import { escapeHtml } from '@/lib/escapeHtml'
+import { getBaseUrl } from '@/lib/baseUrl'
 
-const BASE_URL       = process.env.NEXT_PUBLIC_APP_URL || 'https://setlistr.ai'
+const BASE_URL       = getBaseUrl()
 const RESEND_API_KEY = process.env.RESEND_API_KEY
 const APP_STORE_URL  = 'https://apps.apple.com/us/app/setlistr-live-performance/id6794425733'
 
