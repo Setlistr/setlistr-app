@@ -157,6 +157,36 @@ export async function POST(req: NextRequest) {
           already_exists: true,
         })
       }
+    } else {
+      // No Setlistr account yet — still dedupe by (artist_id,
+      // invited_email) before falling through to the insert below.
+      // Without this, resending to an email with no account created a
+      // SECOND delegation row with a new invite_token and whatever role
+      // this particular request happened to carry (e.g. the invite
+      // form's current/default selection) — silently overriding the
+      // originally-chosen role on every resend. Reusing the existing
+      // row's own stored role/token, exactly like the delegateUser
+      // branch above does, is what actually preserves it.
+      const { data: existingByEmail } = await supabase
+        .from('artist_delegates')
+        .select('id, invite_token')
+        .eq('artist_id', artist_id)
+        .eq('invited_email', delegate_email.toLowerCase().trim())
+        .is('accepted_at', null)
+        .maybeSingle()
+
+      if (existingByEmail) {
+        const inviteUrl = `${BASE_URL}/app/accept-invite?token=${existingByEmail.invite_token}`
+        await sendInviteEmail({ to: delegate_email, artistName: artistDisplayName, inviteUrl, delegateFound: false })
+        return NextResponse.json({
+          success: true,
+          email_sent: !!RESEND_API_KEY,
+          delegate_found: false,
+          delegate_name: null,
+          invite_url: inviteUrl,
+          already_exists: true,
+        })
+      }
     }
 
     const { data: delegate, error } = await supabase

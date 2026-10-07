@@ -3,12 +3,10 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { Check, KeyRound, User, Music2, Search, Download, Radio, Users, Copy, X, Clock, AlertCircle, LogOut, Shield, Trash2 } from 'lucide-react'
+import { Check, KeyRound, User, Music2, Search, Download, Radio, Users, Clock, AlertCircle, LogOut, Shield, Trash2 } from 'lucide-react'
 import { ADMIN_EMAILS } from '@/lib/admin-config'
 import { useSessionGuard } from '@/lib/useSessionGuard'
 import { diffFields, toWirePayload } from '@/lib/profileFormDiff'
-import { ASSIGNABLE_INVITE_ROLES, type AssignableInviteRole } from '@/lib/inviteAuthorization'
-import { roleInfoFor } from '@/lib/teamRoleInfo'
 
 const CARD = {
   background: 'linear-gradient(180deg, #171512 0%, #121009 100%)',
@@ -65,21 +63,6 @@ type SpotifyArtist = {
   genres: string[]
 }
 
-type Delegate = {
-  id: string
-  delegate_id: string
-  name: string
-  role: string
-  direction: 'invited_by_artist' | 'requested_by_manager'
-  accepted: boolean
-  accepted_at: string | null
-  declined_at: string | null
-  invited_at: string
-  invite_url: string | null
-  invite_token: string | null
-  avatar_url: string | null
-}
-
 export default function SettingsPage() {
   const router = useRouter()
 
@@ -87,7 +70,6 @@ export default function SettingsPage() {
   const [fullName, setFullName]     = useState('')
   const [artistName, setArtistName] = useState('')
   const [email, setEmail]           = useState('')
-  const [userId, setUserId]         = useState('')
   const [profileSaving, setProfileSaving] = useState(false)
   const [profileSaved, setProfileSaved]   = useState(false)
   const [profileError, setProfileError]   = useState('')
@@ -143,19 +125,6 @@ export default function SettingsPage() {
   const [importCount, setImportCount]             = useState(0)
   const [existingImportCount, setExistingImportCount] = useState(0)
 
-  // Team / delegation
-  const [delegates, setDelegates]             = useState<Delegate[]>([])
-  const [delegateAvatars, setDelegateAvatars] = useState<Record<string, string | null>>({})
-  const [delegateEmail, setDelegateEmail]     = useState('')
-  const [inviteRole, setInviteRole]           = useState<AssignableInviteRole>('manager')
-  const [inviting, setInviting]               = useState(false)
-  const [inviteResult, setInviteResult]       = useState<{ invite_url: string; invite_message: string; delegate_name: string | null; delegate_found: boolean; email_sent: boolean } | null>(null)
-  const [inviteError, setInviteError]         = useState('')
-  const [copiedInvite, setCopiedInvite]       = useState(false)
-  const [revoking, setRevoking]               = useState<string | null>(null)
-  const [responding, setResponding]           = useState<string | null>(null)
-  const [respondError, setRespondError]       = useState<Record<string, string>>({})
-
   // Career history
   const [careerStartYear, setCareerStartYear]         = useState<number | ''>('')
   const [careerStartYearSaving, setCareerStartYearSaving] = useState(false)
@@ -193,7 +162,6 @@ export default function SettingsPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
       setEmail(user.email ?? '')
-      setUserId(user.id)
       setLoadedViewerId(user.id)
 
       const { data: profile } = await supabase
@@ -235,35 +203,16 @@ export default function SettingsPage() {
         .eq('user_id', user.id)
         .eq('source', 'spotify_import')
       setExistingImportCount(count || 0)
-
-      // Load existing delegates
-      loadDelegates(user.id)
     }
     load()
   }, [])
 
-  async function loadDelegates(artistId: string) {
-    try {
-      const res = await fetch(`/api/team/delegates?artist_id=${artistId}`)
-      const data = await res.json()
-      const delegates: Delegate[] = data.delegates || []
-      setDelegates(delegates)
-
-      // Fetch avatars for delegates
-      if (delegates.length > 0) {
-        const supabase = createClient()
-        const { data: avatars } = await supabase
-          .from('profiles')
-          .select('id, avatar_url')
-          .in('id', delegates.map(d => d.delegate_id))
-        if (avatars) {
-          const map: Record<string, string | null> = {}
-          avatars.forEach((a: any) => { map[a.id] = a.avatar_url })
-          setDelegateAvatars(map)
-        }
-      }
-    } catch { /* silently fail */ }
-  }
+  // Preserves previously-sent "#team-access" email links (Team moved to
+  // its own page) — a URL fragment never reaches the server, so this has
+  // to be a client-side redirect, not a route change.
+  useEffect(() => {
+    if (window.location.hash === '#team-access') router.replace('/app/team')
+  }, [router])
 
   // Shared write path for every profile-row save on this page (Profile,
   // PRO, Bandsintown, Career, Avatar). Sends only the fields the caller
@@ -490,77 +439,6 @@ export default function SettingsPage() {
     }
   }
 
-  async function sendInvite() {
-    if (!delegateEmail.trim() || !userId) return
-    setInviting(true); setInviteError(''); setInviteResult(null)
-    try {
-      const res = await fetch('/api/team/invite', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ artist_id: userId, delegate_email: delegateEmail.trim(), role: inviteRole }),
-      })
-      const data = await res.json()
-      if (data.error) { setInviteError(data.error); return }
-      setInviteResult(data)
-      setDelegateEmail('')
-      // Refresh delegate list
-      loadDelegates(userId)
-    } catch {
-      setInviteError('Something went wrong. Try again.')
-    } finally {
-      setInviting(false)
-    }
-  }
-
-  async function revokeDelegate(delegateId: string) {
-    if (!userId) return
-    setRevoking(delegateId)
-    try {
-      await fetch('/api/team/delegates', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ delegate_id: delegateId, artist_id: userId }),
-      })
-      setDelegates(prev => prev.filter(d => d.id !== delegateId))
-    } catch { /* silently fail */ } finally {
-      setRevoking(null)
-    }
-  }
-
-  // Approve/decline an incoming manager-initiated request. Calls the
-  // artist-only app/api/team/respond route — never the delegate-accept
-  // route — which conditionally updates only a still-fully-pending row
-  // (never role/grants) and rejects anything already resolved, so a
-  // double-click or a stale retry here can't duplicate or resurrect
-  // access. On a 409 (already handled, e.g. by a concurrent tab), this
-  // re-syncs from the server rather than trusting the optimistic local
-  // removal below.
-  async function respondToRequest(delegationId: string, decision: 'approve' | 'decline') {
-    if (!userId) return
-    setResponding(delegationId); setRespondError(prev => ({ ...prev, [delegationId]: '' }))
-    try {
-      const res = await fetch('/api/team/respond', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ delegation_id: delegationId, decision }),
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        setRespondError(prev => ({ ...prev, [delegationId]: data.error || 'Could not respond — try again.' }))
-        if (res.status === 409) await loadDelegates(userId)
-        return
-      }
-      if (decision === 'decline') {
-        setDelegates(prev => prev.filter(d => d.id !== delegationId))
-      } else {
-        setDelegates(prev => prev.map(d => d.id === delegationId ? { ...d, accepted: true, accepted_at: data.decision ? new Date().toISOString() : d.accepted_at } : d))
-      }
-    } catch {
-      setRespondError(prev => ({ ...prev, [delegationId]: 'Network error — try again.' }))
-    } finally {
-      setResponding(null)
-    }
-  }
-
   async function signOut() {
     const supabase = createClient()
     await supabase.auth.signOut()
@@ -585,25 +463,6 @@ export default function SettingsPage() {
       setDeleteError('Something went wrong. Please try again.')
       setDeleting(false)
     }
-  }
-
-  function copyInvite(text: string) {
-    try { navigator.clipboard.writeText(text) } catch {
-      const el = document.createElement('textarea')
-      el.value = text; document.body.appendChild(el); el.select()
-      document.execCommand('copy'); document.body.removeChild(el)
-    }
-    setCopiedInvite(true)
-    setTimeout(() => setCopiedInvite(false), 2000)
-  }
-
-  function timeAgo(d: string) {
-    const diff = Date.now() - new Date(d).getTime()
-    const days = Math.floor(diff / 86400000)
-    if (days === 0) return 'Today'
-    if (days === 1) return 'Yesterday'
-    if (days < 7) return `${days}d ago`
-    return `${Math.floor(days / 7)}w ago`
   }
 
   const isAdmin = ADMIN_EMAILS.includes(email)
@@ -758,190 +617,16 @@ export default function SettingsPage() {
           </button>
         </div>
 
-        {/* ── Team ── */}
-        <div id="team-access" style={{ background: CARD.background, border: `1px solid ${C.border}`, borderRadius: 16, padding: '20px', display: 'flex', flexDirection: 'column', gap: 16, boxShadow: CARD.boxShadow }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Users size={15} color={C.gold} />
-              <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.secondary, margin: 0 }}>Team Access</p>
-            </div>
-            {delegates.filter(d => d.accepted).length > 0 && (
-              <span style={{ fontSize: 10, fontWeight: 700, color: C.green, background: C.greenDim, border: '1px solid rgba(74,222,128,0.2)', borderRadius: 20, padding: '3px 10px' }}>
-                {delegates.filter(d => d.accepted).length} active
-              </span>
-            )}
+        {/* ── Team (moved to its own page — see app/app/team/page.tsx) ── */}
+        <Link href="/app/team" id="team-access"
+          style={{ background: CARD.background, border: `1px solid ${C.border}`, borderRadius: 16, padding: '18px 20px', display: 'flex', alignItems: 'center', gap: 12, boxShadow: CARD.boxShadow, textDecoration: 'none' }}>
+          <Users size={18} color={C.gold} />
+          <div style={{ flex: 1 }}>
+            <p style={{ fontSize: 14, fontWeight: 700, color: C.text, margin: '0 0 2px' }}>Manage your team</p>
+            <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>Who has access, pending requests, and invitations</p>
           </div>
-
-          <p style={{ fontSize: 12, color: C.muted, margin: 0, lineHeight: 1.6 }}>
-            Give your manager, tour manager, or band member access to capture shows and submit royalties on your behalf. Every action they take is logged under your account.
-          </p>
-
-          {/* Incoming requests — a manager asked for access to THIS
-              account. Approve/decline only, never the invite "Resend" or
-              "Remove" actions below, which are for invites this artist
-              sent out, a different direction entirely. */}
-          {delegates.some(d => d.direction === 'requested_by_manager' && !d.accepted && !d.declined_at) && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: C.gold, margin: '0 0 2px' }}>Requesting Access</p>
-              {delegates.filter(d => d.direction === 'requested_by_manager' && !d.accepted && !d.declined_at).map(d => (
-                <div key={d.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px', background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 10 }}>
-                  <div style={{ width: 32, height: 32, borderRadius: '50%', background: C.goldDim, border: `1px solid ${C.borderGold}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
-                    {d.avatar_url
-                      ? <img src={d.avatar_url} alt={d.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                      : <span style={{ fontSize: 12, fontWeight: 800, color: C.gold }}>{d.name.charAt(0).toUpperCase()}</span>}
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ fontSize: 13, fontWeight: 600, color: C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{d.name}</p>
-                    <p style={{ fontSize: 11, color: C.muted, margin: '1px 0 0' }}>Wants {roleInfoFor(d.role as AssignableInviteRole).label.toLowerCase()} access · Requested {timeAgo(d.invited_at)}</p>
-                    {respondError[d.id] && <p style={{ fontSize: 11, color: C.red, margin: '3px 0 0' }}>{respondError[d.id]}</p>}
-                  </div>
-                  <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                    <button onClick={() => respondToRequest(d.id, 'decline')} disabled={responding === d.id}
-                      style={{ background: 'none', border: '1px solid rgba(248,113,113,0.2)', borderRadius: 8, padding: '5px 10px', color: C.red, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', opacity: responding === d.id ? 0.5 : 1 }}>
-                      Decline
-                    </button>
-                    <button onClick={() => respondToRequest(d.id, 'approve')} disabled={responding === d.id}
-                      style={{ background: C.gold, border: 'none', borderRadius: 8, padding: '5px 10px', color: '#0a0908', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', opacity: responding === d.id ? 0.5 : 1 }}>
-                      {responding === d.id ? '...' : 'Approve'}
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Existing delegates */}
-          {delegates.filter(d => d.direction !== 'requested_by_manager' || d.accepted).length > 0 && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {delegates.filter(d => d.direction !== 'requested_by_manager' || d.accepted).map(d => (
-                <div key={d.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px', background: 'rgba(255,255,255,0.02)', border: `1px solid ${d.accepted ? 'rgba(74,222,128,0.15)' : C.border}`, borderRadius: 10 }}>
-                  {/* Avatar */}
-                  <div style={{ width: 32, height: 32, borderRadius: '50%', background: d.accepted ? C.greenDim : C.goldDim, border: `1px solid ${d.accepted ? 'rgba(74,222,128,0.2)' : C.borderGold}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
-                    {d.avatar_url
-                      ? <img src={d.avatar_url} alt={d.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                      : <span style={{ fontSize: 12, fontWeight: 800, color: d.accepted ? C.green : C.gold }}>{d.name.charAt(0).toUpperCase()}</span>
-                    }
-                  </div>
-
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <p style={{ fontSize: 13, fontWeight: 600, color: C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{d.name}</p>
-                      {d.accepted
-                        ? <span style={{ fontSize: 9, fontWeight: 700, color: C.green, background: C.greenDim, border: '1px solid rgba(74,222,128,0.2)', borderRadius: 20, padding: '2px 6px', flexShrink: 0 }}>Active</span>
-                        : <span style={{ fontSize: 9, fontWeight: 700, color: C.gold, background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 20, padding: '2px 6px', flexShrink: 0 }}>Pending</span>
-                      }
-                    </div>
-                    <p style={{ fontSize: 11, color: C.muted, margin: '1px 0 0' }}>
-                      {roleInfoFor(d.role).label} · {d.accepted ? `Joined ${timeAgo(d.accepted_at!)}` : `Invited ${timeAgo(d.invited_at)}`}
-                    </p>
-                  </div>
-
-                  <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                    {/* Resend invite link if pending */}
-                    {!d.accepted && d.invite_url && (
-                      <button onClick={() => copyInvite(d.invite_url!)}
-                        style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 8, padding: '5px 10px', color: C.muted, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <Copy size={10} /> Resend
-                      </button>
-                    )}
-                    {/* Revoke */}
-                    <button onClick={() => revokeDelegate(d.id)} disabled={revoking === d.id}
-                      style={{ background: 'none', border: '1px solid rgba(248,113,113,0.2)', borderRadius: 8, padding: '5px 10px', color: C.red, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 4, opacity: revoking === d.id ? 0.5 : 1, transition: 'opacity 0.15s ease' }}
-                      onMouseEnter={e => { if (!(e.currentTarget as HTMLButtonElement).disabled) (e.currentTarget as HTMLElement).style.opacity = '0.7' }}
-                      onMouseLeave={e => { if (!(e.currentTarget as HTMLButtonElement).disabled) (e.currentTarget as HTMLElement).style.opacity = '1' }}>
-                      <X size={10} /> {revoking === d.id ? '...' : 'Remove'}
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Invite form */}
-          <div>
-            <label style={labelStyle}>Role</label>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
-              {ASSIGNABLE_INVITE_ROLES.map(r => {
-                const active = inviteRole === r
-                return (
-                  <button key={r} type="button" onClick={() => { setInviteRole(r); setInviteError(''); setInviteResult(null) }}
-                    style={{
-                      padding: '7px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer',
-                      background: active ? C.goldDim : 'transparent',
-                      border: `1px solid ${active ? C.borderGold : C.inputBorder}`,
-                      color: active ? C.gold : C.secondary,
-                    }}>
-                    {roleInfoFor(r).label}
-                  </button>
-                )
-              })}
-            </div>
-            <div style={{ background: C.input, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 12px', marginBottom: 12 }}>
-              <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: C.muted, margin: '0 0 6px' }}>
-                What {roleInfoFor(inviteRole).label.toLowerCase()} access grants
-              </p>
-              <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 4 }}>
-                {roleInfoFor(inviteRole).capabilities.map((c, i) => (
-                  <li key={i} style={{ fontSize: 12, color: C.secondary, display: 'flex', gap: 6 }}>
-                    <span style={{ color: C.gold, flexShrink: 0 }}>·</span>{c}
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <label style={labelStyle}>Invite by email</label>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <input
-                value={delegateEmail}
-                onChange={e => { setDelegateEmail(e.target.value); setInviteError(''); setInviteResult(null) }}
-                onKeyDown={e => e.key === 'Enter' && sendInvite()}
-                placeholder="manager@email.com"
-                type="email"
-                style={{ ...inputStyle, flex: 1 }}
-                onFocus={e => (e.target as HTMLInputElement).style.borderColor = C.borderGold}
-                onBlur={e => (e.target as HTMLInputElement).style.borderColor = C.inputBorder}
-              />
-              <button onClick={sendInvite} disabled={inviting || !delegateEmail.trim()}
-                style={{ padding: '11px 16px', background: delegateEmail.trim() ? C.gold : 'rgba(255,255,255,0.04)', border: `1px solid ${delegateEmail.trim() ? C.gold : C.border}`, borderRadius: 10, color: delegateEmail.trim() ? '#0a0908' : C.muted, fontSize: 13, fontWeight: 700, cursor: inviting || !delegateEmail.trim() ? 'default' : 'pointer', fontFamily: 'inherit', flexShrink: 0, opacity: inviting ? 0.7 : 1, transition: 'opacity 0.15s ease' }}
-                onMouseEnter={e => { if (!(e.currentTarget as HTMLButtonElement).disabled) (e.currentTarget as HTMLElement).style.opacity = '0.8' }}
-                onMouseLeave={e => { if (!(e.currentTarget as HTMLButtonElement).disabled) (e.currentTarget as HTMLElement).style.opacity = '1' }}>
-                {inviting ? '...' : 'Invite'}
-              </button>
-            </div>
-            <p style={{ fontSize: 11, color: C.muted, margin: '6px 0 0' }}>
-              They'll get a link to accept access. If they don't have a Setlistr account yet, they can create one when they accept. If they're not yet approved for the Setlistr beta, they'll be guided to request access first — your invite waits for them.
-            </p>
-          </div>
-
-          {/* Invite error */}
-          {inviteError && (
-            <div style={{ background: C.redDim, border: '1px solid rgba(248,113,113,0.2)', borderRadius: 10, padding: '11px 14px' }}>
-              <p style={{ fontSize: 13, color: C.red, margin: 0 }}>{inviteError}</p>
-            </div>
-          )}
-
-          {/* Invite result */}
-          {inviteResult && (
-            <div style={{ background: C.greenDim, border: '1px solid rgba(74,222,128,0.2)', borderRadius: 12, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Check size={14} color={C.green} strokeWidth={2.5} />
-                <p style={{ fontSize: 13, fontWeight: 700, color: C.green, margin: 0 }}>
-                  {(inviteResult as any).email_sent ? 'Invite email sent' : inviteResult.delegate_found ? `Invite created for ${inviteResult.delegate_name || 'this user'}` : 'Invite created'}
-                </p>
-              </div>
-              <p style={{ fontSize: 12, color: C.muted, margin: 0, lineHeight: 1.5 }}>
-                {(inviteResult as any).email_sent
-                  ? "They'll receive an email with a link to accept access to your account."
-                  : 'Send them this link — they tap it to accept access.'}
-              </p>
-              <button onClick={() => copyInvite(inviteResult.invite_url)}
-                style={{ width: '100%', padding: '12px', background: copiedInvite ? '#16a34a' : 'transparent', border: `1px solid ${copiedInvite ? 'rgba(74,222,128,0.4)' : 'rgba(74,222,128,0.25)'}`, borderRadius: 10, color: copiedInvite ? C.green : C.secondary, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, transition: 'opacity 0.15s ease' }}
-                onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.7'}
-                onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}>
-                {copiedInvite ? <><Check size={12} strokeWidth={2.5} /> Link Copied</> : <><Copy size={12} strokeWidth={2} /> Copy Invite Link</>}
-              </button>
-            </div>
-          )}
-        </div>
+          <span style={{ color: C.gold, fontSize: 18 }}>→</span>
+        </Link>
 
         {/* ── Bandsintown ── */}
         <div style={{ background: CARD.background, border: `1px solid ${C.border}`, borderRadius: 16, padding: '20px', display: 'flex', flexDirection: 'column', gap: 16, boxShadow: CARD.boxShadow }}>

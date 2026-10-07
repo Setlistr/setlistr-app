@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ChevronLeft, ChevronRight, History, Send } from 'lucide-react'
+import { ChevronLeft, ChevronRight, History, Send, Users } from 'lucide-react'
 import { useActingAs } from '@/components/ActingAsProvider'
 import { MANAGER_RETURN_KEY } from '@/components/layout/AppShell'
 import { isCapturedShow, isCompleteStage, isSubmitted } from '@/lib/performance-status'
@@ -253,6 +253,9 @@ export default function ManagerArtistDetailPage({ params }: { params: { artistId
         </button>
         <button onClick={() => openFlow('/app/file')} disabled={selecting} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '13px', background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, color: C.text, fontSize: 13, fontWeight: 700, cursor: selecting ? 'default' : 'pointer', fontFamily: 'inherit', opacity: selecting ? 0.6 : 1 }}>
           <Send size={15} /> Filing Queue
+        </button>
+        <button onClick={() => openFlow('/app/team')} disabled={selecting} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '13px', background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, color: C.text, fontSize: 13, fontWeight: 700, cursor: selecting ? 'default' : 'pointer', fontFamily: 'inherit', opacity: selecting ? 0.6 : 1 }}>
+          <Users size={15} /> Team
         </button>
       </div>
 

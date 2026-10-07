@@ -18,7 +18,7 @@ export const TEAM_ROLE_INFO: Record<string, { label: string; capabilities: strin
     capabilities: [
       'Capture live shows on their behalf',
       'Review and clean up setlists',
-      'Submit performances to their PRO',
+      'Prepare claim information and mark performances as submitted.',
       'Invite other teammates to this workspace',
       'View their show history and royalty estimates',
     ],
@@ -28,7 +28,7 @@ export const TEAM_ROLE_INFO: Record<string, { label: string; capabilities: strin
     capabilities: [
       'Capture live shows on their behalf',
       'Review and clean up setlists',
-      'Submit performances to their PRO',
+      'Prepare claim information and mark performances as submitted.',
       'View their show history and royalty estimates',
     ],
   },
@@ -37,7 +37,7 @@ export const TEAM_ROLE_INFO: Record<string, { label: string; capabilities: strin
     capabilities: [
       'Capture live shows on their behalf',
       'Review and clean up setlists',
-      'Submit performances to their PRO',
+      'Prepare claim information and mark performances as submitted.',
       'View their show history and royalty estimates',
     ],
   },

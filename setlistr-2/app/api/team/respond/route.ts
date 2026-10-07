@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { getBaseUrl } from '@/lib/baseUrl'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -9,16 +10,20 @@ const supabase = createClient(
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY
 
-async function notifyManagerOfApproval(to: string, artistName: string) {
+async function notifyManagerOfApproval(to: string, artistName: string, artistId: string) {
   if (!RESEND_API_KEY) return
   try {
+    const workspaceUrl = `${getBaseUrl()}/app/manager/artists/${artistId}`
     await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         from: 'Setlistr <invites@setlistr.ai>', to,
         subject: `${artistName} approved your request`,
-        html: `<div style="font-family: system-ui, sans-serif; max-width: 480px; margin: 0 auto; background: #0a0908; color: #f0ece3; padding: 40px 32px; border-radius: 16px;"><p style="font-size: 14px; color: #b8a888; line-height: 1.6;">${artistName} approved your manager access request. They now appear in your Manager workspace.</p></div>`,
+        html: `<div style="font-family: system-ui, sans-serif; max-width: 480px; margin: 0 auto; background: #0a0908; color: #f0ece3; padding: 40px 32px; border-radius: 16px;">
+          <p style="font-size: 14px; color: #b8a888; line-height: 1.6; margin: 0 0 24px;">${artistName} approved your manager access request. They now appear in your Manager workspace.</p>
+          <a href="${workspaceUrl}" style="display: inline-block; background: #c9a84c; color: #0a0908; font-size: 14px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; text-decoration: none; padding: 16px 32px; border-radius: 12px;">Open Manager Workspace →</a>
+        </div>`,
       }),
     })
   } catch (err) {
@@ -101,7 +106,7 @@ export async function POST(req: NextRequest) {
         supabase.from('profiles').select('email').eq('id', row.delegate_id).single(),
       ])
       const artistName = artistProfile?.artist_name || artistProfile?.full_name || 'The artist'
-      if (managerProfile?.email) await notifyManagerOfApproval(managerProfile.email, artistName)
+      if (managerProfile?.email) await notifyManagerOfApproval(managerProfile.email, artistName, row.artist_id)
     }
 
     return NextResponse.json({ success: true, decision })
