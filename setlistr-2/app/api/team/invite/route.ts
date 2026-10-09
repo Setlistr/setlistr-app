@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { canCreateInvite, isAssignableInviteRole } from '@/lib/inviteAuthorization'
 import { getBaseUrl } from '@/lib/baseUrl'
+import { roleInfoFor } from '@/lib/teamRoleInfo'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -17,12 +18,13 @@ const RESEND_API_KEY = process.env.RESEND_API_KEY
 // email_sent, not !!RESEND_API_KEY, so the response reflects actual
 // delivery, not configuration.
 async function sendInviteEmail({
-  to, artistName, inviteUrl, delegateFound,
+  to, artistName, inviteUrl, delegateFound, role,
 }: {
   to: string
   artistName: string
   inviteUrl: string
   delegateFound: boolean
+  role: string
 }): Promise<boolean> {
   if (!RESEND_API_KEY) {
     console.warn('RESEND_API_KEY not set — skipping email send')
@@ -31,18 +33,35 @@ async function sendInviteEmail({
 
   const subject = `${artistName} added you to their Setlistr account`
 
+  // Capability text pulled from the SAME single source of truth the Team
+  // page and the accept screen already render from (lib/teamRoleInfo.ts)
+  // — never a separate description written here that could drift from
+  // what the role actually grants, which is exactly what happened before
+  // this fix: every invite email said "capturing shows... preparing
+  // claim information" regardless of role, including for Viewer, who is
+  // explicitly read-only and can't do either.
+  const { label, capabilities } = roleInfoFor(role)
+  const roleLabelLower = label.toLowerCase()
+  const capabilitiesList = capabilities.map(c =>
+    `<li style="font-size: 13px; color: #b8a888; margin: 0 0 6px; padding-left: 16px; position: relative;"><span style="position: absolute; left: 0; color: #c9a84c;">·</span>${c}</li>`
+  ).join('')
+
   const html = `
     <div style="font-family: system-ui, sans-serif; max-width: 480px; margin: 0 auto; background: #0a0908; color: #f0ece3; padding: 40px 32px; border-radius: 16px;">
       <img src="https://setlistr.ai/logo-white-tight.png" width="160" alt="Setlistr" style="display: block; height: auto; margin: 0 0 24px;" />
       <h1 style="font-size: 24px; font-weight: 800; color: #f0ece3; margin: 0 0 12px; letter-spacing: -0.025em; line-height: 1.2;">
         ${artistName} invited you to their team
       </h1>
-      <p style="font-size: 14px; color: #b8a888; margin: 0 0 24px; line-height: 1.6;">
+      <p style="font-size: 14px; color: #b8a888; margin: 0 0 20px; line-height: 1.6;">
         ${delegateFound
-          ? `You've been added as a team member on ${artistName}'s Setlistr account. Accept to start managing their shows and royalty submissions.`
-          : `${artistName} is using Setlistr to track live performance royalties. They'd like you to manage their account — capturing shows, reviewing setlists, and preparing claim information on their behalf.`
+          ? `You've been added as a ${roleLabelLower} on ${artistName}'s Setlistr account.`
+          : `${artistName} is using Setlistr to track live performance royalties and has invited you as a ${roleLabelLower}.`
         }
       </p>
+      <div style="background: #141210; border: 1px solid rgba(255,255,255,0.07); border-radius: 12px; padding: 14px 18px; margin: 0 0 24px;">
+        <p style="font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #8a7a68; margin: 0 0 8px;">As a ${roleLabelLower} you can</p>
+        <ul style="margin: 0; padding: 0; list-style: none;">${capabilitiesList}</ul>
+      </div>
       <a href="${inviteUrl}" style="display: inline-block; background: #c9a84c; color: #0a0908; font-size: 14px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; text-decoration: none; padding: 16px 32px; border-radius: 12px; margin-bottom: 24px;">
         Accept Invite
       </a>
@@ -143,7 +162,7 @@ export async function POST(req: NextRequest) {
     if (delegateUser) {
       const { data: existing, error: existingError } = await supabase
         .from('artist_delegates')
-        .select('id, accepted_at, declined_at, revoked_at, invite_token')
+        .select('id, accepted_at, declined_at, revoked_at, invite_token, role')
         .eq('artist_id', artist_id)
         .eq('delegate_id', delegateUser.id)
         .maybeSingle()
@@ -162,7 +181,7 @@ export async function POST(req: NextRequest) {
       // fresh row (and fresh token) rather than resurrecting this one.
       if (existing && !existing.declined_at && !existing.revoked_at) {
         const inviteUrl = `${BASE_URL}/app/accept-invite?token=${existing.invite_token}`
-        const emailSent = await sendInviteEmail({ to: delegate_email, artistName: artistDisplayName, inviteUrl, delegateFound: true })
+        const emailSent = await sendInviteEmail({ to: delegate_email, artistName: artistDisplayName, inviteUrl, delegateFound: true, role: existing.role })
         return NextResponse.json({
           success: true,
           email_sent: emailSent,
@@ -192,7 +211,7 @@ export async function POST(req: NextRequest) {
       // invite to resend; it falls through to a fresh insert instead.
       const { data: existingByEmail, error: existingByEmailError } = await supabase
         .from('artist_delegates')
-        .select('id, invite_token')
+        .select('id, invite_token, role')
         .eq('artist_id', artist_id)
         .eq('invited_email', delegate_email.toLowerCase().trim())
         .is('accepted_at', null)
@@ -208,7 +227,7 @@ export async function POST(req: NextRequest) {
 
       if (existingByEmail) {
         const inviteUrl = `${BASE_URL}/app/accept-invite?token=${existingByEmail.invite_token}`
-        const emailSent = await sendInviteEmail({ to: delegate_email, artistName: artistDisplayName, inviteUrl, delegateFound: false })
+        const emailSent = await sendInviteEmail({ to: delegate_email, artistName: artistDisplayName, inviteUrl, delegateFound: false, role: existingByEmail.role })
         return NextResponse.json({
           success: true,
           email_sent: emailSent,
@@ -323,6 +342,7 @@ export async function POST(req: NextRequest) {
       artistName: artistDisplayName,
       inviteUrl,
       delegateFound: !!delegateUser,
+      role,
     })
 
     return NextResponse.json({

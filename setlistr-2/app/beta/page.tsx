@@ -21,7 +21,7 @@ export default function BetaPage() {
         <div style={{ textAlign: 'center', maxWidth: 360, marginBottom: 32 }}>
           <p style={{ fontSize: 13, fontWeight: 700, color: '#c9a84c', margin: '0 0 8px' }}>Your team invitation is saved</p>
           <p style={{ fontSize: 13, color: '#8a7a68', margin: 0, lineHeight: 1.6 }}>
-            Setlistr approval is required before you can accept it. Request access below — we'll bring you straight back to the invitation the moment you're approved.
+            Setlistr approval is required before you can accept it. Request access below — once you're approved, revisiting this page (or the link in your invite email) will take you straight to the invitation.
           </p>
         </div>
       ) : (
