@@ -12,6 +12,10 @@ const supabase = createClient(
 const BASE_URL = getBaseUrl()
 const RESEND_API_KEY = process.env.RESEND_API_KEY
 
+// Returns whether the email actually went out — never just whether a
+// key is configured. Every caller below reports THIS value as
+// email_sent, not !!RESEND_API_KEY, so the response reflects actual
+// delivery, not configuration.
 async function sendInviteEmail({
   to, artistName, inviteUrl, delegateFound,
 }: {
@@ -19,10 +23,10 @@ async function sendInviteEmail({
   artistName: string
   inviteUrl: string
   delegateFound: boolean
-}) {
+}): Promise<boolean> {
   if (!RESEND_API_KEY) {
     console.warn('RESEND_API_KEY not set — skipping email send')
-    return
+    return false
   }
 
   const subject = `${artistName} added you to their Setlistr account`
@@ -69,9 +73,12 @@ async function sendInviteEmail({
     if (!res.ok) {
       const err = await res.text()
       console.error('Resend error:', err)
+      return false
     }
+    return true
   } catch (err) {
     console.error('Email send failed:', err)
+    return false
   }
 }
 
@@ -134,23 +141,31 @@ export async function POST(req: NextRequest) {
       .maybeSingle()
 
     if (delegateUser) {
-      const { data: existing } = await supabase
+      const { data: existing, error: existingError } = await supabase
         .from('artist_delegates')
-        .select('id, accepted_at, invite_token')
+        .select('id, accepted_at, declined_at, revoked_at, invite_token')
         .eq('artist_id', artist_id)
         .eq('delegate_id', delegateUser.id)
         .maybeSingle()
+
+      if (existingError) {
+        console.error('Existing-delegation lookup error:', existingError)
+        return NextResponse.json({ error: 'Something went wrong' }, { status: 500 })
+      }
 
       if (existing?.accepted_at) {
         return NextResponse.json({ error: 'This person already has access to your account' }, { status: 409 })
       }
 
-      if (existing) {
+      // A terminal row (declined or revoked) is never a usable pending
+      // invite — falls through to the insert below, which creates a
+      // fresh row (and fresh token) rather than resurrecting this one.
+      if (existing && !existing.declined_at && !existing.revoked_at) {
         const inviteUrl = `${BASE_URL}/app/accept-invite?token=${existing.invite_token}`
-        await sendInviteEmail({ to: delegate_email, artistName: artistDisplayName, inviteUrl, delegateFound: true })
+        const emailSent = await sendInviteEmail({ to: delegate_email, artistName: artistDisplayName, inviteUrl, delegateFound: true })
         return NextResponse.json({
           success: true,
-          email_sent: !!RESEND_API_KEY,
+          email_sent: emailSent,
           delegate_found: true,
           delegate_name: delegateUser.artist_name || delegateUser.full_name,
           invite_url: inviteUrl,
@@ -167,20 +182,36 @@ export async function POST(req: NextRequest) {
       // originally-chosen role on every resend. Reusing the existing
       // row's own stored role/token, exactly like the delegateUser
       // branch above does, is what actually preserves it.
-      const { data: existingByEmail } = await supabase
+      //
+      // Matches BOTH placeholder conventions during the rollout: a
+      // legacy row (delegate_id = artist_id, pre-migration-0024) and a
+      // new row (delegate_id = null, post-0024) for the same invited
+      // email are the same logical pending invite — either shape must
+      // be found and reused here, never duplicated. declined_at/
+      // revoked_at excluded — a terminal row is never a usable pending
+      // invite to resend; it falls through to a fresh insert instead.
+      const { data: existingByEmail, error: existingByEmailError } = await supabase
         .from('artist_delegates')
         .select('id, invite_token')
         .eq('artist_id', artist_id)
         .eq('invited_email', delegate_email.toLowerCase().trim())
         .is('accepted_at', null)
+        .is('declined_at', null)
+        .is('revoked_at', null)
+        .or(`delegate_id.is.null,delegate_id.eq.${artist_id}`)
         .maybeSingle()
+
+      if (existingByEmailError) {
+        console.error('Existing-invite-by-email lookup error:', existingByEmailError)
+        return NextResponse.json({ error: 'Something went wrong' }, { status: 500 })
+      }
 
       if (existingByEmail) {
         const inviteUrl = `${BASE_URL}/app/accept-invite?token=${existingByEmail.invite_token}`
-        await sendInviteEmail({ to: delegate_email, artistName: artistDisplayName, inviteUrl, delegateFound: false })
+        const emailSent = await sendInviteEmail({ to: delegate_email, artistName: artistDisplayName, inviteUrl, delegateFound: false })
         return NextResponse.json({
           success: true,
-          email_sent: !!RESEND_API_KEY,
+          email_sent: emailSent,
           delegate_found: false,
           delegate_name: null,
           invite_url: inviteUrl,
@@ -195,20 +226,99 @@ export async function POST(req: NextRequest) {
         artist_id, delegate_id: delegateUser.id, role, invited_by: artist_id,
         invited_email: delegate_email.toLowerCase().trim(),
       } : {
-        artist_id, delegate_id: artist_id, role, invited_by: artist_id,
+        // New convention — requires migration 0024 (delegate_id made
+        // nullable) to already be applied. Only pre-existing legacy
+        // rows (delegate_id = artist_id) are still recognized above and
+        // in app/api/team/accept/route.ts; every NEW row uses null.
+        artist_id, delegate_id: null, role, invited_by: artist_id,
         invited_email: delegate_email.toLowerCase().trim(),
       })
       .select('id, invite_token')
       .single()
 
     if (error || !delegate) {
+      // delegateUser case: the conflict is against the UNCHANGED, always-
+      // on UNIQUE(artist_id, delegate_id) — which has no exception for a
+      // declined/revoked row, unlike the new pending-email index above.
+      // Demonstrated gap, not yet resolved at the schema level: a real
+      // person who previously declined (or had access revoked) blocks
+      // ANY future row for that exact pair, through either direction,
+      // forever. Re-reading and reusing the conflicting row — safe for
+      // the !delegateUser race below — would be WRONG here if that row
+      // turns out to be the old terminal one: it must never be surfaced
+      // as a usable invite. So the three outcomes are handled
+      // separately, and a terminal conflict fails honestly rather than
+      // either resurrecting the old row or raising a raw 500.
+      if (error?.code === '23505' && delegateUser) {
+        const { data: conflicting, error: conflictReadError } = await supabase
+          .from('artist_delegates')
+          .select('invite_token, accepted_at, declined_at, revoked_at')
+          .eq('artist_id', artist_id)
+          .eq('delegate_id', delegateUser.id)
+          .maybeSingle()
+
+        if (conflictReadError) {
+          console.error('Post-conflict re-read error:', conflictReadError)
+          return NextResponse.json({ error: 'Something went wrong' }, { status: 500 })
+        }
+        if (conflicting?.accepted_at) {
+          return NextResponse.json({ error: 'This person already has access to your account' }, { status: 409 })
+        }
+        if (conflicting?.declined_at || conflicting?.revoked_at) {
+          return NextResponse.json({ error: 'This person has a previous connection with your account that needs to be cleared before they can be invited again.' }, { status: 409 })
+        }
+        if (conflicting) {
+          // A legitimate concurrent pending invite won the race — reuse
+          // it exactly like the existing-row branch above does.
+          const inviteUrl = `${BASE_URL}/app/accept-invite?token=${conflicting.invite_token}`
+          return NextResponse.json({
+            success: true, email_sent: false, delegate_found: true,
+            delegate_name: delegateUser.artist_name || delegateUser.full_name,
+            invite_url: inviteUrl, already_exists: true,
+          })
+        }
+      }
+
+      if (error?.code === '23505') {
+        // !delegateUser case: lost a race to a concurrent identical
+        // invite (same artist, same invited email) — re-read and reuse
+        // the row that won, rather than erroring. Safe to reuse
+        // unconditionally here: the pending-email index this collided
+        // with is itself scoped to accepted_at/declined_at/revoked_at
+        // all NULL, so the winning row can never be a terminal one.
+        // Never send a second email for it: the winning request's own
+        // sendInviteEmail call already attempted
+        // that, so email_sent here is honestly false (not sent BY THIS
+        // request), not a guess about the other request's delivery.
+        const { data: justCreated, error: reReadError } = await supabase
+          .from('artist_delegates')
+          .select('invite_token')
+          .eq('artist_id', artist_id)
+          .eq('invited_email', delegate_email.toLowerCase().trim())
+          .is('accepted_at', null)
+          .is('declined_at', null)
+          .is('revoked_at', null)
+          .maybeSingle()
+
+        if (reReadError) {
+          console.error('Post-conflict re-read error:', reReadError)
+          return NextResponse.json({ error: 'Something went wrong' }, { status: 500 })
+        }
+        if (justCreated) {
+          const inviteUrl = `${BASE_URL}/app/accept-invite?token=${justCreated.invite_token}`
+          return NextResponse.json({
+            success: true, email_sent: false, delegate_found: !!delegateUser,
+            delegate_name: null, invite_url: inviteUrl, already_exists: true,
+          })
+        }
+      }
       console.error('Delegate insert error:', error)
       return NextResponse.json({ error: 'Failed to create invite' }, { status: 500 })
     }
 
     const inviteUrl = `${BASE_URL}/app/accept-invite?token=${delegate.invite_token}`
 
-    await sendInviteEmail({
+    const emailSent = await sendInviteEmail({
       to: delegate_email,
       artistName: artistDisplayName,
       inviteUrl,
@@ -217,7 +327,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      email_sent: !!RESEND_API_KEY,
+      email_sent: emailSent,
       delegate_found: !!delegateUser,
       delegate_name: delegateUser?.artist_name || delegateUser?.full_name || null,
       invite_url: inviteUrl,

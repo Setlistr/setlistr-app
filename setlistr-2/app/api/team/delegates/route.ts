@@ -9,7 +9,12 @@ const supabase = createClient(
 )
 
 type DelegateRow = {
-  id: string; delegate_id: string; role: string
+  // Nullable since migration 0024 — a pending invite to an email with
+  // no account yet uses NULL (new convention) or, for pre-0024 rows
+  // still outstanding during the rollout, the legacy artist_id
+  // placeholder. Every filter below already treats both correctly
+  // (equality checks against a real id, never a string method).
+  id: string; delegate_id: string | null; role: string
   accepted_at: string | null; declined_at: string | null; revoked_at: string | null
   invited_at: string; invited_by: string; invited_email: string | null; invite_token: string | null
 }
@@ -53,9 +58,16 @@ async function buildOwnerView(artistId: string) {
   // real request.
   const isIncomingRequest = (d: DelegateRow) => d.invited_by === d.delegate_id && d.invited_by !== artistId
 
+  // Both branches of this filter guarantee a real, non-null delegate_id:
+  // an accepted row is only ever rebound to a real id atomically
+  // alongside accepted_at (see app/api/team/accept/route.ts), and an
+  // incoming request's delegate_id IS invited_by, already known
+  // non-null. Never true for a still-pending, no-account-yet invite
+  // (delegate_id null or the legacy artist_id placeholder), which this
+  // filter excludes either way.
   const realIds = rows
     .filter(d => (d.delegate_id !== artistId && d.accepted_at) || isIncomingRequest(d))
-    .map(d => d.delegate_id)
+    .map(d => d.delegate_id!)
   const profiles = await profilesById(realIds)
   const nameFor = (p?: ProfileInfo) => p?.artist_name || p?.full_name || null
   const BASE_URL = getBaseUrl()
@@ -63,7 +75,7 @@ async function buildOwnerView(artistId: string) {
   const incoming = rows
     .filter(d => isIncomingRequest(d) && !d.accepted_at && !d.declined_at)
     .map(d => {
-      const p = profiles[d.delegate_id]
+      const p = profiles[d.delegate_id!] // real id — isIncomingRequest guarantees it
       return {
         id: d.id, delegate_id: d.delegate_id,
         name: nameFor(p) || d.invited_email || 'Unknown',
@@ -75,7 +87,7 @@ async function buildOwnerView(artistId: string) {
   const members = rows
     .filter(d => !!d.accepted_at)
     .map(d => {
-      const p = profiles[d.delegate_id]
+      const p = profiles[d.delegate_id!] // real id — accepted rows are always rebound atomically
       return {
         id: d.id, delegate_id: d.delegate_id,
         name: nameFor(p) || 'Unknown',
@@ -113,11 +125,14 @@ async function buildManagerRosterView(artistId: string) {
     .is('revoked_at', null)
     .order('accepted_at', { ascending: false })
 
+  // Query is already scoped to accepted_at IS NOT NULL, so every row's
+  // delegate_id is real — only a still-pending invite can have a null
+  // or placeholder one, and this query never returns those.
   const rows = (data || []) as Pick<DelegateRow, 'id' | 'delegate_id' | 'role' | 'accepted_at'>[]
-  const profiles = await profilesById(rows.map(d => d.delegate_id))
+  const profiles = await profilesById(rows.map(d => d.delegate_id!))
 
   const members = rows.map(d => {
-    const p = profiles[d.delegate_id]
+    const p = profiles[d.delegate_id!]
     return {
       id: d.id, delegate_id: d.delegate_id,
       name: p?.artist_name || p?.full_name || 'Unknown',
