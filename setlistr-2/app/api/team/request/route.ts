@@ -33,7 +33,7 @@ async function sendRequestEmail({ to, managerName, managerEmail, artistName }: {
 }) {
   if (!RESEND_API_KEY) return false
 
-  const settingsUrl = `${BASE_URL}/app/settings#team-access`
+  const settingsUrl = `${BASE_URL}/app/team`
   const safeManagerName = escapeHtml(managerName)
   const safeManagerEmail = escapeHtml(managerEmail)
   const safeArtistName = escapeHtml(artistName)
@@ -48,7 +48,7 @@ async function sendRequestEmail({ to, managerName, managerEmail, artistName }: {
         Hi ${safeArtistName},
       </p>
       <p style="font-size: 14px; color: #b8a888; margin: 0 0 24px; line-height: 1.6;">
-        <strong style="color: #f0ece3;">${safeManagerName}</strong> (${safeManagerEmail}) has requested manager access to your Setlistr account — capturing shows, reviewing setlists, and submitting to your PRO on your behalf. Nothing happens unless you approve it.
+        <strong style="color: #f0ece3;">${safeManagerName}</strong> (${safeManagerEmail}) has requested manager access to your Setlistr account — capturing shows, reviewing setlists, and preparing claim information on your behalf. Nothing happens unless you approve it.
       </p>
       <a href="${settingsUrl}" style="display: inline-block; background: #c9a84c; color: #0a0908; font-size: 14px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; text-decoration: none; padding: 16px 32px; border-radius: 12px; margin-bottom: 24px;">
         Review Request →

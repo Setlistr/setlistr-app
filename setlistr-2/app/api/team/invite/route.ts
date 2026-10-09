@@ -40,7 +40,7 @@ async function sendInviteEmail({
       <p style="font-size: 14px; color: #b8a888; margin: 0 0 24px; line-height: 1.6;">
         ${delegateFound
           ? `You've been added as a team member on ${artistName}'s Setlistr account. Accept to start managing their shows and royalty submissions.`
-          : `${artistName} is using Setlistr to track live performance royalties. They'd like you to manage their account — capturing shows, reviewing setlists, and submitting to their PRO on their behalf.`
+          : `${artistName} is using Setlistr to track live performance royalties. They'd like you to manage their account — capturing shows, reviewing setlists, and preparing claim information on their behalf.`
         }
       </p>
       <a href="${inviteUrl}" style="display: inline-block; background: #c9a84c; color: #0a0908; font-size: 14px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; text-decoration: none; padding: 16px 32px; border-radius: 12px; margin-bottom: 24px;">

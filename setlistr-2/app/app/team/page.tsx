@@ -417,7 +417,14 @@ export default function TeamPage() {
                       <span style={{ fontSize: 13, fontWeight: 800, color: C.gold }}>{(o.email || '?').charAt(0).toUpperCase()}</span>
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <p style={{ fontSize: 13, fontWeight: 600, color: C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{o.email || 'Unknown'}</p>
+                      {/* The email IS the identifier for a pending, not-yet-
+                          registered recipient — unlike a name, hard-truncating
+                          it with ellipsis can cut off enough of a long address
+                          (especially the domain) that the artist can't verify
+                          who they actually invited. Wraps instead; title is a
+                          native-tooltip backup for anyone who still wants it
+                          on one line via their own browser zoom/width. */}
+                      <p title={o.email || 'Unknown'} style={{ fontSize: 13, fontWeight: 600, color: C.text, margin: 0, wordBreak: 'break-all' }}>{o.email || 'Unknown'}</p>
                       <p style={{ fontSize: 11, color: C.muted, margin: '1px 0 0' }}>{roleInfoFor(o.role).label} · Invited {timeAgo(o.invited_at)}</p>
                       {resendError[o.id] && <p style={{ fontSize: 11, color: C.red, margin: '3px 0 0' }}>{resendError[o.id]}</p>}
                       {removeError[o.id] && <p style={{ fontSize: 11, color: C.red, margin: '3px 0 0' }}>{removeError[o.id]}</p>}

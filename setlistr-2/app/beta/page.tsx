@@ -19,9 +19,9 @@ export default function BetaPage() {
       <Image src="/logo-pill.png" alt="Setlistr" width={200} height={52} className="mb-8" />
       {hasPendingInvite ? (
         <div style={{ textAlign: 'center', maxWidth: 360, marginBottom: 32 }}>
-          <p style={{ fontSize: 13, fontWeight: 700, color: '#c9a84c', margin: '0 0 8px' }}>You have a pending team invitation</p>
+          <p style={{ fontSize: 13, fontWeight: 700, color: '#c9a84c', margin: '0 0 8px' }}>Your team invitation is saved</p>
           <p style={{ fontSize: 13, color: '#8a7a68', margin: 0, lineHeight: 1.6 }}>
-            Setlistr is invite-only, so we need to approve your account first — request access below and we'll get you straight to the invitation once you're in.
+            Setlistr approval is required before you can accept it. Request access below — we'll bring you straight back to the invitation the moment you're approved.
           </p>
         </div>
       ) : (
