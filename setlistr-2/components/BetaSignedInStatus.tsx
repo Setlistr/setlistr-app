@@ -46,11 +46,15 @@ export default function BetaSignedInStatus({ email, fullName, inviteDetails, ini
     setRequestError('')
     // Auto-filled from what we already know — never re-asks a known
     // recipient for their email or to re-describe why they're here.
-    // roles/note reuse the EXISTING waitlist columns; 'manager' is the
-    // closest fit in that table's own taxonomy for anyone invited to a
-    // team workspace, regardless of their specific team role (viewer/
-    // manager/tour_manager/band_member) — the real nuance is preserved
-    // in the note instead of inventing a new category.
+    // roles/note reuse the EXISTING waitlist columns, but the two are
+    // deliberately NOT conflated: waitlist's roles taxonomy (Artist/
+    // Songwriter/Manager/Publisher/Label/Booking agent/Other) classifies
+    // admission intent, while a team invite's role (viewer/manager/
+    // tour_manager/band_member) is a delegation permission level — they
+    // answer different questions. Forcing a team-invite role into that
+    // taxonomy previously mislabeled every non-manager recipient (e.g. a
+    // Band Member) as "MANAGER" in Admin. 'Other' makes no specific claim
+    // either way; the real role is named precisely in the note instead.
     const note = inviteDetails
       ? `Responding to a team invitation (${roleInfoFor(inviteDetails.role).label}) from ${inviteDetails.artistName}.`
       : 'Requesting beta approval after signing up.'
@@ -58,7 +62,7 @@ export default function BetaSignedInStatus({ email, fullName, inviteDetails, ini
       email,
       name: fullName || email,
       note,
-      roles: ['manager'],
+      roles: ['Other'],
       pro: null,
     })
     setRequesting(false)

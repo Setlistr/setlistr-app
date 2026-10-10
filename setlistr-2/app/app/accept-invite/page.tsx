@@ -159,7 +159,9 @@ export default function AcceptInvitePage() {
         <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '16px 20px', marginBottom: 20, textAlign: 'left' }}>
           <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, color: C.muted, margin: '0 0 10px' }}>What you can do</p>
           {(() => {
-            const items = [...roleInfoFor(invite?.role).capabilities, 'All actions are logged under their account']
+            // No appended "all actions are logged" item — there is no audit
+            // log feature anywhere in this app to back that claim.
+            const items = roleInfoFor(invite?.role).capabilities
             return items.map((item, i) => (
               <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: i < items.length - 1 ? 8 : 0 }}>
                 <Check size={13} color={C.green} strokeWidth={2.5} style={{ flexShrink: 0, marginTop: 2 }} />
@@ -228,7 +230,7 @@ export default function AcceptInvitePage() {
           <p style={{ fontSize: 14, color: C.secondary, margin: 0, lineHeight: 1.5 }}>
             {invite?.role === 'viewer'
               ? 'Accept to view their shows, setlists, and submission status.'
-              : 'Accept to manage their shows and royalty submissions on their behalf.'}
+              : 'Accept to manage their shows and help prepare royalty claims on their behalf.'}
           </p>
         </div>
 
@@ -246,10 +248,12 @@ export default function AcceptInvitePage() {
           ))}
         </div>
 
-        {/* Audit trail note */}
+        {/* Revocation note — only claims what's actually true: access can
+            be removed. No "every action is logged" claim; no audit-log
+            feature exists to back it. */}
         <div style={{ padding: '12px 16px', background: 'rgba(255,255,255,0.02)', border: `1px solid ${C.border}`, borderRadius: 10, marginBottom: 20 }}>
           <p style={{ fontSize: 11, color: C.muted, margin: 0, lineHeight: 1.5 }}>
-            Every action you take is logged and visible to {invite?.artist_name}. They can remove your access at any time from their Settings.
+            {invite?.artist_name} can remove your access at any time from Team.
           </p>
         </div>
 

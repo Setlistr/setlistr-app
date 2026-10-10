@@ -8,6 +8,7 @@ import { useActingAs } from '@/components/ActingAsProvider'
 import { SetlistrLoader, useLoaderVariant } from '@/components/SetlistrLoader'
 import { NextShowSummary } from '@/components/scheduling/UpcomingShows'
 import { isCapturedShow, isSubmitted } from '@/lib/performance-status'
+import { roleInfoFor } from '@/lib/teamRoleInfo'
 import {
   estimateRoyalties, aggregateUnclaimedEarnings,
   capacityToBand, type ShowEstimateInput,
@@ -626,7 +627,12 @@ export default function DashboardPage() {
             <div style={{ background: 'rgba(201,168,76,0.08)', border: `1px solid ${C.borderGold}`, borderRadius: 12, padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Users size={13} color={C.gold} strokeWidth={2} />
-                <span style={{ fontSize: 12, fontWeight: 700, color: C.gold }}>Managing: {actingAs.artist_name}</span>
+                {/* Role-aware, not a hardcoded "Managing" — a Viewer or Band
+                    Member isn't managing anything, and calling it that
+                    overstates what their access actually grants. */}
+                <span style={{ fontSize: 12, fontWeight: 700, color: C.gold }}>
+                  {roleInfoFor(managedArtists.find(a => a.artist_id === actingAs.artist_id)?.role).label}: {actingAs.artist_name}
+                </span>
               </div>
               <button onClick={switchToOwn} style={{ background: 'none', border: `1px solid ${C.borderGold}`, borderRadius: 8, padding: '4px 10px', color: C.secondary, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}>
                 <X size={10} /> Exit

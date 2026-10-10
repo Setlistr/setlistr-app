@@ -88,9 +88,14 @@ async function buildOwnerView(artistId: string) {
     .filter(d => !!d.accepted_at)
     .map(d => {
       const p = profiles[d.delegate_id!] // real id — accepted rows are always rebound atomically
+      // Owner view already includes this member's email as its own field
+      // right below (rendered alongside the name in the Team page), so
+      // falling back to it here exposes nothing the owner can't already
+      // see — unlike buildManagerRosterView below, which never selects
+      // email at all and must not start implying one through this fallback.
       return {
         id: d.id, delegate_id: d.delegate_id,
-        name: nameFor(p) || 'Unknown',
+        name: nameFor(p) || p?.email || 'Team member',
         email: p?.email || null,
         role: d.role, accepted_at: d.accepted_at, avatar_url: p?.avatar_url || null,
       }
@@ -133,9 +138,13 @@ async function buildManagerRosterView(artistId: string) {
 
   const members = rows.map(d => {
     const p = profiles[d.delegate_id!]
+    // Deliberately never falls back to email here — this view never
+    // selects it at all (see this function's own doc comment: "no other
+    // member's email" is a scope decision, not an oversight), so a nicer
+    // fallback than "Unknown" still can't be the email.
     return {
       id: d.id, delegate_id: d.delegate_id,
-      name: p?.artist_name || p?.full_name || 'Unknown',
+      name: p?.artist_name || p?.full_name || 'Team member',
       role: d.role, accepted_at: d.accepted_at, avatar_url: p?.avatar_url || null,
     }
   })

@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useActingAs } from '@/components/ActingAsProvider'
 import { Users, Check, X, Copy, Send, AlertCircle } from 'lucide-react'
@@ -63,17 +64,26 @@ function copyText(text: string) {
   }
 }
 
+type RemainingConnection = { artist_id: string; artist_name: string; role: string; avatar_url?: string | null }
+
 export default function TeamPage() {
+  const router = useRouter()
   const { workspaceOwnerId, actingAs } = useActingAs()
 
   // Identity bootstrap — independent of workspaceOwnerId, loaded once.
   // Distinguishes a genuine artist's own (possibly still-empty) team from
-  // a recruited manager who hasn't selected any artist yet — the one case
-  // that needs a dedicated safe state rather than calling the API with
-  // the manager's own id as if it were an artist workspace.
+  // a recruited manager who hasn't selected any artist yet, AND from a
+  // former delegate with no artist identity of their own at all (e.g. a
+  // Band Member whose last connection was just removed) — the two cases
+  // that need a dedicated safe state rather than calling the API with the
+  // viewer's own id as if it were an artist workspace, which silently
+  // infers artist ownership from nothing more than "no one else was
+  // selected."
   const [initializing, setInitializing] = useState(true)
   const [ownProfile, setOwnProfile] = useState<{ artist_name: string | null; full_name: string | null } | null>(null)
   const [recruitedAsManager, setRecruitedAsManager] = useState(false)
+  const [remainingConnections, setRemainingConnections] = useState<RemainingConnection[]>([])
+  const [signingOut, setSigningOut] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -81,22 +91,42 @@ export default function TeamPage() {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (!user || cancelled) return
-      const [{ data: profile }, { data: betaInvite }] = await Promise.all([
+      const [{ data: profile }, { data: betaInvite }, managedRes] = await Promise.all([
         supabase.from('profiles').select('artist_name, full_name').eq('id', user.id).maybeSingle(),
         user.email
           ? supabase.from('beta_invites').select('invited_role').eq('email', user.email).maybeSingle()
           : Promise.resolve({ data: null as { invited_role: string } | null }),
+        fetch('/api/team/managed-artists').then(r => r.ok ? r.json() : { managed: [] }).catch(() => ({ managed: [] })),
       ])
       if (cancelled) return
       setOwnProfile(profile ?? null)
       setRecruitedAsManager(betaInvite?.invited_role === 'manager')
+      setRemainingConnections(managedRes?.managed || [])
       setInitializing(false)
     }
     loadIdentity()
     return () => { cancelled = true }
   }, [])
 
-  const noArtistSelected = !initializing && !actingAs && recruitedAsManager && !ownProfile?.artist_name
+  async function handleSignOut() {
+    setSigningOut(true)
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    router.push('/auth/login')
+  }
+
+  const hasArtistProfile = !!ownProfile?.artist_name
+  const noArtistSelected = !initializing && !actingAs && recruitedAsManager && !hasArtistProfile
+  // A former delegate with no connections left is NEITHER a genuine artist
+  // (no artist_name) NOR someone who was ever recruited as a manager —
+  // falling through both of those checks previously meant calling
+  // /api/team/delegates with the viewer's OWN id, which that route treats
+  // as an authoritative "you are the artist" signal (see its own comment:
+  // identity equality, nothing else) and happily returns a full owner view
+  // — incoming requests, members, an invite form — for an artist identity
+  // that was never actually established. Never infer ownership OR manager
+  // intent from the mere absence of a current selection.
+  const disconnected = !initializing && !actingAs && !recruitedAsManager && !hasArtistProfile
   const workspaceName = actingAs ? actingAs.artist_name : (ownProfile?.artist_name || ownProfile?.full_name || 'Your workspace')
 
   const [status, setStatus] = useState<'loading' | 'error' | 'ready'>('loading')
@@ -130,9 +160,9 @@ export default function TeamPage() {
   }, [workspaceOwnerId])
 
   useEffect(() => {
-    if (initializing || noArtistSelected || !workspaceOwnerId) return
+    if (initializing || noArtistSelected || disconnected || !workspaceOwnerId) return
     loadTeam()
-  }, [workspaceOwnerId, initializing, noArtistSelected, retryTick, loadTeam])
+  }, [workspaceOwnerId, initializing, noArtistSelected, disconnected, retryTick, loadTeam])
 
   const capabilities = data ? capabilitiesFor(data.view as TeamView) : capabilitiesFor('self')
 
@@ -283,13 +313,37 @@ export default function TeamPage() {
           </div>
         )}
 
-        {!initializing && !noArtistSelected && status === 'loading' && (
+        {/* Former delegate with no connections left — e.g. the last team
+            they belonged to just removed their access. Never styled or
+            worded as if they own or manage anything; never calls
+            /api/team/delegates for their own id, which would otherwise
+            read as a legitimate (if empty) owner workspace. */}
+        {!initializing && disconnected && (
+          <div style={{ background: CARD.background, border: `1px solid ${C.border}`, borderRadius: 16, padding: '28px 22px', textAlign: 'center' as const, boxShadow: CARD.boxShadow, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+            <Users size={28} color={C.muted} style={{ marginBottom: 2 }} />
+            <p style={{ fontSize: 16, fontWeight: 800, color: C.text, margin: 0 }}>No connected workspace</p>
+            <p style={{ fontSize: 13, color: C.secondary, margin: '0 0 8px', lineHeight: 1.5 }}>
+              You don't currently have access to an artist's workspace. This can happen if a team connection was removed.
+            </p>
+            {remainingConnections.length > 0 && (
+              <Link href="/app/manager/artists" style={{ display: 'inline-flex', padding: '11px 20px', background: C.gold, border: 'none', borderRadius: 10, color: '#0a0908', fontSize: 13, fontWeight: 800, textDecoration: 'none' }}>
+                You still have access to {remainingConnections.length} other artist{remainingConnections.length === 1 ? '' : 's'} →
+              </Link>
+            )}
+            <button onClick={handleSignOut} disabled={signingOut}
+              style={{ width: '100%', padding: '13px', background: 'transparent', border: `1px solid ${C.border}`, borderRadius: 10, color: C.secondary, fontSize: 14, fontWeight: 700, cursor: signingOut ? 'default' : 'pointer', fontFamily: 'inherit', opacity: signingOut ? 0.6 : 1 }}>
+              {signingOut ? 'Signing out…' : 'Sign Out'}
+            </button>
+          </div>
+        )}
+
+        {!initializing && !noArtistSelected && !disconnected && status === 'loading' && (
           <div style={{ display: 'flex', justifyContent: 'center', padding: '60px 0' }}>
             <div style={{ width: 36, height: 36, borderRadius: '50%', border: `1.5px solid ${C.gold}`, animation: 'teamBreathe 1.8s ease-in-out infinite' }} />
           </div>
         )}
 
-        {!initializing && !noArtistSelected && status === 'error' && (
+        {!initializing && !noArtistSelected && !disconnected && status === 'error' && (
           <div style={{ background: CARD.background, border: '1px solid rgba(248,113,113,0.25)', borderRadius: 16, padding: '24px 22px', textAlign: 'center' as const }}>
             <AlertCircle size={22} color={C.red} style={{ marginBottom: 8 }} />
             <p style={{ fontSize: 15, fontWeight: 700, color: C.text, margin: '0 0 6px' }}>Couldn't load the team</p>
@@ -301,7 +355,7 @@ export default function TeamPage() {
           </div>
         )}
 
-        {!initializing && !noArtistSelected && status === 'ready' && data?.view === 'self' && (
+        {!initializing && !noArtistSelected && !disconnected && status === 'ready' && data?.view === 'self' && (
           <div style={{ background: CARD.background, border: `1px solid ${C.border}`, borderRadius: 16, padding: '20px', display: 'flex', flexDirection: 'column', gap: 12, boxShadow: CARD.boxShadow }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <Users size={15} color={C.gold} />
@@ -316,12 +370,12 @@ export default function TeamPage() {
               ))}
             </ul>
             <p style={{ fontSize: 12, color: C.muted, margin: '6px 0 0', lineHeight: 1.5, borderTop: `1px solid ${C.border}`, paddingTop: 12 }}>
-              {workspaceName} manages who has access to this workspace — only they can invite, approve, or remove team members.
+              {workspaceName} and any managers on this team can invite new teammates — only {workspaceName} can approve requests or remove access.
             </p>
           </div>
         )}
 
-        {!initializing && !noArtistSelected && status === 'ready' && (data?.view === 'owner' || data?.view === 'manager_roster') && (
+        {!initializing && !noArtistSelected && !disconnected && status === 'ready' && (data?.view === 'owner' || data?.view === 'manager_roster') && (
           <>
             {data.view === 'manager_roster' && (
               <div style={{ background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 12, padding: '12px 14px' }}>

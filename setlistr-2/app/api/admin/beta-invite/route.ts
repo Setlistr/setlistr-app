@@ -5,6 +5,8 @@ import { cookies } from 'next/headers'
 import { ADMIN_EMAILS } from '@/lib/admin-config'
 import { escapeHtml } from '@/lib/escapeHtml'
 import { getBaseUrl } from '@/lib/baseUrl'
+import { findPendingInviteDetailsByEmail } from '@/lib/pendingInvite'
+import { roleInfoFor } from '@/lib/teamRoleInfo'
 
 const BASE_URL       = getBaseUrl()
 const RESEND_API_KEY = process.env.RESEND_API_KEY
@@ -29,13 +31,41 @@ async function sendBetaInviteEmail({ to, name, invitedRole }: { to: string; name
   // any other user-provided string reaching an email template.
   const displayName = escapeHtml(name) || 'there'
 
-  const isManager = invitedRole === 'manager'
-  const heading = isManager ? "You're in — as a manager." : "You're in."
-  const bodyCopy = isManager
-    ? `You've been invited to the Setlistr beta as a manager. Once you sign up, you'll land in your Manager workspace — no artist profile to set up. From there you can request access to the artists you work with.`
-    : `You've been invited to the Setlistr beta. We're building the system that ensures every live performance turns into royalties — automatically.`
-  const ctaCopy = isManager ? 'Set Up Your Workspace →' : 'Get the App →'
-  const ctaHref = isManager ? signupUrl : APP_STORE_URL
+  // Fresh, send-time lookup — never a value captured earlier (e.g. at the
+  // moment the waitlist request was submitted) that could have gone stale
+  // by the time this email actually goes out (invite since accepted,
+  // declined, revoked, or replaced by a different one). Takes priority
+  // over the generic artist/manager recruitment copy below whenever it
+  // finds a real, still-pending invite: this person isn't being generically
+  // recruited, they're being handed back to something they already started.
+  const pendingInvite = await findPendingInviteDetailsByEmail(to)
+
+  let heading: string
+  let bodyCopy: string
+  let ctaCopy: string
+  let ctaHref: string
+  let fallbackLabel: string
+  let fallbackUrl: string
+
+  if (pendingInvite) {
+    const roleLabel = roleInfoFor(pendingInvite.role).label.toLowerCase()
+    heading = "You're approved — your invite is waiting."
+    bodyCopy = `${escapeHtml(pendingInvite.artistName)} invited you as a ${roleLabel} on Setlistr. You're approved — pick up right where you left off.`
+    ctaCopy = 'Continue to Your Team Invitation →'
+    ctaHref = `${BASE_URL}/app/accept-invite?token=${pendingInvite.token}`
+    fallbackLabel = 'Or use this link:'
+    fallbackUrl = ctaHref
+  } else {
+    const isManager = invitedRole === 'manager'
+    heading = isManager ? "You're in — as a manager." : "You're in."
+    bodyCopy = isManager
+      ? `You've been invited to the Setlistr beta as a manager. Once you sign up, you'll land in your Manager workspace — no artist profile to set up. From there you can request access to the artists you work with.`
+      : `You've been invited to the Setlistr beta. Capture your live performances and we'll help you prepare the royalty claims that follow.`
+    ctaCopy = isManager ? 'Set Up Your Workspace →' : 'Get the App →'
+    ctaHref = isManager ? signupUrl : APP_STORE_URL
+    fallbackLabel = isManager ? 'Sign in here:' : 'On desktop or Android? Use this link instead:'
+    fallbackUrl = signupUrl
+  }
 
   const html = `
     <div style="font-family: system-ui, sans-serif; max-width: 480px; margin: 0 auto; background: #0a0908; color: #f0ece3; padding: 40px 32px; border-radius: 16px;">
@@ -53,7 +83,7 @@ async function sendBetaInviteEmail({ to, name, invitedRole }: { to: string; name
         ${ctaCopy}
       </a>
       <p style="font-size: 12px; color: #8a7a68; margin: 0 0 24px; line-height: 1.6;">
-        ${isManager ? 'Sign in here:' : 'On desktop or Android? Use this link instead:'} <span style="color: #b8a888;">${signupUrl}</span>
+        ${fallbackLabel} <span style="color: #b8a888;">${fallbackUrl}</span>
       </p>
       <hr style="border: none; border-top: 1px solid rgba(255,255,255,0.07); margin: 24px 0;" />
       <p style="font-size: 11px; color: #8a7a68; margin: 0;">
@@ -72,7 +102,7 @@ async function sendBetaInviteEmail({ to, name, invitedRole }: { to: string; name
       body: JSON.stringify({
         from: 'Setlistr <invites@setlistr.ai>',
         to,
-        subject: "You're invited to the Setlistr beta",
+        subject: pendingInvite ? "You're approved — continue to your team invitation" : "You're invited to the Setlistr beta",
         html,
       }),
     })
