@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
+import { createClient } from '@supabase/supabase-js'
 import { ADMIN_EMAILS } from '@/lib/admin-config'
 import { sanitizeNextPath } from '@/lib/nextPathGuard'
 
@@ -155,6 +156,47 @@ function clearPendingInviteCookie(response: NextResponse): NextResponse {
   return response
 }
 
+// ── Recovering a pending invite without a token in the URL ─────────────────
+// The cookie above is seeded ONLY by an actual visit to
+// /app/accept-invite?token=... — it has no way to help a recipient who
+// logs in ordinarily (no `next`, no invite link in this browser session at
+// all). Demonstrated locally: an account with a genuinely pending invite,
+// logging in via a bare /auth/login with no prior cookie, lands on /beta
+// showing the generic copy — not because anything is broken, but because
+// nothing ever looks past the cookie.
+//
+// This is the narrow fix: when the session is authenticated, not yet
+// admitted, and carries no pending-invite cookie, fall back to a direct
+// lookup by the session's own verified email — never trusted from the
+// request, same identity-equality discipline as every other write path in
+// this codebase. Requires the service-role client: artist_delegates' RLS
+// select policy is auth.uid() IN (artist_id, delegate_id), and a still-
+// pending invite's delegate_id is NULL (or the legacy artist_id
+// placeholder) — never yet equal to the recipient's own uid — so the
+// anon-key client `supabase` above, bound to THIS session, cannot see it
+// at all. This only ever feeds the SAME existing cookie-based display/
+// resume mechanism (withPendingInviteCookie above) — it does not accept
+// anything, grant access, or touch beta admission. Approval still
+// happens exactly as before, and app/api/team/accept/route.ts still
+// independently re-validates the recipient's email before allowing
+// acceptance, unchanged.
+async function findPendingInviteTokenByEmail(email: string): Promise<string | null> {
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!serviceKey) return null
+  const service = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, serviceKey)
+  const { data } = await service
+    .from('artist_delegates')
+    .select('invite_token')
+    .eq('invited_email', email.toLowerCase())
+    .is('accepted_at', null)
+    .is('declined_at', null)
+    .is('revoked_at', null)
+    .order('invited_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  return data?.invite_token ?? null
+}
+
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
 
@@ -251,6 +293,16 @@ export async function middleware(request: NextRequest) {
     }
   }
 
+  // Only matters once we know the user is NOT yet admitted — an admitted
+  // user never needs this, and the lookup is skipped entirely if a
+  // pending-invite cookie is already present (the common case: the
+  // recipient actually followed the invite link in this browser session,
+  // which already seeds the cookie below, same as always).
+  let fallbackPendingToken: string | null = null
+  if (user && !isAdmin && !isInvited && (isAppRoute || isBetaPage) && !getPendingInviteToken(request)) {
+    fallbackPendingToken = await findPendingInviteTokenByEmail(user.email ?? '')
+  }
+
   // ── Root route: if logged in with access, skip marketing and go straight to app
   if (isRootRoute && user) {
     if (isAdmin || isInvited) {
@@ -279,9 +331,13 @@ export async function middleware(request: NextRequest) {
       return withInviteCookie(res, inviteToken)
     }
     const betaRedirect = NextResponse.redirect(new URL('/beta', request.url))
-    const withBeta = request.nextUrl.pathname === '/app/accept-invite'
-      ? withPendingInviteCookie(betaRedirect, request.nextUrl.searchParams.get('token'))
-      : betaRedirect
+    // The token in the URL (only meaningful on /app/accept-invite itself)
+    // takes priority when present; otherwise fall back to the email
+    // lookup above — covers an ordinary login landing on ANY /app/* route
+    // (e.g. /app/dashboard), not just a direct hit on accept-invite.
+    const urlToken = request.nextUrl.pathname === '/app/accept-invite' ? request.nextUrl.searchParams.get('token') : null
+    const tokenToPersist = urlToken || fallbackPendingToken
+    const withBeta = tokenToPersist ? withPendingInviteCookie(betaRedirect, tokenToPersist) : betaRedirect
     return withInviteCookie(withBeta, inviteToken)
   }
 
@@ -293,6 +349,19 @@ export async function middleware(request: NextRequest) {
       const dest = pending ? `/app/accept-invite?token=${pending}` : '/app/dashboard'
       const res = NextResponse.redirect(new URL(dest, request.url))
       return withInviteCookie(pending ? clearPendingInviteCookie(res) : res, inviteToken)
+    }
+    // Not admitted, landed on /beta directly (not via the redirect above)
+    // — e.g. a bookmark, or returning here after an earlier visit. A
+    // cookie set on THIS response can't retroactively change what this
+    // same render already decided, so if the email lookup just found a
+    // pending invite that the cookie hadn't captured yet, redirect to
+    // this exact page again with the cookie attached — one extra hop,
+    // but the very next render (this time carrying the cookie) shows the
+    // invitation-aware copy correctly instead of waiting for some later,
+    // unrelated visit to happen to set it first.
+    if (fallbackPendingToken) {
+      const res = NextResponse.redirect(new URL('/beta', request.url))
+      return withInviteCookie(withPendingInviteCookie(res, fallbackPendingToken), inviteToken)
     }
   }
 
