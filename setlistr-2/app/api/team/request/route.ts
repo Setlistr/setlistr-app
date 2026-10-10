@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { randomUUID } from 'crypto'
 import { createClient } from '@supabase/supabase-js'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { escapeHtml } from '@/lib/escapeHtml'
@@ -151,7 +152,47 @@ export async function POST(req: NextRequest) {
           invited_by: user.id, invited_email: email,
         })
       if (insertError) {
-        console.error('Request insert error:', insertError)
+        // ownHistory above only ever finds a row THIS manager created
+        // (invited_by = delegate_id = user.id) — it never sees a row the
+        // ARTIST created by inviting this same manager directly (team/
+        // invite), then later removed. That row still occupies this exact
+        // (artist_id, delegate_id) pair, so the insert above conflicts —
+        // previously a silent failure: the generic response still went
+        // out, implying a request was sent, when nothing actually was.
+        // Reopened as a fresh REQUEST here, never as restored access — it
+        // still requires the artist's own affirmative approval via
+        // POST /api/team/respond, same as any other request; only a
+        // revoked, never-declined row qualifies, matching the same
+        // lifecycle rule as the invite direction.
+        if (insertError.code === '23505') {
+          const { data: conflicting, error: conflictReadError } = await supabase
+            .from('artist_delegates')
+            .select('id, declined_at, revoked_at')
+            .eq('artist_id', artist.id)
+            .eq('delegate_id', user.id)
+            .maybeSingle()
+
+          if (!conflictReadError && conflicting?.revoked_at && !conflicting.declined_at) {
+            const { error: reopenError } = await supabase
+              .from('artist_delegates')
+              .update({
+                role: 'manager', invited_by: user.id, invited_at: new Date().toISOString(),
+                invite_token: randomUUID(), accepted_at: null, declined_at: null, revoked_at: null,
+              })
+              .eq('id', conflicting.id)
+
+            if (reopenError) {
+              console.error('Request reopen error:', reopenError)
+              return NextResponse.json(GENERIC_RESPONSE)
+            }
+            const artistName = artist.artist_name || artist.full_name || 'the artist'
+            await sendRequestEmail({ to: email, managerName, managerEmail: user.email || '', artistName })
+            return NextResponse.json(GENERIC_RESPONSE)
+          }
+          if (conflictReadError) console.error('Post-conflict re-read error:', conflictReadError)
+        } else {
+          console.error('Request insert error:', insertError)
+        }
         // Still return the generic response — a DB error here must not
         // become an enumeration signal either.
         return NextResponse.json(GENERIC_RESPONSE)

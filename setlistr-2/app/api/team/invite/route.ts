@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { randomUUID } from 'crypto'
 import { createClient } from '@supabase/supabase-js'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { canCreateInvite, isAssignableInviteRole } from '@/lib/inviteAuthorization'
@@ -187,16 +188,63 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Something went wrong' }, { status: 500 })
       }
 
-      if (existing?.accepted_at) {
+      // Real, ACTIVE access — accepted and never since revoked. A row that
+      // was accepted and later revoked still has accepted_at set (revoking
+      // only ever sets revoked_at; it does not clear the original
+      // acceptance timestamp), so this must check both, not accepted_at
+      // alone — otherwise a removed teammate is wrongly reported as
+      // already having access.
+      if (existing?.accepted_at && !existing.revoked_at) {
         return NextResponse.json({ error: 'This person already has access to your account' }, { status: 409 })
       }
 
-      // A terminal row (declined or revoked) is never a usable pending
-      // invite — falls through to the insert below, which creates a
-      // fresh row (and fresh token) rather than resurrecting this one.
-      if (existing && !existing.declined_at && !existing.revoked_at) {
+      // Still-pending, never resolved either way — resend the SAME row
+      // and token.
+      if (existing && !existing.accepted_at && !existing.declined_at && !existing.revoked_at) {
         const inviteUrl = `${BASE_URL}/app/accept-invite?token=${existing.invite_token}`
         const emailSent = await sendInviteEmail({ to: delegate_email, artistName: artistDisplayName, inviteUrl, delegateFound: true, role: existing.role })
+        return NextResponse.json({
+          success: true,
+          email_sent: emailSent,
+          delegate_found: true,
+          delegate_name: delegateUser.artist_name || delegateUser.full_name,
+          invite_url: inviteUrl,
+          already_exists: true,
+        })
+      }
+
+      // Revoked, never declined — a real "removed, now re-invited" cycle,
+      // not a restoration of old access. Reopens the SAME row (its
+      // (artist_id, delegate_id) pair is already the UNIQUE key, so
+      // reusing it is what actually avoids ever re-colliding with itself)
+      // but resets it to a genuinely fresh pending state: a NEW
+      // invite_token (the old accept-invite link must never work again —
+      // old-link safety), accepted_at/declined_at/revoked_at all cleared
+      // (the recipient must actively accept again; this never silently
+      // restores the prior grant), and invited_at/invited_by/role updated
+      // to reflect THIS invite, not the one that was removed. A declined
+      // row is deliberately excluded — decline was never part of this
+      // lifecycle fix and keeps its existing "needs to be cleared" block
+      // below.
+      if (existing?.revoked_at && !existing.declined_at) {
+        const newToken = randomUUID()
+        const { data: reopened, error: reopenError } = await supabase
+          .from('artist_delegates')
+          .update({
+            role, invited_by: artist_id, invited_at: new Date().toISOString(),
+            invite_token: newToken, accepted_at: null, declined_at: null, revoked_at: null,
+          })
+          .eq('id', existing.id)
+          .select('invite_token')
+          .single()
+
+        if (reopenError || !reopened) {
+          console.error('Re-invite reopen error:', reopenError)
+          return NextResponse.json({ error: 'Something went wrong' }, { status: 500 })
+        }
+
+        const inviteUrl = `${BASE_URL}/app/accept-invite?token=${reopened.invite_token}`
+        const emailSent = await sendInviteEmail({ to: delegate_email, artistName: artistDisplayName, inviteUrl, delegateFound: true, role })
         return NextResponse.json({
           success: true,
           email_sent: emailSent,
@@ -274,19 +322,16 @@ export async function POST(req: NextRequest) {
       // delegateUser case: the conflict is against the UNCHANGED, always-
       // on UNIQUE(artist_id, delegate_id) — which has no exception for a
       // declined/revoked row, unlike the new pending-email index above.
-      // Demonstrated gap, not yet resolved at the schema level: a real
-      // person who previously declined (or had access revoked) blocks
-      // ANY future row for that exact pair, through either direction,
-      // forever. Re-reading and reusing the conflicting row — safe for
-      // the !delegateUser race below — would be WRONG here if that row
-      // turns out to be the old terminal one: it must never be surfaced
-      // as a usable invite. So the three outcomes are handled
-      // separately, and a terminal conflict fails honestly rather than
-      // either resurrecting the old row or raising a raw 500.
+      // Reachable only via a genuine race (a concurrent request resolved
+      // this exact pair between the existing-row check above and this
+      // insert) now that revoked rows are reopened up front instead of
+      // falling through to here — kept as the same defense-in-depth
+      // recovery, mirroring that branch's logic exactly rather than
+      // leaving an inconsistent fallback.
       if (error?.code === '23505' && delegateUser) {
         const { data: conflicting, error: conflictReadError } = await supabase
           .from('artist_delegates')
-          .select('invite_token, accepted_at, declined_at, revoked_at')
+          .select('id, invite_token, accepted_at, declined_at, revoked_at')
           .eq('artist_id', artist_id)
           .eq('delegate_id', delegateUser.id)
           .maybeSingle()
@@ -295,11 +340,36 @@ export async function POST(req: NextRequest) {
           console.error('Post-conflict re-read error:', conflictReadError)
           return NextResponse.json({ error: 'Something went wrong' }, { status: 500 })
         }
-        if (conflicting?.accepted_at) {
+        if (conflicting?.accepted_at && !conflicting.revoked_at) {
           return NextResponse.json({ error: 'This person already has access to your account' }, { status: 409 })
         }
-        if (conflicting?.declined_at || conflicting?.revoked_at) {
+        if (conflicting?.declined_at) {
           return NextResponse.json({ error: 'This person has a previous connection with your account that needs to be cleared before they can be invited again.' }, { status: 409 })
+        }
+        if (conflicting?.revoked_at) {
+          // Same reopen as the existing-row branch above — fresh token,
+          // fully cleared terminal state, requires a fresh accept.
+          const newToken = randomUUID()
+          const { data: reopened, error: reopenError } = await supabase
+            .from('artist_delegates')
+            .update({
+              role, invited_by: artist_id, invited_at: new Date().toISOString(),
+              invite_token: newToken, accepted_at: null, declined_at: null, revoked_at: null,
+            })
+            .eq('id', conflicting.id)
+            .select('invite_token')
+            .single()
+          if (reopenError || !reopened) {
+            console.error('Re-invite reopen error (race path):', reopenError)
+            return NextResponse.json({ error: 'Something went wrong' }, { status: 500 })
+          }
+          const inviteUrl = `${BASE_URL}/app/accept-invite?token=${reopened.invite_token}`
+          const emailSent = await sendInviteEmail({ to: delegate_email, artistName: artistDisplayName, inviteUrl, delegateFound: true, role })
+          return NextResponse.json({
+            success: true, email_sent: emailSent, delegate_found: true,
+            delegate_name: delegateUser.artist_name || delegateUser.full_name,
+            invite_url: inviteUrl, already_exists: true,
+          })
         }
         if (conflicting) {
           // A legitimate concurrent pending invite won the race — reuse

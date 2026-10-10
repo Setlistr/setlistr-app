@@ -53,15 +53,14 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Invite not found or already used.' }, { status: 404 })
   }
 
-  // Defense in depth, matching can_act_for()'s own revoked_at check
-  // (supabase/migrations/0015_delegation_revocation_enforcement.sql): the
-  // only revoke path reachable from the UI today is a hard DELETE
-  // (app/api/team/delegates DELETE), which already makes this unreachable
-  // in practice — a deleted row never matches the token lookup above at
-  // all. This exists only so a future writer that sets revoked_at instead
-  // of deleting (direct seeding, an admin path, anything else) can never
-  // silently let a revoked invite be read or accepted, exactly the gap
-  // that migration closed for can_act_for() itself.
+  // Matches can_act_for()'s own revoked_at check (supabase/migrations/
+  // 0015_delegation_revocation_enforcement.sql). DELETE /api/team/delegates
+  // now sets revoked_at (soft-revoke) rather than hard-deleting the row —
+  // this is the live, reachable path that check denies, not just defense
+  // in depth for a hypothetical future writer. A re-invite after removal
+  // (app/api/team/invite's reopen path) always clears revoked_at back to
+  // null along with issuing a fresh invite_token, so this only ever denies
+  // a genuinely still-revoked row, never a reopened one.
   if (invite.revoked_at) return NextResponse.json({ error: 'This invite is no longer valid.' }, { status: 404 })
 
   // Get artist profile
@@ -129,10 +128,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invite not found.' }, { status: 404 })
     }
 
-    // See the matching checks in GET above — revoked_at is defense in
-    // depth (not reachable via any revoke path that exists today, which
-    // hard-deletes instead); declined_at can never actually be set on a
-    // row reachable via THIS direction (respond/route.ts's own direction
+    // See the matching check in GET above — revoked_at is the live path
+    // DELETE /api/team/delegates (soft-revoke) and a re-invite's reopen
+    // both write to; declined_at can never actually be set on a row
+    // reachable via THIS direction (respond/route.ts's own direction
     // guard only ever sets it on manager-request rows, already excluded
     // above) — checked anyway as the same defense-in-depth discipline,
     // and because the atomic guards below rely on it being false, not
@@ -257,11 +256,11 @@ export async function POST(req: NextRequest) {
           return NextResponse.json({ success: true })
         }
         if (!current || current.declined_at || current.revoked_at) {
-          // Either explicitly declined/revoked, or the row itself is
-          // gone — a concurrent cancel/remove (DELETE /api/team/delegates)
-          // hard-deletes rather than setting revoked_at, so "no longer
-          // valid" is the accurate message here too, not "different
-          // account," which would wrongly imply the invite still exists.
+          // Explicitly declined/revoked (a concurrent remove via
+          // DELETE /api/team/delegates sets revoked_at), or the row is
+          // gone outright — either way "no longer valid" is the accurate
+          // message, not "different account," which would wrongly imply
+          // the invite still exists.
           return NextResponse.json({ error: 'This invite is no longer valid.' }, { status: 404 })
         }
         // Rebound to a different account by a concurrent request.
