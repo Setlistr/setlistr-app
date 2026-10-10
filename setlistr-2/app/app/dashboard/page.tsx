@@ -9,6 +9,7 @@ import { SetlistrLoader, useLoaderVariant } from '@/components/SetlistrLoader'
 import { NextShowSummary } from '@/components/scheduling/UpcomingShows'
 import { isCapturedShow, isSubmitted } from '@/lib/performance-status'
 import { roleInfoFor } from '@/lib/teamRoleInfo'
+import { hasEverBeenConnected } from '@/lib/teamConnectionHistory'
 import {
   estimateRoyalties, aggregateUnclaimedEarnings,
   capacityToBand, type ShowEstimateInput,
@@ -192,8 +193,9 @@ export default function DashboardPage() {
         // their own to invent. A pure manager (no artist_name, but at least
         // one accepted delegation, OR recruited as a manager with none yet)
         // goes straight to their actual workspace instead. Only a genuinely
-        // new user with neither identity still goes through onboarding,
-        // preserving that check exactly as before.
+        // new user with no artist identity AND no history as a team member
+        // still goes through onboarding, preserving that check exactly as
+        // before.
         //
         // recruitedAsManager only ever matters inside this same outer
         // !artist_name branch — an established artist (real artist_name
@@ -214,6 +216,21 @@ export default function DashboardPage() {
         // "can't find how to enter/use the acting-as dashboard."
         if (!profile?.artist_name?.trim() && !actingAs) {
           if (managed.length > 0 || recruitedAsManager) { router.replace('/app/manager'); return }
+          // A team-only user whose LAST connection was just removed has
+          // managed.length === 0 and, since Grant access defaults
+          // beta_invites.invited_role to 'artist' whenever no role is
+          // explicitly passed (see app/api/admin/beta-invite/route.ts),
+          // recruitedAsManager is also false even though they were never
+          // an artist either — that default is not proof of an established
+          // artist workspace. Without this check they fell straight into
+          // onboarding and were asked to invent an artist identity.
+          // hasEverBeenConnected tells them apart from a genuinely new
+          // user (who has NO delegation history at all, accepted or not)
+          // by whether they were EVER a real, accepted team member for
+          // some artist — revoked or not. Routes to Team, which already
+          // renders its own disconnected-workspace recovery state for
+          // exactly this case.
+          if (await hasEverBeenConnected(supabase, user.id)) { router.replace('/app/team'); return }
           router.replace('/app/onboarding'); return
         }
 

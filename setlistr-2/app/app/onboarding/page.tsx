@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { ArrowRight } from 'lucide-react'
 import { useSessionGuard } from '@/lib/useSessionGuard'
+import { hasEverBeenConnected } from '@/lib/teamConnectionHistory'
 
 const C = {
   bg: '#0a0908', card: '#141210',
@@ -106,6 +107,14 @@ export default function OnboardingPage() {
         // Recruited as a manager, no artist identity invented yet — never
         // land them in this form at all, including via a direct/stale link.
         router.replace('/app/manager')
+      } else if (await hasEverBeenConnected(supabase, user.id)) {
+        // A team-only user whose last connection was removed — not proof
+        // of artist intent just because betaInvite.invited_role defaults
+        // to 'artist' when Grant access passes no role at all (see
+        // app/api/admin/beta-invite/route.ts). Never land them in the
+        // artist-onboarding form, including via a direct/stale link; Team
+        // already renders its own disconnected-workspace recovery state.
+        router.replace('/app/team')
       } else {
         if (data?.full_name) setFullName(data.full_name)
         setSubjectId(user.id)
