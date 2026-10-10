@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { randomUUID } from 'crypto'
 import { createClient } from '@supabase/supabase-js'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { canCreateInvite, isAssignableInviteRole } from '@/lib/inviteAuthorization'
 import { getBaseUrl } from '@/lib/baseUrl'
 import { roleInfoFor } from '@/lib/teamRoleInfo'
+import { reopenRevokedDelegation } from '@/lib/reopenRevokedDelegation'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -227,23 +227,23 @@ export async function POST(req: NextRequest) {
       // lifecycle fix and keeps its existing "needs to be cleared" block
       // below.
       if (existing?.revoked_at && !existing.declined_at) {
-        const newToken = randomUUID()
-        const { data: reopened, error: reopenError } = await supabase
-          .from('artist_delegates')
-          .update({
-            role, invited_by: artist_id, invited_at: new Date().toISOString(),
-            invite_token: newToken, accepted_at: null, declined_at: null, revoked_at: null,
-          })
-          .eq('id', existing.id)
-          .select('invite_token')
-          .single()
+        const result = await reopenRevokedDelegation(supabase, existing.id, { role, invitedBy: artist_id })
 
-        if (reopenError || !reopened) {
-          console.error('Re-invite reopen error:', reopenError)
+        if (result.outcome === 'error') {
           return NextResponse.json({ error: 'Something went wrong' }, { status: 500 })
         }
+        if (result.outcome === 'already_has_access') {
+          return NextResponse.json({ error: 'This person already has access to your account' }, { status: 409 })
+        }
+        if (result.outcome === 'declined') {
+          return NextResponse.json({ error: 'This person has a previous connection with your account that needs to be cleared before they can be invited again.' }, { status: 409 })
+        }
 
-        const inviteUrl = `${BASE_URL}/app/accept-invite?token=${reopened.invite_token}`
+        // 'reopened' or 'reused_concurrent' — either this request's own
+        // write won, or a concurrent identical re-invite won the race and
+        // this reuses ITS token rather than issuing (and emailing) a
+        // second, immediately-orphaned one.
+        const inviteUrl = `${BASE_URL}/app/accept-invite?token=${result.token}`
         const emailSent = await sendInviteEmail({ to: delegate_email, artistName: artistDisplayName, inviteUrl, delegateFound: true, role })
         return NextResponse.json({
           success: true,
@@ -347,23 +347,18 @@ export async function POST(req: NextRequest) {
           return NextResponse.json({ error: 'This person has a previous connection with your account that needs to be cleared before they can be invited again.' }, { status: 409 })
         }
         if (conflicting?.revoked_at) {
-          // Same reopen as the existing-row branch above — fresh token,
-          // fully cleared terminal state, requires a fresh accept.
-          const newToken = randomUUID()
-          const { data: reopened, error: reopenError } = await supabase
-            .from('artist_delegates')
-            .update({
-              role, invited_by: artist_id, invited_at: new Date().toISOString(),
-              invite_token: newToken, accepted_at: null, declined_at: null, revoked_at: null,
-            })
-            .eq('id', conflicting.id)
-            .select('invite_token')
-            .single()
-          if (reopenError || !reopened) {
-            console.error('Re-invite reopen error (race path):', reopenError)
+          // Same concurrency-safe reopen as the existing-row branch above.
+          const result = await reopenRevokedDelegation(supabase, conflicting.id, { role, invitedBy: artist_id })
+          if (result.outcome === 'error') {
             return NextResponse.json({ error: 'Something went wrong' }, { status: 500 })
           }
-          const inviteUrl = `${BASE_URL}/app/accept-invite?token=${reopened.invite_token}`
+          if (result.outcome === 'already_has_access') {
+            return NextResponse.json({ error: 'This person already has access to your account' }, { status: 409 })
+          }
+          if (result.outcome === 'declined') {
+            return NextResponse.json({ error: 'This person has a previous connection with your account that needs to be cleared before they can be invited again.' }, { status: 409 })
+          }
+          const inviteUrl = `${BASE_URL}/app/accept-invite?token=${result.token}`
           const emailSent = await sendInviteEmail({ to: delegate_email, artistName: artistDisplayName, inviteUrl, delegateFound: true, role })
           return NextResponse.json({
             success: true, email_sent: emailSent, delegate_found: true,

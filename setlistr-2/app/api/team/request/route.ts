@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { randomUUID } from 'crypto'
 import { createClient } from '@supabase/supabase-js'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { escapeHtml } from '@/lib/escapeHtml'
 import { getBaseUrl } from '@/lib/baseUrl'
+import { reopenRevokedDelegation } from '@/lib/reopenRevokedDelegation'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -173,20 +173,18 @@ export async function POST(req: NextRequest) {
             .maybeSingle()
 
           if (!conflictReadError && conflicting?.revoked_at && !conflicting.declined_at) {
-            const { error: reopenError } = await supabase
-              .from('artist_delegates')
-              .update({
-                role: 'manager', invited_by: user.id, invited_at: new Date().toISOString(),
-                invite_token: randomUUID(), accepted_at: null, declined_at: null, revoked_at: null,
-              })
-              .eq('id', conflicting.id)
-
-            if (reopenError) {
-              console.error('Request reopen error:', reopenError)
-              return NextResponse.json(GENERIC_RESPONSE)
+            // Concurrency-safe reopen — see lib/reopenRevokedDelegation.ts.
+            // This route's response is always GENERIC_RESPONSE regardless
+            // of outcome (enumeration-safe by design), so 'already_has_
+            // access'/'declined' just fall through to the same generic
+            // reply below with no email sent; 'reopened'/'reused_
+            // concurrent' both notify the artist, since either way a real,
+            // currently-pending request now exists for them to see.
+            const result = await reopenRevokedDelegation(supabase, conflicting.id, { role: 'manager', invitedBy: user.id })
+            if (result.outcome === 'reopened' || result.outcome === 'reused_concurrent') {
+              const artistName = artist.artist_name || artist.full_name || 'the artist'
+              await sendRequestEmail({ to: email, managerName, managerEmail: user.email || '', artistName })
             }
-            const artistName = artist.artist_name || artist.full_name || 'the artist'
-            await sendRequestEmail({ to: email, managerName, managerEmail: user.email || '', artistName })
             return NextResponse.json(GENERIC_RESPONSE)
           }
           if (conflictReadError) console.error('Post-conflict re-read error:', conflictReadError)
