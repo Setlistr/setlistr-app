@@ -223,9 +223,23 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
     }
 
+    // Soft-revoke, never a hard delete — every other consumer of this table
+    // already assumes a revoked row PERSISTS: buildOwnerView/
+    // buildManagerRosterView filter it out of active views with
+    // !d.revoked_at / .is('revoked_at', null), the invite route's own
+    // re-invite conflict check explicitly branches on
+    // conflicting?.revoked_at to return "This person has a previous
+    // connection... needs to be cleared", and lib/pendingInvite.ts excludes
+    // it from pending-invite lookups the same way. A hard delete here
+    // destroyed the only signal those paths — and
+    // lib/teamConnectionHistory.ts#hasEverBeenConnected — depend on:
+    // demonstrated as the actual cause of a disconnected team-only user
+    // being routed to artist onboarding instead of Team's recovery state,
+    // since after a hard delete their removed connection leaves no trace
+    // distinguishable from having never been connected at all.
     const { error } = await supabase
       .from('artist_delegates')
-      .delete()
+      .update({ revoked_at: new Date().toISOString() })
       .eq('id', delegate_id)
       .eq('artist_id', artist_id) // verified above: caller's session must match artist_id
 
