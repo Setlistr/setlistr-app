@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { waitlistRequestExists } from '@/lib/waitlistStatus'
 
 function getSupabase() {
   return createClient(
@@ -10,6 +12,20 @@ function getSupabase() {
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const NOTE_MAX_LENGTH = 500
+
+// ── GET — has the CALLER's own session email already submitted a
+// waitlist request? Identity-bound to the verified session, never an
+// arbitrary email a client could pass — same discipline as every other
+// route in this codebase. No new "approval status" column or concept:
+// this reads the exact same table/row the POST below already writes,
+// just answering "does one exist" rather than writing one.
+export async function GET() {
+  const authSupabase = await createServerSupabaseClient()
+  const { data: { user } } = await authSupabase.auth.getUser()
+  if (!user?.email) return NextResponse.json({ exists: false })
+
+  return NextResponse.json({ exists: await waitlistRequestExists(user.email) })
+}
 
 // ── POST — public waitlist signup, dedupes and merges by email ────────────────
 // waitlist's only RLS policy is INSERT-only (WITH CHECK (true)) — the

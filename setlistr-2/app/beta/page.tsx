@@ -1,57 +1,66 @@
 import Image from 'next/image'
-import { cookies } from 'next/headers'
 import WaitlistForm from '@/components/WaitlistForm'
+import BetaSignedInStatus from '@/components/BetaSignedInStatus'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
-import { findPendingInviteTokenByEmail } from '@/lib/pendingInvite'
+import { findPendingInviteDetailsByEmail } from '@/lib/pendingInvite'
+import { waitlistRequestExists } from '@/lib/waitlistStatus'
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const C = {
+  bg: '#0a0908',
+  text: '#f0ece3', secondary: '#b8a888', muted: '#8a7a68',
+}
 
 export default async function BetaPage() {
-  // The cookie is set by middleware.ts whenever a real, un-admitted user
-  // reaches this page via a CROSS-path redirect (accept-invite -> beta,
-  // or dashboard -> beta) — never trusted beyond "show a more specific
-  // message"; beta admission itself still happens the normal way (admin
-  // grants access or the waitlist converts them), and middleware
-  // re-checks that on every request regardless of this.
-  const pendingInviteCookie = cookies().get('sl_pending_team_invite')?.value
-  let hasPendingInvite = !!pendingInviteCookie && UUID_RE.test(pendingInviteCookie)
+  const supabase = await createServerSupabaseClient()
+  const { data: { user } } = await supabase.auth.getUser()
 
-  // No cookie — e.g. this page was reached directly (bookmark, refresh)
-  // rather than via one of those redirects. Server Components can't set
-  // cookies, so there's nothing to persist here; this is a live,
-  // read-only check purely to decide what to SHOW on this render. (A
-  // middleware self-redirect to attach the cookie in this exact case was
-  // tried and reverted — redirecting /beta to itself caused
-  // ERR_TOO_MANY_REDIRECTS on Preview regardless of whether the cookie
-  // would eventually land.)
-  if (!hasPendingInvite) {
-    const supabase = await createServerSupabaseClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (user?.email) {
-      const token = await findPendingInviteTokenByEmail(user.email)
-      hasPendingInvite = !!token
-    }
+  // Signed-in, awaiting-approval state — the whole point of this task:
+  // the OLD page always showed WaitlistForm's "Already have access?
+  // Sign In" action regardless of auth state, which for an already-
+  // authenticated user is a dead end (middleware redirects a signed-in
+  // visit to /auth/login straight to /app/dashboard, which bounces them
+  // right back here, not admitted, having accomplished nothing). Signed-
+  // in and signed-out are genuinely different states now, each with only
+  // the actions that actually make sense for it.
+  let inviteDetails: { role: string; artistName: string } | null = null
+  let alreadyRequested = false
+  let fullName: string | null = null
+
+  if (user?.email) {
+    const [details, requested, profile] = await Promise.all([
+      findPendingInviteDetailsByEmail(user.email),
+      waitlistRequestExists(user.email),
+      supabase.from('profiles').select('full_name').eq('id', user.id).maybeSingle(),
+    ])
+    inviteDetails = details
+    alreadyRequested = requested
+    fullName = profile.data?.full_name ?? null
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center text-cream px-6 py-12"
-      style={{ background: 'radial-gradient(ellipse at 50% 0%, #1e1c18 0%, #0f0e0c 100%)' }}>
-      <Image src="/logo-pill.png" alt="Setlistr" width={200} height={52} className="mb-8" />
-      {hasPendingInvite ? (
-        <div style={{ textAlign: 'center', maxWidth: 360, marginBottom: 32 }}>
-          <p style={{ fontSize: 13, fontWeight: 700, color: '#c9a84c', margin: '0 0 8px' }}>Your team invitation is saved</p>
-          <p style={{ fontSize: 13, color: '#8a7a68', margin: 0, lineHeight: 1.6 }}>
-            Setlistr approval is required before you can accept it. Request access below — once you're approved, revisiting this page (or the link in your invite email) will take you straight to the invitation.
-          </p>
-        </div>
-      ) : (
-        <p className="text-[#6a6660] text-center text-sm max-w-xs mb-8">
-          Setlistr is invite-only. Request access and we'll be in touch.
-        </p>
-      )}
-      <div className="bg-[#1a1814] border border-[#2e2b26] rounded-2xl px-6 py-6 text-center w-full max-w-md">
-        <p className="text-xs text-[#4a4640] uppercase tracking-wider mb-4">Need access?</p>
-        <WaitlistForm />
+    <div style={{ minHeight: '100svh', background: C.bg, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '48px 20px', fontFamily: '"DM Sans", system-ui, sans-serif' }}>
+      <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '55vh', pointerEvents: 'none', background: 'radial-gradient(ellipse at 50% 0%, rgba(201,168,76,0.06) 0%, transparent 65%)' }} />
+      <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
+        <Image src="/logo-white.png" alt="Setlistr" width={200} height={52} priority style={{ marginBottom: 28 }} />
+
+        {user?.email ? (
+          <BetaSignedInStatus
+            email={user.email}
+            fullName={fullName}
+            inviteDetails={inviteDetails}
+            initialAlreadyRequested={alreadyRequested}
+          />
+        ) : (
+          <>
+            <p style={{ color: C.muted, textAlign: 'center', fontSize: 14, maxWidth: 320, margin: '0 0 28px', lineHeight: 1.5 }}>
+              Setlistr is invite-only. Request access and we'll be in touch.
+            </p>
+            <div style={{ background: '#1a1814', border: '1px solid #2e2b26', borderRadius: 16, padding: '24px', width: '100%', maxWidth: 420 }}>
+              <p style={{ fontSize: 11, color: '#4a4640', textTransform: 'uppercase' as const, letterSpacing: '0.1em', margin: '0 0 16px', textAlign: 'center' }}>Need access?</p>
+              <WaitlistForm />
+            </div>
+          </>
+        )}
       </div>
     </div>
   )
