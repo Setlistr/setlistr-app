@@ -101,6 +101,23 @@ export function AppShell({ children, profile }: { children: React.ReactNode; pro
   const initials = (profile.full_name || profile.email)
     .split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2)
 
+  // No real workspace to act within: neither a real artist identity
+  // (profile.artist_name set) nor an actively selected managed artist
+  // (actingAsArtistId). Submissions/Career/Schedule and the record button
+  // all imply "for this workspace" — showing them here previously let a
+  // user with no artist identity and no connections (e.g. a team-only
+  // delegate whose last connection was removed, or a brand-new user before
+  // completing onboarding) tap record and silently create a real,
+  // ownerless performance under their bare account (RLS allows it — see
+  // this repo's own performances_own policy, user_id = auth.uid() is
+  // always permitted; not a privilege-escalation gap, just a capability
+  // that implies a workspace which doesn't exist). A real delegate with an
+  // active connection is never caught by this: they're routed to
+  // /app/manager (a different shell entirely, isManagerRoute above) the
+  // moment they land without a selection, and once they DO select a
+  // managed artist, actingAsArtistId is set and the full nav returns.
+  const hasWorkspace = !!profile.artist_name?.trim() || !!actingAsArtistId
+
   // Submissions previously landed on /app/history (Your Record — the full
   // searchable log, submitted shows included), while carrying a
   // needsReviewCount badge that only makes sense for a to-do surface. That
@@ -114,17 +131,17 @@ export function AppShell({ children, profile }: { children: React.ReactNode; pro
   // the tab must stay lit on both, not just the one it navigates to.
   const LEFT_NAV = [
     { href: '/app/dashboard', icon: LayoutDashboard, label: 'Home',        badge: 0, activePaths: ['/app/dashboard'] },
-    { href: '/app/file',      icon: Send,            label: 'Submissions', badge: needsReviewCount, activePaths: ['/app/file', '/app/history'] },
+    ...(hasWorkspace ? [{ href: '/app/file', icon: Send, label: 'Submissions', badge: needsReviewCount, activePaths: ['/app/file', '/app/history'] }] : []),
   ]
   // Exactly 5 bottom-bar positions total: Home, Submissions, [capture],
   // Career, Schedule — Profile moved to the account menu in the header
   // (AccountMenu below). Keeping this at 2 items restores the original
   // 2-2 symmetry the absolutely-positioned center capture button assumes;
   // a 3rd item here is what caused it to visually collide.
-  const RIGHT_NAV = [
+  const RIGHT_NAV = hasWorkspace ? [
     { href: '/app/stats',    icon: TrendingUp, label: 'Career',   badge: 0 },
     { href: '/app/schedule', icon: Calendar,   label: 'Schedule', badge: 0 },
-  ]
+  ] : []
 
   return (
     <div style={{ minHeight: '100svh', display: 'flex', flexDirection: 'column', background: '#0a0908' }}>
@@ -223,29 +240,35 @@ export function AppShell({ children, profile }: { children: React.ReactNode; pro
             )
           })}
 
-          {/* Raised center capture button — absolutely positioned, floats above nav */}
-          <Link
-            href="/app/show/new"
-            className="nav-ctr"
-            onClick={tapRecord}
-            style={{
-              position: 'absolute',
-              left: '50%',
-              top: '-12px',
-              transform: 'translateX(-50%)',
-              width: 64, height: 64,
-              borderRadius: '50%',
-              background: 'linear-gradient(180deg, #d4b45c 0%, #b8963e 100%)',
-              border: '3px solid #0a0908',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              textDecoration: 'none',
-              zIndex: 2,
-              WebkitTapHighlightColor: 'transparent',
-            }}
-          >
-            {/* Record dot glyph */}
-            <div style={{ width: 12, height: 12, borderRadius: '50%', background: '#0a0908' }} />
-          </Link>
+          {/* Raised center capture button — absolutely positioned, floats above
+              nav. Never shown with no real workspace to record into (see
+              hasWorkspace above) — it would otherwise silently create a real,
+              ownerless performance under a bare account with no artist
+              identity. */}
+          {hasWorkspace && (
+            <Link
+              href="/app/show/new"
+              className="nav-ctr"
+              onClick={tapRecord}
+              style={{
+                position: 'absolute',
+                left: '50%',
+                top: '-12px',
+                transform: 'translateX(-50%)',
+                width: 64, height: 64,
+                borderRadius: '50%',
+                background: 'linear-gradient(180deg, #d4b45c 0%, #b8963e 100%)',
+                border: '3px solid #0a0908',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                textDecoration: 'none',
+                zIndex: 2,
+                WebkitTapHighlightColor: 'transparent',
+              }}
+            >
+              {/* Record dot glyph */}
+              <div style={{ width: 12, height: 12, borderRadius: '50%', background: '#0a0908' }} />
+            </Link>
+          )}
 
         </div>
       </nav>
