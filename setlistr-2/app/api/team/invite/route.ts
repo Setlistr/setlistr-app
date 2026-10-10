@@ -122,13 +122,38 @@ export async function POST(req: NextRequest) {
     const { data: { user } } = await authSupabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+    const { data: artist } = await supabase
+      .from('profiles')
+      .select('artist_name, full_name')
+      .eq('id', artist_id)
+      .single()
+
+    if (!artist) {
+      return NextResponse.json({ error: 'Artist not found' }, { status: 404 })
+    }
+
     // Authorized only if the caller IS the artist (identity equality, never
     // a stored role string), or holds a currently accepted, non-revoked
     // MANAGER delegation for this exact artist_id. Every other role
     // (viewer, tour_manager, band_member), an unaccepted invitation, a
     // revoked delegation, a delegation for a different artist, or no
     // delegation row at all — all deny. See lib/inviteAuthorization.ts.
-    if (user.id !== artist_id) {
+    //
+    // Identity equality alone is NOT enough for the owner branch: it must
+    // also be a real, established artist identity (artist_name set) —
+    // without this, any admitted user with no artist identity at all could
+    // call this with their own id as artist_id and create a real
+    // delegation + invite token under a fabricated "An artist" identity.
+    // Demonstrated locally before this check existed. A manager's
+    // delegation-based path is unaffected — canCreateInvite already
+    // requires an accepted, non-revoked MANAGER delegation scoped to this
+    // exact artist_id, which can only exist for a real artist to begin
+    // with (created via this same owner path, now itself gated).
+    if (user.id === artist_id) {
+      if (!artist.artist_name?.trim()) {
+        return NextResponse.json({ error: 'Set up your artist profile before inviting a team.' }, { status: 403 })
+      }
+    } else {
       const { data: delegation } = await supabase
         .from('artist_delegates')
         .select('artist_id, role, accepted_at, revoked_at')
@@ -139,16 +164,6 @@ export async function POST(req: NextRequest) {
       if (!canCreateInvite({ actorId: user.id, artistId: artist_id, delegation })) {
         return NextResponse.json({ error: 'Access denied' }, { status: 403 })
       }
-    }
-
-    const { data: artist } = await supabase
-      .from('profiles')
-      .select('artist_name, full_name')
-      .eq('id', artist_id)
-      .single()
-
-    if (!artist) {
-      return NextResponse.json({ error: 'Artist not found' }, { status: 404 })
     }
 
     const artistDisplayName = artist.artist_name || artist.full_name || 'An artist'

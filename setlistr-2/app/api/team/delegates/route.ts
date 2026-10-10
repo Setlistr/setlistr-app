@@ -169,6 +169,18 @@ export async function GET(req: NextRequest) {
 
   try {
     if (user.id === artistId) {
+      // Identity equality alone is NOT owner authority — it must also be a
+      // real, established artist identity (artist_name set, the same
+      // signal Dashboard and Team page already use to tell a genuine
+      // artist apart from an admitted user who has never completed
+      // onboarding). Without this, any admitted user with no artist
+      // identity at all could call this with their own id as artist_id and
+      // get back a full (if empty) owner view for an identity that was
+      // never established — demonstrated locally before this fix existed.
+      const { data: profile } = await supabase.from('profiles').select('artist_name').eq('id', artistId).maybeSingle()
+      if (!profile?.artist_name?.trim()) {
+        return NextResponse.json({ error: 'Artist identity not established' }, { status: 403 })
+      }
       return NextResponse.json(await buildOwnerView(artistId))
     }
 
