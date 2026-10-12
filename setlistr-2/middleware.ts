@@ -277,17 +277,44 @@ export async function middleware(request: NextRequest) {
   // Logged in — check access
   if (isAppRoute && user) {
     if (isAdmin || isInvited) {
-      // Clear the pending-invite cookie the moment accept-invite is actually
-      // reached, however the user got here (direct nav, not only the /beta
-      // resume path below) — otherwise a stale cookie from an invite that's
-      // since been accepted or revoked would resurrect it on a later visit
-      // to / or /beta, since those branches blindly redirect to it whenever
-      // the cookie is present. Reaching accept-invite at all means the
-      // cookie's one job (not losing the invite) is done.
-      const res = request.nextUrl.pathname === '/app/accept-invite' && getPendingInviteToken(request)
-        ? clearPendingInviteCookie(supabaseResponse)
-        : supabaseResponse
-      return withInviteCookie(res, inviteToken)
+      if (request.nextUrl.pathname === '/app/accept-invite') {
+        // Clear the pending-invite cookie the moment accept-invite is
+        // actually reached, however the user got here (direct nav, not
+        // only the resume redirect below) — otherwise a stale cookie from
+        // an invite that's since been accepted or revoked would resurrect
+        // it on a later visit to /, /beta, or any other /app/* route.
+        // Reaching accept-invite at all means the cookie's one job (not
+        // losing the invite) is done.
+        const res = getPendingInviteToken(request) ? clearPendingInviteCookie(supabaseResponse) : supabaseResponse
+        return withInviteCookie(res, inviteToken)
+      }
+
+      // Demonstrated gap: an admitted user landing DIRECTLY on some OTHER
+      // /app/* route (e.g. /app/dashboard — not via / or /beta, which
+      // already resume a pending invite themselves below and in the
+      // isBetaPage branch) previously never had this cookie consulted at
+      // all here — only ever read to clear it, and only once already ON
+      // accept-invite. A real, still-pending invite was silently
+      // abandoned to whatever THAT route's own unrelated redirect logic
+      // decided instead (Dashboard, with no awareness a pending invite
+      // exists, routing a brand-new recipient to /app/onboarding). Traced
+      // live: newly granted access -> landing on /app/dashboard (e.g. via
+      // Home) -> /app/onboarding, invite gone. Cookie-only check (no
+      // email-lookup fallback) — this runs on every /app/* request for
+      // every admitted user, so it has to stay cheap; the cookie is
+      // already seeded with a 30-day TTL by the earlier /beta redirect, so
+      // this is the common case being fixed, not a rare one. Never checked
+      // on /app/live/ — that's active capture, excluded from this exactly
+      // like AppShell's own FULLSCREEN_ROUTES carve-out; untouched either
+      // way by this change.
+      if (!request.nextUrl.pathname.startsWith('/app/live/')) {
+        const pending = getPendingInviteToken(request)
+        if (pending) {
+          const res = NextResponse.redirect(new URL(`/app/accept-invite?token=${pending}`, request.url))
+          return withInviteCookie(clearPendingInviteCookie(res), inviteToken)
+        }
+      }
+      return withInviteCookie(supabaseResponse, inviteToken)
     }
     const betaRedirect = NextResponse.redirect(new URL('/beta', request.url))
     // The token in the URL (only meaningful on /app/accept-invite itself)
