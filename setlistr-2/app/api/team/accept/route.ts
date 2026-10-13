@@ -114,8 +114,14 @@ export async function POST(req: NextRequest) {
     // so a token holder could otherwise accept by calling this directly.
     // Same rule as middleware (admins, or a beta_invites row), always a
     // live lookup, checked before the token is even looked up, and fails
-    // closed on a lookup error.
-    const admission = await checkBetaAdmission(supabase, user.email)
+    // closed on a lookup error. Read through the CALLER'S session client
+    // (authSupabase), exactly as middleware does — never the service-role
+    // client — so beta_invites RLS (users_read_own_invite: email =
+    // auth.jwt()->>'email') applies identically. With the service role, a
+    // session whose current user.email differed from its token's email
+    // claim (e.g. right after an email change, until refresh) could be
+    // admitted here while middleware denied it.
+    const admission = await checkBetaAdmission(authSupabase, user.email)
     if (admission === 'error') {
       return NextResponse.json({ error: 'Could not verify your Setlistr access right now — try again.' }, { status: 503 })
     }

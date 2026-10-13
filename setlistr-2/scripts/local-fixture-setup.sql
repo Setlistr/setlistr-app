@@ -120,3 +120,36 @@ CREATE TABLE IF NOT EXISTS public.recognition_logs (
   acr_message text,
   created_at timestamptz DEFAULT now()
 );
+
+-- beta_invites RLS (added 2026-10-13): Setlistr admission is decided by
+-- reading this table through the CALLER'S session client — in middleware.ts
+-- and in POST /api/team/accept (lib/betaAdmission.ts) — so local tests must
+-- apply the same row-level filter production does. Policies below are
+-- copied verbatim from supabase/migrations/0001_baseline.sql, which
+-- transcribed production's live pg_policy rows. NOT confirmed live: the
+-- table's ENABLE ROW LEVEL SECURITY flag (the baseline did not capture
+-- enable flags; docs/rls-coverage-audit.md lists beta_invites as needing a
+-- live query). Enabled here because policies exist live and the app reads
+-- this table through session clients. Read-only check for production:
+--   select relrowsecurity from pg_class where relname = 'beta_invites';
+-- Idempotent: each policy is dropped-if-exists, then recreated.
+ALTER TABLE public.beta_invites ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "service_role_all" ON public.beta_invites;
+CREATE POLICY "service_role_all" ON public.beta_invites
+  FOR ALL
+  TO service_role
+  USING (true)
+  WITH CHECK (true);
+
+DROP POLICY IF EXISTS "users_accept_own_invite" ON public.beta_invites;
+CREATE POLICY "users_accept_own_invite" ON public.beta_invites
+  FOR UPDATE
+  TO authenticated
+  USING (email = (auth.jwt() ->> 'email'::text))
+  WITH CHECK (email = (auth.jwt() ->> 'email'::text));
+
+DROP POLICY IF EXISTS "users_read_own_invite" ON public.beta_invites;
+CREATE POLICY "users_read_own_invite" ON public.beta_invites
+  FOR SELECT
+  USING (email = (auth.jwt() ->> 'email'::text));

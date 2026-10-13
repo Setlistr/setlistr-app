@@ -23,6 +23,10 @@
 //      non-pending invite discloses nothing
 //   I. declined, revoked (old link), and manager self-request rows denied
 //   J. admission rule: admin exception, fail closed on lookup error
+//   K. admission parity with middleware when user.email differs from the
+//      access token's email claim (beta_invites RLS active, as production)
+//
+// Requires scripts/local-fixture-setup.sql applied (beta_invites RLS).
 //
 // Security model under test: token possession (R1), NOT inbox ownership —
 // see docs/team-invite-identity.md.
@@ -471,6 +475,68 @@ async function main() {
   r = await accept(outsider, selfReq.invite_token)
   check('manager self-request: accept -> 404', r.status === 404, String(r.status))
   check('manager self-request: still unaccepted', !(await delegation(artist.userId, outsider.userId))?.accepted_at)
+
+  console.log('\nK. Admission parity with middleware when user.email differs from the token\'s email claim')
+  {
+    // Precondition: beta_invites RLS (users_read_own_invite) is active, as
+    // in production — otherwise every check below passes vacuously. Apply
+    // scripts/local-fixture-setup.sql if this fails.
+    const { data: ownRow, error: ownErr } = await manager.client.from('beta_invites').select('email').eq('email', manager.email)
+    const { data: otherRow, error: otherErr } = await manager.client.from('beta_invites').select('email').eq('email', tourManager.email)
+    check('precondition: session client reads its OWN beta_invites row', !ownErr && ownRow?.length === 1, JSON.stringify(ownErr))
+    check('precondition: RLS hides OTHER users\' beta_invites rows', !otherErr && otherRow?.length === 0, 'RLS not active — apply scripts/local-fixture-setup.sql')
+
+    const claimOf = async (p: Persona) => {
+      const { data } = await p.client.auth.getSession()
+      const tok = data.session?.access_token
+      return tok ? JSON.parse(Buffer.from(tok.split('.')[1], 'base64url').toString()).email as string : null
+    }
+    const diverge = async (label: string) => {
+      const oldEmail = `teamlife-${RUN}-${label}-old@example.test`
+      const newEmail = `teamlife-${RUN}-${label}-new@example.test`
+      const p = await createPersona(label, { email: oldEmail, admitted: false })
+      // Server-side change of the account email (no new token issued): the
+      // session keeps a token whose email claim is still oldEmail.
+      const { error } = await service.auth.admin.updateUserById(p.userId, { email: newEmail, email_confirm: true })
+      if (error) throw new Error(`email change fixture failed: ${error.message}`)
+      const { data: { user } } = await p.client.auth.getUser()
+      check(`${label}: precondition — user.email is the NEW address`, user?.email === newEmail)
+      check(`${label}: precondition — token email claim is still the OLD address`, (await claimOf(p)) === oldEmail)
+      return { p, oldEmail, newEmail }
+    }
+
+    // K1: admitted ONLY under the new user.email. Middleware (session
+    // client + RLS on the token's OLD email claim) denies; the API must too.
+    const k1 = await diverge('mover')
+    await admit(k1.newEmail)
+    r = await invite(artist, artist.userId, k1.newEmail, 'viewer')
+    const k1Token = tokenFrom(r.json)
+    const k1Before = await inviteRow(artist.userId, k1.newEmail)
+    nav = await navigate('/app/dashboard', k1.p.cookieHeader())
+    check('K1 middleware: denies (redirects to /beta)', nav.path === '/beta', `${nav.status} ${nav.path}`)
+    r = await accept(k1.p, k1Token)
+    check('K1 API: denies too -> 403 admission_required (no broader than middleware)', r.status === 403 && r.json.code === 'admission_required', `${r.status} ${JSON.stringify(r.json)}`)
+    check('K1 API: invite unchanged', JSON.stringify(k1Before) === JSON.stringify(await inviteRow(artist.userId, k1.newEmail)))
+
+    // K2: admitted ONLY under the token's OLD email claim. Middleware's
+    // eq(user.email = new) + RLS(old) finds nothing -> denies; the API too.
+    const k2 = await diverge('mover2')
+    await admit(k2.oldEmail)
+    nav = await navigate('/app/dashboard', k2.p.cookieHeader())
+    check('K2 middleware: denies (redirects to /beta)', nav.path === '/beta', `${nav.status} ${nav.path}`)
+    r = await accept(k2.p, crypto.randomUUID())
+    check('K2 API: denies -> 403 admission_required', r.status === 403 && r.json.code === 'admission_required', `${r.status} ${JSON.stringify(r.json)}`)
+
+    // K3: once the session refreshes (token claim = new user.email), the
+    // legitimately admitted recipient is admitted by both and can accept.
+    const { error: refreshErr } = await k1.p.client.auth.refreshSession()
+    if (refreshErr) throw new Error(`refresh failed: ${refreshErr.message}`)
+    check('K3 precondition: refreshed token claim is the NEW address', (await claimOf(k1.p)) === k1.newEmail)
+    nav = await navigate('/app/dashboard', k1.p.cookieHeader())
+    check('K3 middleware: admits (no /beta redirect)', nav.path !== '/beta', `${nav.status} ${nav.path}`)
+    r = await accept(k1.p, k1Token)
+    check('K3 API: admits and accepts -> 200', r.status === 200, `${r.status} ${JSON.stringify(r.json)}`)
+  }
 
   console.log('\nJ. Admission rule (lib/betaAdmission.ts) — admin exception and fail-closed')
   {
