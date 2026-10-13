@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { ADMIN_EMAILS } from '@/lib/admin-config'
 import { sanitizeNextPath } from '@/lib/nextPathGuard'
-import { PENDING_INVITE_COOKIE } from '@/lib/pendingInvite'
+import { PENDING_INVITE_COOKIE, isInviteTokenFormat } from '@/lib/pendingInvite'
 
 // ── Hardcoded admin safety net ────────────────────────────────────────────────
 // Admins always have access regardless of DB state — protects against being
@@ -135,15 +135,18 @@ function withInviteCookie(response: NextResponse, inviteToken: string | null): N
 // email-matched token disclosure let anyone claim an invite to an address
 // with no account yet. Name shared via lib/pendingInvite.ts.
 const PENDING_INVITE_TTL_SECONDS = 60 * 60 * 24 * 30 // 30 days — generous; this only ever gates where a now-admitted user lands next, not access itself
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+// Shape check shared with /beta's lookup (lib/pendingInvite.ts): accepts
+// both token shapes production issues (32-hex default, UUID on reopen). It
+// was UUID-only here, which silently skipped saving the cookie for every
+// fresh production invite — hidden until R1 removed the email fallback.
 
 function getPendingInviteToken(request: NextRequest): string | null {
   const raw = request.cookies.get(PENDING_INVITE_COOKIE)?.value
-  return raw && UUID_RE.test(raw) ? raw : null
+  return isInviteTokenFormat(raw) ? raw : null
 }
 
 function withPendingInviteCookie(response: NextResponse, token: string | null): NextResponse {
-  if (token && UUID_RE.test(token)) {
+  if (isInviteTokenFormat(token)) {
     response.cookies.set(PENDING_INVITE_COOKIE, token, {
       httpOnly: true,
       secure: true,

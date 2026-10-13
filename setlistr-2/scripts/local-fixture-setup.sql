@@ -153,3 +153,15 @@ DROP POLICY IF EXISTS "users_read_own_invite" ON public.beta_invites;
 CREATE POLICY "users_read_own_invite" ON public.beta_invites
   FOR SELECT
   USING (email = (auth.jwt() ->> 'email'::text));
+
+-- artist_delegates.invite_token default (added 2026-10-13): production's
+-- default is encode(gen_random_bytes(16),'hex') — 32 lowercase hex chars,
+-- recorded in supabase/migrations/0009_delegate_invite_binding.sql — while
+-- this fixture defaulted to gen_random_uuid()::text. That gap hid a real
+-- Preview failure: code that only accepted UUID-shaped tokens worked
+-- locally and silently dropped every freshly created production token.
+-- Reopened invites (lib/reopenRevokedDelegation.ts) still write UUIDs, so
+-- production holds BOTH shapes; this makes fresh local invites match
+-- production's. pgcrypto lives in the `extensions` schema on Supabase.
+ALTER TABLE public.artist_delegates
+  ALTER COLUMN invite_token SET DEFAULT encode(extensions.gen_random_bytes(16), 'hex');

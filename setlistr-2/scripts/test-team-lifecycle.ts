@@ -344,6 +344,10 @@ async function main() {
   check('invite to no-account email -> 200', r.status === 200, JSON.stringify(r.json))
   const newcomerToken = tokenFrom(r.json)
   if (!newcomerToken) throw new Error('no token returned for newcomer invite — cannot continue')
+  // Production's fresh-invite token shape (0009: encode(gen_random_bytes(16),'hex')).
+  // If this fails, scripts/local-fixture-setup.sql isn't applied and the
+  // checks below are testing a token shape production never issues.
+  check('precondition: fresh invite token has production\'s 32-hex shape', /^[0-9a-f]{32}$/.test(newcomerToken), 'not 32-hex — apply scripts/local-fixture-setup.sql')
   const newcomer = await createPersona('newcomer', { email: newcomerEmail, admitted: false })
 
   let nav = await navigate(`/app/accept-invite?token=${newcomerToken}`, newcomer.cookieHeader())
@@ -377,6 +381,25 @@ async function main() {
   check('approved intended recipient: accept -> 200', r.status === 200, JSON.stringify(r.json))
   const bound = await inviteRow(artist.userId, newcomerEmail)
   check('invite bound to the recipient and accepted', bound?.delegate_id === newcomer.userId && !!bound.accepted_at)
+
+  console.log('\nG3. Reopened invite (UUID-shaped token, lib/reopenRevokedDelegation.ts) also saves and resolves')
+  {
+    // Production holds BOTH token shapes: fresh invites are 32-hex (G above),
+    // re-invites after removal are UUIDs. The presented-token cookie and
+    // its /beta lookup must accept both.
+    const reinvitee = await createPersona('reinvitee', { admitted: false })
+    r = await invite(artist, artist.userId, reinvitee.email, 'tour_manager')
+    const firstRow = await delegation(artist.userId, reinvitee.userId)
+    r = await remove(artist, firstRow!.id, artist.userId)
+    r = await invite(artist, artist.userId, reinvitee.email, 'tour_manager')
+    const reopenedToken = tokenFrom(r.json)
+    check('precondition: reopened token is UUID-shaped', !!reopenedToken && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(reopenedToken))
+    nav = await navigate(`/app/accept-invite?token=${reopenedToken}`, reinvitee.cookieHeader())
+    check('reopened (UUID) token: unapproved -> /beta', nav.path === '/beta', `${nav.status} ${nav.path}`)
+    check('reopened (UUID) token: pending-invite cookie saved from the PRESENTED token', nav.pendingCookie === reopenedToken, nav.pendingCookie ? 'present-mismatch' : 'absent')
+    page = await pageHtml('/beta', `${reinvitee.cookieHeader()}; ${PENDING_INVITE_COOKIE}=${nav.pendingCookie}`)
+    check('reopened (UUID) token: /beta shows the validated invitation details', page.body.includes(ARTIST_NAME))
+  }
 
   console.log('\nG2. Cross-device recovery requires reopening the inbox-delivered link')
   // Independent of G's state: a fresh, still-PENDING invite, so a pass here

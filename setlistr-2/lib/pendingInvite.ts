@@ -19,7 +19,18 @@ import { createClient } from '@supabase/supabase-js'
 // (getPresentedInviteDetails below, and /api/team/accept itself).
 export const PENDING_INVITE_COOKIE = 'sl_pending_team_invite'
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+// The two invite_token shapes production actually issues: the column
+// default, 32 hex chars (encode(gen_random_bytes(16),'hex') — see
+// 0009_delegate_invite_binding.sql), and a UUID written when a revoked
+// invite is reopened (lib/reopenRevokedDelegation.ts). A shape check only —
+// it bounds what may be stored in / read from the cookie; it authorizes
+// nothing (every use re-validates the token against the database). A
+// UUID-only check here silently dropped every fresh production token.
+const INVITE_TOKEN_RE = /^(?:[0-9a-f]{32}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i
+
+export function isInviteTokenFormat(value: string | null | undefined): value is string {
+  return !!value && INVITE_TOKEN_RE.test(value)
+}
 
 function serviceClient() {
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -51,7 +62,7 @@ export async function getPresentedInviteDetails(
   token: string | null | undefined,
   user: { id: string; email?: string | null }
 ): Promise<PresentedInviteDetails | null> {
-  if (!token || !UUID_RE.test(token)) return null
+  if (!isInviteTokenFormat(token)) return null
   const service = serviceClient()
   if (!service) return null
 
