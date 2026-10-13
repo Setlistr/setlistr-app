@@ -5,6 +5,7 @@ import { canCreateInvite, isAssignableInviteRole } from '@/lib/inviteAuthorizati
 import { getBaseUrl } from '@/lib/baseUrl'
 import { roleInfoFor } from '@/lib/teamRoleInfo'
 import { reopenRevokedDelegation } from '@/lib/reopenRevokedDelegation'
+import { escapeHtml } from '@/lib/escapeHtml'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -32,7 +33,12 @@ async function sendInviteEmail({
     return false
   }
 
+  // Subject is a plain-text header, not HTML — left unescaped so a name
+  // like "A & B" isn't shown as "A &amp; B" in the inbox.
   const subject = `${artistName} added you to their Setlistr account`
+  // artistName is user-set (profiles.artist_name / full_name) — escaped
+  // before every HTML interpolation below so it always renders as text.
+  const safeArtistName = escapeHtml(artistName)
 
   // Capability text pulled from the SAME single source of truth the Team
   // page and the accept screen already render from (lib/teamRoleInfo.ts)
@@ -51,12 +57,12 @@ async function sendInviteEmail({
     <div style="font-family: system-ui, sans-serif; max-width: 480px; margin: 0 auto; background: #0a0908; color: #f0ece3; padding: 40px 32px; border-radius: 16px;">
       <img src="https://setlistr.ai/logo-white-tight.png" width="160" alt="Setlistr" style="display: block; height: auto; margin: 0 0 24px;" />
       <h1 style="font-size: 24px; font-weight: 800; color: #f0ece3; margin: 0 0 12px; letter-spacing: -0.025em; line-height: 1.2;">
-        ${artistName} invited you to their team
+        ${safeArtistName} invited you to their team
       </h1>
       <p style="font-size: 14px; color: #b8a888; margin: 0 0 20px; line-height: 1.6;">
         ${delegateFound
-          ? `You've been added as a ${roleLabelLower} on ${artistName}'s Setlistr account.`
-          : `${artistName} is using Setlistr to track live performance royalties and has invited you as a ${roleLabelLower}.`
+          ? `You've been added as a ${roleLabelLower} on ${safeArtistName}'s Setlistr account.`
+          : `${safeArtistName} is using Setlistr to track live performance royalties and has invited you as a ${roleLabelLower}.`
         }
       </p>
       <div style="background: #141210; border: 1px solid rgba(255,255,255,0.07); border-radius: 12px; padding: 14px 18px; margin: 0 0 24px;">

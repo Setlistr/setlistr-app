@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { getBaseUrl } from '@/lib/baseUrl'
+import { escapeHtml } from '@/lib/escapeHtml'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -21,7 +22,7 @@ async function notifyManagerOfApproval(to: string, artistName: string, artistId:
         from: 'Setlistr <invites@setlistr.ai>', to,
         subject: `${artistName} approved your request`,
         html: `<div style="font-family: system-ui, sans-serif; max-width: 480px; margin: 0 auto; background: #0a0908; color: #f0ece3; padding: 40px 32px; border-radius: 16px;">
-          <p style="font-size: 14px; color: #b8a888; line-height: 1.6; margin: 0 0 24px;">${artistName} approved your manager access request. They now appear in your Manager workspace.</p>
+          <p style="font-size: 14px; color: #b8a888; line-height: 1.6; margin: 0 0 24px;">${escapeHtml(artistName)} approved your manager access request. They now appear in your Manager workspace.</p>
           <a href="${workspaceUrl}" style="display: inline-block; background: #c9a84c; color: #0a0908; font-size: 14px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; text-decoration: none; padding: 16px 32px; border-radius: 12px;">Open Manager Workspace →</a>
         </div>`,
       }),

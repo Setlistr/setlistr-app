@@ -53,6 +53,7 @@ const admin = service
 
 const RUN = Date.now().toString(36)
 const createdUserIds: string[] = []
+const createdBetaEmails: string[] = []
 
 let pass = 0
 let fail = 0
@@ -89,6 +90,13 @@ async function createPersona(label: string, emailOverride?: string): Promise<Per
     id: userId, full_name: label, email, artist_name: label,
   }, { onConflict: 'id' })
   if (profErr) throw new Error(`profile insert failed for ${label}: ${profErr.message}`)
+
+  // Admitted (beta_invites row): POST /api/team/accept enforces Setlistr
+  // admission, so every persona here is admitted — this suite tests WHO may
+  // invite/accept/revoke, not admission (see test-team-lifecycle.ts for that).
+  const { error: betaErr } = await service.from('beta_invites').insert({ email, invited_role: 'artist', added_by: 'test-invite-http-integration' })
+  if (betaErr) throw new Error(`beta_invites insert failed for ${label}: ${betaErr.message}`)
+  createdBetaEmails.push(email)
 
   const jar = new Map<string, string>()
   const browserClient = createBrowserClient(SUPABASE_URL, ANON_KEY, {
@@ -197,6 +205,11 @@ async function cleanup() {
 
   const { error: byDelegateErr } = await service.from('artist_delegates').delete().in('delegate_id', createdUserIds)
   if (byDelegateErr) errors.push(`delete artist_delegates by delegate_id: ${byDelegateErr.message}`)
+
+  if (createdBetaEmails.length > 0) {
+    const { error: betaErr } = await service.from('beta_invites').delete().in('email', createdBetaEmails)
+    if (betaErr) errors.push(`delete beta_invites: ${betaErr.message}`)
+  }
 
   for (const id of createdUserIds) {
     const { error: profErr } = await service.from('profiles').delete().eq('id', id)

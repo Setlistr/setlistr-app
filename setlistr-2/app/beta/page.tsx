@@ -1,8 +1,9 @@
 import Image from 'next/image'
 import WaitlistForm from '@/components/WaitlistForm'
 import BetaSignedInStatus from '@/components/BetaSignedInStatus'
+import { cookies } from 'next/headers'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
-import { findPendingInviteDetailsByEmail } from '@/lib/pendingInvite'
+import { getPresentedInviteDetails, PENDING_INVITE_COOKIE } from '@/lib/pendingInvite'
 import { waitlistRequestExists } from '@/lib/waitlistStatus'
 
 const C = {
@@ -27,8 +28,13 @@ export default async function BetaPage() {
   let fullName: string | null = null
 
   if (user?.email) {
+    // Invitation details ONLY for a token this browser presented (the
+    // cookie middleware saves from /app/accept-invite?token=…), and only
+    // after re-validating it against current invite state and THIS user —
+    // never looked up by session email, which is self-asserted.
+    const presentedToken = cookies().get(PENDING_INVITE_COOKIE)?.value ?? null
     const [details, requested, profile] = await Promise.all([
-      findPendingInviteDetailsByEmail(user.email),
+      getPresentedInviteDetails(presentedToken, { id: user.id, email: user.email }),
       waitlistRequestExists(user.email),
       supabase.from('profiles').select('full_name').eq('id', user.id).maybeSingle(),
     ])

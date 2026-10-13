@@ -94,12 +94,12 @@ export default function BetaSignedInStatus({ email, fullName, inviteDetails, ini
           <div>
             <p style={{ fontSize: 14, fontWeight: 700, color: C.gold, margin: '0 0 6px' }}>Your team invitation is saved</p>
             <p style={{ fontSize: 13, color: C.secondary, margin: 0, lineHeight: 1.5 }}>
-              {inviteDetails.artistName} invited you as a {roleInfoFor(inviteDetails.role).label.toLowerCase()}. Setlistr approval is required before you can accept it — once approved, this page (or your invite email) will take you straight there.
+              {inviteDetails.artistName} invited you as a {roleInfoFor(inviteDetails.role).label.toLowerCase()}. Setlistr approval is required before you can accept it. Once you're approved, come back here on this device, or reopen the invitation link from your email.
             </p>
           </div>
         ) : (
           <p style={{ fontSize: 13, color: C.secondary, margin: 0, lineHeight: 1.5 }}>
-            Setlistr is invite-only — your account is saved and ready as soon as you're approved.
+            Setlistr is invite-only — your account is saved and ready as soon as you're approved. If you were invited to a team, open the invitation link from your email.
           </p>
         )}
 

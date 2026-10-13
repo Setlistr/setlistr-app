@@ -5,7 +5,7 @@ import { cookies } from 'next/headers'
 import { ADMIN_EMAILS } from '@/lib/admin-config'
 import { escapeHtml } from '@/lib/escapeHtml'
 import { getBaseUrl } from '@/lib/baseUrl'
-import { findPendingInviteDetailsByEmail } from '@/lib/pendingInvite'
+import { findPendingInviteForInboxDelivery } from '@/lib/pendingInvite'
 import { roleInfoFor } from '@/lib/teamRoleInfo'
 
 const BASE_URL       = getBaseUrl()
@@ -38,7 +38,9 @@ async function sendBetaInviteEmail({ to, name, invitedRole }: { to: string; name
   // over the generic artist/manager recruitment copy below whenever it
   // finds a real, still-pending invite: this person isn't being generically
   // recruited, they're being handed back to something they already started.
-  const pendingInvite = await findPendingInviteDetailsByEmail(to)
+  // Email-matched, which is permitted ONLY because the link goes to the
+  // invited inbox itself — never to a signed-in session (see lib/pendingInvite.ts).
+  const pendingInvite = await findPendingInviteForInboxDelivery(to)
 
   let heading: string
   let bodyCopy: string

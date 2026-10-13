@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { ADMIN_EMAILS } from '@/lib/admin-config'
 import { sanitizeNextPath } from '@/lib/nextPathGuard'
-import { findPendingInviteTokenByEmail } from '@/lib/pendingInvite'
+import { PENDING_INVITE_COOKIE } from '@/lib/pendingInvite'
 
 // ── Hardcoded admin safety net ────────────────────────────────────────────────
 // Admins always have access regardless of DB state — protects against being
@@ -127,9 +127,13 @@ function withInviteCookie(response: NextResponse, inviteToken: string | null): N
 // the generic /beta redirect below and the token is gone for good — a dead
 // end for a legitimate invite, not a security boundary being enforced (beta
 // admission itself is never bypassed; only WHERE to resume afterward is
-// preserved). Only ever set FROM /app/accept-invite and only ever consumed
-// to redirect back TO it — never trusted for anything else.
-const PENDING_INVITE_COOKIE = 'sl_pending_team_invite'
+// preserved). Only ever set FROM /app/accept-invite, from the token the user
+// actually presented in that URL, and only ever consumed to redirect back
+// TO it — navigation context, never authorization (/api/team/accept
+// re-validates everything). Never derived from an email lookup: a session
+// email is self-asserted (signup doesn't verify inbox ownership), so
+// email-matched token disclosure let anyone claim an invite to an address
+// with no account yet. Name shared via lib/pendingInvite.ts.
 const PENDING_INVITE_TTL_SECONDS = 60 * 60 * 24 * 30 // 30 days — generous; this only ever gates where a now-admitted user lands next, not access itself
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -252,16 +256,6 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // Only matters once we know the user is NOT yet admitted — an admitted
-  // user never needs this, and the lookup is skipped entirely if a
-  // pending-invite cookie is already present (the common case: the
-  // recipient actually followed the invite link in this browser session,
-  // which already seeds the cookie below, same as always).
-  let fallbackPendingToken: string | null = null
-  if (user && !isAdmin && !isInvited && (isAppRoute || isBetaPage) && !getPendingInviteToken(request)) {
-    fallbackPendingToken = await findPendingInviteTokenByEmail(user.email ?? '')
-  }
-
   // ── Root route: if logged in with access, skip marketing and go straight to app
   if (isRootRoute && user) {
     if (isAdmin || isInvited) {
@@ -317,13 +311,12 @@ export async function middleware(request: NextRequest) {
       return withInviteCookie(supabaseResponse, inviteToken)
     }
     const betaRedirect = NextResponse.redirect(new URL('/beta', request.url))
-    // The token in the URL (only meaningful on /app/accept-invite itself)
-    // takes priority when present; otherwise fall back to the email
-    // lookup above — covers an ordinary login landing on ANY /app/* route
-    // (e.g. /app/dashboard), not just a direct hit on accept-invite.
+    // Only a token the user actually presented in the URL (only meaningful
+    // on /app/accept-invite itself) is saved — never one looked up by the
+    // session's email. A recipient on another device reopens the
+    // inbox-delivered link (invite or approval email) instead.
     const urlToken = request.nextUrl.pathname === '/app/accept-invite' ? request.nextUrl.searchParams.get('token') : null
-    const tokenToPersist = urlToken || fallbackPendingToken
-    const withBeta = tokenToPersist ? withPendingInviteCookie(betaRedirect, tokenToPersist) : betaRedirect
+    const withBeta = urlToken ? withPendingInviteCookie(betaRedirect, urlToken) : betaRedirect
     return withInviteCookie(withBeta, inviteToken)
   }
 
@@ -331,17 +324,15 @@ export async function middleware(request: NextRequest) {
   // invite if that's what sent them to /beta in the first place.
   if (isBetaPage && user) {
     if (isAdmin || isInvited) {
-      // fallbackPendingToken above is deliberately gated to the
-      // not-yet-admitted case, so it's never populated here — this is a
-      // separate lookup for the admitted case specifically: the cookie
-      // can easily be absent (e.g. approved after their only visit to
-      // this browser was a bare login, never through accept-invite), and
-      // without this they'd be dropped onto /app/dashboard despite
-      // having a real, still-pending invite waiting. Safe to attach the
-      // cookie here — this redirects to a DIFFERENT path
+      // Resumes ONLY from the cookie saved when this browser presented the
+      // invite link — never from an email lookup (that disclosed tokens to
+      // any session claiming the invited address). With no cookie (e.g.
+      // approved on a different device), they land on /app/dashboard and
+      // reopen the inbox-delivered link (invite or approval email). Safe to
+      // clear the cookie here — this redirects to a DIFFERENT path
       // (/app/accept-invite or /app/dashboard), never back to /beta
       // itself, so there's no same-URL redirect to loop on.
-      const pending = getPendingInviteToken(request) || await findPendingInviteTokenByEmail(user.email ?? '')
+      const pending = getPendingInviteToken(request)
       const dest = pending ? `/app/accept-invite?token=${pending}` : '/app/dashboard'
       const res = NextResponse.redirect(new URL(dest, request.url))
       return withInviteCookie(pending ? clearPendingInviteCookie(res) : res, inviteToken)

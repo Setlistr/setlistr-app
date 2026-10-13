@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { checkBetaAdmission } from '@/lib/betaAdmission'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -104,6 +105,22 @@ export async function POST(req: NextRequest) {
     const { data: { user } } = await authSupabase.auth.getUser()
     if (!user) {
       return NextResponse.json({ error: 'You must be logged in to accept an invite.' }, { status: 401 })
+    }
+
+    // Setlistr approval gates ACCEPTANCE itself, not just workspace pages —
+    // what /beta tells an invited user ("approval is required before you
+    // can accept it") and what middleware already enforces for the accept
+    // PAGE. Enforced here too because middleware never runs on API routes,
+    // so a token holder could otherwise accept by calling this directly.
+    // Same rule as middleware (admins, or a beta_invites row), always a
+    // live lookup, checked before the token is even looked up, and fails
+    // closed on a lookup error.
+    const admission = await checkBetaAdmission(supabase, user.email)
+    if (admission === 'error') {
+      return NextResponse.json({ error: 'Could not verify your Setlistr access right now — try again.' }, { status: 503 })
+    }
+    if (admission !== 'admitted') {
+      return NextResponse.json({ error: 'Setlistr approval is required before you can accept this invite.', code: 'admission_required' }, { status: 403 })
     }
 
     // Look up the invite
