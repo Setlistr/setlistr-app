@@ -78,6 +78,12 @@ function unwrap<T>(res: { data: T | null; error: { message: string } | null }, l
   if (res.error || !res.data) throw new Error(`${label} failed: ${res.error?.message || 'no data returned'}`)
   return res.data
 }
+// performances.artist_name is NOT NULL (the app always sets it — see
+// 0022_start_scheduled_show_artist_name.sql). Supplied on every fixture
+// insert so a denied write can only be denied by RLS, never by a missing
+// column.
+const FIXTURE_ARTIST_NAME = 'Fixture Artist'
+
 function rowsEqual(a: Record<string, unknown> | null, b: Record<string, unknown> | null): boolean {
   if (a === null || b === null) return a === b
   const aKeys = Object.keys(a).sort()
@@ -104,7 +110,8 @@ async function createPersona(label: string): Promise<Persona> {
   if (error || !data.user) throw new Error(`createUser failed for ${label}: ${error?.message}`)
   const userId = data.user.id
   createdUserIds.push(userId)
-  unwrap<{ id: string }>(await service.from('profiles').insert({ id: userId, full_name: label, email }).select().single(), `profile for ${label}`)
+  // Upsert: on_auth_user_created (supabase-schema.sql) may already have created this row.
+  unwrap<{ id: string }>(await service.from('profiles').upsert({ id: userId, full_name: label, email }, { onConflict: 'id' }).select().single(), `profile for ${label}`)
 
   const client = createClient(SUPABASE_URL, ANON_KEY)
   const { error: signInErr } = await client.auth.signInWithPassword({ email, password })
@@ -253,7 +260,7 @@ async function main() {
   createdShowIds.push(showA.id)
   const setlistA = unwrap<{ id: string }>(await service.from('setlists').insert({ show_id: showA.id, artist_id: artistA.id }).select().single(), 'setlistA')
   createdSetlistIds.push(setlistA.id)
-  const perfA = unwrap<{ id: string }>(await service.from('performances').insert({ user_id: ownerA.userId, venue_name: `Fixture ${RUN}`, show_id: showA.id }).select().single(), 'perfA')
+  const perfA = unwrap<{ id: string }>(await service.from('performances').insert({ user_id: ownerA.userId, venue_name: `Fixture ${RUN}`, show_id: showA.id, artist_name: FIXTURE_ARTIST_NAME }).select().single(), 'perfA')
   createdPerformanceIds.push(perfA.id)
 
   // ── performances ──────────────────────────────────────────────────────
@@ -265,7 +272,7 @@ async function main() {
   }
   for (const [label, persona] of WRITE_DENIED) {
     const venue = `Perf Insert Denied ${label} ${RUN}`
-    const { data: ins, error: insErr } = await persona.client.from('performances').insert({ user_id: ownerA.userId, venue_name: venue, show_id: showA.id }).select()
+    const { data: ins, error: insErr } = await persona.client.from('performances').insert({ user_id: ownerA.userId, venue_name: venue, show_id: showA.id, artist_name: FIXTURE_ARTIST_NAME }).select()
     check(`${label}: performances INSERT denied`, !ins || ins.length === 0, JSON.stringify({ ins, insErr }))
     const { data: stored, error: storedErr } = await service.from('performances').select('id').eq('venue_name', venue)
     check(`${label}: performances INSERT denial readback succeeded`, !storedErr, JSON.stringify(storedErr))
@@ -279,7 +286,7 @@ async function main() {
     check(`${label}: performances UPDATE after-readback succeeded`, !after.error, JSON.stringify(after.error))
     checkUnchanged(`${label}: performances UPDATE`, before.data, after.data)
 
-    const perfTemp = unwrap<{ id: string }>(await service.from('performances').insert({ user_id: ownerA.userId, venue_name: `Perf Delete Denied ${label} ${RUN}`, show_id: showA.id }).select().single(), `perfTemp for ${label} delete-denial`)
+    const perfTemp = unwrap<{ id: string }>(await service.from('performances').insert({ user_id: ownerA.userId, venue_name: `Perf Delete Denied ${label} ${RUN}`, show_id: showA.id, artist_name: FIXTURE_ARTIST_NAME }).select().single(), `perfTemp for ${label} delete-denial`)
     createdPerformanceIds.push(perfTemp.id)
     const { data: del, error: delErr } = await persona.client.from('performances').delete().eq('id', perfTemp.id).select()
     check(`${label}: performances DELETE denied (zero rows)`, (del?.length ?? -1) === 0, JSON.stringify({ del, delErr }))
@@ -289,14 +296,14 @@ async function main() {
   }
   for (const [label, persona] of WRITE_OK) {
     const venue = `Perf Insert OK ${label} ${RUN}`
-    const { data, error } = await persona.client.from('performances').insert({ user_id: ownerA.userId, venue_name: venue, show_id: showA.id }).select().single()
+    const { data, error } = await persona.client.from('performances').insert({ user_id: ownerA.userId, venue_name: venue, show_id: showA.id, artist_name: FIXTURE_ARTIST_NAME }).select().single()
     check(`${label}: performances INSERT succeeds`, !error && !!data, JSON.stringify(error))
     if (data) createdPerformanceIds.push((data as any).id)
     if (data) {
       const { data: upd, error: updErr } = await persona.client.from('performances').update({ venue_name: `Edited by ${label} ${RUN}` }).eq('id', (data as any).id).select()
       check(`${label}: performances UPDATE succeeds`, !updErr && (upd?.length ?? 0) === 1, JSON.stringify(updErr))
     }
-    const perfTempOk = unwrap<{ id: string }>(await service.from('performances').insert({ user_id: ownerA.userId, venue_name: `Perf Delete OK ${label} ${RUN}`, show_id: showA.id }).select().single(), `perfTempOk for ${label} delete-ok`)
+    const perfTempOk = unwrap<{ id: string }>(await service.from('performances').insert({ user_id: ownerA.userId, venue_name: `Perf Delete OK ${label} ${RUN}`, show_id: showA.id, artist_name: FIXTURE_ARTIST_NAME }).select().single(), `perfTempOk for ${label} delete-ok`)
     const { data: del, error: delErr } = await persona.client.from('performances').delete().eq('id', perfTempOk.id).select()
     check(`${label}: performances DELETE succeeds`, !delErr && (del?.length ?? 0) === 1, JSON.stringify(delErr))
   }
@@ -535,7 +542,7 @@ async function main() {
     check(`${label}: delete after-readback succeeded`, !afterPerf.error, JSON.stringify(afterPerf.error))
     checkUnchanged(`${label}: HTTP delete denial`, beforePerf.data, afterPerf.data)
 
-    const perfDeletedTemp = unwrap<{ id: string }>(await service.from('performances').insert({ user_id: ownerA.userId, venue_name: `Undo Denial ${label} ${RUN}`, show_id: showA.id, deleted_at: new Date().toISOString() }).select().single(), `perfDeletedTemp for ${label} undo-denial`)
+    const perfDeletedTemp = unwrap<{ id: string }>(await service.from('performances').insert({ user_id: ownerA.userId, venue_name: `Undo Denial ${label} ${RUN}`, show_id: showA.id, artist_name: FIXTURE_ARTIST_NAME, deleted_at: new Date().toISOString() }).select().single(), `perfDeletedTemp for ${label} undo-denial`)
     createdPerformanceIds.push(perfDeletedTemp.id)
     const beforeUndo = await service.from('performances').select('*').eq('id', perfDeletedTemp.id).maybeSingle()
     check(`${label}: undo before-readback succeeded`, !beforeUndo.error, JSON.stringify(beforeUndo.error))
@@ -548,7 +555,7 @@ async function main() {
     // PATCH denial: a fresh performance with a pre-existing song row, to
     // prove the denial leaves BOTH the performance and its songs untouched
     // — not just that the PATCH call itself returns 403.
-    const perfPatchTemp = unwrap<{ id: string }>(await service.from('performances').insert({ user_id: ownerA.userId, venue_name: `Patch Denial ${label} ${RUN}`, show_id: showA.id }).select().single(), `perfPatchTemp for ${label} patch-denial`)
+    const perfPatchTemp = unwrap<{ id: string }>(await service.from('performances').insert({ user_id: ownerA.userId, venue_name: `Patch Denial ${label} ${RUN}`, show_id: showA.id, artist_name: FIXTURE_ARTIST_NAME }).select().single(), `perfPatchTemp for ${label} patch-denial`)
     createdPerformanceIds.push(perfPatchTemp.id)
     const songPatchTemp = unwrap<{ id: string }>(await service.from('performance_songs').insert({ performance_id: perfPatchTemp.id, title: `Patch Denial Song ${label} ${RUN}`, position: 1 }).select().single(), `songPatchTemp for ${label} patch-denial`)
 

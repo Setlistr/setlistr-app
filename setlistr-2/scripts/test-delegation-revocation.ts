@@ -70,6 +70,12 @@ function unwrap<T>(res: { data: T | null; error: { message: string } | null }, l
   return res.data
 }
 
+// performances.artist_name is NOT NULL (the app always sets it — see
+// 0022_start_scheduled_show_artist_name.sql). Supplied on every fixture
+// insert so a denied write can only be denied by RLS, never by a missing
+// column.
+const FIXTURE_ARTIST_NAME = 'Fixture Artist'
+
 const RLS_SQLSTATE = '42501'
 const MSG_PERF_RLS = 'new row violates row-level security policy for table "performances"'
 
@@ -112,7 +118,8 @@ async function createPersona(label: string): Promise<Persona> {
   if (error || !data.user) throw new Error(`createUser failed for ${label}: ${error?.message}`)
   const userId = data.user.id
   createdUserIds.push(userId)
-  unwrap<{ id: string }>(await service.from('profiles').insert({ id: userId, full_name: label, email }).select().single(), `profile for ${label}`)
+  // Upsert: on_auth_user_created (supabase-schema.sql) may already have created this row.
+  unwrap<{ id: string }>(await service.from('profiles').upsert({ id: userId, full_name: label, email }, { onConflict: 'id' }).select().single(), `profile for ${label}`)
 
   // Plain anon client for direct-DB checks.
   const client = createClient(SUPABASE_URL, ANON_KEY)
@@ -241,14 +248,14 @@ async function main() {
   console.log('\n1. can_act_for(): owner retains direct-DB access (baseline, unaffected by this migration)')
   let ownerPerfId = ''
   {
-    const { data, error } = await ownerA.client.from('performances').insert({ user_id: ownerA.userId, venue_name: `Owner ${RUN}`, show_id: showA.id }).select().single()
+    const { data, error } = await ownerA.client.from('performances').insert({ user_id: ownerA.userId, venue_name: `Owner ${RUN}`, show_id: showA.id, artist_name: FIXTURE_ARTIST_NAME }).select().single()
     check('owner: direct insert succeeds', !error && !!data, JSON.stringify(error))
     if (data) { createdPerformanceIds.push((data as any).id); ownerPerfId = (data as any).id }
   }
 
   console.log('\n2. can_act_for(): active accepted delegate retains direct-DB access')
   {
-    const { data, error } = await activeDelegate.client.from('performances').insert({ user_id: ownerA.userId, venue_name: `Active Delegate ${RUN}`, show_id: showA.id }).select().single()
+    const { data, error } = await activeDelegate.client.from('performances').insert({ user_id: ownerA.userId, venue_name: `Active Delegate ${RUN}`, show_id: showA.id, artist_name: FIXTURE_ARTIST_NAME }).select().single()
     check('active delegate: direct insert succeeds', !error && !!data, JSON.stringify(error))
     if (data) createdPerformanceIds.push((data as any).id)
   }
@@ -256,7 +263,7 @@ async function main() {
   console.log('\n3. can_act_for(): pending (unaccepted) delegate direct INSERT denied — SQLSTATE/message asserted, stored state unchanged')
   {
     const venue = `Pending Delegate ${RUN}`
-    const { data, error } = await pendingDelegate.client.from('performances').insert({ user_id: ownerA.userId, venue_name: venue, show_id: showA.id }).select().single()
+    const { data, error } = await pendingDelegate.client.from('performances').insert({ user_id: ownerA.userId, venue_name: venue, show_id: showA.id, artist_name: FIXTURE_ARTIST_NAME }).select().single()
     check('pending delegate: direct insert denied', !data, JSON.stringify({ data, error }))
     check('pending delegate: SQLSTATE 42501 (RLS policy violation)', (error as any)?.code === RLS_SQLSTATE, JSON.stringify(error))
     check('pending delegate: exact RLS rejection message', (error as any)?.message === MSG_PERF_RLS, JSON.stringify(error))
@@ -266,7 +273,7 @@ async function main() {
   console.log('\n4. can_act_for(): revoked delegate direct INSERT denied — SQLSTATE/message asserted, stored state unchanged')
   {
     const venue = `Revoked Delegate ${RUN}`
-    const { data, error } = await revokedDelegate.client.from('performances').insert({ user_id: ownerA.userId, venue_name: venue, show_id: showA.id }).select().single()
+    const { data, error } = await revokedDelegate.client.from('performances').insert({ user_id: ownerA.userId, venue_name: venue, show_id: showA.id, artist_name: FIXTURE_ARTIST_NAME }).select().single()
     check('revoked delegate: direct insert denied', !data, JSON.stringify({ data, error }))
     check('revoked delegate: SQLSTATE 42501 (RLS policy violation)', (error as any)?.code === RLS_SQLSTATE, JSON.stringify(error))
     check('revoked delegate: exact RLS rejection message', (error as any)?.message === MSG_PERF_RLS, JSON.stringify(error))
@@ -312,14 +319,14 @@ async function main() {
 
   console.log('\n8. can_act_for(): an already-signed-in delegate loses direct-DB access on the NEXT request after revocation (same session; not an in-flight cancellation claim)')
   {
-    const before = await toBeRevoked.client.from('performances').insert({ user_id: ownerA.userId, venue_name: `Before Revoke ${RUN}`, show_id: showA.id }).select().single()
+    const before = await toBeRevoked.client.from('performances').insert({ user_id: ownerA.userId, venue_name: `Before Revoke ${RUN}`, show_id: showA.id, artist_name: FIXTURE_ARTIST_NAME }).select().single()
     check('toBeRevoked: access works before revocation (fixture sanity)', !before.error && !!before.data, JSON.stringify(before.error))
     if (before.data) createdPerformanceIds.push((before.data as any).id)
 
     await revoke(toBeRevokedDelegationId)
 
     const venue = `After Revoke Same Session ${RUN}`
-    const { data, error } = await toBeRevoked.client.from('performances').insert({ user_id: ownerA.userId, venue_name: venue, show_id: showA.id }).select().single()
+    const { data, error } = await toBeRevoked.client.from('performances').insert({ user_id: ownerA.userId, venue_name: venue, show_id: showA.id, artist_name: FIXTURE_ARTIST_NAME }).select().single()
     check('toBeRevoked: SAME already-signed-in session denied on its next request after revocation', !data, JSON.stringify({ data, error }))
     check('toBeRevoked: post-revocation denied write left no stored row', (await countRows('performances', 'venue_name', venue)) === 0)
   }

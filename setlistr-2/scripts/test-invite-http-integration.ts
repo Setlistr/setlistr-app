@@ -82,9 +82,12 @@ async function createPersona(label: string, emailOverride?: string): Promise<Per
   const userId = data.user.id
   createdUserIds.push(userId)
 
-  const { error: profErr } = await service.from('profiles').insert({
+  // Upsert, not insert: supabase-schema.sql's on_auth_user_created trigger
+  // may already have created this profile row (it does on any stack where
+  // that trigger is installed). Works identically with or without it.
+  const { error: profErr } = await service.from('profiles').upsert({
     id: userId, full_name: label, email, artist_name: label,
-  })
+  }, { onConflict: 'id' })
   if (profErr) throw new Error(`profile insert failed for ${label}: ${profErr.message}`)
 
   const jar = new Map<string, string>()
@@ -240,21 +243,18 @@ async function main() {
 
   console.log('\n1. Owner can invite a fresh (no-account) email — placeholder row created')
   {
-    // Dedicated throwaway owner: the pre-existing (non-hotfix) insert logic
-    // stores placeholder rows as delegate_id === artist_id, which the
-    // artist_delegates_artist_id_delegate_id_key UNIQUE constraint only
-    // allows ONE of per artist until it's accepted/rebound. Using ownerA
-    // here would collide with the placeholder tests in section 16-17 below.
-    // Confirmed by an earlier run of this harness: reusing ownerA for a
-    // second concurrent fresh-email invite produced a real "Failed to
-    // create invite" 500 from that unique-constraint collision — a
-    // pre-existing behavior of the insert branch this hotfix does not
-    // touch, not a regression from this patch. Out of scope to fix here.
+    // Dedicated throwaway owner, kept from before migration 0024: placeholder
+    // rows used to be stored as delegate_id === artist_id (at most ONE per
+    // artist under UNIQUE(artist_id, delegate_id)). Since 0024 every new
+    // placeholder is delegate_id = null. The assertion below pins that, and
+    // also that the placeholder is never bound to the artist themself — a
+    // row with delegate_id === artist_id would read as the owner holding a
+    // delegation to their own workspace.
     const email = `inv-test-${RUN}-fresh1@example.test`
     const r = await callInvite(ownerFresh1, { artist_id: ownerFresh1.userId, delegate_email: email, role: 'manager' })
     check('status 200', r.status === 200, JSON.stringify(r.json))
     const row = await findByInvitedEmail(ownerFresh1.userId, email)
-    check('row created, placeholder (delegate_id === artist_id)', !!row && row.delegate_id === ownerFresh1.userId)
+    check('row created, placeholder (delegate_id === null, unaccepted)', !!row && row.delegate_id === null && !row.accepted_at, JSON.stringify(row && { delegate_id_null: row.delegate_id === null, accepted: !!row.accepted_at }))
     check('role stored as requested', row?.role === 'manager')
   }
 
@@ -334,7 +334,7 @@ async function main() {
     const r = await callInvite(ownerA, { artist_id: ownerA.userId, delegate_email: placeholderEmail, role: 'manager' })
     check('placeholder invite -> 200', r.status === 200, JSON.stringify(r.json))
     const row = await findByInvitedEmail(ownerA.userId, placeholderEmail)
-    check('placeholder row created', !!row && row.delegate_id === ownerA.userId)
+    check('placeholder row created (delegate_id === null, unaccepted)', !!row && row.delegate_id === null && !row.accepted_at)
     placeholderRowId = row!.id
     placeholderToken = row!.invite_token
 
@@ -388,8 +388,21 @@ async function main() {
 
     const ownerRevoke = await callRevoke(ownerA, rowId, ownerA.userId)
     check('owner revoke -> 200', ownerRevoke.status === 200, JSON.stringify(ownerRevoke.json))
-    const gone = await getRowById(rowId)
-    check('row deleted after owner revoke', !gone)
+    // Revoke is a soft revoke (app/api/team/delegates DELETE sets
+    // revoked_at, never hard-deletes — the row is the history that
+    // re-invite and disconnected-user routing depend on). So: the row
+    // persists, revoked_at is the ONLY field that changed, and the revoked
+    // manager has actually lost authority — not just a flag flipped.
+    const revoked = await getRowById(rowId)
+    check('row persists after owner revoke, revoked_at set', !!revoked && !before?.revoked_at && !!revoked.revoked_at)
+    const { revoked_at: _b, ...beforeRest } = (before ?? {}) as Record<string, unknown>
+    const { revoked_at: _a, ...revokedRest } = (revoked ?? {}) as Record<string, unknown>
+    check('revoke changed only revoked_at (accepted_at, role, delegate_id kept)', rowsEqual(beforeRest, revokedRest), `before=${JSON.stringify(before)} after=${JSON.stringify(revoked)}`)
+
+    const email = `inv-test-${RUN}-after-revoke@example.test`
+    const postRevokeInvite = await callInvite(mgrAccepted, { artist_id: ownerA.userId, delegate_email: email, role: 'viewer' })
+    check('revoked manager can no longer invite -> 403', postRevokeInvite.status === 403, `got ${postRevokeInvite.status} ${JSON.stringify(postRevokeInvite.json)}`)
+    check('revoked manager invite -> no row created', !(await findByInvitedEmail(ownerA.userId, email)))
   }
 
   console.log(`\n${pass} passed, ${fail} failed`)

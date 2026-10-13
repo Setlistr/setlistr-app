@@ -70,6 +70,10 @@ function unwrap<T>(res: { data: T | null; error: { message: string } | null }, l
   return res.data
 }
 
+// performances.artist_name is NOT NULL (the app always sets it — see
+// 0022_start_scheduled_show_artist_name.sql); supplied on every fixture insert.
+const FIXTURE_ARTIST_NAME = 'Fixture Artist'
+
 function rowsEqual(a: Record<string, unknown> | null, b: Record<string, unknown> | null): boolean {
   if (a === null || b === null) return a === b
   const aKeys = Object.keys(a).sort()
@@ -100,7 +104,8 @@ async function createPersona(label: string): Promise<Persona> {
   if (error || !data.user) throw new Error(`createUser failed for ${label}: ${error?.message}`)
   const userId = data.user.id
   createdUserIds.push(userId)
-  unwrap<{ id: string }>(await service.from('profiles').insert({ id: userId, full_name: label, email }).select().single(), `profile for ${label}`)
+  // Upsert: on_auth_user_created (supabase-schema.sql) may already have created this row.
+  unwrap<{ id: string }>(await service.from('profiles').upsert({ id: userId, full_name: label, email }, { onConflict: 'id' }).select().single(), `profile for ${label}`)
 
   const jar = new Map<string, string>()
   const browserClient = createBrowserClient(SUPABASE_URL, ANON_KEY, {
@@ -223,7 +228,7 @@ async function main() {
 
   console.log('\n1. DELETE: owner can soft-delete their own performance')
   {
-    const perf = unwrap<{ id: string }>(await service.from('performances').insert({ user_id: ownerA.userId, venue_name: `Owner Delete ${RUN}`, show_id: showA.id }).select().single(), 'perf for owner delete')
+    const perf = unwrap<{ id: string }>(await service.from('performances').insert({ user_id: ownerA.userId, venue_name: `Owner Delete ${RUN}`, show_id: showA.id, artist_name: FIXTURE_ARTIST_NAME }).select().single(), 'perf for owner delete')
     createdPerformanceIds.push(perf.id)
     const { status, json } = await callDelete(ownerA, perf.id)
     check('owner: delete succeeds (200)', status === 200 && json.success === true, JSON.stringify({ status, json }))
@@ -234,7 +239,7 @@ async function main() {
 
   console.log('\n2. DELETE: active accepted delegate can soft-delete an owned performance')
   {
-    const perf = unwrap<{ id: string }>(await service.from('performances').insert({ user_id: ownerA.userId, venue_name: `Active Delete ${RUN}`, show_id: showA.id }).select().single(), 'perf for active delegate delete')
+    const perf = unwrap<{ id: string }>(await service.from('performances').insert({ user_id: ownerA.userId, venue_name: `Active Delete ${RUN}`, show_id: showA.id, artist_name: FIXTURE_ARTIST_NAME }).select().single(), 'perf for active delegate delete')
     createdPerformanceIds.push(perf.id)
     const { status, json } = await callDelete(activeDelegate, perf.id)
     check('active delegate: delete succeeds (200)', status === 200 && json.success === true, JSON.stringify({ status, json }))
@@ -245,7 +250,7 @@ async function main() {
 
   console.log('\n3. DELETE: pending delegate denied (403), stored state unchanged')
   {
-    const perf = unwrap<{ id: string }>(await service.from('performances').insert({ user_id: ownerA.userId, venue_name: `Pending Delete ${RUN}`, show_id: showA.id }).select().single(), 'perf for pending delegate delete')
+    const perf = unwrap<{ id: string }>(await service.from('performances').insert({ user_id: ownerA.userId, venue_name: `Pending Delete ${RUN}`, show_id: showA.id, artist_name: FIXTURE_ARTIST_NAME }).select().single(), 'perf for pending delegate delete')
     createdPerformanceIds.push(perf.id)
     const before = await readPerf(perf.id)
     check('pending delegate: before readback succeeded with no error', !before.error, JSON.stringify(before.error))
@@ -258,7 +263,7 @@ async function main() {
 
   console.log('\n4. DELETE: revoked delegate denied (403), stored state unchanged')
   {
-    const perf = unwrap<{ id: string }>(await service.from('performances').insert({ user_id: ownerA.userId, venue_name: `Revoked Delete ${RUN}`, show_id: showA.id }).select().single(), 'perf for revoked delegate delete')
+    const perf = unwrap<{ id: string }>(await service.from('performances').insert({ user_id: ownerA.userId, venue_name: `Revoked Delete ${RUN}`, show_id: showA.id, artist_name: FIXTURE_ARTIST_NAME }).select().single(), 'perf for revoked delegate delete')
     createdPerformanceIds.push(perf.id)
     const before = await readPerf(perf.id)
     check('revoked delegate: before readback succeeded with no error', !before.error, JSON.stringify(before.error))
@@ -271,7 +276,7 @@ async function main() {
 
   console.log('\n5. DELETE: an already-signed-in delegate is denied on the NEXT request after revocation')
   {
-    const perf = unwrap<{ id: string }>(await service.from('performances').insert({ user_id: ownerA.userId, venue_name: `Same Session Delete ${RUN}`, show_id: showA.id }).select().single(), 'perf for same-session revoke delete')
+    const perf = unwrap<{ id: string }>(await service.from('performances').insert({ user_id: ownerA.userId, venue_name: `Same Session Delete ${RUN}`, show_id: showA.id, artist_name: FIXTURE_ARTIST_NAME }).select().single(), 'perf for same-session revoke delete')
     createdPerformanceIds.push(perf.id)
     await revoke(toBeRevokedDelegationId)
     const before = await readPerf(perf.id)
@@ -285,7 +290,7 @@ async function main() {
 
   console.log('\n6. UNDO: owner can restore their own soft-deleted performance')
   {
-    const perf = unwrap<{ id: string }>(await service.from('performances').insert({ user_id: ownerA.userId, venue_name: `Owner Undo ${RUN}`, show_id: showA.id, deleted_at: new Date().toISOString() }).select().single(), 'perf for owner undo')
+    const perf = unwrap<{ id: string }>(await service.from('performances').insert({ user_id: ownerA.userId, venue_name: `Owner Undo ${RUN}`, show_id: showA.id, artist_name: FIXTURE_ARTIST_NAME, deleted_at: new Date().toISOString() }).select().single(), 'perf for owner undo')
     createdPerformanceIds.push(perf.id)
     const { status, json } = await callUndo(ownerA, perf.id)
     check('owner: undo succeeds (200)', status === 200 && json.success === true, JSON.stringify({ status, json }))
@@ -296,7 +301,7 @@ async function main() {
 
   console.log('\n7. UNDO: active accepted delegate can restore a soft-deleted performance')
   {
-    const perf = unwrap<{ id: string }>(await service.from('performances').insert({ user_id: ownerA.userId, venue_name: `Active Undo ${RUN}`, show_id: showA.id, deleted_at: new Date().toISOString() }).select().single(), 'perf for active delegate undo')
+    const perf = unwrap<{ id: string }>(await service.from('performances').insert({ user_id: ownerA.userId, venue_name: `Active Undo ${RUN}`, show_id: showA.id, artist_name: FIXTURE_ARTIST_NAME, deleted_at: new Date().toISOString() }).select().single(), 'perf for active delegate undo')
     createdPerformanceIds.push(perf.id)
     const { status, json } = await callUndo(activeDelegate, perf.id)
     check('active delegate: undo succeeds (200)', status === 200 && json.success === true, JSON.stringify({ status, json }))
@@ -307,7 +312,7 @@ async function main() {
 
   console.log('\n8. UNDO: revoked delegate denied (403), stored state unchanged (still deleted)')
   {
-    const perf = unwrap<{ id: string }>(await service.from('performances').insert({ user_id: ownerA.userId, venue_name: `Revoked Undo ${RUN}`, show_id: showA.id, deleted_at: new Date().toISOString() }).select().single(), 'perf for revoked delegate undo')
+    const perf = unwrap<{ id: string }>(await service.from('performances').insert({ user_id: ownerA.userId, venue_name: `Revoked Undo ${RUN}`, show_id: showA.id, artist_name: FIXTURE_ARTIST_NAME, deleted_at: new Date().toISOString() }).select().single(), 'perf for revoked delegate undo')
     createdPerformanceIds.push(perf.id)
     const before = await readPerf(perf.id)
     check('revoked delegate (undo): before readback succeeded with no error', !before.error, JSON.stringify(before.error))
@@ -321,7 +326,7 @@ async function main() {
 
   console.log('\n9. UNDO: pending delegate denied (403), stored state unchanged (still deleted)')
   {
-    const perf = unwrap<{ id: string }>(await service.from('performances').insert({ user_id: ownerA.userId, venue_name: `Pending Undo ${RUN}`, show_id: showA.id, deleted_at: new Date().toISOString() }).select().single(), 'perf for pending delegate undo')
+    const perf = unwrap<{ id: string }>(await service.from('performances').insert({ user_id: ownerA.userId, venue_name: `Pending Undo ${RUN}`, show_id: showA.id, artist_name: FIXTURE_ARTIST_NAME, deleted_at: new Date().toISOString() }).select().single(), 'perf for pending delegate undo')
     createdPerformanceIds.push(perf.id)
     const before = await readPerf(perf.id)
     check('pending delegate (undo): before readback succeeded with no error', !before.error, JSON.stringify(before.error))
@@ -336,7 +341,7 @@ async function main() {
   console.log('\n10. UNDO: an already-signed-in delegate is denied on the NEXT request after revocation, stored state unchanged (still deleted)')
   {
     // toBeRevoked was already revoked in test 5 above.
-    const perf = unwrap<{ id: string }>(await service.from('performances').insert({ user_id: ownerA.userId, venue_name: `Same Session Undo ${RUN}`, show_id: showA.id, deleted_at: new Date().toISOString() }).select().single(), 'perf for same-session revoke undo')
+    const perf = unwrap<{ id: string }>(await service.from('performances').insert({ user_id: ownerA.userId, venue_name: `Same Session Undo ${RUN}`, show_id: showA.id, artist_name: FIXTURE_ARTIST_NAME, deleted_at: new Date().toISOString() }).select().single(), 'perf for same-session revoke undo')
     createdPerformanceIds.push(perf.id)
     const before = await readPerf(perf.id)
     check('toBeRevoked (undo): before readback succeeded with no error', !before.error, JSON.stringify(before.error))
