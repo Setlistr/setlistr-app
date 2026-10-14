@@ -71,12 +71,19 @@ export const viewport: Viewport = {
 // (native-bridge.js getPlatformId: window.webkit.messageHandlers.bridge),
 // which the native app injects at document start, before this runs.
 // Runs before first paint: Next emits the viewport <meta> first in <head>.
-// It also re-applies whenever the viewport <meta> is replaced or rewritten:
-// when hydration fails outside a Suspense boundary (the homepage's existing
-// style-text mismatch does this), React re-renders the whole document
-// client-side with a fresh <meta>, and this inline script doesn't run again.
-// The observer's callback is one querySelector, a no-op once applied.
-const NATIVE_IOS_VIEWPORT_FIT = `(function(){try{var w=window;if(!(w.webkit&&w.webkit.messageHandlers&&w.webkit.messageHandlers.bridge)||w.androidBridge)return;function fit(){var m=document.querySelector('meta[name="viewport"]');if(m&&m.content.indexOf('viewport-fit')<0)m.setAttribute('content',m.content+', viewport-fit=cover')}fit();new MutationObserver(fit).observe(document,{childList:true,subtree:true,attributes:true,attributeFilter:['content']})}catch(e){}})()`
+// React then takes over <head>, so one observer keeps exactly ONE viewport
+// <meta>, the one React owns, carrying viewport-fit=cover:
+// - React matches head tags by their attributes, so once this script edits
+//   the server tag React no longer recognises it: hydration inserts its own
+//   fresh tag and abandons the edited one. The abandoned (non-React) tag is
+//   removed and React's is edited; React never rewrites it afterwards
+//   because its props don't change.
+// - When hydration fails outside a Suspense boundary (the homepage's
+//   existing style-text mismatch), React re-renders the whole document with
+//   a fresh tag; this inline script doesn't run again, the observer does.
+// The callback is one querySelectorAll — a no-op once applied. One script,
+// one observer per document: client-side navigation doesn't re-run it.
+const NATIVE_IOS_VIEWPORT_FIT = `(function(){try{var w=window;if(!(w.webkit&&w.webkit.messageHandlers&&w.webkit.messageHandlers.bridge)||w.androidBridge)return;function owned(m){return Object.keys(m).some(function(k){return k.indexOf('__react')===0})}function fit(){var ms=[].slice.call(document.querySelectorAll('meta[name="viewport"]'));if(ms.length>1){var keep=ms.filter(owned).pop()||ms[ms.length-1];ms.forEach(function(m){if(m!==keep&&!owned(m))m.parentNode.removeChild(m)});ms=[keep]}ms.forEach(function(m){if(m.content.indexOf('viewport-fit')<0)m.setAttribute('content',m.content+', viewport-fit=cover')})}fit();new MutationObserver(fit).observe(document,{childList:true,subtree:true,attributes:true,attributeFilter:['content']})}catch(e){}})()`
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

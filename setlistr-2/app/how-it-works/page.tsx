@@ -131,10 +131,12 @@ export default function HowItWorksPage() {
         }
       `}</style>
 
+      {/* Safe-area terms: 0 in Safari; the device's insets in the native iOS
+          app (viewport-fit=cover, app/layout.tsx). Sticky, so no content offset. */}
       <header style={{
         position: 'sticky', top: 0, zIndex: 100,
-        height: 64, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '0 48px',
+        height: 'calc(64px + env(safe-area-inset-top, 0px))', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: 'env(safe-area-inset-top, 0px) max(48px, env(safe-area-inset-right, 0px)) 0 max(48px, env(safe-area-inset-left, 0px))',
         background: 'rgba(8,7,6,0.85)',
         backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)',
         borderBottom: '1px solid rgba(255,255,255,0.05)',

@@ -137,7 +137,12 @@ export default function ProofPage() {
     <div style={{ minHeight: '100svh', background: '#0a0908', fontFamily: '"DM Sans", system-ui, sans-serif', paddingBottom: 80 }}>
 
       {/* NAV */}
-      <div style={{ position: 'sticky', top: 0, zIndex: 50, background: 'rgba(10,9,8,0.95)', backdropFilter: 'blur(12px)', borderBottom: '1px solid rgba(255,255,255,0.04)', padding: 'calc(env(safe-area-inset-top) + 12px) 24px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      {/* Rendered inside AppShell, whose sticky header already pads the top
+          safe-area inset. Padding it here too left an inset-tall empty band
+          above "Back" in the native app. Sticking at the inset instead keeps
+          this bar clear of the Dynamic Island when it covers the app header
+          on scroll; in Safari the inset is 0, so it still sticks at 0. */}
+      <div style={{ position: 'sticky', top: 'env(safe-area-inset-top, 0px)', zIndex: 50, background: 'rgba(10,9,8,0.95)', backdropFilter: 'blur(12px)', borderBottom: '1px solid rgba(255,255,255,0.04)', padding: '12px 24px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <button onClick={() => router.back()} style={{ background: 'none', border: 'none', color: '#8a7a68', fontSize: 14, cursor: 'pointer', fontFamily: 'inherit', padding: '4px 0' }}>← Back</button>
         <span style={{ fontSize: 12, fontWeight: 600, color: '#c9a84c', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Performance Record</span>
         <button onClick={() => window.print()} style={{ background: '#c9a84c', border: 'none', borderRadius: 8, color: '#0a0908', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', padding: '6px 14px', letterSpacing: '0.04em' }}>Export PDF</button>

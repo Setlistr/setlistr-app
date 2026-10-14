@@ -191,7 +191,9 @@ export function AppShell({ children, profile }: { children: React.ReactNode; pro
          potentially any other page's trailing content) end up covered.
          Matching the nav's own safe-area term here, instead of a flat
          number, is what actually clears it on every device. */}
-      <main style={{ flex: 1, paddingBottom: 'calc(96px + env(safe-area-inset-bottom))' }}>{children}</main>
+      {/* Side insets: 0 in Safari; in the native iOS app (landscape) they keep
+          page content clear of the sensor housing — pages keep their own gutters. */}
+      <main style={{ flex: 1, paddingBottom: 'calc(96px + env(safe-area-inset-bottom))', paddingLeft: 'env(safe-area-inset-left, 0px)', paddingRight: 'env(safe-area-inset-right, 0px)' }}>{children}</main>
 
       {/* ── Bottom nav ── */}
       <nav style={{

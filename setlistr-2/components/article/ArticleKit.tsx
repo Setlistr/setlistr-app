@@ -49,7 +49,8 @@ export function ArticleShell({
       )}
       <div style={{ position: 'fixed', width: 560, height: 560, borderRadius: '50%', filter: 'blur(120px)', pointerEvents: 'none', zIndex: 0, background: 'radial-gradient(circle, rgba(201,168,76,1), transparent)', opacity: 0.09, top: -240, right: -160 }} />
       <ArticleNav />
-      <article style={{ position: 'relative', zIndex: 1, maxWidth: 720, margin: '0 auto', padding: '120px 24px 80px' }}>
+      {/* Clears the fixed ArticleNav, including its top safe-area inset. */}
+      <article style={{ position: 'relative', zIndex: 1, maxWidth: 720, margin: '0 auto', padding: 'calc(120px + env(safe-area-inset-top, 0px)) 24px 80px' }}>
         {children}
       </article>
     </div>
@@ -58,7 +59,9 @@ export function ArticleShell({
 
 function ArticleNav() {
   return (
-    <header style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 50, height: 72, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 40px', background: 'rgba(8,7,6,0.82)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+    // Safe-area terms: 0 in Safari; the device's insets in the native iOS app
+    // (viewport-fit=cover, app/layout.tsx).
+    <header style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 50, height: 'calc(72px + env(safe-area-inset-top, 0px))', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 'env(safe-area-inset-top, 0px) max(40px, env(safe-area-inset-right, 0px)) 0 max(40px, env(safe-area-inset-left, 0px))', background: 'rgba(8,7,6,0.82)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
       <Link href="/" style={{ textDecoration: 'none', display: 'flex' }}>
         <Image src="/logo-white-tight.png" alt="Setlistr" width={190} height={36} priority style={{ height: 36, width: 'auto', objectFit: 'contain' }} />
       </Link>

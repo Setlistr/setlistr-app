@@ -127,7 +127,8 @@ export function ManagerShell({ children, profile }: { children: React.ReactNode;
           </div>
         </header>
 
-        <main style={{ flex: 1, paddingBottom: 'calc(88px + env(safe-area-inset-bottom))' }} className="mgr-main">
+        {/* Side insets: 0 in Safari; landscape clearance in the native iOS app. */}
+        <main style={{ flex: 1, paddingBottom: 'calc(88px + env(safe-area-inset-bottom))', paddingLeft: 'env(safe-area-inset-left, 0px)', paddingRight: 'env(safe-area-inset-right, 0px)' }} className="mgr-main">
           {children}
         </main>
       </div>

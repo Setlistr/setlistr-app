@@ -12,7 +12,8 @@ export default function PrivacyPage() {
       minHeight: '100vh',
       color: '#f2f1f0',
       fontFamily: '"DM Sans", sans-serif',
-      padding: '60px 24px',
+      // + top safe-area inset: 0 in Safari, the device's inset in the native iOS app
+      padding: 'calc(60px + env(safe-area-inset-top, 0px)) 24px 60px',
     }}>
       <div style={{ maxWidth: 720, margin: '0 auto' }}>
 

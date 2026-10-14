@@ -69,7 +69,10 @@ export default function GetPaidPage() {
       <div style={{ position: 'fixed', width: 620, height: 620, borderRadius: '50%', filter: 'blur(120px)', pointerEvents: 'none', zIndex: 0, background: 'radial-gradient(circle, rgba(201,168,76,1), transparent)', opacity: 0.11, top: -260, right: -180 }} />
       <div style={{ position: 'fixed', width: 460, height: 460, borderRadius: '50%', filter: 'blur(120px)', pointerEvents: 'none', zIndex: 0, background: 'radial-gradient(circle, rgba(201,168,76,1), transparent)', opacity: 0.06, bottom: '12%', left: -160 }} />
 
-      <header style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 50, height: 72, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 40px', background: 'rgba(8,7,6,0.82)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+      {/* Safe-area terms: 0 in Safari; the device's insets in the native iOS
+          app (viewport-fit=cover, app/layout.tsx). The hero below adds the
+          same top inset, since this header is fixed. */}
+      <header style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 50, height: 'calc(72px + env(safe-area-inset-top, 0px))', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 'env(safe-area-inset-top, 0px) max(40px, env(safe-area-inset-right, 0px)) 0 max(40px, env(safe-area-inset-left, 0px))', background: 'rgba(8,7,6,0.82)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
         <Link href="/" style={{ textDecoration: 'none', display: 'flex' }}>
           <Image src="/logo-white-tight.png" alt="Setlistr" width={190} height={36} priority style={{ height: 36, width: 'auto', objectFit: 'contain' }} />
         </Link>
@@ -80,7 +83,7 @@ export default function GetPaidPage() {
       </header>
 
       <div style={{ position: 'relative', zIndex: 1 }}>
-        <section style={{ minHeight: '82vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '128px 24px 40px' }}>
+        <section style={{ minHeight: '82vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: 'calc(128px + env(safe-area-inset-top, 0px)) 24px 40px' }}>
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10, border: '1px solid rgba(201,168,76,.3)', borderRadius: 20, padding: '6px 18px', marginBottom: 32, fontFamily: '"DM Mono", monospace', fontSize: 11, color: '#C9A84C', letterSpacing: '.16em', textTransform: 'uppercase' }}>
             <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#C9A84C' }} /> For Working Songwriters
           </div>

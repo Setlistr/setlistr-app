@@ -58,7 +58,8 @@ export default function SupportPage() {
       minHeight: '100vh',
       color: C.text,
       fontFamily: '"DM Sans", system-ui, sans-serif',
-      padding: '48px 20px 64px',
+      // + top safe-area inset: 0 in Safari, the device's inset in the native iOS app
+      padding: 'calc(48px + env(safe-area-inset-top, 0px)) 20px 64px',
     }}>
       <div style={{ maxWidth: 640, margin: '0 auto' }}>
 
