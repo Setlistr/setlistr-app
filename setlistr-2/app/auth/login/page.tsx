@@ -19,6 +19,9 @@ const C = {
   gold: '#c9a84c', goldDim: 'rgba(201,168,76,0.1)',
   red: '#f87171', redDim: 'rgba(248,113,113,0.08)',
   green: '#4ade80', greenDim: 'rgba(74,222,128,0.08)',
+  // Always-dark auth: field boundaries reach 3:1 at rest (line) and when
+  // focused or filled (lineActive); faint is the quietest text that passes 4.5:1.
+  line: '#6e6656', lineActive: '#a68a3e', faint: '#958976',
 }
 
 type Mode = 'signin' | 'signup'
@@ -199,7 +202,7 @@ function LoginPageInner() {
   const inp = (val: string): React.CSSProperties => ({
     width: '100%', boxSizing: 'border-box' as const,
     background: C.input,
-    border: `1px solid ${val.trim() ? C.borderGold : C.border}`,
+    border: `1px solid ${val.trim() ? C.lineActive : C.line}`,
     borderRadius: 10, padding: '13px 14px',
     color: C.text, fontSize: 16, fontFamily: 'inherit',
     transition: 'border-color 0.15s ease', outline: 'none',
@@ -317,8 +320,8 @@ function LoginPageInner() {
                     placeholder="you@example.com" autoComplete="username"
                     autoCapitalize="none" autoCorrect="off" spellCheck={false} enterKeyHint="next"
                     style={inp(email)}
-                    onFocus={e => (e.target.style.borderColor = 'rgba(201,168,76,0.4)')}
-                    onBlur={e => (e.target.style.borderColor = email.trim() ? C.borderGold : C.border)} />
+                    onFocus={e => (e.target.style.borderColor = C.lineActive)}
+                    onBlur={e => (e.target.style.borderColor = email.trim() ? C.lineActive : C.line)} />
                 </div>
 
                 <div>
@@ -330,8 +333,8 @@ function LoginPageInner() {
                       autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
                       autoCapitalize="none" autoCorrect="off" spellCheck={false}
                       style={{ ...inp(password), paddingRight: 72 }}
-                      onFocus={e => (e.target.style.borderColor = 'rgba(201,168,76,0.4)')}
-                      onBlur={e => (e.target.style.borderColor = password.trim() ? C.borderGold : C.border)} />
+                      onFocus={e => (e.target.style.borderColor = C.lineActive)}
+                      onBlur={e => (e.target.style.borderColor = password.trim() ? C.lineActive : C.line)} />
                     {visibilityToggle(showPassword, () => setShowPassword(v => !v), 'password', 'auth-password')}
                   </div>
                   {mode === 'signin' && (
@@ -357,9 +360,9 @@ function LoginPageInner() {
                           enterKeyHint="go"
                           placeholder="••••••••" autoComplete="new-password"
                           autoCapitalize="none" autoCorrect="off" spellCheck={false}
-                          style={{ ...inp(confirm), paddingRight: 72, borderColor: confirm && confirm !== password ? 'rgba(248,113,113,0.4)' : confirm && confirm === password ? 'rgba(74,222,128,0.4)' : confirm.trim() ? C.borderGold : C.border }}
-                          onFocus={e => (e.target.style.borderColor = 'rgba(201,168,76,0.4)')}
-                          onBlur={e => (e.target.style.borderColor = confirm && confirm !== password ? 'rgba(248,113,113,0.4)' : confirm && confirm === password ? 'rgba(74,222,128,0.4)' : C.border)} />
+                          style={{ ...inp(confirm), paddingRight: 72, borderColor: confirm && confirm !== password ? C.red : confirm && confirm === password ? C.green : confirm.trim() ? C.lineActive : C.line }}
+                          onFocus={e => (e.target.style.borderColor = C.lineActive)}
+                          onBlur={e => (e.target.style.borderColor = confirm && confirm !== password ? C.red : confirm && confirm === password ? C.green : C.line)} />
                         {visibilityToggle(showConfirm, () => setShowConfirm(v => !v), 'confirm password', 'auth-confirm')}
                       </div>
                       {confirm && password && confirm === password && (
@@ -473,7 +476,7 @@ function LoginPageInner() {
               </div>
             )}
 
-            <p style={{ textAlign: 'center', fontSize: 10, color: C.muted, letterSpacing: '0.18em', textTransform: 'uppercase', opacity: 0.5 }}>
+            <p style={{ textAlign: 'center', fontSize: 10, color: C.faint, letterSpacing: '0.18em', textTransform: 'uppercase' }}>
               {fromStart ? 'Free forever · No credit card' : 'Invite Only'}
             </p>
           </div>
@@ -500,8 +503,8 @@ function LoginPageInner() {
                         onKeyDown={e => e.key === 'Enter' && handleForgotPassword()}
                         placeholder="you@example.com" autoComplete="email"
                         style={inp(email)}
-                        onFocus={e => (e.target.style.borderColor = 'rgba(201,168,76,0.4)')}
-                        onBlur={e => (e.target.style.borderColor = email.trim() ? C.borderGold : C.border)} />
+                        onFocus={e => (e.target.style.borderColor = C.lineActive)}
+                        onBlur={e => (e.target.style.borderColor = email.trim() ? C.lineActive : C.line)} />
                     </div>
                     {forgotError && (
                       <div style={{ background: C.redDim, border: `1px solid rgba(248,113,113,0.2)`, borderRadius: 10, padding: '11px 14px' }}>
@@ -542,15 +545,15 @@ function LoginPageInner() {
                       <label style={lbl}>Email <span style={{ color: C.gold }}>*</span></label>
                       <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com"
                         style={inp(email)}
-                        onFocus={e => (e.target.style.borderColor = 'rgba(201,168,76,0.4)')}
-                        onBlur={e => (e.target.style.borderColor = email.trim() ? C.borderGold : C.border)} />
+                        onFocus={e => (e.target.style.borderColor = C.lineActive)}
+                        onBlur={e => (e.target.style.borderColor = email.trim() ? C.lineActive : C.line)} />
                     </div>
                     <div>
                       <label style={lbl}>Full name <span style={{ color: C.gold }}>*</span></label>
                       <input type="text" value={waitlistName} onChange={e => setWaitlistName(e.target.value)} placeholder="e.g. John Smith"
                         style={inp(waitlistName)}
-                        onFocus={e => (e.target.style.borderColor = 'rgba(201,168,76,0.4)')}
-                        onBlur={e => (e.target.style.borderColor = waitlistName.trim() ? C.borderGold : C.border)} />
+                        onFocus={e => (e.target.style.borderColor = C.lineActive)}
+                        onBlur={e => (e.target.style.borderColor = waitlistName.trim() ? C.lineActive : C.line)} />
                     </div>
                     <div>
                       <label style={lbl}>What best describes you? <span style={{ color: C.gold }}>*</span></label>
@@ -582,8 +585,8 @@ function LoginPageInner() {
                       <textarea value={waitlistNote} onChange={e => setWaitlistNote(e.target.value)}
                         placeholder="e.g. Cover band, 3 nights a week in Nashville..." rows={3}
                         style={{ ...inp(waitlistNote), resize: 'none', lineHeight: 1.5 } as React.CSSProperties}
-                        onFocus={e => (e.target as HTMLTextAreaElement).style.borderColor = 'rgba(201,168,76,0.4)'}
-                        onBlur={e => (e.target as HTMLTextAreaElement).style.borderColor = waitlistNote.trim() ? C.borderGold : C.border} />
+                        onFocus={e => (e.target as HTMLTextAreaElement).style.borderColor = C.lineActive}
+                        onBlur={e => (e.target as HTMLTextAreaElement).style.borderColor = waitlistNote.trim() ? C.lineActive : C.line} />
                     </div>
                     {waitlistError && (
                       <div style={{ background: C.redDim, border: `1px solid rgba(248,113,113,0.2)`, borderRadius: 10, padding: '11px 14px' }}>
@@ -604,7 +607,7 @@ function LoginPageInner() {
                 ← Back to sign in
               </button>
             )}
-            <p style={{ textAlign: 'center', fontSize: 10, color: C.muted, letterSpacing: '0.18em', textTransform: 'uppercase', opacity: 0.5, marginTop: 16 }}>
+            <p style={{ textAlign: 'center', fontSize: 10, color: C.faint, letterSpacing: '0.18em', textTransform: 'uppercase', marginTop: 16 }}>
               Invite Only
             </p>
           </div>
@@ -618,7 +621,7 @@ function LoginPageInner() {
         @keyframes fadeIn { from{opacity:0} to{opacity:1} }
         @keyframes spin   { to{transform:rotate(360deg)} }
         * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
-        input::placeholder, textarea::placeholder { color: #6a6050; }
+        input::placeholder, textarea::placeholder { color: #958976; }
         .sl-terms input:focus-visible + .sl-terms-box { outline: 2px solid #c9a84c; outline-offset: 2px; }
         .sl-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
         /* Autofill (iOS Keychain/Contacts, Chrome): the UA paints a pale

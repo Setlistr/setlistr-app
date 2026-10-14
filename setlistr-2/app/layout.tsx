@@ -3,6 +3,8 @@ import './globals.css'
 import GoogleAnalytics from '@/components/GoogleAnalytics'
 import Script from 'next/script'
 import { organizationSchema, softwareApplicationSchema, websiteSchema } from '@/lib/schema'
+import { APPEARANCE_BOOT_SCRIPT } from '@/lib/appearance'
+import AppearanceSync from '@/components/AppearanceSync'
 
 export const metadata: Metadata = {
   title: {
@@ -89,9 +91,13 @@ const NATIVE_IOS_VIEWPORT_FIT = `(function(){try{var w=window;if(!(w.webkit&&w.w
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    // suppressHydrationWarning: the appearance boot script sets
+    // data-appearance on <html> before hydration (this element only).
+    <html lang="en" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: NATIVE_IOS_VIEWPORT_FIT }} />
+        {/* Before first paint: Light/Dark for themed /app screens (lib/appearance.ts). */}
+        <script dangerouslySetInnerHTML={{ __html: APPEARANCE_BOOT_SCRIPT }} />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
@@ -113,6 +119,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script dangerouslySetInnerHTML={{ __html: `!function(key) {if (window.reb2b) return;window.reb2b = {loaded: true};var s = document.createElement("script");s.async = true;s.src = "https://ddwl4m2hdecbv.cloudfront.net/b/" + key + "/" + key + ".js.gz";document.getElementsByTagName("script")[0].parentNode.insertBefore(s, document.getElementsByTagName("script")[0]);}("1N5W0H7VG8O5");` }} />
       </head>
       <body>
+        <AppearanceSync />
         <GoogleAnalytics />
         <Script
           id="warmly-script-loader"

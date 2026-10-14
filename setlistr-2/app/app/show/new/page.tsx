@@ -13,17 +13,17 @@ import 'mapbox-gl/dist/mapbox-gl.css'
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
 
 const CARD = {
-  background: 'linear-gradient(180deg, #171512 0%, #121009 100%)',
-  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04)',
+  background: 'var(--sl-card-bg)',
+  boxShadow: 'var(--sl-card-inset)',
 }
 
 const C = {
-  bg: '#0a0908', card: '#141210', cardHover: '#181614',
-  border: 'rgba(255,255,255,0.07)', borderGold: 'rgba(201,168,76,0.3)',
-  input: '#0f0e0c', text: '#f0ece3', secondary: '#b8a888', muted: '#8a7a68',
-  gold: '#c9a84c', goldDim: 'rgba(201,168,76,0.1)',
-  green: '#4ade80', greenDim: 'rgba(74,222,128,0.08)',
-  red: '#f87171', redDim: 'rgba(248,113,113,0.08)',
+  bg: 'var(--sl-bg)', card: 'var(--sl-surface)', cardHover: 'var(--sl-surface-2)',
+  border: 'color-mix(in srgb, var(--sl-text) 7%, transparent)', borderGold: 'color-mix(in srgb, var(--sl-accent) 30%, transparent)',
+  input: 'var(--sl-input-bg)', text: 'var(--sl-text)', secondary: 'var(--sl-text-2)', muted: 'var(--sl-text-3)',
+  gold: 'var(--sl-accent)', goldDim: 'color-mix(in srgb, var(--sl-accent) 10%, transparent)',
+  green: 'var(--sl-ok)', greenDim: 'color-mix(in srgb, var(--sl-ok) 8%, transparent)',
+  red: 'var(--sl-danger)', redDim: 'color-mix(in srgb, var(--sl-danger) 8%, transparent)',
 }
 
 const ALLOWED_MIME_TYPES = [
@@ -173,12 +173,12 @@ function VenueMap({ venueName, city, country, onCoordsResolved }: { venueName: s
         attributionControl: false,
         scrollZoom: false,
       })
-      map.current.on('load', () => { map.current?.setPaintProperty('background', 'background-color', '#0a0908') })
+      map.current.on('load', () => { map.current?.setPaintProperty('background', 'background-color', '#0a0908') }) // map imagery: fixed
     } else {
       map.current.flyTo({ center: [coords.lng, coords.lat], zoom: 13 })
     }
     const el = document.createElement('div')
-    el.style.cssText = `width:16px;height:16px;border-radius:50%;background:#c9a84c;border:2px solid rgba(201,168,76,0.4);box-shadow:0 0 20px rgba(201,168,76,0.5);`
+    el.style.cssText = `width:16px;height:16px;border-radius:50%;background:#c9a84c;border:2px solid rgba(201,168,76,0.4);box-shadow:0 0 20px rgba(201,168,76,0.5);` // map imagery: fixed
     marker.current?.remove()
     marker.current = new mapboxgl.Marker(el).setLngLat([coords.lng, coords.lat]).addTo(map.current)
   }, [coords])
@@ -713,7 +713,7 @@ export default function NewShowPage() {
 
   return (
     <div style={{ minHeight: '100svh', background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px 20px' }}>
-      <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '50vh', pointerEvents: 'none', zIndex: 0, background: 'radial-gradient(ellipse at 50% 0%, rgba(201,168,76,0.07) 0%, transparent 65%)' }} />
+      <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '50vh', pointerEvents: 'none', zIndex: 0, background: 'var(--sl-page-glow)' }} />
 
       <input ref={cameraInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" capture="environment" style={{ display: 'none' }} onChange={handleFileChange} />
       <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp,application/pdf,text/plain" style={{ display: 'none' }} onChange={handleFileChange} />
@@ -725,7 +725,7 @@ export default function NewShowPage() {
           {[1, 2, 3].map(i => (
             <div key={i} style={{
               width: i === step ? 20 : 6, height: 6, borderRadius: 3,
-              background: i <= step ? C.gold : 'rgba(255,255,255,0.15)',
+              background: i <= step ? C.gold : 'color-mix(in srgb, var(--sl-text) 15%, transparent)',
               transition: 'all 0.25s ease',
             }} />
           ))}
@@ -744,12 +744,12 @@ export default function NewShowPage() {
             <button
               onClick={() => setCaptureChoice('live')}
               style={{ width: '100%', marginBottom: 10, padding: '20px 18px', background: C.gold, border: 'none', borderRadius: 16, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 14, textAlign: 'left' as const }}>
-              <div style={{ width: 42, height: 42, borderRadius: 12, background: 'rgba(10,9,8,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <MapPin size={19} color="#0a0908" />
+              <div style={{ width: 42, height: 42, borderRadius: 12, background: 'color-mix(in srgb, var(--sl-on-accent) 12%, transparent)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <MapPin size={19} style={{ color: 'var(--sl-on-accent)' }} />
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ fontSize: 16, fontWeight: 800, color: '#0a0908', margin: '0 0 2px' }}>Start Live Capture</p>
-                <p style={{ fontSize: 12.5, color: 'rgba(10,9,8,0.7)', margin: 0, lineHeight: 1.35 }}>Playing tonight — Setlistr listens as you go.</p>
+                <p style={{ fontSize: 16, fontWeight: 800, color: 'var(--sl-on-accent)', margin: '0 0 2px' }}>Start Live Capture</p>
+                <p style={{ fontSize: 12.5, color: 'color-mix(in srgb, var(--sl-on-accent) 85%, transparent)', margin: 0, lineHeight: 1.35 }}>Playing tonight — Setlistr listens as you go.</p>
               </div>
             </button>
 
@@ -757,7 +757,7 @@ export default function NewShowPage() {
               onClick={() => router.push('/app/upload/new')}
               style={{ width: '100%', padding: '20px 18px', background: CARD.background, border: `1px solid ${C.borderGold}`, borderRadius: 16, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 14, textAlign: 'left' as const, boxShadow: CARD.boxShadow }}>
               <div style={{ width: 42, height: 42, borderRadius: 12, background: C.goldDim, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <Upload size={19} color={C.gold} />
+                <Upload size={19} style={{ color: C.gold }} />
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <p style={{ fontSize: 16, fontWeight: 800, color: C.gold, margin: '0 0 2px' }}>Upload a Recording</p>
@@ -790,7 +790,7 @@ export default function NewShowPage() {
                     onFocus={() => { if (venueResults.length > 0) setShowDropdown(true) }}
                     placeholder="Venue or room name..."
                     spellCheck={false} autoCorrect="off" autoCapitalize="words"
-                    style={{ background: C.input, border: `1px solid ${venueSelected ? C.borderGold : venueQuery.trim() ? C.borderGold : C.border}`, borderRadius: 10, padding: '14px 40px 14px 16px', color: C.text, fontSize: 16, fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' as const, outline: 'none' }}
+                    style={{ background: C.input, border: `1px solid ${venueSelected ? 'var(--sl-input-line-active)' : venueQuery.trim() ? 'var(--sl-input-line-active)' : 'var(--sl-input-line)'}`, borderRadius: 10, padding: '14px 40px 14px 16px', color: C.text, fontSize: 16, fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' as const, outline: 'none' }}
                   />
                   <div style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center' }}>
                     {venueSearching
@@ -798,11 +798,11 @@ export default function NewShowPage() {
                       : isPrefilled
                       ? <button
                           onClick={clearPrefill}
-                          style={{ background: 'rgba(255,255,255,0.08)', border: 'none', color: C.secondary, cursor: 'pointer', width: 22, height: 22, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, fontFamily: 'inherit', fontSize: 15, lineHeight: '1' }}
+                          style={{ background: 'color-mix(in srgb, var(--sl-text) 8%, transparent)', border: 'none', color: C.secondary, cursor: 'pointer', width: 22, height: 22, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, fontFamily: 'inherit', fontSize: 15, lineHeight: '1' }}
                         >×</button>
                       : venueSelected
                       ? <span style={{ fontSize: 13, color: C.gold, pointerEvents: 'none' as const }}>✓</span>
-                      : <span style={{ pointerEvents: 'none' as const, display: 'flex' }}><Search size={13} color={C.muted} /></span>
+                      : <span style={{ pointerEvents: 'none' as const, display: 'flex' }}><Search size={13} style={{ color: C.muted }} /></span>
                     }
                   </div>
                 </div>
@@ -814,7 +814,7 @@ export default function NewShowPage() {
                     </p>
                     {venueMemory.songs && venueMemory.songs.length > 0 && plannedSongs.length === 0 && (
                       <button onClick={loadFromVenueMemory}
-                        style={{ fontSize: 13, fontWeight: 700, color: C.gold, background: 'rgba(201,168,76,0.15)', border: `1px solid ${C.borderGold}`, borderRadius: 6, padding: '6px 14px', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' as const }}>
+                        style={{ fontSize: 13, fontWeight: 700, color: C.gold, background: 'color-mix(in srgb, var(--sl-accent) 15%, transparent)', border: `1px solid ${C.borderGold}`, borderRadius: 6, padding: '6px 14px', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' as const }}>
                         Load that set →
                       </button>
                     )}
@@ -823,7 +823,7 @@ export default function NewShowPage() {
 
                 {showDropdown && venueResults.length > 0 && (
                   <div onMouseDown={e => e.preventDefault()}
-                    style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#1a1816', border: `1px solid ${C.borderGold}`, borderRadius: 10, marginTop: 4, zIndex: 50, overflow: 'hidden', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
+                    style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--sl-surface-2)', border: `1px solid ${C.borderGold}`, borderRadius: 10, marginTop: 4, zIndex: 50, overflow: 'hidden', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
                     {venueResults.map((v, i) => (
                       <button key={v.id} onMouseDown={() => selectVenue(v)}
                         style={{ width: '100%', padding: '11px 14px', background: 'transparent', border: 'none', borderBottom: i < venueResults.length - 1 ? `1px solid ${C.border}` : 'none', cursor: 'pointer', textAlign: 'left' as const, display: 'flex', flexDirection: 'column', gap: 2, fontFamily: 'inherit' }}
@@ -841,7 +841,7 @@ export default function NewShowPage() {
                 )}
 
                 {showDropdown && venueResults.length === 0 && venueQuery.trim().length >= 2 && !venueSearching && (
-                  <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#1a1816', border: `1px solid ${C.border}`, borderRadius: 10, marginTop: 4, zIndex: 50, padding: '12px 14px' }}>
+                  <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--sl-surface-2)', border: `1px solid ${C.border}`, borderRadius: 10, marginTop: 4, zIndex: 50, padding: '12px 14px' }}>
                     <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>New venue — we'll remember it.</p>
                   </div>
                 )}
@@ -863,7 +863,7 @@ export default function NewShowPage() {
                       onChange={e => setVenueCity(e.target.value)}
                       placeholder="City..."
                       spellCheck={false} autoCorrect="off" autoCapitalize="words"
-                      style={{ background: C.input, border: `1px solid ${venueCity.trim() ? C.borderGold : C.border}`, borderRadius: 10, padding: '14px 16px', color: C.text, fontSize: 16, fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' as const, outline: 'none' }}
+                      style={{ background: C.input, border: `1px solid ${venueCity.trim() ? 'var(--sl-input-line-active)' : 'var(--sl-input-line)'}`, borderRadius: 10, padding: '14px 16px', color: C.text, fontSize: 16, fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' as const, outline: 'none' }}
                     />
                   </div>
                 )}
@@ -895,13 +895,13 @@ export default function NewShowPage() {
             </div>
 
             {error && (
-              <div style={{ background: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.2)', borderRadius: 10, padding: '12px 14px', marginBottom: 14 }}>
-                <p style={{ fontSize: 13, color: '#f87171', margin: 0 }}>{error}</p>
+              <div style={{ background: 'color-mix(in srgb, var(--sl-danger) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--sl-danger) 20%, transparent)', borderRadius: 10, padding: '12px 14px', marginBottom: 14 }}>
+                <p style={{ fontSize: 13, color: 'var(--sl-danger)', margin: 0 }}>{error}</p>
               </div>
             )}
 
             <button onClick={goNext} disabled={!isValid}
-              style={{ width: '100%', padding: '18px', background: isValid ? C.gold : C.muted, border: 'none', borderRadius: 14, color: '#0a0908', fontSize: 15, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' as const, cursor: isValid ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit' }}>
+              style={{ width: '100%', padding: '18px', background: isValid ? C.gold : C.muted, border: 'none', borderRadius: 14, color: 'var(--sl-on-accent)', fontSize: 15, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' as const, cursor: isValid ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit' }}>
               Next <ArrowRight size={15} strokeWidth={2.5} />
             </button>
 
@@ -918,7 +918,7 @@ export default function NewShowPage() {
                 <button
                   type="button"
                   onClick={() => setShowType(showType === 'single' ? 'writers_round' : 'single')}
-                  style={{ display: 'flex', alignItems: 'center', gap: 8, background: showType === 'writers_round' ? C.goldDim : 'transparent', border: `1px solid ${showType === 'writers_round' ? C.borderGold : 'rgba(255,255,255,0.06)'}`, borderRadius: 10, padding: '10px 14px', cursor: 'pointer', fontFamily: 'inherit', width: '100%' }}>
+                  style={{ display: 'flex', alignItems: 'center', gap: 8, background: showType === 'writers_round' ? C.goldDim : 'transparent', border: `1px solid ${showType === 'writers_round' ? C.borderGold : 'color-mix(in srgb, var(--sl-text) 6%, transparent)'}`, borderRadius: 10, padding: '10px 14px', cursor: 'pointer', fontFamily: 'inherit', width: '100%' }}>
                   <span style={{ fontSize: 14, color: showType === 'writers_round' ? C.gold : C.muted }}>{showType === 'writers_round' ? '✓' : '○'}</span>
                   <div style={{ textAlign: 'left' as const }}>
                     <p style={{ fontSize: 13, fontWeight: 600, color: showType === 'writers_round' ? C.gold : C.secondary, margin: 0 }}>Writer's Round</p>
@@ -941,7 +941,7 @@ export default function NewShowPage() {
                       type="datetime-local"
                       value={scheduledAt}
                       onChange={e => setScheduledAt(e.target.value)}
-                      style={{ background: C.input, border: `1px solid ${scheduledAt ? C.borderGold : C.border}`, borderRadius: 10, padding: '12px 14px', color: C.text, fontSize: 14, fontFamily: 'inherit', width: '100%', colorScheme: 'dark' as const, outline: 'none' }}
+                      style={{ background: C.input, border: `1px solid ${scheduledAt ? 'var(--sl-input-line-active)' : 'var(--sl-input-line)'}`, borderRadius: 10, padding: '12px 14px', color: C.text, fontSize: 14, fontFamily: 'inherit', width: '100%', colorScheme: 'var(--sl-scheme)', outline: 'none' }}
                     />
                   </div>
                 )}
@@ -1011,7 +1011,7 @@ export default function NewShowPage() {
                   }}
                   disabled={uploading}
                   style={{ width: '100%', padding: '22px 16px', background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 14, cursor: uploading ? 'default' : 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, opacity: uploading ? 0.6 : 1, WebkitTapHighlightColor: 'transparent' }}>
-                  <Camera size={26} color={C.gold} strokeWidth={1.75} />
+                  <Camera size={26} strokeWidth={1.75} style={{ color: C.gold }} />
                   <span style={{ fontSize: 16, fontWeight: 800, color: C.gold }}>Photo setlist</span>
                   <span style={{ fontSize: 12, color: C.muted, textAlign: 'center' as const }}>
                     {plannedSongs.length > 0 ? `Add another page · ${plannedSongs.length} loaded` : 'Scan paper or screen'}
@@ -1029,8 +1029,8 @@ export default function NewShowPage() {
                 <button
                   onClick={() => { setUploadError(''); fileInputRef.current?.click() }}
                   disabled={uploading}
-                  style={{ flex: 1, padding: '14px 10px', background: 'rgba(255,255,255,0.02)', border: `1px solid ${C.border}`, borderRadius: 10, cursor: uploading ? 'default' : 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, opacity: uploading ? 0.5 : 1, WebkitTapHighlightColor: 'transparent' }}>
-                  <Upload size={16} color={C.secondary} strokeWidth={1.75} />
+                  style={{ flex: 1, padding: '14px 10px', background: 'color-mix(in srgb, var(--sl-text) 2%, transparent)', border: `1px solid ${C.border}`, borderRadius: 10, cursor: uploading ? 'default' : 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, opacity: uploading ? 0.5 : 1, WebkitTapHighlightColor: 'transparent' }}>
+                  <Upload size={16} strokeWidth={1.75} style={{ color: C.secondary }} />
                   <span style={{ fontSize: 12, fontWeight: 700, color: C.secondary }}>Upload Setlist Photo/PDF</span>
                   <span style={{ fontSize: 10, color: C.muted }}>Not audio — a PDF or photo from your library</span>
                 </button>
@@ -1038,8 +1038,8 @@ export default function NewShowPage() {
                 {/* 4. Pick from your catalog */}
                 <button
                   onClick={() => setSetlistMode(setlistMode === 'quick' ? null : 'quick')}
-                  style={{ flex: 1, padding: '14px 10px', background: setlistMode === 'quick' ? C.goldDim : 'rgba(255,255,255,0.02)', border: `1px solid ${setlistMode === 'quick' ? C.borderGold : C.border}`, borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, WebkitTapHighlightColor: 'transparent' }}>
-                  <ListMusic size={16} color={setlistMode === 'quick' ? C.gold : C.secondary} strokeWidth={1.75} />
+                  style={{ flex: 1, padding: '14px 10px', background: setlistMode === 'quick' ? C.goldDim : 'color-mix(in srgb, var(--sl-text) 2%, transparent)', border: `1px solid ${setlistMode === 'quick' ? C.borderGold : C.border}`, borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, WebkitTapHighlightColor: 'transparent' }}>
+                  <ListMusic size={16} strokeWidth={1.75} style={{ color: setlistMode === 'quick' ? C.gold : C.secondary }} />
                   <span style={{ fontSize: 12, fontWeight: 700, color: setlistMode === 'quick' ? C.gold : C.secondary }}>Pick from catalog</span>
                   <span style={{ fontSize: 10, color: C.muted }}>Your songs</span>
                 </button>
@@ -1053,7 +1053,7 @@ export default function NewShowPage() {
               )}
 
               {uploadError && (
-                <div style={{ margin: '10px 16px 0', padding: '10px 12px', background: C.redDim, border: '1px solid rgba(248,113,113,0.2)', borderRadius: 8 }}>
+                <div style={{ margin: '10px 16px 0', padding: '10px 12px', background: C.redDim, border: '1px solid color-mix(in srgb, var(--sl-danger) 20%, transparent)', borderRadius: 8 }}>
                   <p style={{ fontSize: 12, color: C.red, margin: 0 }}>{uploadError}</p>
                 </div>
               )}
@@ -1068,16 +1068,16 @@ export default function NewShowPage() {
                         onChange={e => setQuickSearch(e.target.value)}
                         placeholder="Search your songs..."
                         autoFocus spellCheck={false} autoCorrect="off" autoCapitalize="words"
-                        style={{ width: '100%', background: C.input, border: `1px solid ${C.border}`, borderRadius: 8, padding: '9px 12px 9px 30px', color: C.text, fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' as const }} />
+                        style={{ width: '100%', background: C.input, border: `1px solid var(--sl-input-line)`, borderRadius: 8, padding: '9px 12px 9px 30px', color: C.text, fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' as const }} />
                     </div>
 
                     {filteredRecent.length > 0 && (
                       <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: 6, marginBottom: 12 }}>
                         {filteredRecent.slice(0, 20).map((song, i) => (
                           <button key={i} onClick={() => addPlannedSong(song.title, song.artist)}
-                            style={{ padding: '6px 12px', background: 'rgba(255,255,255,0.04)', border: `1px solid ${C.border}`, borderRadius: 20, color: C.secondary, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 5 }}
+                            style={{ padding: '6px 12px', background: 'color-mix(in srgb, var(--sl-text) 4%, transparent)', border: `1px solid ${C.border}`, borderRadius: 20, color: C.secondary, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 5 }}
                             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = C.goldDim; (e.currentTarget as HTMLElement).style.borderColor = C.borderGold; (e.currentTarget as HTMLElement).style.color = C.gold }}
-                            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.04)'; (e.currentTarget as HTMLElement).style.borderColor = C.border; (e.currentTarget as HTMLElement).style.color = C.secondary }}>
+                            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'color-mix(in srgb, var(--sl-text) 4%, transparent)'; (e.currentTarget as HTMLElement).style.borderColor = C.border; (e.currentTarget as HTMLElement).style.color = C.secondary }}>
                             <Plus size={10} />{song.title}
                           </button>
                         ))}
@@ -1109,7 +1109,7 @@ export default function NewShowPage() {
                   </p>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                     {plannedSongs.map((song, i) => (
-                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', background: 'rgba(255,255,255,0.02)', border: `1px solid ${C.border}`, borderRadius: 8 }}>
+                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', background: 'color-mix(in srgb, var(--sl-text) 2%, transparent)', border: `1px solid ${C.border}`, borderRadius: 8 }}>
                         <span style={{ fontSize: 11, color: C.muted, minWidth: 18, fontFamily: '"DM Mono", monospace', fontWeight: 700 }}>{i + 1}</span>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <p style={{ fontSize: 13, fontWeight: 600, color: C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{song.title}</p>
@@ -1122,7 +1122,7 @@ export default function NewShowPage() {
                       </div>
                     ))}
                   </div>
-                  <div style={{ marginTop: 10, padding: '10px 12px', background: C.greenDim, border: '1px solid rgba(74,222,128,0.2)', borderRadius: 8 }}>
+                  <div style={{ marginTop: 10, padding: '10px 12px', background: C.greenDim, border: '1px solid color-mix(in srgb, var(--sl-ok) 20%, transparent)', borderRadius: 8 }}>
                     <p style={{ fontSize: 14, color: C.green, margin: 0, lineHeight: 1.4 }}>
                       ✓ We'll listen for these. Review what was played vs planned after the show.
                     </p>
@@ -1132,8 +1132,8 @@ export default function NewShowPage() {
             </div>
 
             {error && (
-              <div style={{ background: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.2)', borderRadius: 10, padding: '12px 14px', marginBottom: 14 }}>
-                <p style={{ fontSize: 13, color: '#f87171', margin: 0 }}>{error}</p>
+              <div style={{ background: 'color-mix(in srgb, var(--sl-danger) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--sl-danger) 20%, transparent)', borderRadius: 10, padding: '12px 14px', marginBottom: 14 }}>
+                <p style={{ fontSize: 13, color: 'var(--sl-danger)', margin: 0 }}>{error}</p>
               </div>
             )}
 
@@ -1144,9 +1144,9 @@ export default function NewShowPage() {
 
                 {plannedSongs.length > 0 ? (
                   <button onClick={handleSubmit} disabled={!isValid || loading}
-                    style={{ width: '100%', padding: '18px', background: isValid ? C.gold : C.muted, border: 'none', borderRadius: 14, color: '#0a0908', fontSize: 15, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' as const, cursor: isValid && !loading ? 'pointer' : 'not-allowed', opacity: loading ? 0.7 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit' }}>
+                    style={{ width: '100%', padding: '18px', background: isValid ? C.gold : C.muted, border: 'none', borderRadius: 14, color: 'var(--sl-on-accent)', fontSize: 15, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' as const, cursor: isValid && !loading ? 'pointer' : 'not-allowed', opacity: loading ? 0.7 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit' }}>
                     {loading
-                      ? <><div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid #0a090840', borderTopColor: '#0a0908', animation: 'spin 0.7s linear infinite' }} />Starting...</>
+                      ? <><div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid color-mix(in srgb, var(--sl-on-accent) 25%, transparent)', borderTopColor: 'var(--sl-on-accent)', animation: 'spin 0.7s linear infinite' }} />Starting...</>
                       : <>Start <ArrowRight size={15} strokeWidth={2.5} /></>}
                   </button>
                 ) : (
@@ -1185,7 +1185,7 @@ export default function NewShowPage() {
                           onMouseEnter={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = C.cardHover }}
                           onMouseLeave={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = C.card }}>
                           <div style={{ width: 20, height: 20, borderRadius: '50%', flexShrink: 0, background: isSelected ? C.gold : 'transparent', border: `1px solid ${isSelected ? C.gold : C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            {isSelected && <Check size={11} color="#0a0908" strokeWidth={3} />}
+                            {isSelected && <Check size={11} strokeWidth={3} style={{ color: 'var(--sl-on-accent)' }} />}
                           </div>
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <p style={{ fontSize: 13, fontWeight: 600, color: isSelected ? C.gold : C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{perf.venue_name}</p>
@@ -1202,9 +1202,9 @@ export default function NewShowPage() {
                 {selectedPast && (
                   <div style={{ marginTop: 12 }}>
                     <button onClick={handleClone} disabled={!isValid || cloning}
-                      style={{ width: '100%', padding: '15px', background: isValid ? C.gold : C.muted, border: 'none', borderRadius: 12, color: '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' as const, cursor: isValid && !cloning ? 'pointer' : 'not-allowed', opacity: cloning ? 0.7 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit' }}>
+                      style={{ width: '100%', padding: '15px', background: isValid ? C.gold : C.muted, border: 'none', borderRadius: 12, color: 'var(--sl-on-accent)', fontSize: 13, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' as const, cursor: isValid && !cloning ? 'pointer' : 'not-allowed', opacity: cloning ? 0.7 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit' }}>
                       {cloning
-                        ? <><div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid #0a090840', borderTopColor: '#0a0908', animation: 'spin 0.7s linear infinite' }} />Cloning...</>
+                        ? <><div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid color-mix(in srgb, var(--sl-on-accent) 25%, transparent)', borderTopColor: 'var(--sl-on-accent)', animation: 'spin 0.7s linear infinite' }} />Cloning...</>
                         : <><RefreshCw size={14} />Use this set →</>}
                     </button>
                   </div>
@@ -1237,9 +1237,9 @@ export default function NewShowPage() {
               <button
                 onClick={() => { setShowSkipConfirm(false); handleSubmit() }}
                 disabled={!isValid || loading}
-                style={{ flex: 1, padding: '14px', background: C.gold, border: 'none', borderRadius: 12, color: '#0a0908', fontSize: 13, fontWeight: 800, cursor: isValid && !loading ? 'pointer' : 'not-allowed', opacity: loading ? 0.7 : 1, fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                style={{ flex: 1, padding: '14px', background: C.gold, border: 'none', borderRadius: 12, color: 'var(--sl-on-accent)', fontSize: 13, fontWeight: 800, cursor: isValid && !loading ? 'pointer' : 'not-allowed', opacity: loading ? 0.7 : 1, fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
                 {loading
-                  ? <><div style={{ width: 12, height: 12, borderRadius: '50%', border: '2px solid #0a090840', borderTopColor: '#0a0908', animation: 'spin 0.7s linear infinite' }} />Starting...</>
+                  ? <><div style={{ width: 12, height: 12, borderRadius: '50%', border: '2px solid color-mix(in srgb, var(--sl-on-accent) 25%, transparent)', borderTopColor: 'var(--sl-on-accent)', animation: 'spin 0.7s linear infinite' }} />Starting...</>
                   : 'Skip anyway'}
               </button>
             </div>
@@ -1255,8 +1255,8 @@ export default function NewShowPage() {
         @keyframes sheetUp { from{transform:translateY(100%)} to{transform:translateY(0)} }
         @keyframes spin    { to{transform:rotate(360deg)} }
         * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
-        input::placeholder { color: #6a6050; }
-        input:focus { border-color: rgba(201,168,76,0.4) !important; outline: none; }
+        input::placeholder { color: var(--sl-text-4); }
+        input:focus { border-color: var(--sl-input-line-active) !important; outline: none; }
         input[type="datetime-local"]::-webkit-calendar-picker-indicator { filter: invert(0.5); cursor: pointer; }
         .mapboxgl-ctrl-bottom-left, .mapboxgl-ctrl-bottom-right, .mapboxgl-ctrl-top-right { display: none !important; }
         .mapboxgl-canvas { border-radius: 12px !important; }

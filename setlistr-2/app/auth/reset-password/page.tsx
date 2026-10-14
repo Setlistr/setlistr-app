@@ -11,6 +11,9 @@ const C = {
   gold: '#c9a84c', goldDim: 'rgba(201,168,76,0.1)',
   red: '#f87171', redDim: 'rgba(248,113,113,0.08)',
   green: '#4ade80', greenDim: 'rgba(74,222,128,0.08)',
+  // Always-dark auth: field boundaries reach 3:1 at rest (line) and when
+  // focused or filled (lineActive).
+  line: '#6e6656', lineActive: '#a68a3e',
 }
 
 type Status = 'checking' | 'ready' | 'invalid' | 'success'
@@ -100,7 +103,7 @@ function ResetPasswordInner() {
   const inp = (val: string): React.CSSProperties => ({
     width: '100%', boxSizing: 'border-box' as const,
     background: C.input,
-    border: `1px solid ${val.trim() ? C.borderGold : C.border}`,
+    border: `1px solid ${val.trim() ? C.lineActive : C.line}`,
     borderRadius: 10, padding: '12px 14px',
     color: C.text, fontSize: 14, fontFamily: 'inherit',
     transition: 'border-color 0.15s ease', outline: 'none',
@@ -173,8 +176,8 @@ function ResetPasswordInner() {
                       onKeyDown={e => e.key === 'Enter' && handleSetPassword()}
                       placeholder="At least 8 characters" autoComplete="new-password"
                       style={inp(password)}
-                      onFocus={e => (e.target.style.borderColor = 'rgba(201,168,76,0.4)')}
-                      onBlur={e => (e.target.style.borderColor = password.trim() ? C.borderGold : C.border)} />
+                      onFocus={e => (e.target.style.borderColor = C.lineActive)}
+                      onBlur={e => (e.target.style.borderColor = password.trim() ? C.lineActive : C.line)} />
                   </div>
 
                   <div>
@@ -182,9 +185,9 @@ function ResetPasswordInner() {
                     <input type="password" value={confirm} onChange={e => setConfirm(e.target.value)}
                       onKeyDown={e => e.key === 'Enter' && handleSetPassword()}
                       placeholder="••••••••" autoComplete="new-password"
-                      style={{ ...inp(confirm), borderColor: confirm && confirm !== password ? 'rgba(248,113,113,0.4)' : confirm && confirm === password ? 'rgba(74,222,128,0.4)' : confirm.trim() ? C.borderGold : C.border }}
-                      onFocus={e => (e.target.style.borderColor = 'rgba(201,168,76,0.4)')}
-                      onBlur={e => (e.target.style.borderColor = confirm && confirm !== password ? 'rgba(248,113,113,0.4)' : confirm && confirm === password ? 'rgba(74,222,128,0.4)' : C.border)} />
+                      style={{ ...inp(confirm), borderColor: confirm && confirm !== password ? C.red : confirm && confirm === password ? C.green : confirm.trim() ? C.lineActive : C.line }}
+                      onFocus={e => (e.target.style.borderColor = C.lineActive)}
+                      onBlur={e => (e.target.style.borderColor = confirm && confirm !== password ? C.red : confirm && confirm === password ? C.green : C.line)} />
                     {confirm && password && confirm === password && (
                       <p style={{ fontSize: 11, color: C.green, margin: '4px 0 0' }}>✓ Passwords match</p>
                     )}
@@ -216,7 +219,7 @@ function ResetPasswordInner() {
         @keyframes fadeIn { from{opacity:0} to{opacity:1} }
         @keyframes spin   { to{transform:rotate(360deg)} }
         * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
-        input::placeholder { color: #6a6050; }
+        input::placeholder { color: #958976; }
       `}</style>
     </div>
   )
