@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import Image from 'next/image'
 import Link from 'next/link'
 import WaitlistForm from '@/components/WaitlistForm'
+import { BrandLogo } from '@/components/BrandLogo'
 import ProductTour from '@/components/ProductTour'
 
 export const metadata: Metadata = {
@@ -79,32 +80,48 @@ export default function HomePage() {
         .sl-stat { flex: 1; padding: 32px 0; text-align: center; border-right: 1px solid rgba(255,255,255,0.06); }
         .sl-stat:last-child { border-right: none; }
 
+        .sl-mobile-links { display: none; }
+        .sl-mobile-links a { display: flex; align-items: center; height: 100%; white-space: nowrap; }
+
+        /* Phone/tablet: the app shell's own header geometry (56px bar, 16px
+           gutters — components/layout/AppShell.tsx) with touch-sized
+           buttons. Safe-area terms are env() with a 0px fallback: they
+           resolve to 0 unless the page opts into viewport-fit=cover, so
+           they never double up with the browser's own insetting. */
         @media (max-width: 820px) {
           .sl-nav-link { display: none !important; }
           .sl-mobile-links { display: flex !important; }
           .sl-stats { flex-direction: column; }
           .sl-stat { border-right: none; border-bottom: 1px solid rgba(255,255,255,0.06); }
           .sl-stat:last-child { border-bottom: none; }
-          .sl-logo { height: 26px !important; }
-          .sl-nav { height: 60px !important; padding: 0 18px !important; }
-          .sl-btn-signin { padding: 8px 12px !important; font-size: 10px !important; }
+          .sl-nav {
+            height: calc(56px + env(safe-area-inset-top, 0px)) !important;
+            padding-left: max(16px, env(safe-area-inset-left, 0px)) !important;
+            padding-right: max(16px, env(safe-area-inset-right, 0px)) !important;
+          }
+          .sl-nav-actions { gap: 8px !important; }
+          /* = BRAND_LOGO_APP_INSET: wordmark at x≈28, same as the app header */
+          .sl-brand-link { margin-left: 12px; }
+          .sl-btn-signin {
+            position: relative; display: inline-flex; align-items: center;
+            min-height: 38px; padding: 0 12px !important; letter-spacing: .08em !important;
+          }
+          /* Extends the tap area to ≥44px tall without a taller visual button. */
+          .sl-btn-signin::after { content: ''; position: absolute; left: 0; right: 0; top: -5px; bottom: -5px; }
           .sl-btn-apply { display: none !important; }
           .sl-mobile-links { gap: 20px !important; }
         }
-        @media (max-width: 400px) {
-          .sl-logo { height: 20px !important; }
-          .sl-nav { padding: 0 14px !important; }
-          .sl-nav-actions { gap: 6px !important; }
-          .sl-btn-signin { padding: 8px 9px !important; letter-spacing: .08em !important; }
-          .sl-mobile-links { gap: 14px !important; padding: 0 10px !important; }
-          .sl-mobile-links a { font-size: 10px !important; letter-spacing: .08em !important; white-space: nowrap; }
+        @media (max-width: 440px) {
+          .sl-mobile-links { gap: 16px !important; }
+          .sl-mobile-links a { font-size: 10px !important; letter-spacing: .08em !important; }
         }
-        @media (max-width: 340px) {
-          .sl-logo { height: 16px !important; }
-          .sl-mobile-links { gap: 10px !important; }
+        @media (max-width: 359px) {
+          .sl-brand-link { margin-left: 0; }
+          .sl-nav-actions { gap: 6px !important; }
+          .sl-btn-signin { padding: 0 9px !important; font-size: 10px !important; letter-spacing: .04em !important; }
+          .sl-mobile-links { gap: 10px !important; padding-left: 12px !important; padding-right: 12px !important; }
           .sl-mobile-links a { letter-spacing: .03em !important; }
         }
-        .sl-mobile-links { display: none; }
 
         input::placeholder { color: #3a3028 !important; }
       `}</style>
@@ -115,14 +132,14 @@ export default function HomePage() {
       {/* ── NAV ── */}
       <header className="sl-nav" style={{
         position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100,
-        height: 72, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '0 40px',
+        height: 'calc(72px + env(safe-area-inset-top, 0px))', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: 'env(safe-area-inset-top, 0px) max(40px, env(safe-area-inset-right, 0px)) 0 max(40px, env(safe-area-inset-left, 0px))',
         background: 'rgba(8,7,6,0.82)',
         backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)',
         borderBottom: '1px solid rgba(255,255,255,0.05)',
       }}>
-        <Link href="/" style={{ textDecoration: 'none', display: 'flex' }}>
-          <Image className="sl-logo" src="/logo-white-tight.png" alt="Setlistr" width={190} height={36} priority style={{ height: 36, width: 'auto', objectFit: 'contain' }} />
+        <Link href="/" className="sl-brand-link" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', minHeight: 44, flexShrink: 0 }}>
+          <BrandLogo priority />
         </Link>
         <nav className="sl-nav-actions" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <Link href="/get-paid" className="sl-nav-link" style={{ marginRight: 8 }}>For Artists</Link>
@@ -135,9 +152,9 @@ export default function HomePage() {
 
       {/* ── MOBILE LINK BAR (below nav, keeps For Artists / How It Works reachable) ── */}
       <div className="sl-mobile-links" style={{
-        position: 'fixed', top: 60, left: 0, right: 0, zIndex: 99,
+        position: 'fixed', top: 'calc(56px + env(safe-area-inset-top, 0px))', left: 0, right: 0, zIndex: 99,
         alignItems: 'center', justifyContent: 'center', gap: 28,
-        height: 42, padding: '0 18px',
+        height: 46, padding: '0 max(16px, env(safe-area-inset-right, 0px)) 0 max(16px, env(safe-area-inset-left, 0px))',
         background: 'rgba(8,7,6,0.82)',
         backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)',
         borderBottom: '1px solid rgba(255,255,255,0.05)',
@@ -153,7 +170,7 @@ export default function HomePage() {
         <section style={{
           minHeight: '78vh', display: 'flex', flexDirection: 'column',
           alignItems: 'center', justifyContent: 'center',
-          textAlign: 'center', padding: '128px 24px 0',
+          textAlign: 'center', padding: 'calc(128px + env(safe-area-inset-top, 0px)) 24px 0',
         }}>
           <div style={{
             display: 'inline-flex', alignItems: 'center', gap: 10,

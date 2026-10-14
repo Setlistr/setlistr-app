@@ -1,11 +1,12 @@
 'use client'
 import { useState, Suspense } from 'react'
+import { flushSync } from 'react-dom'
 import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { submitWaitlistEntry } from '@/lib/waitlist'
 import { sanitizeNextPath } from '@/lib/nextPathGuard'
-import Image from 'next/image'
 import Link from 'next/link'
+import { BrandLogo, BRAND_LOGO_APP_INSET } from '@/components/BrandLogo'
 
 const WAITLIST_ROLE_OPTIONS = ['Artist', 'Songwriter', 'Manager', 'Publisher', 'Label', 'Booking agent', 'Other']
 const WAITLIST_PRO_OPTIONS = ['SOCAN', 'ASCAP', 'BMI', 'PRS', 'APRA', 'SESAC', 'GMR', 'Other', 'Not sure', 'None']
@@ -125,8 +126,10 @@ function LoginPageInner() {
     })
     if (error) {
       if (error.message.toLowerCase().includes('already')) {
-        setError('An account with this email already exists. Sign in instead.')
+        // switchMode clears error/success, so it runs first — the other order
+        // wiped this message before it was ever shown.
         switchMode('signin')
+        setError('An account with this email already exists. Sign in instead.')
       } else {
         setError(error.message)
       }
@@ -136,8 +139,8 @@ function LoginPageInner() {
     // Try to sign in immediately
     const { error: signInErr } = await supabase.auth.signInWithPassword({ email: email.trim(), password })
     if (signInErr) {
-      setSuccess('Account created! Check your email to confirm, then sign in.')
       switchMode('signin')
+      setSuccess('Account created! Check your email to confirm, then sign in.')
     } else {
       // Project has email confirmation disabled, so signUp signed the user
       // in immediately — same invite-preservation as the confirmation-
@@ -195,13 +198,13 @@ function LoginPageInner() {
     width: '100%', boxSizing: 'border-box' as const,
     background: C.input,
     border: `1px solid ${val.trim() ? C.borderGold : C.border}`,
-    borderRadius: 10, padding: '12px 14px',
-    color: C.text, fontSize: 14, fontFamily: 'inherit',
+    borderRadius: 10, padding: '13px 14px',
+    color: C.text, fontSize: 16, fontFamily: 'inherit',
     transition: 'border-color 0.15s ease', outline: 'none',
   })
 
   const lbl: React.CSSProperties = {
-    fontSize: 10, fontWeight: 700, letterSpacing: '0.13em',
+    fontSize: 11, fontWeight: 700, letterSpacing: '0.13em',
     textTransform: 'uppercase', color: C.muted,
     display: 'block', marginBottom: 6,
   }
@@ -209,10 +212,28 @@ function LoginPageInner() {
   // Show/Hide for a password input. Only the input's `type` changes, so the
   // controlled value (and the caret's field) is kept. type="button" so it
   // never submits; aria-pressed + a label naming the field for screen readers.
+  // preventDefault on mousedown keeps focus (and the phone keyboard) in the
+  // field when tapped; Tab still reaches the button for keyboard users.
+  // Changing an input's type resets its caret to 0, so the next typed
+  // character would land at the START of the password — the caret is saved,
+  // the type change is committed synchronously, then the caret is restored.
   const visibilityToggle = (shown: boolean, toggle: () => void, field: string, controls: string) => (
-    <button type="button" className="sl-pw-toggle" onClick={toggle}
+    <button type="button" className="sl-pw-toggle" onMouseDown={e => e.preventDefault()}
+      onClick={() => {
+        const el = document.getElementById(controls) as HTMLInputElement | null
+        const caret = el && document.activeElement === el ? [el.selectionStart, el.selectionEnd] as const : null
+        flushSync(toggle)
+        if (!el || !caret || caret[0] === null || caret[1] === null) return
+        const [start, end] = caret
+        // The browser rebuilds the field on layout after a type change and
+        // resets the caret then — force that layout first, and re-apply once
+        // more on the next frame in case an engine defers it further.
+        const restore = () => { if (document.activeElement === el) { void el.offsetWidth; el.setSelectionRange(start, end) } }
+        restore()
+        requestAnimationFrame(restore)
+      }}
       aria-label={`${shown ? 'Hide' : 'Show'} ${field}`} aria-pressed={shown} aria-controls={controls}
-      style={{ position: 'absolute', top: 0, right: 0, bottom: 0, minWidth: 64, padding: '0 14px', background: 'none', border: 'none', borderRadius: '0 10px 10px 0', color: C.secondary, fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'inherit' }}>
+      style={{ position: 'absolute', top: 0, right: 0, bottom: 0, minWidth: 64, padding: '0 14px', background: 'none', border: 'none', borderRadius: '0 10px 10px 0', color: C.secondary, fontSize: 12, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'inherit' }}>
       {shown ? 'Hide' : 'Show'}
     </button>
   )
@@ -225,21 +246,38 @@ function LoginPageInner() {
   const signInDisabled = loading || !email.trim() || !password.trim()
 
   return (
-    <div style={{ minHeight: '100svh', background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px 20px' }}>
+    <div style={{ minHeight: '100svh', background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif', display: 'flex', flexDirection: 'column' }}>
 
       <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '55vh', pointerEvents: 'none', zIndex: 0, background: 'radial-gradient(ellipse at 50% 0%, rgba(201,168,76,0.07) 0%, transparent 65%)' }} />
 
-      <div style={{ width: '100%', maxWidth: 400, position: 'relative', zIndex: 1 }}>
+      {/* Header — same geometry and wordmark size as the app shell's header
+          (components/layout/AppShell.tsx). env() terms are 0 unless the page
+          opts into viewport-fit=cover, so they never double the browser's
+          own safe-area insetting. */}
+      <header style={{
+        position: 'relative', zIndex: 1, flexShrink: 0,
+        height: 'calc(56px + env(safe-area-inset-top, 0px))',
+        padding: 'env(safe-area-inset-top, 0px) max(16px, env(safe-area-inset-right, 0px)) 0 max(16px, env(safe-area-inset-left, 0px))',
+        display: 'flex', alignItems: 'center',
+        borderBottom: '1px solid rgba(255,255,255,0.05)',
+      }}>
+        <Link href="/" aria-label="Setlistr home" style={{ display: 'flex', alignItems: 'center', minHeight: 44, marginLeft: BRAND_LOGO_APP_INSET, textDecoration: 'none' }}>
+          <BrandLogo priority />
+        </Link>
+      </header>
 
-        {/* Logo */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 32, animation: 'fadeUp 0.3s ease' }}>
-          <Image src="/logo-white.png" alt="Setlistr" width={200} height={52} priority style={{ marginBottom: 10 }} />
-          <p style={{ fontSize: 10, color: C.muted, letterSpacing: '0.25em', textTransform: 'uppercase', margin: 0 }}>Your verified live career starts here.</p>
-        </div>
+      <main className="sl-auth-main" style={{
+        flex: 1, position: 'relative', zIndex: 1,
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+        padding: '32px max(16px, env(safe-area-inset-right, 0px)) calc(32px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px))',
+      }}>
+      <div style={{ width: '100%', maxWidth: 400 }}>
+
+        <p className="sl-auth-tagline" style={{ fontSize: 10, color: C.muted, letterSpacing: '0.25em', textTransform: 'uppercase', margin: '0 0 20px', textAlign: 'center', animation: 'fadeUp 0.3s ease' }}>Your verified live career starts here.</p>
 
         {!showWaitlist && !showForgotPassword ? (
           <div style={{ animation: 'fadeUp 0.35s ease' }}>
-            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 18, padding: '24px', marginBottom: 12 }}>
+            <div className="sl-auth-card" style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 18, padding: '24px', marginBottom: 12 }}>
 
               {fromStart && (
                 <div style={{ background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 10, padding: '10px 14px', marginBottom: 20 }}>
@@ -251,7 +289,7 @@ function LoginPageInner() {
               <div role="group" aria-label="Choose sign in or create account" style={{ display: 'flex', gap: 4, background: 'rgba(255,255,255,0.03)', border: `1px solid ${C.border}`, borderRadius: 10, padding: 4, marginBottom: 20 }}>
                 {(['signin', 'signup'] as Mode[]).map(m => (
                   <button key={m} type="button" className="sl-auth-tab" onClick={() => switchMode(m)} aria-pressed={mode === m}
-                    style={{ flex: 1, padding: '10px 8px', border: mode === m ? `1px solid ${C.borderGold}` : '1px solid transparent', borderRadius: 7, background: mode === m ? C.goldDim : 'transparent', color: mode === m ? C.gold : C.secondary, fontSize: 12, fontWeight: 700, letterSpacing: '0.05em', cursor: 'pointer', transition: 'all 0.15s ease', fontFamily: 'inherit' }}>
+                    style={{ flex: 1, minHeight: 44, padding: '10px 8px', border: mode === m ? `1px solid ${C.borderGold}` : '1px solid transparent', borderRadius: 7, background: mode === m ? C.goldDim : 'transparent', color: mode === m ? C.gold : C.secondary, fontSize: 13, fontWeight: 700, letterSpacing: '0.04em', cursor: 'pointer', transition: 'all 0.15s ease', fontFamily: 'inherit' }}>
                     {m === 'signin' ? 'Sign In' : 'Create Account'}
                   </button>
                 ))}
@@ -264,12 +302,18 @@ function LoginPageInner() {
                 {mode === 'signin' ? 'Welcome back. Use the email and password for your account.' : 'New here? Set up your account with your email and a password.'}
               </p>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {/* A real <form>: Enter / the phone keyboard's Go key submit
+                  natively, and password managers recognise the sign-in and
+                  new-account forms. noValidate keeps validation in the
+                  handlers exactly as before. */}
+              <form onSubmit={mode === 'signin' ? handleSignIn : handleSignUp} noValidate
+                aria-label={mode === 'signin' ? 'Sign in' : 'Create account'}
+                style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                 <div>
                   <label htmlFor="auth-email" style={lbl}>Email</label>
-                  <input id="auth-email" type="email" value={email} onChange={e => setEmail(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && (mode === 'signin' ? handleSignIn() : handleSignUp())}
-                    placeholder="you@example.com" autoComplete="email"
+                  <input id="auth-email" name="email" type="email" inputMode="email" value={email} onChange={e => setEmail(e.target.value)}
+                    placeholder="you@example.com" autoComplete="username"
+                    autoCapitalize="none" autoCorrect="off" spellCheck={false} enterKeyHint="next"
                     style={inp(email)}
                     onFocus={e => (e.target.style.borderColor = 'rgba(201,168,76,0.4)')}
                     onBlur={e => (e.target.style.borderColor = email.trim() ? C.borderGold : C.border)} />
@@ -278,8 +322,8 @@ function LoginPageInner() {
                 <div>
                   <label htmlFor="auth-password" style={lbl}>Password</label>
                   <div style={{ position: 'relative' }}>
-                    <input id="auth-password" type={showPassword ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)}
-                      onKeyDown={e => e.key === 'Enter' && mode === 'signin' && handleSignIn()}
+                    <input id="auth-password" name="password" type={showPassword ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)}
+                      enterKeyHint={mode === 'signin' ? 'go' : 'next'}
                       placeholder={mode === 'signup' ? 'At least 6 characters' : '••••••••'}
                       autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
                       autoCapitalize="none" autoCorrect="off" spellCheck={false}
@@ -289,11 +333,11 @@ function LoginPageInner() {
                     {visibilityToggle(showPassword, () => setShowPassword(v => !v), 'password', 'auth-password')}
                   </div>
                   {mode === 'signin' && (
-                    <div style={{ textAlign: 'right', marginTop: 6 }}>
-                      <button type="button" onClick={() => { setForgotError(''); setForgotDone(false); setShowForgotPassword(true) }}
-                        style={{ background: 'none', border: 'none', color: C.muted, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', padding: 0, letterSpacing: '0.02em' }}
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 2 }}>
+                      <button type="button" className="sl-auth-switch" onClick={() => { setForgotError(''); setForgotDone(false); setShowForgotPassword(true) }}
+                        style={{ minHeight: 44, display: 'inline-flex', alignItems: 'center', background: 'none', border: 'none', color: C.secondary, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', padding: '0 0 0 12px', letterSpacing: '0.02em' }}
                         onMouseEnter={e => (e.currentTarget.style.color = C.gold)}
-                        onMouseLeave={e => (e.currentTarget.style.color = C.muted)}>
+                        onMouseLeave={e => (e.currentTarget.style.color = C.secondary)}>
                         Forgot password?
                       </button>
                     </div>
@@ -305,8 +349,8 @@ function LoginPageInner() {
                     <div>
                       <label htmlFor="auth-confirm" style={lbl}>Confirm Password</label>
                       <div style={{ position: 'relative' }}>
-                        <input id="auth-confirm" type={showConfirm ? 'text' : 'password'} value={confirm} onChange={e => setConfirm(e.target.value)}
-                          onKeyDown={e => e.key === 'Enter' && handleSignUp()}
+                        <input id="auth-confirm" name="confirm-password" type={showConfirm ? 'text' : 'password'} value={confirm} onChange={e => setConfirm(e.target.value)}
+                          enterKeyHint="go"
                           placeholder="••••••••" autoComplete="new-password"
                           autoCapitalize="none" autoCorrect="off" spellCheck={false}
                           style={{ ...inp(confirm), paddingRight: 72, borderColor: confirm && confirm !== password ? 'rgba(248,113,113,0.4)' : confirm && confirm === password ? 'rgba(74,222,128,0.4)' : confirm.trim() ? C.borderGold : C.border }}
@@ -315,27 +359,31 @@ function LoginPageInner() {
                         {visibilityToggle(showConfirm, () => setShowConfirm(v => !v), 'confirm password', 'auth-confirm')}
                       </div>
                       {confirm && password && confirm === password && (
-                        <p style={{ fontSize: 11, color: C.green, margin: '4px 0 0' }}>✓ Passwords match</p>
+                        <p style={{ fontSize: 13, color: C.green, margin: '6px 0 0' }}>✓ Passwords match</p>
                       )}
                       {confirm && password && confirm !== password && (
-                        <p style={{ fontSize: 11, color: C.red, margin: '4px 0 0' }}>Passwords don&apos;t match</p>
+                        <p style={{ fontSize: 13, color: C.red, margin: '6px 0 0' }}>Passwords don&apos;t match</p>
                       )}
                     </div>
 
-                    {/* ── Terms & Privacy consent ── */}
-                    <div
-                      onClick={() => setTermsAccepted(v => !v)}
+                    {/* ── Terms & Privacy consent ── a <label> around a real
+                        checkbox (visually replaced by the custom box), so the
+                        whole row is the tap target and Space toggles it. */}
+                    <label
+                      className="sl-terms"
                       style={{
                         display: 'flex', alignItems: 'flex-start', gap: 10,
                         background: termsAccepted ? 'rgba(201,168,76,0.06)' : 'rgba(255,255,255,0.02)',
                         border: `1px solid ${termsAccepted ? C.borderGold : C.border}`,
                         borderRadius: 10, padding: '12px 14px',
                         cursor: 'pointer', transition: 'all 0.15s ease',
-                        marginTop: 2,
+                        marginTop: 2, position: 'relative',
                       }}
                     >
-                      <div style={{
-                        width: 16, height: 16, borderRadius: 4, flexShrink: 0, marginTop: 1,
+                      <input type="checkbox" checked={termsAccepted} onChange={e => setTermsAccepted(e.target.checked)}
+                        style={{ position: 'absolute', opacity: 0, width: 1, height: 1, margin: 0, pointerEvents: 'none' }} />
+                      <span aria-hidden="true" className="sl-terms-box" style={{
+                        width: 18, height: 18, borderRadius: 4, flexShrink: 0, marginTop: 1,
                         background: termsAccepted ? C.gold : 'transparent',
                         border: `1.5px solid ${termsAccepted ? C.gold : C.muted}`,
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -346,8 +394,8 @@ function LoginPageInner() {
                             <path d="M1 3.5L4 6.5L9 1" stroke="#0a0908" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
                           </svg>
                         )}
-                      </div>
-                      <p style={{ fontSize: 12, color: C.secondary, margin: 0, lineHeight: 1.55 }}>
+                      </span>
+                      <span style={{ fontSize: 13, color: C.secondary, margin: 0, lineHeight: 1.55 }}>
                         I agree to the{' '}
                         <Link
                           href="/terms"
@@ -366,38 +414,39 @@ function LoginPageInner() {
                         >
                           Privacy Policy
                         </Link>
-                      </p>
-                    </div>
+                      </span>
+                    </label>
                   </>
                 )}
 
                 {error && (
-                  <div style={{ background: C.redDim, border: `1px solid rgba(248,113,113,0.2)`, borderRadius: 10, padding: '11px 14px' }}>
-                    <p style={{ fontSize: 13, color: C.red, margin: 0 }}>{error}</p>
+                  <div role="alert" style={{ background: C.redDim, border: `1px solid rgba(248,113,113,0.2)`, borderRadius: 10, padding: '11px 14px' }}>
+                    <p style={{ fontSize: 14, color: C.red, margin: 0, lineHeight: 1.45 }}>{error}</p>
                   </div>
                 )}
 
                 {success && (
-                  <div style={{ background: C.greenDim, border: `1px solid rgba(74,222,128,0.2)`, borderRadius: 10, padding: '11px 14px' }}>
-                    <p style={{ fontSize: 13, color: C.green, margin: 0 }}>{success}</p>
+                  <div role="status" style={{ background: C.greenDim, border: `1px solid rgba(74,222,128,0.2)`, borderRadius: 10, padding: '11px 14px' }}>
+                    <p style={{ fontSize: 14, color: C.green, margin: 0, lineHeight: 1.45 }}>{success}</p>
                   </div>
                 )}
 
                 <button
-                  onClick={mode === 'signin' ? handleSignIn : handleSignUp}
+                  type="submit"
                   disabled={mode === 'signin' ? signInDisabled : signUpDisabled}
-                  style={{ width: '100%', padding: '13px', background: C.gold, border: 'none', borderRadius: 10, color: '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: (mode === 'signin' ? signInDisabled : signUpDisabled) ? 'not-allowed' : 'pointer', opacity: (mode === 'signin' ? signInDisabled : signUpDisabled) ? 0.6 : 1, transition: 'opacity 0.2s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit', marginTop: 4 }}>
+                  aria-busy={loading}
+                  style={{ width: '100%', minHeight: 50, padding: '13px', background: C.gold, border: 'none', borderRadius: 10, color: '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: (mode === 'signin' ? signInDisabled : signUpDisabled) ? 'not-allowed' : 'pointer', opacity: (mode === 'signin' ? signInDisabled : signUpDisabled) ? 0.6 : 1, transition: 'opacity 0.2s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit', marginTop: 4 }}>
                   {loading ? <><Spinner />{mode === 'signin' ? 'Signing in...' : 'Creating account...'}</> : mode === 'signin' ? 'Sign In' : 'Create Account'}
                 </button>
 
-                <p style={{ fontSize: 12, color: C.muted, margin: 0, textAlign: 'center' }}>
+                <p style={{ fontSize: 13, color: C.muted, margin: 0, textAlign: 'center' }}>
                   {mode === 'signin' ? 'New to Setlistr?' : 'Already have an account?'}{' '}
                   <button type="button" className="sl-auth-switch" onClick={() => switchMode(mode === 'signin' ? 'signup' : 'signin')}
-                    style={{ background: 'none', border: 'none', padding: 0, color: C.gold, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                    style={{ minHeight: 44, display: 'inline-flex', alignItems: 'center', background: 'none', border: 'none', padding: '0 4px', color: C.gold, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
                     {mode === 'signin' ? 'Create an account' : 'Sign in instead'}
                   </button>
                 </p>
-              </div>
+              </form>
             </div>
 
             {/* Waitlist CTA */}
@@ -408,7 +457,7 @@ function LoginPageInner() {
                   Setlistr is invite-only. Request access and we&apos;ll reach out.
                 </p>
                 <button onClick={() => setShowWaitlist(true)}
-                  style={{ width: '100%', padding: '11px', background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 10, color: C.gold, fontSize: 12, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer', transition: 'all 0.15s ease', fontFamily: 'inherit' }}
+                  style={{ width: '100%', minHeight: 44, padding: '11px', background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 10, color: C.gold, fontSize: 12, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer', transition: 'all 0.15s ease', fontFamily: 'inherit' }}
                   onMouseEnter={e => (e.currentTarget.style.background = 'rgba(201,168,76,0.15)')}
                   onMouseLeave={e => (e.currentTarget.style.background = C.goldDim)}>
                   Request Access
@@ -423,7 +472,7 @@ function LoginPageInner() {
 
         ) : showForgotPassword ? (
           <div style={{ animation: 'fadeUp 0.35s ease' }}>
-            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 18, padding: '28px 24px', marginBottom: 12 }}>
+            <div className="sl-auth-card" style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 18, padding: '28px 24px', marginBottom: 12 }}>
               {forgotDone ? (
                 <div style={{ textAlign: 'center', padding: '16px 0' }}>
                   <div style={{ width: 56, height: 56, borderRadius: '50%', margin: '0 auto 18px', background: C.goldDim, border: `1px solid ${C.borderGold}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }} />
@@ -460,14 +509,14 @@ function LoginPageInner() {
               )}
             </div>
             <button onClick={() => { setShowForgotPassword(false); setForgotError(''); setForgotDone(false) }}
-              style={{ width: '100%', background: 'none', border: 'none', color: C.muted, fontSize: 12, cursor: 'pointer', letterSpacing: '0.04em', fontFamily: 'inherit', padding: '10px', textAlign: 'center' }}>
+              style={{ width: '100%', minHeight: 44, background: 'none', border: 'none', color: C.secondary, fontSize: 13, cursor: 'pointer', letterSpacing: '0.04em', fontFamily: 'inherit', padding: '10px', textAlign: 'center' }}>
               ← Back to sign in
             </button>
           </div>
 
         ) : (
           <div style={{ animation: 'fadeUp 0.35s ease' }}>
-            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 18, padding: '28px 24px', marginBottom: 12 }}>
+            <div className="sl-auth-card" style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 18, padding: '28px 24px', marginBottom: 12 }}>
               {waitlistDone ? (
                 <div style={{ textAlign: 'center', padding: '16px 0' }}>
                   <div style={{ width: 56, height: 56, borderRadius: '50%', margin: '0 auto 18px', background: C.goldDim, border: `1px solid ${C.borderGold}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }} />
@@ -503,7 +552,7 @@ function LoginPageInner() {
                           const selected = waitlistRoles.includes(key)
                           return (
                             <button key={role} type="button" onClick={() => toggleWaitlistRole(role)}
-                              style={{ padding: '8px 14px', background: selected ? C.goldDim : 'transparent', border: `1px solid ${selected ? C.borderGold : C.border}`, borderRadius: 8, color: selected ? C.gold : C.secondary, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s ease' }}>
+                              style={{ minHeight: 44, padding: '8px 14px', background: selected ? C.goldDim : 'transparent', border: `1px solid ${selected ? C.borderGold : C.border}`, borderRadius: 8, color: selected ? C.gold : C.secondary, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s ease' }}>
                               {role}
                             </button>
                           )
@@ -543,7 +592,7 @@ function LoginPageInner() {
             </div>
             {!waitlistDone && (
               <button onClick={() => setShowWaitlist(false)}
-                style={{ width: '100%', background: 'none', border: 'none', color: C.muted, fontSize: 12, cursor: 'pointer', letterSpacing: '0.04em', fontFamily: 'inherit', padding: '10px', textAlign: 'center' }}>
+                style={{ width: '100%', minHeight: 44, background: 'none', border: 'none', color: C.secondary, fontSize: 13, cursor: 'pointer', letterSpacing: '0.04em', fontFamily: 'inherit', padding: '10px', textAlign: 'center' }}>
                 ← Back to sign in
               </button>
             )}
@@ -553,6 +602,7 @@ function LoginPageInner() {
           </div>
         )}
       </div>
+      </main>
 
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500;700&display=swap');
@@ -561,6 +611,14 @@ function LoginPageInner() {
         @keyframes spin   { to{transform:rotate(360deg)} }
         * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
         input::placeholder, textarea::placeholder { color: #6a6050; }
+        .sl-terms input:focus-visible + .sl-terms-box { outline: 2px solid #c9a84c; outline-offset: 2px; }
+        /* Phones: top-aligned (so the keyboard opening doesn't re-centre the
+           form under the user's thumb), tighter card, no tagline. */
+        @media (max-width: 600px) {
+          .sl-auth-main { justify-content: flex-start !important; padding-top: 16px !important; }
+          .sl-auth-card { padding: 20px !important; border-radius: 16px !important; }
+          .sl-auth-tagline { display: none; }
+        }
         .sl-pw-toggle:hover, .sl-auth-tab:hover { color: #c9a84c !important; }
         .sl-auth-tab:focus-visible, .sl-auth-switch:focus-visible { outline: 2px solid #c9a84c; outline-offset: 2px; }
         .sl-pw-toggle:focus-visible { outline: 2px solid #c9a84c; outline-offset: -3px; }
