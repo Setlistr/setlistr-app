@@ -406,7 +406,7 @@ export default function HistoryPage() {
           <div style={{ position: 'relative', marginBottom: 10 }}>
             <Search size={14} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: C.muted, pointerEvents: 'none' }} />
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search venue, artist, or city..."
-              style={{ width: '100%', background: C.card, border: `1px solid ${search ? C.borderGold : C.border}`, borderRadius: 12, padding: '13px 16px 13px 44px', color: C.text, fontSize: 16, fontFamily: 'inherit', transition: 'border-color 0.15s ease', boxSizing: 'border-box' as const }} />
+              style={{ width: '100%', background: C.card, border: `1px solid ${search ? 'var(--sl-input-line-active)' : 'var(--sl-input-line)'}`, borderRadius: 12, padding: '13px 16px 13px 44px', color: C.text, fontSize: 16, fontFamily: 'inherit', transition: 'border-color 0.15s ease', boxSizing: 'border-box' as const }} />
           </div>
 
           {/* Status tabs — paddingRight (not just gap) so the last chip
@@ -457,7 +457,7 @@ export default function HistoryPage() {
                 <div key={label} style={{ flex: 1 }}>
                   <label style={{ fontSize: 10, color: C.muted, display: 'block', marginBottom: 5, letterSpacing: '0.1em', textTransform: 'uppercase' as const, fontWeight: 700 }}>{label}</label>
                   <input type="date" value={value} onChange={e => set(e.target.value)}
-                    style={{ width: '100%', background: C.input, border: `1px solid ${value ? C.borderGold : C.border}`, borderRadius: 8, padding: '9px 12px', color: C.text, fontSize: 13, fontFamily: 'inherit', colorScheme: 'var(--sl-scheme)', boxSizing: 'border-box' as const }} />
+                    style={{ width: '100%', background: C.input, border: `1px solid ${value ? 'var(--sl-input-line-active)' : 'var(--sl-input-line)'}`, borderRadius: 8, padding: '9px 12px', color: C.text, fontSize: 13, fontFamily: 'inherit', colorScheme: 'var(--sl-scheme)', boxSizing: 'border-box' as const }} />
                 </div>
               ))}
             </div>
@@ -583,7 +583,7 @@ export default function HistoryPage() {
         @keyframes breathe { 0%,100%{transform:scale(1);opacity:.3} 50%{transform:scale(1.2);opacity:.8} }
         * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
         input::placeholder { color: var(--sl-text-3); }
-        input:focus { border-color: color-mix(in srgb, var(--sl-accent) 40%, transparent) !important; outline: none; }
+        input:focus { border-color: var(--sl-input-line-active) !important; outline: none; }
         input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.5); cursor: pointer; }
 
         /* Shared with app/app/file — one calm, readable column at every

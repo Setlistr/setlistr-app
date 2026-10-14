@@ -11,7 +11,7 @@ const C = {
 }
 
 const inp: React.CSSProperties = {
-  background: C.input, border: `1px solid ${C.border}`, borderRadius: 8,
+  background: C.input, border: '1px solid var(--sl-input-line)', borderRadius: 8,
   padding: '10px 12px', color: C.text, fontSize: 14, outline: 'none',
   width: '100%', boxSizing: 'border-box' as const, fontFamily: 'inherit',
 }
@@ -29,8 +29,8 @@ function Field({ label, note, mono, ...props }: {
       <input
         {...props}
         style={{ ...inp, ...(mono ? { fontFamily: '"DM Mono", monospace', fontSize: 13 } : {}) }}
-        onFocus={e => (e.target.style.borderColor = C.borderGold)}
-        onBlur={e => (e.target.style.borderColor = C.border)}
+        onFocus={e => (e.target.style.borderColor = 'var(--sl-input-line-active)')}
+        onBlur={e => (e.target.style.borderColor = 'var(--sl-input-line)')}
       />
       {note && <p style={{ fontSize: 11, color: C.muted, margin: '4px 0 0' }}>{note}</p>}
     </div>
@@ -181,7 +181,7 @@ function SongIntelligenceSheet({
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20, marginTop: 8 }}>
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 20, padding: '5px 12px' }}>
             <span style={{ fontSize: 13, fontWeight: 800, color: C.gold, fontFamily: '"DM Mono", monospace' }}>{song.confirmed_count}×</span>
-            <span style={{ fontSize: 11, color: C.gold, opacity: 0.7 }}>verified performances</span>
+            <span style={{ fontSize: 11, color: C.gold }}>verified performances</span>
           </div>
           {song.confirmed_count === 0 && (
             <span style={{ fontSize: 11, color: C.muted }}>not yet performed</span>
@@ -273,7 +273,7 @@ function SongIntelligenceSheet({
             ].map(({ label, filled }) => (
               <div key={label} style={{ flex: 1, padding: '6px 8px', background: filled ? 'color-mix(in srgb, var(--sl-ok) 6%, transparent)' : 'color-mix(in srgb, var(--sl-text) 2%, transparent)', border: `1px solid ${filled ? 'color-mix(in srgb, var(--sl-ok) 20%, transparent)' : C.border}`, borderRadius: 8, textAlign: 'center' }}>
                 <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: filled ? C.green : C.muted, margin: 0 }}>{label}</p>
-                <p style={{ fontSize: 10, color: filled ? C.green : C.muted, margin: '2px 0 0', opacity: filled ? 1 : 0.5 }}>{filled ? '✓' : '—'}</p>
+                <p style={{ fontSize: 10, color: filled ? C.green : 'var(--sl-text-4)', margin: '2px 0 0' }}>{filled ? '✓' : '—'}</p>
               </div>
             ))}
           </div>
@@ -564,8 +564,8 @@ export default function MySongsTab({ userId }: { userId: string }) {
         onChange={e => setSearch(e.target.value)}
         placeholder="Search songs, artists, ISRCs..."
         style={{ ...inp, padding: '11px 14px', fontSize: 14 }}
-        onFocus={e => (e.target.style.borderColor = C.borderGold)}
-        onBlur={e => (e.target.style.borderColor = C.border)}
+        onFocus={e => (e.target.style.borderColor = 'var(--sl-input-line-active)')}
+        onBlur={e => (e.target.style.borderColor = 'var(--sl-input-line)')}
       />
 
       <div style={{ display: 'flex', gap: 6 }}>
@@ -610,10 +610,10 @@ export default function MySongsTab({ userId }: { userId: string }) {
                       <span style={{ fontSize: 11, color: C.gold, fontFamily: '"DM Mono", monospace' }}>×{song.confirmed_count}</span>
                     )}
                     {isDormant && (
-                      <span style={{ fontSize: 10, color: C.gold, opacity: 0.7 }}>{days}d since last play</span>
+                      <span style={{ fontSize: 10, color: C.gold }}>{days}d since last play</span>
                     )}
                     {!isDormant && (
-                      <span style={{ fontSize: 11, color: C.muted, opacity: 0.6 }}>
+                      <span style={{ fontSize: 11, color: 'var(--sl-text-4)' }}>
                         {song.source === 'manual_catalog' ? 'added' : song.source === 'spotify_import' ? 'Spotify' : timeAgo(song.last_confirmed_at)}
                       </span>
                     )}

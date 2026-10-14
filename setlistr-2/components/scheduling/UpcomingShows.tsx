@@ -370,7 +370,7 @@ function ScheduleForm({ artistId, existing, onClose, onSaved }: {
         <label style={{ fontSize: 11, fontWeight: 700, color: C.muted, display: 'block', marginBottom: 6 }}>Venue</label>
         <div style={{ position: 'relative', marginBottom: venueId ? 14 : 8 }}>
           <input value={venueQuery} onChange={e => { setVenueQuery(e.target.value); setVenueId(null); setVenueCity(''); setVenueCountry(''); searchVenues(e.target.value) }} placeholder="Search or enter a new venue"
-            style={{ width: '100%', background: 'var(--sl-input-bg)', border: `1px solid ${C.border}`, borderRadius: 10, padding: '11px 12px', color: C.text, fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' as const }} />
+            style={{ width: '100%', background: 'var(--sl-input-bg)', border: `1px solid var(--sl-input-line)`, borderRadius: 10, padding: '11px 12px', color: C.text, fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' as const }} />
           {showDropdown && venueResults.length > 0 && (
             <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: C.card2, border: `1px solid ${C.border}`, borderRadius: 10, marginTop: 4, zIndex: 10, maxHeight: 160, overflowY: 'auto' as const }}>
               {venueResults.map(v => {
@@ -397,18 +397,18 @@ function ScheduleForm({ artistId, existing, onClose, onSaved }: {
         {!venueId && venueQuery.trim() && (
           <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
             <input value={venueCity} onChange={e => setVenueCity(e.target.value)} placeholder="City"
-              style={{ flex: 1, background: 'var(--sl-input-bg)', border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 12px', color: C.text, fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' as const }} />
+              style={{ flex: 1, background: 'var(--sl-input-bg)', border: `1px solid var(--sl-input-line)`, borderRadius: 10, padding: '10px 12px', color: C.text, fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' as const }} />
             <input value={venueCountry} onChange={e => setVenueCountry(e.target.value)} placeholder="Country"
-              style={{ flex: 1, background: 'var(--sl-input-bg)', border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 12px', color: C.text, fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' as const }} />
+              style={{ flex: 1, background: 'var(--sl-input-bg)', border: `1px solid var(--sl-input-line)`, borderRadius: 10, padding: '10px 12px', color: C.text, fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' as const }} />
           </div>
         )}
 
         <label style={{ fontSize: 11, fontWeight: 700, color: C.muted, display: 'block', marginBottom: 6 }}>Date &amp; time (venue-local)</label>
         <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
           <input type="date" value={localDate} onChange={e => setLocalDate(e.target.value)} aria-label="Date"
-            style={{ flex: '1 1 55%', minWidth: 0, background: 'var(--sl-input-bg)', border: `1px solid ${C.border}`, borderRadius: 10, padding: '11px 10px', color: C.text, fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' as const, colorScheme: 'var(--sl-scheme)' }} />
+            style={{ flex: '1 1 55%', minWidth: 0, background: 'var(--sl-input-bg)', border: `1px solid var(--sl-input-line)`, borderRadius: 10, padding: '11px 10px', color: C.text, fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' as const, colorScheme: 'var(--sl-scheme)' }} />
           <input type="time" value={localTime} onChange={e => setLocalTime(e.target.value)} aria-label="Time"
-            style={{ flex: '1 1 45%', minWidth: 0, background: 'var(--sl-input-bg)', border: `1px solid ${C.border}`, borderRadius: 10, padding: '11px 10px', color: C.text, fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' as const, colorScheme: 'var(--sl-scheme)' }} />
+            style={{ flex: '1 1 45%', minWidth: 0, background: 'var(--sl-input-bg)', border: `1px solid var(--sl-input-line)`, borderRadius: 10, padding: '11px 10px', color: C.text, fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' as const, colorScheme: 'var(--sl-scheme)' }} />
         </div>
 
         <label style={{ fontSize: 11, fontWeight: 700, color: C.muted, display: 'block', marginBottom: 6 }}>Timezone</label>
@@ -524,7 +524,7 @@ function TimezoneCombobox({ value, onChange }: { value: string; onChange: (tz: s
         onChange={e => setQuery(e.target.value)}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
         placeholder="Search city or region…"
-        style={{ width: '100%', background: 'var(--sl-input-bg)', border: `1px solid ${C.border}`, borderRadius: 10, padding: '11px 12px', color: C.text, fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' as const }}
+        style={{ width: '100%', background: 'var(--sl-input-bg)', border: `1px solid var(--sl-input-line)`, borderRadius: 10, padding: '11px 12px', color: C.text, fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' as const }}
       />
       {open && (
         <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: C.card2, border: `1px solid ${C.border}`, borderRadius: 10, marginTop: 4, zIndex: 20, maxHeight: 220, overflowY: 'auto' as const }}>

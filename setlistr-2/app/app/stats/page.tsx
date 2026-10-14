@@ -335,7 +335,7 @@ export default function StatsPage() {
               style={{ flex: 1, padding: '9px', border: 'none', borderRadius: 9, background: tab === key ? C.goldDim : 'transparent', color: tab === key ? C.gold : C.muted, fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', cursor: 'pointer', transition: 'all 0.15s ease', fontFamily: 'inherit' }}>
               {label}
               {key === 'songs' && totalUniqueSongs > 0 && (
-                <span style={{ marginLeft: 6, fontSize: 10, opacity: 0.7 }}>{totalUniqueSongs}</span>
+                <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 500 }}>{totalUniqueSongs}</span>
               )}
             </button>
           ))}
@@ -373,7 +373,7 @@ export default function StatsPage() {
                     <>
                       <p style={{ fontSize: 32, fontWeight: 800, color: C.text, margin: 0, letterSpacing: '-0.02em' }}>{realTotalHours}</p>
                       <p style={{ fontSize: 11, letterSpacing: '0.04em', color: C.muted, margin: '3px 0 0' }}>Hours on Stage</p>
-                      <p style={{ fontSize: 10, color: C.muted, margin: '2px 0 0', opacity: 0.65 }}>from {N} timed shows</p>
+                      <p style={{ fontSize: 10, color: 'var(--sl-text-4)', margin: '2px 0 0' }}>from {N} timed shows</p>
                     </>
                   ) : firstShowLabel ? (
                     <>
@@ -411,7 +411,7 @@ export default function StatsPage() {
                   />
                 )}
                 {/* Night-map gradient overlay */}
-                <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, rgba(10,9,8,0.55) 0%, rgba(10,9,8,0.92) 100%)' }} />
+                <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, color-mix(in srgb, var(--sl-bg) 55%, transparent) 0%, color-mix(in srgb, var(--sl-bg) 92%, transparent) 100%)' }} />
                 {/* Fallback icon when no token */}
                 {!plainMapUrl && (
                   <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -446,7 +446,7 @@ export default function StatsPage() {
                       <p style={{ fontSize: 14, color: C.muted, margin: '6px 0 0', lineHeight: 1.5 }}>
                         Based on {totalSongs} song appearances across {totalShows} shows
                       </p>
-                      <p style={{ fontSize: 10, color: C.muted, margin: '4px 0 0', opacity: 0.8 }}>Estimate only, not guaranteed — actual payouts vary by PRO.</p>
+                      <p style={{ fontSize: 10, color: 'var(--sl-text-4)', margin: '4px 0 0' }}>Estimate only, not guaranteed — actual payouts vary by PRO.</p>
                     </div>
                   </div>
                 </div>

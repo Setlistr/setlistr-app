@@ -4,10 +4,11 @@ import { Users } from 'lucide-react'
 import { UpcomingShows } from '@/components/scheduling/UpcomingShows'
 import { useActingAs } from '@/components/ActingAsProvider'
 import { MANAGER_RETURN_KEY } from '@/components/layout/AppShell'
+import { isWriteCapableRole } from '@/lib/writeCapableRoles'
 
 const C = {
-  bg: '#0a0908', card: '#141210', border: 'rgba(255,255,255,0.07)', borderGold: 'rgba(201,168,76,0.25)',
-  text: '#f0ece3', secondary: '#b8a888', muted: '#8a7a68', gold: '#c9a84c', goldDim: 'rgba(201,168,76,0.1)',
+  bg: 'var(--sl-bg)', card: 'var(--sl-surface)', border: 'color-mix(in srgb, var(--sl-text) 7%, transparent)', borderGold: 'color-mix(in srgb, var(--sl-accent) 25%, transparent)',
+  text: 'var(--sl-text)', secondary: 'var(--sl-text-2)', muted: 'var(--sl-text-3)', gold: 'var(--sl-accent)', goldDim: 'color-mix(in srgb, var(--sl-accent) 10%, transparent)',
 }
 
 type ManagedArtist = { artist_id: string; artist_name: string; role: string; avatar_url?: string | null }
@@ -36,13 +37,13 @@ export default function ManagerSchedulePage() {
   useEffect(() => { load() }, [load])
 
   if (loading) {
-    return <div style={{ padding: '24px 20px', maxWidth: 880, margin: '0 auto' }} className="mgr-page"><div className="mgr-skeleton" style={{ width: 140, height: 28, borderRadius: 6 }} /><style>{`@keyframes mgrShimmer5 { 0% { background-position: -200px 0 } 100% { background-position: 200px 0 } } .mgr-skeleton { background: linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.08) 37%, rgba(255,255,255,0.04) 63%); background-size: 400px 100%; animation: mgrShimmer5 1.4s ease infinite; }`}</style></div>
+    return <div style={{ padding: '24px 20px', maxWidth: 880, margin: '0 auto' }} className="mgr-page"><div className="mgr-skeleton" style={{ width: 140, height: 28, borderRadius: 6 }} /><style>{`@keyframes mgrShimmer5 { 0% { background-position: -200px 0 } 100% { background-position: 200px 0 } } .mgr-skeleton { background: linear-gradient(90deg, color-mix(in srgb, var(--sl-text) 4%, transparent) 25%, color-mix(in srgb, var(--sl-text) 8%, transparent) 37%, color-mix(in srgb, var(--sl-text) 4%, transparent) 63%); background-size: 400px 100%; animation: mgrShimmer5 1.4s ease infinite; }`}</style></div>
   }
 
   if (managed.length === 0) {
     return (
       <div style={{ padding: '60px 24px', textAlign: 'center' as const, maxWidth: 380, margin: '0 auto' }}>
-        <Users size={32} color={C.muted} style={{ marginBottom: 16 }} />
+        <Users size={32} style={{ color: C.muted, marginBottom: 16 }} />
         <p style={{ color: C.text, fontSize: 17, fontWeight: 800, margin: '0 0 8px' }}>No connected artists yet</p>
         <p style={{ color: C.secondary, fontSize: 14, lineHeight: 1.5, margin: 0 }}>Once you're connected to an artist, their schedule will appear here.</p>
       </div>
@@ -72,7 +73,9 @@ export default function ManagerSchedulePage() {
         <UpcomingShows
           artistId={selected}
           artistName={managed.find(a => a.artist_id === selected)?.artist_name}
-          canManage={true}
+          // Same rule as Artist Detail: add/edit/cancel/start only for a
+          // write-capable role with this artist — never for a Viewer.
+          canManage={isWriteCapableRole(managed.find(a => a.artist_id === selected)?.role)}
           onBeforeStart={() => {
             const artist = managed.find(a => a.artist_id === selected)
             try { sessionStorage.setItem(MANAGER_RETURN_KEY, selected) } catch {}

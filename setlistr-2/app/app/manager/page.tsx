@@ -11,9 +11,9 @@ import {
 import { fetchCapturedShowsInRange } from '@/lib/managerFetch'
 
 const C = {
-  bg: '#0a0908', card: '#141210', card2: '#1a1814', border: 'rgba(255,255,255,0.07)', borderGold: 'rgba(201,168,76,0.25)',
-  text: '#f0ece3', secondary: '#b8a888', muted: '#8a7a68',
-  gold: '#c9a84c', goldDim: 'rgba(201,168,76,0.08)', green: '#4ade80', red: '#f87171',
+  bg: 'var(--sl-bg)', card: 'var(--sl-surface)', card2: 'var(--sl-surface-2)', border: 'color-mix(in srgb, var(--sl-text) 7%, transparent)', borderGold: 'color-mix(in srgb, var(--sl-accent) 25%, transparent)',
+  text: 'var(--sl-text)', secondary: 'var(--sl-text-2)', muted: 'var(--sl-text-3)',
+  gold: 'var(--sl-accent)', goldDim: 'color-mix(in srgb, var(--sl-accent) 8%, transparent)', green: 'var(--sl-ok)', red: 'var(--sl-danger)',
 }
 
 type ManagedArtist = { artist_id: string; artist_name: string; role: string; avatar_url?: string | null }
@@ -30,7 +30,7 @@ function initialsFor(name: string): string {
 
 function Avatar({ name, url, size = 36 }: { name: string; url?: string | null; size?: number }) {
   return (
-    <div style={{ width: size, height: size, borderRadius: '50%', background: 'linear-gradient(145deg, rgba(201,168,76,0.18), rgba(201,168,76,0.06))', border: `1px solid ${C.borderGold}`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
+    <div style={{ width: size, height: size, borderRadius: '50%', background: 'linear-gradient(145deg, color-mix(in srgb, var(--sl-accent) 18%, transparent), color-mix(in srgb, var(--sl-accent) 6%, transparent))', border: `1px solid ${C.borderGold}`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
       {url
         ? <img src={url} alt={name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
         : <span style={{ fontSize: size * 0.34, fontWeight: 800, color: C.gold }}>{initialsFor(name)}</span>}
@@ -97,7 +97,7 @@ function RequestArtistAccess() {
   return (
     <div style={{ padding: '60px 24px 40px', maxWidth: 420, margin: '0 auto' }}>
       <div style={{ textAlign: 'center' as const, marginBottom: 28 }}>
-        <Users size={32} color={C.muted} style={{ marginBottom: 16 }} />
+        <Users size={32} style={{ color: C.muted, marginBottom: 16 }} />
         <p style={{ color: C.text, fontSize: 17, fontWeight: 800, margin: '0 0 8px' }}>No connected artists yet</p>
         <p style={{ color: C.secondary, fontSize: 14, lineHeight: 1.5, margin: 0 }}>
           Request access using an artist's email — they'll need to approve it before anything connects. You can also be invited directly from an artist's own Settings.
@@ -109,9 +109,9 @@ function RequestArtistAccess() {
         <div style={{ display: 'flex', gap: 8 }}>
           <input value={email} onChange={e => setEmail(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()}
             placeholder="artist@email.com" type="email"
-            style={{ flex: 1, background: '#0f0e0c', border: `1px solid ${C.border}`, borderRadius: 10, padding: '11px 12px', color: C.text, fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' as const }} />
+            style={{ flex: 1, background: 'var(--sl-input-bg)', border: `1px solid var(--sl-input-line)`, borderRadius: 10, padding: '11px 12px', color: C.text, fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' as const }} />
           <button onClick={submit} disabled={submitting || !email.trim()}
-            style={{ padding: '11px 16px', background: email.trim() ? C.gold : 'rgba(255,255,255,0.04)', border: 'none', borderRadius: 10, color: email.trim() ? '#0a0908' : C.muted, fontSize: 13, fontWeight: 700, cursor: submitting || !email.trim() ? 'default' : 'pointer', fontFamily: 'inherit', flexShrink: 0, opacity: submitting ? 0.7 : 1 }}>
+            style={{ padding: '11px 16px', background: email.trim() ? C.gold : 'color-mix(in srgb, var(--sl-text) 4%, transparent)', border: 'none', borderRadius: 10, color: email.trim() ? 'var(--sl-on-accent)' : C.muted, fontSize: 13, fontWeight: 700, cursor: submitting || !email.trim() ? 'default' : 'pointer', fontFamily: 'inherit', flexShrink: 0, opacity: submitting ? 0.7 : 1 }}>
             {submitting ? '...' : 'Request'}
           </button>
         </div>
@@ -126,7 +126,7 @@ function RequestArtistAccess() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {requests.map(r => (
               <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: C.card, border: `1px solid ${C.border}`, borderRadius: 10 }}>
-                <Mail size={13} color={C.muted} style={{ flexShrink: 0 }} />
+                <Mail size={13} style={{ color: C.muted, flexShrink: 0 }} />
                 <span style={{ flex: 1, fontSize: 13, color: C.text, textAlign: 'left' as const, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.artist_name}</span>
                 <span style={{ fontSize: 11, fontWeight: 700, color: statusLabel[r.status].color, flexShrink: 0 }}>{statusLabel[r.status].text}</span>
               </div>
@@ -232,7 +232,7 @@ export default function ManagerOverviewPage() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
           {[0, 1, 2, 3].map(i => <div key={i} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '18px 20px' }}><SkeletonBlock width={60} height={14} /><div style={{ marginTop: 10 }}><SkeletonBlock width={40} /></div></div>)}
         </div>
-        <style>{`@keyframes mgrShimmer { 0% { background-position: -200px 0 } 100% { background-position: 200px 0 } } .mgr-skeleton { background: linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.08) 37%, rgba(255,255,255,0.04) 63%); background-size: 400px 100%; animation: mgrShimmer 1.4s ease infinite; } @media (prefers-reduced-motion: reduce) { .mgr-skeleton { animation: none; opacity: 0.5; } }`}</style>
+        <style>{`@keyframes mgrShimmer { 0% { background-position: -200px 0 } 100% { background-position: 200px 0 } } .mgr-skeleton { background: linear-gradient(90deg, color-mix(in srgb, var(--sl-text) 4%, transparent) 25%, color-mix(in srgb, var(--sl-text) 8%, transparent) 37%, color-mix(in srgb, var(--sl-text) 4%, transparent) 63%); background-size: 400px 100%; animation: mgrShimmer 1.4s ease infinite; } @media (prefers-reduced-motion: reduce) { .mgr-skeleton { animation: none; opacity: 0.5; } }`}</style>
       </div>
     )
   }
@@ -242,7 +242,7 @@ export default function ManagerOverviewPage() {
       <div style={{ padding: '60px 20px', textAlign: 'center' as const }}>
         <p style={{ color: C.text, fontSize: 16, fontWeight: 700, margin: '0 0 8px' }}>Couldn't load your roster</p>
         <p style={{ color: C.secondary, fontSize: 14, margin: '0 0 20px' }}>Nothing has been loaded. Try again.</p>
-        <button onClick={loadRoster} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 18px', background: C.gold, border: 'none', borderRadius: 10, color: '#0a0908', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
+        <button onClick={loadRoster} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 18px', background: C.gold, border: 'none', borderRadius: 10, color: 'var(--sl-on-accent)', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
           <RefreshCw size={14} /> Retry
         </button>
       </div>
@@ -273,8 +273,8 @@ export default function ManagerOverviewPage() {
         {RANGE_OPTIONS.map(opt => (
           <button key={opt.key} onClick={() => setRange(opt.key)} style={{
             padding: '6px 14px', borderRadius: 20, cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 700,
-            background: range === opt.key ? 'rgba(201,168,76,0.14)' : 'transparent',
-            border: `1px solid ${range === opt.key ? 'rgba(201,168,76,0.35)' : C.border}`,
+            background: range === opt.key ? 'color-mix(in srgb, var(--sl-accent) 14%, transparent)' : 'transparent',
+            border: `1px solid ${range === opt.key ? 'color-mix(in srgb, var(--sl-accent) 35%, transparent)' : C.border}`,
             color: range === opt.key ? C.gold : C.secondary,
             transition: 'background 0.15s ease, border-color 0.15s ease, color 0.15s ease',
           }}>
@@ -284,9 +284,9 @@ export default function ManagerOverviewPage() {
       </div>
 
       {rangeError && !rangeLoading && (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 24, padding: '12px 16px', background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.25)', borderRadius: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 24, padding: '12px 16px', background: 'color-mix(in srgb, var(--sl-danger) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--sl-danger) 25%, transparent)', borderRadius: 12 }}>
           <span style={{ fontSize: 13, color: C.red }}>Couldn't load activity for this range — the counts above aren't shown rather than risk showing zero when that isn't actually true.</span>
-          <button onClick={() => setRangeRetryTick(t => t + 1)} style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: 'transparent', border: `1px solid rgba(248,113,113,0.4)`, borderRadius: 8, color: C.red, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+          <button onClick={() => setRangeRetryTick(t => t + 1)} style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: 'transparent', border: `1px solid color-mix(in srgb, var(--sl-danger) 40%, transparent)`, borderRadius: 8, color: C.red, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
             <RefreshCw size={12} /> Retry
           </button>
         </div>
@@ -297,11 +297,11 @@ export default function ManagerOverviewPage() {
       {awaitingReviewCount > 0 && (
         <div style={{ marginBottom: 24, background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 14, overflow: 'hidden' }}>
           <button onClick={() => setShowReviewList(v => !v)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '14px 16px', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' as const }}>
-            <FileSearch size={15} color={C.gold} style={{ flexShrink: 0 }} />
+            <FileSearch size={15} style={{ color: C.gold, flexShrink: 0 }} />
             <span style={{ flex: 1, fontSize: 13, fontWeight: 700, color: C.text }}>
               {awaitingReviewCount} show{awaitingReviewCount === 1 ? '' : 's'} awaiting review this period — not yet finalized by the artist
             </span>
-            <ChevronRight size={14} color={C.gold} style={{ flexShrink: 0, transform: showReviewList ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s ease' }} />
+            <ChevronRight size={14} style={{ color: C.gold, flexShrink: 0, transform: showReviewList ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s ease' }} />
           </button>
           {showReviewList && (
             <div style={{ borderTop: `1px solid ${C.borderGold}` }}>
@@ -320,15 +320,15 @@ export default function ManagerOverviewPage() {
                       <span style={{ fontSize: 11, color: stillProcessing ? C.muted : C.gold, fontWeight: 700 }}>{stillProcessing ? 'Still processing' : 'Ready for review'}</span>
                     </div>
                     <span style={{ fontSize: 11, color: C.muted, flexShrink: 0, fontFamily: '"DM Mono", monospace' }}>{dateStr}</span>
-                    {!stillProcessing && <ChevronRight size={13} color={C.muted} style={{ flexShrink: 0 }} />}
+                    {!stillProcessing && <ChevronRight size={13} style={{ color: C.muted, flexShrink: 0 }} />}
                   </>
                 )
                 return stillProcessing ? (
-                  <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 16px', borderBottom: `1px solid rgba(201,168,76,0.12)` }}>
+                  <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 16px', borderBottom: `1px solid color-mix(in srgb, var(--sl-accent) 12%, transparent)` }}>
                     {rowContent}
                   </div>
                 ) : (
-                  <Link key={r.id} href={`/app/review/${r.id}`} className="mgr-row-hover" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 16px', textDecoration: 'none', borderBottom: `1px solid rgba(201,168,76,0.12)` }}>
+                  <Link key={r.id} href={`/app/review/${r.id}`} className="mgr-row-hover" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 16px', textDecoration: 'none', borderBottom: `1px solid color-mix(in srgb, var(--sl-accent) 12%, transparent)` }}>
                     {rowContent}
                   </Link>
                 )
@@ -373,7 +373,7 @@ export default function ManagerOverviewPage() {
                   <span style={{ fontSize: 11, fontWeight: 700, color: submitted ? C.green : C.muted, whiteSpace: 'nowrap' as const }}>
                     {submitted ? 'Marked Submitted' : 'Not submitted'}
                   </span>
-                  <ChevronRight size={14} color={C.muted} />
+                  <ChevronRight size={14} style={{ color: C.muted }} />
                 </div>
               </Link>
             )
@@ -388,7 +388,7 @@ export default function ManagerOverviewPage() {
         .mgr-row-hover { transition: background 0.12s ease; }
         .mgr-row-hover:hover { background: ${C.card2} !important; }
         @keyframes mgrShimmer { 0% { background-position: -200px 0 } 100% { background-position: 200px 0 } }
-        .mgr-skeleton { background: linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.08) 37%, rgba(255,255,255,0.04) 63%); background-size: 400px 100%; animation: mgrShimmer 1.4s ease infinite; border-radius: 6px; }
+        .mgr-skeleton { background: linear-gradient(90deg, color-mix(in srgb, var(--sl-text) 4%, transparent) 25%, color-mix(in srgb, var(--sl-text) 8%, transparent) 37%, color-mix(in srgb, var(--sl-text) 4%, transparent) 63%); background-size: 400px 100%; animation: mgrShimmer 1.4s ease infinite; border-radius: 6px; }
         @media (prefers-reduced-motion: reduce) {
           .mgr-stat-card, .mgr-row-hover, .mgr-skeleton { transition: none !important; animation: none !important; }
           a:has(.mgr-stat-card):hover .mgr-stat-card { transform: none; }

@@ -11,9 +11,9 @@ import {
 } from '@/lib/managerAnalytics'
 
 const C = {
-  bg: '#0a0908', card: '#141210', border: 'rgba(255,255,255,0.07)', borderGold: 'rgba(201,168,76,0.25)',
-  text: '#f0ece3', secondary: '#b8a888', muted: '#8a7a68',
-  gold: '#c9a84c', green: '#4ade80', red: '#f87171',
+  bg: 'var(--sl-bg)', card: 'var(--sl-surface)', border: 'color-mix(in srgb, var(--sl-text) 7%, transparent)', borderGold: 'color-mix(in srgb, var(--sl-accent) 25%, transparent)',
+  text: 'var(--sl-text)', secondary: 'var(--sl-text-2)', muted: 'var(--sl-text-3)',
+  gold: 'var(--sl-accent)', green: 'var(--sl-ok)', red: 'var(--sl-danger)',
 }
 
 type ManagedArtist = { artist_id: string; artist_name: string; role: string; avatar_url?: string | null }
@@ -148,7 +148,7 @@ export default function ManagerAnalyticsPage() {
         <div className="mgr-skeleton" style={{ width: 280, height: 14, borderRadius: 4, marginBottom: 24 }} />
         <div className="mgr-skeleton" style={{ width: '100%', maxWidth: 420, height: 36, borderRadius: 10, marginBottom: 24 }} />
         <div className="mgr-skeleton" style={{ width: '100%', height: 180, borderRadius: 14 }} />
-        <style>{`@keyframes mgrShimmer { 0% { background-position: -200px 0 } 100% { background-position: 200px 0 } } .mgr-skeleton { background: linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.08) 37%, rgba(255,255,255,0.04) 63%); background-size: 400px 100%; animation: mgrShimmer 1.4s ease infinite; } @media (prefers-reduced-motion: reduce) { .mgr-skeleton { animation: none; opacity: 0.5; } }`}</style>
+        <style>{`@keyframes mgrShimmer { 0% { background-position: -200px 0 } 100% { background-position: 200px 0 } } .mgr-skeleton { background: linear-gradient(90deg, color-mix(in srgb, var(--sl-text) 4%, transparent) 25%, color-mix(in srgb, var(--sl-text) 8%, transparent) 37%, color-mix(in srgb, var(--sl-text) 4%, transparent) 63%); background-size: 400px 100%; animation: mgrShimmer 1.4s ease infinite; } @media (prefers-reduced-motion: reduce) { .mgr-skeleton { animation: none; opacity: 0.5; } }`}</style>
       </div>
     )
   }
@@ -157,7 +157,7 @@ export default function ManagerAnalyticsPage() {
     return (
       <div style={{ padding: '60px 20px', textAlign: 'center' as const }}>
         <p style={{ color: C.text, fontSize: 16, fontWeight: 700, margin: '0 0 8px' }}>Couldn't load your roster</p>
-        <button onClick={loadRoster} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 18px', background: C.gold, border: 'none', borderRadius: 10, color: '#0a0908', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
+        <button onClick={loadRoster} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 18px', background: C.gold, border: 'none', borderRadius: 10, color: 'var(--sl-on-accent)', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
           <RefreshCw size={14} /> Retry
         </button>
       </div>
@@ -167,7 +167,7 @@ export default function ManagerAnalyticsPage() {
   if (managed.length === 0) {
     return (
       <div style={{ padding: '60px 24px', textAlign: 'center' as const, maxWidth: 380, margin: '0 auto' }}>
-        <BarChart3 size={32} color={C.muted} style={{ marginBottom: 16 }} />
+        <BarChart3 size={32} style={{ color: C.muted, marginBottom: 16 }} />
         <p style={{ color: C.text, fontSize: 17, fontWeight: 800, margin: '0 0 8px' }}>No connected artists yet</p>
         <p style={{ color: C.secondary, fontSize: 14, lineHeight: 1.5, margin: 0 }}>Analytics will appear here once you have at least one connected artist.</p>
       </div>
@@ -184,7 +184,7 @@ export default function ManagerAnalyticsPage() {
       {/* ── Controls: artist + shared date range ── */}
       <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: 10, marginBottom: 24 }}>
         <select value={artistFilter} onChange={e => setArtistFilter(e.target.value)} style={{
-          padding: '8px 12px', borderRadius: 10, background: C.card, border: `1px solid ${C.border}`,
+          padding: '8px 12px', borderRadius: 10, background: C.card, border: `1px solid var(--sl-input-line)`,
           color: C.text, fontSize: 13, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer',
         }}>
           <option value="all">All artists</option>
@@ -194,8 +194,8 @@ export default function ManagerAnalyticsPage() {
           {RANGE_OPTIONS.map(opt => (
             <button key={opt.key} onClick={() => setRange(opt.key)} style={{
               padding: '8px 14px', borderRadius: 20, cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 700,
-              background: range === opt.key ? 'rgba(201,168,76,0.14)' : 'transparent',
-              border: `1px solid ${range === opt.key ? 'rgba(201,168,76,0.35)' : C.border}`,
+              background: range === opt.key ? 'color-mix(in srgb, var(--sl-accent) 14%, transparent)' : 'transparent',
+              border: `1px solid ${range === opt.key ? 'color-mix(in srgb, var(--sl-accent) 35%, transparent)' : C.border}`,
               color: range === opt.key ? C.gold : C.secondary,
             }}>
               {opt.label}
@@ -205,9 +205,9 @@ export default function ManagerAnalyticsPage() {
       </div>
 
       {dataError && !dataLoading && (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 20, padding: '12px 16px', background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.25)', borderRadius: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 20, padding: '12px 16px', background: 'color-mix(in srgb, var(--sl-danger) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--sl-danger) 25%, transparent)', borderRadius: 12 }}>
           <span style={{ fontSize: 13, color: C.red }}>Couldn't load analytics for this filter — the figures below are not shown rather than risk showing stale or wrong ones.</span>
-          <button onClick={() => setDataRetryTick(t => t + 1)} style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: 'transparent', border: `1px solid rgba(248,113,113,0.4)`, borderRadius: 8, color: C.red, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+          <button onClick={() => setDataRetryTick(t => t + 1)} style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: 'transparent', border: `1px solid color-mix(in srgb, var(--sl-danger) 40%, transparent)`, borderRadius: 8, color: C.red, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
             <RefreshCw size={12} /> Retry
           </button>
         </div>
@@ -220,7 +220,7 @@ export default function ManagerAnalyticsPage() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12, marginBottom: 28 }}>
           {topSong && (
             <a href="#song-rotation" style={{ textDecoration: 'none' }}>
-              <div className="mgr-highlight-card" style={{ background: 'linear-gradient(165deg, #1a1814, #141210)', border: `1px solid ${C.border}`, borderRadius: 14, padding: '16px 18px' }}>
+              <div className="mgr-highlight-card" style={{ background: 'linear-gradient(165deg, var(--sl-surface-2), var(--sl-surface))', border: `1px solid ${C.border}`, borderRadius: 14, padding: '16px 18px' }}>
                 <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.muted, margin: '0 0 8px', display: 'flex', alignItems: 'center', gap: 6 }}>
                   <Music2 size={11} /> Most-performed song · {rangeInfo.label}
                 </p>
@@ -231,7 +231,7 @@ export default function ManagerAnalyticsPage() {
           )}
           {topCity && (
             <a href="#cities-venues" style={{ textDecoration: 'none' }}>
-              <div className="mgr-highlight-card" style={{ background: 'linear-gradient(165deg, #1a1814, #141210)', border: `1px solid ${C.border}`, borderRadius: 14, padding: '16px 18px' }}>
+              <div className="mgr-highlight-card" style={{ background: 'linear-gradient(165deg, var(--sl-surface-2), var(--sl-surface))', border: `1px solid ${C.border}`, borderRadius: 14, padding: '16px 18px' }}>
                 <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.muted, margin: '0 0 8px', display: 'flex', alignItems: 'center', gap: 6 }}>
                   <MapPin size={11} /> Most-recorded city · {rangeInfo.label}
                 </p>
@@ -263,14 +263,14 @@ export default function ManagerAnalyticsPage() {
             <p style={{ color: C.secondary, fontSize: 14, margin: 0 }}>{dataLoading ? 'Loading…' : dataError ? 'Not shown — couldn’t load.' : 'No recorded shows in this period.'}</p>
           </div>
         ) : (
-          <div className="mgr-chart" style={{ background: `linear-gradient(180deg, ${C.card}, #100f0d)`, border: `1px solid ${C.border}`, borderRadius: 16, padding: '24px 20px 20px', display: 'flex', alignItems: 'flex-end', gap: 12, height: 200, opacity: dataLoading ? 0.5 : 1 }}>
+          <div className="mgr-chart" style={{ background: `linear-gradient(180deg, ${C.card}, var(--sl-bg))`, border: `1px solid ${C.border}`, borderRadius: 16, padding: '24px 20px 20px', display: 'flex', alignItems: 'flex-end', gap: 12, height: 200, opacity: dataLoading ? 0.5 : 1 }}>
             {buckets.map(b => {
               const count = monthCounts.get(b.key) || 0
               const heightPct = Math.max(3, (count / maxMonthCount) * 100)
               return (
                 <div key={b.key} className="mgr-bar-col" style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, height: '100%', justifyContent: 'flex-end' }}>
                   <span style={{ fontSize: 12, fontWeight: 700, color: C.text, fontFamily: '"DM Mono", monospace' }}>{count}</span>
-                  <div className="mgr-bar" style={{ width: '100%', maxWidth: 40, height: `${heightPct}%`, background: b.isPartial ? 'rgba(201,168,76,0.35)' : 'linear-gradient(180deg, #e0bf6e, #c9a84c)', borderRadius: '6px 6px 0 0', minHeight: 3 }} />
+                  <div className="mgr-bar" style={{ width: '100%', maxWidth: 40, height: `${heightPct}%`, background: b.isPartial ? 'color-mix(in srgb, var(--sl-accent) 35%, transparent)' : 'linear-gradient(180deg, #e0bf6e, var(--sl-accent))', borderRadius: '6px 6px 0 0', minHeight: 3 }} />
                   <span style={{ fontSize: 10, color: C.muted, fontWeight: 600, whiteSpace: 'nowrap' as const }}>{b.label.split(' ')[0]}{b.isPartial ? '*' : ''}</span>
                 </div>
               )
@@ -305,7 +305,7 @@ export default function ManagerAnalyticsPage() {
                       {s.artist && <p style={{ fontSize: 12, color: C.secondary, margin: '2px 0 0' }}>{s.artist}</p>}
                     </div>
                     <span style={{ fontSize: 13, fontWeight: 800, color: C.gold, fontFamily: '"DM Mono", monospace', flexShrink: 0 }}>{s.distinctShowCount} show{s.distinctShowCount === 1 ? '' : 's'}</span>
-                    {expanded ? <ChevronUp size={14} color={C.muted} style={{ flexShrink: 0 }} /> : <ChevronDown size={14} color={C.muted} style={{ flexShrink: 0 }} />}
+                    {expanded ? <ChevronUp size={14} style={{ color: C.muted, flexShrink: 0 }} /> : <ChevronDown size={14} style={{ color: C.muted, flexShrink: 0 }} />}
                   </button>
                   {expanded && (
                     <div style={{ padding: '0 16px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -313,7 +313,7 @@ export default function ManagerAnalyticsPage() {
                         const r = rowsById.get(pid)
                         if (!r) return null
                         return (
-                          <div key={pid} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 12, color: C.secondary, padding: '6px 10px', background: 'rgba(255,255,255,0.03)', borderRadius: 8 }}>
+                          <div key={pid} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 12, color: C.secondary, padding: '6px 10px', background: 'color-mix(in srgb, var(--sl-text) 3%, transparent)', borderRadius: 8 }}>
                             <span>{artistNameById.get(r.user_id) || 'Artist'}{r.venue_name ? ` · ${r.venue_name}` : ''}</span>
                             <span style={{ flexShrink: 0, fontFamily: '"DM Mono", monospace' }}>{dstr(r.started_at || r.performance_date || '')}</span>
                           </div>
@@ -356,12 +356,12 @@ export default function ManagerAnalyticsPage() {
                         }}>
                           <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: loc.isUnknown ? C.muted : C.text, fontStyle: loc.isUnknown ? 'italic' as const : 'normal' as const }}>{loc.label}</span>
                           <span style={{ fontSize: 13, fontWeight: 800, color: C.gold, fontFamily: '"DM Mono", monospace' }}>{loc.showCount}</span>
-                          {expanded ? <ChevronUp size={14} color={C.muted} /> : <ChevronDown size={14} color={C.muted} />}
+                          {expanded ? <ChevronUp size={14} style={{ color: C.muted }} /> : <ChevronDown size={14} style={{ color: C.muted }} />}
                         </button>
                         {expanded && (
                           <div style={{ padding: '0 14px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
                             {loc.rows.map(r => (
-                              <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 12, color: C.secondary, padding: '6px 10px', background: 'rgba(255,255,255,0.03)', borderRadius: 8 }}>
+                              <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 12, color: C.secondary, padding: '6px 10px', background: 'color-mix(in srgb, var(--sl-text) 3%, transparent)', borderRadius: 8 }}>
                                 <span>{artistNameById.get(r.user_id) || 'Artist'}{r.venue_name ? ` · ${r.venue_name}` : ''}</span>
                                 <span style={{ flexShrink: 0, fontFamily: '"DM Mono", monospace' }}>{dstr(r.started_at || r.performance_date || '')}</span>
                               </div>
@@ -386,9 +386,9 @@ export default function ManagerAnalyticsPage() {
         .mgr-highlight-card { transition: transform 0.15s ease, border-color 0.15s ease; }
         a:hover .mgr-highlight-card { transform: translateY(-2px); border-color: ${C.borderGold}; }
         .mgr-row-hover { transition: background 0.12s ease; }
-        .mgr-row-hover:hover { background: rgba(255,255,255,0.03); }
+        .mgr-row-hover:hover { background: color-mix(in srgb, var(--sl-text) 3%, transparent); }
         @keyframes mgrShimmer { 0% { background-position: -200px 0 } 100% { background-position: 200px 0 } }
-        .mgr-skeleton { background: linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.08) 37%, rgba(255,255,255,0.04) 63%); background-size: 400px 100%; animation: mgrShimmer 1.4s ease infinite; }
+        .mgr-skeleton { background: linear-gradient(90deg, color-mix(in srgb, var(--sl-text) 4%, transparent) 25%, color-mix(in srgb, var(--sl-text) 8%, transparent) 37%, color-mix(in srgb, var(--sl-text) 4%, transparent) 63%); background-size: 400px 100%; animation: mgrShimmer 1.4s ease infinite; }
         @media (prefers-reduced-motion: reduce) {
           html { scroll-behavior: auto; }
           .mgr-chart, .mgr-bar, .mgr-highlight-card, .mgr-row-hover, .mgr-skeleton { transition: none !important; animation: none !important; }

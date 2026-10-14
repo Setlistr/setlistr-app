@@ -221,7 +221,7 @@ export default function AcceptInvitePage() {
             capability list below, since this is the one place a recipient
             decides whether to accept at all. */}
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
-          <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: C.gold, margin: '0 0 8px', opacity: 0.8 }}>
+          <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: C.gold, margin: '0 0 8px' }}>
             Team Invite · {roleInfoFor(invite?.role).label}
           </p>
           <h1 style={{ fontSize: 26, fontWeight: 800, color: C.text, margin: '0 0 8px', letterSpacing: '-0.025em', lineHeight: 1.1 }}>

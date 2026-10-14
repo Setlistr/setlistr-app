@@ -7,12 +7,12 @@ import { useSessionGuard } from '@/lib/useSessionGuard'
 import { hasEverBeenConnected } from '@/lib/teamConnectionHistory'
 
 const C = {
-  bg: '#0a0908', card: '#141210',
-  border: 'rgba(255,255,255,0.07)', borderGold: 'rgba(201,168,76,0.3)',
-  input: '#0f0e0c', text: '#f0ece3', secondary: '#b8a888', muted: '#8a7a68',
-  gold: '#c9a84c', goldDim: 'rgba(201,168,76,0.1)',
-  green: '#4ade80', greenDim: 'rgba(74,222,128,0.08)',
-  red: '#f87171', redDim: 'rgba(248,113,113,0.08)',
+  bg: 'var(--sl-bg)', card: 'var(--sl-surface)',
+  border: 'color-mix(in srgb, var(--sl-text) 7%, transparent)', borderGold: 'color-mix(in srgb, var(--sl-accent) 30%, transparent)',
+  input: 'var(--sl-input-bg)', text: 'var(--sl-text)', secondary: 'var(--sl-text-2)', muted: 'var(--sl-text-3)',
+  gold: 'var(--sl-accent)', goldDim: 'color-mix(in srgb, var(--sl-accent) 10%, transparent)',
+  green: 'var(--sl-ok)', greenDim: 'color-mix(in srgb, var(--sl-ok) 8%, transparent)',
+  red: 'var(--sl-danger)', redDim: 'color-mix(in srgb, var(--sl-danger) 8%, transparent)',
 }
 
 const PRO_OPTIONS = ['SOCAN', 'ASCAP', 'BMI', 'SESAC', 'GMR', 'APRA', 'PRS', 'Other', 'Not sure']
@@ -349,7 +349,7 @@ export default function OnboardingPage() {
           Reload this page and sign in again to continue setting up your account.
         </p>
         <button onClick={() => window.location.reload()}
-          style={{ padding: '12px 24px', background: C.gold, border: 'none', borderRadius: 12, color: '#0a0908', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
+          style={{ padding: '12px 24px', background: C.gold, border: 'none', borderRadius: 12, color: 'var(--sl-on-accent)', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
           Reload
         </button>
       </div>
@@ -366,7 +366,7 @@ export default function OnboardingPage() {
       alignItems: 'center', justifyContent: 'center',
       padding: '24px 20px',
     }}>
-      <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '55vh', pointerEvents: 'none', zIndex: 0, background: 'radial-gradient(ellipse at 50% 0%, rgba(201,168,76,0.07) 0%, transparent 65%)' }} />
+      <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '55vh', pointerEvents: 'none', zIndex: 0, background: 'var(--sl-page-glow)' }} />
 
       <div style={{ width: '100%', maxWidth: 400, position: 'relative', zIndex: 1 }}>
 
@@ -390,7 +390,7 @@ export default function OnboardingPage() {
 
         {/* STEP 1: Profile */}
         {step === 1 && (
-          <div style={{ background: C.card, border: '1px solid rgba(255,255,255,0.04)', borderRadius: 20, padding: '32px 28px', animation: 'fadeUp 0.35s ease' }}>
+          <div style={{ background: C.card, border: '1px solid color-mix(in srgb, var(--sl-text) 4%, transparent)', borderRadius: 20, padding: '32px 28px', animation: 'fadeUp 0.35s ease' }}>
             <h1 style={{ fontSize: 28, fontWeight: 800, color: C.text, margin: '0 0 6px', letterSpacing: '-0.02em' }}>
               Let's begin your record.
             </h1>
@@ -406,9 +406,9 @@ export default function OnboardingPage() {
                   onChange={e => setFullName(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && fullName.trim() && document.getElementById('artist-input')?.focus()}
                   placeholder="Your name"
-                  style={{ width: '100%', boxSizing: 'border-box', background: C.input, border: `1px solid ${fullName.trim() ? C.borderGold : C.border}`, borderRadius: 12, padding: '14px 16px', color: C.text, fontSize: 16, fontFamily: 'inherit', outline: 'none' }}
-                  onFocus={e => (e.target.style.borderColor = 'rgba(201,168,76,0.4)')}
-                  onBlur={e => (e.target.style.borderColor = fullName.trim() ? C.borderGold : C.border)}
+                  style={{ width: '100%', boxSizing: 'border-box', background: C.input, border: `1px solid ${fullName.trim() ? 'var(--sl-input-line-active)' : 'var(--sl-input-line)'}`, borderRadius: 12, padding: '14px 16px', color: C.text, fontSize: 16, fontFamily: 'inherit', outline: 'none' }}
+                  onFocus={e => (e.target.style.borderColor = 'var(--sl-input-line-active)')}
+                  onBlur={e => (e.target.style.borderColor = fullName.trim() ? 'var(--sl-input-line-active)' : 'var(--sl-input-line)')}
                 />
               </div>
 
@@ -419,9 +419,9 @@ export default function OnboardingPage() {
                   onChange={e => setArtistName(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && isStep1Valid && handleStep1()}
                   placeholder="Your stage or band name"
-                  style={{ width: '100%', boxSizing: 'border-box', background: C.input, border: `1px solid ${artistName.trim() ? C.borderGold : C.border}`, borderRadius: 12, padding: '14px 16px', color: C.text, fontSize: 16, fontFamily: 'inherit', outline: 'none' }}
-                  onFocus={e => (e.target.style.borderColor = 'rgba(201,168,76,0.4)')}
-                  onBlur={e => (e.target.style.borderColor = artistName.trim() ? C.borderGold : C.border)}
+                  style={{ width: '100%', boxSizing: 'border-box', background: C.input, border: `1px solid ${artistName.trim() ? 'var(--sl-input-line-active)' : 'var(--sl-input-line)'}`, borderRadius: 12, padding: '14px 16px', color: C.text, fontSize: 16, fontFamily: 'inherit', outline: 'none' }}
+                  onFocus={e => (e.target.style.borderColor = 'var(--sl-input-line-active)')}
+                  onBlur={e => (e.target.style.borderColor = artistName.trim() ? 'var(--sl-input-line-active)' : 'var(--sl-input-line)')}
                 />
                 <p style={{ fontSize: 13, color: C.muted, margin: '5px 0 0' }}>This is how you'll appear in your performance record.</p>
               </div>
@@ -446,9 +446,9 @@ export default function OnboardingPage() {
               )}
 
               <button onClick={handleStep1} disabled={!isStep1Valid || saving}
-                style={{ width: '100%', padding: '16px', background: isStep1Valid ? C.gold : C.muted, border: 'none', borderRadius: 16, color: '#0a0908', fontSize: 15, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: isStep1Valid && !saving ? 'pointer' : 'not-allowed', opacity: saving ? 0.7 : isStep1Valid ? 1 : 0.4, transition: 'all 0.2s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit', marginTop: 4 }}>
+                style={{ width: '100%', padding: '16px', background: isStep1Valid ? C.gold : C.muted, border: 'none', borderRadius: 16, color: 'var(--sl-on-accent)', fontSize: 15, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: isStep1Valid && !saving ? 'pointer' : 'not-allowed', opacity: saving ? 0.7 : isStep1Valid ? 1 : 0.4, transition: 'all 0.2s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit', marginTop: 4 }}>
                 {saving
-                  ? <><div style={{ width: 13, height: 13, borderRadius: '50%', border: '2px solid #0a090840', borderTopColor: '#0a0908', animation: 'spin 0.7s linear infinite' }} />Saving...</>
+                  ? <><div style={{ width: 13, height: 13, borderRadius: '50%', border: '2px solid color-mix(in srgb, var(--sl-on-accent) 25%, transparent)', borderTopColor: 'var(--sl-on-accent)', animation: 'spin 0.7s linear infinite' }} />Saving...</>
                   : <>Start my record <ArrowRight size={15} strokeWidth={2.5} /></>}
               </button>
             </div>
@@ -477,7 +477,7 @@ export default function OnboardingPage() {
 
             {/* Loading state */}
             {career.state === 'loading' && (
-              <div style={{ background: C.card, border: '1px solid rgba(255,255,255,0.04)', borderRadius: 20, padding: '48px 28px', textAlign: 'center' }}>
+              <div style={{ background: C.card, border: '1px solid color-mix(in srgb, var(--sl-text) 4%, transparent)', borderRadius: 20, padding: '48px 28px', textAlign: 'center' }}>
                 <div style={{ width: 48, height: 48, borderRadius: '50%', border: `1.5px solid ${C.gold}`, animation: 'breathe 1.8s ease-in-out infinite', margin: '0 auto 20px' }} />
                 <p style={{ fontSize: 15, color: C.secondary, margin: 0 }}>Searching your performance history...</p>
                 <p style={{ fontSize: 13, color: C.muted, margin: '6px 0 0' }}>This only takes a moment.</p>
@@ -486,7 +486,7 @@ export default function OnboardingPage() {
 
             {/* Rich history found */}
             {career.state === 'rich' && (
-              <div style={{ background: C.card, border: '1px solid rgba(255,255,255,0.04)', borderRadius: 20, padding: '32px 28px' }}>
+              <div style={{ background: C.card, border: '1px solid color-mix(in srgb, var(--sl-text) 4%, transparent)', borderRadius: 20, padding: '32px 28px' }}>
                 {/* Count-up heading */}
                 <div style={{ marginBottom: 24, opacity: revealPhase >= 1 ? 1 : 0, transition: 'opacity 0.3s ease' }}>
                   <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.13em', textTransform: 'uppercase', color: C.gold, margin: '0 0 8px' }}>Your career, found</p>
@@ -508,14 +508,14 @@ export default function OnboardingPage() {
                     <p style={{ fontSize: 24, fontWeight: 800, color: C.gold, margin: '0 0 2px', letterSpacing: '-0.02em', fontFamily: '"DM Mono", monospace' }}>{career.totalShows}</p>
                     <p style={{ fontSize: 11, color: C.muted, margin: 0, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Shows found</p>
                   </div>
-                  <div style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid ${C.border}`, borderRadius: 12, padding: '14px 16px', opacity: 0, animation: revealPhase >= 3 ? 'fadeUp 0.35s 100ms ease forwards' : 'none' }}>
+                  <div style={{ background: 'color-mix(in srgb, var(--sl-text) 3%, transparent)', border: `1px solid ${C.border}`, borderRadius: 12, padding: '14px 16px', opacity: 0, animation: revealPhase >= 3 ? 'fadeUp 0.35s 100ms ease forwards' : 'none' }}>
                     <p style={{ fontSize: 24, fontWeight: 800, color: C.text, margin: '0 0 2px', letterSpacing: '-0.02em', fontFamily: '"DM Mono", monospace' }}>{career.cities.length}</p>
                     <p style={{ fontSize: 11, color: C.muted, margin: 0, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Cities</p>
                   </div>
                 </div>
 
                 {/* Estimate card */}
-                <div style={{ background: C.redDim, border: '1px solid rgba(248,113,113,0.2)', borderRadius: 12, padding: '16px', marginBottom: 20, opacity: 0, animation: revealPhase >= 3 ? 'fadeUp 0.35s 200ms ease forwards' : 'none' }}>
+                <div style={{ background: C.redDim, border: '1px solid color-mix(in srgb, var(--sl-danger) 20%, transparent)', borderRadius: 12, padding: '16px', marginBottom: 20, opacity: 0, animation: revealPhase >= 3 ? 'fadeUp 0.35s 200ms ease forwards' : 'none' }}>
                   <p style={{ fontSize: 13, fontWeight: 700, color: C.red, margin: '0 0 4px', letterSpacing: '0.04em' }}>Estimated uncollected</p>
                   <p style={{ fontSize: 22, fontWeight: 800, color: C.text, margin: '0 0 6px', letterSpacing: '-0.02em' }}>
                     ${career.estimatedMin.toLocaleString()} – ${career.estimatedMax.toLocaleString()}
@@ -526,7 +526,7 @@ export default function OnboardingPage() {
                 </div>
 
                 <button onClick={() => setStep(3)}
-                  style={{ width: '100%', padding: '16px', background: C.gold, border: 'none', borderRadius: 16, color: '#0a0908', fontSize: 15, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, transition: 'all 0.2s ease' }}>
+                  style={{ width: '100%', padding: '16px', background: C.gold, border: 'none', borderRadius: 16, color: 'var(--sl-on-accent)', fontSize: 15, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, transition: 'all 0.2s ease' }}>
                   Claim my record <ArrowRight size={15} strokeWidth={2.5} />
                 </button>
 
@@ -545,7 +545,7 @@ export default function OnboardingPage() {
 
             {/* Partial history */}
             {career.state === 'partial' && (
-              <div style={{ background: C.card, border: '1px solid rgba(255,255,255,0.04)', borderRadius: 20, padding: '32px 28px' }}>
+              <div style={{ background: C.card, border: '1px solid color-mix(in srgb, var(--sl-text) 4%, transparent)', borderRadius: 20, padding: '32px 28px' }}>
                 <div style={{ marginBottom: 20, opacity: revealPhase >= 1 ? 1 : 0, transition: 'opacity 0.3s ease' }}>
                   <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.13em', textTransform: 'uppercase', color: C.gold, margin: '0 0 8px' }}>Your career, started</p>
                   <h2 style={{ fontSize: 36, fontWeight: 800, color: C.text, margin: '0 0 8px', letterSpacing: '-0.02em', lineHeight: 1.1 }}>
@@ -560,17 +560,17 @@ export default function OnboardingPage() {
                   )}
                 </div>
 
-                <div style={{ background: C.redDim, border: '1px solid rgba(248,113,113,0.2)', borderRadius: 12, padding: '16px', marginBottom: 20, opacity: 0, animation: revealPhase >= 3 ? 'fadeUp 0.35s ease forwards' : 'none' }}>
+                <div style={{ background: C.redDim, border: '1px solid color-mix(in srgb, var(--sl-danger) 20%, transparent)', borderRadius: 12, padding: '16px', marginBottom: 20, opacity: 0, animation: revealPhase >= 3 ? 'fadeUp 0.35s ease forwards' : 'none' }}>
                   <p style={{ fontSize: 13, fontWeight: 700, color: C.red, margin: '0 0 4px' }}>From what we found</p>
                   <p style={{ fontSize: 20, fontWeight: 800, color: C.text, margin: '0 0 4px' }}>
                     ${career.estimatedMin.toLocaleString()} – ${career.estimatedMax.toLocaleString()} uncollected
                   </p>
                   <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>The actual number is almost certainly higher.</p>
-                  <p style={{ fontSize: 10, color: C.muted, margin: '6px 0 0', opacity: 0.8 }}>Estimate only, not guaranteed — actual payouts vary by PRO.</p>
+                  <p style={{ fontSize: 10, color: 'var(--sl-text-4)', margin: '6px 0 0' }}>Estimate only, not guaranteed — actual payouts vary by PRO.</p>
                 </div>
 
                 <button onClick={() => setStep(3)}
-                  style={{ width: '100%', padding: '16px', background: C.gold, border: 'none', borderRadius: 16, color: '#0a0908', fontSize: 15, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                  style={{ width: '100%', padding: '16px', background: C.gold, border: 'none', borderRadius: 16, color: 'var(--sl-on-accent)', fontSize: 15, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
                   Start my full record <ArrowRight size={15} strokeWidth={2.5} />
                 </button>
 
@@ -585,7 +585,7 @@ export default function OnboardingPage() {
 
             {/* Empty state — no history found */}
             {career.state === 'empty' && (
-              <div style={{ background: C.card, border: '1px solid rgba(255,255,255,0.04)', borderRadius: 20, padding: '32px 28px' }}>
+              <div style={{ background: C.card, border: '1px solid color-mix(in srgb, var(--sl-text) 4%, transparent)', borderRadius: 20, padding: '32px 28px' }}>
                 <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.13em', textTransform: 'uppercase', color: C.muted, margin: '0 0 8px' }}>Your career</p>
                 <h2 style={{ fontSize: 28, fontWeight: 800, color: C.text, margin: '0 0 8px', letterSpacing: '-0.02em', lineHeight: 1.2 }}>
                   No record found.<br />That's the problem.
@@ -594,7 +594,7 @@ export default function OnboardingPage() {
                   You've been performing and the industry has no record of it. Every show you've played generated royalties — and with no setlists on file, that money went elsewhere.
                 </p>
 
-                <div style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid ${C.border}`, borderRadius: 12, padding: '16px', marginBottom: 20 }}>
+                <div style={{ background: 'color-mix(in srgb, var(--sl-text) 3%, transparent)', border: `1px solid ${C.border}`, borderRadius: 12, padding: '16px', marginBottom: 20 }}>
                   <p style={{ fontSize: 15, fontWeight: 700, color: C.gold, margin: '0 0 4px' }}>Your record starts with your next show.</p>
                   <p style={{ fontSize: 13, color: C.muted, margin: 0, lineHeight: 1.5 }}>
                     The first show you capture becomes the beginning of a permanent, verified career archive. Every show after that builds it.
@@ -602,7 +602,7 @@ export default function OnboardingPage() {
                 </div>
 
                 <button onClick={() => setStep(3)}
-                  style={{ width: '100%', padding: '16px', background: C.gold, border: 'none', borderRadius: 16, color: '#0a0908', fontSize: 15, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                  style={{ width: '100%', padding: '16px', background: C.gold, border: 'none', borderRadius: 16, color: 'var(--sl-on-accent)', fontSize: 15, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
                   Begin my record <ArrowRight size={15} strokeWidth={2.5} />
                 </button>
               </div>
@@ -614,10 +614,10 @@ export default function OnboardingPage() {
         {/* STEP 3: Spotify */}
         {step === 3 && (
           <div style={{ animation: 'fadeUp 0.3s ease' }}>
-            <div style={{ background: C.card, border: '1px solid rgba(255,255,255,0.04)', borderRadius: 20, padding: '32px 28px', marginBottom: 10 }}>
+            <div style={{ background: C.card, border: '1px solid color-mix(in srgb, var(--sl-text) 4%, transparent)', borderRadius: 20, padding: '32px 28px', marginBottom: 10 }}>
               {importDone ? (
                 <div style={{ textAlign: 'center' }}>
-                  <div style={{ width: 56, height: 56, borderRadius: '50%', background: C.greenDim, border: '1px solid rgba(74,222,128,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', fontSize: 24 }}>✓</div>
+                  <div style={{ width: 56, height: 56, borderRadius: '50%', background: C.greenDim, border: '1px solid color-mix(in srgb, var(--sl-ok) 25%, transparent)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', fontSize: 24 }}>✓</div>
                   <h2 style={{ fontSize: 20, fontWeight: 800, color: C.text, margin: '0 0 6px', letterSpacing: '-0.02em' }}>
                     {importCount} songs ready.
                   </h2>
@@ -628,7 +628,7 @@ export default function OnboardingPage() {
                     Songs you actually perform will always rank first.
                   </p>
                   <button onClick={finish}
-                    style={{ width: '100%', padding: '14px', background: C.gold, border: 'none', borderRadius: 12, color: '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                    style={{ width: '100%', padding: '14px', background: C.gold, border: 'none', borderRadius: 12, color: 'var(--sl-on-accent)', fontSize: 13, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
                     Let's play a show <ArrowRight size={15} strokeWidth={2.5} />
                   </button>
                 </div>
@@ -650,10 +650,10 @@ export default function OnboardingPage() {
                       onChange={e => setSpotifyQuery(e.target.value)}
                       onKeyDown={e => e.key === 'Enter' && searchSpotify()}
                       placeholder="Search Spotify for your artist name"
-                      style={{ flex: 1, background: C.input, border: `1px solid ${C.border}`, borderRadius: 10, padding: '12px 14px', color: C.text, fontSize: 14, fontFamily: 'inherit', outline: 'none' }}
+                      style={{ flex: 1, background: C.input, border: `1px solid var(--sl-input-line)`, borderRadius: 10, padding: '12px 14px', color: C.text, fontSize: 14, fontFamily: 'inherit', outline: 'none' }}
                     />
                     <button onClick={searchSpotify} disabled={spotifySearching}
-                      style={{ padding: '12px 16px', background: C.gold, border: 'none', borderRadius: 10, color: '#0a0908', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
+                      style={{ padding: '12px 16px', background: C.gold, border: 'none', borderRadius: 10, color: 'var(--sl-on-accent)', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
                       {spotifySearching ? '...' : 'Search'}
                     </button>
                   </div>
@@ -665,7 +665,7 @@ export default function OnboardingPage() {
                   {spotifyResults.map(artist => (
                     <button key={artist.id} onClick={() => importFromSpotify(artist)}
                       disabled={importing}
-                      style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: '12px', background: selectedArtist?.id === artist.id ? C.goldDim : 'rgba(255,255,255,0.03)', border: `1px solid ${selectedArtist?.id === artist.id ? C.borderGold : C.border}`, borderRadius: 12, cursor: importing ? 'not-allowed' : 'pointer', marginBottom: 8, fontFamily: 'inherit', transition: 'all 0.15s ease' }}>
+                      style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: '12px', background: selectedArtist?.id === artist.id ? C.goldDim : 'color-mix(in srgb, var(--sl-text) 3%, transparent)', border: `1px solid ${selectedArtist?.id === artist.id ? C.borderGold : C.border}`, borderRadius: 12, cursor: importing ? 'not-allowed' : 'pointer', marginBottom: 8, fontFamily: 'inherit', transition: 'all 0.15s ease' }}>
                       {artist.image && (
                         <img src={artist.image} alt={artist.name} style={{ width: 40, height: 40, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />
                       )}
@@ -701,7 +701,7 @@ export default function OnboardingPage() {
           @keyframes spin { to{transform:rotate(360deg)} }
           @keyframes breathe { 0%,100%{transform:scale(1);opacity:.3} 50%{transform:scale(1.2);opacity:.8} }
           * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
-          input::placeholder { color: #6a6050; }
+          input::placeholder { color: var(--sl-text-3); }
           input:focus { outline: none; }
           button:active { transform: scale(0.98); }
         `}</style>

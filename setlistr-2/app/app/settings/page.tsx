@@ -19,7 +19,7 @@ const C = {
   border: 'color-mix(in srgb, var(--sl-text) 7%, transparent)',
   borderGold: 'color-mix(in srgb, var(--sl-accent) 30%, transparent)',
   input: 'var(--sl-input-bg)',
-  inputBorder: 'color-mix(in srgb, var(--sl-text) 9%, transparent)',
+  inputBorder: 'var(--sl-input-line)',
   text: 'var(--sl-text)',
   secondary: 'var(--sl-text-2)',
   muted: 'var(--sl-text-3)',
@@ -594,14 +594,14 @@ export default function SettingsPage() {
           <div>
             <label style={labelStyle}>Your Name <span style={{ color: C.gold }}>*</span></label>
             <input value={fullName} onChange={e => setFullName(e.target.value)} placeholder="Your full name" style={inputStyle}
-              onFocus={e => (e.target as HTMLInputElement).style.borderColor = C.borderGold}
-              onBlur={e => (e.target as HTMLInputElement).style.borderColor = C.inputBorder} />
+              onFocus={e => (e.target as HTMLInputElement).style.borderColor = 'var(--sl-input-line-active)'}
+              onBlur={e => (e.target as HTMLInputElement).style.borderColor = 'var(--sl-input-line)'} />
           </div>
           <div>
             <label style={labelStyle}>Artist Name</label>
             <input value={artistName} onChange={e => setArtistName(e.target.value)} placeholder="Your artist or stage name" style={inputStyle}
-              onFocus={e => (e.target as HTMLInputElement).style.borderColor = C.borderGold}
-              onBlur={e => (e.target as HTMLInputElement).style.borderColor = C.inputBorder} />
+              onFocus={e => (e.target as HTMLInputElement).style.borderColor = 'var(--sl-input-line-active)'}
+              onBlur={e => (e.target as HTMLInputElement).style.borderColor = 'var(--sl-input-line)'} />
             <p style={{ fontSize: 11, color: C.muted, margin: '6px 0 0' }}>Appears on your setlists and PRO exports</p>
           </div>
           {profileError && (
@@ -647,8 +647,8 @@ export default function SettingsPage() {
           <div>
             <label style={labelStyle}>Your Artist Name</label>
             <input value={bandsintownName} onChange={e => { setBandsintownName(e.target.value); setBandsintownTestResult(null); setBandsintownError('') }} placeholder="Your artist name" style={inputStyle}
-              onFocus={e => (e.target as HTMLInputElement).style.borderColor = C.borderGold}
-              onBlur={e => (e.target as HTMLInputElement).style.borderColor = C.inputBorder} />
+              onFocus={e => (e.target as HTMLInputElement).style.borderColor = 'var(--sl-input-line-active)'}
+              onBlur={e => (e.target as HTMLInputElement).style.borderColor = 'var(--sl-input-line)'} />
             <p style={{ fontSize: 11, color: C.muted, margin: '6px 0 0' }}>Must match exactly how your name appears on Bandsintown or Ticketmaster</p>
           </div>
           {bandsintownTestResult && (
@@ -702,8 +702,8 @@ export default function SettingsPage() {
               min="1900"
               max={new Date().getFullYear()}
               style={{ ...inputStyle, fontFamily: '"DM Mono", monospace', letterSpacing: '0.05em' }}
-              onFocus={e => (e.target as HTMLInputElement).style.borderColor = C.borderGold}
-              onBlur={e => (e.target as HTMLInputElement).style.borderColor = C.inputBorder}
+              onFocus={e => (e.target as HTMLInputElement).style.borderColor = 'var(--sl-input-line-active)'}
+              onBlur={e => (e.target as HTMLInputElement).style.borderColor = 'var(--sl-input-line)'}
             />
             <p style={{ fontSize: 11, color: C.muted, margin: '6px 0 0' }}>
               Your entry overrides our estimate. This is shown as "X years performing" on your career record.
@@ -754,21 +754,21 @@ export default function SettingsPage() {
           <div>
             <label style={labelStyle}>Legal Name</label>
             <input value={legalName} onChange={e => setLegalName(e.target.value)} placeholder="Name as registered with your PRO" style={inputStyle}
-              onFocus={e => (e.target as HTMLInputElement).style.borderColor = C.borderGold}
-              onBlur={e => (e.target as HTMLInputElement).style.borderColor = C.inputBorder} />
+              onFocus={e => (e.target as HTMLInputElement).style.borderColor = 'var(--sl-input-line-active)'}
+              onBlur={e => (e.target as HTMLInputElement).style.borderColor = 'var(--sl-input-line)'} />
           </div>
           <div>
             <label style={labelStyle}>IPI / CAE Number</label>
             <input value={ipiNumber} onChange={e => setIpiNumber(e.target.value)} placeholder="e.g. 00000000000" style={{ ...inputStyle, fontFamily: '"DM Mono", monospace', letterSpacing: '0.05em' }}
-              onFocus={e => (e.target as HTMLInputElement).style.borderColor = C.borderGold}
-              onBlur={e => (e.target as HTMLInputElement).style.borderColor = C.inputBorder} />
+              onFocus={e => (e.target as HTMLInputElement).style.borderColor = 'var(--sl-input-line-active)'}
+              onBlur={e => (e.target as HTMLInputElement).style.borderColor = 'var(--sl-input-line)'} />
             <p style={{ fontSize: 11, color: C.muted, margin: '6px 0 0' }}>Your unique identifier as a songwriter/composer</p>
           </div>
           <div>
             <label style={labelStyle}>Publisher Name (optional)</label>
             <input value={publisherName} onChange={e => setPublisherName(e.target.value)} placeholder="e.g. Sony Music Publishing" style={inputStyle}
-              onFocus={e => (e.target as HTMLInputElement).style.borderColor = C.borderGold}
-              onBlur={e => (e.target as HTMLInputElement).style.borderColor = C.inputBorder} />
+              onFocus={e => (e.target as HTMLInputElement).style.borderColor = 'var(--sl-input-line-active)'}
+              onBlur={e => (e.target as HTMLInputElement).style.borderColor = 'var(--sl-input-line)'} />
           </div>
           {proError && (
             <div style={{ background: 'color-mix(in srgb, var(--sl-danger) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--sl-danger) 20%, transparent)', borderRadius: 10, padding: '11px 14px' }}>
@@ -818,8 +818,8 @@ export default function SettingsPage() {
             <>
               <div style={{ display: 'flex', gap: 8 }}>
                 <input value={spotifyQuery} onChange={e => setSpotifyQuery(e.target.value)} onKeyDown={e => e.key === 'Enter' && searchSpotify()} placeholder="Search your artist name on Spotify..." style={{ ...inputStyle, flex: 1 }}
-                  onFocus={e => (e.target as HTMLInputElement).style.borderColor = C.borderGold}
-                  onBlur={e => (e.target as HTMLInputElement).style.borderColor = C.inputBorder} />
+                  onFocus={e => (e.target as HTMLInputElement).style.borderColor = 'var(--sl-input-line-active)'}
+                  onBlur={e => (e.target as HTMLInputElement).style.borderColor = 'var(--sl-input-line)'} />
                 <button onClick={searchSpotify} disabled={spotifySearching || !spotifyQuery.trim()}
                   style={{ padding: '11px 16px', background: C.gold, border: 'none', borderRadius: 10, color: 'var(--sl-on-accent)', cursor: spotifySearching ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'inherit', fontWeight: 700, fontSize: 13, flexShrink: 0, opacity: spotifySearching ? 0.7 : 1 }}>
                   <Search size={14} />{spotifySearching ? '...' : 'Search'}
@@ -861,14 +861,14 @@ export default function SettingsPage() {
           <div>
             <label style={labelStyle}>New Password</label>
             <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="Min 6 characters" style={inputStyle}
-              onFocus={e => (e.target as HTMLInputElement).style.borderColor = C.borderGold}
-              onBlur={e => (e.target as HTMLInputElement).style.borderColor = C.inputBorder} />
+              onFocus={e => (e.target as HTMLInputElement).style.borderColor = 'var(--sl-input-line-active)'}
+              onBlur={e => (e.target as HTMLInputElement).style.borderColor = 'var(--sl-input-line)'} />
           </div>
           <div>
             <label style={labelStyle}>Confirm New Password</label>
             <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} onKeyDown={e => e.key === 'Enter' && savePassword()} placeholder="Repeat new password" style={inputStyle}
-              onFocus={e => (e.target as HTMLInputElement).style.borderColor = C.borderGold}
-              onBlur={e => (e.target as HTMLInputElement).style.borderColor = C.inputBorder} />
+              onFocus={e => (e.target as HTMLInputElement).style.borderColor = 'var(--sl-input-line-active)'}
+              onBlur={e => (e.target as HTMLInputElement).style.borderColor = 'var(--sl-input-line)'} />
           </div>
           {passwordError && (
             <div style={{ background: 'color-mix(in srgb, var(--sl-danger) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--sl-danger) 20%, transparent)', borderRadius: 10, padding: '11px 14px' }}>
@@ -924,9 +924,9 @@ export default function SettingsPage() {
               value={deleteConfirmText}
               onChange={e => { setDeleteConfirmText(e.target.value); setDeleteError('') }}
               placeholder="DELETE"
-              style={{ ...inputStyle, fontFamily: '"DM Mono", monospace', letterSpacing: '0.05em', borderColor: 'color-mix(in srgb, var(--sl-danger) 20%, transparent)' }}
-              onFocus={e => (e.target as HTMLInputElement).style.borderColor = 'color-mix(in srgb, var(--sl-danger) 50%, transparent)'}
-              onBlur={e => (e.target as HTMLInputElement).style.borderColor = 'color-mix(in srgb, var(--sl-danger) 20%, transparent)'}
+              style={{ ...inputStyle, fontFamily: '"DM Mono", monospace', letterSpacing: '0.05em', borderColor: 'color-mix(in srgb, var(--sl-danger) 80%, transparent)' }}
+              onFocus={e => (e.target as HTMLInputElement).style.borderColor = 'var(--sl-danger)'}
+              onBlur={e => (e.target as HTMLInputElement).style.borderColor = 'color-mix(in srgb, var(--sl-danger) 80%, transparent)'}
             />
           </div>
           {deleteError && (

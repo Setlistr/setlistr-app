@@ -7,9 +7,9 @@ import { latestShowPerArtist, type ManagerPerformanceRow } from '@/lib/managerOv
 import { fetchLatestShowPerArtist } from '@/lib/managerFetch'
 
 const C = {
-  bg: '#0a0908', card: '#141210', card2: '#1a1814', border: 'rgba(255,255,255,0.07)', borderGold: 'rgba(201,168,76,0.25)',
-  text: '#f0ece3', secondary: '#b8a888', muted: '#8a7a68',
-  gold: '#c9a84c', green: '#4ade80',
+  bg: 'var(--sl-bg)', card: 'var(--sl-surface)', card2: 'var(--sl-surface-2)', border: 'color-mix(in srgb, var(--sl-text) 7%, transparent)', borderGold: 'color-mix(in srgb, var(--sl-accent) 25%, transparent)',
+  text: 'var(--sl-text)', secondary: 'var(--sl-text-2)', muted: 'var(--sl-text-3)',
+  gold: 'var(--sl-accent)', green: 'var(--sl-ok)',
 }
 
 type ManagedArtist = { artist_id: string; artist_name: string; role: string; avatar_url?: string | null }
@@ -20,7 +20,7 @@ function initialsFor(name: string): string {
 
 function Avatar({ name, url, size = 44 }: { name: string; url?: string | null; size?: number }) {
   return (
-    <div style={{ width: size, height: size, borderRadius: '50%', background: 'linear-gradient(145deg, rgba(201,168,76,0.2), rgba(201,168,76,0.06))', border: `1px solid ${C.borderGold}`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
+    <div style={{ width: size, height: size, borderRadius: '50%', background: 'linear-gradient(145deg, color-mix(in srgb, var(--sl-accent) 20%, transparent), color-mix(in srgb, var(--sl-accent) 6%, transparent))', border: `1px solid ${C.borderGold}`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
       {url
         ? <img src={url} alt={name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
         : <span style={{ fontSize: size * 0.36, fontWeight: 800, color: C.gold }}>{initialsFor(name)}</span>}
@@ -78,7 +78,7 @@ export default function ManagerArtistsPage() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 14 }}>
           {[0, 1, 2, 3].map(i => <SkeletonCard key={i} />)}
         </div>
-        <style>{`@keyframes mgrShimmer { 0% { background-position: -200px 0 } 100% { background-position: 200px 0 } } .mgr-skeleton { background: linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.08) 37%, rgba(255,255,255,0.04) 63%); background-size: 400px 100%; animation: mgrShimmer 1.4s ease infinite; } @media (prefers-reduced-motion: reduce) { .mgr-skeleton { animation: none; opacity: 0.5; } }`}</style>
+        <style>{`@keyframes mgrShimmer { 0% { background-position: -200px 0 } 100% { background-position: 200px 0 } } .mgr-skeleton { background: linear-gradient(90deg, color-mix(in srgb, var(--sl-text) 4%, transparent) 25%, color-mix(in srgb, var(--sl-text) 8%, transparent) 37%, color-mix(in srgb, var(--sl-text) 4%, transparent) 63%); background-size: 400px 100%; animation: mgrShimmer 1.4s ease infinite; } @media (prefers-reduced-motion: reduce) { .mgr-skeleton { animation: none; opacity: 0.5; } }`}</style>
       </div>
     )
   }
@@ -87,7 +87,7 @@ export default function ManagerArtistsPage() {
     return (
       <div style={{ padding: '60px 20px', textAlign: 'center' as const }}>
         <p style={{ color: C.text, fontSize: 16, fontWeight: 700, margin: '0 0 8px' }}>Couldn't load your roster</p>
-        <button onClick={load} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 18px', background: C.gold, border: 'none', borderRadius: 10, color: '#0a0908', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', marginTop: 8 }}>
+        <button onClick={load} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 18px', background: C.gold, border: 'none', borderRadius: 10, color: 'var(--sl-on-accent)', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', marginTop: 8 }}>
           <RefreshCw size={14} /> Retry
         </button>
       </div>
@@ -97,7 +97,7 @@ export default function ManagerArtistsPage() {
   if (managed.length === 0) {
     return (
       <div style={{ padding: '60px 24px', textAlign: 'center' as const, maxWidth: 380, margin: '0 auto' }}>
-        <Users size={32} color={C.muted} style={{ marginBottom: 16 }} />
+        <Users size={32} style={{ color: C.muted, marginBottom: 16 }} />
         <p style={{ color: C.text, fontSize: 17, fontWeight: 800, margin: '0 0 8px' }}>No connected artists yet</p>
         <p style={{ color: C.secondary, fontSize: 14, lineHeight: 1.5, margin: 0 }}>
           When an artist invites you as a delegate and you accept, they'll show up here. Invitations are sent from an artist's own Settings.
@@ -143,12 +143,12 @@ export default function ManagerArtistsPage() {
                     </div>
                   )}
                 </div>
-                <ChevronRight size={16} color={C.muted} style={{ flexShrink: 0 }} />
+                <ChevronRight size={16} style={{ color: C.muted, flexShrink: 0 }} />
               </div>
               <div style={{ paddingTop: 12, borderTop: `1px solid ${C.border}` }}>
                 {latest ? (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: C.secondary, fontSize: 12.5 }}>
-                    <MapPin size={12} color={C.muted} style={{ flexShrink: 0 }} />
+                    <MapPin size={12} style={{ color: C.muted, flexShrink: 0 }} />
                     <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{latest.venue_name || 'Unknown venue'}</span>
                     <span style={{ color: C.muted, flexShrink: 0, marginLeft: 'auto', fontFamily: '"DM Mono", monospace', fontSize: 11 }}>{dateStr}</span>
                   </div>

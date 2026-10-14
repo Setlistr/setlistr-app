@@ -27,10 +27,10 @@ import html2canvas from 'html2canvas'
 import { countAt, capturedLabel, type FlowSource } from '@/lib/ceremony-display'
 
 const C = {
-  bg: '#0a0908', card: '#141210', cardGrad: 'linear-gradient(180deg, #171512 0%, #121009 100%)', cardHover: '#181614',
-  border: 'rgba(255,255,255,0.07)', borderGold: 'rgba(201,168,76,0.3)',
-  input: '#0f0e0c', text: '#f0ece3', secondary: '#a09070', muted: '#6a6050',
-  gold: '#c9a84c', goldDim: 'rgba(201,168,76,0.1)', green: '#4ade80', red: '#ef4444',
+  bg: 'var(--sl-bg)', card: 'var(--sl-surface)', cardGrad: 'var(--sl-card-bg)', cardHover: 'var(--sl-surface-2)',
+  border: 'color-mix(in srgb, var(--sl-text) 7%, transparent)', borderGold: 'color-mix(in srgb, var(--sl-accent) 30%, transparent)',
+  input: 'var(--sl-input-bg)', text: 'var(--sl-text)', secondary: 'var(--sl-text-2)', muted: 'var(--sl-text-3)',
+  gold: 'var(--sl-accent)', goldDim: 'color-mix(in srgb, var(--sl-accent) 10%, transparent)', green: 'var(--sl-ok)', red: 'var(--sl-danger)',
 }
 
 function useCountUp(target: number, duration: number = 1200, delay: number = 0): number {
@@ -174,8 +174,8 @@ function ShareCardButton({ performanceId, artistName, venueName }: {
   }
   return (
     <button onClick={handleShare} disabled={state === 'loading'}
-      style={{ width: '100%', padding: '14px', background: state === 'done' ? 'rgba(74,222,128,0.08)' : 'transparent', border: `1px solid ${state === 'done' ? 'rgba(74,222,128,0.3)' : 'rgba(201,168,76,0.3)'}`, borderRadius: 12, color: state === 'done' ? C.green : C.gold, fontSize: 13, fontWeight: 700, cursor: state === 'loading' ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit', marginBottom: 10, letterSpacing: '0.04em', WebkitTapHighlightColor: 'transparent', opacity: state === 'loading' ? 0.7 : 1, transition: 'all 0.2s ease' }}>
-      {state === 'loading' ? <><div style={{ width: 13, height: 13, borderRadius: '50%', border: `2px solid rgba(201,168,76,0.3)`, borderTopColor: C.gold, animation: 'spin 0.7s linear infinite' }} />Generating card...</> : state === 'done' ? <>✓ Card ready</> : <>✦ Share Setlist Card</>}
+      style={{ width: '100%', padding: '14px', background: state === 'done' ? 'color-mix(in srgb, var(--sl-ok) 8%, transparent)' : 'transparent', border: `1px solid ${state === 'done' ? 'color-mix(in srgb, var(--sl-ok) 30%, transparent)' : 'color-mix(in srgb, var(--sl-accent) 30%, transparent)'}`, borderRadius: 12, color: state === 'done' ? C.green : C.gold, fontSize: 13, fontWeight: 700, cursor: state === 'loading' ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit', marginBottom: 10, letterSpacing: '0.04em', WebkitTapHighlightColor: 'transparent', opacity: state === 'loading' ? 0.7 : 1, transition: 'all 0.2s ease' }}>
+      {state === 'loading' ? <><div style={{ width: 13, height: 13, borderRadius: '50%', border: `2px solid color-mix(in srgb, var(--sl-accent) 30%, transparent)`, borderTopColor: C.gold, animation: 'spin 0.7s linear infinite' }} />Generating card...</> : state === 'done' ? <>✓ Card ready</> : <>✦ Share Setlist Card</>}
     </button>
   )
 }
@@ -208,15 +208,15 @@ function SortableRow({ song, index, onDelete, onTap }: {
   function onTouchEnd() { if (!swiping) return; setSwiping(false); touchStart.current = null; setSwipeX(swipeX < -THRESHOLD ? -ACTION_W : 0) }
   function closeSwipe() { setSwipeX(0) }
 
-  const leftBorder = isVerified ? 'rgba(74,222,128,0.5)' : needsReview ? 'rgba(201,168,76,0.6)' : 'rgba(74,222,128,0.25)'
+  const leftBorder = isVerified ? 'color-mix(in srgb, var(--sl-ok) 50%, transparent)' : needsReview ? 'color-mix(in srgb, var(--sl-accent) 60%, transparent)' : 'color-mix(in srgb, var(--sl-ok) 25%, transparent)'
 
   return (
     <div ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition: swiping ? 'none' : transition, position: 'relative', borderRadius: 12, overflow: 'hidden', opacity: isDragging ? 0.4 : 1 }}>
       <div style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: ACTION_W, display: 'flex', pointerEvents: swipeX < -20 ? 'auto' : 'none' }}>
-        <button onClick={() => { closeSwipe(); onTap(song.id) }} style={{ flex: 1, background: C.gold, border: 'none', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3, color: '#0a0908' }}>
+        <button onClick={() => { closeSwipe(); onTap(song.id) }} style={{ flex: 1, background: C.gold, border: 'none', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3, color: 'var(--sl-on-accent)' }}>
           <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', fontFamily: 'inherit' }}>Edit</span>
         </button>
-        <button onClick={() => { closeSwipe(); onDelete(song.id) }} style={{ flex: 1, background: C.red, border: 'none', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3, color: '#fff', borderRadius: '0 12px 12px 0' }}>
+        <button onClick={() => { closeSwipe(); onDelete(song.id) }} style={{ flex: 1, background: C.red, border: 'none', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3, color: 'var(--sl-on-accent)', borderRadius: '0 12px 12px 0' }}>
           <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', fontFamily: 'inherit' }}>Delete</span>
         </button>
       </div>
@@ -224,7 +224,7 @@ function SortableRow({ song, index, onDelete, onTap }: {
         onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}
         onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
         onClick={() => { if (swipeX < -10) { closeSwipe(); return } onTap(song.id) }}
-        style={{ transform: `translateX(${swipeX}px)`, transition: swiping ? 'none' : 'transform 0.22s cubic-bezier(0.25,1,0.5,1)', background: isDragging ? C.cardHover : C.card, border: '1px solid rgba(255,255,255,0.04)', borderLeft: `3px solid ${leftBorder}`, borderRadius: 12, display: 'flex', alignItems: 'center', gap: 12, padding: '14px 14px 14px 12px', minHeight: 64, cursor: 'pointer', WebkitTapHighlightColor: 'transparent', userSelect: 'none' }}>
+        style={{ transform: `translateX(${swipeX}px)`, transition: swiping ? 'none' : 'transform 0.22s cubic-bezier(0.25,1,0.5,1)', background: isDragging ? C.cardHover : C.card, border: '1px solid color-mix(in srgb, var(--sl-text) 4%, transparent)', borderLeft: `3px solid ${leftBorder}`, borderRadius: 12, display: 'flex', alignItems: 'center', gap: 12, padding: '14px 14px 14px 12px', minHeight: 64, cursor: 'pointer', WebkitTapHighlightColor: 'transparent', userSelect: 'none' }}>
         <div {...attributes} {...listeners} onClick={e => e.stopPropagation()} style={{ color: C.muted, cursor: 'grab', flexShrink: 0, display: 'flex', alignItems: 'center', padding: '4px 2px', touchAction: 'none' }}>
           <GripVertical size={15} />
         </div>
@@ -233,13 +233,13 @@ function SortableRow({ song, index, onDelete, onTap }: {
           {needsReview ? (
             <div>
               <p style={{ fontSize: 14, fontWeight: 600, color: C.gold, margin: 0, fontStyle: 'italic' }}>{isUnknown ? 'Unknown — tap to fix' : song.title}</p>
-              <p style={{ fontSize: 11, color: C.gold, opacity: 0.6, margin: '2px 0 0', fontWeight: 500 }}>Tap to fix</p>
+              <p style={{ fontSize: 11, color: C.gold, margin: '2px 0 0', fontWeight: 500 }}>Tap to fix</p>
             </div>
           ) : (
             <div>
               <p style={{ fontSize: 16, fontWeight: 600, color: C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{song.title}</p>
               {isVerified
-                ? <p style={{ fontSize: 12, color: C.green, margin: '2px 0 0', fontWeight: 600, opacity: 0.85 }}>Verified ✓</p>
+                ? <p style={{ fontSize: 12, color: C.green, margin: '2px 0 0', fontWeight: 600 }}>Verified ✓</p>
                 : song.isrc
                 ? <p style={{ fontSize: 10, color: C.muted, margin: '2px 0 0', fontFamily: '"DM Mono", monospace', letterSpacing: '0.04em' }}>{song.isrc}</p>
                 : null
@@ -248,13 +248,13 @@ function SortableRow({ song, index, onDelete, onTap }: {
           )}
         </div>
         <div onClick={hovered ? (e) => { e.stopPropagation(); onDelete(song.id) } : undefined}
-          style={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: 6, background: hovered ? 'rgba(239,68,68,0.12)' : 'transparent', border: hovered ? '1px solid rgba(239,68,68,0.25)' : '1px solid transparent', transition: 'all 0.15s ease', cursor: hovered ? 'pointer' : 'default' }}>
+          style={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: 6, background: hovered ? 'color-mix(in srgb, var(--sl-danger) 12%, transparent)' : 'transparent', border: hovered ? '1px solid color-mix(in srgb, var(--sl-danger) 25%, transparent)' : '1px solid transparent', transition: 'all 0.15s ease', cursor: hovered ? 'pointer' : 'default' }}>
           {hovered ? (
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={C.red} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
           ) : isVerified ? (
             <span style={{ width: 9, height: 9, borderRadius: '50%', background: C.gold, display: 'inline-block', flexShrink: 0 }} />
           ) : needsReview ? (
-            <span style={{ fontSize: 10, color: C.gold, opacity: 0.7, fontWeight: 700 }}>!</span>
+            <span style={{ fontSize: 10, color: C.gold, fontWeight: 700 }}>!</span>
           ) : (
             <span style={{ width: 9, height: 9, borderRadius: '50%', background: 'transparent', border: `1.5px solid ${C.gold}`, display: 'inline-block', opacity: 0.6, flexShrink: 0 }} />
           )}
@@ -270,14 +270,14 @@ function EditSheet({ song, onSave, onClose }: { song: Song; onSave: (id: string,
   const bottomOffset        = useKeyboardOffset()
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', animation: 'fadeIn 0.15s ease' }} onClick={onClose}>
-      <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 520, background: C.cardGrad, borderRadius: '20px 20px 0 0', border: '1px solid rgba(255,255,255,0.07)', borderBottom: 'none', padding: '20px 20px 40px', display: 'flex', flexDirection: 'column', gap: 12, animation: 'sheetUp 0.22s ease', fontFamily: '"DM Sans", system-ui, sans-serif', marginBottom: bottomOffset, transition: 'margin-bottom 0.15s ease', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04)' }}>
+      <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 520, background: C.cardGrad, borderRadius: '20px 20px 0 0', border: '1px solid color-mix(in srgb, var(--sl-text) 7%, transparent)', borderBottom: 'none', padding: '20px 20px 40px', display: 'flex', flexDirection: 'column', gap: 12, animation: 'sheetUp 0.22s ease', fontFamily: '"DM Sans", system-ui, sans-serif', marginBottom: bottomOffset, transition: 'margin-bottom 0.15s ease', boxShadow: 'var(--sl-card-inset)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
           <p style={{ fontSize: 13, fontWeight: 700, color: C.text, margin: 0 }}>Edit song</p>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: C.muted, cursor: 'pointer', padding: 4 }}><X size={16} /></button>
         </div>
-        <input autoFocus value={title} onChange={e => setTitle(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && title.trim()) { onSave(song.id, title.trim(), artist.trim()); onClose() } }} placeholder="Song title" spellCheck={false} autoCorrect="off" autoCapitalize="words" style={{ background: C.input, border: `1px solid ${C.gold}40`, borderRadius: 10, padding: '13px 14px', color: C.text, fontSize: 15, outline: 'none', fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' }} />
-        <input value={artist} onChange={e => setArtist(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && title.trim()) { onSave(song.id, title.trim(), artist.trim()); onClose() } }} placeholder="Artist" spellCheck={false} autoCorrect="off" autoCapitalize="words" style={{ background: C.input, border: `1px solid ${C.border}`, borderRadius: 10, padding: '13px 14px', color: C.text, fontSize: 15, outline: 'none', fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' }} />
-        <button onClick={() => { if (title.trim()) { onSave(song.id, title.trim(), artist.trim()); onClose() } }} disabled={!title.trim()} style={{ width: '100%', padding: '14px', background: title.trim() ? C.gold : C.muted, border: 'none', borderRadius: 10, color: '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: title.trim() ? 'pointer' : 'not-allowed', opacity: title.trim() ? 1 : 0.4, fontFamily: 'inherit', marginTop: 4 }}>
+        <input autoFocus value={title} onChange={e => setTitle(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && title.trim()) { onSave(song.id, title.trim(), artist.trim()); onClose() } }} placeholder="Song title" spellCheck={false} autoCorrect="off" autoCapitalize="words" style={{ background: C.input, border: '1px solid var(--sl-input-line-active)', borderRadius: 10, padding: '13px 14px', color: C.text, fontSize: 15, outline: 'none', fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' }} />
+        <input value={artist} onChange={e => setArtist(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && title.trim()) { onSave(song.id, title.trim(), artist.trim()); onClose() } }} placeholder="Artist" spellCheck={false} autoCorrect="off" autoCapitalize="words" style={{ background: C.input, border: `1px solid var(--sl-input-line)`, borderRadius: 10, padding: '13px 14px', color: C.text, fontSize: 15, outline: 'none', fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' }} />
+        <button onClick={() => { if (title.trim()) { onSave(song.id, title.trim(), artist.trim()); onClose() } }} disabled={!title.trim()} style={{ width: '100%', padding: '14px', background: title.trim() ? C.gold : C.muted, border: 'none', borderRadius: 10, color: 'var(--sl-on-accent)', fontSize: 13, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: title.trim() ? 'pointer' : 'not-allowed', opacity: title.trim() ? 1 : 0.4, fontFamily: 'inherit', marginTop: 4 }}>
           Save
         </button>
       </div>
@@ -293,7 +293,7 @@ function AssignSheet({ assignSheet, onAssign, onClose, onCatalogSelect, userId, 
   const bottomOffset = useKeyboardOffset()
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', animation: 'fadeIn 0.15s ease' }} onClick={onClose}>
-      <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 520, background: C.cardGrad, borderRadius: '20px 20px 0 0', border: '1px solid rgba(255,255,255,0.07)', borderBottom: 'none', padding: '20px 20px 40px', display: 'flex', flexDirection: 'column', gap: 12, animation: 'sheetUp 0.22s ease', fontFamily: '"DM Sans", system-ui, sans-serif', marginBottom: bottomOffset, transition: 'margin-bottom 0.15s ease', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04)' }}>
+      <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 520, background: C.cardGrad, borderRadius: '20px 20px 0 0', border: '1px solid color-mix(in srgb, var(--sl-text) 7%, transparent)', borderBottom: 'none', padding: '20px 20px 40px', display: 'flex', flexDirection: 'column', gap: 12, animation: 'sheetUp 0.22s ease', fontFamily: '"DM Sans", system-ui, sans-serif', marginBottom: bottomOffset, transition: 'margin-bottom 0.15s ease', boxShadow: 'var(--sl-card-inset)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
           <div>
             <p style={{ fontSize: 14, fontWeight: 700, color: C.text, margin: 0 }}>What song was this?</p>
@@ -316,12 +316,12 @@ function PlannedSongRow({ song, onPlayed, onRemove }: {
   return (
     <div style={{
       display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px',
-      background: 'rgba(255,255,255,0.02)',
-      border: '1px dashed rgba(255,255,255,0.1)',
-      borderRadius: 12, opacity: 0.75,
+      background: 'color-mix(in srgb, var(--sl-text) 2%, transparent)',
+      border: '1px dashed color-mix(in srgb, var(--sl-text) 10%, transparent)',
+      borderRadius: 12,
     }}>
-      <div style={{ width: 18, height: 18, borderRadius: '50%', border: '1.5px solid rgba(255,255,255,0.15)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ width: 5, height: 5, borderRadius: '50%', background: 'rgba(255,255,255,0.2)' }} />
+      <div style={{ width: 18, height: 18, borderRadius: '50%', border: '1.5px solid color-mix(in srgb, var(--sl-text) 15%, transparent)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ width: 5, height: 5, borderRadius: '50%', background: 'color-mix(in srgb, var(--sl-text) 20%, transparent)' }} />
       </div>
       <p style={{ fontSize: 14, fontWeight: 500, color: C.secondary, margin: 0, flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
         {song.title}
@@ -329,7 +329,7 @@ function PlannedSongRow({ song, onPlayed, onRemove }: {
       <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
         <button
           onClick={() => onPlayed(song.id)}
-          style={{ padding: '6px 12px', background: 'rgba(74,222,128,0.1)', border: '1px solid rgba(74,222,128,0.25)', borderRadius: 8, color: C.green, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', letterSpacing: '0.04em', WebkitTapHighlightColor: 'transparent', whiteSpace: 'nowrap' }}>
+          style={{ padding: '6px 12px', background: 'color-mix(in srgb, var(--sl-ok) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--sl-ok) 25%, transparent)', borderRadius: 8, color: C.green, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', letterSpacing: '0.04em', WebkitTapHighlightColor: 'transparent', whiteSpace: 'nowrap' }}>
           ✓ Played
         </button>
         <button
@@ -350,32 +350,32 @@ function CeremonyCountCard({ songCount, showDate, verifiedCount, autoCount, manu
 }) {
   const count = useCountUp(songCount, 1000, 500)
   return (
-    <div style={{ background: C.cardGrad, border: '1px solid rgba(255,255,255,0.04)', borderRadius: 24, overflow: 'hidden', marginBottom: 12, opacity: 0, animation: 'fadeUp 0.6s 0.5s ease forwards', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04)' }}>
-      <div style={{ padding: '20px 24px 16px', borderBottom: `1px solid rgba(255,255,255,0.05)` }}>
+    <div style={{ background: C.cardGrad, border: '1px solid color-mix(in srgb, var(--sl-text) 4%, transparent)', borderRadius: 24, overflow: 'hidden', marginBottom: 12, opacity: 0, animation: 'fadeUp 0.6s 0.5s ease forwards', boxShadow: 'var(--sl-card-inset)' }}>
+      <div style={{ padding: '20px 24px 16px', borderBottom: `1px solid color-mix(in srgb, var(--sl-text) 5%, transparent)` }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 4 }}>
-          <span style={{ fontSize: 64, fontWeight: 800, color: '#f0ece3', fontFamily: '"DM Mono", monospace', letterSpacing: '-0.04em', lineHeight: 1, animation: count === songCount ? 'countPulse 0.4s ease' : 'none' }}>
+          <span style={{ fontSize: 64, fontWeight: 800, color: 'var(--sl-text)', fontFamily: '"DM Mono", monospace', letterSpacing: '-0.04em', lineHeight: 1, animation: count === songCount ? 'countPulse 0.4s ease' : 'none' }}>
             {count}
           </span>
-          <span style={{ fontSize: 20, fontWeight: 700, color: '#b8a888', letterSpacing: '-0.01em' }}>
+          <span style={{ fontSize: 20, fontWeight: 700, color: 'var(--sl-text-2)', letterSpacing: '-0.01em' }}>
             {songCount === 1 ? 'song' : 'songs'}
           </span>
         </div>
-        <p style={{ fontSize: 13, color: '#8a7a68', margin: 0, letterSpacing: '0.04em' }}>
+        <p style={{ fontSize: 13, color: 'var(--sl-text-3)', margin: 0, letterSpacing: '0.04em' }}>
           {capturedLabel(flowSource)} · {showDate}
         </p>
       </div>
       <div style={{ padding: '16px 0 8px' }}>
         {songs.map((s, i) => (
           <div key={s.id} style={{ display: 'flex', alignItems: 'baseline', gap: 14, padding: '9px 24px', opacity: 0, animation: `fadeUp 0.4s ${0.55 + i * 0.04}s ease forwards` }}>
-            <span style={{ fontSize: 11, color: '#8a7a68', minWidth: 18, textAlign: 'right', fontFamily: '"DM Mono", monospace', opacity: 0.4, flexShrink: 0 }}>{i + 1}</span>
-            <p style={{ fontSize: 16, fontWeight: s.was_planned ? 600 : 500, color: '#f0ece3', margin: 0, flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', letterSpacing: '-0.005em' }}>{s.title}</p>
+            <span style={{ fontSize: 11, color: 'var(--sl-text-4)', minWidth: 18, textAlign: 'right', fontFamily: '"DM Mono", monospace', flexShrink: 0 }}>{i + 1}</span>
+            <p style={{ fontSize: 16, fontWeight: s.was_planned ? 600 : 500, color: 'var(--sl-text)', margin: 0, flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', letterSpacing: '-0.005em' }}>{s.title}</p>
           </div>
         ))}
       </div>
-      <div style={{ padding: '12px 24px 18px', borderTop: `1px solid rgba(255,255,255,0.04)`, display: 'flex', gap: 16, flexWrap: 'wrap' as const }}>
-        {verifiedCount > 0 && <span style={{ fontSize: 13, color: '#8a7a68', opacity: 0.7 }}>✓ {verifiedCount} from setlist</span>}
-        {autoCount > verifiedCount && <span style={{ fontSize: 13, color: '#8a7a68', opacity: 0.7 }}>◈ {autoCount - verifiedCount} detected</span>}
-        {manualCount > 0 && <span style={{ fontSize: 13, color: '#8a7a68', opacity: 0.7 }}>+ {manualCount} added</span>}
+      <div style={{ padding: '12px 24px 18px', borderTop: `1px solid color-mix(in srgb, var(--sl-text) 4%, transparent)`, display: 'flex', gap: 16, flexWrap: 'wrap' as const }}>
+        {verifiedCount > 0 && <span style={{ fontSize: 13, color: 'var(--sl-text-4)' }}>✓ {verifiedCount} from setlist</span>}
+        {autoCount > verifiedCount && <span style={{ fontSize: 13, color: 'var(--sl-text-4)' }}>◈ {autoCount - verifiedCount} detected</span>}
+        {manualCount > 0 && <span style={{ fontSize: 13, color: 'var(--sl-text-4)' }}>+ {manualCount} added</span>}
       </div>
     </div>
   )
@@ -387,19 +387,19 @@ function CeremonyRoyaltyCard({ expected, low, high, performanceId, onClaim }: {
 }) {
   const count = useCountUp(expected, 1200, 800)
   return (
-    <div style={{ background: 'rgba(201,168,76,0.05)', border: `1px solid rgba(201,168,76,0.14)`, borderRadius: 20, padding: '20px 22px', marginBottom: 12, opacity: 0, animation: 'fadeUp 0.6s 0.85s ease forwards' }}>
-      <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#8a7a68', margin: '0 0 8px' }}>
+    <div style={{ background: 'color-mix(in srgb, var(--sl-accent) 5%, transparent)', border: `1px solid color-mix(in srgb, var(--sl-accent) 14%, transparent)`, borderRadius: 20, padding: '20px 22px', marginBottom: 12, opacity: 0, animation: 'fadeUp 0.6s 0.85s ease forwards' }}>
+      <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--sl-text-3)', margin: '0 0 8px' }}>
         What tonight generated
       </p>
       <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, marginBottom: 6 }}>
-        <span style={{ fontSize: 52, fontWeight: 800, color: '#c9a84c', fontFamily: '"DM Mono", monospace', letterSpacing: '-0.03em', lineHeight: 1 }}>
+        <span style={{ fontSize: 52, fontWeight: 800, color: 'var(--sl-accent)', fontFamily: '"DM Mono", monospace', letterSpacing: '-0.03em', lineHeight: 1 }}>
           ~${count.toLocaleString()}
         </span>
       </div>
-      <p style={{ fontSize: 13, color: '#8a7a68', margin: '0 0 6px', opacity: 0.7 }}>${low}–${high} estimated range · <span style={{ color: '#c9a84c' }}>for the songs you performed</span></p>
-      <p style={{ fontSize: 11, color: '#8a7a68', margin: '0 0 16px', opacity: 0.55 }}>Estimate only, not guaranteed — actual payouts vary by PRO.</p>
+      <p style={{ fontSize: 13, color: 'var(--sl-text-4)', margin: '0 0 6px' }}>${low}–${high} estimated range · <span style={{ color: 'var(--sl-accent)' }}>for the songs you performed</span></p>
+      <p style={{ fontSize: 11, color: 'var(--sl-text-4)', margin: '0 0 16px' }}>Estimate only, not guaranteed — actual payouts vary by PRO.</p>
       <button onClick={onClaim}
-        style={{ width: '100%', padding: '13px', background: C.gold, border: 'none', borderRadius: 12, color: '#0a0908', fontSize: 15, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', letterSpacing: '0.06em', transition: 'transform 0.15s ease' }}
+        style={{ width: '100%', padding: '13px', background: C.gold, border: 'none', borderRadius: 12, color: 'var(--sl-on-accent)', fontSize: 15, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', letterSpacing: '0.06em', transition: 'transform 0.15s ease' }}
         onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = 'scale(1.01)' }}
         onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = 'scale(1)' }}>
         Submit the setlist →
@@ -830,7 +830,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
 
       const canvas = await html2canvas(cardDiv, {
         scale: 3,
-        backgroundColor: '#0a0908',
+        backgroundColor: '#0a0908', // html2canvas: can't read CSS variables
         useCORS: true,
         allowTaint: true,
         logging: false,
@@ -1098,7 +1098,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
               </p>
             ) : currentSong ? (
               <>
-                <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: C.muted, margin: '0 0 18px', opacity: 0.55 }}>
+                <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: C.muted, margin: '0 0 18px' }}>
                   {seqSongIdx + 1} / {seqCs.length}
                 </p>
                 <p style={{ fontSize: 32, fontWeight: 800, color: C.text, margin: 0, lineHeight: 1.15, letterSpacing: '-0.02em' }}>
@@ -1122,13 +1122,13 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {plannedPending.map(song => (
-                <div key={song.id} onClick={e => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', background: 'rgba(255,255,255,0.03)', border: '1px dashed rgba(255,255,255,0.1)', borderRadius: 12 }}>
+                <div key={song.id} onClick={e => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', background: 'color-mix(in srgb, var(--sl-text) 3%, transparent)', border: '1px dashed color-mix(in srgb, var(--sl-text) 10%, transparent)', borderRadius: 12 }}>
                   <div style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
                     <p style={{ fontSize: 15, color: C.secondary, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 500 }}>{song.title}</p>
                     <p style={{ fontSize: 11, color: C.muted, margin: '2px 0 0' }}>Did you play it?</p>
                   </div>
                   <button onClick={e => { e.stopPropagation(); markPlannedAsPlayed(song.id) }}
-                    style={{ flexShrink: 0, padding: '6px 14px', background: 'rgba(74,222,128,0.1)', border: '1px solid rgba(74,222,128,0.25)', borderRadius: 8, color: C.green, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', letterSpacing: '0.04em', WebkitTapHighlightColor: 'transparent' }}>
+                    style={{ flexShrink: 0, padding: '6px 14px', background: 'color-mix(in srgb, var(--sl-ok) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--sl-ok) 25%, transparent)', borderRadius: 8, color: C.green, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', letterSpacing: '0.04em', WebkitTapHighlightColor: 'transparent' }}>
                     Add
                   </button>
                 </div>
@@ -1198,7 +1198,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
     return (
       <div style={{ minHeight: '100svh', background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif', overflowY: 'auto' }}>
         {/* Gold flare on entry */}
-        <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '80vh', pointerEvents: 'none', zIndex: 0, background: 'radial-gradient(ellipse at 50% 0%, rgba(201,168,76,0.10) 0%, transparent 55%)', animation: 'goldFlare 2s ease forwards' }} />
+        <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '80vh', pointerEvents: 'none', zIndex: 0, background: 'radial-gradient(ellipse at 50% 0%, color-mix(in srgb, var(--sl-accent) 10%, transparent) 0%, transparent 55%)', animation: 'goldFlare 2s ease forwards' }} />
 
         <div style={{ maxWidth: 420, margin: '0 auto', padding: '0 24px 80px', position: 'relative', zIndex: 1 }}>
 
@@ -1212,8 +1212,8 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
             </h1>
             <p style={{ fontSize: 15, color: C.secondary, margin: '0 0 28px', opacity: 0, animation: 'fadeUp 0.5s 0.3s ease forwards' }}>
               {performance?.city && <span>{performance.city}</span>}
-              {showDate && <><span style={{ opacity: 0.35, margin: '0 8px' }}>·</span><span>{showDate}</span></>}
-              {!!durMins && <><span style={{ opacity: 0.35, margin: '0 8px' }}>·</span><span>{durMins} min</span></>}
+              {showDate && <><span style={{ color: 'var(--sl-text-4)', margin: '0 8px' }}>·</span><span>{showDate}</span></>}
+              {!!durMins && <><span style={{ color: 'var(--sl-text-4)', margin: '0 8px' }}>·</span><span>{durMins} min</span></>}
             </p>
             <p style={{ fontSize: 22, fontWeight: 700, color: C.gold, margin: 0, letterSpacing: '-0.01em', fontStyle: 'italic', opacity: 0, animation: 'fadeUp 0.6s 0.45s ease forwards' }}>
               Another one. In the books.
@@ -1238,22 +1238,22 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
                 {intelligence.songDebuts.map((song, i) => (
                   <div key={i} style={{
                     padding: '16px 20px', marginBottom: 6,
-                    background: 'rgba(201,168,76,0.08)',
-                    border: '1px solid rgba(201,168,76,0.25)',
+                    background: 'color-mix(in srgb, var(--sl-accent) 8%, transparent)',
+                    border: '1px solid color-mix(in srgb, var(--sl-accent) 25%, transparent)',
                     borderRadius: 16,
                     display: 'flex', alignItems: 'center', gap: 12,
                   }}>
                     <div style={{
                       width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
-                      background: 'rgba(201,168,76,0.15)',
-                      border: '1px solid rgba(201,168,76,0.3)',
+                      background: 'color-mix(in srgb, var(--sl-accent) 15%, transparent)',
+                      border: '1px solid color-mix(in srgb, var(--sl-accent) 30%, transparent)',
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                       fontSize: 16,
                     }}>★</div>
                     <div>
-                      <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#c9a84c', margin: '0 0 3px' }}>Live Debut</p>
-                      <p style={{ fontSize: 17, fontWeight: 700, color: '#f0ece3', margin: 0, letterSpacing: '-0.01em' }}>{song}</p>
-                      <p style={{ fontSize: 12, color: '#8a7a68', margin: '2px 0 0' }}>First time played live. It counts.</p>
+                      <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--sl-accent)', margin: '0 0 3px' }}>Live Debut</p>
+                      <p style={{ fontSize: 17, fontWeight: 700, color: 'var(--sl-text)', margin: 0, letterSpacing: '-0.01em' }}>{song}</p>
+                      <p style={{ fontSize: 12, color: 'var(--sl-text-3)', margin: '2px 0 0' }}>First time played live. It counts.</p>
                     </div>
                   </div>
                 ))}
@@ -1263,7 +1263,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
           {intelligence && insights.length > 0 && (
             <div style={{ marginBottom: 12, opacity: 0, animation: 'fadeUp 0.6s 0.7s ease forwards' }}>
               {insights.slice(0, 2).map((insight, i) => (
-                <div key={i} style={{ padding: '14px 20px', background: insight.highlight ? 'rgba(201,168,76,0.07)' : 'transparent', border: `1px solid ${insight.highlight ? 'rgba(201,168,76,0.2)' : 'rgba(255,255,255,0.04)'}`, borderRadius: 16, marginBottom: 6 }}>
+                <div key={i} style={{ padding: '14px 20px', background: insight.highlight ? 'color-mix(in srgb, var(--sl-accent) 7%, transparent)' : 'transparent', border: `1px solid ${insight.highlight ? 'color-mix(in srgb, var(--sl-accent) 20%, transparent)' : 'color-mix(in srgb, var(--sl-text) 4%, transparent)'}`, borderRadius: 16, marginBottom: 6 }}>
                   <p style={{ fontSize: 16, fontWeight: insight.highlight ? 600 : 400, color: insight.highlight ? C.gold : C.secondary, margin: 0, lineHeight: 1.5, letterSpacing: '-0.005em' }}>{insight.label}</p>
                 </div>
               ))}
@@ -1271,9 +1271,9 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
           )}
 
           {!intelligence && (
-            <div style={{ marginBottom: 12, padding: '14px 20px', background: 'rgba(255,255,255,0.02)', border: `1px solid rgba(255,255,255,0.05)`, borderRadius: 12, opacity: 0, animation: 'fadeUp 0.6s 0.7s ease forwards' }}>
+            <div style={{ marginBottom: 12, padding: '14px 20px', background: 'color-mix(in srgb, var(--sl-text) 2%, transparent)', border: `1px solid color-mix(in srgb, var(--sl-text) 5%, transparent)`, borderRadius: 12, opacity: 0, animation: 'fadeUp 0.6s 0.7s ease forwards' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ width: 10, height: 10, borderRadius: '50%', border: `1.5px solid rgba(201,168,76,0.3)`, borderTopColor: C.gold, animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />
+                <div style={{ width: 10, height: 10, borderRadius: '50%', border: `1.5px solid color-mix(in srgb, var(--sl-accent) 30%, transparent)`, borderTopColor: C.gold, animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />
                 <span style={{ fontSize: 13, color: C.muted }}>Reading the night...</span>
               </div>
             </div>
@@ -1390,7 +1390,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
                             width: activeCardIndex === i ? 24 : 8,
                             height: 8,
                             borderRadius: 4,
-                            background: activeCardIndex === i ? C.gold : 'rgba(255,255,255,0.2)',
+                            background: activeCardIndex === i ? C.gold : 'color-mix(in srgb, var(--sl-text) 20%, transparent)',
                             border: 'none',
                             cursor: 'pointer',
                             transition: 'all 0.2s ease',
@@ -1424,13 +1424,13 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
           {/* ── ACTIONS ── */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, opacity: 0, animation: 'fadeUp 0.6s 1.1s ease forwards' }}>
             <button onClick={() => router.push('/app/submit/' + params.id)}
-              style={{ width: '100%', padding: '17px', background: C.gold, border: 'none', borderRadius: 16, color: '#0a0908', fontSize: 15, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'inherit', transition: 'transform 0.15s ease' }}
+              style={{ width: '100%', padding: '17px', background: C.gold, border: 'none', borderRadius: 16, color: 'var(--sl-on-accent)', fontSize: 15, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'inherit', transition: 'transform 0.15s ease' }}
               onMouseEnter={e => (e.currentTarget as HTMLElement).style.transform = 'scale(1.01)'}
               onMouseLeave={e => (e.currentTarget as HTMLElement).style.transform = 'scale(1)'}>
               Submit the setlist →
             </button>
             <button onClick={() => router.push('/app/dashboard')}
-              style={{ width: '100%', padding: '14px', background: 'transparent', border: '1px solid rgba(201,168,76,0.3)', borderRadius: 16, color: C.gold, fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', transition: 'opacity 0.15s ease' }}
+              style={{ width: '100%', padding: '14px', background: 'transparent', border: '1px solid color-mix(in srgb, var(--sl-accent) 30%, transparent)', borderRadius: 16, color: C.gold, fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', transition: 'opacity 0.15s ease' }}
               onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.7'}
               onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}>
               Back to your record
@@ -1457,7 +1457,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
 
   return (
     <div style={{ minHeight: '100svh', background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '100vw', height: '40vh', pointerEvents: 'none', zIndex: 0, background: 'radial-gradient(ellipse at 50% 0%, rgba(201,168,76,0.05) 0%, transparent 65%)' }} />
+      <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '100vw', height: '40vh', pointerEvents: 'none', zIndex: 0, background: 'var(--sl-page-glow)' }} />
       <div style={{ position: 'relative', zIndex: 1, flex: 1, display: 'flex', flexDirection: 'column', maxWidth: 480, width: '100%', margin: '0 auto', padding: '0 16px', boxSizing: 'border-box' }}>
 
         <div style={{ paddingTop: 28, paddingBottom: 20, animation: 'fadeUp 0.4s ease' }}>
@@ -1469,8 +1469,8 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
           </div>
           <div style={{ marginTop: 12, display: 'flex', gap: 6, alignItems: 'center' }}>
             <span style={{ fontSize: 14, color: C.secondary }}>{confirmedSongs.length} songs</span>
-            {autoCount > 0 && <><span style={{ color: C.muted, opacity: 0.4 }}>·</span><span style={{ fontSize: 14, color: C.muted }}>{autoCount} detected</span></>}
-            {needsReviewCount > 0 && <><span style={{ color: C.muted, opacity: 0.4 }}>·</span><span style={{ fontSize: 14, color: '#f87171' }}>{needsReviewCount} need attention</span></>}
+            {autoCount > 0 && <><span style={{ color: 'var(--sl-text-4)' }}>·</span><span style={{ fontSize: 14, color: C.muted }}>{autoCount} detected</span></>}
+            {needsReviewCount > 0 && <><span style={{ color: 'var(--sl-text-4)' }}>·</span><span style={{ fontSize: 14, color: 'var(--sl-danger)' }}>{needsReviewCount} need attention</span></>}
           </div>
         </div>
 
@@ -1485,9 +1485,9 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
               />
               <label style={{
                 position: 'absolute', bottom: 10, right: 10,
-                background: 'rgba(10,9,8,0.8)', border: '1px solid rgba(255,255,255,0.15)',
+                background: 'color-mix(in srgb, var(--sl-bg) 80%, transparent)', border: '1px solid color-mix(in srgb, var(--sl-text) 15%, transparent)',
                 borderRadius: 8, padding: '6px 12px', cursor: 'pointer',
-                fontSize: 12, color: '#b8a888', fontFamily: 'inherit', fontWeight: 600,
+                fontSize: 12, color: 'var(--sl-text-2)', fontFamily: 'inherit', fontWeight: 600,
               }}>
                 Change photo
                 <input type="file" accept="image/*" onChange={handlePhotoUpload} style={{ display: 'none' }} />
@@ -1497,19 +1497,19 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
             <label style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               gap: 8, width: '100%', padding: '14px',
-              background: 'rgba(255,255,255,0.02)',
-              border: '1px dashed rgba(255,255,255,0.12)',
+              background: 'color-mix(in srgb, var(--sl-text) 2%, transparent)',
+              border: '1px dashed color-mix(in srgb, var(--sl-text) 12%, transparent)',
               borderRadius: 12, cursor: 'pointer',
-              fontSize: 13, color: '#8a7a68', fontFamily: 'inherit',
+              fontSize: 13, color: 'var(--sl-text-3)', fontFamily: 'inherit',
             }}>
               {photoUploading ? (
                 <>
-                  <div style={{ width: 14, height: 14, borderRadius: '50%', border: '1.5px solid rgba(201,168,76,0.3)', borderTopColor: '#c9a84c', animation: 'spin 0.7s linear infinite' }} />
+                  <div style={{ width: 14, height: 14, borderRadius: '50%', border: '1.5px solid color-mix(in srgb, var(--sl-accent) 30%, transparent)', borderTopColor: 'var(--sl-accent)', animation: 'spin 0.7s linear infinite' }} />
                   Uploading...
                 </>
               ) : (
                 <>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8a7a68" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--sl-text-3)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/>
                     <polyline points="21 15 16 10 5 21"/>
                   </svg>
@@ -1531,7 +1531,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
         </div>
 
         {showAdd ? (
-          <div style={{ background: C.cardGrad, border: `1px solid ${C.borderGold}`, borderRadius: 12, padding: 14, marginBottom: 10, animation: 'slideUp 0.2s ease', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04)' }}>
+          <div style={{ background: C.cardGrad, border: `1px solid ${C.borderGold}`, borderRadius: 12, padding: 14, marginBottom: 10, animation: 'slideUp 0.2s ease', boxShadow: 'var(--sl-card-inset)' }}>
             <CatalogSearch userId={userId} placeholder="Search or add a song..." autoFocus showEmpty currentSongs={confirmedSongs.map(s => s.title)}
               onSelect={(catalogSong) => {
                 const normalized = normalizeSong({ title: catalogSong.title, artist: catalogSong.artist || performance?.artist_name || '' })
@@ -1546,7 +1546,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
         {confirmedSongs.length === 0 && plannedPending.length === 0 ? (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '64px 0', animation: 'fadeUp 0.4s ease' }}>
             <div style={{ width: 56, height: 56, borderRadius: '50%', background: C.card, border: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
-              <Music2 size={22} color={C.muted} />
+              <Music2 size={22} style={{ color: C.muted }} />
             </div>
             <p style={{ fontSize: 14, color: C.secondary, margin: 0 }}>No songs detected</p>
             <p style={{ fontSize: 12, color: C.muted, margin: '4px 0 0' }}>Add songs manually above</p>
@@ -1593,7 +1593,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
         <div style={{ marginTop: 12, background: 'transparent', border: 'none', borderRadius: 16, overflow: 'hidden', animation: 'fadeUp 0.4s 0.15s ease both' }}>
           <button onClick={() => setShowExport(!showExport)}
             style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 600, color: C.muted }}><Download size={14} color={C.gold} />Export for PRO Submission</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 600, color: C.muted }}><Download size={14} style={{ color: C.gold }} />Export for PRO Submission</span>
             <span style={{ fontSize: 10, color: C.muted, transform: showExport ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s ease', display: 'inline-block' }}>▼</span>
           </button>
           {showExport ? (
@@ -1615,10 +1615,10 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
         <div style={{ paddingTop: 14, paddingBottom: 40, display: 'flex', flexDirection: 'column', gap: 10, animation: 'fadeUp 0.4s 0.2s ease both' }}>
           <p style={{ fontSize: 11, color: C.muted, textAlign: 'center', margin: '0 0 2px' }}>By saving, you confirm these songs were performed at this show.</p>
           <button onClick={handleSave} disabled={saving || saved}
-            style={{ width: '100%', padding: '15px', background: saved ? '#16a34a' : C.gold, border: 'none', borderRadius: 12, color: saved ? '#fff' : '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: saving || saved ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1, transition: 'all 0.25s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit' }}
+            style={{ width: '100%', padding: '15px', background: saved ? 'var(--sl-ok-strong)' : C.gold, border: 'none', borderRadius: 12, color: saved ? '#fff' : 'var(--sl-on-accent)', fontSize: 13, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: saving || saved ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1, transition: 'all 0.25s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit' }}
             onMouseEnter={e => { if (!saving && !saved) (e.currentTarget as HTMLElement).style.opacity = '0.8' }}
             onMouseLeave={e => { if (!saving && !saved) (e.currentTarget as HTMLElement).style.opacity = '1' }}>
-            {saved ? <><Check size={16} strokeWidth={2.5} /> Saved</> : saving ? <><div style={{ width: 14, height: 14, borderRadius: '50%', border: `2px solid #0a090840`, borderTopColor: '#0a0908', animation: 'spin 0.7s linear infinite' }} />Saving...</> : 'Save & Complete'}
+            {saved ? <><Check size={16} strokeWidth={2.5} /> Saved</> : saving ? <><div style={{ width: 14, height: 14, borderRadius: '50%', border: `2px solid color-mix(in srgb, var(--sl-on-accent) 25%, transparent)`, borderTopColor: 'var(--sl-on-accent)', animation: 'spin 0.7s linear infinite' }} />Saving...</> : 'Save & Complete'}
           </button>
           <button onClick={() => router.push('/app/dashboard')}
             style={{ background: 'none', border: 'none', color: C.muted, fontSize: 12, cursor: 'pointer', letterSpacing: '0.04em', fontFamily: 'inherit', padding: '6px', transition: 'opacity 0.15s ease' }}
@@ -1642,11 +1642,11 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
         @keyframes breathe{0%,100%{transform:scale(1);opacity:.3}50%{transform:scale(1.2);opacity:.8}}
         @keyframes showStamp{from{transform:scale(1.06)}to{transform:scale(1)}}
         *{-webkit-tap-highlight-color:transparent}
-        input::placeholder{color:#6a6050}
-        input:focus{border-color:rgba(201,168,76,0.4)!important}
+        input::placeholder{color:var(--sl-text-3)}
+        input:focus{border-color:var(--sl-input-line-active)!important}
         ::-webkit-scrollbar{width:4px}
         ::-webkit-scrollbar-track{background:transparent}
-        ::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.08);border-radius:2px}
+        ::-webkit-scrollbar-thumb{background:color-mix(in srgb, var(--sl-text) 8%, transparent);border-radius:2px}
       `}</style>
     </div>
   )

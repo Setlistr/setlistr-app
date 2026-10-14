@@ -62,7 +62,16 @@
   --sl-card-bg: linear-gradient(180deg, #171512 0%, #121009 100%);
   --sl-card-inset: inset 0 1px 0 rgba(255,255,255,0.04);
   --sl-input-bg: #0f0e0c;
-  --sl-input-line: rgba(255,255,255,0.09);
+  /* Form-field boundary: 3:1 against cards and the page (WCAG 1.4.11). */
+  --sl-input-line: #6e6656;
+  /* Focused or filled field: the gold boundary, still 3:1. */
+  --sl-input-line-active: #a68a3e;
+  /* Quietest text that still clears 4.5:1 on the page and on cards — for
+     the least important labels, instead of dimming text with opacity. */
+  --sl-text-4: #958976;
+  /* Deliberately faint details (section overlines, quiet delete marks):
+     as faint as 4.5:1 allows in Dark, full strength in Light. */
+  --sl-faint: 80%;
   --sl-page-glow: radial-gradient(ellipse at 50% 0%, rgba(201,168,76,0.06) 0%, transparent 65%);
   --sl-scheme: dark;
   --sl-font-display: 'Bebas Neue', 'Oswald', 'Arial Narrow', sans-serif;
@@ -77,8 +86,8 @@
   --sl-text-2: #3f434b;
   --sl-text-3: #5b5f67;
   --sl-gold: #b8963e;
-  --sl-gold-text: #85650f;
-  --sl-ok: #1d7a3c;
+  --sl-gold-text: #7a5c0c;
+  --sl-ok: #17703a;
   --sl-live: #c0261d;
   --sl-tick: rgba(17,19,24,0.15);
   --sl-skeleton: rgba(17,19,24,0.07);
@@ -95,7 +104,7 @@
   --sl-sidebar-bg: #f7f7f8;
   --sl-nav-active: rgba(17,19,24,0.06);
   --sl-hover: rgba(17,19,24,0.04);
-  --sl-accent: #8f701a;
+  --sl-accent: #7a5e14;
   --sl-on-accent: #ffffff;
   --sl-danger: #c0261d;
   --sl-info: #1d5fbf;
@@ -103,7 +112,9 @@
   --sl-card-bg: #f4f4f5;
   --sl-card-inset: none;
   --sl-input-bg: #ffffff;
-  --sl-input-line: rgba(17,19,24,0.2);
+  --sl-input-line: #82858c;
+  --sl-input-line-active: #7a5e14;
+  --sl-text-4: #5f636a;
   --sl-page-glow: none;
   --sl-scheme: light;
   /* Deliberately faint Dark details (section overlines, quiet delete
@@ -111,6 +122,11 @@
   --sl-faint: 100%;
   color-scheme: light;
 }
+/* Placeholder text in the app passes 4.5:1 in both themes; page-level
+   placeholder rules are older and fainter, so this wins inside the frame. */
+.sl-shell input::placeholder, .sl-shell textarea::placeholder,
+.sl-manager-shell input::placeholder, .sl-manager-shell textarea::placeholder { color: var(--sl-text-4); opacity: 1; }
+
 /* The wordmark exists as two images; show the one for the appearance. */
 .sl-logo-for-light { display: none; }
 :root[data-appearance="light"] .sl-logo-for-light { display: block; }
@@ -128,8 +144,8 @@
 
 body {
   font-family: var(--font-sans);
-  background: #0a0908;
-  color: #e8e4db;
+  background: var(--sl-bg);
+  color: var(--sl-text);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }

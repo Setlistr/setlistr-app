@@ -15,7 +15,7 @@ const CARD = {
 }
 const C = {
   bg: 'var(--sl-bg)', card: 'var(--sl-surface)', border: 'color-mix(in srgb, var(--sl-text) 7%, transparent)', borderGold: 'color-mix(in srgb, var(--sl-accent) 30%, transparent)',
-  input: 'var(--sl-input-bg)', inputBorder: 'color-mix(in srgb, var(--sl-text) 9%, transparent)',
+  input: 'var(--sl-input-bg)', inputBorder: 'var(--sl-input-line)',
   text: 'var(--sl-text)', secondary: 'var(--sl-text-2)', muted: 'var(--sl-text-3)',
   gold: 'var(--sl-accent)', goldDim: 'color-mix(in srgb, var(--sl-accent) 10%, transparent)',
   green: 'var(--sl-ok)', greenDim: 'color-mix(in srgb, var(--sl-ok) 8%, transparent)',

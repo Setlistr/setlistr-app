@@ -10,9 +10,9 @@ import { isWriteCapableRole } from '@/lib/writeCapableRoles'
 import { UpcomingShows } from '@/components/scheduling/UpcomingShows'
 
 const C = {
-  bg: '#0a0908', card: '#141210', border: 'rgba(255,255,255,0.07)',
-  text: '#f0ece3', secondary: '#b8a888', muted: '#8a7a68',
-  gold: '#c9a84c', green: '#4ade80', red: '#f87171',
+  bg: 'var(--sl-bg)', card: 'var(--sl-surface)', border: 'color-mix(in srgb, var(--sl-text) 7%, transparent)',
+  text: 'var(--sl-text)', secondary: 'var(--sl-text-2)', muted: 'var(--sl-text-3)',
+  gold: 'var(--sl-accent)', green: 'var(--sl-ok)', red: 'var(--sl-danger)',
 }
 
 type ContextPerformance = {
@@ -141,7 +141,7 @@ export default function ManagerArtistDetailPage({ params }: { params: { artistId
             </div>
           ))}
         </div>
-        <style>{`@keyframes mgrShimmer { 0% { background-position: -200px 0 } 100% { background-position: 200px 0 } } .mgr-skeleton { background: linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.08) 37%, rgba(255,255,255,0.04) 63%); background-size: 400px 100%; animation: mgrShimmer 1.4s ease infinite; } @media (prefers-reduced-motion: reduce) { .mgr-skeleton { animation: none; opacity: 0.5; } }`}</style>
+        <style>{`@keyframes mgrShimmer { 0% { background-position: -200px 0 } 100% { background-position: 200px 0 } } .mgr-skeleton { background: linear-gradient(90deg, color-mix(in srgb, var(--sl-text) 4%, transparent) 25%, color-mix(in srgb, var(--sl-text) 8%, transparent) 37%, color-mix(in srgb, var(--sl-text) 4%, transparent) 63%); background-size: 400px 100%; animation: mgrShimmer 1.4s ease infinite; } @media (prefers-reduced-motion: reduce) { .mgr-skeleton { animation: none; opacity: 0.5; } }`}</style>
       </div>
     )
   }
@@ -164,7 +164,7 @@ export default function ManagerArtistDetailPage({ params }: { params: { artistId
     return (
       <div style={{ padding: '60px 20px', textAlign: 'center' as const }}>
         <p style={{ color: C.text, fontSize: 16, fontWeight: 700, margin: '0 0 8px' }}>Couldn't load this artist</p>
-        <button onClick={load} style={{ padding: '10px 18px', background: C.gold, border: 'none', borderRadius: 10, color: '#0a0908', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
+        <button onClick={load} style={{ padding: '10px 18px', background: C.gold, border: 'none', borderRadius: 10, color: 'var(--sl-on-accent)', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
           Retry
         </button>
       </div>
@@ -183,7 +183,7 @@ export default function ManagerArtistDetailPage({ params }: { params: { artistId
       </Link>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 24 }}>
-        <div style={{ width: 52, height: 52, borderRadius: '50%', background: 'linear-gradient(145deg, rgba(201,168,76,0.2), rgba(201,168,76,0.06))', border: '1px solid rgba(201,168,76,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+        <div style={{ width: 52, height: 52, borderRadius: '50%', background: 'linear-gradient(145deg, color-mix(in srgb, var(--sl-accent) 20%, transparent), color-mix(in srgb, var(--sl-accent) 6%, transparent))', border: '1px solid color-mix(in srgb, var(--sl-accent) 25%, transparent)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
           <span style={{ fontSize: 18, fontWeight: 800, color: C.gold }}>{initialsFor(data.artist_name)}</span>
         </div>
         <div>
@@ -193,7 +193,7 @@ export default function ManagerArtistDetailPage({ params }: { params: { artistId
       </div>
 
       {selectError && (
-        <div style={{ background: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.25)', borderRadius: 10, padding: '10px 14px', marginBottom: 16 }}>
+        <div style={{ background: 'color-mix(in srgb, var(--sl-danger) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--sl-danger) 25%, transparent)', borderRadius: 10, padding: '10px 14px', marginBottom: 16 }}>
           <p style={{ fontSize: 13, color: C.red, margin: 0 }}>Couldn't confirm your access to this artist right now. Nothing was opened — try again.</p>
         </div>
       )}
@@ -234,7 +234,7 @@ export default function ManagerArtistDetailPage({ params }: { params: { artistId
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
                   <div style={{ width: 6, height: 6, borderRadius: '50%', background: submitted ? C.green : C.gold, opacity: submitted ? 1 : 0.4 }} />
                   <span style={{ fontSize: 11, fontWeight: 700, color: submitted ? C.green : C.muted }}>{submitted ? 'Marked Submitted' : 'Not submitted'}</span>
-                  <button onClick={() => openFlow(flow.href)} disabled={selecting} className="mgr-flow-btn" style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 10px', background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.25)', borderRadius: 8, color: C.gold, fontSize: 11, fontWeight: 700, cursor: selecting ? 'default' : 'pointer', fontFamily: 'inherit', opacity: selecting ? 0.6 : 1, whiteSpace: 'nowrap' as const }}>
+                  <button onClick={() => openFlow(flow.href)} disabled={selecting} className="mgr-flow-btn" style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 10px', background: 'color-mix(in srgb, var(--sl-accent) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--sl-accent) 25%, transparent)', borderRadius: 8, color: C.gold, fontSize: 11, fontWeight: 700, cursor: selecting ? 'default' : 'pointer', fontFamily: 'inherit', opacity: selecting ? 0.6 : 1, whiteSpace: 'nowrap' as const }}>
                     {flow.label} <ChevronRight size={12} />
                   </button>
                 </div>
@@ -262,10 +262,10 @@ export default function ManagerArtistDetailPage({ params }: { params: { artistId
       <style>{`
         @media (min-width: 900px) { .mgr-page { padding: 32px; } }
         .mgr-flow-btn { transition: background 0.15s ease, transform 0.1s ease; }
-        .mgr-flow-btn:hover:not(:disabled) { background: rgba(201,168,76,0.18); }
+        .mgr-flow-btn:hover:not(:disabled) { background: color-mix(in srgb, var(--sl-accent) 18%, transparent); }
         .mgr-flow-btn:active:not(:disabled) { transform: scale(0.97); }
         @keyframes mgrShimmer { 0% { background-position: -200px 0 } 100% { background-position: 200px 0 } }
-        .mgr-skeleton { background: linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.08) 37%, rgba(255,255,255,0.04) 63%); background-size: 400px 100%; animation: mgrShimmer 1.4s ease infinite; }
+        .mgr-skeleton { background: linear-gradient(90deg, color-mix(in srgb, var(--sl-text) 4%, transparent) 25%, color-mix(in srgb, var(--sl-text) 8%, transparent) 37%, color-mix(in srgb, var(--sl-text) 4%, transparent) 63%); background-size: 400px 100%; animation: mgrShimmer 1.4s ease infinite; }
         @media (prefers-reduced-motion: reduce) { .mgr-flow-btn, .mgr-skeleton { transition: none !important; animation: none !important; } .mgr-flow-btn:active:not(:disabled) { transform: none; } .mgr-skeleton { opacity: 0.5; } }
       `}</style>
     </div>

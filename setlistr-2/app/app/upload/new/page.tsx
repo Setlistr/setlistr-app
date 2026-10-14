@@ -42,12 +42,12 @@ mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
 // already reads for exactly this purpose. No new API, no RLS change.
 
 const C = {
-  bg: '#0a0908', card: '#141210',
-  border: 'rgba(255,255,255,0.07)', borderGold: 'rgba(201,168,76,0.3)',
-  input: '#0f0e0c', text: '#f0ece3', secondary: '#b8a888', muted: '#8a7a68',
-  gold: '#c9a84c', goldDim: 'rgba(201,168,76,0.1)',
-  green: '#4ade80', greenDim: 'rgba(74,222,128,0.08)',
-  red: '#f87171', redDim: 'rgba(248,113,113,0.08)',
+  bg: 'var(--sl-bg)', card: 'var(--sl-surface)',
+  border: 'color-mix(in srgb, var(--sl-text) 7%, transparent)', borderGold: 'color-mix(in srgb, var(--sl-accent) 30%, transparent)',
+  input: 'var(--sl-input-bg)', text: 'var(--sl-text)', secondary: 'var(--sl-text-2)', muted: 'var(--sl-text-3)',
+  gold: 'var(--sl-accent)', goldDim: 'color-mix(in srgb, var(--sl-accent) 10%, transparent)',
+  green: 'var(--sl-ok)', greenDim: 'color-mix(in srgb, var(--sl-ok) 8%, transparent)',
+  red: 'var(--sl-danger)', redDim: 'color-mix(in srgb, var(--sl-danger) 8%, transparent)',
 }
 
 const UPLOAD_CHUNK_SECONDS      = 14
@@ -228,7 +228,7 @@ function chipStyle(active: boolean): React.CSSProperties {
   return {
     padding: '9px 13px', borderRadius: 9, cursor: 'pointer', fontFamily: 'inherit',
     fontSize: 12.5, fontWeight: 700, whiteSpace: 'nowrap',
-    background: active ? C.goldDim : 'rgba(255,255,255,0.02)',
+    background: active ? C.goldDim : 'color-mix(in srgb, var(--sl-text) 2%, transparent)',
     border: `1px solid ${active ? C.borderGold : C.border}`,
     color: active ? C.gold : C.secondary,
   }
@@ -288,12 +288,12 @@ function VenueMapPreview({ venueName, city }: { venueName: string; city?: string
         container: mapContainer.current, style: 'mapbox://styles/mapbox/dark-v11',
         center: [coords.lng, coords.lat], zoom: 13, attributionControl: false, scrollZoom: false,
       })
-      map.current.on('load', () => { map.current?.setPaintProperty('background', 'background-color', '#0a0908') })
+      map.current.on('load', () => { map.current?.setPaintProperty('background', 'background-color', '#0a0908') }) // map imagery: fixed
     } else {
       map.current.flyTo({ center: [coords.lng, coords.lat], zoom: 13 })
     }
     const el = document.createElement('div')
-    el.style.cssText = `width:16px;height:16px;border-radius:50%;background:#c9a84c;border:2px solid rgba(201,168,76,0.4);box-shadow:0 0 20px rgba(201,168,76,0.5);`
+    el.style.cssText = `width:16px;height:16px;border-radius:50%;background:var(--sl-accent);border:2px solid color-mix(in srgb, var(--sl-accent) 40%, transparent);box-shadow:0 0 20px color-mix(in srgb, var(--sl-accent) 50%, transparent);`
     marker.current?.remove()
     marker.current = new mapboxgl.Marker(el).setLngLat([coords.lng, coords.lat]).addTo(map.current)
   }, [coords])
@@ -919,7 +919,7 @@ export default function UploadNewPerformancePage() {
 
   return (
     <div style={{ minHeight: '100svh', background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '24px 20px 80px', position: 'relative', overflowX: 'hidden' }}>
-      <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '50vh', pointerEvents: 'none', zIndex: 0, background: 'radial-gradient(ellipse at 50% 0%, rgba(201,168,76,0.06) 0%, transparent 65%)' }} />
+      <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '50vh', pointerEvents: 'none', zIndex: 0, background: 'var(--sl-page-glow)' }} />
 
       <div style={{ width: '100%', maxWidth: 440, position: 'relative', zIndex: 1 }}>
 
@@ -933,20 +933,20 @@ export default function UploadNewPerformancePage() {
 
         {/* ── Have the setlist? — shown first, optional, no forced skip ──── */}
         {!recordingFile && !setlistPhotoUrl && (
-          <div style={{ marginBottom: 16, padding: '18px 20px', borderRadius: 16, border: `1px dashed rgba(255,255,255,0.12)`, background: 'rgba(255,255,255,0.015)' }}>
+          <div style={{ marginBottom: 16, padding: '18px 20px', borderRadius: 16, border: `1px dashed color-mix(in srgb, var(--sl-text) 12%, transparent)`, background: 'color-mix(in srgb, var(--sl-text) 1.5%, transparent)' }}>
             <p style={{ fontSize: 14, fontWeight: 700, color: C.text, margin: '0 0 4px' }}>Have the setlist?</p>
             <p style={{ fontSize: 12, color: C.muted, margin: '0 0 14px', lineHeight: 1.5 }}>Optional — helps Setlistr verify your performance more accurately.</p>
             <input ref={cameraInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" capture="environment" style={{ display: 'none' }} onChange={handleSetlistInputChange} />
             <input ref={setlistInputRef} type="file" accept="image/jpeg,image/png,image/webp,application/pdf,text/plain" style={{ display: 'none' }} onChange={handleSetlistInputChange} />
             <div style={{ display: 'flex', gap: 8 }}>
               <button onClick={() => cameraInputRef.current?.click()} disabled={setlistUploading}
-                style={{ flex: 1, padding: '11px 8px', background: 'rgba(255,255,255,0.03)', border: `1px solid ${C.border}`, borderRadius: 10, cursor: setlistUploading ? 'default' : 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, opacity: setlistUploading ? 0.5 : 1 }}>
-                <Camera size={15} color={C.secondary} />
+                style={{ flex: 1, padding: '11px 8px', background: 'color-mix(in srgb, var(--sl-text) 3%, transparent)', border: `1px solid ${C.border}`, borderRadius: 10, cursor: setlistUploading ? 'default' : 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, opacity: setlistUploading ? 0.5 : 1 }}>
+                <Camera size={15} style={{ color: C.secondary }} />
                 <span style={{ fontSize: 11, fontWeight: 700, color: C.secondary }}>Take Photo</span>
               </button>
               <button onClick={() => setlistInputRef.current?.click()} disabled={setlistUploading}
-                style={{ flex: 1, padding: '11px 8px', background: 'rgba(255,255,255,0.03)', border: `1px solid ${C.border}`, borderRadius: 10, cursor: setlistUploading ? 'default' : 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, opacity: setlistUploading ? 0.5 : 1 }}>
-                <Upload size={15} color={C.secondary} />
+                style={{ flex: 1, padding: '11px 8px', background: 'color-mix(in srgb, var(--sl-text) 3%, transparent)', border: `1px solid ${C.border}`, borderRadius: 10, cursor: setlistUploading ? 'default' : 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, opacity: setlistUploading ? 0.5 : 1 }}>
+                <Upload size={15} style={{ color: C.secondary }} />
                 <span style={{ fontSize: 11, fontWeight: 700, color: C.secondary }}>Upload Setlist</span>
               </button>
             </div>
@@ -955,8 +955,8 @@ export default function UploadNewPerformancePage() {
           </div>
         )}
         {setlistPhotoUrl && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, padding: '10px 14px', background: C.greenDim, border: '1px solid rgba(74,222,128,0.25)', borderRadius: 10 }}>
-            <Check size={13} color={C.green} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, padding: '10px 14px', background: C.greenDim, border: '1px solid color-mix(in srgb, var(--sl-ok) 25%, transparent)', borderRadius: 10 }}>
+            <Check size={13} style={{ color: C.green }} />
             <span style={{ fontSize: 12, color: C.text }}>
               Setlist attached{parsedSetlistSongs.length ? ` — ${parsedSetlistSongs.length} song${parsedSetlistSongs.length === 1 ? '' : 's'} referenced` : ''}
             </span>
@@ -977,22 +977,22 @@ export default function UploadNewPerformancePage() {
             />
             <button
               onClick={() => fileInputRef.current?.click()}
-              style={{ width: '100%', padding: '18px', background: 'rgba(255,255,255,0.02)', border: `2px dashed rgba(255,255,255,0.12)`, borderRadius: 12, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, color: C.secondary, fontSize: 14, fontWeight: 600 }}>
+              style={{ width: '100%', padding: '18px', background: 'color-mix(in srgb, var(--sl-text) 2%, transparent)', border: `2px dashed color-mix(in srgb, var(--sl-text) 12%, transparent)`, borderRadius: 12, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, color: C.secondary, fontSize: 14, fontWeight: 600 }}>
               Choose Recording
             </button>
           </div>
         )}
 
         {scanError && !reconcileFailed && (
-          <div style={{ padding: '12px 14px', background: C.redDim, border: '1px solid rgba(248,113,113,0.2)', borderRadius: 10, marginBottom: 12 }}>
+          <div style={{ padding: '12px 14px', background: C.redDim, border: '1px solid color-mix(in srgb, var(--sl-danger) 20%, transparent)', borderRadius: 10, marginBottom: 12 }}>
             <p style={{ fontSize: 13, color: C.red, margin: 0 }}>{scanError}</p>
           </div>
         )}
 
         {/* ── Building Your Setlist — the emotional centerpiece ───────────── */}
         {recordingFile && (creatingDraft || scanning || scanDone) && (
-          <div style={{ position: 'relative', padding: '30px 22px', marginBottom: 20, borderRadius: 20, background: 'linear-gradient(180deg, #17140f 0%, #0e0c09 100%)', border: `1px solid ${C.borderGold}`, overflow: 'hidden' }}>
-            <div style={{ position: 'absolute', top: -70, left: '50%', transform: 'translateX(-50%)', width: 320, height: 220, background: 'radial-gradient(ellipse at center, rgba(201,168,76,0.15) 0%, transparent 70%)', pointerEvents: 'none' }} />
+          <div style={{ position: 'relative', padding: '30px 22px', marginBottom: 20, borderRadius: 20, background: 'linear-gradient(180deg, var(--sl-surface) 0%, var(--sl-bg) 100%)', border: `1px solid ${C.borderGold}`, overflow: 'hidden' }}>
+            <div style={{ position: 'absolute', top: -70, left: '50%', transform: 'translateX(-50%)', width: 320, height: 220, background: 'radial-gradient(ellipse at center, color-mix(in srgb, var(--sl-accent) 15%, transparent) 0%, transparent 70%)', pointerEvents: 'none' }} />
             <div style={{ position: 'relative' }}>
               <p style={{ fontSize: 12, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: C.gold, margin: '0 0 6px', textAlign: 'center' }}>
                 {creatingDraft ? 'Starting…'
@@ -1031,12 +1031,12 @@ export default function UploadNewPerformancePage() {
 
               {creatingDraft && (
                 <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0' }}>
-                  <div style={{ width: 22, height: 22, borderRadius: '50%', border: '2px solid rgba(201,168,76,0.25)', borderTopColor: C.gold, animation: 'spin 0.8s linear infinite' }} />
+                  <div style={{ width: 22, height: 22, borderRadius: '50%', border: '2px solid color-mix(in srgb, var(--sl-accent) 25%, transparent)', borderTopColor: C.gold, animation: 'spin 0.8s linear infinite' }} />
                 </div>
               )}
 
               {(scanning || scanDone) && (
-                <div style={{ height: 3, background: 'rgba(255,255,255,0.06)', borderRadius: 2, overflow: 'hidden', marginBottom: 22 }}>
+                <div style={{ height: 3, background: 'color-mix(in srgb, var(--sl-text) 6%, transparent)', borderRadius: 2, overflow: 'hidden', marginBottom: 22 }}>
                   <div style={{ height: '100%', width: `${Math.round(scanProgress * 100)}%`, background: `linear-gradient(90deg, ${C.gold}, #e8c76a)`, borderRadius: 2, transition: 'width 0.4s ease' }} />
                 </div>
               )}
@@ -1045,8 +1045,8 @@ export default function UploadNewPerformancePage() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 9, marginBottom: scanning ? 16 : 4 }}>
                   {detectedSongs.map((s, i) => (
                     <div key={s.title + i} style={{ display: 'flex', alignItems: 'center', gap: 10, animation: 'songIn 0.4s ease both' }}>
-                      <div style={{ width: 18, height: 18, borderRadius: '50%', background: C.greenDim, border: '1px solid rgba(74,222,128,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        <Check size={10} color={C.green} strokeWidth={3} />
+                      <div style={{ width: 18, height: 18, borderRadius: '50%', background: C.greenDim, border: '1px solid color-mix(in srgb, var(--sl-ok) 35%, transparent)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <Check size={10} strokeWidth={3} style={{ color: C.green }} />
                       </div>
                       <span style={{ fontSize: 15, fontWeight: 600, color: C.text, letterSpacing: '-0.005em' }}>{s.title}</span>
                     </div>
@@ -1068,7 +1068,7 @@ export default function UploadNewPerformancePage() {
               {/* Reconciliation-only retry — reuses the raw recognition
                   results already held in memory, never re-scans the audio. */}
               {reconcileFailed && (
-                <div style={{ marginTop: 12, padding: '10px 14px', background: C.redDim, border: '1px solid rgba(248,113,113,0.2)', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                <div style={{ marginTop: 12, padding: '10px 14px', background: C.redDim, border: '1px solid color-mix(in srgb, var(--sl-danger) 20%, transparent)', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
                   <span style={{ fontSize: 12, color: C.red }}>{scanError || 'Could not confirm your setlist.'}</span>
                   <button
                     onClick={retryReconciliation}
@@ -1105,14 +1105,14 @@ export default function UploadNewPerformancePage() {
                 )}
                 <input type="text" value={venueName} onChange={e => setVenueName(e.target.value)} placeholder="Where did you play?"
                   spellCheck={false} autoCorrect="off" autoCapitalize="words"
-                  style={{ width: '100%', boxSizing: 'border-box', background: C.input, border: `1px solid ${venueName.trim() ? C.borderGold : C.border}`, borderRadius: 10, padding: '13px 14px', color: C.text, fontSize: 15, fontFamily: 'inherit', outline: 'none' }} />
+                  style={{ width: '100%', boxSizing: 'border-box', background: C.input, border: `1px solid ${venueName.trim() ? 'var(--sl-input-line-active)' : 'var(--sl-input-line)'}`, borderRadius: 10, padding: '13px 14px', color: C.text, fontSize: 15, fontFamily: 'inherit', outline: 'none' }} />
                 {/* City disambiguates same-named venues in different places
                     (see VenueMapPreview above) — optional, but without it a
                     common venue name can't be confirmed against anywhere in
                     particular. */}
                 <input type="text" value={venueCity} onChange={e => setVenueCity(e.target.value)} placeholder="City (helps confirm the location)"
                   spellCheck={false} autoCorrect="off" autoCapitalize="words"
-                  style={{ width: '100%', boxSizing: 'border-box', marginTop: 6, background: C.input, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 14px', color: C.text, fontSize: 13, fontFamily: 'inherit', outline: 'none' }} />
+                  style={{ width: '100%', boxSizing: 'border-box', marginTop: 6, background: C.input, border: `1px solid var(--sl-input-line)`, borderRadius: 10, padding: '10px 14px', color: C.text, fontSize: 13, fontFamily: 'inherit', outline: 'none' }} />
                 {venueName.trim().length >= 2 && <VenueMapPreview venueName={venueName} city={venueCity} />}
               </div>
               <div>
@@ -1127,7 +1127,7 @@ export default function UploadNewPerformancePage() {
                    more than the column actually has. */}
                 <div style={{ width: '100%', maxWidth: '100%', overflow: 'hidden', borderRadius: 10 }}>
                   <input type="date" value={showDate} onChange={e => setShowDate(e.target.value)}
-                    style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box', background: C.input, border: `1px solid ${C.borderGold}`, borderRadius: 10, padding: '13px 10px', color: C.text, fontSize: 15, fontFamily: 'inherit', outline: 'none', colorScheme: 'dark' }} />
+                    style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box', background: C.input, border: `1px solid var(--sl-input-line-active)`, borderRadius: 10, padding: '13px 10px', color: C.text, fontSize: 15, fontFamily: 'inherit', outline: 'none', colorScheme: 'var(--sl-scheme)' }} />
                 </div>
               </div>
               <div>
@@ -1144,7 +1144,7 @@ export default function UploadNewPerformancePage() {
                   // Same native-widget-width issue as the Date field above.
                   <div style={{ marginTop: 8, width: '100%', maxWidth: '100%', overflow: 'hidden', borderRadius: 10 }}>
                     <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)}
-                      style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box', background: C.input, border: `1px solid ${C.borderGold}`, borderRadius: 10, padding: '13px 10px', color: C.text, fontSize: 15, fontFamily: 'inherit', outline: 'none', colorScheme: 'dark' }} />
+                      style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box', background: C.input, border: `1px solid var(--sl-input-line-active)`, borderRadius: 10, padding: '13px 10px', color: C.text, fontSize: 15, fontFamily: 'inherit', outline: 'none', colorScheme: 'var(--sl-scheme)' }} />
                   </div>
                 )}
               </div>
@@ -1163,7 +1163,7 @@ export default function UploadNewPerformancePage() {
         )}
 
         {finalizeError && (
-          <div style={{ padding: '12px 14px', background: C.redDim, border: '1px solid rgba(248,113,113,0.2)', borderRadius: 10, marginBottom: 12 }}>
+          <div style={{ padding: '12px 14px', background: C.redDim, border: '1px solid color-mix(in srgb, var(--sl-danger) 20%, transparent)', borderRadius: 10, marginBottom: 12 }}>
             <p style={{ fontSize: 13, color: C.red, margin: 0 }}>{finalizeError}</p>
           </div>
         )}
@@ -1176,9 +1176,9 @@ export default function UploadNewPerformancePage() {
           <button
             onClick={goToReview}
             disabled={!readyForReview}
-            style={{ width: '100%', padding: '17px', background: readyForReview ? C.gold : C.muted, border: 'none', borderRadius: 14, color: '#0a0908', fontSize: 15, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: readyForReview ? 'pointer' : 'not-allowed', opacity: finalizing ? 0.7 : 1, fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+            style={{ width: '100%', padding: '17px', background: readyForReview ? C.gold : C.muted, border: 'none', borderRadius: 14, color: 'var(--sl-on-accent)', fontSize: 15, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: readyForReview ? 'pointer' : 'not-allowed', opacity: finalizing ? 0.7 : 1, fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
             {finalizing
-              ? <><div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid #0a090840', borderTopColor: '#0a0908', animation: 'spin 0.7s linear infinite' }} />Saving…</>
+              ? <><div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid color-mix(in srgb, var(--sl-on-accent) 25%, transparent)', borderTopColor: 'var(--sl-on-accent)', animation: 'spin 0.7s linear infinite' }} />Saving…</>
               : !allReconciled ? 'Waiting for analysis…'
               : !detailsValid ? 'Complete show details'
               : 'Continue to Review →'}
@@ -1192,8 +1192,8 @@ export default function UploadNewPerformancePage() {
         @keyframes songIn    { from { opacity: 0; transform: translateY(8px) } to { opacity: 1; transform: translateY(0) } }
         @keyframes pulse-dot { 0%,100% { opacity: 1; transform: scale(1) } 50% { opacity: .4; transform: scale(.8) } }
         * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
-        input::placeholder { color: #6a6050; }
-        input:focus { border-color: rgba(201,168,76,0.4) !important; outline: none; }
+        input::placeholder { color: var(--sl-text-3); }
+        input:focus { border-color: var(--sl-input-line-active) !important; outline: none; }
       `}</style>
     </div>
   )

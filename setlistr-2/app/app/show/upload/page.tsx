@@ -5,12 +5,12 @@ import { createClient } from '@/lib/supabase/client'
 import { useActingAs } from '@/components/ActingAsProvider'
 
 const C = {
-  bg: '#0a0908', card: '#141210',
-  border: 'rgba(255,255,255,0.07)', borderGold: 'rgba(201,168,76,0.3)',
-  input: '#0f0e0c', text: '#f0ece3', secondary: '#b8a888', muted: '#8a7a68',
-  gold: '#c9a84c', goldDim: 'rgba(201,168,76,0.1)',
-  green: '#4ade80', greenDim: 'rgba(74,222,128,0.08)',
-  red: '#f87171', redDim: 'rgba(248,113,113,0.08)',
+  bg: 'var(--sl-bg)', card: 'var(--sl-surface)',
+  border: 'color-mix(in srgb, var(--sl-text) 7%, transparent)', borderGold: 'color-mix(in srgb, var(--sl-accent) 30%, transparent)',
+  input: 'var(--sl-input-bg)', text: 'var(--sl-text)', secondary: 'var(--sl-text-2)', muted: 'var(--sl-text-3)',
+  gold: 'var(--sl-accent)', goldDim: 'color-mix(in srgb, var(--sl-accent) 10%, transparent)',
+  green: 'var(--sl-ok)', greenDim: 'color-mix(in srgb, var(--sl-ok) 8%, transparent)',
+  red: 'var(--sl-danger)', redDim: 'color-mix(in srgb, var(--sl-danger) 8%, transparent)',
 }
 
 type UploadState = 'idle' | 'uploading' | 'processing' | 'done' | 'error'
@@ -263,7 +263,7 @@ export default function UploadShowPage() {
         </div>
 
         {uploadState === 'done' ? (
-          <div style={{ background: C.card, border: `1px solid rgba(74,222,128,0.25)`, borderRadius: 16, padding: '32px 24px', textAlign: 'center' }}>
+          <div style={{ background: C.card, border: `1px solid color-mix(in srgb, var(--sl-ok) 25%, transparent)`, borderRadius: 16, padding: '32px 24px', textAlign: 'center' }}>
             <div style={{ fontSize: 40, marginBottom: 16 }}>✓</div>
             <h2 style={{ fontSize: 20, fontWeight: 800, color: C.text, margin: '0 0 8px' }}>Upload complete.</h2>
             <p style={{ fontSize: 14, color: C.secondary, margin: '0 0 4px', lineHeight: 1.5 }}>
@@ -290,7 +290,7 @@ export default function UploadShowPage() {
                     onChange={e => setVenueName(e.target.value)}
                     placeholder="Where did you play?"
                     spellCheck={false} autoCorrect="off" autoCapitalize="words"
-                    style={{ width: '100%', boxSizing: 'border-box', background: C.input, border: `1px solid ${venueName.trim() ? C.borderGold : C.border}`, borderRadius: 10, padding: '12px 14px', color: C.text, fontSize: 15, fontFamily: 'inherit', outline: 'none' }}
+                    style={{ width: '100%', boxSizing: 'border-box', background: C.input, border: `1px solid ${venueName.trim() ? 'var(--sl-input-line-active)' : 'var(--sl-input-line)'}`, borderRadius: 10, padding: '12px 14px', color: C.text, fontSize: 15, fontFamily: 'inherit', outline: 'none' }}
                   />
                 </div>
 
@@ -302,7 +302,7 @@ export default function UploadShowPage() {
                     type="date"
                     value={showDate}
                     onChange={e => setShowDate(e.target.value)}
-                    style={{ width: '100%', boxSizing: 'border-box', background: C.input, border: `1px solid ${C.borderGold}`, borderRadius: 10, padding: '12px 14px', color: C.text, fontSize: 15, fontFamily: 'inherit', outline: 'none', colorScheme: 'dark', WebkitAppearance: 'none' }}
+                    style={{ width: '100%', boxSizing: 'border-box', background: C.input, border: `1px solid var(--sl-input-line-active)`, borderRadius: 10, padding: '12px 14px', color: C.text, fontSize: 15, fontFamily: 'inherit', outline: 'none', colorScheme: 'var(--sl-scheme)', WebkitAppearance: 'none' }}
                   />
                 </div>
               </div>
@@ -339,7 +339,7 @@ export default function UploadShowPage() {
               ) : (
                 <button
                   onClick={() => recordingInputRef.current?.click()}
-                  style={{ width: '100%', padding: '16px', background: 'rgba(255,255,255,0.02)', border: `2px dashed rgba(255,255,255,0.12)`, borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, color: C.muted, fontSize: 14, fontWeight: 600 }}>
+                  style={{ width: '100%', padding: '16px', background: 'color-mix(in srgb, var(--sl-text) 2%, transparent)', border: `2px dashed color-mix(in srgb, var(--sl-text) 12%, transparent)`, borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, color: C.muted, fontSize: 14, fontWeight: 600 }}>
                   Choose audio or video file
                 </button>
               )}
@@ -376,14 +376,14 @@ export default function UploadShowPage() {
               ) : (
                 <button
                   onClick={() => setlistInputRef.current?.click()}
-                  style={{ width: '100%', padding: '14px', background: 'rgba(255,255,255,0.02)', border: `2px dashed rgba(255,255,255,0.12)`, borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, color: C.muted, fontSize: 13, fontWeight: 600 }}>
+                  style={{ width: '100%', padding: '14px', background: 'color-mix(in srgb, var(--sl-text) 2%, transparent)', border: `2px dashed color-mix(in srgb, var(--sl-text) 12%, transparent)`, borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, color: C.muted, fontSize: 13, fontWeight: 600 }}>
                   Add setlist photo or PDF
                 </button>
               )}
             </div>
 
             {/* Verification badge */}
-            <div style={{ padding: '12px 16px', background: setlistFile ? 'rgba(74,222,128,0.06)' : C.goldDim, border: `1px solid ${setlistFile ? 'rgba(74,222,128,0.2)' : C.borderGold}`, borderRadius: 10, marginBottom: 16, transition: 'all 0.2s ease' }}>
+            <div style={{ padding: '12px 16px', background: setlistFile ? 'color-mix(in srgb, var(--sl-ok) 6%, transparent)' : C.goldDim, border: `1px solid ${setlistFile ? 'color-mix(in srgb, var(--sl-ok) 20%, transparent)' : C.borderGold}`, borderRadius: 10, marginBottom: 16, transition: 'all 0.2s ease' }}>
               <p style={{ fontSize: 13, color: setlistFile ? C.green : C.gold, margin: 0, fontWeight: 600 }}>
                 {setlistFile
                   ? '✓ Dual verification — audio fingerprint + setlist document'
@@ -393,7 +393,7 @@ export default function UploadShowPage() {
 
             {/* Error */}
             {error && (
-              <div style={{ padding: '12px 14px', background: C.redDim, border: '1px solid rgba(248,113,113,0.2)', borderRadius: 10, marginBottom: 12 }}>
+              <div style={{ padding: '12px 14px', background: C.redDim, border: '1px solid color-mix(in srgb, var(--sl-danger) 20%, transparent)', borderRadius: 10, marginBottom: 12 }}>
                 <p style={{ fontSize: 13, color: C.red, margin: 0 }}>{error}</p>
               </div>
             )}
@@ -402,11 +402,11 @@ export default function UploadShowPage() {
             {isLoading && (
               <div style={{ padding: '14px 16px', background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 10, marginBottom: 12 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div style={{ width: 16, height: 16, borderRadius: '50%', border: `2px solid rgba(201,168,76,0.3)`, borderTopColor: C.gold, animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />
+                  <div style={{ width: 16, height: 16, borderRadius: '50%', border: `2px solid color-mix(in srgb, var(--sl-accent) 30%, transparent)`, borderTopColor: C.gold, animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />
                   <p style={{ fontSize: 13, color: C.gold, margin: 0, fontWeight: 600 }}>{progress}</p>
                 </div>
                 {scanProgress > 0 && (
-                  <div style={{ marginTop: 10, height: 4, background: 'rgba(255,255,255,0.08)', borderRadius: 2, overflow: 'hidden' }}>
+                  <div style={{ marginTop: 10, height: 4, background: 'color-mix(in srgb, var(--sl-text) 8%, transparent)', borderRadius: 2, overflow: 'hidden' }}>
                     <div style={{ height: '100%', width: `${Math.round(scanProgress * 100)}%`, background: C.gold, borderRadius: 2, transition: 'width 0.3s ease' }} />
                   </div>
                 )}
@@ -424,9 +424,9 @@ export default function UploadShowPage() {
             <button
               onClick={handleSubmit}
               disabled={!isValid || isLoading}
-              style={{ width: '100%', padding: '16px', background: isValid && !isLoading ? C.gold : C.muted, border: 'none', borderRadius: 14, color: '#0a0908', fontSize: 15, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: isValid && !isLoading ? 'pointer' : 'not-allowed', opacity: isLoading ? 0.7 : 1, fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+              style={{ width: '100%', padding: '16px', background: isValid && !isLoading ? C.gold : C.muted, border: 'none', borderRadius: 14, color: 'var(--sl-on-accent)', fontSize: 15, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: isValid && !isLoading ? 'pointer' : 'not-allowed', opacity: isLoading ? 0.7 : 1, fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
               {isLoading
-                ? <><div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid #0a090840', borderTopColor: '#0a0908', animation: 'spin 0.7s linear infinite' }} />Processing...</>
+                ? <><div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid color-mix(in srgb, var(--sl-on-accent) 25%, transparent)', borderTopColor: 'var(--sl-on-accent)', animation: 'spin 0.7s linear infinite' }} />Processing...</>
                 : 'Process Recording →'}
             </button>
           </>
@@ -439,8 +439,8 @@ export default function UploadShowPage() {
         @keyframes spin { to { transform: rotate(360deg) } }
         @keyframes fadeUp { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
         * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
-        input::placeholder { color: #6a6050; }
-        input:focus { border-color: rgba(201,168,76,0.4) !important; outline: none; }
+        input::placeholder { color: var(--sl-text-3); }
+        input:focus { border-color: var(--sl-input-line-active) !important; outline: none; }
       `}</style>
     </div>
   )

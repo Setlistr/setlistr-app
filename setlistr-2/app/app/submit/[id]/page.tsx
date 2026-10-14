@@ -13,18 +13,18 @@ import { missingIdentityFields } from '@/lib/submission-identity'
 import { parseLocalDate } from '@/lib/date-format'
 
 const CARD = {
-  background: 'linear-gradient(180deg, #171512 0%, #121009 100%)',
-  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04)',
+  background: 'var(--sl-card-bg)',
+  boxShadow: 'var(--sl-card-inset)',
 }
 
 const C = {
-  bg: '#0a0908', card: '#141210',
-  border: 'rgba(255,255,255,0.07)', borderGold: 'rgba(201,168,76,0.3)',
-  text: '#f0ece3', secondary: '#b8a888', muted: '#8a7a68',
-  gold: '#c9a84c', goldDim: 'rgba(201,168,76,0.1)',
-  green: '#4ade80', greenDim: 'rgba(74,222,128,0.08)',
-  red: '#f87171', redDim: 'rgba(248,113,113,0.08)',
-  amber: '#f59e0b', amberDim: 'rgba(245,158,11,0.08)',
+  bg: 'var(--sl-bg)', card: 'var(--sl-surface)',
+  border: 'color-mix(in srgb, var(--sl-text) 7%, transparent)', borderGold: 'color-mix(in srgb, var(--sl-accent) 30%, transparent)',
+  text: 'var(--sl-text)', secondary: 'var(--sl-text-2)', muted: 'var(--sl-text-3)',
+  gold: 'var(--sl-accent)', goldDim: 'color-mix(in srgb, var(--sl-accent) 10%, transparent)',
+  green: 'var(--sl-ok)', greenDim: 'color-mix(in srgb, var(--sl-ok) 8%, transparent)',
+  red: 'var(--sl-danger)', redDim: 'color-mix(in srgb, var(--sl-danger) 8%, transparent)',
+  amber: 'var(--sl-warn)', amberDim: 'color-mix(in srgb, var(--sl-warn) 8%, transparent)',
 }
 
 const MONO = '"DM Mono", monospace'
@@ -100,9 +100,9 @@ function defaultStartTime(perf: Performance): string {
 }
 
 function urgencyStyle(u: Urgency) {
-  if (u === 'expired' || u === 'urgent') return { color: C.red, bg: C.redDim, border: 'rgba(248,113,113,0.25)' }
-  if (u === 'soon') return { color: C.amber, bg: C.amberDim, border: 'rgba(245,158,11,0.25)' }
-  return { color: C.text, bg: 'rgba(255,255,255,0.02)', border: C.border }
+  if (u === 'expired' || u === 'urgent') return { color: C.red, bg: C.redDim, border: 'color-mix(in srgb, var(--sl-danger) 25%, transparent)' }
+  if (u === 'soon') return { color: C.amber, bg: C.amberDim, border: 'color-mix(in srgb, var(--sl-warn) 25%, transparent)' }
+  return { color: C.text, bg: 'color-mix(in srgb, var(--sl-text) 2%, transparent)', border: C.border }
 }
 
 function downloadSubmissionBrief({
@@ -533,7 +533,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
   const missingFields = missingIdentityFields(profile)
 
   const inputStyle = (filled: boolean) => ({
-    width: '100%', background: '#0a0908', border: `1px solid ${filled ? C.borderGold : C.border}`,
+    width: '100%', background: 'var(--sl-bg)', border: `1px solid ${filled ? 'var(--sl-input-line-active)' : 'var(--sl-input-line)'}`,
     borderRadius: 10, padding: '11px 14px', color: C.text, fontSize: 14, fontFamily: 'inherit',
     outline: 'none', boxSizing: 'border-box' as const,
   })
@@ -545,10 +545,10 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
   // ── Submitted confirmation ──────────────────────────────────────────────────
   if (submitted) return (
     <div style={{ minHeight: '100svh', background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px 20px' }}>
-      <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '60vh', pointerEvents: 'none', background: 'radial-gradient(ellipse at 50% 0%, rgba(74,222,128,0.06) 0%, transparent 65%)' }} />
+      <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '60vh', pointerEvents: 'none', background: 'radial-gradient(ellipse at 50% 0%, color-mix(in srgb, var(--sl-ok) 6%, transparent) 0%, transparent 65%)' }} />
       <div style={{ width: '100%', maxWidth: 420, position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', animation: 'fadeUp 0.5s ease' }}>
-        <div style={{ width: 64, height: 64, borderRadius: '50%', background: C.greenDim, border: '1px solid rgba(74,222,128,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 20 }}>
-          <Check size={28} color={C.green} strokeWidth={2.5} />
+        <div style={{ width: 64, height: 64, borderRadius: '50%', background: C.greenDim, border: '1px solid color-mix(in srgb, var(--sl-ok) 30%, transparent)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 20 }}>
+          <Check size={28} strokeWidth={2.5} style={{ color: C.green }} />
         </div>
         <h1 style={{ fontSize: 36, fontWeight: 800, color: C.text, margin: '0 0 8px', letterSpacing: '-0.02em' }}>Added to your claim record.</h1>
         <p style={{ fontSize: 17, color: C.secondary, margin: '0 0 6px' }}>
@@ -558,7 +558,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
           {performance.venue_name}{performance.city ? ` · ${performance.city}` : ''} · {showDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
         </p>
 
-        <div style={{ width: '100%', background: C.greenDim, border: '1px solid rgba(74,222,128,0.2)', borderRadius: 16, padding: '18px 20px', marginBottom: 14 }}>
+        <div style={{ width: '100%', background: C.greenDim, border: '1px solid color-mix(in srgb, var(--sl-ok) 20%, transparent)', borderRadius: 16, padding: '18px 20px', marginBottom: 14 }}>
           <p style={{ fontSize: 14, color: C.green, margin: '0 0 4px', fontWeight: 700 }}>{songs.length} songs on the record</p>
           <p style={{ fontSize: 12, color: C.secondary, margin: 0, lineHeight: 1.5 }}>
             Setlistr can’t see your PRO account — check claim status in the portal.
@@ -566,7 +566,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
         </div>
 
         {/* What happens next */}
-        <div style={{ width: '100%', background: CARD.background, border: '1px solid rgba(255,255,255,0.04)', borderRadius: 16, padding: '16px 18px', marginBottom: 14, textAlign: 'left', boxShadow: CARD.boxShadow }}>
+        <div style={{ width: '100%', background: CARD.background, border: '1px solid color-mix(in srgb, var(--sl-text) 4%, transparent)', borderRadius: 16, padding: '16px 18px', marginBottom: 14, textAlign: 'left', boxShadow: CARD.boxShadow }}>
           <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' as const, color: C.muted, margin: '0 0 12px' }}>What Happens Next</p>
           {[
             `${proName} reviews the submission according to its own process`,
@@ -587,7 +587,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
         </div>
 
         {/* Receipt */}
-        <div style={{ width: '100%', background: 'rgba(255,255,255,0.02)', border: `1px solid ${C.border}`, borderRadius: 16, padding: '14px 18px', marginBottom: 20, textAlign: 'left' }}>
+        <div style={{ width: '100%', background: 'color-mix(in srgb, var(--sl-text) 2%, transparent)', border: `1px solid ${C.border}`, borderRadius: 16, padding: '14px 18px', marginBottom: 20, textAlign: 'left' }}>
           <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' as const, color: C.muted, margin: '0 0 10px' }}>Your Record</p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {[
@@ -606,7 +606,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
         </div>
 
         <button onClick={() => router.push('/app/dashboard')}
-          style={{ width: '100%', padding: '16px', background: C.gold, border: 'none', borderRadius: 12, color: '#0a0908', fontSize: 15, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' as const, cursor: 'pointer', fontFamily: 'inherit', marginBottom: 10, transition: 'opacity 0.15s ease' }}
+          style={{ width: '100%', padding: '16px', background: C.gold, border: 'none', borderRadius: 12, color: 'var(--sl-on-accent)', fontSize: 15, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' as const, cursor: 'pointer', fontFamily: 'inherit', marginBottom: 10, transition: 'opacity 0.15s ease' }}
           onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.7'}
           onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}>
           Back to Dashboard
@@ -626,7 +626,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             {allSongsCopied
-              ? <Check size={13} color={C.green} strokeWidth={3} />
+              ? <Check size={13} strokeWidth={3} style={{ color: C.green }} />
               : <span style={{ width: 13, height: 13, borderRadius: '50%', border: `1px solid ${C.border}`, display: 'inline-block' }} />}
             <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, color: C.muted }}>Songs ({songs.length})</span>
           </div>
@@ -638,10 +638,10 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
         </div>
         {songs.length > 0 && (
           <button onClick={() => copyText(songs.map(s => s.title).join('\n'), 'all-songs')}
-            style={{ display: 'flex', alignItems: 'center', gap: 7, background: copied === 'all-songs' ? C.goldDim : 'rgba(255,255,255,0.03)', border: `1px solid ${copied === 'all-songs' ? C.borderGold : C.border}`, borderRadius: 8, padding: '8px 12px', cursor: 'pointer', fontFamily: 'inherit' }}>
+            style={{ display: 'flex', alignItems: 'center', gap: 7, background: copied === 'all-songs' ? C.goldDim : 'color-mix(in srgb, var(--sl-text) 3%, transparent)', border: `1px solid ${copied === 'all-songs' ? C.borderGold : C.border}`, borderRadius: 8, padding: '8px 12px', cursor: 'pointer', fontFamily: 'inherit' }}>
             {copied === 'all-songs'
-              ? <><Check size={11} color={C.gold} strokeWidth={3} /><span style={{ fontSize: 13, fontWeight: 700, color: C.gold }}>All {songs.length} titles copied</span></>
-              : <><Copy size={11} color={C.muted} /><span style={{ fontSize: 13, fontWeight: 600, color: C.secondary }}>Copy all titles</span></>}
+              ? <><Check size={11} strokeWidth={3} style={{ color: C.gold }} /><span style={{ fontSize: 13, fontWeight: 700, color: C.gold }}>All {songs.length} titles copied</span></>
+              : <><Copy size={11} style={{ color: C.muted }} /><span style={{ fontSize: 13, fontWeight: 600, color: C.secondary }}>Copy all titles</span></>}
           </button>
         )}
       </div>
@@ -662,7 +662,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
             const wasCopied = copiedKeys.includes(key) || copiedKeys.includes('all-songs')
             return (
               <button key={key} onClick={() => copyText(song.title, key)}
-                style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 18px', background: isCopied ? 'rgba(201,168,76,0.04)' : 'transparent', border: 'none', borderTop: `1px solid ${C.border}`, cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', width: '100%' }}>
+                style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 18px', background: isCopied ? 'color-mix(in srgb, var(--sl-accent) 4%, transparent)' : 'transparent', border: 'none', borderTop: `1px solid ${C.border}`, cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', width: '100%' }}>
                 <span style={{ fontSize: 13, color: C.muted, minWidth: 20, textAlign: 'right', fontFamily: MONO, flexShrink: 0 }}>{i + 1}</span>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <p style={{ fontSize: 15, fontWeight: 600, color: isCopied ? C.gold : wasCopied ? C.secondary : C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{song.title}</p>
@@ -675,13 +675,13 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
                   <ConfDot c={song.matchConfidence} />
                   {isCopied ? <span style={{ fontSize: 11, color: C.gold, fontWeight: 700 }}>Copied</span>
-                    : wasCopied ? <Check size={12} color={C.green} strokeWidth={3} />
-                    : <Copy size={12} color={C.muted} />}
+                    : wasCopied ? <Check size={12} strokeWidth={3} style={{ color: C.green }} />
+                    : <Copy size={12} style={{ color: C.muted }} />}
                 </div>
               </button>
             )
           })}
-          <div style={{ padding: '9px 18px', borderTop: `1px solid ${C.border}`, background: 'rgba(255,255,255,0.01)' }}>
+          <div style={{ padding: '9px 18px', borderTop: `1px solid ${C.border}`, background: 'color-mix(in srgb, var(--sl-text) 1%, transparent)' }}>
             <p style={{ fontSize: 11, color: C.muted, margin: 0 }}>Green = metadata available · Gold = partial metadata · Grey = title only</p>
           </div>
         </div>
@@ -691,7 +691,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
 
   return (
     <div style={{ minHeight: '100svh', background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif' }}>
-      <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '50vh', pointerEvents: 'none', zIndex: 0, background: 'radial-gradient(ellipse at 50% 0%, rgba(201,168,76,0.06) 0%, transparent 65%)' }} />
+      <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '50vh', pointerEvents: 'none', zIndex: 0, background: 'var(--sl-page-glow)' }} />
       <div style={{ position: 'relative', zIndex: 1, maxWidth: 480, width: '100%', margin: '0 auto', padding: '28px 16px 80px', boxSizing: 'border-box' as const }}>
 
         <button onClick={() => router.back()} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit', padding: '0 0 20px', letterSpacing: '0.04em' }}>← Back</button>
@@ -709,7 +709,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
         </p>
 
         {isDelegate && (
-          <div style={{ background: 'rgba(255,255,255,0.02)', border: `1px solid ${C.border}`, borderRadius: 12, padding: '10px 14px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ background: 'color-mix(in srgb, var(--sl-text) 2%, transparent)', border: `1px solid ${C.border}`, borderRadius: 12, padding: '10px 14px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 10 }}>
             <span style={{ fontSize: 11, color: C.muted, lineHeight: 1.5 }}>
               You’re preparing this claim for <strong style={{ color: C.secondary }}>{artistDisplayName}</strong>. Only {artistDisplayName} can file in {proName}’s portal — you can send this sheet to them or mark it filed once they have.
             </span>
@@ -719,7 +719,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
         {/* Deadline */}
         {deadline && uStyle && daysLeft !== null && (
           <div style={{ background: uStyle.bg, border: `1px solid ${uStyle.border}`, borderRadius: 16, padding: '14px 16px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 14 }}>
-            <Clock size={20} color={uStyle.color} strokeWidth={2} style={{ flexShrink: 0 }} />
+            <Clock size={20} strokeWidth={2} style={{ color: uStyle.color, flexShrink: 0 }} />
             <div style={{ flex: 1, minWidth: 0 }}>
               <p style={{ fontSize: 15, fontWeight: 800, color: uStyle.color, margin: 0 }}>
                 {urgency === 'expired'
@@ -751,8 +751,8 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
 
         {/* Territory mismatch */}
         {territoryMismatch && rule && venueTerritory && (
-          <div style={{ background: C.amberDim, border: '1px solid rgba(245,158,11,0.25)', borderRadius: 12, padding: '12px 14px', marginBottom: 12, display: 'flex', gap: 10 }}>
-            <AlertTriangle size={16} color={C.amber} style={{ flexShrink: 0, marginTop: 1 }} />
+          <div style={{ background: C.amberDim, border: '1px solid color-mix(in srgb, var(--sl-warn) 25%, transparent)', borderRadius: 12, padding: '12px 14px', marginBottom: 12, display: 'flex', gap: 10 }}>
+            <AlertTriangle size={16} style={{ color: C.amber, flexShrink: 0, marginTop: 1 }} />
             <p style={{ fontSize: 12, color: C.secondary, margin: 0, lineHeight: 1.5 }}>
               This show looks like it was in {TERRITORY_LABEL[venueTerritory]}. {rule.program} is built for shows in {TERRITORY_LABEL[rule.homeTerritory]} — ask {proName} support how to report international performances.
             </p>
@@ -761,7 +761,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
 
         {/* No PRO */}
         {!hasPRO && (
-          <div style={{ background: 'rgba(220,38,38,0.04)', border: '1px solid rgba(220,38,38,0.15)', borderRadius: 12, padding: '14px 16px', marginBottom: 12 }}>
+          <div style={{ background: 'color-mix(in srgb, var(--sl-danger) 4%, transparent)', border: '1px solid color-mix(in srgb, var(--sl-danger) 15%, transparent)', borderRadius: 12, padding: '14px 16px', marginBottom: 12 }}>
             <p style={{ fontSize: 15, color: C.red, margin: '0 0 4px', fontWeight: 700 }}>No PRO selected</p>
             <p style={{ fontSize: 12, color: C.secondary, margin: '0 0 10px' }}>
               {isDelegate
@@ -771,7 +771,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' as const }}>
               {!isDelegate && (
                 <button onClick={() => router.push('/app/settings')}
-                  style={{ background: 'none', border: '1px solid rgba(248,113,113,0.3)', borderRadius: 8, padding: '8px 14px', color: C.red, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  style={{ background: 'none', border: '1px solid color-mix(in srgb, var(--sl-danger) 30%, transparent)', borderRadius: 8, padding: '8px 14px', color: C.red, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
                   Go to Settings →
                 </button>
               )}
@@ -788,13 +788,13 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
 
         {/* Venue capacity — only shown when the PRO's claim fields actually ask for it */}
         {capacityMatters && needsVenuePick && (
-          <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)', borderRadius: 16, padding: '14px 16px', marginBottom: 12 }}>
+          <div style={{ background: 'color-mix(in srgb, var(--sl-text) 2%, transparent)', border: '1px solid color-mix(in srgb, var(--sl-text) 4%, transparent)', borderRadius: 16, padding: '14px 16px', marginBottom: 12 }}>
             <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' as const, color: C.muted, margin: '0 0 10px' }}>Venue size</p>
             <p style={{ fontSize: 10, color: C.muted, margin: '0 0 10px' }}>Used for the capacity field {proName} asks for.</p>
             <div style={{ display: 'flex', gap: 6 }}>
               {VENUE_SIZE_OPTIONS.map(opt => (
                 <button key={opt.key} onClick={() => setVenueSizePick(venueSizePick === opt.key ? null : opt.key)}
-                  style={{ flex: 1, padding: '7px 4px', background: venueSizePick === opt.key ? 'rgba(255,255,255,0.05)' : 'transparent', border: `1px solid ${venueSizePick === opt.key ? 'rgba(255,255,255,0.2)' : C.border}`, borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                  style={{ flex: 1, padding: '7px 4px', background: venueSizePick === opt.key ? 'color-mix(in srgb, var(--sl-text) 5%, transparent)' : 'transparent', border: `1px solid ${venueSizePick === opt.key ? 'color-mix(in srgb, var(--sl-text) 20%, transparent)' : C.border}`, borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
                   <span style={{ fontSize: 11, fontWeight: 700, color: venueSizePick === opt.key ? C.text : C.secondary }}>{opt.label}</span>
                   <span style={{ fontSize: 9, color: C.muted }}>{opt.sub}</span>
                 </button>
@@ -805,16 +805,16 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
 
         {/* Preflight — one-time account checks */}
         {rule && rule.preflight.length > 0 && (
-          <div style={{ background: CARD.background, border: `1px solid ${preflightComplete ? 'rgba(74,222,128,0.2)' : C.border}`, borderRadius: 16, marginBottom: 12, overflow: 'hidden', boxShadow: CARD.boxShadow }}>
+          <div style={{ background: CARD.background, border: `1px solid ${preflightComplete ? 'color-mix(in srgb, var(--sl-ok) 20%, transparent)' : C.border}`, borderRadius: 16, marginBottom: 12, overflow: 'hidden', boxShadow: CARD.boxShadow }}>
             <button onClick={() => setPreflightOpen(v => !v)}
               style={{ width: '100%', padding: '14px 18px', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontFamily: 'inherit' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <span style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{proName} account check</span>
                 {preflightComplete
-                  ? <span style={{ fontSize: 11, color: C.green, background: C.greenDim, border: '1px solid rgba(74,222,128,0.2)', borderRadius: 20, padding: '2px 8px' }}>✓ Ready</span>
+                  ? <span style={{ fontSize: 11, color: C.green, background: C.greenDim, border: '1px solid color-mix(in srgb, var(--sl-ok) 20%, transparent)', borderRadius: 20, padding: '2px 8px' }}>✓ Ready</span>
                   : <span style={{ fontSize: 11, color: C.muted }}>One-time · {preflightDone.filter(id => rule.preflight.some(p => p.id === id)).length}/{rule.preflight.length}</span>}
               </div>
-              {preflightOpen ? <ChevronUp size={15} color={C.muted} /> : <ChevronDown size={15} color={C.muted} />}
+              {preflightOpen ? <ChevronUp size={15} style={{ color: C.muted }} /> : <ChevronDown size={15} style={{ color: C.muted }} />}
             </button>
             {preflightOpen && (
               <div style={{ padding: '0 18px 16px', borderTop: `1px solid ${C.border}`, display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -823,9 +823,9 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
                   const done = preflightDone.includes(item.id)
                   return (
                     <button key={item.id} onClick={() => togglePreflight(rule, item.id)}
-                      style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '11px 14px', background: done ? C.greenDim : 'rgba(255,255,255,0.02)', border: `1px solid ${done ? 'rgba(74,222,128,0.2)' : C.border}`, borderRadius: 10, cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', width: '100%' }}>
+                      style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '11px 14px', background: done ? C.greenDim : 'color-mix(in srgb, var(--sl-text) 2%, transparent)', border: `1px solid ${done ? 'color-mix(in srgb, var(--sl-ok) 20%, transparent)' : C.border}`, borderRadius: 10, cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', width: '100%' }}>
                       <div style={{ width: 20, height: 20, borderRadius: 6, flexShrink: 0, marginTop: 1, background: done ? C.green : 'transparent', border: `1px solid ${done ? C.green : C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        {done && <Check size={11} color="#0a0908" strokeWidth={3} />}
+                        {done && <Check size={11} strokeWidth={3} style={{ color: 'var(--sl-on-accent)' }} />}
                       </div>
                       <div>
                         <p style={{ fontSize: 14, fontWeight: 600, color: C.text, margin: 0 }}>{item.label}</p>
@@ -841,11 +841,11 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
 
         {/* Show details the PRO asks for */}
         {rule && (inputFields.length > 0 || needsCityInput) && (
-          <div style={{ background: CARD.background, border: `1px solid ${detailsReady ? 'rgba(74,222,128,0.2)' : C.border}`, borderRadius: 16, padding: '14px 18px 18px', marginBottom: 12, boxShadow: CARD.boxShadow }}>
+          <div style={{ background: CARD.background, border: `1px solid ${detailsReady ? 'color-mix(in srgb, var(--sl-ok) 20%, transparent)' : C.border}`, borderRadius: 16, padding: '14px 18px 18px', marginBottom: 12, boxShadow: CARD.boxShadow }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
               <span style={{ fontSize: 13, fontWeight: 700, color: C.text }}>Show details</span>
               {detailsReady
-                ? <span style={{ fontSize: 11, color: C.green, background: C.greenDim, border: '1px solid rgba(74,222,128,0.2)', borderRadius: 20, padding: '2px 8px' }}>✓ Ready</span>
+                ? <span style={{ fontSize: 11, color: C.green, background: C.greenDim, border: '1px solid color-mix(in srgb, var(--sl-ok) 20%, transparent)', borderRadius: 20, padding: '2px 8px' }}>✓ Ready</span>
                 : <span style={{ fontSize: 11, color: C.amber }}>{missingCount} needed by {proName}</span>}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -864,7 +864,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
                   </label>
                   {f.key === 'start_time' && (
                     <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)}
-                      style={{ ...inputStyle(!!startTime), colorScheme: 'dark' }} />
+                      style={{ ...inputStyle(!!startTime), colorScheme: 'var(--sl-scheme)' }} />
                   )}
                   {f.key === 'ticket_price' && (
                     <input type="number" inputMode="decimal" min="0" step="0.01" value={ticketPrice}
@@ -905,10 +905,10 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
               const wasCopied = copiedKeys.includes(f.key)
               return (
                 <button key={f.key} disabled={!value} onClick={() => value && copyText(value, f.key)}
-                  style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 18px', width: '100%', background: isCopied ? 'rgba(201,168,76,0.04)' : 'transparent', border: 'none', borderTop: `1px solid ${C.border}`, cursor: value ? 'pointer' : 'default', textAlign: 'left', fontFamily: 'inherit' }}>
+                  style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 18px', width: '100%', background: isCopied ? 'color-mix(in srgb, var(--sl-accent) 4%, transparent)' : 'transparent', border: 'none', borderTop: `1px solid ${C.border}`, cursor: value ? 'pointer' : 'default', textAlign: 'left', fontFamily: 'inherit' }}>
                   <div style={{ width: 13, flexShrink: 0, display: 'flex', justifyContent: 'center' }}>
                     {wasCopied
-                      ? <Check size={13} color={C.green} strokeWidth={3} />
+                      ? <Check size={13} strokeWidth={3} style={{ color: C.green }} />
                       : <span style={{ width: 13, height: 13, borderRadius: '50%', border: `1px solid ${C.border}`, display: 'inline-block' }} />}
                   </div>
                   <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' as const, color: C.muted, width: 92, flexShrink: 0 }}>{f.label}</span>
@@ -917,7 +917,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
                   </span>
                   {value && (isCopied
                     ? <span style={{ fontSize: 11, color: C.gold, fontWeight: 700, flexShrink: 0 }}>Copied</span>
-                    : <Copy size={12} color={C.muted} style={{ flexShrink: 0 }} />)}
+                    : <Copy size={12} style={{ color: C.muted, flexShrink: 0 }} />)}
                 </button>
               )
             })}
@@ -927,7 +927,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
                legal_name/ipi_number/publisher_name when isDelegate, so this
                block simply has nothing to render for a delegate. */}
             {(profile?.legal_name || profile?.ipi_number || profile?.publisher_name) && (
-              <div style={{ padding: '10px 18px 12px', borderTop: `1px solid ${C.border}`, background: 'rgba(255,255,255,0.01)', display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <div style={{ padding: '10px 18px 12px', borderTop: `1px solid ${C.border}`, background: 'color-mix(in srgb, var(--sl-text) 1%, transparent)', display: 'flex', flexDirection: 'column', gap: 4 }}>
                 {([['legal_name', 'Legal name'], ['ipi_number', 'IPI'], ['publisher_name', 'Publisher']] as [ClaimFieldKey, string][]).map(([k, label]) => {
                   const v = fieldValue(k)
                   if (!v) return null
@@ -967,7 +967,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
                   ? <span style={{ fontSize: 11, color: C.secondary }}>{stepsCompleted}/{totalSteps}</span>
                   : <span style={{ fontSize: 11, color: C.muted }}>{rule.steps.length} steps</span>}
               </div>
-              {stepsOpen ? <ChevronUp size={15} color={C.muted} /> : <ChevronDown size={15} color={C.muted} />}
+              {stepsOpen ? <ChevronUp size={15} style={{ color: C.muted }} /> : <ChevronDown size={15} style={{ color: C.muted }} />}
             </button>
             {stepsOpen && (
               <div style={{ padding: '0 18px 18px', borderTop: `1px solid ${C.border}` }}>
@@ -979,9 +979,9 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: rule.phone ? 0 : 12 }}>
                   {rule.steps.map((step, i) => (
                     <button key={i} onClick={() => setStepsDone(prev => prev.map((v, idx) => idx === i ? !v : v))}
-                      style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '10px 14px', background: 'rgba(255,255,255,0.02)', border: `1px solid ${C.border}`, borderRadius: 10, cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', width: '100%' }}>
-                      <div style={{ width: 22, height: 22, borderRadius: '50%', flexShrink: 0, marginTop: 1, background: stepsDone[i] ? C.green : 'rgba(255,255,255,0.06)', border: `1px solid ${stepsDone[i] ? C.green : C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        {stepsDone[i] ? <Check size={11} color="#0a0908" strokeWidth={3} /> : <span style={{ fontSize: 10, color: C.muted, fontFamily: MONO, fontWeight: 700 }}>{i + 1}</span>}
+                      style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '10px 14px', background: 'color-mix(in srgb, var(--sl-text) 2%, transparent)', border: `1px solid ${C.border}`, borderRadius: 10, cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', width: '100%' }}>
+                      <div style={{ width: 22, height: 22, borderRadius: '50%', flexShrink: 0, marginTop: 1, background: stepsDone[i] ? C.green : 'color-mix(in srgb, var(--sl-text) 6%, transparent)', border: `1px solid ${stepsDone[i] ? C.green : C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        {stepsDone[i] ? <Check size={11} strokeWidth={3} style={{ color: 'var(--sl-on-accent)' }} /> : <span style={{ fontSize: 10, color: C.muted, fontFamily: MONO, fontWeight: 700 }}>{i + 1}</span>}
                       </div>
                       <span style={{ fontSize: 14, color: stepsDone[i] ? C.muted : C.text, lineHeight: 1.4, textDecoration: stepsDone[i] ? 'line-through' : 'none' }}>{step}</span>
                     </button>
@@ -1001,8 +1001,8 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
         {/* CTAs — one obvious action */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {submitError && (
-            <div style={{ background: C.redDim, border: '1px solid rgba(248,113,113,0.25)', borderRadius: 12, padding: '12px 14px', display: 'flex', gap: 10 }}>
-              <AlertTriangle size={16} color={C.red} style={{ flexShrink: 0, marginTop: 1 }} />
+            <div style={{ background: C.redDim, border: '1px solid color-mix(in srgb, var(--sl-danger) 25%, transparent)', borderRadius: 12, padding: '12px 14px', display: 'flex', gap: 10 }}>
+              <AlertTriangle size={16} style={{ color: C.red, flexShrink: 0, marginTop: 1 }} />
               <p style={{ fontSize: 12, color: C.secondary, margin: 0, lineHeight: 1.5 }}>{submitError}</p>
             </div>
           )}
@@ -1010,7 +1010,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
           {hasPRO && rule && (
             !portalOpened ? (
               <button onClick={() => handleOpenPortal(rule.portalUrl)}
-                style={{ width: '100%', padding: '17px', background: C.gold, border: 'none', borderRadius: 12, color: '#0a0908', fontSize: 16, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' as const, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit', transition: 'opacity 0.15s ease' }}
+                style={{ width: '100%', padding: '17px', background: C.gold, border: 'none', borderRadius: 12, color: 'var(--sl-on-accent)', fontSize: 16, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' as const, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit', transition: 'opacity 0.15s ease' }}
                 onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.7'}
                 onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}>
                 <ExternalLink size={15} strokeWidth={2.5} />{rule.portalLabel}
@@ -1026,7 +1026,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
                     {copied === 'send-link' ? <><Check size={14} strokeWidth={2.5} />Link copied</> : `Send to ${artistDisplayName}`}
                   </button>
                   <button onClick={handleArtistFiledIt} disabled={markingDone}
-                    style={{ width: '100%', padding: '17px', background: filedPulse ? C.green : markingDone ? C.greenDim : C.green, border: 'none', borderRadius: 12, color: filedPulse ? '#0a0908' : markingDone ? C.green : '#0a0908', fontSize: 16, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' as const, cursor: markingDone ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit', animation: 'fadeUp 0.3s ease', transform: filedPulse ? 'scale(1.03)' : 'scale(1)', transition: 'all 0.3s ease' }}>
+                    style={{ width: '100%', padding: '17px', background: filedPulse ? C.green : markingDone ? C.greenDim : C.green, border: 'none', borderRadius: 12, color: filedPulse ? 'var(--sl-on-accent)' : markingDone ? C.green : 'var(--sl-on-accent)', fontSize: 16, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' as const, cursor: markingDone ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit', animation: 'fadeUp 0.3s ease', transform: filedPulse ? 'scale(1.03)' : 'scale(1)', transition: 'all 0.3s ease' }}>
                     <Check size={15} strokeWidth={2.5} />
                     {markingDone ? 'Recording...' : 'Artist filed it'}
                   </button>
@@ -1058,7 +1058,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
               <>
                 <p style={{ fontSize: 11, color: C.muted, textAlign: 'center', margin: '0 0 2px' }}>Tap once you’ve submitted in {rule.program}. This records that you manually submitted — Setlistr doesn’t file with {proName} or verify receipt.</p>
                 <button onClick={markSubmitted} disabled={markingDone}
-                  style={{ width: '100%', padding: '17px', background: filedPulse ? C.green : markingDone ? C.greenDim : C.green, border: 'none', borderRadius: 12, color: filedPulse ? '#0a0908' : markingDone ? C.green : '#0a0908', fontSize: 16, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' as const, cursor: markingDone ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit', animation: 'fadeUp 0.3s ease', transform: filedPulse ? 'scale(1.03)' : 'scale(1)', transition: 'all 0.3s ease' }}>
+                  style={{ width: '100%', padding: '17px', background: filedPulse ? C.green : markingDone ? C.greenDim : C.green, border: 'none', borderRadius: 12, color: filedPulse ? 'var(--sl-on-accent)' : markingDone ? C.green : 'var(--sl-on-accent)', fontSize: 16, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' as const, cursor: markingDone ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit', animation: 'fadeUp 0.3s ease', transform: filedPulse ? 'scale(1.03)' : 'scale(1)', transition: 'all 0.3s ease' }}>
                   <Check size={15} strokeWidth={2.5} />
                   {markingDone ? 'Recording...' : "I've Filed It"}
                 </button>
@@ -1090,8 +1090,8 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
           ))}
 
           {songs.length > 0 && !isDelegate && missingFields.length > 0 && (
-            <div style={{ background: C.amberDim, border: '1px solid rgba(245,158,11,0.25)', borderRadius: 12, padding: '11px 14px', display: 'flex', gap: 10 }}>
-              <AlertTriangle size={15} color={C.amber} style={{ flexShrink: 0, marginTop: 1 }} />
+            <div style={{ background: C.amberDim, border: '1px solid color-mix(in srgb, var(--sl-warn) 25%, transparent)', borderRadius: 12, padding: '11px 14px', display: 'flex', gap: 10 }}>
+              <AlertTriangle size={15} style={{ color: C.amber, flexShrink: 0, marginTop: 1 }} />
               <p style={{ fontSize: 11.5, color: C.secondary, margin: 0, lineHeight: 1.5 }}>
                 Your claim sheet will be missing {missingFields.join(' and ')} — some PROs need {missingFields.length > 1 ? 'these' : 'this'} to process a claim.{' '}
                 <button onClick={() => router.push('/app/settings')} style={{ background: 'none', border: 'none', padding: 0, color: C.amber, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', fontSize: 11.5, textDecoration: 'underline' }}>
@@ -1110,7 +1110,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
           {songs.length > 0 && (
             <button
               onClick={() => downloadSubmissionBrief({ performance, songs, profile, rule, deadline, suggestedTitle, effectiveCapacity: effectiveCapacity ?? null, inputs })}
-              style={{ width: '100%', padding: '13px', background: 'transparent', border: `1px solid ${!isDelegate && missingFields.length > 0 ? 'rgba(245,158,11,0.3)' : C.border}`, borderRadius: 12, color: C.secondary, fontSize: 14, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit', transition: 'opacity 0.15s ease' }}
+              style={{ width: '100%', padding: '13px', background: 'transparent', border: `1px solid ${!isDelegate && missingFields.length > 0 ? 'color-mix(in srgb, var(--sl-warn) 30%, transparent)' : C.border}`, borderRadius: 12, color: C.secondary, fontSize: 14, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit', transition: 'opacity 0.15s ease' }}
               onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.7'}
               onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}>
               <FileText size={14} strokeWidth={2} />
@@ -1134,8 +1134,8 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
         @keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
         *{-webkit-tap-highlight-color:transparent;box-sizing:border-box}
         input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none}
-        input::placeholder{color:#6a6050}
-        input:focus{border-color:rgba(201,168,76,0.4)!important;outline:none}
+        input::placeholder{color:var(--sl-text-3)}
+        input:focus{border-color:var(--sl-input-line-active)!important;outline:none}
       `}</style>
     </div>
   )

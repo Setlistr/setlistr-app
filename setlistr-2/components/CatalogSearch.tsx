@@ -24,10 +24,10 @@ import { normalizeSongTitle, normalizeArtistName } from '@/lib/song-utils'
 import { Search, Music2 } from 'lucide-react'
 
 const C = {
-  bg: '#0a0908', card: '#141210', cardHover: '#181614',
-  border: 'rgba(255,255,255,0.07)', borderGold: 'rgba(201,168,76,0.3)',
-  input: '#0f0e0c', text: '#f0ece3', secondary: '#a09070', muted: '#6a6050',
-  gold: '#c9a84c', goldDim: 'rgba(201,168,76,0.1)', green: '#4ade80',
+  bg: 'var(--sl-bg)', card: 'var(--sl-surface)', cardHover: 'var(--sl-surface-2)',
+  border: 'color-mix(in srgb, var(--sl-text) 7%, transparent)', borderGold: 'color-mix(in srgb, var(--sl-accent) 30%, transparent)',
+  input: 'var(--sl-input-bg)', text: 'var(--sl-text)', secondary: 'var(--sl-text-2)', muted: 'var(--sl-text-3)',
+  gold: 'var(--sl-accent)', goldDim: 'color-mix(in srgb, var(--sl-accent) 10%, transparent)', green: 'var(--sl-ok)',
 }
 
 export type CatalogSong = {
@@ -152,7 +152,7 @@ export default function CatalogSearch({
           style={{
             width: '100%', boxSizing: 'border-box',
             background: C.input,
-            border: `1px solid ${focused ? C.borderGold : C.border}`,
+            border: `1px solid ${focused ? 'var(--sl-input-line-active)' : 'var(--sl-input-line)'}`,
             borderRadius: 10, padding: '12px 40px 12px 14px',
             color: C.text, fontSize: 14, outline: 'none',
             fontFamily: '"DM Sans", system-ui, sans-serif',
@@ -162,7 +162,7 @@ export default function CatalogSearch({
         <div style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}>
           {loading
             ? <div style={{ width: 13, height: 13, borderRadius: '50%', border: `2px solid ${C.muted}`, borderTopColor: C.gold, animation: 'spin 0.7s linear infinite' }} />
-            : <Search size={13} color={C.muted} />
+            : <Search size={13} style={{ color: C.muted }} />
           }
         </div>
       </div>
@@ -171,7 +171,7 @@ export default function CatalogSearch({
       {showResults ? (
         <div style={{
           position: 'absolute', top: '100%', left: 0, right: 0,
-          background: '#1a1816',
+          background: 'var(--sl-surface-2)',
           border: `1px solid ${C.borderGold}`,
           borderRadius: 12, marginTop: 4,
           zIndex: 100, overflow: 'hidden',
@@ -183,7 +183,7 @@ export default function CatalogSearch({
           {results.length === 0 && !showAddNew ? (
             <div style={{ padding: '16px', textAlign: 'center' }}>
               <p style={{ fontSize: 13, color: C.muted, margin: 0 }}>No songs in your catalog yet</p>
-              <p style={{ fontSize: 11, color: C.muted, margin: '4px 0 0', opacity: 0.7 }}>Songs you confirm during shows appear here</p>
+              <p style={{ fontSize: 11, color: 'var(--sl-text-4)', margin: '4px 0 0' }}>Songs you confirm during shows appear here</p>
             </div>
           ) : null}
 
@@ -202,7 +202,7 @@ export default function CatalogSearch({
                   borderBottom: i < results.length - 1 ? `1px solid ${C.border}` : 'none',
                   cursor: 'pointer', textAlign: 'left',
                   display: 'flex', alignItems: 'center', gap: 10,
-                  fontFamily: 'inherit', opacity: alreadyInSet ? 0.4 : 1,
+                  fontFamily: 'inherit',
                   transition: 'background 0.1s ease',
                   WebkitTapHighlightColor: 'transparent',
                 }}
@@ -212,20 +212,20 @@ export default function CatalogSearch({
                 {/* Play count indicator */}
                 <div style={{
                   width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
-                  background: song.isrc ? 'rgba(74,222,128,0.1)' : C.goldDim,
-                  border: `1px solid ${song.isrc ? 'rgba(74,222,128,0.2)' : C.borderGold}`,
+                  background: song.isrc ? 'color-mix(in srgb, var(--sl-ok) 10%, transparent)' : C.goldDim,
+                  border: `1px solid ${song.isrc ? 'color-mix(in srgb, var(--sl-ok) 20%, transparent)' : C.borderGold}`,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                 }}>
                   {song.playCount && song.playCount > 1
                     ? <span style={{ fontSize: 9, fontWeight: 800, color: song.isrc ? C.green : C.gold, fontFamily: '"DM Mono", monospace' }}>×{song.playCount}</span>
-                    : <Music2 size={11} color={song.isrc ? C.green : C.gold} />
+                    : <Music2 size={11} style={{ color: song.isrc ? C.green : C.gold }} />
                   }
                 </div>
 
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ fontSize: 13, fontWeight: 600, color: C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  <p style={{ fontSize: 13, fontWeight: 600, color: alreadyInSet ? 'var(--sl-text-3)' : C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {song.title}
-                    {alreadyInSet ? <span style={{ fontSize: 10, color: C.muted, marginLeft: 6 }}>in set</span> : null}
+                    {alreadyInSet ? <span style={{ fontSize: 10, color: 'var(--sl-text-4)', marginLeft: 6 }}>in set</span> : null}
                   </p>
                   {song.artist ? (
                     <p style={{ fontSize: 11, color: C.secondary, margin: '1px 0 0' }}>{song.artist}</p>

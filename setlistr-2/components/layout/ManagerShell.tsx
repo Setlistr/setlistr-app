@@ -21,9 +21,9 @@ import { APP_HEADER_HEIGHT, APP_HEADER_PADDING_TOP } from '@/components/layout/a
 // mode, which has nothing to do with it.
 
 const C = {
-  bg: '#0a0908', card: '#141210', border: 'rgba(255,255,255,0.08)',
-  text: '#f0ece3', secondary: '#b8a888', muted: '#5a5448',
-  gold: '#c9a84c', goldDim: 'rgba(201,168,76,0.12)',
+  bg: 'var(--sl-bg)', card: 'var(--sl-surface)', border: 'color-mix(in srgb, var(--sl-text) 8%, transparent)',
+  text: 'var(--sl-text)', secondary: 'var(--sl-text-2)', muted: 'var(--sl-text-3)',
+  gold: 'var(--sl-accent)', goldDim: 'color-mix(in srgb, var(--sl-accent) 12%, transparent)',
 }
 
 // Analytics only added once it's a real, working destination (this pass) —
@@ -59,7 +59,7 @@ export function ManagerShell({ children, profile }: { children: React.ReactNode;
   }
 
   return (
-    <div style={{ minHeight: '100svh', display: 'flex', background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif' }}>
+    <div className="sl-manager-shell" style={{ minHeight: '100svh', display: 'flex', background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif' }}>
 
       {/* ── Desktop sidebar ── */}
       <aside style={{
@@ -70,7 +70,8 @@ export function ManagerShell({ children, profile }: { children: React.ReactNode;
         flexDirection: 'column',
       }} className="mgr-sidebar">
         <Link href="/app/manager" style={{ display: 'flex', alignItems: 'center', textDecoration: 'none', padding: '0 8px 32px' }}>
-          <Image src="/logo-white.png" alt="Setlistr" width={116} height={31} priority style={{ objectFit: 'contain' }} />
+          <Image className="sl-logo-for-dark" src="/logo-white.png" alt="Setlistr" width={116} height={31} priority style={{ objectFit: 'contain' }} />
+          <Image className="sl-logo-for-light" src="/logo-dark.png" alt="Setlistr" width={116} height={31} style={{ objectFit: 'contain' }} />
         </Link>
 
         <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.muted, margin: '0 0 12px', padding: '0 8px' }}>
@@ -114,16 +115,17 @@ export function ManagerShell({ children, profile }: { children: React.ReactNode;
           padding: `${APP_HEADER_PADDING_TOP} max(16px, env(safe-area-inset-right, 0px)) 0 max(16px, env(safe-area-inset-left, 0px))`,
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           position: 'sticky', top: 0, zIndex: 40,
-          background: 'rgba(10,9,8,0.92)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)',
+          background: 'color-mix(in srgb, var(--sl-bg) 92%, transparent)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)',
           borderBottom: `1px solid ${C.border}`, flexShrink: 0,
         }}>
           {/* Clipped to 44px: the padded-square logo made this link 104px
               tall, catching taps below the header. Wordmark position unchanged. */}
           <Link href="/app/manager" style={{ display: 'flex', alignItems: 'center', height: 44, overflow: 'hidden', textDecoration: 'none' }}>
-            <Image src="/logo-white.png" alt="Setlistr" width={104} height={28} priority style={{ objectFit: 'contain' }} />
+            <Image className="sl-logo-for-dark" src="/logo-white.png" alt="Setlistr" width={104} height={28} priority style={{ objectFit: 'contain' }} />
+            <Image className="sl-logo-for-light" src="/logo-dark.png" alt="Setlistr" width={104} height={28} style={{ objectFit: 'contain' }} />
           </Link>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.gold, background: C.goldDim, border: `1px solid rgba(201,168,76,0.25)`, borderRadius: 20, padding: '4px 10px' }}>
+            <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.gold, background: C.goldDim, border: `1px solid color-mix(in srgb, var(--sl-accent) 25%, transparent)`, borderRadius: 20, padding: '4px 10px' }}>
               Manager
             </span>
             <ManagerAccountMenu profile={profile} initials={initials} onSwitchToArtist={switchToArtist} placement="header" />
@@ -140,7 +142,7 @@ export function ManagerShell({ children, profile }: { children: React.ReactNode;
       <nav className="mgr-mobile-nav" style={{
         position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 40,
         minHeight: 64,
-        background: 'rgba(10,9,8,0.96)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)',
+        background: 'color-mix(in srgb, var(--sl-bg) 96%, transparent)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)',
         borderTop: `1px solid ${C.border}`,
         paddingBottom: 'calc(env(safe-area-inset-bottom) + 8px)',
       }}>
@@ -191,7 +193,7 @@ function ManagerAccountMenu({ profile, initials, onSwitchToArtist, placement }: 
   }, [open])
 
   const avatar = (
-    <div style={{ width: placement === 'sidebar' ? 22 : 26, height: placement === 'sidebar' ? 22 : 26, borderRadius: '50%', background: 'rgba(255,255,255,0.08)', border: `1.5px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
+    <div style={{ width: placement === 'sidebar' ? 22 : 26, height: placement === 'sidebar' ? 22 : 26, borderRadius: '50%', background: 'color-mix(in srgb, var(--sl-text) 8%, transparent)', border: `1.5px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
       {profile.avatar_url
         ? <img src={profile.avatar_url} alt={initials} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
         : <span style={{ fontSize: placement === 'sidebar' ? 8 : 9, fontWeight: 800, color: C.secondary }}>{initials}</span>}
@@ -215,13 +217,13 @@ function ManagerAccountMenu({ profile, initials, onSwitchToArtist, placement }: 
           ...(placement === 'sidebar' ? { bottom: 'calc(100% + 8px)', left: 0 } : { top: 'calc(100% + 8px)', right: 0 }),
         }}>
           <button role="menuitem" onClick={() => { onSwitchToArtist(); setOpen(false) }} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px', background: 'none', border: 'none', borderBottom: `1px solid ${C.border}`, color: C.text, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' as const }}>
-            <Users size={15} color={C.gold} /> Switch to Artist
+            <Users size={15} style={{ color: C.gold }} /> Switch to Artist
           </button>
           <Link role="menuitem" href="/app/settings" onClick={() => setOpen(false)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px', color: C.text, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
-            <Settings size={15} color={C.secondary} /> Settings &amp; Profile
+            <Settings size={15} style={{ color: C.secondary }} /> Settings &amp; Profile
           </Link>
           <Link role="menuitem" href="/app/team" onClick={() => setOpen(false)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px 13px', color: C.text, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
-            <Users size={15} color={C.secondary} /> Team
+            <Users size={15} style={{ color: C.secondary }} /> Team
           </Link>
         </div>
       )}
