@@ -718,7 +718,9 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   }
 
   return (
-    <div style={{ minHeight: '100svh', background: C.bg, display: 'flex', flexDirection: 'column', fontFamily: '"DM Sans", system-ui, sans-serif', overflowX: 'clip', overscrollBehavior: 'none', paddingTop: 'env(safe-area-inset-top)' }}>
+    <div style={{ minHeight: '100svh', background: C.bg, display: 'flex', flexDirection: 'column', fontFamily: '"DM Sans", system-ui, sans-serif', overflowX: 'clip', overscrollBehavior: 'none', paddingTop: 'env(safe-area-inset-top)', paddingLeft: 'env(safe-area-inset-left, 0px)', paddingRight: 'env(safe-area-inset-right, 0px)' }}>
+      {/* Inert strip over the top safe-area inset (0px outside the installed app): scrolled content passes under it, not under the status bar. */}
+      <div aria-hidden="true" style={{ position: 'fixed', top: 0, left: 0, right: 0, height: 'env(safe-area-inset-top, 0px)', background: C.bg, zIndex: 20, pointerEvents: 'none' }} />
       <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '70vh', background: isListening ? `radial-gradient(ellipse at 50% 35%, color-mix(in srgb, var(--sl-accent) 8%, transparent) 0%, transparent 65%)` : `radial-gradient(ellipse at 50% 35%, color-mix(in srgb, var(--sl-accent) 3%, transparent) 0%, transparent 55%)`, pointerEvents: 'none', transition: 'background 1.8s ease', zIndex: 0 }} />
 
       {/* Header */}
@@ -864,7 +866,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
       )}
 
       {/* Lower section */}
-      <div style={{ position: 'relative', zIndex: 1, flex: 1, display: 'flex', flexDirection: 'column', gap: 8, padding: '0 16px 40px', maxWidth: 480, width: '100%', margin: '0 auto', boxSizing: 'border-box' }}>
+      <div style={{ position: 'relative', zIndex: 1, flex: 1, display: 'flex', flexDirection: 'column', gap: 8, padding: '0 16px max(40px, calc(16px + env(safe-area-inset-bottom, 0px)))', maxWidth: 480, width: '100%', margin: '0 auto', boxSizing: 'border-box' }}>
 
         {/* Confirmed */}
         {confirmedSongs.length > 0 && (
