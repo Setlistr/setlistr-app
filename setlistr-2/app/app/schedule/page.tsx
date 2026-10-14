@@ -5,6 +5,7 @@ import { ChevronLeft } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useActingAs } from '@/components/ActingAsProvider'
 import { UpcomingShows } from '@/components/scheduling/UpcomingShows'
+import { useWorkspaceRole } from '@/components/layout/WorkspaceRole'
 
 const C = {
   bg: '#0a0908', text: '#f0ece3', secondary: '#b8a888', muted: '#8a7a68',
@@ -17,6 +18,10 @@ const C = {
 export default function SchedulePage() {
   const router = useRouter()
   const { actingAs, resolved } = useActingAs()
+  // Add/edit/cancel/start are write actions: offered in your own workspace
+  // and to write-capable team roles, never to a Viewer (who previously saw
+  // them here and was refused by the database on use).
+  const { canWrite } = useWorkspaceRole()
   const [userId, setUserId] = useState<string | null>(null)
   const [artistName, setArtistName] = useState<string | null>(null)
 
@@ -50,7 +55,7 @@ export default function SchedulePage() {
         <h1 style={{ fontSize: 26, fontWeight: 800, color: C.text, margin: '0 0 4px', letterSpacing: '-0.02em' }}>Schedule</h1>
         {displayName && <p style={{ fontSize: 14, color: C.secondary, margin: '0 0 24px' }}>{displayName}</p>}
 
-        <UpcomingShows artistId={artistId} artistName={displayName} canManage={true} />
+        <UpcomingShows artistId={artistId} artistName={displayName} canManage={canWrite} />
       </div>
     </div>
   )

@@ -93,6 +93,16 @@ function read(rel: string): string {
   check('History: scope unchanged (no data_source filter on the query) but the imported split is stated', !/\.neq\('data_source'/.test(history) && history.includes('on your live record ·'))
   const ctx = read('app/api/team/context-data/route.ts')
   check('context-data: a failed performances read returns an error, not an empty list', ctx.includes("if (perfsError)") && ctx.includes('status: 500'))
+
+  // Desktop milestone: one frame, role-gated capture, real "next" show
+  const shell2 = read('components/layout/AppShell.tsx')
+  check('AppShell: every capture control is gated on the role answer (canCapture), not merely having a workspace', (shell2.match(/href="\/app\/show\/new"/g) || []).length === 2 && !/hasWorkspace && \(\s*<Link\s+href="\/app\/show\/new"/.test(shell2) && (shell2.match(/\{canCapture && \(/g) || []).length === 2)
+  check('AppShell: a single header/AccountMenu at every width (desktop top bar is the same element)', (shell2.match(/<AccountMenu /g) || []).length === 1 && shell2.includes('.sl-header {'))
+  check('AppShell: desktop sidebar is 248px and only applies from 900px', shell2.includes('const SIDEBAR_WIDTH = 248') && shell2.includes('export const DESKTOP_MIN_WIDTH = 900'))
+  check('Schedule: write controls follow the role (no hardcoded canManage={true})', read('app/app/schedule/page.tsx').includes('canManage={canWrite}'))
+  const sched = read('components/scheduling/UpcomingShows.tsx')
+  check('Coming up: next show picked by venue-local date (past still-scheduled shows skipped)', sched.includes('pickNextScheduled<ScheduledShow>(') && !sched.includes('(data.shows || [])[0]'))
+  check('Dashboard: wide layouts follow the content width (container queries), phones keep fallbacks', dashboard.includes('container-type: inline-size') && dashboard.includes('@container sl-dash (min-width: 900px)'))
 }
 
 // ── One coherent Submissions design: shared row component + deadline,

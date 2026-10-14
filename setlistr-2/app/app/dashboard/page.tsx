@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import { ChevronRight, Mic } from 'lucide-react'
 import { useActingAs } from '@/components/ActingAsProvider'
 import { openAccountMenu } from '@/components/layout/AccountMenu'
+import { useWorkspaceRole } from '@/components/layout/WorkspaceRole'
 import { NextShowSummary } from '@/components/scheduling/UpcomingShows'
 import { isCapturedShow, isRealVenue } from '@/lib/performance-status'
 import { summarizeRecord, showDate, lastShowLabel } from '@/lib/record-summary'
@@ -85,16 +86,19 @@ function isCanadian(country?: string | null, city?: string | null) {
 
 // ── Shared pieces (styles only; each is used in more than one place) ──
 const bandButton: React.CSSProperties = {
-  width: '100%', display: 'flex', alignItems: 'center', gap: 12, minHeight: 64, padding: '10px 12px',
+  width: '100%', display: 'flex', alignItems: 'center', gap: 12, minHeight: 'var(--d-band, 64px)', padding: '10px 12px',
   borderRadius: 18, border: 'none', cursor: 'pointer', textAlign: 'left', fontFamily: SANS,
   background: 'var(--sl-band-bg)', boxShadow: 'var(--sl-band-ring)', color: 'var(--sl-text)',
 }
 const bandTitle: React.CSSProperties = { display: 'block', fontSize: 16, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }
 const bandSub: React.CSSProperties = { display: 'block', fontSize: 13, color: 'var(--sl-text-2)', marginTop: 2 }
-const rowBase: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 12, minHeight: 56, padding: '12px 0', borderBottom: '1px solid var(--sl-line)' }
-const rowLabel: React.CSSProperties = { flex: 1, minWidth: 0, fontSize: 14, color: 'var(--sl-text-2)', lineHeight: 1.35 }
+// Sizes read --d-* so the wider layouts (see the container rules at the
+// bottom of the page) can use the approved desktop measurements; phones get
+// the fallbacks, unchanged.
+const rowBase: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 12, minHeight: 'var(--d-row, 56px)', padding: '12px 0', borderBottom: '1px solid var(--sl-line)' }
+const rowLabel: React.CSSProperties = { flex: 1, minWidth: 0, fontSize: 'var(--d-label, 14px)', color: 'var(--sl-text-2)', lineHeight: 1.35 }
 const rowSmall: React.CSSProperties = { display: 'block', fontSize: 13, color: 'var(--sl-text-3)', marginTop: 1 }
-const rowValue: React.CSSProperties = { textAlign: 'right', fontSize: 16, fontWeight: 600, color: 'var(--sl-text)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }
+const rowValue: React.CSSProperties = { textAlign: 'right', fontSize: 'var(--d-value, 16px)', fontWeight: 600, color: 'var(--sl-text)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }
 const unit: React.CSSProperties = { fontWeight: 400, color: 'var(--sl-text-3)' }
 const sectionHeading: React.CSSProperties = { fontSize: 14, fontWeight: 600, color: 'var(--sl-text-2)', margin: '40px 0 4px' }
 const primaryButton: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minHeight: 48, padding: '0 20px', borderRadius: 14, border: 'none', fontFamily: SANS, fontSize: 16, fontWeight: 700, cursor: 'pointer', background: 'var(--sl-gold)', color: 'var(--sl-on-gold)' }
@@ -551,10 +555,13 @@ export default function DashboardPage() {
     setLoading(false)
   }
 
-  const delegateRole  = actingAs ? managedArtists.find(a => a.artist_id === actingAs.artist_id)?.role : undefined
-  const canCapture    = delegateRole !== 'viewer'
+  // Capture-adjacent actions (the "Tonight" row, starting from a listing,
+  // the empty state's capture hint) follow the app frame's role answer —
+  // never offered to a Viewer, nor before a team role is known.
+  const { canWrite: canCapture } = useWorkspaceRole()
   const overline      = actingAs ? `${possessive(actingAs.artist_name)} live record` : 'Your live record'
   const loadFailed    = (contextLoadError && !!actingAs) || (ownLoadError && !actingAs)
+  const linkRow: React.CSSProperties = { ...rowBase, width: '100%', background: 'none', border: 'none', borderBottom: '1px solid var(--sl-line)', cursor: 'pointer', fontFamily: SANS, textAlign: 'left' }
 
   // ── "What's happening now" rows: compact, above the record, never
   //    instead of it. Same destinations and actions as before. ──
@@ -623,27 +630,41 @@ export default function DashboardPage() {
     caption = <><b style={{ color: 'var(--sl-text)', fontWeight: 600 }}>Shows on the record</b>{where}{when}.</>
   }
 
-  const heroSize = hasBand ? 'min(168px, 48vw)' : 'min(200px, 56vw)'
-  const overlineEl = <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--sl-gold-text)', margin: '20px 0 0' }}>{overline}</p>
+  // Hero size: phones as reviewed (200, or 168 under a session row, capped
+  // by width); the wider layouts set --d-hero / --d-hero-band from the
+  // space the content actually has (container units, not the window).
+  const heroSize = hasBand ? 'var(--d-hero-band, min(168px, 48cqw))' : 'var(--d-hero, min(200px, 56cqw))'
+  const overlineEl = <p style={{ fontSize: 'var(--d-ov, 14px)', fontWeight: 600, color: 'var(--sl-gold-text)', margin: '20px 0 0' }}>{overline}</p>
   const heroStyle: React.CSSProperties = { fontFamily: 'var(--sl-font-display)', fontWeight: 400, fontSize: heroSize, lineHeight: 0.8, letterSpacing: '0.005em', margin: '14px 0 0 -5px', color: 'var(--sl-text)', fontVariantNumeric: 'tabular-nums' }
-  const captionStyle: React.CSSProperties = { fontSize: 16, color: 'var(--sl-text-2)', margin: '16px 0 0', lineHeight: 1.45, maxWidth: '22em' }
+  const captionStyle: React.CSSProperties = { fontSize: 'var(--d-cap, 16px)', color: 'var(--sl-text-2)', margin: '16px 0 0', lineHeight: 1.45, maxWidth: '22em' }
+  const scopeNote = (lead: string) => importedPerfs.length > 0 && (
+    // Says what the number counts, in the same words History uses.
+    <p style={{ fontSize: 13, color: 'var(--sl-text-3)', margin: '10px 0 0', lineHeight: 1.45, maxWidth: '30em' }}>
+      {lead} {importedPerfs.length} imported {importedPerfs.length === 1 ? 'show is' : 'shows are'} listed in History but not counted here.
+    </p>
+  )
 
-  let body: React.ReactNode
+  // Each state fills the same three areas: the poster (number + sentence),
+  // the ledger, and "more" (coming up, recent shows). On phones they stack
+  // in that order; with room for two columns the ledger sits beside the
+  // poster, as in the approved desktop design.
+  let poster: React.ReactNode = null
+  let ledger: React.ReactNode = null
   if (loading) {
-    body = (
+    poster = (
       <div aria-busy="true" aria-label={actingAs ? `Loading ${possessive(actingAs.artist_name)} record` : 'Loading your record'} style={{ paddingTop: 20 }}>
         <Skeleton w="40%" h={16} />
         <Skeleton w="62%" h={150} mt={16} r={14} />
         <Skeleton w="85%" h={18} mt={20} />
         <Skeleton w="60%" h={18} mt={8} />
-        {[0, 1, 2, 3].map(i => <Skeleton key={i} h={44} mt={14} />)}
       </div>
     )
+    ledger = <div aria-hidden="true" style={{ paddingTop: 6 }}>{[0, 1, 2, 3].map(i => <Skeleton key={i} h={44} mt={14} />)}</div>
   } else if (loadFailed) {
     // Never the previous workspace's figures in its place — the load paths
     // above clear them before this renders.
-    body = (
-      <div role="alert" style={{ paddingTop: 40 }}>
+    poster = (
+      <div role="alert" style={{ paddingTop: 40, maxWidth: 560 }}>
         <h1 style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.01em', margin: '0 0 8px', color: 'var(--sl-text)' }}>{actingAs ? `${possessive(actingAs.artist_name)} record didn’t load` : 'Your record didn’t load'}</h1>
         <p style={{ fontSize: 16, color: 'var(--sl-text-2)', lineHeight: 1.45, margin: '0 0 18px' }}>
           {actingAs
@@ -657,39 +678,31 @@ export default function DashboardPage() {
       </div>
     )
   } else if (record.count === 0) {
-    body = (
+    poster = (
       <>
-        {bands}
         {overlineEl}
-        <p style={{ ...heroStyle, fontSize: 'min(200px, 56vw)', color: 'var(--sl-text-3)' }}>0</p>
+        <p style={{ ...heroStyle, fontSize: 'var(--d-hero, min(200px, 56cqw))', color: 'var(--sl-text-3)' }}>0</p>
         <p style={captionStyle}>
           <b style={{ color: 'var(--sl-text)', fontWeight: 600 }}>
             {actingAs ? `The record starts with ${possessive(actingAs.artist_name)} first show.` : 'Your record starts with your first show.'}
           </b>
           {canCapture && <> Tap the gold button when the set starts. Played already? You can <Link href="/app/upload/new" style={{ color: 'var(--sl-gold-text)', fontWeight: 600 }}>upload a recording</Link>.</>}
         </p>
-        {importedPerfs.length > 0 && (
-          <p style={{ fontSize: 13, color: 'var(--sl-text-3)', margin: '12px 0 0', lineHeight: 1.45 }}>
-            The live record counts shows captured or uploaded in Setlistr. {importedPerfs.length} imported {importedPerfs.length === 1 ? 'show is' : 'shows are'} listed in History but not counted here.
-          </p>
-        )}
+        {scopeNote('The live record counts shows captured or uploaded in Setlistr.')}
       </>
     )
   } else {
-    body = (
+    poster = (
       <>
-        {bands}
         {overlineEl}
         <p style={heroStyle}>{record.count}</p>
         <p style={captionStyle}>{caption}</p>
-        {importedPerfs.length > 0 && (
-          // Says what the number counts, in the same words History uses.
-          <p style={{ fontSize: 13, color: 'var(--sl-text-3)', margin: '8px 0 0', lineHeight: 1.45 }}>
-            Counts shows captured or uploaded in Setlistr. {importedPerfs.length} imported {importedPerfs.length === 1 ? 'show is' : 'shows are'} listed in History but not counted here.
-          </p>
-        )}
-
-        <div style={{ marginTop: 22, borderTop: '1.5px solid var(--sl-text)' }}>
+        {scopeNote('Counts shows captured or uploaded in Setlistr.')}
+      </>
+    )
+    ledger = (
+      <>
+        <div style={{ marginTop: 'var(--d-ledger-mt, 22px)', borderTop: '1.5px solid var(--sl-text)' }}>
           <div style={{ ...rowBase, display: 'block' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <span style={rowLabel}>Next milestone</span>
@@ -709,7 +722,7 @@ export default function DashboardPage() {
           </div>
           {estimatesUnavailable && (
             <div style={rowBase}>
-              <span style={rowLabel}>Estimated royalties<small style={rowSmall}>Song counts didn{'\u2019'}t load, so estimates aren{'\u2019'}t shown</small></span>
+              <span style={rowLabel}>Estimated royalties<small style={rowSmall}>Song counts didn{'’'}t load, so estimates aren{'’'}t shown</small></span>
               <button onClick={retryLoad} style={{ ...secondaryButton, minHeight: 44, padding: '0 14px', fontSize: 14 }}>Try again</button>
             </div>
           )}
@@ -722,7 +735,7 @@ export default function DashboardPage() {
           {!estimatesUnavailable && aggregate.unclaimedCount > 0 && (
             // Routes to the Filing Queue — reviewing and marking these is
             // what that page is for.
-            <button onClick={() => router.push('/app/file')} style={{ ...rowBase, width: '100%', background: 'none', border: 'none', borderBottom: '1px solid var(--sl-line)', cursor: 'pointer', fontFamily: SANS, textAlign: 'left' }}>
+            <button onClick={() => router.push('/app/file')} className="sl-hoverable" style={linkRow}>
               <span style={rowLabel}>Not yet marked submitted<small style={rowSmall}>Estimated royalties · review in Submissions</small></span>
               <span style={rowValue}>{money(aggregate.unclaimedExpected)} <span style={unit}>est.</span></span>
               {chevron}
@@ -736,98 +749,100 @@ export default function DashboardPage() {
     )
   }
 
+  const more = !loading && !loadFailed && (
+    <>
+      {/* ── Coming up: the next scheduled show, plus external listings ── */}
+      {userId && (
+        <>
+          <h2 style={sectionHeading}>Coming up</h2>
+          <div style={{ marginTop: 8 }}>
+            <NextShowSummary artistId={actingAs?.artist_id || userId} />
+          </div>
+        </>
+      )}
+      {upcomingShows.length > 0 && (
+        <div>
+          {upcomingShows.map(event => {
+            const isEventToday = isToday(event.datetime)
+            const dateLabel = isEventToday ? 'Tonight' : isTomorrow(event.datetime) ? 'Tomorrow' : formatShowDate(event.datetime)
+            const inner = (
+              <>
+                <span style={{ width: 88, flexShrink: 0 }}>
+                  <span style={{ display: 'block', fontSize: 14, fontWeight: 600, color: isEventToday ? 'var(--sl-gold-text)' : 'var(--sl-text)' }}>{dateLabel}</span>
+                  <span style={{ display: 'block', fontSize: 13, color: 'var(--sl-text-3)' }}>{formatShowTime(event.datetime)}</span>
+                </span>
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  <span style={{ display: 'block', fontSize: 16, fontWeight: 600, color: 'var(--sl-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{event.venueName}</span>
+                  <span style={{ display: 'block', fontSize: 13, color: 'var(--sl-text-3)' }}>{event.venueCity}{event.venueRegion ? `, ${event.venueRegion}` : ''}</span>
+                </span>
+              </>
+            )
+            // Tapping a listing starts capture there, as before — not
+            // offered to a read-only Viewer.
+            return canCapture ? (
+              <button key={event.id} onClick={() => startShowFromBIT(event)} aria-label={`Start capture at ${event.venueName}, ${dateLabel}`} className="sl-hoverable" style={linkRow}>
+                {inner}{chevron}
+              </button>
+            ) : (
+              <div key={event.id} style={rowBase}>{inner}</div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* ── Recent shows ── */}
+      {recentPerfs.length > 0 && (
+        <>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+            <h2 style={sectionHeading}>Recent shows</h2>
+            {recordShows.length > 5 && (
+              <Link href="/app/history" style={{ display: 'inline-flex', alignItems: 'center', minHeight: 44, marginTop: 28, fontSize: 14, fontWeight: 600, color: 'var(--sl-gold-text)', textDecoration: 'none' }}>All shows</Link>
+            )}
+          </div>
+          <div style={{ borderTop: '1px solid var(--sl-line)', marginTop: 4 }}>
+            {recentPerfs.map(perf => {
+              const displayStatus = getDisplayStatus(perf)
+              const d = showDate(perf)
+              const songCount = songCountMap[perf.id] || 0
+              const isFinished = perf.status !== 'live' && perf.status !== 'pending'
+              const perfEst = isFinished && songCount > 0
+                ? estimateRoyalties({ songCount, venueCapacityBand: capacityToBand(perf.venue_capacity), showType: (perf.show_type as any) || 'single', territory: isCanadian(perf.country, perf.city) ? 'CA' : 'US' })
+                : null
+              return (
+                <button key={perf.id} onClick={() => navigateToPerformance(perf)} className="sl-hoverable" style={linkRow}>
+                  <span style={{ width: 40, flexShrink: 0, textAlign: 'center' }}>
+                    <span style={{ display: 'block', fontSize: 18, fontWeight: 600, color: 'var(--sl-text)', lineHeight: 1.1, fontVariantNumeric: 'tabular-nums' }}>{d ? d.getDate() : '–'}</span>
+                    <span style={{ display: 'block', fontSize: 12, color: 'var(--sl-text-3)' }}>{d ? d.toLocaleDateString('en-US', { month: 'short' }) : ''}</span>
+                  </span>
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <span style={{ display: 'block', fontSize: 16, fontWeight: 600, color: 'var(--sl-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{perf.venue_name || 'Untitled show'}</span>
+                    <span style={{ display: 'block', fontSize: 13, color: 'var(--sl-text-3)' }}>{[perf.city, songCount > 0 ? `${songCount} songs` : null].filter(Boolean).join(' · ')}</span>
+                  </span>
+                  <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2, flexShrink: 0 }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: displayStatus.color }}>{displayStatus.label}</span>
+                    {perfEst && perfEst.expected > 0 && <span style={{ fontSize: 13, color: 'var(--sl-text-3)' }}>{money(perfEst.expected)} est.</span>}
+                  </span>
+                  {chevron}
+                </button>
+              )
+            })}
+          </div>
+        </>
+      )}
+    </>
+  )
+
   return (
-    <div style={{ position: 'relative', minHeight: 'var(--sl-page-min-height, 100svh)', background: 'var(--sl-bg)', color: 'var(--sl-text)', fontFamily: SANS, overflow: 'hidden' }}>
-      {/* One soft glow behind the number (Dark only; the Light token is none). */}
-      <div aria-hidden="true" style={{ position: 'absolute', top: 40, left: 'calc(50% - 330px)', width: 440, height: 440, borderRadius: '50%', pointerEvents: 'none', background: 'var(--sl-hero-glow)' }} />
-
-      <div style={{ maxWidth: 480, margin: '0 auto', padding: '0 20px 40px', position: 'relative' }}>
-        {body}
-
-        {!loading && !loadFailed && (
-          <>
-            {/* ── Coming up: the scheduled next show, plus external listings ── */}
-            {userId && (
-              <>
-                <h2 style={sectionHeading}>Coming up</h2>
-                <div style={{ marginTop: 8 }}>
-                  <NextShowSummary artistId={actingAs?.artist_id || userId} />
-                </div>
-              </>
-            )}
-            {upcomingShows.length > 0 && (
-              <div style={{ borderTop: '1px solid var(--sl-line)' }}>
-                {upcomingShows.map(event => {
-                  const isEventToday = isToday(event.datetime)
-                  const dateLabel = isEventToday ? 'Tonight' : isTomorrow(event.datetime) ? 'Tomorrow' : formatShowDate(event.datetime)
-                  const inner = (
-                    <>
-                      <span style={{ width: 88, flexShrink: 0 }}>
-                        <span style={{ display: 'block', fontSize: 14, fontWeight: 600, color: isEventToday ? 'var(--sl-gold-text)' : 'var(--sl-text)' }}>{dateLabel}</span>
-                        <span style={{ display: 'block', fontSize: 13, color: 'var(--sl-text-3)' }}>{formatShowTime(event.datetime)}</span>
-                      </span>
-                      <span style={{ flex: 1, minWidth: 0 }}>
-                        <span style={{ display: 'block', fontSize: 16, fontWeight: 600, color: 'var(--sl-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{event.venueName}</span>
-                        <span style={{ display: 'block', fontSize: 13, color: 'var(--sl-text-3)' }}>{event.venueCity}{event.venueRegion ? `, ${event.venueRegion}` : ''}</span>
-                      </span>
-                    </>
-                  )
-                  // Tapping a listing starts capture there, as before — not
-                  // offered to a read-only Viewer.
-                  return canCapture ? (
-                    <button key={event.id} onClick={() => startShowFromBIT(event)} aria-label={`Start capture at ${event.venueName}, ${dateLabel}`}
-                      style={{ ...rowBase, width: '100%', background: 'none', border: 'none', borderBottom: '1px solid var(--sl-line)', cursor: 'pointer', fontFamily: SANS, textAlign: 'left' }}>
-                      {inner}{chevron}
-                    </button>
-                  ) : (
-                    <div key={event.id} style={rowBase}>{inner}</div>
-                  )
-                })}
-              </div>
-            )}
-
-            {/* ── Recent shows ── */}
-            {recentPerfs.length > 0 && (
-              <>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-                  <h2 style={sectionHeading}>Recent shows</h2>
-                  {recordShows.length > 5 && (
-                    <Link href="/app/history" style={{ display: 'inline-flex', alignItems: 'center', minHeight: 44, marginTop: 28, fontSize: 14, fontWeight: 600, color: 'var(--sl-gold-text)', textDecoration: 'none' }}>All shows</Link>
-                  )}
-                </div>
-                <div style={{ borderTop: '1px solid var(--sl-line)', marginTop: 4 }}>
-                  {recentPerfs.map(perf => {
-                    const displayStatus = getDisplayStatus(perf)
-                    const d = showDate(perf)
-                    const songCount = songCountMap[perf.id] || 0
-                    const isFinished = perf.status !== 'live' && perf.status !== 'pending'
-                    const perfEst = isFinished && songCount > 0
-                      ? estimateRoyalties({ songCount, venueCapacityBand: capacityToBand(perf.venue_capacity), showType: (perf.show_type as any) || 'single', territory: isCanadian(perf.country, perf.city) ? 'CA' : 'US' })
-                      : null
-                    return (
-                      <button key={perf.id} onClick={() => navigateToPerformance(perf)}
-                        style={{ ...rowBase, width: '100%', background: 'none', border: 'none', borderBottom: '1px solid var(--sl-line)', cursor: 'pointer', fontFamily: SANS, textAlign: 'left' }}>
-                        <span style={{ width: 40, flexShrink: 0, textAlign: 'center' }}>
-                          <span style={{ display: 'block', fontSize: 18, fontWeight: 600, color: 'var(--sl-text)', lineHeight: 1.1, fontVariantNumeric: 'tabular-nums' }}>{d ? d.getDate() : '–'}</span>
-                          <span style={{ display: 'block', fontSize: 12, color: 'var(--sl-text-3)' }}>{d ? d.toLocaleDateString('en-US', { month: 'short' }) : ''}</span>
-                        </span>
-                        <span style={{ flex: 1, minWidth: 0 }}>
-                          <span style={{ display: 'block', fontSize: 16, fontWeight: 600, color: 'var(--sl-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{perf.venue_name || 'Untitled show'}</span>
-                          <span style={{ display: 'block', fontSize: 13, color: 'var(--sl-text-3)' }}>{[perf.city, songCount > 0 ? `${songCount} songs` : null].filter(Boolean).join(' · ')}</span>
-                        </span>
-                        <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2, flexShrink: 0 }}>
-                          <span style={{ fontSize: 12, fontWeight: 700, color: displayStatus.color }}>{displayStatus.label}</span>
-                          {perfEst && perfEst.expected > 0 && <span style={{ fontSize: 13, color: 'var(--sl-text-3)' }}>{money(perfEst.expected)} est.</span>}
-                        </span>
-                        {chevron}
-                      </button>
-                    )
-                  })}
-                </div>
-              </>
-            )}
-          </>
-        )}
+    <div className="sl-dash" style={{ position: 'relative', minHeight: 'var(--sl-page-min-height, 100svh)', background: 'var(--sl-bg)', color: 'var(--sl-text)', fontFamily: SANS, overflow: 'hidden' }}>
+      <div className="sl-dash-inner" style={{ maxWidth: 'var(--d-max, 480px)', margin: '0 auto', padding: 'var(--d-pad, 0 20px 40px)', position: 'relative' } as React.CSSProperties}>
+        {/* One soft glow behind the number (Dark only; the Light token is none). */}
+        <div aria-hidden="true" style={{ position: 'absolute', top: 40, left: 'var(--d-glow-left, -110px)', width: 'var(--d-glow, 440px)', height: 'var(--d-glow, 440px)', borderRadius: '50%', pointerEvents: 'none', background: 'var(--sl-hero-glow)' } as React.CSSProperties} />
+        <div className="sl-dash-grid" style={{ position: 'relative' }}>
+          {bands && <div className="sl-a-band">{bands}</div>}
+          <div className="sl-a-poster">{poster}</div>
+          {ledger && <div className="sl-a-ledger">{ledger}</div>}
+          {more && <div className="sl-a-more">{more}</div>}
+        </div>
       </div>
 
       <style>{`
@@ -835,6 +850,36 @@ export default function DashboardPage() {
         .sl-skel::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent); animation: sl-shimmer 1.4s infinite; }
         :root[data-appearance="light"] .sl-skel::after { background: linear-gradient(90deg, transparent, rgba(255,255,255,0.7), transparent); }
         @media (prefers-reduced-motion: reduce) { .sl-skel::after { animation: none; display: none; } }
+
+        /* Layout follows the width this page actually has (the content area
+           beside the desktop sidebar, or the phone screen), not the window. */
+        .sl-dash { container-type: inline-size; container-name: sl-dash; }
+        /* Wider single column (tablets, narrow laptop windows): desktop
+           type sizes, everything still stacked. */
+        @container sl-dash (min-width: 600px) {
+          .sl-dash-inner {
+            --d-max: 640px; --d-pad: 0 32px 56px;
+            --d-label: 15px; --d-value: 17px; --d-row: 60px; --d-cap: 18px; --d-ov: 15px; --d-band: 76px;
+            --d-hero: clamp(160px, 40cqw, 260px); --d-hero-band: clamp(160px, 40cqw, 260px);
+          }
+        }
+        /* Room for the approved two-column composition: poster | ledger. */
+        @container sl-dash (min-width: 900px) {
+          .sl-dash-inner {
+            --d-max: 1120px; --d-pad: 0 48px 64px; --d-ledger-mt: 6px;
+            --d-hero: clamp(160px, 26cqw, 300px); --d-hero-band: clamp(160px, 26cqw, 300px);
+            --d-glow: 760px; --d-glow-left: 120px;
+          }
+          .sl-dash-grid {
+            display: grid; grid-template-columns: minmax(0, 1fr) minmax(360px, 440px); column-gap: 72px;
+            grid-template-areas: "band band" "poster ledger" "more ledger"; grid-template-rows: auto auto 1fr;
+            align-items: start; padding-top: 8px;
+          }
+          .sl-a-band { grid-area: band; margin-bottom: 12px; }
+          .sl-a-poster { grid-area: poster; }
+          .sl-a-ledger { grid-area: ledger; padding-top: 20px; }
+          .sl-a-more { grid-area: more; }
+        }
       `}</style>
     </div>
   )

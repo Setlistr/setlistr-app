@@ -1,9 +1,9 @@
 'use client'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { MapPin, Calendar, X, Pencil, Play, RefreshCw, AlertCircle, MoreVertical } from 'lucide-react'
+import { MapPin, Calendar, X, Pencil, Play, RefreshCw, AlertCircle, MoreVertical, ChevronRight } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-import { zonedLocalTimeToUtc, utcToZonedParts } from '@/lib/scheduleTime'
+import { zonedLocalTimeToUtc, utcToZonedParts, pickNextScheduled, relativeDayLabel, zonedToday } from '@/lib/scheduleTime'
 import { getTimezoneOptions, labelForZone } from '@/lib/timezoneLabels'
 import tzLookup from 'tz-lookup'
 
@@ -21,12 +21,10 @@ type ScheduledShow = {
 }
 type Venue = { id: string; name: string; city: string | null; country: string | null; latitude?: number | null; longitude?: number | null }
 
-function dayLabel(dateStr: string): string {
-  const today = new Date(); const d = new Date(dateStr + 'T00:00:00')
-  const diffDays = Math.round((d.getTime() - new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime()) / 86400000)
-  if (diffDays === 0) return 'Today'
-  if (diffDays === 1) return 'Tomorrow'
-  return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+// dateStr is venue-local, so "today" is judged on the venue's own clock
+// (not the viewer's device), and a date outside this year shows its year.
+function dayLabel(dateStr: string, zone: string): string {
+  return relativeDayLabel(dateStr, zonedToday(new Date(), zone))
 }
 
 function timeLabel(timeStr: string): string {
@@ -47,56 +45,63 @@ function zoneAbbreviation(utcIso: string, zone: string): string {
   } catch { return '' }
 }
 
-// Compact, info-only card for the dashboard — the single next scheduled
-// show (if any) plus a link to the full /app/schedule experience. No
-// add/edit/cancel/start actions here at all, so there is exactly one
-// place those live — avoids a second, competing form.
+// Compact, info-only row for the dashboard's "Coming up" — the next
+// upcoming scheduled show (if any) plus a link to the full /app/schedule
+// experience. No add/edit/cancel/start actions here at all, so there is
+// exactly one place those live. "Next" skips shows whose venue-local date
+// has passed but which are still marked scheduled (never started or
+// cancelled) — the API returns those too, oldest first — and says how many
+// there are rather than presenting one as upcoming. Colours are --sl-*
+// tokens (app/globals.css).
 export function NextShowSummary({ artistId }: { artistId: string }) {
-  const [loading, setLoading] = useState(true)
-  const [next, setNext] = useState<ScheduledShow | null>(null)
+  const [state, setState] = useState<{ status: 'loading' | 'ready' | 'error'; next: ScheduledShow | null; pastCount: number }>({ status: 'loading', next: null, pastCount: 0 })
 
   useEffect(() => {
     let cancelled = false
+    setState({ status: 'loading', next: null, pastCount: 0 })
     fetch(`/api/shows/schedule?artist_id=${artistId}`)
-      .then(res => res.ok ? res.json() : { shows: [] })
-      .then(data => { if (!cancelled) { setNext((data.shows || [])[0] || null); setLoading(false) } })
-      .catch(() => { if (!cancelled) setLoading(false) })
+      .then(res => { if (!res.ok) throw new Error(String(res.status)); return res.json() })
+      .then(data => { if (!cancelled) setState({ status: 'ready', ...pickNextScheduled<ScheduledShow>(data.shows || []) }) })
+      .catch(() => { if (!cancelled) setState({ status: 'error', next: null, pastCount: 0 }) })
     return () => { cancelled = true }
   }, [artistId])
 
-  if (loading) {
-    return (
-      <div style={{ marginBottom: 20 }}>
-        <div className="sched-skeleton" style={{ width: '100%', height: 56, borderRadius: 14 }} />
-        <style>{`@keyframes schedShimmer2 { 0% { background-position: -200px 0 } 100% { background-position: 200px 0 } } .sched-skeleton { background: linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.08) 37%, rgba(255,255,255,0.04) 63%); background-size: 400px 100%; animation: schedShimmer2 1.4s ease infinite; } @media (prefers-reduced-motion: reduce) { .sched-skeleton { animation: none; opacity: 0.5; } }`}</style>
-      </div>
-    )
+  const row: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 12, minHeight: 56, padding: '12px 0', borderBottom: '1px solid var(--sl-line)', textDecoration: 'none', color: 'var(--sl-text)' }
+
+  if (state.status === 'loading') {
+    return <div aria-hidden="true" style={{ ...row, borderTop: '1px solid var(--sl-line)' }}><div style={{ flex: 1, height: 18, borderRadius: 8, background: 'var(--sl-skeleton)' }} /></div>
+  }
+
+  const { next, pastCount } = state
+  let title: React.ReactNode, detail: React.ReactNode
+  if (state.status === 'error') {
+    title = 'Schedule didn\u2019t load'
+    detail = 'Open Schedule to see upcoming shows'
+  } else if (next) {
+    const { dateStr, timeStr } = utcToZonedParts(new Date(next.scheduled_at), next.timezone)
+    title = next.venues?.name || 'Venue TBD'
+    detail = <>{dayLabel(dateStr, next.timezone)} · {timeLabel(timeStr)} {zoneAbbreviation(next.scheduled_at, next.timezone)}{next.venues?.city ? ` · ${next.venues.city}` : ''}</>
+  } else {
+    title = 'Nothing scheduled'
+    detail = 'Plan the next show in Schedule'
   }
 
   return (
-    <a href="/app/schedule" style={{ display: 'block', textDecoration: 'none', marginBottom: 20 }}>
-      <div style={{
-        background: next ? `linear-gradient(165deg, ${C.card2}, ${C.card})` : C.card,
-        border: `1px solid ${next ? C.borderGold : C.border}`, borderRadius: 16, padding: '16px 18px',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
-      }}>
-        {next ? (() => {
-          const { dateStr, timeStr } = utcToZonedParts(new Date(next.scheduled_at), next.timezone)
-          return (
-            <div style={{ minWidth: 0 }}>
-              <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.gold, margin: '0 0 4px' }}>Next show · {dayLabel(dateStr)}, {timeLabel(timeStr)}</p>
-              <p style={{ fontSize: 15, fontWeight: 800, color: C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{next.venues?.name || 'Venue TBD'}</p>
-            </div>
-          )
-        })() : (
-          <div>
-            <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.muted, margin: '0 0 4px' }}>Schedule</p>
-            <p style={{ fontSize: 13, color: C.secondary, margin: 0 }}>No shows scheduled yet — plan your next one</p>
-          </div>
-        )}
-        <span style={{ fontSize: 12, fontWeight: 700, color: C.gold, flexShrink: 0 }}>View Schedule →</span>
-      </div>
-    </a>
+    <div style={{ borderTop: '1px solid var(--sl-line)' }}>
+      <a href="/app/schedule" style={row}>
+        <span style={{ flex: 1, minWidth: 0 }}>
+          {next && <span style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--sl-gold-text)', marginBottom: 1 }}>Next show</span>}
+          <span style={{ display: 'block', fontSize: 16, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{title}</span>
+          <span style={{ display: 'block', fontSize: 13, color: 'var(--sl-text-3)', marginTop: 1 }}>{detail}</span>
+          {pastCount > 0 && (
+            <span style={{ display: 'block', fontSize: 13, color: 'var(--sl-text-3)', marginTop: 4 }}>
+              {pastCount} past {pastCount === 1 ? 'show is' : 'shows are'} still marked scheduled in Schedule
+            </span>
+          )}
+        </span>
+        <ChevronRight size={18} aria-hidden="true" style={{ color: 'var(--sl-text-3)', flexShrink: 0 }} />
+      </a>
+    </div>
   )
 }
 
@@ -136,7 +141,7 @@ export function UpcomingShows({ artistId, artistName, canManage, onBeforeStart }
     const { dateStr, timeStr } = utcToZonedParts(new Date(show.scheduled_at), show.timezone)
     const who = artistName ? `${artistName} — ` : ''
     const venue = show.venues?.name || 'this venue'
-    const when = `${dayLabel(dateStr)}, ${timeLabel(timeStr)} ${zoneAbbreviation(show.scheduled_at, show.timezone)}`.trim()
+    const when = `${dayLabel(dateStr, show.timezone)}, ${timeLabel(timeStr)} ${zoneAbbreviation(show.scheduled_at, show.timezone)}`.trim()
     // Only ever call it "early" when it actually is — a show whose
     // scheduled time has already arrived or passed is just being started,
     // not started ahead of schedule.
@@ -217,7 +222,7 @@ export function UpcomingShows({ artistId, artistName, canManage, onBeforeStart }
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 4 }}>
-                      <span style={{ fontSize: isNext ? 13 : 12, fontWeight: 800, color: C.gold, letterSpacing: '0.02em' }}>{dayLabel(dateStr)}</span>
+                      <span style={{ fontSize: isNext ? 13 : 12, fontWeight: 800, color: C.gold, letterSpacing: '0.02em' }}>{dayLabel(dateStr, show.timezone)}</span>
                       <span style={{ fontSize: isNext ? 13 : 12, color: C.secondary, fontFamily: '"DM Mono", monospace' }}>
                         {timeLabel(timeStr)} <span style={{ color: C.secondary }}>{zoneAbbreviation(show.scheduled_at, show.timezone)}</span>
                       </span>

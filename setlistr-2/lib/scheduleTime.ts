@@ -95,3 +95,44 @@ export function utcToZonedParts(utc: Date, ianaZone: string): { dateStr: string;
     .formatToParts(utc).find(p => p.type === 'timeZoneName')?.value || ''
   return { dateStr, timeStr, offsetLabel }
 }
+
+// ── Which scheduled show is "next" ─────────────────────────────────────
+// /api/shows/schedule returns every show still marked 'scheduled', oldest
+// first — including ones whose date has passed but were never started or
+// cancelled. "Next" must skip those. A show counts as upcoming through the
+// whole of its own venue-local day (an 8 PM show is still "Today" at
+// 9 PM), judged in the show's timezone, not the viewer's device.
+
+function safeZone(zone: string): string {
+  try { new Intl.DateTimeFormat('en-US', { timeZone: zone }); return zone } catch { return 'UTC' }
+}
+
+// Today's date (YYYY-MM-DD) as the clock reads in `zone`.
+export function zonedToday(now: Date, zone: string): string {
+  return utcToZonedParts(now, safeZone(zone)).dateStr
+}
+
+export function isUpcomingInZone(scheduledAtIso: string, zone: string, now: Date = new Date()): boolean {
+  const z = safeZone(zone)
+  return utcToZonedParts(new Date(scheduledAtIso), z).dateStr >= zonedToday(now, z)
+}
+
+export function pickNextScheduled<T extends { scheduled_at: string; timezone: string }>(shows: T[], now: Date = new Date()): { next: T | null; pastCount: number } {
+  const upcoming = shows.filter(s => isUpcomingInZone(s.scheduled_at, s.timezone, now))
+    .sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime())
+  return { next: upcoming[0] || null, pastCount: shows.length - upcoming.length }
+}
+
+// "Today" / "Tomorrow" / "Yesterday" relative to `todayStr` (both venue-
+// local YYYY-MM-DD), otherwise "Wed, Oct 8" — with the year whenever it
+// isn't the current one, so an old date never reads as this year's.
+export function relativeDayLabel(dateStr: string, todayStr: string): string {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const [ty, tm, td] = todayStr.split('-').map(Number)
+  const diff = Math.round((Date.UTC(y, m - 1, d) - Date.UTC(ty, tm - 1, td)) / 86400000)
+  if (diff === 0) return 'Today'
+  if (diff === 1) return 'Tomorrow'
+  if (diff === -1) return 'Yesterday'
+  const date = new Date(y, m - 1, d)
+  return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', ...(y !== ty ? { year: 'numeric' } : {}) })
+}

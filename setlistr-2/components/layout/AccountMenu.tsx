@@ -5,8 +5,7 @@ import { Check, ChevronDown, Users, Settings } from 'lucide-react'
 import type { Profile } from '@/types'
 import { useActingAs } from '@/components/ActingAsProvider'
 import { roleInfoFor } from '@/lib/teamRoleInfo'
-
-type ManagedArtist = { artist_id: string; artist_name: string; role: string; avatar_url?: string | null }
+import { useWorkspaceRole } from '@/components/layout/WorkspaceRole'
 
 // Pages can ask the header's menu to open (e.g. the dashboard's "Switch
 // workspace" recovery button) without owning any of its state.
@@ -32,20 +31,11 @@ const headingStyle: React.CSSProperties = { fontSize: 12, fontWeight: 700, color
 export function AccountMenu({ profile, hasWorkspace }: { profile: Profile; hasWorkspace: boolean }) {
   const { actingAs, selectManagedArtist, returnToOwnWorkspace } = useActingAs()
   const [open, setOpen] = useState(false)
-  const [managed, setManaged] = useState<ManagedArtist[]>([])
+  // Team connections and role come from the app frame (WorkspaceRole), so
+  // the identity line here and the capture controls agree.
+  const { managed } = useWorkspaceRole()
   const menuRef = useRef<HTMLDivElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
-
-  // Loaded on mount, and again whenever the selected workspace is one the
-  // loaded list doesn't contain yet (e.g. straight after accepting an
-  // invite), so the role line is never missing or guessed.
-  const actingArtistId = actingAs?.artist_id ?? null
-  const [loadedFor, setLoadedFor] = useState<string | null | undefined>(undefined)
-  useEffect(() => {
-    if (loadedFor !== undefined && (!actingArtistId || managed.some(a => a.artist_id === actingArtistId) || loadedFor === actingArtistId)) return
-    setLoadedFor(actingArtistId)
-    fetch('/api/team/managed-artists').then(r => r.ok ? r.json() : { managed: [] }).then(d => setManaged(d.managed || [])).catch(() => {})
-  }, [actingArtistId, managed, loadedFor])
 
   useEffect(() => {
     function onOpen() { setOpen(true) }
@@ -95,17 +85,19 @@ export function AccountMenu({ profile, hasWorkspace }: { profile: Profile; hasWo
         aria-expanded={open}
         aria-label={`Account and workspace menu, ${name}${detail ? `, ${detail}` : ''}`}
         style={{
-          display: 'flex', alignItems: 'center', gap: 8, minHeight: 44, maxWidth: '100%', minWidth: 0,
+          // Sizes read --sl-acct-* so the desktop top bar (AppShell) can use
+          // the larger identity from the approved desktop design.
+          display: 'flex', alignItems: 'center', gap: 8, minHeight: 'var(--sl-acct-h, 44px)', maxWidth: '100%', minWidth: 0,
           background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
           padding: '0 4px 0 10px', borderRadius: 22, textAlign: 'right',
         }}>
         <span style={{ minWidth: 0, lineHeight: 1.15 }}>
-          <span style={{ display: 'block', fontSize: 15, fontWeight: 600, color: 'var(--sl-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{name}</span>
-          {detail && <span style={{ display: 'block', fontSize: 12, fontWeight: 700, color: actingAs ? 'var(--sl-gold-text)' : 'var(--sl-text-3)', whiteSpace: 'nowrap' }}>{detail}</span>}
+          <span style={{ display: 'block', fontSize: 'var(--sl-acct-name, 15px)', fontWeight: 600, color: 'var(--sl-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{name}</span>
+          {detail && <span style={{ display: 'block', fontSize: 'var(--sl-acct-detail, 12px)', fontWeight: 700, color: actingAs ? 'var(--sl-gold-text)' : 'var(--sl-text-3)', whiteSpace: 'nowrap' }}>{detail}</span>}
         </span>
         <ChevronDown size={14} style={{ flexShrink: 0, color: 'var(--sl-text-3)' }} aria-hidden="true" />
         <span style={{
-          width: 32, height: 32, borderRadius: '50%', flexShrink: 0, overflow: 'hidden',
+          width: 'var(--sl-acct-ava, 32px)', height: 'var(--sl-acct-ava, 32px)', borderRadius: '50%', flexShrink: 0, overflow: 'hidden',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           background: 'var(--sl-surface)',
           border: actingAs ? '2px solid var(--sl-gold)' : '1.5px solid var(--sl-line)',

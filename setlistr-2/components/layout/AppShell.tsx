@@ -11,6 +11,7 @@ import { WorkspaceGate } from '@/components/WorkspaceGate'
 import { ManagerShell } from '@/components/layout/ManagerShell'
 import { AccountMenu } from '@/components/layout/AccountMenu'
 import { APP_HEADER_HEIGHT, APP_HEADER_PADDING_TOP } from '@/components/layout/appHeaderInsets'
+import { WorkspaceRoleProvider, useWorkspaceRoleState } from '@/components/layout/WorkspaceRole'
 import { useState, useEffect } from 'react'
 
 // Set by app/app/manager/artists/[artistId]/page.tsx right before it
@@ -37,12 +38,36 @@ const TAB_STYLE: React.CSSProperties = {
 const TAB_LABEL: React.CSSProperties = { lineHeight: 1, maxWidth: '100%', padding: '0 2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }
 const TAB_INDICATOR: React.CSSProperties = { position: 'absolute', bottom: 4, left: '50%', transform: 'translateX(-50%)', width: 22, height: 2, borderRadius: 1, background: 'var(--sl-gold-text)' }
 
+// Desktop (900px and wider): a 248px sidebar (ManagerShell's width) holds
+// the logo, the capture control and the four destinations; the same single
+// header becomes the 72px top bar holding identity. One header and one
+// AccountMenu at every width — so "open the account menu" always means the
+// visible one. Below 900px nothing here applies and the mobile frame is
+// exactly as reviewed.
+export const DESKTOP_MIN_WIDTH = 900
+const SIDEBAR_WIDTH = 248
+const SIDE_ITEM: React.CSSProperties = {
+  display: 'flex', alignItems: 'center', gap: 12, minHeight: 44, padding: '0 12px', borderRadius: 10,
+  fontSize: 15, textDecoration: 'none', position: 'relative',
+}
+
 export function AppShell({ children, profile }: { children: React.ReactNode; profile: Profile }) {
   const pathname = usePathname()
   const router = useRouter()
   const { actingAsArtistId, resolved, isBlocked, returnToOwnWorkspace } = useActingAs()
   const [needsReviewCount, setNeedsReviewCount] = useState(0)
   const [managerReturnArtistId, setManagerReturnArtistId] = useState<string | null>(null)
+
+  // No real workspace to act within — see the fuller note where the nav is
+  // built below. Computed up here so the role state can load before any
+  // early return.
+  const hasWorkspace = !!profile.artist_name?.trim() || !!actingAsArtistId
+  const workspaceRole = useWorkspaceRoleState(actingAsArtistId ?? null, hasWorkspace)
+  // Capture is offered only where the signed-in person can actually record
+  // into this workspace: own workspace, or a known write-capable team role.
+  // A Viewer — or anyone whose role hasn't loaded yet — gets no capture
+  // control at any width (the database refuses their writes regardless).
+  const canCapture = workspaceRole.canWrite
 
   const isFullscreen = FULLSCREEN_ROUTES.some(r => pathname.startsWith(r))
   const isManagerRoute = pathname.startsWith('/app/manager')
@@ -128,7 +153,6 @@ export function AppShell({ children, profile }: { children: React.ReactNode; pro
   // /app/manager (a different shell entirely, isManagerRoute above) the
   // moment they land without a selection, and once they DO select a
   // managed artist, actingAsArtistId is set and the full nav returns.
-  const hasWorkspace = !!profile.artist_name?.trim() || !!actingAsArtistId
 
   // Submissions previously landed on /app/history (Your Record — the full
   // searchable log, submitted shows included), while carrying a
@@ -155,8 +179,57 @@ export function AppShell({ children, profile }: { children: React.ReactNode; pro
     { href: '/app/schedule', icon: Calendar,   label: 'Schedule', badge: 0 },
   ] : []
 
+  const isNavActive = (href: string, activePaths?: string[]) =>
+    (activePaths || [href]).some(p => pathname === p || (p !== '/app/dashboard' && pathname.startsWith(p)))
+  const SIDE_NAV = [...LEFT_NAV, ...RIGHT_NAV.map(t => ({ ...t, activePaths: [t.href] }))]
+
   return (
-    <div style={{ minHeight: '100svh', display: 'flex', flexDirection: 'column', background: 'var(--sl-bg)' }}>
+    <WorkspaceRoleProvider value={workspaceRole}>
+    <div className="sl-shell" style={{ minHeight: '100svh', display: 'flex', flexDirection: 'column', background: 'var(--sl-bg)' }}>
+
+      {/* ── Desktop sidebar (hidden below DESKTOP_MIN_WIDTH) ── */}
+      <aside className="sl-sidebar" aria-label="Main" style={{
+        display: 'none', position: 'fixed', top: 0, bottom: 0, left: 0, width: SIDEBAR_WIDTH, zIndex: 45,
+        flexDirection: 'column', gap: 22, overflowY: 'auto',
+        padding: 'calc(28px + env(safe-area-inset-top, 0px)) 16px calc(20px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px))',
+        background: 'var(--sl-sidebar-bg)', borderRight: '1px solid var(--sl-line)',
+      }}>
+        <Link href="/app/dashboard" aria-label="Setlistr home" style={{ display: 'flex', alignItems: 'center', minHeight: 44, alignSelf: 'flex-start', padding: '0 8px', textDecoration: 'none' }}>
+          <Image className="sl-logo-for-dark" src="/logo-white-tight.png" alt="Setlistr" width={100} height={19} style={{ height: 19, width: 100 }} />
+          <Image className="sl-logo-for-light" src="/logo-dark-tight.png" alt="Setlistr" width={100} height={19} style={{ height: 19, width: 100 }} />
+        </Link>
+
+        {/* The same gold disc and round dot as the phone's capture button,
+            same destination and action — just labelled, since a laptop is
+            rarely where a set gets captured. */}
+        {canCapture && (
+          <Link href="/app/show/new" onClick={tapRecord} className="sl-hoverable" aria-label="Capture a show"
+            style={{ display: 'flex', alignItems: 'center', gap: 12, minHeight: 64, padding: '6px', borderRadius: 16, textDecoration: 'none' }}>
+            <span aria-hidden="true" style={{ width: 52, height: 52, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '3px solid var(--sl-sidebar-bg)', background: 'linear-gradient(180deg, #d4b45c 0%, #b8963e 100%)', boxShadow: 'var(--sl-disc-shadow)' }}>
+              <span style={{ width: 11, height: 11, borderRadius: '50%', background: '#0a0908' }} />
+            </span>
+            <span style={{ minWidth: 0 }}>
+              <span style={{ display: 'block', fontSize: 15, fontWeight: 700, color: 'var(--sl-text)' }}>Capture a show</span>
+              <span style={{ display: 'block', fontSize: 12, color: 'var(--sl-text-3)', marginTop: 1 }}>Usually from your phone</span>
+            </span>
+          </Link>
+        )}
+
+        <nav aria-label="Sections" style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {SIDE_NAV.map(item => {
+            const active = isNavActive(item.href, item.activePaths)
+            const Icon = item.icon
+            return (
+              <Link key={item.href} href={item.href} aria-current={active ? 'page' : undefined} className={active ? undefined : 'sl-hoverable'}
+                style={{ ...SIDE_ITEM, background: active ? 'var(--sl-nav-active)' : 'transparent', color: active ? 'var(--sl-gold-text)' : 'var(--sl-text-2)', fontWeight: active ? 700 : 500 }}>
+                <Icon size={20} strokeWidth={active ? 2.3 : 1.8} style={{ flexShrink: 0 }} />
+                <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.label}</span>
+                {item.badge > 0 && <span aria-label="Needs review" style={{ marginLeft: 'auto', width: 7, height: 7, borderRadius: '50%', background: 'var(--sl-gold)', flexShrink: 0 }} />}
+              </Link>
+            )
+          })}
+        </nav>
+      </aside>
 
       {/* ── Header — logo, plus a Back to Manager pill when this acting-as
            session was entered from Manager mode ── */}
@@ -167,7 +240,7 @@ export function AppShell({ children, profile }: { children: React.ReactNode; pro
       {/* Identity lives here, on every page: the workspace name, the
           signed-in team member's role there, and the avatar — all one
           button that opens the existing AccountMenu. */}
-      <header style={{
+      <header className="sl-header" style={{
         height: APP_HEADER_HEIGHT,
         padding: `${APP_HEADER_PADDING_TOP} max(8px, env(safe-area-inset-right, 0px)) 0 max(20px, env(safe-area-inset-left, 0px))`,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
@@ -178,7 +251,7 @@ export function AppShell({ children, profile }: { children: React.ReactNode; pro
       }}>
         {/* The tight wordmark files (no transparent padding), so the 44px
             link is the tap target and nothing invisible overhangs content. */}
-        <Link href="/app/dashboard" aria-label="Setlistr home" style={{ display: 'flex', alignItems: 'center', height: 44, flexShrink: 0, textDecoration: 'none' }}>
+        <Link href="/app/dashboard" aria-label="Setlistr home" className="sl-header-logo" style={{ display: 'flex', alignItems: 'center', height: 44, flexShrink: 0, textDecoration: 'none' }}>
           <Image className="sl-logo-for-dark" src="/logo-white-tight.png" alt="Setlistr" width={85} height={16} priority style={{ height: 16, width: 85 }} />
           <Image className="sl-logo-for-light" src="/logo-dark-tight.png" alt="Setlistr" width={85} height={16} style={{ height: 16, width: 85 }} />
         </Link>
@@ -217,14 +290,14 @@ export function AppShell({ children, profile }: { children: React.ReactNode; pro
           loaders, empty states) use it instead of 100svh — 100svh inside
           this padded column always overflowed by the header plus the nav
           clearance, so every short page scrolled for no reason. */}
-      <main style={{
+      <main className="sl-main" style={{
         flex: 1, paddingBottom: 'calc(96px + env(safe-area-inset-bottom))', paddingLeft: 'env(safe-area-inset-left, 0px)', paddingRight: 'env(safe-area-inset-right, 0px)',
         ['--sl-page-min-height' as string]: `calc(100svh - ${APP_HEADER_HEIGHT} - 96px - env(safe-area-inset-bottom, 0px))`,
       } as React.CSSProperties}>{children}</main>
 
       {/* ── Bottom nav ── */}
       {/* 65px of tabs, then the home-indicator inset below them. */}
-      <nav aria-label="Main" style={{
+      <nav aria-label="Main" className="sl-tabbar" style={{
         position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 40,
         background: 'var(--sl-nav-bg)',
         backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)',
@@ -270,7 +343,7 @@ export function AppShell({ children, profile }: { children: React.ReactNode; pro
               hasWorkspace above) — it would otherwise silently create a real,
               ownerless performance under a bare account with no artist
               identity. */}
-          {hasWorkspace && (
+          {canCapture && (
             <Link
               href="/app/show/new"
               aria-label="Capture a show"
@@ -303,7 +376,25 @@ export function AppShell({ children, profile }: { children: React.ReactNode; pro
         @keyframes fadeIn       { from{opacity:0} to{opacity:1} }
         @keyframes slideUp      { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
         * { -webkit-tap-highlight-color: transparent; }
+        .sl-hoverable:hover { background: var(--sl-hover) !important; }
+        .sl-shell a:focus-visible, .sl-shell button:focus-visible { outline: 2px solid var(--sl-gold); outline-offset: 2px; }
+        @media (min-width: ${DESKTOP_MIN_WIDTH}px) {
+          .sl-shell { padding-left: ${SIDEBAR_WIDTH}px; }
+          .sl-sidebar { display: flex !important; }
+          .sl-tabbar { display: none !important; }
+          .sl-header-logo { display: none !important; }
+          .sl-header {
+            height: calc(72px + env(safe-area-inset-top, 0px)) !important;
+            padding: env(safe-area-inset-top, 0px) max(24px, env(safe-area-inset-right, 0px)) 0 32px !important;
+            --sl-acct-h: 48px; --sl-acct-name: 16px; --sl-acct-detail: 13px; --sl-acct-ava: 36px;
+          }
+          .sl-main {
+            padding-bottom: 0 !important;
+            --sl-page-min-height: calc(100svh - 72px - env(safe-area-inset-top, 0px)) !important;
+          }
+        }
       `}</style>
     </div>
+    </WorkspaceRoleProvider>
   )
 }
