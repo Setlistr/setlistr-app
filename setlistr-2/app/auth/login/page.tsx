@@ -70,7 +70,8 @@ function LoginPageInner() {
 
   async function handleSignIn(e?: React.FormEvent) {
     e?.preventDefault()
-    if (!email.trim() || !password.trim()) return
+    if (loading) return
+    if (!email.trim() || !password.trim()) { setError('Enter your email and password.'); return }
     setLoading(true)
     setError('')
     const supabase = createClient()
@@ -89,7 +90,8 @@ function LoginPageInner() {
 
   async function handleSignUp(e?: React.FormEvent) {
     e?.preventDefault()
-    if (!email.trim() || !password.trim()) return
+    if (loading) return
+    if (!email.trim() || !password.trim()) { setError('Enter your email and a password.'); return }
     if (!termsAccepted) { setError('You must agree to the Terms of Service and Privacy Policy to create an account.'); return }
     if (password !== confirm) { setError("Passwords don't match"); return }
     if (password.length < 6)  { setError('Password must be at least 6 characters'); return }
@@ -431,9 +433,15 @@ function LoginPageInner() {
                   </div>
                 )}
 
+                {/* Only truly disabled while a request is in flight. When the
+                    form is incomplete it LOOKS disabled (aria-disabled) but
+                    still submits, so tapping it or pressing Enter/Go runs the
+                    handler's validation and says what's missing — a disabled
+                    submit would silently block Enter inside a <form>. */}
                 <button
                   type="submit"
-                  disabled={mode === 'signin' ? signInDisabled : signUpDisabled}
+                  disabled={loading}
+                  aria-disabled={mode === 'signin' ? signInDisabled : signUpDisabled}
                   aria-busy={loading}
                   style={{ width: '100%', minHeight: 50, padding: '13px', background: C.gold, border: 'none', borderRadius: 10, color: '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: (mode === 'signin' ? signInDisabled : signUpDisabled) ? 'not-allowed' : 'pointer', opacity: (mode === 'signin' ? signInDisabled : signUpDisabled) ? 0.6 : 1, transition: 'opacity 0.2s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit', marginTop: 4 }}>
                   {loading ? <><Spinner />{mode === 'signin' ? 'Signing in...' : 'Creating account...'}</> : mode === 'signin' ? 'Sign In' : 'Create Account'}
