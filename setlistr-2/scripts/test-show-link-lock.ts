@@ -27,18 +27,33 @@
 // Every legitimate SET NULL is verified by an explicit, error-checked
 // readback of the actual stored state — not status/non-error alone.
 //
-// Run via:
+// FIXTURE NOTE (0014): since 0014_performance_creation_containment, no
+// caller — service_role included — can INSERT a performance with a non-NULL
+// setlist_id, and 0013 forbids setting one afterwards. The rows this suite
+// needs WITH an existing setlist_id (perfA, perfY, perfV, perfT) — and
+// check 15's deliberately mismatched show_id row (perfMismatch), which
+// 0014's show-match rule now also refuses at creation — are
+// therefore seeded the same way test-identify-authorization.ts seeds its
+// legacy linked rows: one local-only transaction that disables 0014's
+// INSERT trigger for that statement only and re-enables it before COMMIT.
+// Every assertion below is unchanged.
+//
+// Run via (LOCAL_SUPABASE_DB_CONTAINER is the local Supabase Postgres
+// container, e.g. from `docker ps`):
+//   LOCAL_SUPABASE_DB_CONTAINER=<container name> \
 //   npx ts-node --transpile-only -P scripts/tsconfig.json scripts/test-show-link-lock.ts
 
 import * as dotenv from 'dotenv'
 dotenv.config({ path: '.env.local' })
 
 import * as crypto from 'crypto'
+import { execSync } from 'child_process'
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+const LOCAL_SUPABASE_DB_CONTAINER = process.env.LOCAL_SUPABASE_DB_CONTAINER || ''
 
 function isLocalhost(url: string) {
   try {
@@ -54,6 +69,10 @@ if (!isLocalhost(SUPABASE_URL)) {
 }
 if (!ANON_KEY || !SERVICE_KEY) {
   console.error('Missing NEXT_PUBLIC_SUPABASE_ANON_KEY or SUPABASE_SERVICE_ROLE_KEY in .env.local')
+  process.exit(1)
+}
+if (!LOCAL_SUPABASE_DB_CONTAINER) {
+  console.error('Missing LOCAL_SUPABASE_DB_CONTAINER — needed to seed setlist-linked performances (see FIXTURE NOTE).')
   process.exit(1)
 }
 
@@ -81,6 +100,8 @@ const MSG_PERF_SETLIST = 'performances.setlist_id cannot be changed after creati
 const MSG_SETLIST_SHOW = 'setlists.show_id cannot be changed after creation'
 const MSG_SETLIST_ARTIST = 'setlists.artist_id cannot be changed after creation'
 const SQLSTATE = '23514'
+// 0014_performance_creation_containment: no caller may INSERT a non-NULL setlist_id.
+const MSG_SETLIST_AT_CREATION = 'performances.setlist_id cannot be set at creation until a validated artist/event participation mechanism exists'
 
 function rowsEqual(a: Record<string, unknown> | null, b: Record<string, unknown> | null): boolean {
   if (a === null || b === null) return a === b
@@ -106,10 +127,48 @@ function checkUnchangedExceptLinks(label: string, before: Record<string, unknown
     check(`${label}: ${k} is specifically NULL`, after[k] === null, `after.${k}=${JSON.stringify(after[k])}`)
   }
 }
+function checkDenied8(error: { code?: string; message?: string } | null | undefined) {
+  check('performances: insert with setlist_id: SQLSTATE 23514', error?.code === SQLSTATE, JSON.stringify(error))
+  check('performances: insert with setlist_id: exact 0014 trigger message', error?.message === MSG_SETLIST_AT_CREATION, JSON.stringify(error))
+}
 function checkDenied(label: string, error: { code?: string; message?: string } | null | undefined, expectedMessage: string) {
   check(`${label}: SQLSTATE 23514`, error?.code === SQLSTATE, JSON.stringify(error))
   check(`${label}: exact trigger message`, error?.message === expectedMessage, JSON.stringify(error))
 }
+// Same mechanism as test-identify-authorization.ts's
+// seedLegacyLinkedPerformances(): local container only, one transaction,
+// 0014's INSERT trigger disabled for this statement and re-enabled before
+// COMMIT (ON_ERROR_STOP aborts the whole transaction on any failure).
+// Writes through the container are allowed only once that container is
+// proven to be the database this suite's API calls reach: a user created
+// moments ago through the local Auth admin API must be visible there.
+let seedTargetVerified = false
+function verifySeedTarget(userId: string) {
+  const out = execSync(
+    `docker exec -i ${LOCAL_SUPABASE_DB_CONTAINER} psql -U postgres -d postgres -At -v ON_ERROR_STOP=1`,
+    { input: `BEGIN TRANSACTION READ ONLY;\nSELECT count(*) FROM auth.users WHERE id = '${userId}';\nROLLBACK;\n`, stdio: ['pipe', 'pipe', 'inherit'] }
+  ).toString().trim().split('\n').filter(l => /^\d+$/.test(l))
+  if (out[0] !== '1') throw new Error(`REFUSING TO SEED: ${LOCAL_SUPABASE_DB_CONTAINER} is not the database at ${SUPABASE_URL} (fresh user not found there)`)
+  seedTargetVerified = true
+}
+
+function seedLinkedPerformance(row: { user_id: string; venue_name: string; show_id?: string | null; setlist_id?: string | null }): { id: string } {
+  if (!seedTargetVerified) throw new Error('seed target not verified')
+  const id = crypto.randomUUID()
+  const q = (v: string | null | undefined) => (v ? `'${v.replace(/'/g, "''")}'` : 'NULL')
+  execSync(
+    `docker exec -i ${LOCAL_SUPABASE_DB_CONTAINER} psql -U postgres -d postgres -v ON_ERROR_STOP=1`,
+    { input: `BEGIN;
+ALTER TABLE public.performances DISABLE TRIGGER performances_require_authorized_creation;
+INSERT INTO public.performances (id, user_id, venue_name, artist_name, show_id, setlist_id)
+  VALUES (${q(id)}, ${q(row.user_id)}, ${q(row.venue_name)}, ${q(FIXTURE_ARTIST_NAME)}, ${q(row.show_id)}, ${q(row.setlist_id)});
+ALTER TABLE public.performances ENABLE TRIGGER performances_require_authorized_creation;
+COMMIT;
+`, stdio: ['pipe', 'pipe', 'inherit'] }
+  )
+  return { id }
+}
+
 function unwrap<T>(res: { data: T | null; error: { message: string } | null }, label: string): T {
   if (res.error || !res.data) throw new Error(`${label} failed: ${res.error?.message || 'no data returned'}`)
   return res.data
@@ -199,6 +258,7 @@ async function main() {
   const manager = await createPersona('manager')
   await seedDelegation(ownerA.userId, manager.userId)
   await seedDelegation(ownerC.userId, manager.userId)
+  verifySeedTarget(ownerA.userId)
 
   const artistA = unwrap<{ id: string }>(await service.from('artists').insert({ user_id: ownerA.userId }).select().single(), 'artistA')
   createdArtistIds.push(artistA.id)
@@ -219,7 +279,7 @@ async function main() {
   const setlistC = unwrap<{ id: string }>(await service.from('setlists').insert({ show_id: showC.id, artist_id: artistC.id }).select().single(), 'setlistC')
   createdSetlistIds.push(setlistC.id)
 
-  const perfA = unwrap<{ id: string }>(await service.from('performances').insert({ artist_name: FIXTURE_ARTIST_NAME, user_id: ownerA.userId, venue_name: 'A', show_id: showA1.id, setlist_id: setlistA1.id }).select().single(), 'perfA')
+  const perfA = seedLinkedPerformance({ user_id: ownerA.userId, venue_name: 'A', show_id: showA1.id, setlist_id: setlistA1.id })
   createdPerformanceIds.push(perfA.id)
 
   console.log('\n1. Cross-artist reassignment blocked (manager authorized for both)')
@@ -321,11 +381,21 @@ async function main() {
     check('performances: no-op update persisted correctly (readback), BOTH links unchanged', after?.venue_name === 'Re-sent Same Links' && after?.show_id === showA1.id && after?.setlist_id === setlistA1.id, JSON.stringify(after))
   }
 
-  console.log('\n8. Legitimate inserts (new rows with fresh links) still work')
+  console.log('\n8. Inserts under current policy (0014): setlist_id at creation is denied; the same manager can create without it')
   {
-    const newPerf = unwrap<{ id: string }>(await manager.client.from('performances').insert({ artist_name: FIXTURE_ARTIST_NAME, user_id: ownerA.userId, venue_name: 'New', show_id: showA2.id, setlist_id: setlistA2.id }).select().single(), 'new performance insert')
+    // 8a. Denied: a write-capable manager inserting WITH a setlist_id.
+    const venueDenied = `New With Setlist ${RUN}`
+    const { data: deniedRow, error: deniedErr } = await manager.client.from('performances').insert({ artist_name: FIXTURE_ARTIST_NAME, user_id: ownerA.userId, venue_name: venueDenied, show_id: showA2.id, setlist_id: setlistA2.id }).select().single()
+    check('performances: insert with setlist_id rejected, not silently allowed', !deniedRow, JSON.stringify({ deniedRow, deniedErr }))
+    checkDenied8(deniedErr)
+    const { data: leftover, error: leftoverErr } = await service.from('performances').select('id').eq('venue_name', venueDenied)
+    check('performances: rejected insert left no stored row (readback succeeded)', !leftoverErr && (leftover?.length ?? -1) === 0, JSON.stringify({ leftover, leftoverErr }))
+
+    // 8b. Allowed: the same authorized manager, same artist and show, without setlist_id.
+    const newPerf = unwrap<{ id: string }>(await manager.client.from('performances').insert({ artist_name: FIXTURE_ARTIST_NAME, user_id: ownerA.userId, venue_name: `New Without Setlist ${RUN}`, show_id: showA2.id }).select().single(), 'new performance insert (manager, no setlist_id)')
     createdPerformanceIds.push(newPerf.id)
-    check('performances: insert with show_id/setlist_id succeeds', !!newPerf)
+    const stored = await readPerf(newPerf.id)
+    check('performances: manager insert without setlist_id succeeds, verified by readback', stored?.user_id === ownerA.userId && stored?.show_id === showA2.id && stored?.setlist_id === null, JSON.stringify(stored))
 
     const newSetlist = unwrap<{ id: string }>(await manager.client.from('setlists').insert({ show_id: showC.id, artist_id: artistA.id }).select().single(), 'new setlist insert (cross-artist INSERT — out of this patch\'s scope)')
     createdSetlistIds.push(newSetlist.id)
@@ -358,7 +428,7 @@ async function main() {
     createdShowIds.push(showY.id)
     const setlistY = unwrap<{ id: string }>(await service.from('setlists').insert({ show_id: showY.id, artist_id: artistA.id }).select().single(), 'setlistY')
     createdSetlistIds.push(setlistY.id)
-    const perfY = unwrap<{ id: string }>(await service.from('performances').insert({ artist_name: FIXTURE_ARTIST_NAME, user_id: ownerA.userId, venue_name: 'Y', setlist_id: setlistY.id }).select().single(), 'perfY')
+    const perfY = seedLinkedPerformance({ user_id: ownerA.userId, venue_name: 'Y', setlist_id: setlistY.id })
     createdPerformanceIds.push(perfY.id)
     const before = await readPerf(perfY.id)
 
@@ -414,7 +484,7 @@ async function main() {
     createdShowIds.push(showV.id)
     const setlistV = unwrap<{ id: string }>(await service.from('setlists').insert({ show_id: showV.id, artist_id: artistA.id }).select().single(), 'setlistV')
     createdSetlistIds.push(setlistV.id)
-    const perfV = unwrap<{ id: string }>(await service.from('performances').insert({ artist_name: FIXTURE_ARTIST_NAME, user_id: ownerA.userId, venue_name: 'V', show_id: showV.id, setlist_id: setlistV.id }).select().single(), 'perfV')
+    const perfV = seedLinkedPerformance({ user_id: ownerA.userId, venue_name: 'V', show_id: showV.id, setlist_id: setlistV.id })
     createdPerformanceIds.push(perfV.id)
     const before = await readPerf(perfV.id)
     check('fixture sanity: perfV starts with both links set', before?.show_id === showV.id && before?.setlist_id === setlistV.id)
@@ -451,7 +521,7 @@ async function main() {
     createdShowIds.push(showT.id)
     const setlistT = unwrap<{ id: string }>(await service.from('setlists').insert({ show_id: showT.id, artist_id: artistA.id }).select().single(), 'setlistT')
     createdSetlistIds.push(setlistT.id)
-    const perfT = unwrap<{ id: string }>(await service.from('performances').insert({ artist_name: FIXTURE_ARTIST_NAME, user_id: ownerA.userId, venue_name: 'T', setlist_id: setlistT.id }).select().single(), 'perfT')
+    const perfT = seedLinkedPerformance({ user_id: ownerA.userId, venue_name: 'T', setlist_id: setlistT.id })
     createdPerformanceIds.push(perfT.id)
     const { data: deletedT, error: delErrT } = await service.from('setlists').delete().eq('id', setlistT.id).select()
     check('fixture setup: setlist delete (orphaning setlist_id) succeeds with no error', !delErrT, JSON.stringify(delErrT))
@@ -481,7 +551,7 @@ async function main() {
     const ownerZ = await createPersona('ownerZ')
     const showZ2 = unwrap<{ id: string }>(await service.from('shows').insert({ created_by: ownerZ.userId }).select().single(), 'showZ2')
     createdShowIds.push(showZ2.id)
-    const perfMismatch = unwrap<{ id: string }>(await service.from('performances').insert({ artist_name: FIXTURE_ARTIST_NAME, user_id: ownerA.userId, venue_name: 'Mismatch', show_id: showZ2.id }).select().single(), 'perfMismatch')
+    const perfMismatch = seedLinkedPerformance({ user_id: ownerA.userId, venue_name: 'Mismatch', show_id: showZ2.id })
     createdPerformanceIds.push(perfMismatch.id)
 
     const { data: visibleToOwnerA } = await ownerA.client.from('shows').select('id').eq('id', showZ2.id).maybeSingle()

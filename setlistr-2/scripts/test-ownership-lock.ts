@@ -145,6 +145,15 @@ async function cleanup() {
   const errors: string[] = []
   const { error: perfErr } = await service.from('performances').delete().in('user_id', createdUserIds)
   if (perfErr) errors.push(`delete performances: ${perfErr.message}`)
+  // A scheduled show can't be deleted (0020's reject_scheduled_show_delete:
+  // USE_CANCEL_NOT_DELETE) — check 7 legitimately leaves s1 'scheduled'.
+  // Use the supported path: cancel this suite's own scheduled shows, then
+  // delete. The deletion restriction itself is untouched.
+  for (const [col, ids] of [['created_by', createdUserIds], ['id', extraShowIdsToClean]] as const) {
+    if (ids.length === 0) continue
+    const { error: cancelErr } = await service.from('shows').update({ status: 'cancelled' }).in(col, ids).eq('status', 'scheduled')
+    if (cancelErr) errors.push(`cancel scheduled shows (${col}): ${cancelErr.message}`)
+  }
   const { error: showErr } = await service.from('shows').delete().in('created_by', createdUserIds)
   if (showErr) errors.push(`delete shows: ${showErr.message}`)
   if (extraShowIdsToClean.length > 0) {
