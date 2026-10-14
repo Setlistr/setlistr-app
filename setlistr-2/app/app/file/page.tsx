@@ -157,7 +157,7 @@ export default function FilingQueuePage() {
   )
 
   return (
-    <div style={{ minHeight: '100svh', background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif' }}>
+    <div style={{ minHeight: 'var(--sl-page-min-height, 100svh)', background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif' }}>
       <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '50vh', pointerEvents: 'none', zIndex: 0, background: 'radial-gradient(ellipse at 50% 0%, rgba(201,168,76,0.06) 0%, transparent 65%)' }} />
       <div className="subm-page" style={{ position: 'relative', zIndex: 1, width: '100%', padding: '0 16px 80px', boxSizing: 'border-box' as const }}>
 

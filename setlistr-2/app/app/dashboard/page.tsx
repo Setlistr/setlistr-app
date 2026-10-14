@@ -3,32 +3,22 @@ import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { Check, Calendar, ChevronDown, Users, X } from 'lucide-react'
+import { ChevronRight, Mic } from 'lucide-react'
 import { useActingAs } from '@/components/ActingAsProvider'
-import { SetlistrLoader, useLoaderVariant } from '@/components/SetlistrLoader'
+import { openAccountMenu } from '@/components/layout/AccountMenu'
 import { NextShowSummary } from '@/components/scheduling/UpcomingShows'
-import { isCapturedShow, isSubmitted } from '@/lib/performance-status'
-import { roleInfoFor } from '@/lib/teamRoleInfo'
+import { isCapturedShow, isRealVenue } from '@/lib/performance-status'
+import { summarizeRecord, showDate, lastShowLabel } from '@/lib/record-summary'
 import { hasEverBeenConnected } from '@/lib/teamConnectionHistory'
 import {
   estimateRoyalties, aggregateUnclaimedEarnings,
   capacityToBand, type ShowEstimateInput,
 } from '@/lib/royalty-estimate'
 
-const C = {
-  bg: '#0a0908', card: '#141210', cardHover: '#181614',
-  border: 'rgba(255,255,255,0.07)', borderGold: 'rgba(201,168,76,0.3)',
-  text: '#f0ece3', secondary: '#b8a888', muted: '#8a7a68',
-  gold: '#c9a84c', goldDim: 'rgba(201,168,76,0.1)',
-  green: '#4ade80', greenDim: 'rgba(74,222,128,0.08)',
-  red: '#f87171', redDim: 'rgba(248,113,113,0.08)',
-  blue: '#60a5fa', blueDim: 'rgba(96,165,250,0.1)',
-}
-
-const CARD = {
-  background: 'linear-gradient(180deg, #171512 0%, #121009 100%)',
-  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04)',
-}
+// Direction B ("Editorial"): one Bebas Neue number, one sentence, one ruled
+// ledger. Colours come from the --sl-* tokens in app/globals.css so this
+// page follows the app's appearance; nothing here hardcodes a palette.
+const SANS = '"DM Sans", system-ui, sans-serif'
 
 type Performance = {
   id: string; venue_name: string; artist_name: string
@@ -49,58 +39,25 @@ type BitEvent = {
 
 type ManagedArtist = { artist_id: string; artist_name: string; role: string; avatar_url?: string | null }
 
-function useCountUp(target: number, duration: number = 1400, delay: number = 0): number {
-  const [count, setCount] = useState(0)
-  useEffect(() => {
-    if (target === 0) { setCount(0); return }
-    let startTime: number | null = null
-    let animFrame: number
-    const delayTimer = setTimeout(() => {
-      function step(timestamp: number) {
-        if (!startTime) startTime = timestamp
-        const progress = Math.min((timestamp - startTime) / duration, 1)
-        const eased = 1 - Math.pow(1 - progress, 3)
-        setCount(Math.floor(eased * target))
-        if (progress < 1) animFrame = requestAnimationFrame(step)
-        else setCount(target)
-      }
-      animFrame = requestAnimationFrame(step)
-    }, delay)
-    return () => { clearTimeout(delayTimer); cancelAnimationFrame(animFrame) }
-  }, [target, duration, delay])
-  return count
-}
-
 // Deliberately no 'draft' case: capturedPerfs (this file's only source for
-// anything rendered via this function) now excludes status='draft' at the
-// filter level, so a draft performance never reaches here — the previous
-// fallback to "Needs Review" was the actual bug, not a missing label to add.
-function getDisplayStatus(p: Performance): { label: string; color: string; bg: string } {
-  if (p.data_source === 'setlistfm_imported') return { label: 'Imported', color: C.muted, bg: 'rgba(255,255,255,0.04)' }
+// anything rendered via this function) excludes status='draft' at the
+// filter level, so a draft performance never reaches here.
+function getDisplayStatus(p: Performance): { label: string; color: string } {
+  if (p.data_source === 'setlistfm_imported') return { label: 'Imported', color: 'var(--sl-text-3)' }
   // Purely the artist's own self-reported action (see markSubmitted() in
   // app/app/submit/[id]/page.tsx) — Setlistr never files with a PRO or
-  // verifies receipt. "Marked Submitted" says that; "Submitted" alone
+  // verifies receipt. "Marked submitted" says that; "Submitted" alone
   // reads as a confirmed fact.
-  if (p.submission_status === 'submitted') return { label: 'Marked Submitted', color: C.green, bg: C.greenDim }
-  const map: Record<string, { label: string; color: string; bg: string }> = {
-    live:      { label: 'Live',         color: C.red,   bg: C.redDim  },
-    pending:   { label: 'Live',         color: C.red,   bg: C.redDim  },
-    review:    { label: 'Needs Review', color: C.gold,  bg: C.goldDim },
-    complete:  { label: 'Completed',    color: C.green, bg: C.greenDim },
-    completed: { label: 'Completed',    color: C.green, bg: C.greenDim },
-    exported:  { label: 'Exported',     color: C.green, bg: C.greenDim },
+  if (p.submission_status === 'submitted') return { label: 'Marked submitted', color: 'var(--sl-ok)' }
+  const map: Record<string, { label: string; color: string }> = {
+    live:      { label: 'Live',         color: 'var(--sl-live)' },
+    pending:   { label: 'Live',         color: 'var(--sl-live)' },
+    review:    { label: 'Needs review', color: 'var(--sl-gold-text)' },
+    complete:  { label: 'Completed',    color: 'var(--sl-text-2)' },
+    completed: { label: 'Completed',    color: 'var(--sl-text-2)' },
+    exported:  { label: 'Exported',     color: 'var(--sl-text-2)' },
   }
-  return map[p.status] || { label: 'Needs Review', color: C.gold, bg: C.goldDim }
-}
-
-function timeAgo(d: string) {
-  const diff = Date.now() - new Date(d).getTime()
-  const days = Math.floor(diff / 86400000)
-  if (days === 0) return 'Today'
-  if (days === 1) return 'Yesterday'
-  if (days < 7)  return `${days}d ago`
-  if (days < 30) return `${Math.floor(days / 7)}w ago`
-  return `${Math.floor(days / 30)}mo ago`
+  return map[p.status] || { label: 'Needs review', color: 'var(--sl-gold-text)' }
 }
 
 function minutesSince(d: string) { return Math.floor((Date.now() - new Date(d).getTime()) / 60000) }
@@ -116,23 +73,71 @@ function isTomorrow(d: string) {
 }
 function formatShowTime(d: string) { return new Date(d).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) }
 function formatShowDate(d: string) { return new Date(d).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) }
-function parseLocalDate(d: string): Date {
-  // For date-only or UTC-midnight timestamps, extract Y-M-D and construct in local time
-  const datePart = d.split('T')[0].split(' ')[0]
-  const [y, m, day] = datePart.split('-').map(Number)
-  if (y && m && day) return new Date(y, m - 1, day)
-  return new Date(d)
+function formatElapsed(fromIso: string) {
+  const mins = Math.max(0, minutesSince(fromIso))
+  return `${Math.floor(mins / 60)}:${String(mins % 60).padStart(2, '0')}`
 }
+function possessive(name: string) { return /s$/i.test(name) ? `${name}’` : `${name}’s` }
+function money(n: number) { return `~$${Math.round(n).toLocaleString('en-US')}` }
 function isCanadian(country?: string | null, city?: string | null) {
   return ['CA','Canada','ca'].includes(country || '') ||
     ['toronto','vancouver','montreal','calgary','edmonton','ottawa','winnipeg'].some(c => (city || '').toLowerCase().includes(c)) ||
     (country || '').toLowerCase().includes('canada')
 }
 
+// ── Shared pieces (styles only; each is used in more than one place) ──
+const bandButton: React.CSSProperties = {
+  width: '100%', display: 'flex', alignItems: 'center', gap: 12, minHeight: 64, padding: '10px 12px',
+  borderRadius: 18, border: 'none', cursor: 'pointer', textAlign: 'left', fontFamily: SANS,
+  background: 'var(--sl-band-bg)', boxShadow: 'var(--sl-band-ring)', color: 'var(--sl-text)',
+}
+const bandTitle: React.CSSProperties = { display: 'block', fontSize: 16, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }
+const bandSub: React.CSSProperties = { display: 'block', fontSize: 13, color: 'var(--sl-text-2)', marginTop: 2 }
+const rowBase: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 12, minHeight: 56, padding: '12px 0', borderBottom: '1px solid var(--sl-line)' }
+const rowLabel: React.CSSProperties = { flex: 1, minWidth: 0, fontSize: 14, color: 'var(--sl-text-2)', lineHeight: 1.35 }
+const rowSmall: React.CSSProperties = { display: 'block', fontSize: 13, color: 'var(--sl-text-3)', marginTop: 1 }
+const rowValue: React.CSSProperties = { textAlign: 'right', fontSize: 16, fontWeight: 600, color: 'var(--sl-text)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }
+const unit: React.CSSProperties = { fontWeight: 400, color: 'var(--sl-text-3)' }
+const sectionHeading: React.CSSProperties = { fontSize: 14, fontWeight: 600, color: 'var(--sl-text-2)', margin: '40px 0 4px' }
+const primaryButton: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minHeight: 48, padding: '0 20px', borderRadius: 14, border: 'none', fontFamily: SANS, fontSize: 16, fontWeight: 700, cursor: 'pointer', background: 'var(--sl-gold)', color: 'var(--sl-on-gold)' }
+const secondaryButton: React.CSSProperties = { ...primaryButton, background: 'var(--sl-surface)', color: 'var(--sl-text)' }
+const chevron = <ChevronRight size={18} aria-hidden="true" style={{ color: 'var(--sl-text-3)', flexShrink: 0 }} />
+
+function StatusLine({ color, children }: { color: string; children: React.ReactNode }) {
+  return (
+    <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color, marginBottom: 1 }}>
+      <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: '50%', background: color, flexShrink: 0 }} />
+      {children}
+    </span>
+  )
+}
+
+// One tick per show in the current block of 25, filled through the SAME
+// count the hero shows — so the hero, the ticks, "N to go" and "of N
+// shows" can never disagree.
+function MilestoneTicks({ first, next, count }: { first: number; next: number; count: number }) {
+  const ticks = []
+  for (let n = first; n <= next; n++) {
+    const i = n - first
+    ticks.push(<i key={n} style={{ flex: 1, height: 12, borderRadius: 2, background: n <= count ? 'var(--sl-gold)' : 'var(--sl-tick)', marginRight: n === next ? 0 : (i % 5 === 4 ? 9 : 3) }} />)
+  }
+  return (
+    <>
+      <div role="img" aria-label={`Shows ${first} to ${next}, one tick per show; ${Math.max(0, count - first + 1)} of ${next - first + 1} played`} style={{ display: 'flex', alignItems: 'center', marginTop: 12 }}>{ticks}</div>
+      <div aria-hidden="true" style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--sl-text-3)', marginTop: 6 }}>
+        <span>{first}</span><span>Each tick is one show</span><span>{next}</span>
+      </div>
+    </>
+  )
+}
+
+function Skeleton({ w, h, mt = 0, r = 10 }: { w?: string; h: number; mt?: number; r?: number }) {
+  return <div className="sl-skel" style={{ width: w || '100%', height: h, marginTop: mt, borderRadius: r, background: 'var(--sl-skeleton)', position: 'relative', overflow: 'hidden' }} />
+}
+
 export default function DashboardPage() {
   const router = useRouter()
   const { actingAs, setActingAs, resolved } = useActingAs()
-  const loaderVariant = useLoaderVariant()
 
   const [performances, setPerformances]         = useState<Performance[]>([])
   const [loading, setLoading]                   = useState(true)
@@ -149,6 +154,10 @@ export default function DashboardPage() {
   // another artist's shows) on screen with no indication anything had
   // gone wrong. Cleared on every successful load.
   const [contextLoadError, setContextLoadError] = useState(false)
+  // The own-workspace equivalent: the performances query itself failed.
+  // Previously ignored, which rendered a real artist's record as empty
+  // ("Your first show starts your record") — wrong, and alarming.
+  const [ownLoadError, setOwnLoadError]         = useState(false)
   const [showEstimates, setShowEstimates]       = useState<ShowEstimateInput[]>([])
   const [submittedEstimates, setSubmittedEstimates] = useState<ShowEstimateInput[]>([])
   const [songCountMap, setSongCountMap]         = useState<Record<string, number>>({})
@@ -265,7 +274,7 @@ export default function DashboardPage() {
     // exited, not the user's own account.
     const { data: { user } } = await supabase.auth.getUser()
     const targetUserId = user?.id || ''
-    const [{ data }, { data: profileCareer }] = await Promise.all([
+    const [{ data, error }, { data: profileCareer }] = await Promise.all([
       supabase
         .from('performances_visible')
         .select(`id, venue_name, artist_name, city, country, status, submission_status, started_at, ended_at, created_at, captured_by_name, data_source, performance_date, photo_url, shows ( show_type ), venues ( capacity )`)
@@ -279,6 +288,8 @@ export default function DashboardPage() {
     ])
     if (profileCareer?.career_total_shows) setCareerTotalShows(profileCareer.career_total_shows)
     if (profileCareer?.career_start_year) setCareerStartYear(profileCareer.career_start_year)
+    if (error) { setPerformances([]); setLivePerf(null); setMorningAfterPerf(null); setOwnLoadError(true); return }
+    setOwnLoadError(false)
     if (data) processPerformances(data)
   }
 
@@ -449,133 +460,34 @@ export default function DashboardPage() {
     fetchUpcoming()
   }, [lookupName])
 
-  // ── DERIVED CAREER DATA ──
+
+  // Elapsed time on the live-session row: re-rendered each 30s while a
+  // show is in progress, nothing otherwise.
+  const [, setTick] = useState(0)
+  useEffect(() => {
+    if (!livePerf) return
+    const t = setInterval(() => setTick(v => v + 1), 30000)
+    return () => clearInterval(t)
+  }, [livePerf])
+
+  // ── DERIVED RECORD DATA ──
+  // Hero, milestone, "of N shows" and "Last show" all come from one
+  // isCapturedShow() set — see lib/record-summary.ts.
+  const record             = summarizeRecord(performances)
+  const recordShows        = performances.filter(isCapturedShow)
   const aggregate          = aggregateUnclaimedEarnings(showEstimates)
   const submittedAggregate = aggregateUnclaimedEarnings(submittedEstimates)
   const lifetimeTotal      = aggregate.totalExpected + submittedAggregate.totalExpected
 
-  // Excludes 'draft' — see the matching capturedPerfs filter inside
-  // processPerformances above for why. Recent Shows, capturedCount,
-  // submittedCount, and road-memory all derive from this list, so this one
-  // filter is what keeps an abandoned Upload draft from appearing as a
-  // real show anywhere on this page.
-  const capturedPerfs    = performances.filter(p => p.data_source !== 'setlistfm_imported' && p.status !== 'draft')
-  const importedPerfs    = performances.filter(p => p.data_source === 'setlistfm_imported')
-  // Same isCapturedShow() definition app/app/history.tsx's "Your Record"
-  // list and app/app/file's Filing Queue use — this headline count and
-  // "filed" count must agree with history's own "N shows" chip and
-  // "Marked Submitted" tab, since both describe the exact same underlying shows.
-  // Previously this used its own status whitelist (missing 'processing',
-  // and carrying a dead 'submitted' entry that can never match a `status`
-  // value) and never excluded placeholder-venue rows the way history did,
-  // which is exactly what let the two screens disagree.
-  const totalCareerShows = performances.filter(isCapturedShow).length
-  const animatedCareerShows = useCountUp(totalCareerShows, 900, 100)
-  const animatedRoyalties   = useCountUp(lifetimeTotal, 900, 200)
-  const capturedCount    = capturedPerfs.filter(p => p.status !== 'live' && p.status !== 'pending').length
-  const submittedCount   = performances.filter(p => isCapturedShow(p) && isSubmitted(p)).length
-  const recentPerfs      = capturedPerfs.slice(0, 5)
+  const importedPerfs = performances.filter(p => p.data_source === 'setlistfm_imported')
+  // The same shows the record counts (no placeholder or in-progress rows —
+  // a live show is already the row at the top), newest by the show's own
+  // date: an upload filed today for a gig last month is not the newest.
+  const recentPerfs = [...recordShows]
+    .sort((a, b) => (showDate(b)?.getTime() ?? 0) - (showDate(a)?.getTime() ?? 0))
+    .slice(0, 5)
 
-  const uniqueCities = Array.from(new Set(
-    performances.map(p => p.city).filter(Boolean)
-  ))
-
-  // Annual trajectory
-  const currentYear = new Date().getFullYear()
-  const lastYear = currentYear - 1
-  const dayOfYear = Math.floor((Date.now() - new Date(currentYear, 0, 0).getTime()) / 86400000)
-  const daysInYear = 365
-
-  // Excludes 'draft' for the same reason as capturedPerfs above — these
-  // feed the "pace this year" trajectory stat, which must not count an
-  // abandoned Upload draft as a real show.
-  const capturedPerfsThisYear = performances.filter(p =>
-    p.data_source !== 'setlistfm_imported' &&
-    p.status !== 'draft' &&
-    new Date(p.started_at).getFullYear() === currentYear
-  ).length
-
-  const capturedPerfsLastYear = performances.filter(p =>
-    p.data_source !== 'setlistfm_imported' &&
-    p.status !== 'draft' &&
-    new Date(p.started_at).getFullYear() === lastYear
-  ).length
-
-  const paceThisYear = dayOfYear > 0 ? Math.round((capturedPerfsThisYear / dayOfYear) * daysInYear) : 0
-  const paceLastYear = capturedPerfsLastYear
-
-  const trajectoryPct = paceLastYear > 0
-    ? Math.round(((paceThisYear - paceLastYear) / paceLastYear) * 100)
-    : null
-
-  const trajectoryLabel = (() => {
-    if (capturedPerfsThisYear === 0) return null
-    if (paceLastYear === 0) return `On pace for ${paceThisYear} shows this year.`
-    if (trajectoryPct === null) return null
-    const ahead = trajectoryPct > 0
-    const pct = Math.abs(trajectoryPct)
-    if (pct < 5) return `On pace to match last year.`
-    return `${pct}% ${ahead ? 'ahead of' : 'behind'} last year's pace.`
-  })()
-
-  // ── ROAD MEMORY — deterministic daily rotation, no state needed ──
-  const completedPerfs = capturedPerfs.filter(p => p.status !== 'live' && p.status !== 'pending')
-  type RoadMemoryEntry = { text: string; photoUrl?: string | null }
-  const roadMemoryOptions: RoadMemoryEntry[] = (() => {
-    if (completedPerfs.length === 0) return []
-    const opts: RoadMemoryEntry[] = []
-
-    // P1: one year ago this week (350–380 days)
-    const oneYearPerf = completedPerfs.find(p => {
-      const days = Math.floor((Date.now() - new Date(p.started_at || p.created_at).getTime()) / 86400000)
-      return days >= 350 && days <= 380 && !!p.venue_name
-    })
-    if (oneYearPerf) {
-      opts.push({ text: `One year ago this week: ${oneYearPerf.venue_name}${oneYearPerf.city ? `, ${oneYearPerf.city}` : ''}`, photoUrl: oneYearPerf.photo_url })
-    }
-
-    // P2: most-played venue ≥ 5 shows, only when capturedCount ≥ 10
-    if (capturedCount >= 10) {
-      const vMap: Record<string, { name: string; count: number }> = {}
-      completedPerfs.forEach(p => {
-        if (!p.venue_name?.trim()) return
-        const key = p.venue_name.toLowerCase().trim()
-        if (!vMap[key]) vMap[key] = { name: p.venue_name, count: 0 }
-        vMap[key].count++
-      })
-      const topV = Object.values(vMap).sort((a, b) => b.count - a.count)[0]
-      if (topV && topV.count >= 5) {
-        const vPhotoUrl = completedPerfs.find(p => p.venue_name?.toLowerCase().trim() === topV.name.toLowerCase().trim() && p.photo_url)?.photo_url || null
-        opts.push({ text: `${topV.name} — you've played it ${topV.count} times, your most-played room`, photoUrl: vPhotoUrl })
-      }
-    }
-
-    // P3: milestone framing (only when capturedCount ≥ 25)
-    if (capturedCount >= 25) {
-      const lastMilestone = Math.floor(capturedCount / 25) * 25
-      const nextMilestone = lastMilestone + 25
-      const showsAway     = nextMilestone - capturedCount
-      // completedPerfs is descending; show #lastMilestone is at index (capturedCount - lastMilestone)
-      const msPerf = completedPerfs[capturedCount - lastMilestone]
-      if (msPerf) {
-        const monthsAgo  = Math.round((Date.now() - new Date(msPerf.started_at || msPerf.created_at).getTime()) / (30 * 86400000))
-        const monthsLabel = monthsAgo <= 1 ? 'last month' : `${monthsAgo} months ago`
-        opts.push({ text: `Show #${lastMilestone} was ${monthsLabel}. #${nextMilestone} is ${showsAway} show${showsAway !== 1 ? 's' : ''} away.`, photoUrl: msPerf.photo_url })
-      }
-    }
-
-    // P4: first show on record (always available)
-    const firstPerf = completedPerfs[completedPerfs.length - 1]
-    if (firstPerf?.venue_name) {
-      const d = parseLocalDate(firstPerf.started_at || firstPerf.created_at)
-      opts.push({ text: `First show on record: ${firstPerf.venue_name}, ${d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`, photoUrl: firstPerf.photo_url })
-    }
-
-    return opts
-  })()
-  const roadMemory: RoadMemoryEntry | null = roadMemoryOptions.length > 0
-    ? roadMemoryOptions[dayOfYear % roadMemoryOptions.length]
-    : null
+  const recordCities = new Set(recordShows.map(p => p.city?.trim().toLowerCase()).filter(Boolean)).size
 
   const careerStartDate = performances.length > 0
     ? performances.reduce((earliest, p) => {
@@ -602,384 +514,285 @@ export default function DashboardPage() {
     router.push(`/app/show/new?${params.toString()}`)
   }
 
-  if (loading) return (
-    <SetlistrLoader
-      variant={loaderVariant}
-      label={actingAs ? `Loading ${actingAs.artist_name}...` : 'Loading'}
-    />
+  async function retryLoad() {
+    setLoading(true)
+    if (actingAs) await loadDelegateContext(actingAs.artist_id, actingAs.artist_name)
+    else await loadOwnPerformances(createClient())
+    setLoading(false)
+  }
+
+  const delegateRole  = actingAs ? managedArtists.find(a => a.artist_id === actingAs.artist_id)?.role : undefined
+  const canCapture    = delegateRole !== 'viewer'
+  const overline      = actingAs ? `${possessive(actingAs.artist_name)} live record` : 'Your live record'
+  const loadFailed    = (contextLoadError && !!actingAs) || (ownLoadError && !actingAs)
+
+  // ── "What's happening now" rows: compact, above the record, never
+  //    instead of it. Same destinations and actions as before. ──
+  const liveBand = livePerf && (() => {
+    const mightBeInterrupted = minutesSince(livePerf.started_at || livePerf.created_at) > 5
+    return (
+      <button onClick={() => navigateToPerformance(livePerf)} aria-label={`${mightBeInterrupted ? 'Resume capture' : 'Continue capture'} at ${livePerf.venue_name || 'this show'}`} style={bandButton}>
+        <span aria-hidden="true" style={{ width: 40, height: 40, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'radial-gradient(circle at 40% 35%, #dcc06a, #c9a84c 55%, #8a6520)', color: '#0a0908' }}>
+          <Mic size={16} strokeWidth={2.4} />
+        </span>
+        <span style={{ flex: 1, minWidth: 0 }}>
+          {mightBeInterrupted
+            ? <StatusLine color="var(--sl-live)">Capture may have been interrupted</StatusLine>
+            : <StatusLine color="var(--sl-ok)">Show in progress</StatusLine>}
+          <span style={bandTitle}>{livePerf.venue_name || 'Untitled show'}</span>
+          <span style={bandSub}>{mightBeInterrupted ? 'Tap to resume capture' : 'Tap to continue capture'}</span>
+        </span>
+        <span style={{ fontFamily: '"DM Mono", monospace', fontSize: 18, color: 'var(--sl-text-2)', fontVariantNumeric: 'tabular-nums' }}>{formatElapsed(livePerf.started_at || livePerf.created_at)}</span>
+        {chevron}
+      </button>
+    )
+  })()
+
+  const reviewBand = morningAfterPerf && !livePerf && (
+    <button onClick={() => navigateToPerformance(morningAfterPerf)} style={bandButton}>
+      <span style={{ flex: 1, minWidth: 0 }}>
+        <StatusLine color="var(--sl-gold-text)">
+          {actingAs ? `${possessive(actingAs.artist_name)} set is in` : `Good night at ${morningAfterPerf.venue_name}`}
+        </StatusLine>
+        <span style={bandTitle}>{morningAfterPerf.status === 'review' ? 'Give the setlist a quick look' : 'Ready to mark submitted'}</span>
+        <span style={bandSub}>
+          {actingAs ? `${morningAfterPerf.venue_name}` : ''}
+          {actingAs && songCountMap[morningAfterPerf.id] ? ' · ' : ''}
+          {songCountMap[morningAfterPerf.id] ? `${songCountMap[morningAfterPerf.id]} songs on the setlist` : (!actingAs ? (morningAfterPerf.city || 'Last night') : '')}
+        </span>
+      </span>
+      {chevron}
+    </button>
   )
 
-  return (
-    <div style={{ minHeight: '100svh', background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif' }}>
-      <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '50vh', pointerEvents: 'none', zIndex: 0, background: 'radial-gradient(ellipse at 50% 0%, rgba(201,168,76,0.07) 0%, transparent 65%)' }} />
+  const todayBand = todayShow && !livePerf && canCapture && (
+    <button onClick={() => startShowFromBIT(todayShow)} aria-label={`Start capture at ${todayShow.venueName}`} style={bandButton}>
+      <span style={{ flex: 1, minWidth: 0 }}>
+        <StatusLine color="var(--sl-ok)">{actingAs ? `${actingAs.artist_name} plays tonight` : 'Tonight'}</StatusLine>
+        <span style={bandTitle}>{todayShow.venueName}</span>
+        <span style={bandSub}>{formatShowTime(todayShow.datetime)}{todayShow.venueCity ? ` · ${todayShow.venueCity}` : ''}</span>
+      </span>
+      {chevron}
+    </button>
+  )
 
-      <div style={{ maxWidth: 480, margin: '0 auto', padding: '0 16px', position: 'relative', zIndex: 1 }}>
+  const hasBand = !!(liveBand || reviewBand || todayBand)
+  const bands = hasBand && (
+    <div style={{ display: 'grid', gap: 8, paddingTop: 8 }}>{liveBand}{reviewBand}{todayBand}</div>
+  )
 
-        {/* ── NAV ── Workspace switching and the Manager entry point now
-             live in the shared AccountMenu (components/layout/AppShell.tsx
-             header), available on every page, not just here — this is now
-             just a plain title, matching whatever workspace is active. */}
-        <div style={{ padding: '20px 0 24px' }}>
-          <span style={{ fontSize: 17, fontWeight: 800, color: C.text, letterSpacing: '-0.01em' }}>
-            {actingAs ? actingAs.artist_name : artistName || 'Setlistr'}
-          </span>
+  // The one sentence under the number.
+  let caption: React.ReactNode
+  if (livePerf && isRealVenue(livePerf.venue_name)) {
+    caption = <>When the show ends, it joins the record as <b style={{ color: 'var(--sl-text)', fontWeight: 600 }}>show {record.count + 1}</b>.</>
+  } else if (!livePerf && morningAfterPerf && record.lastShow?.id === morningAfterPerf.id) {
+    caption = <>{morningAfterPerf.venue_name} is on the record as <b style={{ color: 'var(--sl-text)', fontWeight: 600 }}>show {record.count}</b>.</>
+  } else {
+    const where = recordCities > 0 ? ` across ${recordCities} ${recordCities === 1 ? 'city' : 'cities'}` : ''
+    const when = careerYears > 0 ? `${where ? ',' : ''} in ${careerYears} ${careerYears === 1 ? 'year' : 'years'} on stage` : ''
+    caption = <><b style={{ color: 'var(--sl-text)', fontWeight: 600 }}>Shows on the record</b>{where}{when}.</>
+  }
+
+  const heroSize = hasBand ? 'min(168px, 48vw)' : 'min(200px, 56vw)'
+  const overlineEl = <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--sl-gold-text)', margin: '20px 0 0' }}>{overline}</p>
+  const heroStyle: React.CSSProperties = { fontFamily: 'var(--sl-font-display)', fontWeight: 400, fontSize: heroSize, lineHeight: 0.8, letterSpacing: '0.005em', margin: '14px 0 0 -5px', color: 'var(--sl-text)', fontVariantNumeric: 'tabular-nums' }
+  const captionStyle: React.CSSProperties = { fontSize: 16, color: 'var(--sl-text-2)', margin: '16px 0 0', lineHeight: 1.45, maxWidth: '22em' }
+
+  let body: React.ReactNode
+  if (loading) {
+    body = (
+      <div aria-busy="true" aria-label={actingAs ? `Loading ${possessive(actingAs.artist_name)} record` : 'Loading your record'} style={{ paddingTop: 20 }}>
+        <Skeleton w="40%" h={16} />
+        <Skeleton w="62%" h={150} mt={16} r={14} />
+        <Skeleton w="85%" h={18} mt={20} />
+        <Skeleton w="60%" h={18} mt={8} />
+        {[0, 1, 2, 3].map(i => <Skeleton key={i} h={44} mt={14} />)}
+      </div>
+    )
+  } else if (loadFailed) {
+    // Never the previous workspace's figures in its place — the load paths
+    // above clear them before this renders.
+    body = (
+      <div role="alert" style={{ paddingTop: 40 }}>
+        <h1 style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.01em', margin: '0 0 8px', color: 'var(--sl-text)' }}>{actingAs ? `${possessive(actingAs.artist_name)} record didn’t load` : 'Your record didn’t load'}</h1>
+        <p style={{ fontSize: 16, color: 'var(--sl-text-2)', lineHeight: 1.45, margin: '0 0 18px' }}>
+          {actingAs
+            ? 'Your access may have changed, or the connection dropped. Nothing from another workspace is shown in its place.'
+            : 'The connection dropped before the record arrived. Your shows are safe.'}
+        </p>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+          <button onClick={retryLoad} style={primaryButton}>Try again</button>
+          {actingAs && <button onClick={openAccountMenu} style={secondaryButton}>Switch workspace</button>}
         </div>
+      </div>
+    )
+  } else if (record.count === 0) {
+    body = (
+      <>
+        {bands}
+        {overlineEl}
+        <p style={{ ...heroStyle, fontSize: 'min(200px, 56vw)', color: 'var(--sl-text-3)' }}>0</p>
+        <p style={captionStyle}>
+          <b style={{ color: 'var(--sl-text)', fontWeight: 600 }}>
+            {actingAs ? `The record starts with ${possessive(actingAs.artist_name)} first show.` : 'Your record starts with your first show.'}
+          </b>
+          {canCapture && <> Tap the gold button when the set starts. Played already? You can <Link href="/app/upload/new" style={{ color: 'var(--sl-gold-text)', fontWeight: 600 }}>upload a recording</Link>.</>}
+        </p>
+        {importedPerfs.length > 0 && (
+          <p style={{ fontSize: 13, color: 'var(--sl-text-3)', margin: '12px 0 0', lineHeight: 1.45 }}>
+            {importedPerfs.length} imported {importedPerfs.length === 1 ? 'show is' : 'shows are'} in the history; the live record counts shows captured with Setlistr.
+          </p>
+        )}
+      </>
+    )
+  } else {
+    body = (
+      <>
+        {bands}
+        {overlineEl}
+        <p style={heroStyle}>{record.count}</p>
+        <p style={captionStyle}>{caption}</p>
 
-        {/* ── CONTEXT LOAD ERROR — never render the rest of this page's
-             acting-as content as if it succeeded when it didn't. ── */}
-        {contextLoadError && actingAs && (
-          <div style={{ marginBottom: 16, animation: 'fadeUp 0.3s ease' }}>
-            <div style={{ background: C.redDim, border: `1px solid rgba(248,113,113,0.25)`, borderRadius: 12, padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-              <span style={{ fontSize: 12, fontWeight: 700, color: C.red }}>Couldn't load {actingAs.artist_name}'s data — access may have changed.</span>
-              <button onClick={switchToOwn} style={{ background: 'none', border: '1px solid rgba(248,113,113,0.3)', borderRadius: 8, padding: '4px 10px', color: C.red, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
-                Exit
-              </button>
+        <div style={{ marginTop: 22, borderTop: '1.5px solid var(--sl-text)' }}>
+          <div style={{ ...rowBase, display: 'block' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <span style={rowLabel}>Next milestone</span>
+              <span style={rowValue}>Show {record.milestone.next} <span style={unit}>· {record.milestone.toGo} to go</span></span>
             </div>
+            <MilestoneTicks first={record.milestone.first} next={record.milestone.next} count={record.count} />
           </div>
-        )}
-
-        {/* ── ACTING-AS BANNER ── */}
-        {actingAs && (
-          <div style={{ marginBottom: 16, animation: 'fadeUp 0.3s ease' }}>
-            <div style={{ background: 'rgba(201,168,76,0.08)', border: `1px solid ${C.borderGold}`, borderRadius: 12, padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Users size={13} color={C.gold} strokeWidth={2} />
-                {/* Role-aware, not a hardcoded "Managing" — a Viewer or Band
-                    Member isn't managing anything, and calling it that
-                    overstates what their access actually grants. */}
-                <span style={{ fontSize: 12, fontWeight: 700, color: C.gold }}>
-                  {roleInfoFor(managedArtists.find(a => a.artist_id === actingAs.artist_id)?.role).label}: {actingAs.artist_name}
-                </span>
-              </div>
-              <button onClick={switchToOwn} style={{ background: 'none', border: `1px solid ${C.borderGold}`, borderRadius: 8, padding: '4px 10px', color: C.secondary, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}>
-                <X size={10} /> Exit
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* ── CAREER HERO ZONE ── */}
-        {totalCareerShows > 0 && (
-          <div style={{ marginBottom: 48, animation: 'fadeUp 0.3s ease', animationFillMode: 'both' }}>
-            <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.13em', textTransform: 'uppercase', color: C.muted, margin: '0 0 20px' }}>Your career</p>
-
-            {/* Big career number with soft radial glow */}
-            <div style={{ position: 'relative', display: 'inline-block' }}>
-              <div style={{ position: 'absolute', inset: '-48px', borderRadius: '50%', background: 'radial-gradient(circle, rgba(201,168,76,0.07) 0%, transparent 70%)', pointerEvents: 'none', zIndex: 0 }} />
-              <p style={{ fontSize: 96, fontWeight: 800, color: C.text, margin: 0, fontFamily: '"DM Mono", monospace', letterSpacing: '-0.04em', lineHeight: 0.9, transition: 'all 0.1s ease', position: 'relative', zIndex: 1 }}>
-                {animatedCareerShows.toLocaleString()}
-              </p>
-            </div>
-            <p style={{ fontSize: 15, color: C.muted, margin: '14px 0 0', fontWeight: 400 }}>
-              shows on record
-              {capturedCount > 0 && importedPerfs.length > 0 && (
-                <span style={{ color: C.gold, marginLeft: 8, fontSize: 13 }}>
-                  · {capturedCount} captured
-                </span>
-              )}
-            </p>
-
-            {/* Career stat chips */}
-            {(uniqueCities.length > 0 || careerYears > 0) && (
-              <div style={{ display: 'flex', gap: 8, marginTop: 24, flexWrap: 'wrap' }}>
-                {uniqueCities.length > 0 && (
-                  <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 20, padding: '6px 14px', display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: C.text, fontFamily: '"DM Mono", monospace' }}>{uniqueCities.length}</span>
-                    <span style={{ fontSize: 12, color: C.muted }}>cities</span>
-                  </div>
-                )}
-                {careerYears > 0 && (
-                  <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 20, padding: '6px 14px', display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: C.text, fontFamily: '"DM Mono", monospace' }}>{careerYears}</span>
-                    <span style={{ fontSize: 12, color: C.muted }}>{careerYears === 1 ? 'year' : 'years'} performing</span>
-                  </div>
-                )}
-                {submittedCount > 0 && (
-                  <div style={{ background: C.greenDim, border: '1px solid rgba(74,222,128,0.2)', borderRadius: 20, padding: '6px 14px', display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <Check size={10} color={C.green} strokeWidth={2.5} />
-                    <span style={{ fontSize: 12, color: C.green, fontWeight: 600 }}>{submittedCount} filed</span>
-                  </div>
-                )}
-              </div>
-            )}
-            {trajectoryLabel && (
-              <p style={{
-                fontSize: 13, color: trajectoryPct !== null && trajectoryPct > 0 ? '#4ade80' : trajectoryPct !== null && trajectoryPct < -4 ? '#f87171' : '#8a7a68',
-                margin: '8px 0 0', letterSpacing: '0.01em',
-                opacity: 0, animation: 'fadeUp 0.5s 0.8s ease forwards', animationFillMode: 'both',
-              }}>
-                {trajectoryPct !== null && trajectoryPct > 4 ? '↑ ' : trajectoryPct !== null && trajectoryPct < -4 ? '↓ ' : ''}{trajectoryLabel}
-              </p>
-            )}
-
-            {/* Documented royalty line */}
-            {lifetimeTotal > 0 && (
-              <p style={{ fontSize: 22, fontWeight: 700, color: C.gold, margin: '24px 0 0', fontFamily: '"DM Mono", monospace', letterSpacing: '-0.02em' }}>
-                ~${animatedRoyalties.toLocaleString()}
-                <span style={{ fontSize: 14, fontWeight: 400, color: C.muted, marginLeft: 8, fontFamily: '"DM Sans", system-ui, sans-serif', letterSpacing: 0 }}>documented</span>
-              </p>
-            )}
-
-            {/* Submitted progress bar */}
-            {submittedCount > 0 && lifetimeTotal > 0 && (
-              <div style={{ marginTop: 12, height: 2, background: 'rgba(255,255,255,0.06)', borderRadius: 1, overflow: 'hidden', maxWidth: 200 }}>
-                <div style={{ height: '100%', borderRadius: 1, background: C.gold, width: `${Math.min(100, Math.round((submittedAggregate.totalExpected / lifetimeTotal) * 100))}%`, transition: 'width 0.8s ease' }} />
-              </div>
-            )}
-
-            {/* Insight line — hero zone closing line */}
-            {capturedCount >= 3 && recentPerfs.length > 0 && (() => {
-              const lastPerf = recentPerfs[0]
-              const daysSince = Math.floor((Date.now() - new Date(lastPerf.started_at || lastPerf.created_at).getTime()) / 86400000)
-              const insightLine = daysSince === 0
-                ? `You played tonight. The record is up to date.`
-                : daysSince === 1
-                ? `Last night at ${lastPerf.venue_name}. Still fresh.`
-                : daysSince < 7
-                ? `${daysSince} days since ${lastPerf.venue_name}.`
-                : daysSince < 30
-                ? `${daysSince} days since your last show. The stage is waiting.`
-                : `${daysSince} days since your last show. When's the next one?`
-              return (
-                <div style={{ marginTop: 24, borderLeft: '2px solid rgba(201,168,76,0.3)', paddingLeft: 16, opacity: 0, animation: 'fadeUp 0.5s 0.9s ease forwards', animationFillMode: 'both' }}>
-                  <p style={{ fontSize: 15, color: C.secondary, margin: 0, lineHeight: 1.5, fontWeight: 400, fontStyle: 'italic' }}>{insightLine}</p>
-                </div>
-              )
-            })()}
-          </div>
-        )}
-
-        {/* Empty career state */}
-        {totalCareerShows === 0 && !loading && (
-          <div style={{ marginBottom: 48, animation: 'fadeUp 0.3s ease' }}>
-            <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.13em', textTransform: 'uppercase', color: C.muted, margin: '0 0 20px' }}>Your career</p>
-            <div style={{ padding: '12px 0' }}>
-              <p style={{ fontSize: 96, fontWeight: 800, color: C.secondary, margin: 0, fontFamily: '"DM Mono", monospace', letterSpacing: '-0.04em', lineHeight: 0.9, opacity: 0.2 }}>—</p>
-              <p style={{ fontSize: 15, color: C.muted, margin: '16px 0 0', fontWeight: 400, lineHeight: 1.5 }}>Your first show starts your record. Tap the gold button when you're on stage tonight.</p>
-            </div>
-          </div>
-        )}
-
-        {/* ── ROAD MEMORY ── */}
-        {roadMemory && (
-          <div style={{ background: CARD.background, border: `1px solid ${C.border}`, borderLeft: '2px solid rgba(201,168,76,0.5)', borderRadius: 16, marginBottom: 24, animation: 'fadeUp 0.35s ease', animationDelay: '0.08s', animationFillMode: 'both', position: 'relative', overflow: 'hidden', boxShadow: CARD.boxShadow }}>
-            {roadMemory.photoUrl && (
-              <img src={roadMemory.photoUrl} alt="" aria-hidden="true" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.18, display: 'block' }} />
-            )}
-            <div aria-hidden="true" style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, rgba(10,9,8,0.55) 0%, rgba(10,9,8,0.88) 100%)' }} />
-            <div style={{ position: 'relative', zIndex: 1, padding: '14px 18px' }}>
-              <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.13em', textTransform: 'uppercase', color: C.muted, margin: '0 0 6px' }}>FROM THE ROAD</p>
-              <p style={{ fontSize: 14, color: C.secondary, margin: 0, lineHeight: 1.5, fontStyle: 'italic' }}>{roadMemory.text}</p>
-            </div>
-          </div>
-        )}
-
-        {/* ── MORNING-AFTER NUDGE ── */}
-        {morningAfterPerf && !livePerf && (
-          <div style={{ marginBottom: 16, animation: 'fadeUp 0.3s ease', animationDelay: '0.16s', animationFillMode: 'both' }}>
-            <button onClick={() => navigateToPerformance(morningAfterPerf)}
-              style={{ width: '100%', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)', borderRadius: 16, padding: '14px 18px', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 14, transition: 'opacity 0.15s ease' }}
-              onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.7'}
-              onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.gold, margin: '0 0 2px' }}>
-                  {actingAs ? `${actingAs.artist_name}'s Last Show` : "Last Night's Show"}
-                </p>
-                <p style={{ fontSize: 16, fontWeight: 700, color: C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{morningAfterPerf.venue_name} — review & claim →</p>
-              </div>
-            </button>
-          </div>
-        )}
-
-        {/* ── TODAY'S SHOW ── */}
-        {todayShow && !livePerf && (
-          <div style={{ marginBottom: 16, animation: 'fadeUp 0.32s ease' }}>
-            <button onClick={() => startShowFromBIT(todayShow)}
-              style={{ width: '100%', background: 'rgba(74,222,128,0.06)', border: '1px solid rgba(74,222,128,0.2)', borderRadius: 16, padding: '14px 18px', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 14, transition: 'opacity 0.15s ease' }}
-              onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.7'}
-              onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}>
-              <div style={{ position: 'relative', flexShrink: 0, width: 20, height: 20 }}>
-                <div style={{ position: 'absolute', inset: -6, borderRadius: '50%', border: '1.5px solid rgba(74,222,128,0.3)', animation: 'orb-pulse 2s ease-in-out infinite' }} />
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.green, margin: '0 0 2px' }}>
-                  {actingAs ? `${actingAs.artist_name} Plays Tonight` : "Tonight."}
-                </p>
-                <p style={{ fontSize: 14, fontWeight: 700, color: C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{todayShow.venueName} · {formatShowTime(todayShow.datetime)}</p>
-              </div>
-              <span style={{ fontSize: 12, color: C.green, fontWeight: 700, flexShrink: 0 }}>Let's go →</span>
-            </button>
-          </div>
-        )}
-
-        {/* ── RESUME LIVE SESSION ── */}
-        {livePerf && (() => {
-          const minsSinceStart     = minutesSince(livePerf.started_at || livePerf.created_at)
-          const mightBeInterrupted = minsSinceStart > 5
-          return (
-            <div style={{ marginBottom: 24, animation: 'fadeUp 0.3s ease' }}>
-              {mightBeInterrupted && (
-                <div style={{ background: 'rgba(220,38,38,0.07)', border: '1px solid rgba(220,38,38,0.2)', borderRadius: '12px 12px 0 0', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <div style={{ width: 6, height: 6, borderRadius: '50%', background: C.red, animation: 'pulse-dot 1.4s ease-in-out infinite', flexShrink: 0 }} />
-                  <p style={{ fontSize: 12, color: C.red, margin: 0, fontWeight: 600 }}>Show in progress — capture may have been interrupted</p>
-                </div>
-              )}
-              <button onClick={() => navigateToPerformance(livePerf)}
-                style={{ width: '100%', background: CARD.background, border: `2px solid ${C.borderGold}`, borderRadius: mightBeInterrupted ? '0 0 14px 14px' : 14, padding: '18px 16px', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 14, boxShadow: CARD.boxShadow, transition: 'opacity 0.15s ease' }}
-                onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.7'}
-                onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}>
-                <div style={{ width: 44, height: 44, borderRadius: '50%', background: C.goldDim, border: `1px solid ${C.borderGold}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <div style={{ width: 12, height: 12, borderRadius: '50%', background: C.gold, animation: 'pulse-dot 1.4s ease-in-out infinite' }} />
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.gold, margin: '0 0 3px' }}>{mightBeInterrupted ? 'Resume Capture' : 'Show Active'}</p>
-                  <p style={{ fontSize: 16, fontWeight: 800, color: C.text, margin: '0 0 2px', letterSpacing: '-0.01em' }}>{livePerf.venue_name}</p>
-                  <p style={{ fontSize: 12, color: C.secondary, margin: 0 }}>{livePerf.artist_name}{livePerf.city ? ` · ${livePerf.city}` : ''} · {minsSinceStart} min ago</p>
-                </div>
-                <div style={{ background: C.gold, borderRadius: 10, padding: '10px 14px', fontSize: 12, fontWeight: 800, color: '#0a0908', letterSpacing: '0.06em', textTransform: 'uppercase', flexShrink: 0 }}>
-                  {mightBeInterrupted ? 'Resume →' : 'Continue →'}
-                </div>
-              </button>
-            </div>
-          )
-        })()}
-
-        {/* ── UNCLAIMED EARNINGS ── */}
-        {aggregate.unclaimedCount > 0 && (
-          <div style={{ borderLeft: '3px solid #c9a84c', background: 'linear-gradient(135deg, rgba(201,168,76,0.10) 0%, rgba(201,168,76,0.04) 40%, rgba(201,168,76,0.10) 100%)', borderRadius: 16, padding: '16px 18px', marginBottom: 32, animation: 'fadeUp 0.36s ease', animationDelay: '0.24s', animationFillMode: 'both' }}>
-            <p style={{ fontSize: 34, fontWeight: 700, color: C.gold, margin: 0, fontFamily: '"DM Mono", monospace', letterSpacing: '-0.02em', lineHeight: 1 }}>~${aggregate.unclaimedExpected.toLocaleString()}</p>
-            <p style={{ fontSize: 13, color: C.muted, margin: '6px 0 4px' }}>{aggregate.unclaimedCount} nights not yet filed</p>
-            <p style={{ fontSize: 10, color: C.muted, margin: '0 0 16px', opacity: 0.7 }}>Estimate only, not guaranteed — actual payouts vary by PRO.</p>
-            {/* Routes to the Filing Queue, not the full history — "file
-               them" is literally what that page is for now that it
-               exists, and it's the same summary signal the removed
-               dashboard nav button used to point at. */}
-            <button onClick={() => router.push('/app/file')}
-              style={{ background: C.gold, border: 'none', borderRadius: 20, padding: '8px 18px', color: '#0a0908', fontWeight: 800, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', letterSpacing: '0.04em', transition: 'opacity 0.15s ease' }}
-              onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.7'}
-              onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}>
-              File them →
-            </button>
-          </div>
-        )}
-
-        {/* ── Scheduled shows: compact summary only — full agenda, create/
-            edit/cancel/start all live on /app/schedule, not here. ── */}
-        {userId && (
-          <NextShowSummary artistId={actingAs?.artist_id || userId} />
-        )}
-
-        {/* ── UPCOMING SHOWS (external Bandsintown/Ticketmaster lookup) ── */}
-        {upcomingShows.length > 0 && (
-          <div style={{ marginBottom: 16, animation: 'fadeUp 0.38s ease' }}>
-            <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.muted, margin: '0 0 8px', display: 'flex', alignItems: 'center', gap: 6 }}>
-              <Calendar size={10} />Coming up
-            </p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {upcomingShows.map(event => {
-                const isEventToday    = isToday(event.datetime)
-                const isEventTomorrow = isTomorrow(event.datetime)
-                const dateLabel = isEventToday ? 'Tonight' : isEventTomorrow ? 'Tomorrow' : formatShowDate(event.datetime)
-                return (
-                  <button key={event.id} onClick={() => startShowFromBIT(event)}
-                    style={{ background: CARD.background, border: `1px solid ${isEventToday ? C.borderGold : C.border}`, borderRadius: 12, padding: '12px 16px', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 12, transition: 'background 0.15s ease', boxShadow: CARD.boxShadow }}
-                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = C.cardHover}
-                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = CARD.background}>
-                    <div style={{ minWidth: 52, flexShrink: 0 }}>
-                      <p style={{ fontSize: 11, fontWeight: 700, color: isEventToday ? C.gold : C.secondary, margin: 0 }}>{dateLabel}</p>
-                      <p style={{ fontSize: 10, color: C.muted, margin: '1px 0 0' }}>{formatShowTime(event.datetime)}</p>
-                    </div>
-                    <div style={{ width: 1, height: 24, background: C.border, flexShrink: 0 }} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <p style={{ fontSize: 13, fontWeight: 600, color: isEventToday ? C.gold : C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{event.venueName}</p>
-                      <p style={{ fontSize: 11, color: C.muted, margin: '1px 0 0' }}>{event.venueCity}{event.venueRegion ? `, ${event.venueRegion}` : ''}</p>
-                    </div>
-                    <span style={{ fontSize: 11, color: C.gold, flexShrink: 0, fontWeight: 600 }}>→</span>
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* ── RECENT CAPTURED SHOWS ── */}
-        <div style={{ animation: 'fadeUp 0.42s ease', animationDelay: '0.32s', animationFillMode: 'both', paddingBottom: 32 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-            <p style={{ fontSize: 13, fontWeight: 600, color: C.muted, margin: 0, letterSpacing: '0.04em' }}>
-              Recent shows
-              {importedPerfs.length > 0 && capturedCount === 0 && (
-                <span style={{ color: C.muted, fontWeight: 400, marginLeft: 6 }}>· history imported</span>
-              )}
-            </p>
-            {capturedPerfs.length > 5 && (
-              <button onClick={() => router.push('/app/history')} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>All →</button>
-            )}
-          </div>
-
-          {recentPerfs.length === 0 && importedPerfs.length > 0 ? (
-            // Has imported history but no captured shows yet
-            <div style={{ background: CARD.background, border: `1px solid ${C.border}`, borderRadius: 16, padding: '24px 20px', textAlign: 'center', boxShadow: CARD.boxShadow }}>
-              <p style={{ fontSize: 28, fontWeight: 800, color: C.gold, margin: '0 0 4px', fontFamily: '"DM Mono", monospace' }}>{careerTotalShows > 0 ? careerTotalShows.toLocaleString() : importedPerfs.length}</p>
-              <p style={{ fontSize: 14, color: C.secondary, margin: '0 0 4px', fontWeight: 500 }}>shows in your history</p>
-              <p style={{ fontSize: 13, color: C.muted, margin: '0 0 20px', lineHeight: 1.5 }}>
-                Your first captured show starts the verified record.<br />Everything before tonight is history. Make tonight count.
-              </p>
-              <button onClick={() => router.push('/app/show/new')}
-                style={{ background: C.gold, border: 'none', borderRadius: 10, padding: '12px 20px', fontSize: 13, fontWeight: 800, color: '#0a0908', cursor: 'pointer', fontFamily: 'inherit', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-                Capture Tonight →
-              </button>
-            </div>
-          ) : recentPerfs.length === 0 ? (
-            <div style={{ padding: '40px 0', textAlign: 'center' }}>
-              <p style={{ fontSize: 15, color: C.muted, margin: 0, lineHeight: 1.5 }}>Your first show starts your record. Tap the gold button when you're on stage tonight.</p>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              {recentPerfs.map((perf, idx) => {
-                const displayStatus = getDisplayStatus(perf)
-                const dateStr = perf.started_at || perf.created_at
-                const songCount = songCountMap[perf.id] || 0
-                const isFinished = perf.status !== 'live' && perf.status !== 'pending'
-                const isImported = perf.data_source === 'setlistfm_imported'
-                const perfEst = isFinished && songCount > 0 && !isImported
-                  ? estimateRoyalties({ songCount, venueCapacityBand: capacityToBand(perf.venue_capacity), showType: (perf.show_type as any) || 'single', territory: isCanadian(perf.country, perf.city) ? 'CA' : 'US' })
-                  : null
-                return (
-                  <button key={perf.id}
-                    onClick={() => navigateToPerformance(perf)}
-                    disabled={isImported}
-                    style={{ background: 'transparent', border: 'none', borderTop: idx === 0 ? '1px solid rgba(255,255,255,0.05)' : 'none', borderBottom: '1px solid rgba(255,255,255,0.05)', padding: '14px 0', cursor: isImported ? 'default' : 'pointer', textAlign: 'left', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 16, WebkitTapHighlightColor: 'transparent', opacity: isImported ? 0.6 : 1 }}
-                    onMouseEnter={e => { if (!isImported) (e.currentTarget as HTMLElement).style.opacity = '0.7' }}
-                    onMouseLeave={e => { if (!isImported) (e.currentTarget as HTMLElement).style.opacity = '1' }}>
-                    <div style={{ minWidth: 36, flexShrink: 0, textAlign: 'center' }}>
-                      <p style={{ fontSize: 18, fontWeight: 700, color: C.text, margin: 0, fontFamily: '"DM Mono", monospace', lineHeight: 1 }}>{parseLocalDate(dateStr).getDate()}</p>
-                      <p style={{ fontSize: 10, color: C.muted, margin: '1px 0 0', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{parseLocalDate(dateStr).toLocaleDateString('en-US', { month: 'short' })}</p>
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <p style={{ fontSize: 15, fontWeight: 600, color: C.text, margin: '0 0 2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{perf.venue_name}</p>
-                      <p style={{ fontSize: 13, color: C.muted, margin: 0 }}>{perf.city ? `${perf.city}` : ''}{songCount > 0 ? ` · ${songCount} songs` : ''}</p>
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, flexShrink: 0 }}>
-                      <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.06em', color: displayStatus.color, opacity: 0.8 }}>{displayStatus.label}</span>
-                      {perfEst && perfEst.expected > 0 && <span style={{ fontSize: 12, color: C.muted, fontFamily: '"DM Mono", monospace' }}>~${perfEst.expected}</span>}
-                    </div>
-                    {!isImported && <span style={{ fontSize: 14, color: C.muted, flexShrink: 0 }}>→</span>}
-                  </button>
-                )
-              })}
+          {!hasBand && record.lastShow && (
+            <div style={rowBase}>
+              <span style={rowLabel}>Last show</span>
+              <span style={rowValue}>{lastShowLabel(record.lastShow.date)}</span>
             </div>
           )}
+          <div style={rowBase}>
+            <span style={rowLabel}>Marked submitted</span>
+            <span style={rowValue}>{record.submitted} <span style={unit}>of {record.count} {record.count === 1 ? 'show' : 'shows'}</span></span>
+          </div>
+          {lifetimeTotal > 0 && (
+            <div style={rowBase}>
+              <span style={rowLabel}>Estimated royalties<small style={rowSmall}>All shows with setlists</small></span>
+              <span style={rowValue}>{money(lifetimeTotal)} <span style={unit}>est.</span></span>
+            </div>
+          )}
+          {aggregate.unclaimedCount > 0 && (
+            // Routes to the Filing Queue — reviewing and marking these is
+            // what that page is for.
+            <button onClick={() => router.push('/app/file')} style={{ ...rowBase, width: '100%', background: 'none', border: 'none', borderBottom: '1px solid var(--sl-line)', cursor: 'pointer', fontFamily: SANS, textAlign: 'left' }}>
+              <span style={rowLabel}>Not yet marked submitted<small style={rowSmall}>Estimated royalties · review in Submissions</small></span>
+              <span style={rowValue}>{money(aggregate.unclaimedExpected)} <span style={unit}>est.</span></span>
+              {chevron}
+            </button>
+          )}
         </div>
+        {(lifetimeTotal > 0 || aggregate.unclaimedCount > 0) && (
+          <p style={{ fontSize: 13, color: 'var(--sl-text-3)', margin: '12px 0 0', lineHeight: 1.45 }}>Estimates only, not guaranteed. Payouts vary by PRO.</p>
+        )}
+      </>
+    )
+  }
 
+  return (
+    <div style={{ position: 'relative', minHeight: 'var(--sl-page-min-height, 100svh)', background: 'var(--sl-bg)', color: 'var(--sl-text)', fontFamily: SANS, overflow: 'hidden' }}>
+      {/* One soft glow behind the number (Dark only; the Light token is none). */}
+      <div aria-hidden="true" style={{ position: 'absolute', top: 40, left: 'calc(50% - 330px)', width: 440, height: 440, borderRadius: '50%', pointerEvents: 'none', background: 'var(--sl-hero-glow)' }} />
+
+      <div style={{ maxWidth: 480, margin: '0 auto', padding: '0 20px 40px', position: 'relative' }}>
+        {body}
+
+        {!loading && !loadFailed && (
+          <>
+            {/* ── Coming up: the scheduled next show, plus external listings ── */}
+            {userId && (
+              <>
+                <h2 style={sectionHeading}>Coming up</h2>
+                <div style={{ marginTop: 8 }}>
+                  <NextShowSummary artistId={actingAs?.artist_id || userId} />
+                </div>
+              </>
+            )}
+            {upcomingShows.length > 0 && (
+              <div style={{ borderTop: '1px solid var(--sl-line)' }}>
+                {upcomingShows.map(event => {
+                  const isEventToday = isToday(event.datetime)
+                  const dateLabel = isEventToday ? 'Tonight' : isTomorrow(event.datetime) ? 'Tomorrow' : formatShowDate(event.datetime)
+                  const inner = (
+                    <>
+                      <span style={{ width: 88, flexShrink: 0 }}>
+                        <span style={{ display: 'block', fontSize: 14, fontWeight: 600, color: isEventToday ? 'var(--sl-gold-text)' : 'var(--sl-text)' }}>{dateLabel}</span>
+                        <span style={{ display: 'block', fontSize: 13, color: 'var(--sl-text-3)' }}>{formatShowTime(event.datetime)}</span>
+                      </span>
+                      <span style={{ flex: 1, minWidth: 0 }}>
+                        <span style={{ display: 'block', fontSize: 16, fontWeight: 600, color: 'var(--sl-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{event.venueName}</span>
+                        <span style={{ display: 'block', fontSize: 13, color: 'var(--sl-text-3)' }}>{event.venueCity}{event.venueRegion ? `, ${event.venueRegion}` : ''}</span>
+                      </span>
+                    </>
+                  )
+                  // Tapping a listing starts capture there, as before — not
+                  // offered to a read-only Viewer.
+                  return canCapture ? (
+                    <button key={event.id} onClick={() => startShowFromBIT(event)} aria-label={`Start capture at ${event.venueName}, ${dateLabel}`}
+                      style={{ ...rowBase, width: '100%', background: 'none', border: 'none', borderBottom: '1px solid var(--sl-line)', cursor: 'pointer', fontFamily: SANS, textAlign: 'left' }}>
+                      {inner}{chevron}
+                    </button>
+                  ) : (
+                    <div key={event.id} style={rowBase}>{inner}</div>
+                  )
+                })}
+              </div>
+            )}
+
+            {/* ── Recent shows ── */}
+            {recentPerfs.length > 0 && (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                  <h2 style={sectionHeading}>Recent shows</h2>
+                  {recordShows.length > 5 && (
+                    <Link href="/app/history" style={{ display: 'inline-flex', alignItems: 'center', minHeight: 44, marginTop: 28, fontSize: 14, fontWeight: 600, color: 'var(--sl-gold-text)', textDecoration: 'none' }}>All shows</Link>
+                  )}
+                </div>
+                <div style={{ borderTop: '1px solid var(--sl-line)', marginTop: 4 }}>
+                  {recentPerfs.map(perf => {
+                    const displayStatus = getDisplayStatus(perf)
+                    const d = showDate(perf)
+                    const songCount = songCountMap[perf.id] || 0
+                    const isFinished = perf.status !== 'live' && perf.status !== 'pending'
+                    const perfEst = isFinished && songCount > 0
+                      ? estimateRoyalties({ songCount, venueCapacityBand: capacityToBand(perf.venue_capacity), showType: (perf.show_type as any) || 'single', territory: isCanadian(perf.country, perf.city) ? 'CA' : 'US' })
+                      : null
+                    return (
+                      <button key={perf.id} onClick={() => navigateToPerformance(perf)}
+                        style={{ ...rowBase, width: '100%', background: 'none', border: 'none', borderBottom: '1px solid var(--sl-line)', cursor: 'pointer', fontFamily: SANS, textAlign: 'left' }}>
+                        <span style={{ width: 40, flexShrink: 0, textAlign: 'center' }}>
+                          <span style={{ display: 'block', fontSize: 18, fontWeight: 600, color: 'var(--sl-text)', lineHeight: 1.1, fontVariantNumeric: 'tabular-nums' }}>{d ? d.getDate() : '–'}</span>
+                          <span style={{ display: 'block', fontSize: 12, color: 'var(--sl-text-3)' }}>{d ? d.toLocaleDateString('en-US', { month: 'short' }) : ''}</span>
+                        </span>
+                        <span style={{ flex: 1, minWidth: 0 }}>
+                          <span style={{ display: 'block', fontSize: 16, fontWeight: 600, color: 'var(--sl-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{perf.venue_name || 'Untitled show'}</span>
+                          <span style={{ display: 'block', fontSize: 13, color: 'var(--sl-text-3)' }}>{[perf.city, songCount > 0 ? `${songCount} songs` : null].filter(Boolean).join(' · ')}</span>
+                        </span>
+                        <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2, flexShrink: 0 }}>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: displayStatus.color }}>{displayStatus.label}</span>
+                          {perfEst && perfEst.expected > 0 && <span style={{ fontSize: 13, color: 'var(--sl-text-3)' }}>{money(perfEst.expected)} est.</span>}
+                        </span>
+                        {chevron}
+                      </button>
+                    )
+                  })}
+                </div>
+              </>
+            )}
+          </>
+        )}
       </div>
 
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500;700&display=swap');
-        @keyframes fadeUp    { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
-        @keyframes pulse-dot { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(.8)} }
-        @keyframes breathe   { 0%,100%{transform:scale(1);opacity:.3} 50%{transform:scale(1.2);opacity:.8} }
-        @keyframes orb-pulse { 0%,100%{transform:scale(1);opacity:0.5} 50%{transform:scale(1.4);opacity:0} }
-        * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
+        @keyframes sl-shimmer { from { transform: translateX(-100%) } to { transform: translateX(100%) } }
+        .sl-skel::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent); animation: sl-shimmer 1.4s infinite; }
+        :root[data-appearance="light"] .sl-skel::after { background: linear-gradient(90deg, transparent, rgba(255,255,255,0.7), transparent); }
+        @media (prefers-reduced-motion: reduce) { .sl-skel::after { animation: none; display: none; } }
       `}</style>
     </div>
   )

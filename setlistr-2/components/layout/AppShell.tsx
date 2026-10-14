@@ -26,6 +26,17 @@ const FULLSCREEN_ROUTES = ['/app/live/']
 
 const GRAIN_URI = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)'/%3E%3C/svg%3E")`
 
+// Tab geometry shared by both sides of the capture disc: 65px tall,
+// sentence-case 11px labels (Apple's minimum) in a colour that clears 4.5:1.
+const TAB_STYLE: React.CSSProperties = {
+  flex: 1, height: 65, minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4,
+  fontSize: 11, letterSpacing: '0.02em', textDecoration: 'none', position: 'relative', WebkitTapHighlightColor: 'transparent',
+}
+// Under heavy zoom a label wider than its fifth of the bar truncates
+// rather than running into its neighbour; it never shrinks below 11px.
+const TAB_LABEL: React.CSSProperties = { lineHeight: 1, maxWidth: '100%', padding: '0 2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }
+const TAB_INDICATOR: React.CSSProperties = { position: 'absolute', bottom: 4, left: '50%', transform: 'translateX(-50%)', width: 22, height: 2, borderRadius: 1, background: 'var(--sl-gold-text)' }
+
 export function AppShell({ children, profile }: { children: React.ReactNode; profile: Profile }) {
   const pathname = usePathname()
   const router = useRouter()
@@ -145,7 +156,7 @@ export function AppShell({ children, profile }: { children: React.ReactNode; pro
   ] : []
 
   return (
-    <div style={{ minHeight: '100svh', display: 'flex', flexDirection: 'column', background: '#0a0908' }}>
+    <div style={{ minHeight: '100svh', display: 'flex', flexDirection: 'column', background: 'var(--sl-bg)' }}>
 
       {/* ── Header — logo, plus a Back to Manager pill when this acting-as
            session was entered from Manager mode ── */}
@@ -153,39 +164,41 @@ export function AppShell({ children, profile }: { children: React.ReactNode; pro
           landscape); with a top inset, controls sit in a 44px row below it —
           see appHeaderInsets.ts for why the band beside the cutout isn't used.
           Side insets: landscape clearance, 0 in Safari. */}
+      {/* Identity lives here, on every page: the workspace name, the
+          signed-in team member's role there, and the avatar — all one
+          button that opens the existing AccountMenu. */}
       <header style={{
         height: APP_HEADER_HEIGHT,
-        padding: `${APP_HEADER_PADDING_TOP} max(16px, env(safe-area-inset-right, 0px)) 0 max(16px, env(safe-area-inset-left, 0px))`,
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: `${APP_HEADER_PADDING_TOP} max(8px, env(safe-area-inset-right, 0px)) 0 max(20px, env(safe-area-inset-left, 0px))`,
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
         position: 'sticky', top: 0, zIndex: 40,
-        background: 'rgba(10,9,8,0.88)',
+        background: 'var(--sl-header-bg)',
         backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)',
-        borderBottom: '1px solid rgba(255,255,255,0.05)', flexShrink: 0,
+        flexShrink: 0,
       }}>
-        {/* height + overflow: logo-white.png is a padded square, so the link
-            was 120px tall and its invisible top/bottom swallowed taps on page
-            content under the header. Clipped to 44px; the wordmark, centred,
-            doesn't move. */}
-        <Link href="/app/dashboard" style={{ display: 'flex', alignItems: 'center', height: 44, overflow: 'hidden', textDecoration: 'none' }}>
-          <Image src="/logo-white.png" alt="Setlistr" width={120} height={32} priority style={{ objectFit: 'contain' }} />
+        {/* The tight wordmark files (no transparent padding), so the 44px
+            link is the tap target and nothing invisible overhangs content. */}
+        <Link href="/app/dashboard" aria-label="Setlistr home" style={{ display: 'flex', alignItems: 'center', height: 44, flexShrink: 0, textDecoration: 'none' }}>
+          <Image className="sl-logo-for-dark" src="/logo-white-tight.png" alt="Setlistr" width={85} height={16} priority style={{ height: 16, width: 85 }} />
+          <Image className="sl-logo-for-light" src="/logo-dark-tight.png" alt="Setlistr" width={85} height={16} style={{ height: 16, width: 85 }} />
         </Link>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10, flex: 1, minWidth: 0 }}>
           {/* Only ever true for a user who (a) manages at least one artist,
               (b) opened this exact artist's flow from Artist Detail, and (c)
               is still acting as that same artist — invisible to every other
               user and every other existing flow, including a plain dashboard-
               switcher session acting as a different artist. */}
           {actingAsArtistId && managerReturnArtistId === actingAsArtistId && (
-            <button onClick={backToManager} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.25)', borderRadius: 20, padding: '6px 12px 6px 10px', color: '#c9a84c', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent' }}>
-              <ArrowLeft size={13} /> Back to Manager
+            <button onClick={backToManager} style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, minHeight: 44, background: 'none', border: 'none', borderRadius: 20, padding: '0 6px', color: 'var(--sl-gold-text)', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent' }}>
+              <ArrowLeft size={14} /> Manager
             </button>
           )}
-          <AccountMenu profile={profile} />
+          <AccountMenu profile={profile} hasWorkspace={hasWorkspace} />
         </div>
       </header>
 
       {/* Grain layer — fixed noise texture over all shell surfaces, excluded from fullscreen routes */}
-      <div aria-hidden="true" style={{ position: 'fixed', inset: 0, zIndex: 100, pointerEvents: 'none', backgroundImage: GRAIN_URI, backgroundRepeat: 'repeat', opacity: 0.03 }} />
+      <div aria-hidden="true" style={{ position: 'fixed', inset: 0, zIndex: 100, pointerEvents: 'none', backgroundImage: GRAIN_URI, backgroundRepeat: 'repeat', opacity: 'var(--sl-grain-opacity)' as unknown as number }} />
 
       {/* ── Main content ── */}
       {/* The fixed bottom nav's own real height is minHeight:64 + its
@@ -199,16 +212,24 @@ export function AppShell({ children, profile }: { children: React.ReactNode; pro
          number, is what actually clears it on every device. */}
       {/* Side insets: 0 in Safari; in the native iOS app (landscape) they keep
           page content clear of the sensor housing — pages keep their own gutters. */}
-      <main style={{ flex: 1, paddingBottom: 'calc(96px + env(safe-area-inset-bottom))', paddingLeft: 'env(safe-area-inset-left, 0px)', paddingRight: 'env(safe-area-inset-right, 0px)' }}>{children}</main>
+      {/* --sl-page-min-height: the space between the header and the bottom
+          nav's clearance. Pages that want to fill the screen (centred
+          loaders, empty states) use it instead of 100svh — 100svh inside
+          this padded column always overflowed by the header plus the nav
+          clearance, so every short page scrolled for no reason. */}
+      <main style={{
+        flex: 1, paddingBottom: 'calc(96px + env(safe-area-inset-bottom))', paddingLeft: 'env(safe-area-inset-left, 0px)', paddingRight: 'env(safe-area-inset-right, 0px)',
+        ['--sl-page-min-height' as string]: `calc(100svh - ${APP_HEADER_HEIGHT} - 96px - env(safe-area-inset-bottom, 0px))`,
+      } as React.CSSProperties}>{children}</main>
 
       {/* ── Bottom nav ── */}
-      <nav style={{
+      {/* 65px of tabs, then the home-indicator inset below them. */}
+      <nav aria-label="Main" style={{
         position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 40,
-        minHeight: 64,
-        background: 'rgba(10,9,8,0.96)',
+        background: 'var(--sl-nav-bg)',
         backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)',
-        borderTop: '1px solid rgba(255,255,255,0.05)',
-        paddingBottom: 'calc(env(safe-area-inset-bottom) + 8px)',
+        borderTop: '1px solid var(--sl-line)',
+        paddingBottom: 'env(safe-area-inset-bottom, 0px)',
       }}>
         <div style={{ position: 'relative', display: 'flex', maxWidth: 480, margin: '0 auto' }}>
 
@@ -217,17 +238,13 @@ export function AppShell({ children, profile }: { children: React.ReactNode; pro
             const isActive = tab.activePaths.some(p => pathname === p || (p !== '/app/dashboard' && pathname.startsWith(p)))
             const Icon = tab.icon
             return (
-              <Link key={tab.href} href={tab.href} onClick={tapNav} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '8px 4px 10px', textDecoration: 'none', position: 'relative', WebkitTapHighlightColor: 'transparent', minHeight: 56 }}>
+              <Link key={tab.href} href={tab.href} onClick={tapNav} aria-current={isActive ? 'page' : undefined} style={{ ...TAB_STYLE, color: isActive ? 'var(--sl-gold-text)' : 'var(--sl-text-3)', fontWeight: isActive ? 700 : 600 }}>
                 {tab.badge > 0 && (
-                  <div style={{ position: 'absolute', top: 6, right: '50%', transform: 'translateX(14px)', width: 7, height: 7, borderRadius: '50%', background: '#c9a84c', border: '1.5px solid #0a0908' }} />
+                  <div style={{ position: 'absolute', top: 9, right: '50%', transform: 'translateX(14px)', width: 7, height: 7, borderRadius: '50%', background: 'var(--sl-gold)', border: '1.5px solid var(--sl-bg)' }} />
                 )}
-                <Icon size={22} strokeWidth={isActive ? 2.5 : 1.8} color={isActive ? '#c9a84c' : '#5a5040'} />
-                <span style={{ fontSize: 10, fontWeight: isActive ? 700 : 500, color: isActive ? '#c9a84c' : '#5a5040', marginTop: 4, letterSpacing: '0.06em', textTransform: 'uppercase', lineHeight: 1 }}>
-                  {tab.label}
-                </span>
-                {isActive && (
-                  <div style={{ position: 'absolute', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: 24, height: 2, borderRadius: 1, background: '#c9a84c' }} />
-                )}
+                <Icon size={22} strokeWidth={isActive ? 2.5 : 1.8} />
+                <span style={TAB_LABEL}>{tab.label}</span>
+                {isActive && <div style={TAB_INDICATOR} />}
               </Link>
             )
           })}
@@ -240,14 +257,10 @@ export function AppShell({ children, profile }: { children: React.ReactNode; pro
             const isActive = pathname === tab.href || pathname.startsWith(tab.href)
             const Icon = tab.icon
             return (
-              <Link key={tab.href} href={tab.href} onClick={tapNav} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '8px 4px 10px', textDecoration: 'none', position: 'relative', WebkitTapHighlightColor: 'transparent', minHeight: 56 }}>
-                <Icon size={22} strokeWidth={isActive ? 2.5 : 1.8} color={isActive ? '#c9a84c' : '#5a5040'} />
-                <span style={{ fontSize: 10, fontWeight: isActive ? 700 : 500, color: isActive ? '#c9a84c' : '#5a5040', marginTop: 4, letterSpacing: '0.06em', textTransform: 'uppercase', lineHeight: 1 }}>
-                  {tab.label}
-                </span>
-                {isActive && (
-                  <div style={{ position: 'absolute', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: 24, height: 2, borderRadius: 1, background: '#c9a84c' }} />
-                )}
+              <Link key={tab.href} href={tab.href} onClick={tapNav} aria-current={isActive ? 'page' : undefined} style={{ ...TAB_STYLE, color: isActive ? 'var(--sl-gold-text)' : 'var(--sl-text-3)', fontWeight: isActive ? 700 : 600 }}>
+                <Icon size={22} strokeWidth={isActive ? 2.5 : 1.8} />
+                <span style={TAB_LABEL}>{tab.label}</span>
+                {isActive && <div style={TAB_INDICATOR} />}
               </Link>
             )
           })}
@@ -260,17 +273,18 @@ export function AppShell({ children, profile }: { children: React.ReactNode; pro
           {hasWorkspace && (
             <Link
               href="/app/show/new"
-              className="nav-ctr"
+              aria-label="Capture a show"
               onClick={tapRecord}
               style={{
                 position: 'absolute',
                 left: '50%',
-                top: '-12px',
+                top: '-13px',
                 transform: 'translateX(-50%)',
                 width: 64, height: 64,
                 borderRadius: '50%',
                 background: 'linear-gradient(180deg, #d4b45c 0%, #b8963e 100%)',
-                border: '3px solid #0a0908',
+                border: '3px solid var(--sl-bg)',
+                boxShadow: 'var(--sl-disc-shadow)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 textDecoration: 'none',
                 zIndex: 2,
@@ -288,9 +302,6 @@ export function AppShell({ children, profile }: { children: React.ReactNode; pro
       <style>{`
         @keyframes fadeIn       { from{opacity:0} to{opacity:1} }
         @keyframes slideUp      { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
-        @keyframes gold-breathe { 0%,100%{box-shadow:0 4px 20px rgba(201,168,76,0.25),0 2px 8px rgba(0,0,0,0.55)} 50%{box-shadow:0 4px 32px rgba(201,168,76,0.50),0 2px 8px rgba(0,0,0,0.55),0 0 44px rgba(201,168,76,0.18)} }
-        .nav-ctr { animation: gold-breathe 3s ease-in-out infinite; }
-        @media (prefers-reduced-motion: reduce) { .nav-ctr { animation: none !important; box-shadow: 0 4px 20px rgba(201,168,76,0.40), 0 2px 8px rgba(0,0,0,0.55); } }
         * { -webkit-tap-highlight-color: transparent; }
       `}</style>
     </div>

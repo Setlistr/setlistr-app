@@ -1,37 +1,62 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
-import { Check, Users, Settings } from 'lucide-react'
+import { Check, ChevronDown, Users, Settings } from 'lucide-react'
 import type { Profile } from '@/types'
 import { useActingAs } from '@/components/ActingAsProvider'
-
-const C = {
-  card: '#141210', border: 'rgba(255,255,255,0.08)', borderGold: 'rgba(201,168,76,0.3)',
-  text: '#f0ece3', secondary: '#b8a888', muted: '#8a7a68',
-  gold: '#c9a84c', goldDim: 'rgba(201,168,76,0.08)',
-}
+import { roleInfoFor } from '@/lib/teamRoleInfo'
 
 type ManagedArtist = { artist_id: string; artist_name: string; role: string; avatar_url?: string | null }
 
+// Pages can ask the header's menu to open (e.g. the dashboard's "Switch
+// workspace" recovery button) without owning any of its state.
+export const OPEN_ACCOUNT_MENU_EVENT = 'sl:open-account-menu'
+export function openAccountMenu() {
+  try { window.dispatchEvent(new Event(OPEN_ACCOUNT_MENU_EVENT)) } catch {}
+}
+
+const itemStyle: React.CSSProperties = {
+  width: '100%', minHeight: 48, padding: '0 16px', border: 'none', background: 'transparent', cursor: 'pointer',
+  fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left',
+  fontSize: 15, fontWeight: 600, color: 'var(--sl-text)', textDecoration: 'none',
+}
+const headingStyle: React.CSSProperties = { fontSize: 12, fontWeight: 700, color: 'var(--sl-text-3)', margin: 0, padding: '12px 16px 4px' }
+
 // The single top-right entry point for everything that isn't a primary
 // bottom-tab destination: the own-account/managed-artist workspace
-// switcher (moved here from app/app/dashboard's own header, now available
-// on every page, not just Dashboard), Settings (which already contains
-// profile fields and team management — no new route), and the Manager
-// workspace entry point (previously a separate pill button on Dashboard
-// only).
-export function AccountMenu({ profile }: { profile: Profile }) {
+// switcher, Settings (which already contains profile fields and team
+// management — no new route), and the Manager workspace entry point.
+// The trigger names the workspace being worked in, and — for a team member
+// acting for an artist — the role they hold there, so who you're acting as
+// is visible on every page rather than only in a dashboard banner.
+export function AccountMenu({ profile, hasWorkspace }: { profile: Profile; hasWorkspace: boolean }) {
   const { actingAs, selectManagedArtist, returnToOwnWorkspace } = useActingAs()
   const [open, setOpen] = useState(false)
   const [managed, setManaged] = useState<ManagedArtist[]>([])
   const menuRef = useRef<HTMLDivElement>(null)
+  const listRef = useRef<HTMLDivElement>(null)
+
+  // Loaded on mount, and again whenever the selected workspace is one the
+  // loaded list doesn't contain yet (e.g. straight after accepting an
+  // invite), so the role line is never missing or guessed.
+  const actingArtistId = actingAs?.artist_id ?? null
+  const [loadedFor, setLoadedFor] = useState<string | null | undefined>(undefined)
+  useEffect(() => {
+    if (loadedFor !== undefined && (!actingArtistId || managed.some(a => a.artist_id === actingArtistId) || loadedFor === actingArtistId)) return
+    setLoadedFor(actingArtistId)
+    fetch('/api/team/managed-artists').then(r => r.ok ? r.json() : { managed: [] }).then(d => setManaged(d.managed || [])).catch(() => {})
+  }, [actingArtistId, managed, loadedFor])
 
   useEffect(() => {
-    fetch('/api/team/managed-artists').then(r => r.ok ? r.json() : { managed: [] }).then(d => setManaged(d.managed || [])).catch(() => {})
+    function onOpen() { setOpen(true) }
+    window.addEventListener(OPEN_ACCOUNT_MENU_EVENT, onOpen)
+    return () => window.removeEventListener(OPEN_ACCOUNT_MENU_EVENT, onOpen)
   }, [])
 
   useEffect(() => {
     if (!open) return
+    const first = listRef.current?.querySelector<HTMLElement>('[role="menuitem"]')
+    first?.focus()
     function onClick(e: MouseEvent) {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) setOpen(false)
     }
@@ -42,61 +67,89 @@ export function AccountMenu({ profile }: { profile: Profile }) {
   }, [open])
 
   const initials = (profile.full_name || profile.email).split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
-  const displayName = actingAs ? actingAs.artist_name : (profile.artist_name || profile.full_name || 'Account')
+  const actingArtist = actingAs ? managed.find(a => a.artist_id === actingAs.artist_id) : undefined
+
+  // What the trigger says. A team member acting for an artist sees the
+  // artist and their own role there (only once the role is known — never a
+  // guessed default). Someone with no workspace at all (e.g. a team member
+  // whose access was removed) sees their own account and that fact.
+  let name: string
+  let detail: string | null = null
+  if (actingAs) {
+    name = actingAs.artist_name
+    if (actingArtist) detail = roleInfoFor(actingArtist.role).label
+  } else if (!hasWorkspace) {
+    name = 'Your account'
+    detail = managed.length > 0 ? 'No workspace selected' : 'No workspace'
+  } else {
+    name = profile.artist_name || profile.full_name || 'Account'
+  }
+  const avatarUrl = actingAs ? actingArtist?.avatar_url : (hasWorkspace ? profile.avatar_url : null)
+  const avatarInitials = actingAs ? actingAs.artist_name.charAt(0).toUpperCase() : initials
 
   return (
-    <div ref={menuRef} style={{ position: 'relative' }}>
+    <div ref={menuRef} style={{ position: 'relative', minWidth: 0 }}>
       <button
         onClick={() => setOpen(v => !v)}
         aria-haspopup="menu"
         aria-expanded={open}
-        aria-label="Account menu"
+        aria-label={`Account and workspace menu, ${name}${detail ? `, ${detail}` : ''}`}
         style={{
-          display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', padding: '4px 6px 4px 4px', borderRadius: 20,
+          display: 'flex', alignItems: 'center', gap: 8, minHeight: 44, maxWidth: '100%', minWidth: 0,
+          background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+          padding: '0 4px 0 10px', borderRadius: 22, textAlign: 'right',
         }}>
-        <div style={{ width: 30, height: 30, borderRadius: '50%', background: actingAs ? C.goldDim : 'rgba(255,255,255,0.08)', border: `1.5px solid ${actingAs ? C.borderGold : 'rgba(255,255,255,0.14)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
-          {(actingAs ? managed.find(a => a.artist_id === actingAs.artist_id)?.avatar_url : profile.avatar_url) ? (
-            <img src={(actingAs ? managed.find(a => a.artist_id === actingAs.artist_id)?.avatar_url : profile.avatar_url) || ''} alt={displayName || ''} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-          ) : (
-            <span style={{ fontSize: 11, fontWeight: 800, color: actingAs ? C.gold : C.secondary }}>{actingAs ? displayName!.charAt(0).toUpperCase() : initials}</span>
-          )}
-        </div>
+        <span style={{ minWidth: 0, lineHeight: 1.15 }}>
+          <span style={{ display: 'block', fontSize: 15, fontWeight: 600, color: 'var(--sl-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{name}</span>
+          {detail && <span style={{ display: 'block', fontSize: 12, fontWeight: 700, color: actingAs ? 'var(--sl-gold-text)' : 'var(--sl-text-3)', whiteSpace: 'nowrap' }}>{detail}</span>}
+        </span>
+        <ChevronDown size={14} style={{ flexShrink: 0, color: 'var(--sl-text-3)' }} aria-hidden="true" />
+        <span style={{
+          width: 32, height: 32, borderRadius: '50%', flexShrink: 0, overflow: 'hidden',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: 'var(--sl-surface)',
+          border: actingAs ? '2px solid var(--sl-gold)' : '1.5px solid var(--sl-line)',
+        }}>
+          {avatarUrl
+            ? <img src={avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            : <span style={{ fontSize: 12, fontWeight: 800, color: actingAs ? 'var(--sl-gold-text)' : 'var(--sl-text-2)' }}>{avatarInitials}</span>}
+        </span>
       </button>
 
       {open && (
-        <div role="menu" style={{ position: 'absolute', top: 'calc(100% + 8px)', right: 0, width: 260, background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, overflow: 'hidden', zIndex: 60, boxShadow: '0 8px 24px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.04)' }}>
+        <div ref={listRef} role="menu" style={{ position: 'absolute', top: 'calc(100% + 4px)', right: 0, width: 'min(280px, calc(100vw - 24px))', background: 'var(--sl-elevated)', border: '1px solid var(--sl-line)', borderRadius: 14, overflow: 'hidden', zIndex: 60, boxShadow: 'var(--sl-menu-shadow)' }}>
           {managed.length > 0 && (
             <>
-              <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: C.muted, margin: 0, padding: '10px 14px 6px' }}>Workspace</p>
+              <p style={headingStyle}>Workspace</p>
               <button role="menuitem" onClick={() => { returnToOwnWorkspace(); setOpen(false) }}
-                style={{ width: '100%', padding: '10px 14px', background: !actingAs ? C.goldDim : 'transparent', border: 'none', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left' as const }}>
-                <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
-                  {profile.avatar_url ? <img src={profile.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: 10, fontWeight: 800, color: C.secondary }}>{initials}</span>}
-                </div>
-                <span style={{ flex: 1, fontSize: 13, color: C.text, fontWeight: 600 }}>{profile.artist_name || profile.full_name || 'Your account'}</span>
-                {!actingAs && <Check size={13} color={C.gold} strokeWidth={2.5} />}
+                style={{ ...itemStyle, background: !actingAs ? 'var(--sl-surface)' : 'transparent' }}>
+                <span style={{ width: 24, height: 24, borderRadius: '50%', background: 'var(--sl-surface-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
+                  {profile.avatar_url ? <img src={profile.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--sl-text-2)' }}>{initials}</span>}
+                </span>
+                <span style={{ flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{profile.artist_name || profile.full_name || 'Your account'}</span>
+                {!actingAs && <Check size={14} style={{ color: 'var(--sl-gold-text)', flexShrink: 0 }} strokeWidth={2.5} />}
               </button>
               {managed.map(a => (
                 <button role="menuitem" key={a.artist_id} onClick={() => { selectManagedArtist({ artist_id: a.artist_id, artist_name: a.artist_name }); setOpen(false) }}
-                  style={{ width: '100%', padding: '10px 14px', background: actingAs?.artist_id === a.artist_id ? C.goldDim : 'transparent', border: 'none', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left' as const }}>
-                  <div style={{ width: 24, height: 24, borderRadius: '50%', background: C.goldDim, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
-                    {a.avatar_url ? <img src={a.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: 10, fontWeight: 800, color: C.gold }}>{a.artist_name.charAt(0).toUpperCase()}</span>}
-                  </div>
-                  <span style={{ flex: 1, fontSize: 13, color: C.text, fontWeight: 600, whiteSpace: 'nowrap' as const, overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.artist_name}</span>
-                  {actingAs?.artist_id === a.artist_id && <Check size={13} color={C.gold} strokeWidth={2.5} />}
+                  style={{ ...itemStyle, background: actingAs?.artist_id === a.artist_id ? 'var(--sl-surface)' : 'transparent' }}>
+                  <span style={{ width: 24, height: 24, borderRadius: '50%', background: 'var(--sl-surface-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
+                    {a.avatar_url ? <img src={a.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--sl-gold-text)' }}>{a.artist_name.charAt(0).toUpperCase()}</span>}
+                  </span>
+                  <span style={{ flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.artist_name}</span>
+                  {actingAs?.artist_id === a.artist_id && <Check size={14} style={{ color: 'var(--sl-gold-text)', flexShrink: 0 }} strokeWidth={2.5} />}
                 </button>
               ))}
-              <Link role="menuitem" href="/app/manager" onClick={() => setOpen(false)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderTop: `1px solid ${C.border}`, color: C.gold, fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>
-                <Users size={15} /> Manager workspace
+              <Link role="menuitem" href="/app/manager" onClick={() => setOpen(false)} style={{ ...itemStyle, color: 'var(--sl-gold-text)', fontWeight: 700 }}>
+                <Users size={16} /> Manager workspace
               </Link>
             </>
           )}
-          <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: C.muted, margin: 0, padding: '10px 14px 6px', borderTop: managed.length > 0 ? `1px solid ${C.border}` : 'none' }}>Account</p>
-          <Link role="menuitem" href="/app/settings" onClick={() => setOpen(false)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', color: C.text, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
-            <Settings size={15} color={C.secondary} /> Settings &amp; Profile
+          <p style={{ ...headingStyle, borderTop: managed.length > 0 ? '1px solid var(--sl-line)' : 'none' }}>Account</p>
+          <Link role="menuitem" href="/app/settings" onClick={() => setOpen(false)} style={itemStyle}>
+            <Settings size={16} style={{ color: 'var(--sl-text-2)', flexShrink: 0 }} /> Settings &amp; Profile
           </Link>
-          <Link role="menuitem" href="/app/team" onClick={() => setOpen(false)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px 12px', color: C.text, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
-            <Users size={15} color={C.secondary} /> Team
+          <Link role="menuitem" href="/app/team" onClick={() => setOpen(false)} style={{ ...itemStyle, marginBottom: 4 }}>
+            <Users size={16} style={{ color: 'var(--sl-text-2)', flexShrink: 0 }} /> Team
           </Link>
         </div>
       )}

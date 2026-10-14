@@ -70,7 +70,22 @@ function read(rel: string): string {
   const dashboard = read('app/app/dashboard/page.tsx')
   check('Dashboard: dedicated Filing Queue nav button removed', !dashboard.includes("router.push('/app/file')") || !dashboard.includes('Filing queue</span>'))
   check('Dashboard: unused ClipboardList import removed', !dashboard.includes('ClipboardList'))
-  check('Dashboard: "File them" now routes to the Filing Queue, not history', dashboard.includes("onClick={() => router.push('/app/file')}\n              style={{ background: C.gold"))
+  check('Dashboard: the "Not yet marked submitted" ledger row routes to the Filing Queue, not history', /router\.push\('\/app\/file'\)[\s\S]{0,400}Not yet marked submitted/.test(dashboard))
+}
+
+// ── Direction B frame: the shell owns page height and safe areas; one
+//    record definition on the dashboard; zoom is never disabled ─────────
+{
+  const shell = read('components/layout/AppShell.tsx')
+  check('AppShell: publishes --sl-page-min-height (header + nav clearance subtracted) for pages inside it', shell.includes("'--sl-page-min-height'") && shell.includes('APP_HEADER_HEIGHT} - 96px - env(safe-area-inset-bottom'))
+  for (const rel of ['app/app/dashboard/page.tsx', 'app/app/file/page.tsx', 'app/app/history/page.tsx', 'app/app/stats/page.tsx', 'app/app/schedule/page.tsx', 'app/app/team/page.tsx', 'app/app/settings/page.tsx', 'app/app/accept-invite/page.tsx']) {
+    check(`${rel}: no bare 100svh page minimum inside the shell (forced a scroll of header + nav height)`, !read(rel).includes("minHeight: '100svh'"))
+  }
+  const dashboard = read('app/app/dashboard/page.tsx')
+  check('Dashboard: hero, milestone, submitted and last show all come from summarizeRecord()', dashboard.includes('summarizeRecord(performances)') && dashboard.includes('record.count') && dashboard.includes('record.milestone') && dashboard.includes('record.submitted') && dashboard.includes('record.lastShow'))
+  check('Dashboard: no "On pace" projection', !/On pace/.test(dashboard))
+  check('Dashboard: no "filed"/"documented" wording for self-reported submissions or estimates', !/\bfiled\b<|documented</.test(dashboard))
+  check('Root layout: pinch zoom is not capped', !/maximumScale\s*:/.test(read('app/layout.tsx')))
 }
 
 // ── One coherent Submissions design: shared row component + deadline,

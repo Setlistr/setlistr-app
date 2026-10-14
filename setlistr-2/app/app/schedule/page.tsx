@@ -34,14 +34,14 @@ export default function SchedulePage() {
   }, [resolved, actingAs, router])
 
   if (!resolved || !userId) {
-    return <div style={{ minHeight: '100svh', background: C.bg }} />
+    return <div style={{ minHeight: 'var(--sl-page-min-height, 100svh)', background: C.bg }} />
   }
 
   const artistId = actingAs?.artist_id || userId
   const displayName = actingAs?.artist_name || artistName
 
   return (
-    <div style={{ minHeight: '100svh', background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif' }}>
+    <div style={{ minHeight: 'var(--sl-page-min-height, 100svh)', background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif' }}>
       <div style={{ maxWidth: 560, margin: '0 auto', padding: '20px 20px 60px' }}>
         <button onClick={() => router.push('/app/dashboard')} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: C.secondary, fontSize: 13, fontWeight: 700, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', padding: 0, marginBottom: 18 }}>
           <ChevronLeft size={14} /> Dashboard

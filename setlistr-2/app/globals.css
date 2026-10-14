@@ -11,6 +11,78 @@
   --font-display: 'DM Serif Display', serif;
 }
 
+/* ── Design tokens (Direction B) ─────────────────────────────────────────
+   Inline styles read these as var(--sl-…). Dark is the default and, for
+   now, the only appearance the app sets: Light values are defined so
+   screens can adopt tokens incrementally, but nothing sets
+   data-appearance="light" until every screen reachable from the app frame
+   reads tokens (otherwise a dark page would sit inside a light frame).
+   Files that still carry their own local palette keep rendering exactly as
+   before. */
+:root {
+  --sl-bg: #0a0908;
+  --sl-surface: #16140f;
+  --sl-surface-2: #1d1a15;
+  --sl-elevated: #1b1915;
+  --sl-line: rgba(255,255,255,0.08);
+  --sl-text: #f3eee4;
+  --sl-text-2: #cdc2a8;
+  --sl-text-3: #ab9d82;
+  --sl-gold: #c9a84c;
+  --sl-gold-text: #d8b85c;
+  --sl-on-gold: #0a0908;
+  --sl-ok: #4ade80;
+  --sl-live: #f87171;
+  --sl-tick: rgba(255,255,255,0.16);
+  --sl-skeleton: rgba(255,255,255,0.07);
+  --sl-header-bg: rgba(10,9,8,0.92);
+  --sl-nav-bg: rgba(10,9,8,0.95);
+  --sl-band-bg: linear-gradient(180deg, #1b1813, #14120e);
+  --sl-band-ring: inset 0 0 0 1px rgba(201,168,76,0.2);
+  --sl-disc-shadow: 0 4px 22px rgba(201,168,76,0.32), 0 2px 8px rgba(0,0,0,0.55);
+  --sl-menu-shadow: 0 16px 40px rgba(0,0,0,0.45);
+  --sl-hero-glow: radial-gradient(circle, rgba(201,168,76,0.11) 0%, rgba(201,168,76,0.035) 40%, transparent 68%);
+  --sl-grain-opacity: 0.03;
+  --sl-font-display: 'Bebas Neue', 'Oswald', 'Arial Narrow', sans-serif;
+}
+:root[data-appearance="light"] {
+  --sl-bg: #ffffff;
+  --sl-surface: #f4f4f5;
+  --sl-surface-2: #ececee;
+  --sl-elevated: #ffffff;
+  --sl-line: rgba(17,19,24,0.1);
+  --sl-text: #14161b;
+  --sl-text-2: #3f434b;
+  --sl-text-3: #5b5f67;
+  --sl-gold: #b8963e;
+  --sl-gold-text: #85650f;
+  --sl-ok: #1d7a3c;
+  --sl-live: #c0261d;
+  --sl-tick: rgba(17,19,24,0.15);
+  --sl-skeleton: rgba(17,19,24,0.07);
+  --sl-header-bg: rgba(255,255,255,0.94);
+  --sl-nav-bg: rgba(255,255,255,0.96);
+  --sl-band-bg: #f4f4f5;
+  --sl-band-ring: none;
+  --sl-disc-shadow: 0 6px 16px rgba(138,105,20,0.28), 0 1px 3px rgba(0,0,0,0.18);
+  --sl-menu-shadow: 0 16px 40px rgba(17,19,24,0.16);
+  --sl-hero-glow: none;
+  --sl-grain-opacity: 0;
+  color-scheme: light;
+}
+/* The wordmark exists as two images; show the one for the appearance. */
+.sl-logo-for-light { display: none; }
+:root[data-appearance="light"] .sl-logo-for-light { display: block; }
+:root[data-appearance="light"] .sl-logo-for-dark { display: none; }
+
+/* Pinch zoom is no longer disabled (app/layout.tsx), so iOS would zoom the
+   page whenever a text field under 16px gets focus. Inputs render at 16px
+   or larger on iOS only (the -webkit-touch-callout test matches iOS/iPadOS
+   WebKit), which keeps focus from zooming while leaving zoom available. */
+@supports (-webkit-touch-callout: none) {
+  input, select, textarea { font-size: max(16px, 1em) !important; }
+}
+
 * { box-sizing: border-box; }
 
 body {

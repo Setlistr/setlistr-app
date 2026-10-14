@@ -55,7 +55,9 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
+  // No maximum scale: capping it at 1 disables pinch zoom wherever the cap is
+  // honoured (the native app's WKWebView, Android). Focus zoom on small iOS
+  // inputs is handled in globals.css instead.
   themeColor: '#1a1814',
 }
 
