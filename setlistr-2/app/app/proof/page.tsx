@@ -6,10 +6,10 @@ import { useActingAs } from '@/components/ActingAsProvider'
 import { BELOW_APP_HEADER_STICKY_TOP } from '@/components/layout/appHeaderInsets'
 
 const C = {
-  bg: '#0a0908', card: '#141210',
-  border: 'rgba(255,255,255,0.07)', borderGold: 'rgba(201,168,76,0.3)',
-  text: '#f0ece3', secondary: '#b8a888', muted: '#8a7a68',
-  gold: '#c9a84c', goldDim: 'rgba(201,168,76,0.1)', green: '#4ade80',
+  bg: 'var(--sl-bg)', card: 'var(--sl-surface)',
+  border: 'color-mix(in srgb, var(--sl-text) 7%, transparent)', borderGold: 'color-mix(in srgb, var(--sl-accent) 30%, transparent)',
+  text: 'var(--sl-text)', secondary: 'var(--sl-text-2)', muted: 'var(--sl-text-3)',
+  gold: 'var(--sl-accent)', goldDim: 'color-mix(in srgb, var(--sl-accent) 10%, transparent)', green: 'var(--sl-ok)',
 }
 
 const BASE_ROYALTY = 1.20
@@ -135,7 +135,7 @@ export default function ProofPage() {
   )
 
   return (
-    <div style={{ minHeight: '100svh', background: '#0a0908', fontFamily: '"DM Sans", system-ui, sans-serif', paddingBottom: 80 }}>
+    <div style={{ minHeight: '100svh', background: 'var(--sl-bg)', fontFamily: '"DM Sans", system-ui, sans-serif', paddingBottom: 80 }}>
 
       {/* NAV */}
       {/* Rendered inside AppShell. Inset 0 (Safari): sticks at 0 over the app
@@ -143,48 +143,48 @@ export default function ProofPage() {
           at AppShell's header bottom edge, which is itself below the safe
           area — so this bar and its Back button/title are always inside the
           safe area, whatever the inset, with no gap between the two bars. */}
-      <div style={{ position: 'sticky', top: BELOW_APP_HEADER_STICKY_TOP, zIndex: 50, background: 'rgba(10,9,8,0.95)', backdropFilter: 'blur(12px)', borderBottom: '1px solid rgba(255,255,255,0.04)', padding: '12px 24px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <button onClick={() => router.back()} style={{ background: 'none', border: 'none', color: '#8a7a68', fontSize: 14, cursor: 'pointer', fontFamily: 'inherit', padding: '4px 0' }}>← Back</button>
-        <span style={{ fontSize: 12, fontWeight: 600, color: '#c9a84c', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Performance Record</span>
-        <button onClick={() => window.print()} style={{ background: '#c9a84c', border: 'none', borderRadius: 8, color: '#0a0908', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', padding: '6px 14px', letterSpacing: '0.04em' }}>Export PDF</button>
+      <div style={{ position: 'sticky', top: BELOW_APP_HEADER_STICKY_TOP, zIndex: 50, background: 'color-mix(in srgb, var(--sl-bg) 95%, transparent)', backdropFilter: 'blur(12px)', borderBottom: '1px solid color-mix(in srgb, var(--sl-text) 4%, transparent)', padding: '12px 24px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <button onClick={() => router.back()} style={{ background: 'none', border: 'none', color: 'var(--sl-text-3)', fontSize: 14, cursor: 'pointer', fontFamily: 'inherit', padding: '4px 0' }}>← Back</button>
+        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--sl-accent)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Performance Record</span>
+        <button onClick={() => window.print()} style={{ background: 'var(--sl-accent)', border: 'none', borderRadius: 8, color: 'var(--sl-on-accent)', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', padding: '6px 14px', letterSpacing: '0.04em' }}>Export PDF</button>
       </div>
 
       <div style={{ maxWidth: 480, margin: '0 auto', padding: '0 24px' }}>
 
         {/* HERO — artist identity */}
-        <div style={{ paddingTop: 56, paddingBottom: 48, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-          <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', color: '#c9a84c', margin: '0 0 16px', textTransform: 'uppercase' }}>Verified by Setlistr</p>
-          <h1 style={{ fontSize: 48, fontWeight: 800, color: '#f0ece3', margin: '0 0 8px', letterSpacing: '-0.03em', lineHeight: 1 }}>{artistName}</h1>
-          {proName && <p style={{ fontSize: 15, color: '#8a7a68', margin: '0 0 24px' }}>{proName}</p>}
+        <div style={{ paddingTop: 56, paddingBottom: 48, borderBottom: '1px solid color-mix(in srgb, var(--sl-text) 5%, transparent)' }}>
+          <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', color: 'var(--sl-accent)', margin: '0 0 16px', textTransform: 'uppercase' }}>Verified by Setlistr</p>
+          <h1 style={{ fontSize: 48, fontWeight: 800, color: 'var(--sl-text)', margin: '0 0 8px', letterSpacing: '-0.03em', lineHeight: 1 }}>{artistName}</h1>
+          {proName && <p style={{ fontSize: 15, color: 'var(--sl-text-3)', margin: '0 0 24px' }}>{proName}</p>}
           <div style={{ display: 'flex', gap: 32, marginTop: 24 }}>
             <div>
-              <p style={{ fontSize: 42, fontWeight: 800, color: '#f0ece3', margin: 0, fontFamily: '"DM Mono", monospace', letterSpacing: '-0.03em', lineHeight: 1 }}>{totalShows}</p>
-              <p style={{ fontSize: 13, color: '#8a7a68', margin: '6px 0 0' }}>verified shows</p>
+              <p style={{ fontSize: 42, fontWeight: 800, color: 'var(--sl-text)', margin: 0, fontFamily: '"DM Mono", monospace', letterSpacing: '-0.03em', lineHeight: 1 }}>{totalShows}</p>
+              <p style={{ fontSize: 13, color: 'var(--sl-text-3)', margin: '6px 0 0' }}>verified shows</p>
             </div>
             <div>
-              <p style={{ fontSize: 42, fontWeight: 800, color: '#f0ece3', margin: 0, fontFamily: '"DM Mono", monospace', letterSpacing: '-0.03em', lineHeight: 1 }}>{totalSongsLogged}</p>
-              <p style={{ fontSize: 13, color: '#8a7a68', margin: '6px 0 0' }}>songs performed</p>
+              <p style={{ fontSize: 42, fontWeight: 800, color: 'var(--sl-text)', margin: 0, fontFamily: '"DM Mono", monospace', letterSpacing: '-0.03em', lineHeight: 1 }}>{totalSongsLogged}</p>
+              <p style={{ fontSize: 13, color: 'var(--sl-text-3)', margin: '6px 0 0' }}>songs performed</p>
             </div>
             <div>
-              <p style={{ fontSize: 42, fontWeight: 800, color: '#f0ece3', margin: 0, fontFamily: '"DM Mono", monospace', letterSpacing: '-0.03em', lineHeight: 1 }}>{totalCities}</p>
-              <p style={{ fontSize: 13, color: '#8a7a68', margin: '6px 0 0' }}>cities</p>
+              <p style={{ fontSize: 42, fontWeight: 800, color: 'var(--sl-text)', margin: 0, fontFamily: '"DM Mono", monospace', letterSpacing: '-0.03em', lineHeight: 1 }}>{totalCities}</p>
+              <p style={{ fontSize: 13, color: 'var(--sl-text-3)', margin: '6px 0 0' }}>cities</p>
             </div>
           </div>
         </div>
 
         {/* CAREER VALUE */}
         {estimatedRoyalties > 0 && (
-          <div style={{ paddingTop: 40, paddingBottom: 40, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-            <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', color: '#8a7a68', margin: '0 0 12px', textTransform: 'uppercase' }}>Estimated career value</p>
-            <p style={{ fontSize: 36, fontWeight: 800, color: '#c9a84c', margin: '0 0 6px', fontFamily: '"DM Mono", monospace', letterSpacing: '-0.02em' }}>~${estimatedRoyalties.toLocaleString()}</p>
-            <p style={{ fontSize: 14, color: '#8a7a68', margin: 0 }}>across {totalShows} verified live performances</p>
-            <p style={{ fontSize: 11, color: '#5a5040', margin: '6px 0 0' }}>Estimate only, not guaranteed — actual payouts vary by PRO.</p>
+          <div style={{ paddingTop: 40, paddingBottom: 40, borderBottom: '1px solid color-mix(in srgb, var(--sl-text) 5%, transparent)' }}>
+            <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', color: 'var(--sl-text-3)', margin: '0 0 12px', textTransform: 'uppercase' }}>Estimated career value</p>
+            <p style={{ fontSize: 36, fontWeight: 800, color: 'var(--sl-accent)', margin: '0 0 6px', fontFamily: '"DM Mono", monospace', letterSpacing: '-0.02em' }}>~${estimatedRoyalties.toLocaleString()}</p>
+            <p style={{ fontSize: 14, color: 'var(--sl-text-3)', margin: 0 }}>across {totalShows} verified live performances</p>
+            <p style={{ fontSize: 11, color: 'var(--sl-text-3)', margin: '6px 0 0' }}>Estimate only, not guaranteed — actual payouts vary by PRO.</p>
             {submittedShows > 0 && (
               <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ flex: 1, height: 2, background: 'rgba(255,255,255,0.06)', borderRadius: 1 }}>
-                  <div style={{ height: '100%', borderRadius: 1, background: '#4ade80', width: `${Math.min(100, Math.round((submittedShows / totalShows) * 100))}%` }} />
+                <div style={{ flex: 1, height: 2, background: 'color-mix(in srgb, var(--sl-text) 6%, transparent)', borderRadius: 1 }}>
+                  <div style={{ height: '100%', borderRadius: 1, background: 'var(--sl-ok)', width: `${Math.min(100, Math.round((submittedShows / totalShows) * 100))}%` }} />
                 </div>
-                <p style={{ fontSize: 13, color: '#4ade80', margin: 0, flexShrink: 0 }}>{submittedShows} filed</p>
+                <p style={{ fontSize: 13, color: 'var(--sl-ok)', margin: 0, flexShrink: 0 }}>{submittedShows} filed</p>
               </div>
             )}
           </div>
@@ -192,17 +192,17 @@ export default function ProofPage() {
 
         {/* TOP SONGS */}
         {topSongs.length > 0 && (
-          <div style={{ paddingTop: 40, paddingBottom: 40, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-            <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', color: '#8a7a68', margin: '0 0 24px', textTransform: 'uppercase' }}>Most performed</p>
+          <div style={{ paddingTop: 40, paddingBottom: 40, borderBottom: '1px solid color-mix(in srgb, var(--sl-text) 5%, transparent)' }}>
+            <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', color: 'var(--sl-text-3)', margin: '0 0 24px', textTransform: 'uppercase' }}>Most performed</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
               {topSongs.map((song, i) => (
-                <div key={song.song_title} style={{ display: 'flex', alignItems: 'baseline', gap: 16, padding: '12px 0', borderBottom: i < topSongs.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
-                  <span style={{ fontSize: 12, color: '#c9a84c', fontFamily: '"DM Mono", monospace', minWidth: 20, flexShrink: 0 }}>{i + 1}</span>
+                <div key={song.song_title} style={{ display: 'flex', alignItems: 'baseline', gap: 16, padding: '12px 0', borderBottom: i < topSongs.length - 1 ? '1px solid color-mix(in srgb, var(--sl-text) 4%, transparent)' : 'none' }}>
+                  <span style={{ fontSize: 12, color: 'var(--sl-accent)', fontFamily: '"DM Mono", monospace', minWidth: 20, flexShrink: 0 }}>{i + 1}</span>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ fontSize: 16, fontWeight: 600, color: '#f0ece3', margin: '0 0 3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{song.song_title}</p>
-                    {song.isrc && <p style={{ fontSize: 12, color: '#8a7a68', margin: 0, fontFamily: '"DM Mono", monospace' }}>{song.isrc}</p>}
+                    <p style={{ fontSize: 16, fontWeight: 600, color: 'var(--sl-text)', margin: '0 0 3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{song.song_title}</p>
+                    {song.isrc && <p style={{ fontSize: 12, color: 'var(--sl-text-3)', margin: 0, fontFamily: '"DM Mono", monospace' }}>{song.isrc}</p>}
                   </div>
-                  <span style={{ fontSize: 13, color: '#8a7a68', fontFamily: '"DM Mono", monospace', flexShrink: 0 }}>{song.confirmed_count}×</span>
+                  <span style={{ fontSize: 13, color: 'var(--sl-text-3)', fontFamily: '"DM Mono", monospace', flexShrink: 0 }}>{song.confirmed_count}×</span>
                 </div>
               ))}
             </div>
@@ -211,16 +211,16 @@ export default function ProofPage() {
 
         {/* TOP VENUES */}
         {topVenues.length > 0 && (
-          <div style={{ paddingTop: 40, paddingBottom: 40, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-            <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', color: '#8a7a68', margin: '0 0 24px', textTransform: 'uppercase' }}>Venues</p>
+          <div style={{ paddingTop: 40, paddingBottom: 40, borderBottom: '1px solid color-mix(in srgb, var(--sl-text) 5%, transparent)' }}>
+            <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', color: 'var(--sl-text-3)', margin: '0 0 24px', textTransform: 'uppercase' }}>Venues</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
               {topVenues.map((venue, i) => (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', borderBottom: i < topVenues.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
+                <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', borderBottom: i < topVenues.length - 1 ? '1px solid color-mix(in srgb, var(--sl-text) 4%, transparent)' : 'none' }}>
                   <div>
-                    <p style={{ fontSize: 15, fontWeight: 600, color: '#f0ece3', margin: '0 0 3px' }}>{venue.name}</p>
-                    <p style={{ fontSize: 13, color: '#8a7a68', margin: 0 }}>{venue.city}</p>
+                    <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--sl-text)', margin: '0 0 3px' }}>{venue.name}</p>
+                    <p style={{ fontSize: 13, color: 'var(--sl-text-3)', margin: 0 }}>{venue.city}</p>
                   </div>
-                  <span style={{ fontSize: 13, color: '#8a7a68', fontFamily: '"DM Mono", monospace' }}>{venue.count} show{venue.count !== 1 ? 's' : ''}</span>
+                  <span style={{ fontSize: 13, color: 'var(--sl-text-3)', fontFamily: '"DM Mono", monospace' }}>{venue.count} show{venue.count !== 1 ? 's' : ''}</span>
                 </div>
               ))}
             </div>
@@ -228,25 +228,25 @@ export default function ProofPage() {
         )}
 
         {/* SHOW LOG */}
-        <div style={{ paddingTop: 40, paddingBottom: 40, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-          <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', color: '#8a7a68', margin: '0 0 24px', textTransform: 'uppercase' }}>Show history</p>
+        <div style={{ paddingTop: 40, paddingBottom: 40, borderBottom: '1px solid color-mix(in srgb, var(--sl-text) 5%, transparent)' }}>
+          <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', color: 'var(--sl-text-3)', margin: '0 0 24px', textTransform: 'uppercase' }}>Show history</p>
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             {recentShows.map((show, i) => {
               const d = new Date(show.started_at)
               const songCount = songCountMap[show.id] || 0
               return (
-                <div key={show.id} style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '11px 0', borderBottom: i < recentShows.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
+                <div key={show.id} style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '11px 0', borderBottom: i < recentShows.length - 1 ? '1px solid color-mix(in srgb, var(--sl-text) 4%, transparent)' : 'none' }}>
                   <div style={{ minWidth: 48, flexShrink: 0 }}>
-                    <p style={{ fontSize: 15, fontWeight: 700, color: '#f0ece3', margin: 0, fontFamily: '"DM Mono", monospace' }}>{d.getDate()}</p>
-                    <p style={{ fontSize: 10, color: '#8a7a68', margin: 0, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' })}</p>
+                    <p style={{ fontSize: 15, fontWeight: 700, color: 'var(--sl-text)', margin: 0, fontFamily: '"DM Mono", monospace' }}>{d.getDate()}</p>
+                    <p style={{ fontSize: 10, color: 'var(--sl-text-3)', margin: 0, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' })}</p>
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ fontSize: 14, fontWeight: 600, color: '#f0ece3', margin: '0 0 2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{show.venue_name}</p>
-                    <p style={{ fontSize: 12, color: '#8a7a68', margin: 0 }}>{show.city}</p>
+                    <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--sl-text)', margin: '0 0 2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{show.venue_name}</p>
+                    <p style={{ fontSize: 12, color: 'var(--sl-text-3)', margin: 0 }}>{show.city}</p>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3, flexShrink: 0 }}>
-                    <span style={{ fontSize: 13, color: '#8a7a68', fontFamily: '"DM Mono", monospace' }}>{songCount} songs</span>
-                    {show.submission_status === 'submitted' && <span style={{ fontSize: 10, color: '#4ade80', fontWeight: 600, letterSpacing: '0.06em' }}>FILED</span>}
+                    <span style={{ fontSize: 13, color: 'var(--sl-text-3)', fontFamily: '"DM Mono", monospace' }}>{songCount} songs</span>
+                    {show.submission_status === 'submitted' && <span style={{ fontSize: 10, color: 'var(--sl-ok)', fontWeight: 600, letterSpacing: '0.06em' }}>FILED</span>}
                   </div>
                 </div>
               )
@@ -256,18 +256,18 @@ export default function ProofPage() {
 
         {/* METADATA HEALTH */}
         {userSongs.length > 0 && (
-          <div style={{ paddingTop: 40, paddingBottom: 40, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-            <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', color: '#8a7a68', margin: '0 0 6px', textTransform: 'uppercase' }}>Catalog health</p>
-            <p style={{ fontSize: 13, color: '#8a7a68', margin: '0 0 20px' }}>{userSongs.length} songs in catalog</p>
+          <div style={{ paddingTop: 40, paddingBottom: 40, borderBottom: '1px solid color-mix(in srgb, var(--sl-text) 5%, transparent)' }}>
+            <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', color: 'var(--sl-text-3)', margin: '0 0 6px', textTransform: 'uppercase' }}>Catalog health</p>
+            <p style={{ fontSize: 13, color: 'var(--sl-text-3)', margin: '0 0 20px' }}>{userSongs.length} songs in catalog</p>
             <div style={{ display: 'flex', gap: 0 }}>
               {[
                 { label: 'Have ISRC', value: withISRC },
                 { label: 'Composer',  value: withComposer },
                 { label: 'Publisher', value: withPublisher },
               ].map((item, i) => (
-                <div key={i} style={{ flex: 1, paddingRight: i < 2 ? 24 : 0, borderRight: i < 2 ? '1px solid rgba(255,255,255,0.05)' : 'none', paddingLeft: i > 0 ? 24 : 0 }}>
-                  <p style={{ fontSize: 28, fontWeight: 800, color: '#f0ece3', margin: '0 0 4px', fontFamily: '"DM Mono", monospace' }}>{item.value}</p>
-                  <p style={{ fontSize: 12, color: '#8a7a68', margin: 0 }}>{item.label}</p>
+                <div key={i} style={{ flex: 1, paddingRight: i < 2 ? 24 : 0, borderRight: i < 2 ? '1px solid color-mix(in srgb, var(--sl-text) 5%, transparent)' : 'none', paddingLeft: i > 0 ? 24 : 0 }}>
+                  <p style={{ fontSize: 28, fontWeight: 800, color: 'var(--sl-text)', margin: '0 0 4px', fontFamily: '"DM Mono", monospace' }}>{item.value}</p>
+                  <p style={{ fontSize: 12, color: 'var(--sl-text-3)', margin: 0 }}>{item.label}</p>
                 </div>
               ))}
             </div>
@@ -277,10 +277,10 @@ export default function ProofPage() {
         {/* FOOTER */}
         <div style={{ paddingTop: 40, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
-            <p style={{ fontSize: 14, fontWeight: 800, color: '#c9a84c', margin: '0 0 4px', letterSpacing: '0.1em' }}>SETLISTR</p>
-            <p style={{ fontSize: 12, color: '#8a7a68', margin: 0 }}>Verified live performance record</p>
+            <p style={{ fontSize: 14, fontWeight: 800, color: 'var(--sl-accent)', margin: '0 0 4px', letterSpacing: '0.1em' }}>SETLISTR</p>
+            <p style={{ fontSize: 12, color: 'var(--sl-text-3)', margin: 0 }}>Verified live performance record</p>
           </div>
-          <p style={{ fontSize: 12, color: '#8a7a68', fontFamily: '"DM Mono", monospace' }}>{new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
+          <p style={{ fontSize: 12, color: 'var(--sl-text-3)', fontFamily: '"DM Mono", monospace' }}>{new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
         </div>
 
       </div>

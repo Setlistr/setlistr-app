@@ -8,15 +8,15 @@ import { estimateRoyalties, capacityToBand } from '@/lib/royalty-estimate'
 import { useActingAs } from '@/components/ActingAsProvider'
 
 const CARD = {
-  background: 'linear-gradient(180deg, #171512 0%, #121009 100%)',
-  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04)',
+  background: 'var(--sl-card-bg)',
+  boxShadow: 'var(--sl-card-inset)',
 }
 
 const C = {
-  bg: '#0a0908', card: '#141210', cardHover: '#181614',
-  border: 'rgba(255,255,255,0.07)', borderGold: 'rgba(201,168,76,0.25)',
-  text: '#f0ece3', secondary: '#b8a888', muted: '#8a7a68',
-  gold: '#c9a84c', goldDim: 'rgba(201,168,76,0.1)', green: '#4ade80',
+  bg: 'var(--sl-bg)', card: 'var(--sl-surface)', cardHover: 'var(--sl-surface-2)',
+  border: 'color-mix(in srgb, var(--sl-text) 7%, transparent)', borderGold: 'color-mix(in srgb, var(--sl-accent) 25%, transparent)',
+  text: 'var(--sl-text)', secondary: 'var(--sl-text-2)', muted: 'var(--sl-text-3)',
+  gold: 'var(--sl-accent)', goldDim: 'color-mix(in srgb, var(--sl-accent) 10%, transparent)', green: 'var(--sl-ok)',
 }
 
 type Song        = { title: string; artist: string; performance_id: string }
@@ -317,7 +317,7 @@ export default function StatsPage() {
   if (loading) {
     return (
       <div style={{ minHeight: 'var(--sl-page-min-height, 100svh)', background: C.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ width: 28, height: 28, borderRadius: '50%', border: `1.5px solid ${C.gold}40`, borderTopColor: C.gold, animation: 'spin 1s linear infinite' }} />
+        <div style={{ width: 28, height: 28, borderRadius: '50%', border: `1.5px solid color-mix(in srgb, ${C.gold} 25%, transparent)`, borderTopColor: C.gold, animation: 'spin 1s linear infinite' }} />
         <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
       </div>
     )
@@ -329,7 +329,7 @@ export default function StatsPage() {
       <div style={{ padding: '32px 20px 0', maxWidth: 520, margin: '0 auto' }}>
         <h1 style={{ fontSize: 36, fontWeight: 800, color: C.text, margin: '0 0 20px', letterSpacing: '-0.02em' }}>Career</h1>
 
-        <div style={{ display: 'flex', gap: 4, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.04)', borderRadius: 12, padding: 4, marginBottom: 20 }}>
+        <div style={{ display: 'flex', gap: 4, background: 'color-mix(in srgb, var(--sl-text) 3%, transparent)', border: '1px solid color-mix(in srgb, var(--sl-text) 4%, transparent)', borderRadius: 12, padding: 4, marginBottom: 20 }}>
           {([['stats', 'Overview'], ['songs', 'My Songs']] as const).map(([key, label]) => (
             <button key={key} onClick={() => setTab(key)}
               style={{ flex: 1, padding: '9px', border: 'none', borderRadius: 9, background: tab === key ? C.goldDim : 'transparent', color: tab === key ? C.gold : C.muted, fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', cursor: 'pointer', transition: 'all 0.15s ease', fontFamily: 'inherit' }}>
@@ -347,7 +347,7 @@ export default function StatsPage() {
         <div style={{ padding: '0 20px 40px', maxWidth: 520, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
           {totalShows === 0 ? (
             <div style={{ textAlign: 'center', padding: '60px 0' }}>
-              <Music2 size={36} color={C.muted} style={{ opacity: 0.2, marginBottom: 16 }} />
+              <Music2 size={36} style={{ color: C.muted, opacity: 0.2, marginBottom: 16 }} />
               <p style={{ fontSize: 14, color: C.secondary, margin: 0 }}>Your stats, venues, and map build automatically as you play.</p>
             </div>
           ) : (
@@ -359,7 +359,7 @@ export default function StatsPage() {
                   { icon: Music2,   label: 'Song Performances', value: totalSongs },
                   { icon: MapPin,   label: 'Cities',            value: totalCities },
                 ].map(({ icon: Icon, label, value }) => (
-                  <div key={label} style={{ background: CARD.background, border: '1px solid rgba(255,255,255,0.04)', borderRadius: 16, boxShadow: CARD.boxShadow, padding: '14px' }}>
+                  <div key={label} style={{ background: CARD.background, border: '1px solid color-mix(in srgb, var(--sl-text) 4%, transparent)', borderRadius: 16, boxShadow: CARD.boxShadow, padding: '14px' }}>
                     <Icon size={16} color={C.gold} style={{ marginBottom: 8 }} />
                     <p style={{ fontSize: 32, fontWeight: 800, color: C.text, margin: 0, letterSpacing: '-0.02em' }}>{value}</p>
                     <p style={{ fontSize: 11, letterSpacing: '0.04em', color: C.muted, margin: '3px 0 0' }}>{label}</p>
@@ -367,8 +367,8 @@ export default function StatsPage() {
                 ))}
 
                 {/* 4th cell: hours on stage if N ≥ 30% of shows, else first show date */}
-                <div style={{ background: CARD.background, border: '1px solid rgba(255,255,255,0.04)', borderRadius: 16, boxShadow: CARD.boxShadow, padding: '14px' }}>
-                  <TrendingUp size={16} color={C.gold} style={{ marginBottom: 8 }} />
+                <div style={{ background: CARD.background, border: '1px solid color-mix(in srgb, var(--sl-text) 4%, transparent)', borderRadius: 16, boxShadow: CARD.boxShadow, padding: '14px' }}>
+                  <TrendingUp size={16} style={{ color: C.gold, marginBottom: 8 }} />
                   {showHours ? (
                     <>
                       <p style={{ fontSize: 32, fontWeight: 800, color: C.text, margin: 0, letterSpacing: '-0.02em' }}>{realTotalHours}</p>
@@ -394,7 +394,9 @@ export default function StatsPage() {
                 style={{
                   width: '100%', height: 200, position: 'relative', overflow: 'hidden',
                   borderRadius: 16, cursor: 'pointer', border: 'none', padding: 0, display: 'block',
-                  background: CARD.background, transition: 'opacity 0.15s ease',
+                  // The map image is dark in every appearance, so this card keeps
+                  // fixed dark-on-image colours rather than following the theme.
+                  background: '#141210', transition: 'opacity 0.15s ease', // map imagery: fixed
                 }}
                 onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.85'}
                 onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}>
@@ -413,15 +415,17 @@ export default function StatsPage() {
                 {/* Fallback icon when no token */}
                 {!plainMapUrl && (
                   <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <MapPin size={36} color={C.gold} style={{ opacity: 0.2 }} />
+                    <MapPin size={36} style={{ color: C.gold, opacity: 0.2 }} />
                   </div>
                 )}
                 {/* Text hierarchy — bottom-left over darkest zone */}
                 <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '0 20px 20px' }}>
-                  <p style={{ fontSize: 36, fontWeight: 800, color: C.text, margin: '0 0 4px', letterSpacing: '-0.02em', lineHeight: 1 }}>
+                  {/* map imagery: fixed */}
+                  <p style={{ fontSize: 36, fontWeight: 800, color: '#f3eee4', margin: '0 0 4px', letterSpacing: '-0.02em', lineHeight: 1 }}>
                     {totalCities} Cities
                   </p>
-                  <p style={{ fontSize: 14, color: C.secondary, margin: 0 }}>
+                  {/* map imagery: fixed */}
+                  <p style={{ fontSize: 14, color: '#cdc2a8', margin: 0 }}>
                     {totalShows} verified shows · view your map →
                   </p>
                 </div>
@@ -429,7 +433,7 @@ export default function StatsPage() {
 
               {/* Lifetime royalty estimate */}
               {estimatedLifetimeRoyalty > 0 && (
-                <div style={{ background: 'rgba(201,168,76,0.07)', border: '1px solid rgba(201,168,76,0.12)', borderRadius: 16, padding: '18px 20px', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04)' }}>
+                <div style={{ background: 'color-mix(in srgb, var(--sl-accent) 7%, transparent)', border: '1px solid color-mix(in srgb, var(--sl-accent) 12%, transparent)', borderRadius: 16, padding: '18px 20px', boxShadow: 'var(--sl-card-inset)' }}>
                   <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
                     <div>
                       <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: C.muted, margin: '0 0 4px' }}>Estimated Lifetime Royalties</p>
@@ -450,7 +454,7 @@ export default function StatsPage() {
 
               {/* Intelligence row — last show + dormant */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                <div style={{ background: CARD.background, border: '1px solid rgba(255,255,255,0.04)', borderRadius: 16, boxShadow: CARD.boxShadow, padding: '14px' }}>
+                <div style={{ background: CARD.background, border: '1px solid color-mix(in srgb, var(--sl-text) 4%, transparent)', borderRadius: 16, boxShadow: CARD.boxShadow, padding: '14px' }}>
                   <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', color: C.muted, margin: '0 0 6px' }}>Last Show</p>
                   {daysSinceLastShow !== null ? (
                     <>
@@ -466,7 +470,7 @@ export default function StatsPage() {
                   )}
                 </div>
 
-                <div style={{ background: CARD.background, border: '1px solid rgba(255,255,255,0.04)', borderRadius: 16, boxShadow: CARD.boxShadow, padding: '14px' }}>
+                <div style={{ background: CARD.background, border: '1px solid color-mix(in srgb, var(--sl-text) 4%, transparent)', borderRadius: 16, boxShadow: CARD.boxShadow, padding: '14px' }}>
                   <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', color: C.muted, margin: '0 0 6px' }}>Dormant Songs</p>
                   <p style={{ fontSize: 28, fontWeight: 800, color: dormantSongs > 0 ? C.gold : C.text, margin: 0, fontFamily: '"DM Mono", monospace', letterSpacing: '-0.02em' }}>
                     {dormantSongs}
@@ -490,7 +494,7 @@ export default function StatsPage() {
               )}
 
               {/* Shows per month */}
-              <div style={{ background: CARD.background, border: '1px solid rgba(255,255,255,0.04)', borderRadius: 16, boxShadow: CARD.boxShadow, padding: '16px' }}>
+              <div style={{ background: CARD.background, border: '1px solid color-mix(in srgb, var(--sl-text) 4%, transparent)', borderRadius: 16, boxShadow: CARD.boxShadow, padding: '16px' }}>
                 {/* Title in its own row — clear of bars */}
                 <p style={{ fontSize: 13, letterSpacing: '0.04em', color: C.secondary, margin: '0 0 16px', fontWeight: 600 }}>Shows per Month</p>
                 {/* Value labels row — own line so bar tops never collide with title */}
@@ -511,7 +515,7 @@ export default function StatsPage() {
                     const height = count === 0 ? 4 : Math.max(8, (count / maxMonthCount) * 64)
                     return (
                       <div key={month} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-                        <div style={{ width: '100%', borderRadius: '3px 3px 0 0', height: `${height}px`, background: count > 0 ? C.gold : 'rgba(255,255,255,0.05)' }} />
+                        <div style={{ width: '100%', borderRadius: '3px 3px 0 0', height: `${height}px`, background: count > 0 ? C.gold : 'color-mix(in srgb, var(--sl-text) 5%, transparent)' }} />
                         <span style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', color: C.muted }}>{month.split(' ')[0]}</span>
                       </div>
                     )
@@ -521,11 +525,11 @@ export default function StatsPage() {
 
               {topSongs.length > 0 && (
                 <div style={{
-                  background: 'rgba(201,168,76,0.07)',
-                  border: '1px solid rgba(201,168,76,0.25)',
+                  background: 'color-mix(in srgb, var(--sl-accent) 7%, transparent)',
+                  border: '1px solid color-mix(in srgb, var(--sl-accent) 25%, transparent)',
                   borderRadius: 16, padding: '20px',
                   marginBottom: 12,
-                  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04)',
+                  boxShadow: 'var(--sl-card-inset)',
                 }}>
                   <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: C.gold, margin: '0 0 12px' }}>
                     Most Played Live
@@ -547,16 +551,16 @@ export default function StatsPage() {
 
               {/* Top songs */}
               {topSongs.length > 0 && (
-                <div style={{ background: CARD.background, border: '1px solid rgba(255,255,255,0.04)', borderRadius: 16, boxShadow: CARD.boxShadow, padding: '16px' }}>
+                <div style={{ background: CARD.background, border: '1px solid color-mix(in srgb, var(--sl-text) 4%, transparent)', borderRadius: 16, boxShadow: CARD.boxShadow, padding: '16px' }}>
                   <button onClick={() => setShowTopSongs(v => !v)}
                     style={{ width: '100%', background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: showTopSongs ? 16 : 0, transition: 'opacity 0.15s ease' }}
                     onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.7'}
                     onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <Mic2 size={14} color={C.gold} />
+                      <Mic2 size={14} style={{ color: C.gold }} />
                       <p style={{ fontSize: 13, letterSpacing: '0.04em', color: C.secondary, margin: 0, fontWeight: 600 }}>Most Played Songs</p>
                     </div>
-                    <ChevronDown size={14} color={C.muted} style={{ transition: 'transform 0.2s ease', transform: showTopSongs ? 'rotate(180deg)' : 'rotate(0deg)' }} />
+                    <ChevronDown size={14} style={{ color: C.muted, transition: 'transform 0.2s ease', transform: showTopSongs ? 'rotate(180deg)' : 'rotate(0deg)' }} />
                   </button>
                   {showTopSongs && <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                     {topSongs.map((song, i) => (
@@ -569,16 +573,16 @@ export default function StatsPage() {
                               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 1, flexWrap: 'wrap' }}>
                                 {song.artist && <p style={{ fontSize: 13, color: C.secondary, margin: 0 }}>{song.artist}</p>}
                                 {(song as any).avgPosition && (
-                                  <span style={{ fontSize: 11, color: C.muted, background: 'rgba(255,255,255,0.04)', borderRadius: 4, padding: '1px 6px', whiteSpace: 'nowrap' }}>
+                                  <span style={{ fontSize: 11, color: C.muted, background: 'color-mix(in srgb, var(--sl-text) 4%, transparent)', borderRadius: 4, padding: '1px 6px', whiteSpace: 'nowrap' }}>
                                     usually #{(song as any).avgPosition}
                                   </span>
                                 )}
                               </div>
                             </div>
-                            <span style={{ fontSize: 12, color: C.gold, background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.15)', borderRadius: 20, padding: '2px 8px', flexShrink: 0, fontFamily: '"DM Mono", monospace' }}>{song.count}×</span>
+                            <span style={{ fontSize: 12, color: C.gold, background: 'color-mix(in srgb, var(--sl-accent) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--sl-accent) 15%, transparent)', borderRadius: 20, padding: '2px 8px', flexShrink: 0, fontFamily: '"DM Mono", monospace' }}>{song.count}×</span>
                           </div>
-                          <div style={{ marginTop: 6, height: 2, borderRadius: 1, background: 'rgba(255,255,255,0.05)' }}>
-                            <div style={{ height: '100%', borderRadius: 1, width: `${(song.count / topSongs[0].count) * 100}%`, background: i === 0 ? C.gold : 'rgba(201,168,76,0.4)' }} />
+                          <div style={{ marginTop: 6, height: 2, borderRadius: 1, background: 'color-mix(in srgb, var(--sl-text) 5%, transparent)' }}>
+                            <div style={{ height: '100%', borderRadius: 1, width: `${(song.count / topSongs[0].count) * 100}%`, background: i === 0 ? C.gold : 'color-mix(in srgb, var(--sl-accent) 40%, transparent)' }} />
                           </div>
                         </div>
                       </div>
@@ -589,16 +593,16 @@ export default function StatsPage() {
 
               {/* Top venues */}
               {topVenues.length > 0 && (
-                <div style={{ background: CARD.background, border: '1px solid rgba(255,255,255,0.04)', borderRadius: 16, boxShadow: CARD.boxShadow, padding: '16px' }}>
+                <div style={{ background: CARD.background, border: '1px solid color-mix(in srgb, var(--sl-text) 4%, transparent)', borderRadius: 16, boxShadow: CARD.boxShadow, padding: '16px' }}>
                   <button onClick={() => setShowTopVenues(v => !v)}
                     style={{ width: '100%', background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: showTopVenues ? 16 : 0, transition: 'opacity 0.15s ease' }}
                     onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.7'}
                     onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <MapPin size={14} color={C.gold} />
+                      <MapPin size={14} style={{ color: C.gold }} />
                       <p style={{ fontSize: 13, letterSpacing: '0.04em', color: C.secondary, margin: 0, fontWeight: 600 }}>Top Venues</p>
                     </div>
-                    <ChevronDown size={14} color={C.muted} style={{ transition: 'transform 0.2s ease', transform: showTopVenues ? 'rotate(180deg)' : 'rotate(0deg)' }} />
+                    <ChevronDown size={14} style={{ color: C.muted, transition: 'transform 0.2s ease', transform: showTopVenues ? 'rotate(180deg)' : 'rotate(0deg)' }} />
                   </button>
                   {showTopVenues && <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                     {topVenues.map((venue, i) => (
@@ -614,7 +618,7 @@ export default function StatsPage() {
                           </div>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                          <span style={{ fontSize: 12, color: C.gold, background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.15)', borderRadius: 20, padding: '2px 8px' }}>
+                          <span style={{ fontSize: 12, color: C.gold, background: 'color-mix(in srgb, var(--sl-accent) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--sl-accent) 15%, transparent)', borderRadius: 20, padding: '2px 8px' }}>
                             {venue.count} {venue.count === 1 ? 'show' : 'shows'}
                           </span>
                           {venue.id && <span style={{ fontSize: 13, color: C.muted }}>→</span>}
@@ -627,16 +631,16 @@ export default function StatsPage() {
 
               {/* Song Debuts */}
               {songDebuts.length > 0 && (
-                <div style={{ background: CARD.background, border: '1px solid rgba(255,255,255,0.04)', borderRadius: 16, boxShadow: CARD.boxShadow, padding: '16px' }}>
+                <div style={{ background: CARD.background, border: '1px solid color-mix(in srgb, var(--sl-text) 4%, transparent)', borderRadius: 16, boxShadow: CARD.boxShadow, padding: '16px' }}>
                   <button onClick={() => setShowDebuts(v => !v)}
                     style={{ width: '100%', background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: showDebuts ? 16 : 0, transition: 'opacity 0.15s ease' }}
                     onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.7'}
                     onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <Calendar size={14} color={C.gold} />
+                      <Calendar size={14} style={{ color: C.gold }} />
                       <p style={{ fontSize: 13, letterSpacing: '0.04em', color: C.secondary, margin: 0, fontWeight: 600 }}>Song Debuts</p>
                     </div>
-                    <ChevronDown size={14} color={C.muted} style={{ transition: 'transform 0.2s ease', transform: showDebuts ? 'rotate(180deg)' : 'rotate(0deg)' }} />
+                    <ChevronDown size={14} style={{ color: C.muted, transition: 'transform 0.2s ease', transform: showDebuts ? 'rotate(180deg)' : 'rotate(0deg)' }} />
                   </button>
                   {showDebuts && <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                     {songDebuts.map((debut, i) => (
@@ -656,11 +660,11 @@ export default function StatsPage() {
 
               {/* Performance Proof File */}
               <button onClick={() => router.push('/app/proof')}
-                style={{ width: '100%', padding: '16px 20px', background: CARD.background, border: '1px solid rgba(255,255,255,0.04)', borderRadius: 16, boxShadow: CARD.boxShadow, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'space-between', transition: 'opacity 0.15s ease' }}
+                style={{ width: '100%', padding: '16px 20px', background: CARD.background, border: '1px solid color-mix(in srgb, var(--sl-text) 4%, transparent)', borderRadius: 16, boxShadow: CARD.boxShadow, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'space-between', transition: 'opacity 0.15s ease' }}
                 onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.7'}
                 onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <Shield size={18} color={C.gold} style={{ flexShrink: 0 }} />
+                  <Shield size={18} style={{ color: C.gold, flexShrink: 0 }} />
                   <div style={{ textAlign: 'left' }}>
                     <p style={{ fontSize: 15, fontWeight: 600, color: C.secondary, margin: '0 0 2px' }}>Performance Proof File</p>
                     <p style={{ fontSize: 13, color: C.muted, margin: 0 }}>Your verified career record.</p>
@@ -682,7 +686,7 @@ export default function StatsPage() {
 
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500;700&display=swap');
-        input::placeholder { color: #5a5040; }
+        input::placeholder { color: var(--sl-text-3); }
         * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
       `}</style>
     </div>

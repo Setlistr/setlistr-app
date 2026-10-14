@@ -6,11 +6,11 @@ import { Mic2 } from 'lucide-react'
 import { useActingAs } from '@/components/ActingAsProvider'
 
 const C = {
-  bg: '#0a0908', card: '#141210',
-  border: 'rgba(255,255,255,0.07)', borderGold: 'rgba(201,168,76,0.3)',
-  text: '#f0ece3', secondary: '#b8a888', muted: '#8a7a68',
-  gold: '#c9a84c', goldDim: 'rgba(201,168,76,0.1)',
-  green: '#4ade80', greenDim: 'rgba(74,222,128,0.08)',
+  bg: 'var(--sl-bg)', card: 'var(--sl-surface)',
+  border: 'color-mix(in srgb, var(--sl-text) 7%, transparent)', borderGold: 'color-mix(in srgb, var(--sl-accent) 30%, transparent)',
+  text: 'var(--sl-text)', secondary: 'var(--sl-text-2)', muted: 'var(--sl-text-3)',
+  gold: 'var(--sl-accent)', goldDim: 'color-mix(in srgb, var(--sl-accent) 10%, transparent)',
+  green: 'var(--sl-ok)', greenDim: 'color-mix(in srgb, var(--sl-ok) 8%, transparent)',
 }
 
 type Show = {
@@ -166,7 +166,7 @@ export default function VenueDetailPage() {
             <div style={{ padding: '14px 24px 0' }}>
               <div style={{ background: C.card, borderLeft: `3px solid ${C.gold}`, borderRadius: 12, padding: '14px 16px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-                  <Mic2 size={14} color={C.gold} />
+                  <Mic2 size={14} style={{ color: C.gold }} />
                   <p style={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.04em', color: C.secondary, margin: 0 }}>Always In Your Set Here</p>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>

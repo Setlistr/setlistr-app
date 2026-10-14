@@ -2,8 +2,8 @@
 import { useRouter } from 'next/navigation'
 
 const C = {
-  text: '#f0ece3', secondary: '#b8a888', muted: '#8a7a68', gold: '#c9a84c',
-  border: 'rgba(255,255,255,0.08)',
+  text: 'var(--sl-text)', secondary: 'var(--sl-text-2)', muted: 'var(--sl-text-3)', gold: 'var(--sl-accent)',
+  border: 'color-mix(in srgb, var(--sl-text) 8%, transparent)',
 }
 
 export type SubmissionsView = 'file' | 'history'

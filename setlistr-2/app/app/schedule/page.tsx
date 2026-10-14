@@ -8,7 +8,7 @@ import { UpcomingShows } from '@/components/scheduling/UpcomingShows'
 import { useWorkspaceRole } from '@/components/layout/WorkspaceRole'
 
 const C = {
-  bg: '#0a0908', text: '#f0ece3', secondary: '#b8a888', muted: '#8a7a68',
+  bg: 'var(--sl-bg)', text: 'var(--sl-text)', secondary: 'var(--sl-text-2)', muted: 'var(--sl-text-3)',
 }
 
 // The full scheduling experience — create/edit/cancel/start. The

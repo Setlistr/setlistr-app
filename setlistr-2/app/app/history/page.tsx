@@ -14,22 +14,22 @@ import { SubmissionsSwitcher } from '@/components/SubmissionsSwitcher'
 import { SubmissionEntryRow } from '@/components/SubmissionEntryRow'
 
 const CARD = {
-  background: 'linear-gradient(180deg, #171512 0%, #121009 100%)',
-  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04)',
+  background: 'var(--sl-card-bg)',
+  boxShadow: 'var(--sl-card-inset)',
 }
 
 const C = {
-  bg: '#0a0908', card: '#141210', cardHover: '#181614',
-  border: 'rgba(255,255,255,0.07)', borderGold: 'rgba(201,168,76,0.3)',
+  bg: 'var(--sl-bg)', card: 'var(--sl-surface)', cardHover: 'var(--sl-surface-2)',
+  border: 'color-mix(in srgb, var(--sl-text) 7%, transparent)', borderGold: 'color-mix(in srgb, var(--sl-accent) 30%, transparent)',
   // secondary/muted match app/app/file and SubmissionEntryRow's own
   // tokens — previously darker here specifically, which meant lower
   // text contrast on this page than its Submissions sibling for no
   // reason tied to this page's own content.
-  input: '#0f0e0c', text: '#f0ece3', secondary: '#b8a888', muted: '#8a7a68',
-  gold: '#c9a84c', goldDim: 'rgba(201,168,76,0.1)',
-  green: '#4ade80', greenDim: 'rgba(74,222,128,0.08)',
-  red: '#f87171', redDim: 'rgba(248,113,113,0.08)',
-  blue: '#60a5fa', blueDim: 'rgba(96,165,250,0.1)',
+  input: 'var(--sl-input-bg)', text: 'var(--sl-text)', secondary: 'var(--sl-text-2)', muted: 'var(--sl-text-3)',
+  gold: 'var(--sl-accent)', goldDim: 'color-mix(in srgb, var(--sl-accent) 10%, transparent)',
+  green: 'var(--sl-ok)', greenDim: 'color-mix(in srgb, var(--sl-ok) 8%, transparent)',
+  red: 'var(--sl-danger)', redDim: 'color-mix(in srgb, var(--sl-danger) 8%, transparent)',
+  blue: 'var(--sl-info)', blueDim: 'color-mix(in srgb, var(--sl-info) 10%, transparent)',
 }
 
 type Performance = {
@@ -336,7 +336,7 @@ export default function HistoryPage() {
 
   return (
     <div style={{ minHeight: 'var(--sl-page-min-height, 100svh)', background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif' }}>
-      <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '40vh', pointerEvents: 'none', zIndex: 0, background: 'radial-gradient(ellipse at 50% 0%, rgba(201,168,76,0.05) 0%, transparent 65%)' }} />
+      <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '40vh', pointerEvents: 'none', zIndex: 0, background: 'var(--sl-page-glow)' }} />
 
       <div className="subm-page" style={{ padding: '0 16px', position: 'relative', zIndex: 1 }}>
 
@@ -364,7 +364,7 @@ export default function HistoryPage() {
 
         {/* ── Undo banner ── */}
         {undoBanner && (
-          <div style={{ marginBottom: 16, background: 'rgba(96,165,250,0.06)', border: '1px solid rgba(96,165,250,0.2)', borderRadius: 12, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ marginBottom: 16, background: 'color-mix(in srgb, var(--sl-info) 6%, transparent)', border: '1px solid color-mix(in srgb, var(--sl-info) 20%, transparent)', borderRadius: 12, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
             <p style={{ flex: 1, minWidth: 0, fontSize: 13, color: C.secondary, margin: 0 }}>
               {undoBanner.venueName} deleted
             </p>
@@ -378,9 +378,9 @@ export default function HistoryPage() {
 
         {/* ── Unclaimed earnings banner ── */}
         {unclaimedShows.length > 0 && (
-          <div style={{ marginBottom: 16, background: 'rgba(201,168,76,0.05)', border: '1px solid rgba(201,168,76,0.15)', borderRadius: 16, padding: '16px 18px', display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div style={{ marginBottom: 16, background: 'color-mix(in srgb, var(--sl-accent) 5%, transparent)', border: '1px solid color-mix(in srgb, var(--sl-accent) 15%, transparent)', borderRadius: 16, padding: '16px 18px', display: 'flex', alignItems: 'center', gap: 14 }}>
             <div style={{ width: 40, height: 40, borderRadius: '50%', background: C.goldDim, border: `1px solid ${C.borderGold}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <DollarSign size={18} color={C.gold} />
+              <DollarSign size={18} style={{ color: C.gold }} />
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <p style={{ fontSize: 20, fontWeight: 800, color: C.gold, margin: '0 0 2px' }}>
@@ -393,7 +393,7 @@ export default function HistoryPage() {
             </div>
             <button
               onClick={() => setStatusFilter('complete')}
-              style={{ flexShrink: 0, padding: '10px 16px', background: C.gold, border: 'none', borderRadius: 10, color: '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' as const, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', transition: 'opacity 0.15s ease' }}
+              style={{ flexShrink: 0, padding: '10px 16px', background: C.gold, border: 'none', borderRadius: 10, color: 'var(--sl-on-accent)', fontSize: 13, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' as const, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', transition: 'opacity 0.15s ease' }}
               onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.7'}
               onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}>
               File them →
@@ -430,10 +430,10 @@ export default function HistoryPage() {
               const active = statusFilter === tab.key
               return (
                 <button key={tab.key} onClick={() => setStatusFilter(tab.key)}
-                  style={{ flexShrink: 0, padding: '8px 16px', borderRadius: 20, border: `1px solid ${active ? tab.color + '60' : C.border}`, background: active ? tab.color + '15' : 'transparent', color: active ? tab.color : C.muted, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 5, transition: 'all 0.15s ease', letterSpacing: '0.04em' }}>
+                  style={{ flexShrink: 0, padding: '8px 16px', borderRadius: 20, border: `1px solid ${active ? `color-mix(in srgb, ${tab.color} 38%, transparent)` : C.border}`, background: active ? `color-mix(in srgb, ${tab.color} 8%, transparent)` : 'transparent', color: active ? tab.color : C.muted, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 5, transition: 'all 0.15s ease', letterSpacing: '0.04em' }}>
                   {tab.label}
                   {tab.count > 0 && (
-                    <span style={{ fontSize: 12, background: active ? tab.color + '25' : 'rgba(255,255,255,0.06)', borderRadius: 10, padding: '1px 5px', color: active ? tab.color : C.muted }}>
+                    <span style={{ fontSize: 12, background: active ? `color-mix(in srgb, ${tab.color} 15%, transparent)` : 'color-mix(in srgb, var(--sl-text) 6%, transparent)', borderRadius: 10, padding: '1px 5px', color: active ? tab.color : C.muted }}>
                       {tab.count}
                     </span>
                   )}
@@ -457,7 +457,7 @@ export default function HistoryPage() {
                 <div key={label} style={{ flex: 1 }}>
                   <label style={{ fontSize: 10, color: C.muted, display: 'block', marginBottom: 5, letterSpacing: '0.1em', textTransform: 'uppercase' as const, fontWeight: 700 }}>{label}</label>
                   <input type="date" value={value} onChange={e => set(e.target.value)}
-                    style={{ width: '100%', background: C.input, border: `1px solid ${value ? C.borderGold : C.border}`, borderRadius: 8, padding: '9px 12px', color: C.text, fontSize: 13, fontFamily: 'inherit', colorScheme: 'dark' as const, boxSizing: 'border-box' as const }} />
+                    style={{ width: '100%', background: C.input, border: `1px solid ${value ? C.borderGold : C.border}`, borderRadius: 8, padding: '9px 12px', color: C.text, fontSize: 13, fontFamily: 'inherit', colorScheme: 'var(--sl-scheme)', boxSizing: 'border-box' as const }} />
                 </div>
               ))}
             </div>
@@ -469,7 +469,7 @@ export default function HistoryPage() {
           {filtered.length === 0 ? (
             <div style={{ background: CARD.background, border: `1px solid ${C.border}`, borderRadius: 16, padding: '52px 20px', textAlign: 'center', boxShadow: CARD.boxShadow }}>
               <div style={{ width: 52, height: 52, borderRadius: '50%', background: C.goldDim, border: `1px solid ${C.borderGold}`, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px' }}>
-                <Music2 size={20} color={C.gold} />
+                <Music2 size={20} style={{ color: C.gold }} />
               </div>
               <p style={{ fontSize: 17, fontWeight: 600, color: C.text, margin: '0 0 6px' }}>
                 {hasFilters ? 'No shows match your filters' : 'Your record starts tonight.'}
@@ -548,10 +548,10 @@ export default function HistoryPage() {
                           // borderless row.
                           alignSelf: 'flex-start',
                           marginTop: 16,
-                          background: isPendingDel ? 'rgba(220,38,38,0.15)' : 'transparent',
-                          border: isPendingDel ? '1px solid rgba(220,38,38,0.35)' : 'none',
+                          background: isPendingDel ? 'color-mix(in srgb, var(--sl-danger) 15%, transparent)' : 'transparent',
+                          border: isPendingDel ? '1px solid color-mix(in srgb, var(--sl-danger) 35%, transparent)' : 'none',
                           borderRadius: 6,
-                          color: isPendingDel ? '#f87171' : 'rgba(160,144,112,0.55)',
+                          color: isPendingDel ? 'var(--sl-danger)' : 'color-mix(in srgb, var(--sl-text-3) var(--sl-faint, 55%), transparent)',
                           cursor: isDeleting ? 'not-allowed' : 'pointer',
                           padding: isPendingDel ? '4px 8px' : '4px 6px',
                           fontSize: isPendingDel ? 11 : 14,
@@ -582,8 +582,8 @@ export default function HistoryPage() {
         @keyframes fadeUp  { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
         @keyframes breathe { 0%,100%{transform:scale(1);opacity:.3} 50%{transform:scale(1.2);opacity:.8} }
         * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
-        input::placeholder { color: #6a6050; }
-        input:focus { border-color: rgba(201,168,76,0.4) !important; outline: none; }
+        input::placeholder { color: var(--sl-text-3); }
+        input:focus { border-color: color-mix(in srgb, var(--sl-accent) 40%, transparent) !important; outline: none; }
         input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.5); cursor: pointer; }
 
         /* Shared with app/app/file — one calm, readable column at every

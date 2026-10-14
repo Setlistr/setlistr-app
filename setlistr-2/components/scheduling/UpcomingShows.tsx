@@ -8,9 +8,9 @@ import { getTimezoneOptions, labelForZone } from '@/lib/timezoneLabels'
 import tzLookup from 'tz-lookup'
 
 const C = {
-  bg: '#0a0908', card: '#141210', card2: '#1a1814', border: 'rgba(255,255,255,0.08)', borderGold: 'rgba(201,168,76,0.3)',
-  text: '#f0ece3', secondary: '#b8a888', muted: '#8a7a68',
-  gold: '#c9a84c', goldDim: 'rgba(201,168,76,0.1)', green: '#4ade80', red: '#f87171', redDim: 'rgba(248,113,113,0.08)',
+  bg: 'var(--sl-bg)', card: 'var(--sl-surface)', card2: 'var(--sl-surface-2)', border: 'color-mix(in srgb, var(--sl-text) 8%, transparent)', borderGold: 'color-mix(in srgb, var(--sl-accent) 30%, transparent)',
+  text: 'var(--sl-text)', secondary: 'var(--sl-text-2)', muted: 'var(--sl-text-3)',
+  gold: 'var(--sl-accent)', goldDim: 'color-mix(in srgb, var(--sl-accent) 10%, transparent)', green: 'var(--sl-ok)', red: 'var(--sl-danger)', redDim: 'color-mix(in srgb, var(--sl-danger) 8%, transparent)',
 }
 
 type ScheduledShow = {
@@ -169,7 +169,7 @@ export function UpcomingShows({ artistId, artistName, canManage, onBeforeStart }
       <div style={{ marginBottom: 20 }}>
         <div className="sched-skeleton" style={{ width: 140, height: 14, borderRadius: 4, marginBottom: 10 }} />
         <div className="sched-skeleton" style={{ width: '100%', height: 64, borderRadius: 14 }} />
-        <style>{`@keyframes schedShimmer { 0% { background-position: -200px 0 } 100% { background-position: 200px 0 } } .sched-skeleton { background: linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.08) 37%, rgba(255,255,255,0.04) 63%); background-size: 400px 100%; animation: schedShimmer 1.4s ease infinite; } @media (prefers-reduced-motion: reduce) { .sched-skeleton { animation: none; opacity: 0.5; } }`}</style>
+        <style>{`@keyframes schedShimmer { 0% { background-position: -200px 0 } 100% { background-position: 200px 0 } } .sched-skeleton { background: linear-gradient(90deg, color-mix(in srgb, var(--sl-text) 4%, transparent) 25%, color-mix(in srgb, var(--sl-text) 8%, transparent) 37%, color-mix(in srgb, var(--sl-text) 4%, transparent) 63%); background-size: 400px 100%; animation: schedShimmer 1.4s ease infinite; } @media (prefers-reduced-motion: reduce) { .sched-skeleton { animation: none; opacity: 0.5; } }`}</style>
       </div>
     )
   }
@@ -197,8 +197,8 @@ export function UpcomingShows({ artistId, artistName, canManage, onBeforeStart }
       </div>
 
       {startError && (
-        <div style={{ marginBottom: 10, padding: '10px 14px', background: C.redDim, border: `1px solid rgba(248,113,113,0.25)`, borderRadius: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
-          <AlertCircle size={14} color={C.red} style={{ flexShrink: 0 }} />
+        <div style={{ marginBottom: 10, padding: '10px 14px', background: C.redDim, border: `1px solid color-mix(in srgb, var(--sl-danger) 25%, transparent)`, borderRadius: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <AlertCircle size={14} style={{ color: C.red, flexShrink: 0 }} />
           <span style={{ fontSize: 12, color: C.red }}>{startError}</span>
         </div>
       )}
@@ -232,7 +232,7 @@ export function UpcomingShows({ artistId, artistName, canManage, onBeforeStart }
                     </p>
                     {show.venues?.city && (
                       <div style={{ display: 'flex', alignItems: 'center', gap: 4, color: C.secondary, fontSize: 12 }}>
-                        <MapPin size={11} color={C.muted} /> {show.venues.city}{show.venues.country ? `, ${show.venues.country}` : ''}
+                        <MapPin size={11} style={{ color: C.muted }} /> {show.venues.city}{show.venues.country ? `, ${show.venues.country}` : ''}
                       </div>
                     )}
                     {scheduledByOther && (
@@ -370,7 +370,7 @@ function ScheduleForm({ artistId, existing, onClose, onSaved }: {
         <label style={{ fontSize: 11, fontWeight: 700, color: C.muted, display: 'block', marginBottom: 6 }}>Venue</label>
         <div style={{ position: 'relative', marginBottom: venueId ? 14 : 8 }}>
           <input value={venueQuery} onChange={e => { setVenueQuery(e.target.value); setVenueId(null); setVenueCity(''); setVenueCountry(''); searchVenues(e.target.value) }} placeholder="Search or enter a new venue"
-            style={{ width: '100%', background: '#0f0e0c', border: `1px solid ${C.border}`, borderRadius: 10, padding: '11px 12px', color: C.text, fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' as const }} />
+            style={{ width: '100%', background: 'var(--sl-input-bg)', border: `1px solid ${C.border}`, borderRadius: 10, padding: '11px 12px', color: C.text, fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' as const }} />
           {showDropdown && venueResults.length > 0 && (
             <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: C.card2, border: `1px solid ${C.border}`, borderRadius: 10, marginTop: 4, zIndex: 10, maxHeight: 160, overflowY: 'auto' as const }}>
               {venueResults.map(v => {
@@ -397,18 +397,18 @@ function ScheduleForm({ artistId, existing, onClose, onSaved }: {
         {!venueId && venueQuery.trim() && (
           <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
             <input value={venueCity} onChange={e => setVenueCity(e.target.value)} placeholder="City"
-              style={{ flex: 1, background: '#0f0e0c', border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 12px', color: C.text, fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' as const }} />
+              style={{ flex: 1, background: 'var(--sl-input-bg)', border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 12px', color: C.text, fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' as const }} />
             <input value={venueCountry} onChange={e => setVenueCountry(e.target.value)} placeholder="Country"
-              style={{ flex: 1, background: '#0f0e0c', border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 12px', color: C.text, fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' as const }} />
+              style={{ flex: 1, background: 'var(--sl-input-bg)', border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 12px', color: C.text, fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' as const }} />
           </div>
         )}
 
         <label style={{ fontSize: 11, fontWeight: 700, color: C.muted, display: 'block', marginBottom: 6 }}>Date &amp; time (venue-local)</label>
         <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
           <input type="date" value={localDate} onChange={e => setLocalDate(e.target.value)} aria-label="Date"
-            style={{ flex: '1 1 55%', minWidth: 0, background: '#0f0e0c', border: `1px solid ${C.border}`, borderRadius: 10, padding: '11px 10px', color: C.text, fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' as const, colorScheme: 'dark' as const }} />
+            style={{ flex: '1 1 55%', minWidth: 0, background: 'var(--sl-input-bg)', border: `1px solid ${C.border}`, borderRadius: 10, padding: '11px 10px', color: C.text, fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' as const, colorScheme: 'var(--sl-scheme)' }} />
           <input type="time" value={localTime} onChange={e => setLocalTime(e.target.value)} aria-label="Time"
-            style={{ flex: '1 1 45%', minWidth: 0, background: '#0f0e0c', border: `1px solid ${C.border}`, borderRadius: 10, padding: '11px 10px', color: C.text, fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' as const, colorScheme: 'dark' as const }} />
+            style={{ flex: '1 1 45%', minWidth: 0, background: 'var(--sl-input-bg)', border: `1px solid ${C.border}`, borderRadius: 10, padding: '11px 10px', color: C.text, fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' as const, colorScheme: 'var(--sl-scheme)' }} />
         </div>
 
         <label style={{ fontSize: 11, fontWeight: 700, color: C.muted, display: 'block', marginBottom: 6 }}>Timezone</label>
@@ -429,7 +429,7 @@ function ScheduleForm({ artistId, existing, onClose, onSaved }: {
           <div style={{ marginBottom: 14, padding: '10px 12px', background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 10 }}>
             <p style={{ fontSize: 12, color: C.text, margin: '0 0 8px' }}>This time is ambiguous — which one did you mean?</p>
             {ambiguousOptions.map((iso, i) => (
-              <button key={iso} onClick={() => submit(false, iso)} style={{ display: 'block', width: '100%', textAlign: 'left' as const, padding: '8px 10px', marginBottom: 4, background: 'rgba(255,255,255,0.05)', border: 'none', borderRadius: 8, color: C.text, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
+              <button key={iso} onClick={() => submit(false, iso)} style={{ display: 'block', width: '100%', textAlign: 'left' as const, padding: '8px 10px', marginBottom: 4, background: 'color-mix(in srgb, var(--sl-text) 5%, transparent)', border: 'none', borderRadius: 8, color: C.text, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
                 {i === 0 ? 'Earlier' : 'Later'} — {new Date(iso).toLocaleString()}
               </button>
             ))}
@@ -439,15 +439,15 @@ function ScheduleForm({ artistId, existing, onClose, onSaved }: {
         {duplicateWarning && (
           <div style={{ marginBottom: 14, padding: '10px 12px', background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 10 }}>
             <p style={{ fontSize: 12, color: C.text, margin: '0 0 8px' }}>{duplicateWarning}</p>
-            <button onClick={() => submit(true)} style={{ padding: '8px 12px', background: C.gold, border: 'none', borderRadius: 8, color: '#0a0908', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+            <button onClick={() => submit(true)} style={{ padding: '8px 12px', background: C.gold, border: 'none', borderRadius: 8, color: 'var(--sl-on-accent)', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
               Schedule it anyway
             </button>
           </div>
         )}
 
         {error && (
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 12px', marginBottom: 14, background: C.redDim, border: '1px solid rgba(248,113,113,0.25)', borderRadius: 10 }}>
-            <AlertCircle size={14} color={C.red} style={{ flexShrink: 0, marginTop: 1 }} />
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 12px', marginBottom: 14, background: C.redDim, border: '1px solid color-mix(in srgb, var(--sl-danger) 25%, transparent)', borderRadius: 10 }}>
+            <AlertCircle size={14} style={{ color: C.red, flexShrink: 0, marginTop: 1 }} />
             <p style={{ fontSize: 12, color: C.red, margin: 0 }}>{error}</p>
           </div>
         )}
@@ -456,7 +456,7 @@ function ScheduleForm({ artistId, existing, onClose, onSaved }: {
           <button onClick={onClose} style={{ flex: 1, padding: '12px', background: 'transparent', border: `1px solid ${C.border}`, borderRadius: 10, color: C.secondary, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
             Cancel
           </button>
-          <button onClick={() => submit(false)} disabled={saving} style={{ flex: 2, padding: '12px', background: C.gold, border: 'none', borderRadius: 10, color: '#0a0908', fontSize: 13, fontWeight: 800, cursor: saving ? 'default' : 'pointer', fontFamily: 'inherit', opacity: saving ? 0.7 : 1 }}>
+          <button onClick={() => submit(false)} disabled={saving} style={{ flex: 2, padding: '12px', background: C.gold, border: 'none', borderRadius: 10, color: 'var(--sl-on-accent)', fontSize: 13, fontWeight: 800, cursor: saving ? 'default' : 'pointer', fontFamily: 'inherit', opacity: saving ? 0.7 : 1 }}>
             {saving ? 'Saving…' : existing ? 'Save changes' : 'Schedule show'}
           </button>
         </div>
@@ -491,13 +491,13 @@ function ShowActionsMenu({ show, onEdit, onCancel }: { show: ScheduledShow; onEd
       <button
         onClick={() => setOpen(v => !v)}
         aria-haspopup="menu" aria-expanded={open} aria-label={`Actions for ${show.venues?.name || 'this show'}`}
-        style={{ padding: 7, background: 'rgba(255,255,255,0.04)', border: `1px solid ${C.border}`, borderRadius: 8, color: C.secondary, cursor: 'pointer' }}>
+        style={{ padding: 7, background: 'color-mix(in srgb, var(--sl-text) 4%, transparent)', border: `1px solid ${C.border}`, borderRadius: 8, color: C.secondary, cursor: 'pointer' }}>
         <MoreVertical size={15} />
       </button>
       {open && (
         <div role="menu" style={{ position: 'absolute', top: 'calc(100% + 6px)', right: 0, width: 180, background: C.card2, border: `1px solid ${C.border}`, borderRadius: 10, overflow: 'hidden', zIndex: 30, boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }}>
           <button role="menuitem" onClick={() => { onEdit(); setOpen(false) }} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: 'none', border: 'none', borderBottom: `1px solid ${C.border}`, color: C.text, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' as const }}>
-            <Pencil size={13} color={C.secondary} /> Edit show
+            <Pencil size={13} style={{ color: C.secondary }} /> Edit show
           </button>
           <button role="menuitem" onClick={() => { onCancel(); setOpen(false) }} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: 'none', border: 'none', color: C.red, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' as const }}>
             <X size={13} /> Cancel show
@@ -524,7 +524,7 @@ function TimezoneCombobox({ value, onChange }: { value: string; onChange: (tz: s
         onChange={e => setQuery(e.target.value)}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
         placeholder="Search city or region…"
-        style={{ width: '100%', background: '#0f0e0c', border: `1px solid ${C.border}`, borderRadius: 10, padding: '11px 12px', color: C.text, fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' as const }}
+        style={{ width: '100%', background: 'var(--sl-input-bg)', border: `1px solid ${C.border}`, borderRadius: 10, padding: '11px 12px', color: C.text, fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' as const }}
       />
       {open && (
         <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: C.card2, border: `1px solid ${C.border}`, borderRadius: 10, marginTop: 4, zIndex: 20, maxHeight: 220, overflowY: 'auto' as const }}>

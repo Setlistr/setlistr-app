@@ -9,10 +9,10 @@ import 'mapbox-gl/dist/mapbox-gl.css'
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
 
 const C = {
-  bg: '#0a0908', card: '#141210',
-  border: 'rgba(255,255,255,0.07)', borderGold: 'rgba(201,168,76,0.3)',
-  text: '#f0ece3', secondary: '#b8a888', muted: '#8a7a68',
-  gold: '#c9a84c', goldDim: 'rgba(201,168,76,0.1)',
+  bg: 'var(--sl-bg)', card: 'var(--sl-surface)',
+  border: 'color-mix(in srgb, var(--sl-text) 7%, transparent)', borderGold: 'color-mix(in srgb, var(--sl-accent) 30%, transparent)',
+  text: 'var(--sl-text)', secondary: 'var(--sl-text-2)', muted: 'var(--sl-text-3)',
+  gold: 'var(--sl-accent)', goldDim: 'color-mix(in srgb, var(--sl-accent) 10%, transparent)',
 }
 
 type ShowLocation = {
@@ -148,7 +148,7 @@ export default function CareerMapPage() {
       if (!map.current) return
 
       // Override map background to match app
-      map.current.setPaintProperty('background', 'background-color', '#0a0908')
+      map.current.setPaintProperty('background', 'background-color', '#0a0908') // Mapbox paint can't read CSS variables; the map style is dark in both appearances
 
       // Add dots for each city
       locations.forEach(loc => {
@@ -158,9 +158,9 @@ export default function CareerMapPage() {
           width: ${size}px;
           height: ${size}px;
           border-radius: 50%;
-          background: #c9a84c;
-          border: 2px solid rgba(201,168,76,0.4);
-          box-shadow: 0 0 ${size * 2}px rgba(201,168,76,0.4);
+          background: var(--sl-accent);
+          border: 2px solid color-mix(in srgb, var(--sl-accent) 40%, transparent);
+          box-shadow: 0 0 ${size * 2}px color-mix(in srgb, var(--sl-accent) 40%, transparent);
           cursor: pointer;
         `
 
@@ -169,12 +169,12 @@ export default function CareerMapPage() {
           closeOnClick: false,
           className: 'setlistr-popup',
         }).setHTML(`
-          <div style="background:#141210;border:1px solid rgba(201,168,76,0.3);border-radius:10px;padding:12px 16px;font-family:'DM Sans',sans-serif;min-width:160px;">
-            <p style="font-size:15px;font-weight:800;color:#f0ece3;margin:0 0 6px;letter-spacing:-0.01em">${loc.city}${loc.country && loc.country !== 'United States' ? `<span style="font-size:11px;color:#8a7a68;font-weight:400;margin-left:6px">${loc.country}</span>` : ''}</p>
-            <p style="font-size:22px;font-weight:800;color:#c9a84c;margin:0 0 2px;letter-spacing:-0.02em;line-height:1">${loc.count}<span style="font-size:12px;font-weight:600;color:#8a7a68;margin-left:4px">${loc.count === 1 ? 'show' : 'shows'}</span></p>
-            ${loc.firstShow ? `<p style="font-size:11px;color:#8a7a68;margin:0 0 8px">First show ${new Date(loc.firstShow).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}</p>` : '<div style="margin-bottom:8px"></div>'}
-            <div style="border-top:1px solid rgba(255,255,255,0.07);padding-top:8px">
-              ${loc.venues.slice(0, 3).map(v => `<p style="font-size:11px;color:#b8a888;margin:0 0 2px">· ${v}</p>`).join('')}
+          <div style="background:var(--sl-surface);border:1px solid color-mix(in srgb, var(--sl-accent) 30%, transparent);border-radius:10px;padding:12px 16px;font-family:'DM Sans',sans-serif;min-width:160px;">
+            <p style="font-size:15px;font-weight:800;color:var(--sl-text);margin:0 0 6px;letter-spacing:-0.01em">${loc.city}${loc.country && loc.country !== 'United States' ? `<span style="font-size:11px;color:var(--sl-text-3);font-weight:400;margin-left:6px">${loc.country}</span>` : ''}</p>
+            <p style="font-size:22px;font-weight:800;color:var(--sl-accent);margin:0 0 2px;letter-spacing:-0.02em;line-height:1">${loc.count}<span style="font-size:12px;font-weight:600;color:var(--sl-text-3);margin-left:4px">${loc.count === 1 ? 'show' : 'shows'}</span></p>
+            ${loc.firstShow ? `<p style="font-size:11px;color:var(--sl-text-3);margin:0 0 8px">First show ${new Date(loc.firstShow).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}</p>` : '<div style="margin-bottom:8px"></div>'}
+            <div style="border-top:1px solid color-mix(in srgb, var(--sl-text) 7%, transparent);padding-top:8px">
+              ${loc.venues.slice(0, 3).map(v => `<p style="font-size:11px;color:var(--sl-text-2);margin:0 0 2px">· ${v}</p>`).join('')}
             </div>
           </div>
         `)
@@ -254,7 +254,7 @@ export default function CareerMapPage() {
         .setlistr-popup .mapboxgl-popup-content { background: transparent; padding: 0; box-shadow: none; }
         .setlistr-popup .mapboxgl-popup-tip { display: none; }
         .mapboxgl-canvas { border-radius: 12px !important; }
-        .mapboxgl-map { background: #0a0908 !important; border-radius: 12px !important; }
+        .mapboxgl-map { background: var(--sl-bg) !important; border-radius: 12px !important; }
         .mapboxgl-canvas-container { border-radius: 12px !important; overflow: hidden !important; }
       `}</style>
     </div>

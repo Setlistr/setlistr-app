@@ -1,6 +1,6 @@
 'use client'
 
-const C = { text: '#f0ece3', secondary: '#b8a888', muted: '#8a7a68', gold: '#c9a84c', green: '#4ade80' }
+const C = { text: 'var(--sl-text)', secondary: 'var(--sl-text-2)', muted: 'var(--sl-text-3)', gold: 'var(--sl-accent)', green: 'var(--sl-ok)' }
 
 export interface SubmissionEntryRowProps {
   onNavigate: () => void
@@ -52,7 +52,7 @@ export function SubmissionEntryRow(props: SubmissionEntryRowProps) {
       onClick={onNavigate}
       disabled={disabled}
       style={{
-        background: 'none', border: 'none', borderBottom: '1px solid rgba(255,255,255,0.06)',
+        background: 'none', border: 'none', borderBottom: '1px solid color-mix(in srgb, var(--sl-text) 6%, transparent)',
         padding: '16px 4px', cursor: disabled ? 'default' : 'pointer',
         opacity: disabled ? 0.5 : 1, textAlign: 'left' as const, display: 'flex', flexDirection: 'column' as const, gap: 5,
         fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' as const,
@@ -60,7 +60,7 @@ export function SubmissionEntryRow(props: SubmissionEntryRowProps) {
       }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, minWidth: 0 }}>
         {photoUrl && (
-          <div style={{ width: 26, height: 26, borderRadius: 6, overflow: 'hidden', flexShrink: 0, background: '#171512', alignSelf: 'center' }}>
+          <div style={{ width: 26, height: 26, borderRadius: 6, overflow: 'hidden', flexShrink: 0, background: 'var(--sl-surface)', alignSelf: 'center' }}>
             <img src={photoUrl} alt="" aria-hidden="true" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
           </div>
         )}

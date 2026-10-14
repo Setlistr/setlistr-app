@@ -15,16 +15,16 @@ import { SubmissionEntryRow } from '@/components/SubmissionEntryRow'
 import { filingDeadlineLabel, deadlineNeedsAttention, type DeadlineLabel } from '@/lib/filing-deadline-label'
 
 const C = {
-  bg: '#0a0908', card: '#141210',
-  border: 'rgba(255,255,255,0.07)', borderGold: 'rgba(201,168,76,0.3)',
-  text: '#f0ece3', secondary: '#b8a888', muted: '#8a7a68',
-  gold: '#c9a84c', goldDim: 'rgba(201,168,76,0.1)',
-  amber: '#f59e0b', amberDim: 'rgba(245,158,11,0.08)',
+  bg: 'var(--sl-bg)', card: 'var(--sl-surface)',
+  border: 'color-mix(in srgb, var(--sl-text) 7%, transparent)', borderGold: 'color-mix(in srgb, var(--sl-accent) 30%, transparent)',
+  text: 'var(--sl-text)', secondary: 'var(--sl-text-2)', muted: 'var(--sl-text-3)',
+  gold: 'var(--sl-accent)', goldDim: 'color-mix(in srgb, var(--sl-accent) 10%, transparent)',
+  amber: 'var(--sl-warn)', amberDim: 'color-mix(in srgb, var(--sl-warn) 8%, transparent)',
 }
 
 const CARD = {
-  background: 'linear-gradient(180deg, #171512 0%, #121009 100%)',
-  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04)',
+  background: 'var(--sl-card-bg)',
+  boxShadow: 'var(--sl-card-inset)',
 }
 
 type ShowRow = {
@@ -158,7 +158,7 @@ export default function FilingQueuePage() {
 
   return (
     <div style={{ minHeight: 'var(--sl-page-min-height, 100svh)', background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif' }}>
-      <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '50vh', pointerEvents: 'none', zIndex: 0, background: 'radial-gradient(ellipse at 50% 0%, rgba(201,168,76,0.06) 0%, transparent 65%)' }} />
+      <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '50vh', pointerEvents: 'none', zIndex: 0, background: 'var(--sl-page-glow)' }} />
       <div className="subm-page" style={{ position: 'relative', zIndex: 1, width: '100%', padding: '0 16px 80px', boxSizing: 'border-box' as const }}>
 
         {/* Header — same structure, spacing, and back-button style as
@@ -189,8 +189,8 @@ export default function FilingQueuePage() {
         <SubmissionsSwitcher active="file" filingQueueCount={navCounts?.filingQueueCount} fullHistoryCount={navCounts?.fullHistoryCount} />
 
         {loadError && (
-          <div style={{ background: C.amberDim, border: '1px solid rgba(245,158,11,0.25)', borderRadius: 12, padding: '14px 16px', display: 'flex', gap: 10 }}>
-            <AlertTriangle size={16} color={C.amber} style={{ flexShrink: 0, marginTop: 1 }} />
+          <div style={{ background: C.amberDim, border: '1px solid color-mix(in srgb, var(--sl-warn) 25%, transparent)', borderRadius: 12, padding: '14px 16px', display: 'flex', gap: 10 }}>
+            <AlertTriangle size={16} style={{ color: C.amber, flexShrink: 0, marginTop: 1 }} />
             <p style={{ fontSize: 13, color: C.secondary, margin: 0, lineHeight: 1.5 }}>Couldn't load your shows. Try again in a moment.</p>
           </div>
         )}
@@ -201,7 +201,7 @@ export default function FilingQueuePage() {
               No captured shows yet. Once you've played and reviewed a show, it shows up here.
             </p>
             <button onClick={() => router.push('/app/show/new')}
-              style={{ background: C.gold, border: 'none', borderRadius: 10, padding: '12px 20px', fontSize: 13, fontWeight: 800, color: '#0a0908', cursor: 'pointer', fontFamily: 'inherit', letterSpacing: '0.06em', textTransform: 'uppercase' as const }}>
+              style={{ background: C.gold, border: 'none', borderRadius: 10, padding: '12px 20px', fontSize: 13, fontWeight: 800, color: 'var(--sl-on-accent)', cursor: 'pointer', fontFamily: 'inherit', letterSpacing: '0.06em', textTransform: 'uppercase' as const }}>
               Capture a Show →
             </button>
           </div>

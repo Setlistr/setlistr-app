@@ -10,16 +10,16 @@ import { roleInfoFor } from '@/lib/teamRoleInfo'
 import { capabilitiesFor, type TeamView } from '@/lib/teamViewCapabilities'
 
 const CARD = {
-  background: 'linear-gradient(180deg, #171512 0%, #121009 100%)',
-  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04)',
+  background: 'var(--sl-card-bg)',
+  boxShadow: 'var(--sl-card-inset)',
 }
 const C = {
-  bg: '#0a0908', card: '#141210', border: 'rgba(255,255,255,0.07)', borderGold: 'rgba(201,168,76,0.3)',
-  input: '#0f0e0c', inputBorder: 'rgba(255,255,255,0.09)',
-  text: '#f0ece3', secondary: '#b8a888', muted: '#8a7a68',
-  gold: '#c9a84c', goldDim: 'rgba(201,168,76,0.1)',
-  green: '#4ade80', greenDim: 'rgba(74,222,128,0.08)',
-  red: '#f87171', redDim: 'rgba(248,113,113,0.08)',
+  bg: 'var(--sl-bg)', card: 'var(--sl-surface)', border: 'color-mix(in srgb, var(--sl-text) 7%, transparent)', borderGold: 'color-mix(in srgb, var(--sl-accent) 30%, transparent)',
+  input: 'var(--sl-input-bg)', inputBorder: 'color-mix(in srgb, var(--sl-text) 9%, transparent)',
+  text: 'var(--sl-text)', secondary: 'var(--sl-text-2)', muted: 'var(--sl-text-3)',
+  gold: 'var(--sl-accent)', goldDim: 'color-mix(in srgb, var(--sl-accent) 10%, transparent)',
+  green: 'var(--sl-ok)', greenDim: 'color-mix(in srgb, var(--sl-ok) 8%, transparent)',
+  red: 'var(--sl-danger)', redDim: 'color-mix(in srgb, var(--sl-danger) 8%, transparent)',
 }
 
 type OwnerIncoming = { id: string; delegate_id: string; name: string; email: string | null; role: string; invited_at: string; avatar_url: string | null }
@@ -284,7 +284,7 @@ export default function TeamPage() {
   return (
     <div style={{ minHeight: 'var(--sl-page-min-height, 100svh)', background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif' }}>
       <div style={{ padding: '32px 16px 8px', maxWidth: 560, margin: '0 auto' }}>
-        <p style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.3em', color: C.gold + '99', margin: '0 0 4px' }}>
+        <p style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.3em', color: `color-mix(in srgb, ${C.gold} var(--sl-faint, 60%), transparent)`, margin: '0 0 4px' }}>
           {actingAs ? 'Managed Workspace' : 'Your Workspace'}
         </p>
         <h1 style={{ fontSize: 28, fontWeight: 800, color: C.text, margin: 0, letterSpacing: '-0.025em' }}>
@@ -302,12 +302,12 @@ export default function TeamPage() {
 
         {!initializing && noArtistSelected && (
           <div style={{ background: CARD.background, border: `1px solid ${C.border}`, borderRadius: 16, padding: '28px 22px', textAlign: 'center' as const, boxShadow: CARD.boxShadow }}>
-            <Users size={28} color={C.muted} style={{ marginBottom: 10 }} />
+            <Users size={28} style={{ color: C.muted, marginBottom: 10 }} />
             <p style={{ fontSize: 16, fontWeight: 800, color: C.text, margin: '0 0 6px' }}>No artist selected</p>
             <p style={{ fontSize: 13, color: C.secondary, margin: '0 0 18px', lineHeight: 1.5 }}>
               Select an artist from your roster to view and manage their team.
             </p>
-            <Link href="/app/manager/artists" style={{ display: 'inline-flex', padding: '11px 20px', background: C.gold, border: 'none', borderRadius: 10, color: '#0a0908', fontSize: 13, fontWeight: 800, textDecoration: 'none' }}>
+            <Link href="/app/manager/artists" style={{ display: 'inline-flex', padding: '11px 20px', background: C.gold, border: 'none', borderRadius: 10, color: 'var(--sl-on-accent)', fontSize: 13, fontWeight: 800, textDecoration: 'none' }}>
               Go to Your Artists
             </Link>
           </div>
@@ -320,13 +320,13 @@ export default function TeamPage() {
             read as a legitimate (if empty) owner workspace. */}
         {!initializing && disconnected && (
           <div style={{ background: CARD.background, border: `1px solid ${C.border}`, borderRadius: 16, padding: '28px 22px', textAlign: 'center' as const, boxShadow: CARD.boxShadow, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
-            <Users size={28} color={C.muted} style={{ marginBottom: 2 }} />
+            <Users size={28} style={{ color: C.muted, marginBottom: 2 }} />
             <p style={{ fontSize: 16, fontWeight: 800, color: C.text, margin: 0 }}>No connected workspace</p>
             <p style={{ fontSize: 13, color: C.secondary, margin: '0 0 8px', lineHeight: 1.5 }}>
               You don't currently have access to an artist's workspace. This can happen if a team connection was removed.
             </p>
             {remainingConnections.length > 0 && (
-              <Link href="/app/manager/artists" style={{ display: 'inline-flex', padding: '11px 20px', background: C.gold, border: 'none', borderRadius: 10, color: '#0a0908', fontSize: 13, fontWeight: 800, textDecoration: 'none' }}>
+              <Link href="/app/manager/artists" style={{ display: 'inline-flex', padding: '11px 20px', background: C.gold, border: 'none', borderRadius: 10, color: 'var(--sl-on-accent)', fontSize: 13, fontWeight: 800, textDecoration: 'none' }}>
                 You still have access to {remainingConnections.length} other artist{remainingConnections.length === 1 ? '' : 's'} →
               </Link>
             )}
@@ -344,12 +344,12 @@ export default function TeamPage() {
         )}
 
         {!initializing && !noArtistSelected && !disconnected && status === 'error' && (
-          <div style={{ background: CARD.background, border: '1px solid rgba(248,113,113,0.25)', borderRadius: 16, padding: '24px 22px', textAlign: 'center' as const }}>
-            <AlertCircle size={22} color={C.red} style={{ marginBottom: 8 }} />
+          <div style={{ background: CARD.background, border: '1px solid color-mix(in srgb, var(--sl-danger) 25%, transparent)', borderRadius: 16, padding: '24px 22px', textAlign: 'center' as const }}>
+            <AlertCircle size={22} style={{ color: C.red, marginBottom: 8 }} />
             <p style={{ fontSize: 15, fontWeight: 700, color: C.text, margin: '0 0 6px' }}>Couldn't load the team</p>
             <p style={{ fontSize: 13, color: C.secondary, margin: '0 0 16px' }}>Nothing was loaded — this is not an empty team.</p>
             <button onClick={() => setRetryTick(t => t + 1)}
-              style={{ padding: '11px 20px', background: C.gold, border: 'none', borderRadius: 10, color: '#0a0908', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
+              style={{ padding: '11px 20px', background: C.gold, border: 'none', borderRadius: 10, color: 'var(--sl-on-accent)', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
               Retry
             </button>
           </div>
@@ -358,7 +358,7 @@ export default function TeamPage() {
         {!initializing && !noArtistSelected && !disconnected && status === 'ready' && data?.view === 'self' && (
           <div style={{ background: CARD.background, border: `1px solid ${C.border}`, borderRadius: 16, padding: '20px', display: 'flex', flexDirection: 'column', gap: 12, boxShadow: CARD.boxShadow }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Users size={15} color={C.gold} />
+              <Users size={15} style={{ color: C.gold }} />
               <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.secondary, margin: 0 }}>Your Access</p>
             </div>
             <p style={{ fontSize: 16, fontWeight: 800, color: C.gold, margin: 0 }}>{roleInfoFor(data.role).label}</p>
@@ -399,11 +399,11 @@ export default function TeamPage() {
                     </div>
                     <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
                       <button onClick={() => respond(r.id, 'decline')} disabled={responding === r.id}
-                        style={{ background: 'none', border: '1px solid rgba(248,113,113,0.2)', borderRadius: 8, padding: '6px 11px', color: C.red, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', opacity: responding === r.id ? 0.5 : 1 }}>
+                        style={{ background: 'none', border: '1px solid color-mix(in srgb, var(--sl-danger) 20%, transparent)', borderRadius: 8, padding: '6px 11px', color: C.red, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', opacity: responding === r.id ? 0.5 : 1 }}>
                         Decline
                       </button>
                       <button onClick={() => respond(r.id, 'approve')} disabled={responding === r.id}
-                        style={{ background: C.gold, border: 'none', borderRadius: 8, padding: '6px 11px', color: '#0a0908', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', opacity: responding === r.id ? 0.5 : 1 }}>
+                        style={{ background: C.gold, border: 'none', borderRadius: 8, padding: '6px 11px', color: 'var(--sl-on-accent)', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', opacity: responding === r.id ? 0.5 : 1 }}>
                         {responding === r.id ? '...' : 'Approve'}
                       </button>
                     </div>
@@ -416,7 +416,7 @@ export default function TeamPage() {
             <div style={{ background: CARD.background, border: `1px solid ${C.border}`, borderRadius: 16, padding: '20px', display: 'flex', flexDirection: 'column', gap: 10, boxShadow: CARD.boxShadow }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.secondary, margin: 0 }}>Active Members</p>
-                <span style={{ fontSize: 10, fontWeight: 700, color: C.green, background: C.greenDim, border: '1px solid rgba(74,222,128,0.2)', borderRadius: 20, padding: '3px 10px' }}>
+                <span style={{ fontSize: 10, fontWeight: 700, color: C.green, background: C.greenDim, border: '1px solid color-mix(in srgb, var(--sl-ok) 20%, transparent)', borderRadius: 20, padding: '3px 10px' }}>
                   {data.members.length}
                 </span>
               </div>
@@ -425,7 +425,7 @@ export default function TeamPage() {
               ) : data.members.map(m => {
                 const emailLine = data.view === 'owner' ? (m as OwnerMember).email : null
                 return (
-                  <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px', background: 'rgba(255,255,255,0.02)', border: `1px solid rgba(74,222,128,0.15)`, borderRadius: 10, flexWrap: 'wrap' as const }}>
+                  <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px', background: 'color-mix(in srgb, var(--sl-text) 2%, transparent)', border: `1px solid color-mix(in srgb, var(--sl-ok) 15%, transparent)`, borderRadius: 10, flexWrap: 'wrap' as const }}>
                     <Avatar name={m.name} url={m.avatar_url} />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <p style={{ fontSize: 13, fontWeight: 600, color: C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.name}</p>
@@ -444,14 +444,14 @@ export default function TeamPage() {
                               Cancel
                             </button>
                             <button onClick={() => remove(m.id)} disabled={removing === m.id}
-                              style={{ flex: 1, background: C.red, border: 'none', borderRadius: 8, padding: '6px 10px', color: '#0a0908', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', opacity: removing === m.id ? 0.6 : 1 }}>
+                              style={{ flex: 1, background: C.red, border: 'none', borderRadius: 8, padding: '6px 10px', color: 'var(--sl-on-accent)', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', opacity: removing === m.id ? 0.6 : 1 }}>
                               {removing === m.id ? '...' : 'Confirm Remove'}
                             </button>
                           </div>
                         </div>
                       ) : (
                         <button onClick={() => setConfirmRemoveId(m.id)}
-                          style={{ background: 'none', border: '1px solid rgba(248,113,113,0.2)', borderRadius: 8, padding: '6px 11px', color: C.red, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                          style={{ background: 'none', border: '1px solid color-mix(in srgb, var(--sl-danger) 20%, transparent)', borderRadius: 8, padding: '6px 11px', color: C.red, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
                           <X size={11} /> Remove
                         </button>
                       )
@@ -466,7 +466,7 @@ export default function TeamPage() {
               <div style={{ background: CARD.background, border: `1px solid ${C.border}`, borderRadius: 16, padding: '20px', display: 'flex', flexDirection: 'column', gap: 10, boxShadow: CARD.boxShadow }}>
                 <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.secondary, margin: 0 }}>Outgoing Invitations</p>
                 {data.outgoing.map(o => (
-                  <div key={o.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px', background: 'rgba(255,255,255,0.02)', border: `1px solid ${C.border}`, borderRadius: 10, flexWrap: 'wrap' as const }}>
+                  <div key={o.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px', background: 'color-mix(in srgb, var(--sl-text) 2%, transparent)', border: `1px solid ${C.border}`, borderRadius: 10, flexWrap: 'wrap' as const }}>
                     <div style={{ width: 36, height: 36, borderRadius: '50%', background: C.goldDim, border: `1px solid ${C.borderGold}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                       <span style={{ fontSize: 13, fontWeight: 800, color: C.gold }}>{(o.email || '?').charAt(0).toUpperCase()}</span>
                     </div>
@@ -500,13 +500,13 @@ export default function TeamPage() {
                             Keep
                           </button>
                           <button onClick={() => remove(o.id)} disabled={removing === o.id}
-                            style={{ background: C.red, border: 'none', borderRadius: 8, padding: '6px 10px', color: '#0a0908', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', opacity: removing === o.id ? 0.6 : 1 }}>
+                            style={{ background: C.red, border: 'none', borderRadius: 8, padding: '6px 10px', color: 'var(--sl-on-accent)', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', opacity: removing === o.id ? 0.6 : 1 }}>
                             {removing === o.id ? '...' : 'Confirm Cancel'}
                           </button>
                         </>
                       ) : (
                         <button onClick={() => setConfirmRemoveId(o.id)}
-                          style={{ background: 'none', border: '1px solid rgba(248,113,113,0.2)', borderRadius: 8, padding: '6px 10px', color: C.red, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 4 }}>
+                          style={{ background: 'none', border: '1px solid color-mix(in srgb, var(--sl-danger) 20%, transparent)', borderRadius: 8, padding: '6px 10px', color: C.red, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 4 }}>
                           <X size={10} /> Cancel
                         </button>
                       )}
@@ -551,26 +551,26 @@ export default function TeamPage() {
                       onKeyDown={e => e.key === 'Enter' && sendInvite()} placeholder="teammate@email.com" type="email"
                       style={{ ...inputStyle, flex: 1, minWidth: 180 }} />
                     <button onClick={sendInvite} disabled={inviting || !inviteEmail.trim()}
-                      style={{ padding: '11px 16px', background: inviteEmail.trim() ? C.gold : 'rgba(255,255,255,0.04)', border: `1px solid ${inviteEmail.trim() ? C.gold : C.border}`, borderRadius: 10, color: inviteEmail.trim() ? '#0a0908' : C.muted, fontSize: 13, fontWeight: 700, cursor: inviting || !inviteEmail.trim() ? 'default' : 'pointer', fontFamily: 'inherit', flexShrink: 0 }}>
+                      style={{ padding: '11px 16px', background: inviteEmail.trim() ? C.gold : 'color-mix(in srgb, var(--sl-text) 4%, transparent)', border: `1px solid ${inviteEmail.trim() ? C.gold : C.border}`, borderRadius: 10, color: inviteEmail.trim() ? 'var(--sl-on-accent)' : C.muted, fontSize: 13, fontWeight: 700, cursor: inviting || !inviteEmail.trim() ? 'default' : 'pointer', fontFamily: 'inherit', flexShrink: 0 }}>
                       {inviting ? '...' : 'Invite'}
                     </button>
                   </div>
                 </div>
                 {inviteError && (
-                  <div style={{ background: C.redDim, border: '1px solid rgba(248,113,113,0.2)', borderRadius: 10, padding: '11px 14px' }}>
+                  <div style={{ background: C.redDim, border: '1px solid color-mix(in srgb, var(--sl-danger) 20%, transparent)', borderRadius: 10, padding: '11px 14px' }}>
                     <p style={{ fontSize: 13, color: C.red, margin: 0 }}>{inviteError}</p>
                   </div>
                 )}
                 {inviteResult && (
-                  <div style={{ background: C.greenDim, border: '1px solid rgba(74,222,128,0.2)', borderRadius: 12, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <div style={{ background: C.greenDim, border: '1px solid color-mix(in srgb, var(--sl-ok) 20%, transparent)', borderRadius: 12, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <Check size={14} color={C.green} strokeWidth={2.5} />
+                      <Check size={14} strokeWidth={2.5} style={{ color: C.green }} />
                       <p style={{ fontSize: 13, fontWeight: 700, color: C.green, margin: 0 }}>
                         {inviteResult.email_sent ? 'Invite email sent' : 'Invite created'}
                       </p>
                     </div>
                     <button onClick={() => copyLink('new-invite', inviteResult.invite_url)}
-                      style={{ padding: '10px', background: 'transparent', border: '1px solid rgba(74,222,128,0.25)', borderRadius: 10, color: C.secondary, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                      style={{ padding: '10px', background: 'transparent', border: '1px solid color-mix(in srgb, var(--sl-ok) 25%, transparent)', borderRadius: 10, color: C.secondary, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
                       {copiedId === 'new-invite' ? <><Check size={12} strokeWidth={2.5} /> Link Copied</> : <><Copy size={12} /> Copy Invite Link</>}
                     </button>
                   </div>

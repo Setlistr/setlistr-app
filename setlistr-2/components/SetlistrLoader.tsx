@@ -21,10 +21,10 @@ const BAR_RADIUS = 7
 const BAR_GAP    = 9
 const DOT_GAP    = 14
 
-const BAR_COLOR   = '#faf7f2'
-const DOT_COLOR   = '#c9a84c'
-const BG_COLOR    = '#0a0908'
-const LABEL_COLOR = '#6a6050'
+const BAR_COLOR   = 'var(--sl-text)'
+const DOT_COLOR   = 'var(--sl-accent)'
+const BG_COLOR    = 'var(--sl-bg)'
+const LABEL_COLOR = 'var(--sl-text-3)'
 
 // One entrance delay per bar, ms — 85ms apart, 300ms each (see keyframes below).
 const BAR_DELAYS_MS = [0, 85, 170, 255]
@@ -91,7 +91,7 @@ export function SetlistrLoader({ variant, fullScreen = true, label, size = 1 }: 
           className={dotClass}
           style={{
             width: dotSize, height: dotSize, borderRadius: '50%', background: DOT_COLOR,
-            boxShadow: '0 0 16px rgba(201,168,76,.45)',
+            boxShadow: '0 0 16px color-mix(in srgb, var(--sl-accent) 45%, transparent)',
           }}
         />
       </div>
@@ -139,12 +139,12 @@ export function SetlistrLoader({ variant, fullScreen = true, label, size = 1 }: 
           to   { transform: scaleX(1); opacity: 1; }
         }
         @keyframes setlistrDotAssemble {
-          from { transform: scale(0); box-shadow: 0 0 0 rgba(201,168,76,0); }
-          to   { transform: scale(1); box-shadow: 0 0 16px rgba(201,168,76,.45); }
+          from { transform: scale(0); box-shadow: 0 0 0 color-mix(in srgb, var(--sl-accent) 0%, transparent); }
+          to   { transform: scale(1); box-shadow: 0 0 16px color-mix(in srgb, var(--sl-accent) 45%, transparent); }
         }
         @keyframes setlistrDotBreathe {
-          0%, 100% { box-shadow: 0 0 16px rgba(201,168,76,.30); opacity: .85; }
-          50%      { box-shadow: 0 0 16px rgba(201,168,76,.55); opacity: 1; }
+          0%, 100% { box-shadow: 0 0 16px color-mix(in srgb, var(--sl-accent) 30%, transparent); opacity: .85; }
+          50%      { box-shadow: 0 0 16px color-mix(in srgb, var(--sl-accent) 55%, transparent); opacity: 1; }
         }
       `}</style>
     </div>

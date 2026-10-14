@@ -9,26 +9,26 @@ import { useSessionGuard } from '@/lib/useSessionGuard'
 import { diffFields, toWirePayload } from '@/lib/profileFormDiff'
 
 const CARD = {
-  background: 'linear-gradient(180deg, #171512 0%, #121009 100%)',
-  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04)',
+  background: 'var(--sl-card-bg)',
+  boxShadow: 'var(--sl-card-inset)',
 }
 
 const C = {
-  bg: '#0a0908',
-  card: '#141210',
-  border: 'rgba(255,255,255,0.07)',
-  borderGold: 'rgba(201,168,76,0.3)',
-  input: '#0f0e0c',
-  inputBorder: 'rgba(255,255,255,0.09)',
-  text: '#f0ece3',
-  secondary: '#b8a888',
-  muted: '#8a7a68',
-  gold: '#c9a84c',
-  goldDim: 'rgba(201,168,76,0.1)',
-  green: '#4ade80',
-  greenDim: 'rgba(74,222,128,0.08)',
-  red: '#f87171',
-  redDim: 'rgba(248,113,113,0.08)',
+  bg: 'var(--sl-bg)',
+  card: 'var(--sl-surface)',
+  border: 'color-mix(in srgb, var(--sl-text) 7%, transparent)',
+  borderGold: 'color-mix(in srgb, var(--sl-accent) 30%, transparent)',
+  input: 'var(--sl-input-bg)',
+  inputBorder: 'color-mix(in srgb, var(--sl-text) 9%, transparent)',
+  text: 'var(--sl-text)',
+  secondary: 'var(--sl-text-2)',
+  muted: 'var(--sl-text-3)',
+  gold: 'var(--sl-accent)',
+  goldDim: 'color-mix(in srgb, var(--sl-accent) 10%, transparent)',
+  green: 'var(--sl-ok)',
+  greenDim: 'color-mix(in srgb, var(--sl-ok) 8%, transparent)',
+  red: 'var(--sl-danger)',
+  redDim: 'color-mix(in srgb, var(--sl-danger) 8%, transparent)',
 }
 
 const PRO_OPTIONS = ['SOCAN', 'ASCAP', 'BMI', 'SESAC', 'GMR', 'APRA', 'PRS', 'Other', 'None']
@@ -484,7 +484,7 @@ export default function SettingsPage() {
   return (
     <div style={{ minHeight: 'var(--sl-page-min-height, 100svh)', background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif' }}>
       <div style={{ padding: '32px 16px 8px', maxWidth: 520, margin: '0 auto' }}>
-        <p style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.3em', color: C.gold + '99', margin: '0 0 4px' }}>Account</p>
+        <p style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.3em', color: `color-mix(in srgb, ${C.gold} var(--sl-faint, 60%), transparent)`, margin: '0 0 4px' }}>Account</p>
         <h1 style={{ fontSize: 28, fontWeight: 800, color: C.text, margin: 0, letterSpacing: '-0.025em' }}>Settings</h1>
         {/* Anti-confusion identity line — not an authorization check (the
             server route is the actual authority), just a visible statement
@@ -506,8 +506,8 @@ export default function SettingsPage() {
       <div style={{ padding: '16px 16px 60px', maxWidth: 520, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
 
         {sessionGuard.invalid && (
-          <div style={{ background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.3)', borderRadius: 16, padding: '16px 18px', display: 'flex', alignItems: 'center', gap: 10 }}>
-            <AlertCircle size={16} color={C.red} style={{ flexShrink: 0 }} />
+          <div style={{ background: 'color-mix(in srgb, var(--sl-danger) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--sl-danger) 30%, transparent)', borderRadius: 16, padding: '16px 18px', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <AlertCircle size={16} style={{ color: C.red, flexShrink: 0 }} />
             <div style={{ flex: 1 }}>
               <p style={{ fontSize: 13, fontWeight: 700, color: C.red, margin: '0 0 2px' }}>
                 {sessionGuard.reason === 'signed_out' ? 'You have been signed out.' : 'Your account changed in another tab.'}
@@ -522,8 +522,8 @@ export default function SettingsPage() {
         )}
 
         {showProPrompt && (
-          <div style={{ background: 'rgba(201,168,76,0.07)', border: '1px solid rgba(201,168,76,0.2)', borderRadius: 16, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 10 }}>
-            <AlertCircle size={14} color={C.gold} style={{ flexShrink: 0 }} />
+          <div style={{ background: 'color-mix(in srgb, var(--sl-accent) 7%, transparent)', border: '1px solid color-mix(in srgb, var(--sl-accent) 20%, transparent)', borderRadius: 16, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <AlertCircle size={14} style={{ color: C.gold, flexShrink: 0 }} />
             <p style={{ fontSize: 13, color: C.secondary, margin: 0, flex: 1, lineHeight: 1.4 }}>Your PRO info is incomplete — submissions won't pre-fill correctly.</p>
             <button onClick={() => document.getElementById('pro-section')?.scrollIntoView({ behavior: 'smooth' })}
               style={{ background: 'none', border: 'none', color: C.gold, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0, padding: 0, transition: 'opacity 0.15s ease' }}
@@ -537,7 +537,7 @@ export default function SettingsPage() {
         {/* ── Profile ── */}
         <div style={{ background: CARD.background, border: `1px solid ${C.border}`, borderRadius: 16, padding: '20px', display: 'flex', flexDirection: 'column', gap: 16, boxShadow: CARD.boxShadow }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <User size={15} color={C.gold} />
+            <User size={15} style={{ color: C.gold }} />
             <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.secondary, margin: 0 }}>Profile</p>
           </div>
 
@@ -545,14 +545,14 @@ export default function SettingsPage() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
             <div style={{
               width: 64, height: 64, borderRadius: '50%', flexShrink: 0,
-              background: 'rgba(201,168,76,0.1)',
-              border: `2px solid ${avatarUrl ? 'rgba(201,168,76,0.4)' : 'rgba(255,255,255,0.07)'}`,
+              background: 'color-mix(in srgb, var(--sl-accent) 10%, transparent)',
+              border: `2px solid ${avatarUrl ? 'color-mix(in srgb, var(--sl-accent) 40%, transparent)' : 'color-mix(in srgb, var(--sl-text) 7%, transparent)'}`,
               overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>
               {avatarUrl ? (
                 <img src={avatarUrl} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               ) : (
-                <span style={{ fontSize: 22, fontWeight: 800, color: '#c9a84c' }}>
+                <span style={{ fontSize: 22, fontWeight: 800, color: 'var(--sl-accent)' }}>
                   {(fullName || email).split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2) || '?'}
                 </span>
               )}
@@ -567,9 +567,9 @@ export default function SettingsPage() {
               <label style={{
                 display: 'inline-flex', alignItems: 'center', gap: 6,
                 padding: '7px 14px', borderRadius: 8, cursor: 'pointer',
-                background: 'rgba(201,168,76,0.08)',
-                border: '1px solid rgba(201,168,76,0.25)',
-                fontSize: 12, fontWeight: 700, color: '#c9a84c',
+                background: 'color-mix(in srgb, var(--sl-accent) 8%, transparent)',
+                border: '1px solid color-mix(in srgb, var(--sl-accent) 25%, transparent)',
+                fontSize: 12, fontWeight: 700, color: 'var(--sl-accent)',
                 opacity: avatarUploading ? 0.6 : 1,
               }}>
                 {avatarUploading ? 'Uploading...' : avatarUrl ? 'Change photo' : 'Upload photo'}
@@ -582,7 +582,7 @@ export default function SettingsPage() {
                 />
               </label>
               {avatarError && (
-                <p style={{ fontSize: 11, color: '#f87171', margin: '8px 0 0', lineHeight: 1.4 }}>{avatarError}</p>
+                <p style={{ fontSize: 11, color: 'var(--sl-danger)', margin: '8px 0 0', lineHeight: 1.4 }}>{avatarError}</p>
               )}
             </div>
           </div>
@@ -605,12 +605,12 @@ export default function SettingsPage() {
             <p style={{ fontSize: 11, color: C.muted, margin: '6px 0 0' }}>Appears on your setlists and PRO exports</p>
           </div>
           {profileError && (
-            <div style={{ background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.2)', borderRadius: 10, padding: '11px 14px' }}>
-              <p style={{ fontSize: 13, color: '#f87171', margin: 0 }}>{profileError}</p>
+            <div style={{ background: 'color-mix(in srgb, var(--sl-danger) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--sl-danger) 20%, transparent)', borderRadius: 10, padding: '11px 14px' }}>
+              <p style={{ fontSize: 13, color: 'var(--sl-danger)', margin: 0 }}>{profileError}</p>
             </div>
           )}
           <button onClick={saveProfile} disabled={profileSaving || profileSaved || sessionGuard.invalid}
-            style={{ width: '100%', padding: '13px', background: profileSaved ? '#16a34a' : C.gold, border: 'none', borderRadius: 10, color: profileSaved ? '#fff' : '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontFamily: 'inherit', opacity: profileSaving ? 0.7 : 1, transition: 'opacity 0.15s ease' }}
+            style={{ width: '100%', padding: '13px', background: profileSaved ? 'var(--sl-ok-strong)' : C.gold, border: 'none', borderRadius: 10, color: profileSaved ? '#fff' : 'var(--sl-on-accent)', fontSize: 13, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontFamily: 'inherit', opacity: profileSaving ? 0.7 : 1, transition: 'opacity 0.15s ease' }}
             onMouseEnter={e => { if (!(e.currentTarget as HTMLButtonElement).disabled) (e.currentTarget as HTMLElement).style.opacity = '0.8' }}
             onMouseLeave={e => { if (!(e.currentTarget as HTMLButtonElement).disabled) (e.currentTarget as HTMLElement).style.opacity = '1' }}>
             {profileSaved ? <><Check size={14} strokeWidth={2.5} />Saved</> : profileSaving ? 'Saving...' : 'Save Profile'}
@@ -620,7 +620,7 @@ export default function SettingsPage() {
         {/* ── Team (moved to its own page — see app/app/team/page.tsx) ── */}
         <Link href="/app/team" id="team-access"
           style={{ background: CARD.background, border: `1px solid ${C.border}`, borderRadius: 16, padding: '18px 20px', display: 'flex', alignItems: 'center', gap: 12, boxShadow: CARD.boxShadow, textDecoration: 'none' }}>
-          <Users size={18} color={C.gold} />
+          <Users size={18} style={{ color: C.gold }} />
           <div style={{ flex: 1 }}>
             <p style={{ fontSize: 14, fontWeight: 700, color: C.text, margin: '0 0 2px' }}>Manage your team</p>
             <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>Who has access, pending requests, and invitations</p>
@@ -632,11 +632,11 @@ export default function SettingsPage() {
         <div style={{ background: CARD.background, border: `1px solid ${C.border}`, borderRadius: 16, padding: '20px', display: 'flex', flexDirection: 'column', gap: 16, boxShadow: CARD.boxShadow }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Radio size={15} color={C.gold} />
+              <Radio size={15} style={{ color: C.gold }} />
               <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.secondary, margin: 0 }}>Upcoming Shows</p>
             </div>
             {bandsintownName && bandsintownTestResult?.ok && bandsintownTestResult.count > 0 && (
-              <span style={{ fontSize: 10, fontWeight: 700, color: C.green, background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.2)', borderRadius: 20, padding: '3px 10px' }}>
+              <span style={{ fontSize: 10, fontWeight: 700, color: C.green, background: 'color-mix(in srgb, var(--sl-ok) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--sl-ok) 20%, transparent)', borderRadius: 20, padding: '3px 10px' }}>
                 Connected
               </span>
             )}
@@ -652,8 +652,8 @@ export default function SettingsPage() {
             <p style={{ fontSize: 11, color: C.muted, margin: '6px 0 0' }}>Must match exactly how your name appears on Bandsintown or Ticketmaster</p>
           </div>
           {bandsintownTestResult && (
-            <div style={{ padding: '11px 14px', borderRadius: 10, background: bandsintownTestResult.ok ? 'rgba(74,222,128,0.08)' : 'rgba(248,113,113,0.08)', border: `1px solid ${bandsintownTestResult.ok ? 'rgba(74,222,128,0.2)' : 'rgba(248,113,113,0.2)'}` }}>
-              <p style={{ fontSize: 13, color: bandsintownTestResult.ok ? C.green : '#f87171', margin: 0 }}>
+            <div style={{ padding: '11px 14px', borderRadius: 10, background: bandsintownTestResult.ok ? 'color-mix(in srgb, var(--sl-ok) 8%, transparent)' : 'color-mix(in srgb, var(--sl-danger) 8%, transparent)', border: `1px solid ${bandsintownTestResult.ok ? 'color-mix(in srgb, var(--sl-ok) 20%, transparent)' : 'color-mix(in srgb, var(--sl-danger) 20%, transparent)'}` }}>
+              <p style={{ fontSize: 13, color: bandsintownTestResult.ok ? C.green : 'var(--sl-danger)', margin: 0 }}>
                 {bandsintownTestResult.ok
                   ? bandsintownTestResult.count > 0
                     ? `✓ Found ${bandsintownTestResult.count} upcoming show${bandsintownTestResult.count !== 1 ? 's' : ''}`
@@ -663,8 +663,8 @@ export default function SettingsPage() {
             </div>
           )}
           {bandsintownError && (
-            <div style={{ background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.2)', borderRadius: 10, padding: '11px 14px' }}>
-              <p style={{ fontSize: 13, color: '#f87171', margin: 0 }}>{bandsintownError}</p>
+            <div style={{ background: 'color-mix(in srgb, var(--sl-danger) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--sl-danger) 20%, transparent)', borderRadius: 10, padding: '11px 14px' }}>
+              <p style={{ fontSize: 13, color: 'var(--sl-danger)', margin: 0 }}>{bandsintownError}</p>
             </div>
           )}
           <div style={{ display: 'flex', gap: 8 }}>
@@ -675,7 +675,7 @@ export default function SettingsPage() {
               {bandsintownTesting ? 'Testing...' : 'Test Connection'}
             </button>
             <button onClick={saveBandsintown} disabled={bandsintownSaving || bandsintownSaved || sessionGuard.invalid}
-              style={{ flex: 1, padding: '12px', background: bandsintownSaved ? '#16a34a' : C.gold, border: 'none', borderRadius: 10, color: bandsintownSaved ? '#fff' : '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontFamily: 'inherit', opacity: bandsintownSaving ? 0.7 : 1, transition: 'opacity 0.15s ease' }}
+              style={{ flex: 1, padding: '12px', background: bandsintownSaved ? 'var(--sl-ok-strong)' : C.gold, border: 'none', borderRadius: 10, color: bandsintownSaved ? '#fff' : 'var(--sl-on-accent)', fontSize: 13, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontFamily: 'inherit', opacity: bandsintownSaving ? 0.7 : 1, transition: 'opacity 0.15s ease' }}
               onMouseEnter={e => { if (!(e.currentTarget as HTMLButtonElement).disabled) (e.currentTarget as HTMLElement).style.opacity = '0.8' }}
               onMouseLeave={e => { if (!(e.currentTarget as HTMLButtonElement).disabled) (e.currentTarget as HTMLElement).style.opacity = '1' }}>
               {bandsintownSaved ? <><Check size={14} strokeWidth={2.5} />Saved</> : bandsintownSaving ? 'Saving...' : 'Save'}
@@ -686,7 +686,7 @@ export default function SettingsPage() {
         {/* ── Career History ── */}
         <div style={{ background: CARD.background, border: `1px solid ${C.border}`, borderRadius: 16, padding: '20px', display: 'flex', flexDirection: 'column', gap: 16, boxShadow: CARD.boxShadow }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Clock size={15} color={C.gold} />
+            <Clock size={15} style={{ color: C.gold }} />
             <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.secondary, margin: 0 }}>Career History</p>
           </div>
           <p style={{ fontSize: 12, color: C.muted, margin: 0, lineHeight: 1.6 }}>
@@ -710,12 +710,12 @@ export default function SettingsPage() {
             </p>
           </div>
           {careerStartYearError && (
-            <div style={{ background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.2)', borderRadius: 10, padding: '11px 14px' }}>
-              <p style={{ fontSize: 13, color: '#f87171', margin: 0 }}>{careerStartYearError}</p>
+            <div style={{ background: 'color-mix(in srgb, var(--sl-danger) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--sl-danger) 20%, transparent)', borderRadius: 10, padding: '11px 14px' }}>
+              <p style={{ fontSize: 13, color: 'var(--sl-danger)', margin: 0 }}>{careerStartYearError}</p>
             </div>
           )}
           <button onClick={saveCareerStartYear} disabled={careerStartYearSaving || careerStartYearSaved || !careerStartYear || sessionGuard.invalid}
-            style={{ width: '100%', padding: '13px', background: careerStartYearSaved ? '#16a34a' : C.gold, border: 'none', borderRadius: 10, color: careerStartYearSaved ? '#fff' : '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontFamily: 'inherit', opacity: careerStartYearSaving || !careerStartYear ? 0.7 : 1, transition: 'opacity 0.15s ease' }}
+            style={{ width: '100%', padding: '13px', background: careerStartYearSaved ? 'var(--sl-ok-strong)' : C.gold, border: 'none', borderRadius: 10, color: careerStartYearSaved ? '#fff' : 'var(--sl-on-accent)', fontSize: 13, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontFamily: 'inherit', opacity: careerStartYearSaving || !careerStartYear ? 0.7 : 1, transition: 'opacity 0.15s ease' }}
             onMouseEnter={e => { if (!(e.currentTarget as HTMLButtonElement).disabled) (e.currentTarget as HTMLElement).style.opacity = '0.8' }}
             onMouseLeave={e => { if (!(e.currentTarget as HTMLButtonElement).disabled) (e.currentTarget as HTMLElement).style.opacity = '1' }}>
             {careerStartYearSaved ? <><Check size={14} strokeWidth={2.5} />Saved</> : careerStartYearSaving ? 'Saving...' : 'Update Career Start'}
@@ -726,7 +726,7 @@ export default function SettingsPage() {
         <div id="pro-section" style={{ background: CARD.background, border: `1px solid ${C.border}`, borderRadius: 16, padding: '20px', display: 'flex', flexDirection: 'column', gap: 16, boxShadow: CARD.boxShadow }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Music2 size={15} color={C.gold} />
+              <Music2 size={15} style={{ color: C.gold }} />
               <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.secondary, margin: 0 }}>PRO Information</p>
             </div>
             {proAffiliation && (
@@ -771,12 +771,12 @@ export default function SettingsPage() {
               onBlur={e => (e.target as HTMLInputElement).style.borderColor = C.inputBorder} />
           </div>
           {proError && (
-            <div style={{ background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.2)', borderRadius: 10, padding: '11px 14px' }}>
-              <p style={{ fontSize: 13, color: '#f87171', margin: 0 }}>{proError}</p>
+            <div style={{ background: 'color-mix(in srgb, var(--sl-danger) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--sl-danger) 20%, transparent)', borderRadius: 10, padding: '11px 14px' }}>
+              <p style={{ fontSize: 13, color: 'var(--sl-danger)', margin: 0 }}>{proError}</p>
             </div>
           )}
           <button onClick={savePRO} disabled={proSaving || proSaved || sessionGuard.invalid}
-            style={{ width: '100%', padding: '13px', background: proSaved ? '#16a34a' : C.gold, border: 'none', borderRadius: 10, color: proSaved ? '#fff' : '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontFamily: 'inherit', opacity: proSaving ? 0.7 : 1, transition: 'opacity 0.15s ease' }}
+            style={{ width: '100%', padding: '13px', background: proSaved ? 'var(--sl-ok-strong)' : C.gold, border: 'none', borderRadius: 10, color: proSaved ? '#fff' : 'var(--sl-on-accent)', fontSize: 13, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontFamily: 'inherit', opacity: proSaving ? 0.7 : 1, transition: 'opacity 0.15s ease' }}
             onMouseEnter={e => { if (!(e.currentTarget as HTMLButtonElement).disabled) (e.currentTarget as HTMLElement).style.opacity = '0.8' }}
             onMouseLeave={e => { if (!(e.currentTarget as HTMLButtonElement).disabled) (e.currentTarget as HTMLElement).style.opacity = '1' }}>
             {proSaved ? <><Check size={14} strokeWidth={2.5} />Saved</> : proSaving ? 'Saving...' : 'Save PRO Info'}
@@ -793,7 +793,7 @@ export default function SettingsPage() {
               <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.secondary, margin: 0 }}>Song Catalog</p>
             </div>
             {existingImportCount > 0 && (
-              <span style={{ fontSize: 10, fontWeight: 700, color: C.green, background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.2)', borderRadius: 20, padding: '3px 10px' }}>
+              <span style={{ fontSize: 10, fontWeight: 700, color: C.green, background: 'color-mix(in srgb, var(--sl-ok) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--sl-ok) 20%, transparent)', borderRadius: 20, padding: '3px 10px' }}>
                 {existingImportCount} imported
               </span>
             )}
@@ -803,9 +803,9 @@ export default function SettingsPage() {
             {existingImportCount > 0 ? ' Real show data always ranks above imported songs.' : ''}
           </p>
           {importDone ? (
-            <div style={{ background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.2)', borderRadius: 12, padding: '16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ background: 'color-mix(in srgb, var(--sl-ok) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--sl-ok) 20%, transparent)', borderRadius: 12, padding: '16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Check size={16} color={C.green} strokeWidth={2.5} />
+                <Check size={16} strokeWidth={2.5} style={{ color: C.green }} />
                 <p style={{ fontSize: 14, fontWeight: 700, color: C.green, margin: 0 }}>{importCount} songs imported</p>
               </div>
               <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>From {selectedArtist?.name}. These will appear in your quick-add list.</p>
@@ -821,29 +821,29 @@ export default function SettingsPage() {
                   onFocus={e => (e.target as HTMLInputElement).style.borderColor = C.borderGold}
                   onBlur={e => (e.target as HTMLInputElement).style.borderColor = C.inputBorder} />
                 <button onClick={searchSpotify} disabled={spotifySearching || !spotifyQuery.trim()}
-                  style={{ padding: '11px 16px', background: C.gold, border: 'none', borderRadius: 10, color: '#0a0908', cursor: spotifySearching ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'inherit', fontWeight: 700, fontSize: 13, flexShrink: 0, opacity: spotifySearching ? 0.7 : 1 }}>
+                  style={{ padding: '11px 16px', background: C.gold, border: 'none', borderRadius: 10, color: 'var(--sl-on-accent)', cursor: spotifySearching ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'inherit', fontWeight: 700, fontSize: 13, flexShrink: 0, opacity: spotifySearching ? 0.7 : 1 }}>
                   <Search size={14} />{spotifySearching ? '...' : 'Search'}
                 </button>
               </div>
-              {spotifyError && <p style={{ fontSize: 12, color: '#f87171', margin: 0 }}>{spotifyError}</p>}
+              {spotifyError && <p style={{ fontSize: 12, color: 'var(--sl-danger)', margin: 0 }}>{spotifyError}</p>}
               {spotifyResults.length > 0 && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, margin: 0 }}>Select your profile</p>
                   {spotifyResults.map(artist => (
                     <button key={artist.id} onClick={() => importFromSpotify(artist)} disabled={importing}
-                      style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', background: selectedArtist?.id === artist.id ? C.goldDim : 'rgba(255,255,255,0.02)', border: `1px solid ${selectedArtist?.id === artist.id ? C.borderGold : C.border}`, borderRadius: 12, cursor: importing ? 'wait' : 'pointer', textAlign: 'left', fontFamily: 'inherit', width: '100%', transition: 'all 0.15s ease' }}
+                      style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', background: selectedArtist?.id === artist.id ? C.goldDim : 'color-mix(in srgb, var(--sl-text) 2%, transparent)', border: `1px solid ${selectedArtist?.id === artist.id ? C.borderGold : C.border}`, borderRadius: 12, cursor: importing ? 'wait' : 'pointer', textAlign: 'left', fontFamily: 'inherit', width: '100%', transition: 'all 0.15s ease' }}
                       onMouseEnter={e => { if (!(e.currentTarget as HTMLButtonElement).disabled) (e.currentTarget as HTMLElement).style.opacity = '0.8' }}
                       onMouseLeave={e => { if (!(e.currentTarget as HTMLButtonElement).disabled) (e.currentTarget as HTMLElement).style.opacity = '1' }}>
                       {artist.image
                         ? <img src={artist.image} alt={artist.name} style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
-                        : <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Music2 size={18} color={C.muted} /></div>}
+                        : <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'color-mix(in srgb, var(--sl-text) 5%, transparent)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Music2 size={18} style={{ color: C.muted }} /></div>}
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <p style={{ fontSize: 14, fontWeight: 700, color: C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{artist.name}</p>
                         <p style={{ fontSize: 11, color: C.muted, margin: '2px 0 0' }}>{artist.followers.toLocaleString()} followers{artist.genres.length > 0 && ` · ${artist.genres.slice(0, 2).join(', ')}`}</p>
                       </div>
                       {importing && selectedArtist?.id === artist.id
-                        ? <div style={{ width: 16, height: 16, borderRadius: '50%', border: `1.5px solid ${C.gold}40`, borderTopColor: C.gold, animation: 'spin 0.8s linear infinite', flexShrink: 0 }} />
-                        : <Download size={14} color={C.muted} style={{ flexShrink: 0 }} />}
+                        ? <div style={{ width: 16, height: 16, borderRadius: '50%', border: `1.5px solid color-mix(in srgb, ${C.gold} 25%, transparent)`, borderTopColor: C.gold, animation: 'spin 0.8s linear infinite', flexShrink: 0 }} />
+                        : <Download size={14} style={{ color: C.muted, flexShrink: 0 }} />}
                     </button>
                   ))}
                 </div>
@@ -855,7 +855,7 @@ export default function SettingsPage() {
         {/* ── Password ── */}
         <div style={{ background: CARD.background, border: `1px solid ${C.border}`, borderRadius: 16, padding: '20px', display: 'flex', flexDirection: 'column', gap: 16, boxShadow: CARD.boxShadow }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <KeyRound size={15} color={C.gold} />
+            <KeyRound size={15} style={{ color: C.gold }} />
             <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.secondary, margin: 0 }}>Change Password</p>
           </div>
           <div>
@@ -871,12 +871,12 @@ export default function SettingsPage() {
               onBlur={e => (e.target as HTMLInputElement).style.borderColor = C.inputBorder} />
           </div>
           {passwordError && (
-            <div style={{ background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.2)', borderRadius: 10, padding: '11px 14px' }}>
-              <p style={{ fontSize: 13, color: '#f87171', margin: 0 }}>{passwordError}</p>
+            <div style={{ background: 'color-mix(in srgb, var(--sl-danger) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--sl-danger) 20%, transparent)', borderRadius: 10, padding: '11px 14px' }}>
+              <p style={{ fontSize: 13, color: 'var(--sl-danger)', margin: 0 }}>{passwordError}</p>
             </div>
           )}
           <button onClick={savePassword} disabled={passwordSaving || passwordSaved}
-            style={{ width: '100%', padding: '13px', background: passwordSaved ? '#16a34a' : C.gold, border: 'none', borderRadius: 10, color: passwordSaved ? '#fff' : '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontFamily: 'inherit', opacity: passwordSaving ? 0.7 : 1 }}>
+            style={{ width: '100%', padding: '13px', background: passwordSaved ? 'var(--sl-ok-strong)' : C.gold, border: 'none', borderRadius: 10, color: passwordSaved ? '#fff' : 'var(--sl-on-accent)', fontSize: 13, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontFamily: 'inherit', opacity: passwordSaving ? 0.7 : 1 }}>
             {passwordSaved ? <><Check size={14} strokeWidth={2.5} />Updated</> : passwordSaving ? 'Updating...' : 'Update Password'}
           </button>
         </div>
@@ -884,35 +884,35 @@ export default function SettingsPage() {
         {/* ── Account ── */}
         <div style={{ background: CARD.background, border: `1px solid ${C.border}`, borderRadius: 16, padding: '20px', display: 'flex', flexDirection: 'column', gap: 10, boxShadow: CARD.boxShadow }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
-            <User size={15} color={C.gold} />
+            <User size={15} style={{ color: C.gold }} />
             <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.secondary, margin: 0 }}>Account</p>
           </div>
           <p style={{ fontSize: 13, color: C.muted, margin: 0 }}>{email}</p>
 
           {isAdmin && (
             <Link href="/app/admin"
-              style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', background: 'rgba(201,168,76,0.07)', border: '1px solid rgba(201,168,76,0.2)', borderRadius: 10, color: C.gold, textDecoration: 'none', fontSize: 14, fontWeight: 600, transition: 'opacity 0.15s ease' }}
+              style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', background: 'color-mix(in srgb, var(--sl-accent) 7%, transparent)', border: '1px solid color-mix(in srgb, var(--sl-accent) 20%, transparent)', borderRadius: 10, color: C.gold, textDecoration: 'none', fontSize: 14, fontWeight: 600, transition: 'opacity 0.15s ease' }}
               onMouseEnter={(e: any) => (e.currentTarget as HTMLElement).style.opacity = '0.7'}
               onMouseLeave={(e: any) => (e.currentTarget as HTMLElement).style.opacity = '1'}>
-              <Shield size={15} color={C.gold} />
+              <Shield size={15} style={{ color: C.gold }} />
               Admin Dashboard →
-              <span style={{ marginLeft: 'auto', fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: C.gold, background: 'rgba(201,168,76,0.12)', padding: '2px 7px', borderRadius: 4 }}>Internal</span>
+              <span style={{ marginLeft: 'auto', fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: C.gold, background: 'color-mix(in srgb, var(--sl-accent) 12%, transparent)', padding: '2px 7px', borderRadius: 4 }}>Internal</span>
             </Link>
           )}
 
           <button onClick={signOut}
-            style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', background: 'rgba(248,113,113,0.06)', border: '1px solid rgba(248,113,113,0.15)', borderRadius: 10, color: C.red, cursor: 'pointer', fontFamily: 'inherit', width: '100%', textAlign: 'left', fontSize: 14, fontWeight: 600, transition: 'opacity 0.15s ease' }}
+            style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', background: 'color-mix(in srgb, var(--sl-danger) 6%, transparent)', border: '1px solid color-mix(in srgb, var(--sl-danger) 15%, transparent)', borderRadius: 10, color: C.red, cursor: 'pointer', fontFamily: 'inherit', width: '100%', textAlign: 'left', fontSize: 14, fontWeight: 600, transition: 'opacity 0.15s ease' }}
             onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.7'}
             onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}>
-            <LogOut size={15} color={C.red} />
+            <LogOut size={15} style={{ color: C.red }} />
             Sign out
           </button>
         </div>
 
         {/* ── Danger Zone ── */}
-        <div style={{ background: CARD.background, border: '1px solid rgba(248,113,113,0.2)', borderRadius: 16, padding: '20px', display: 'flex', flexDirection: 'column', gap: 14, boxShadow: CARD.boxShadow }}>
+        <div style={{ background: CARD.background, border: '1px solid color-mix(in srgb, var(--sl-danger) 20%, transparent)', borderRadius: 16, padding: '20px', display: 'flex', flexDirection: 'column', gap: 14, boxShadow: CARD.boxShadow }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Trash2 size={15} color={C.red} />
+            <Trash2 size={15} style={{ color: C.red }} />
             <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.red, margin: 0 }}>Delete Account</p>
           </div>
           <p style={{ fontSize: 12, color: C.muted, margin: 0, lineHeight: 1.6 }}>
@@ -924,21 +924,21 @@ export default function SettingsPage() {
               value={deleteConfirmText}
               onChange={e => { setDeleteConfirmText(e.target.value); setDeleteError('') }}
               placeholder="DELETE"
-              style={{ ...inputStyle, fontFamily: '"DM Mono", monospace', letterSpacing: '0.05em', borderColor: 'rgba(248,113,113,0.2)' }}
-              onFocus={e => (e.target as HTMLInputElement).style.borderColor = 'rgba(248,113,113,0.5)'}
-              onBlur={e => (e.target as HTMLInputElement).style.borderColor = 'rgba(248,113,113,0.2)'}
+              style={{ ...inputStyle, fontFamily: '"DM Mono", monospace', letterSpacing: '0.05em', borderColor: 'color-mix(in srgb, var(--sl-danger) 20%, transparent)' }}
+              onFocus={e => (e.target as HTMLInputElement).style.borderColor = 'color-mix(in srgb, var(--sl-danger) 50%, transparent)'}
+              onBlur={e => (e.target as HTMLInputElement).style.borderColor = 'color-mix(in srgb, var(--sl-danger) 20%, transparent)'}
             />
           </div>
           {deleteError && (
-            <div style={{ background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.2)', borderRadius: 10, padding: '11px 14px' }}>
-              <p style={{ fontSize: 13, color: '#f87171', margin: 0 }}>{deleteError}</p>
+            <div style={{ background: 'color-mix(in srgb, var(--sl-danger) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--sl-danger) 20%, transparent)', borderRadius: 10, padding: '11px 14px' }}>
+              <p style={{ fontSize: 13, color: 'var(--sl-danger)', margin: 0 }}>{deleteError}</p>
             </div>
           )}
           <button onClick={handleDeleteAccount} disabled={deleteConfirmText !== 'DELETE' || deleting}
             style={{
               width: '100%', padding: '13px',
-              background: deleteConfirmText === 'DELETE' ? 'rgba(248,113,113,0.15)' : 'rgba(255,255,255,0.03)',
-              border: `1px solid ${deleteConfirmText === 'DELETE' ? 'rgba(248,113,113,0.4)' : C.border}`,
+              background: deleteConfirmText === 'DELETE' ? 'color-mix(in srgb, var(--sl-danger) 15%, transparent)' : 'color-mix(in srgb, var(--sl-text) 3%, transparent)',
+              border: `1px solid ${deleteConfirmText === 'DELETE' ? 'color-mix(in srgb, var(--sl-danger) 40%, transparent)' : C.border}`,
               borderRadius: 10,
               color: deleteConfirmText === 'DELETE' ? C.red : C.muted,
               fontSize: 13, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase',
@@ -958,7 +958,7 @@ export default function SettingsPage() {
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500;700&display=swap');
         @keyframes spin { to { transform: rotate(360deg); } }
         * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
-        input::placeholder { color: #6a6050; }
+        input::placeholder { color: var(--sl-text-3); }
       `}</style>
     </div>
   )

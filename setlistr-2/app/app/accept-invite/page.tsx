@@ -12,12 +12,12 @@ import { roleInfoFor } from '@/lib/teamRoleInfo'
 // two can never drift into describing the same role differently.
 
 const C = {
-  bg: '#0a0908', card: '#141210',
-  border: 'rgba(255,255,255,0.07)', borderGold: 'rgba(201,168,76,0.3)',
-  text: '#f0ece3', secondary: '#b8a888', muted: '#8a7a68',
-  gold: '#c9a84c', goldDim: 'rgba(201,168,76,0.1)',
-  green: '#4ade80', greenDim: 'rgba(74,222,128,0.08)',
-  red: '#f87171', redDim: 'rgba(248,113,113,0.08)',
+  bg: 'var(--sl-bg)', card: 'var(--sl-surface)',
+  border: 'color-mix(in srgb, var(--sl-text) 7%, transparent)', borderGold: 'color-mix(in srgb, var(--sl-accent) 30%, transparent)',
+  text: 'var(--sl-text)', secondary: 'var(--sl-text-2)', muted: 'var(--sl-text-3)',
+  gold: 'var(--sl-accent)', goldDim: 'color-mix(in srgb, var(--sl-accent) 10%, transparent)',
+  green: 'var(--sl-ok)', greenDim: 'color-mix(in srgb, var(--sl-ok) 8%, transparent)',
+  red: 'var(--sl-danger)', redDim: 'color-mix(in srgb, var(--sl-danger) 8%, transparent)',
 }
 
 type InviteData = {
@@ -130,7 +130,7 @@ export default function AcceptInvitePage() {
         <h2 style={{ fontSize: 20, fontWeight: 800, color: C.text, margin: '0 0 8px' }}>Invalid Invite</h2>
         <p style={{ fontSize: 14, color: C.muted, margin: '0 0 24px' }}>{error}</p>
         <button onClick={() => router.push('/app/dashboard')}
-          style={{ padding: '13px 24px', background: C.gold, border: 'none', borderRadius: 10, color: '#0a0908', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
+          style={{ padding: '13px 24px', background: C.gold, border: 'none', borderRadius: 10, color: 'var(--sl-on-accent)', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
           Go to Dashboard
         </button>
       </div>
@@ -141,10 +141,10 @@ export default function AcceptInvitePage() {
   // ── Already accepted ──────────────────────────────────────────────────────
   if (accepted) return (
     <div style={{ minHeight: 'var(--sl-page-min-height, 100svh)', background: C.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', fontFamily: '"DM Sans", system-ui, sans-serif' }}>
-      <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '60vh', pointerEvents: 'none', background: 'radial-gradient(ellipse at 50% 0%, rgba(74,222,128,0.06) 0%, transparent 65%)' }} />
+      <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '60vh', pointerEvents: 'none', background: 'radial-gradient(ellipse at 50% 0%, color-mix(in srgb, var(--sl-ok) 6%, transparent) 0%, transparent 65%)' }} />
       <div style={{ maxWidth: 400, width: '100%', textAlign: 'center', position: 'relative', zIndex: 1, animation: 'fadeUp 0.5s ease' }}>
-        <div style={{ width: 64, height: 64, borderRadius: '50%', background: C.greenDim, border: '1px solid rgba(74,222,128,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
-          <Check size={28} color={C.green} strokeWidth={2.5} />
+        <div style={{ width: 64, height: 64, borderRadius: '50%', background: C.greenDim, border: '1px solid color-mix(in srgb, var(--sl-ok) 30%, transparent)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
+          <Check size={28} strokeWidth={2.5} style={{ color: C.green }} />
         </div>
         <h1 style={{ fontSize: 26, fontWeight: 800, color: C.text, margin: '0 0 8px', letterSpacing: '-0.025em' }}>
           You're in
@@ -164,7 +164,7 @@ export default function AcceptInvitePage() {
             const items = roleInfoFor(invite?.role).capabilities
             return items.map((item, i) => (
               <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: i < items.length - 1 ? 8 : 0 }}>
-                <Check size={13} color={C.green} strokeWidth={2.5} style={{ flexShrink: 0, marginTop: 2 }} />
+                <Check size={13} strokeWidth={2.5} style={{ color: C.green, flexShrink: 0, marginTop: 2 }} />
                 <span style={{ fontSize: 13, color: C.secondary }}>{item}</span>
               </div>
             ))
@@ -172,7 +172,7 @@ export default function AcceptInvitePage() {
         </div>
 
         <button onClick={() => router.push('/app/dashboard')}
-          style={{ width: '100%', padding: '15px', background: C.gold, border: 'none', borderRadius: 12, color: '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' as const, cursor: 'pointer', fontFamily: 'inherit' }}>
+          style={{ width: '100%', padding: '15px', background: C.gold, border: 'none', borderRadius: 12, color: 'var(--sl-on-accent)', fontSize: 13, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' as const, cursor: 'pointer', fontFamily: 'inherit' }}>
           Go to Dashboard
         </button>
       </div>
@@ -184,7 +184,7 @@ export default function AcceptInvitePage() {
   if (wrongAccount) return (
     <div style={{ minHeight: 'var(--sl-page-min-height, 100svh)', background: C.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', fontFamily: '"DM Sans", system-ui, sans-serif' }}>
       <div style={{ maxWidth: 400, width: '100%', textAlign: 'center' }}>
-        <Users size={32} color={C.gold} style={{ marginBottom: 12 }} />
+        <Users size={32} style={{ color: C.gold, marginBottom: 12 }} />
         <h2 style={{ fontSize: 20, fontWeight: 800, color: C.text, margin: '0 0 8px' }}>Wrong account</h2>
         <p style={{ fontSize: 14, color: C.muted, margin: '0 0 6px', lineHeight: 1.5 }}>
           This invite was sent to a different account. Log in with the correct account to accept.
@@ -193,7 +193,7 @@ export default function AcceptInvitePage() {
           Invited artist: <span style={{ color: C.gold }}>{invite?.artist_name}</span>
         </p>
         <button onClick={() => router.push(`/auth/login?next=/app/accept-invite?token=${token}`)}
-          style={{ width: '100%', padding: '13px', background: C.gold, border: 'none', borderRadius: 10, color: '#0a0908', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', marginBottom: 10 }}>
+          style={{ width: '100%', padding: '13px', background: C.gold, border: 'none', borderRadius: 10, color: 'var(--sl-on-accent)', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', marginBottom: 10 }}>
           Switch Account
         </button>
         <button onClick={() => router.push('/app/dashboard')}
@@ -208,13 +208,13 @@ export default function AcceptInvitePage() {
   // ── Main accept screen ────────────────────────────────────────────────────
   return (
     <div style={{ minHeight: 'var(--sl-page-min-height, 100svh)', background: C.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', fontFamily: '"DM Sans", system-ui, sans-serif' }}>
-      <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '60vh', pointerEvents: 'none', background: 'radial-gradient(ellipse at 50% 0%, rgba(201,168,76,0.06) 0%, transparent 65%)' }} />
+      <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '60vh', pointerEvents: 'none', background: 'var(--sl-page-glow)' }} />
 
       <div style={{ maxWidth: 400, width: '100%', position: 'relative', zIndex: 1, animation: 'fadeUp 0.4s ease' }}>
 
         {/* Icon */}
         <div style={{ width: 56, height: 56, borderRadius: '50%', background: C.goldDim, border: `1px solid ${C.borderGold}`, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
-          <Users size={24} color={C.gold} strokeWidth={2} />
+          <Users size={24} strokeWidth={2} style={{ color: C.gold }} />
         </div>
 
         {/* Heading — role shown explicitly here, not just implied by the
@@ -242,7 +242,7 @@ export default function AcceptInvitePage() {
           </p>
           {roleInfoFor(invite?.role).capabilities.map((item, i, arr) => (
             <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: i < arr.length - 1 ? 8 : 0 }}>
-              <Check size={13} color={C.green} strokeWidth={2.5} style={{ flexShrink: 0, marginTop: 2 }} />
+              <Check size={13} strokeWidth={2.5} style={{ color: C.green, flexShrink: 0, marginTop: 2 }} />
               <span style={{ fontSize: 13, color: C.secondary, lineHeight: 1.4 }}>{item}</span>
             </div>
           ))}
@@ -251,7 +251,7 @@ export default function AcceptInvitePage() {
         {/* Revocation note — only claims what's actually true: access can
             be removed. No "every action is logged" claim; no audit-log
             feature exists to back it. */}
-        <div style={{ padding: '12px 16px', background: 'rgba(255,255,255,0.02)', border: `1px solid ${C.border}`, borderRadius: 10, marginBottom: 20 }}>
+        <div style={{ padding: '12px 16px', background: 'color-mix(in srgb, var(--sl-text) 2%, transparent)', border: `1px solid ${C.border}`, borderRadius: 10, marginBottom: 20 }}>
           <p style={{ fontSize: 11, color: C.muted, margin: 0, lineHeight: 1.5 }}>
             {invite?.artist_name} can remove your access at any time from Team.
           </p>
@@ -259,7 +259,7 @@ export default function AcceptInvitePage() {
 
         {/* Accept CTA */}
         <button onClick={acceptInvite} disabled={accepting}
-          style={{ width: '100%', padding: '15px', background: C.gold, border: 'none', borderRadius: 12, color: '#0a0908', fontSize: 14, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' as const, cursor: accepting ? 'default' : 'pointer', fontFamily: 'inherit', opacity: accepting ? 0.7 : 1, marginBottom: 10 }}>
+          style={{ width: '100%', padding: '15px', background: C.gold, border: 'none', borderRadius: 12, color: 'var(--sl-on-accent)', fontSize: 14, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' as const, cursor: accepting ? 'default' : 'pointer', fontFamily: 'inherit', opacity: accepting ? 0.7 : 1, marginBottom: 10 }}>
           {accepting ? 'Accepting...' : invite?.role === 'viewer' ? `Accept — View ${invite?.artist_name}` : `Accept — Manage ${invite?.artist_name}`}
         </button>
 
@@ -269,7 +269,7 @@ export default function AcceptInvitePage() {
         </button>
 
         {error && (
-          <div style={{ marginTop: 12, padding: '11px 14px', background: C.redDim, border: '1px solid rgba(248,113,113,0.2)', borderRadius: 10 }}>
+          <div style={{ marginTop: 12, padding: '11px 14px', background: C.redDim, border: '1px solid color-mix(in srgb, var(--sl-danger) 20%, transparent)', borderRadius: 10 }}>
             <p style={{ fontSize: 13, color: C.red, margin: 0 }}>{error}</p>
           </div>
         )}

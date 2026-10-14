@@ -348,6 +348,7 @@ export function AppShell({ children, profile }: { children: React.ReactNode; pro
               href="/app/show/new"
               aria-label="Capture a show"
               onClick={tapRecord}
+              className="sl-disc-breathe"
               style={{
                 position: 'absolute',
                 left: '50%',
@@ -376,6 +377,13 @@ export function AppShell({ children, profile }: { children: React.ReactNode; pro
         @keyframes fadeIn       { from{opacity:0} to{opacity:1} }
         @keyframes slideUp      { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
         * { -webkit-tap-highlight-color: transparent; }
+        /* The phone disc breathes: only its surrounding glow (box-shadow)
+           eases between two levels over 3s — the pre-redesign gold-breathe.
+           The disc itself never moves, scales or changes colour. With
+           reduced motion it holds a steady glow (the inline --sl-disc-shadow). */
+        @keyframes sl-disc-breathe { 0%, 100% { box-shadow: var(--sl-disc-glow-rest); } 50% { box-shadow: var(--sl-disc-glow-peak); } }
+        .sl-disc-breathe { animation: sl-disc-breathe 3s ease-in-out infinite; }
+        @media (prefers-reduced-motion: reduce) { .sl-disc-breathe { animation: none; } }
         .sl-hoverable:hover { background: var(--sl-hover) !important; }
         .sl-shell a:focus-visible, .sl-shell button:focus-visible { outline: 2px solid var(--sl-gold); outline-offset: 2px; }
         @media (min-width: ${DESKTOP_MIN_WIDTH}px) {

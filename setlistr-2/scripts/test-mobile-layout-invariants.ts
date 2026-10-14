@@ -55,7 +55,7 @@ function read(rel: string): string {
 {
   const src = read('app/app/history/page.tsx')
   check('Your Record: status-tab row has trailing padding past the last chip', /overflowX:\s*'auto' as const,\s*paddingRight:\s*16/.test(src))
-  check('Your Record: delete control is visually quiet at rest (no border/background until armed)', src.includes("border: isPendingDel ? '1px solid rgba(220,38,38,0.35)' : 'none'"))
+  check('Your Record: delete control is visually quiet at rest (no border/background until armed)', src.includes("border: isPendingDel ? '1px solid color-mix(in srgb, var(--sl-danger) 35%, transparent)' : 'none'"))
 }
 
 // ── Submissions switcher: wired into both pages, dashboard duplicate gone ─
@@ -102,6 +102,12 @@ function read(rel: string): string {
   check('Schedule: write controls follow the role (no hardcoded canManage={true})', read('app/app/schedule/page.tsx').includes('canManage={canWrite}'))
   const sched = read('components/scheduling/UpcomingShows.tsx')
   check('Coming up: next show picked by venue-local date (past still-scheduled shows skipped)', sched.includes('pickNextScheduled<ScheduledShow>(') && !sched.includes('(data.shows || [])[0]'))
+  check('Disc: breathing glow restored on the phone disc only, animating box-shadow alone, off under reduced motion', shell2.includes('className="sl-disc-breathe"') && /@keyframes sl-disc-breathe \{[^}]*box-shadow[^}]*\}[^}]*box-shadow[^}]*\} \}/.test(shell2) && !/@keyframes sl-disc-breathe[^\n]*(transform|scale|opacity)/.test(shell2) && shell2.includes('@media (prefers-reduced-motion: reduce) { .sl-disc-breathe { animation: none; } }'))
+  for (const rel of ['app/app/file/page.tsx', 'app/app/history/page.tsx', 'app/app/stats/page.tsx', 'components/MySongsTab.tsx', 'app/app/venue/[id]/page.tsx', 'app/app/proof/page.tsx', 'app/app/settings/page.tsx', 'app/app/team/page.tsx', 'app/app/accept-invite/page.tsx', 'app/app/schedule/page.tsx', 'components/scheduling/UpcomingShows.tsx', 'components/SubmissionsSwitcher.tsx', 'components/SubmissionEntryRow.tsx', 'components/WorkspaceGate.tsx', 'components/SetlistrLoader.tsx']) {
+    // Lines marked "map imagery" keep fixed colours on purpose (text over a dark map image).
+    const src = read(rel).split('\n').filter(l => !l.includes('map imagery')).join('\n')
+    check(`${rel}: palette is theme tokens (no legacy hex palette colours left)`, !/#(0a0908|141210|171512|f0ece3|b8a888|8a7a68|c9a84c|5a5040|5a5448)\b/i.test(src))
+  }
   check('Dashboard: wide layouts follow the content width (container queries), phones keep fallbacks', dashboard.includes('container-type: inline-size') && dashboard.includes('@container sl-dash (min-width: 900px)'))
 }
 
@@ -148,7 +154,7 @@ function read(rel: string): string {
     check(`${label}: desktop reading width widened for a more intentional feel (700px, not the cramped 640px)`, src.includes('max-width: 700px'))
   }
 
-  check('Your Record: muted/secondary tokens match Filing Queue\'s (contrast + cross-page consistency)', historyPage.includes("secondary: '#b8a888', muted: '#8a7a68'"))
+  check('Your Record: muted/secondary tokens match Filing Queue\'s (contrast + cross-page consistency)', historyPage.includes("secondary: 'var(--sl-text-2)', muted: 'var(--sl-text-3)'") && read('app/app/file/page.tsx').includes("secondary: 'var(--sl-text-2)', muted: 'var(--sl-text-3)'"))
 
   check('Filing Queue: the redundant "setlist not yet reviewed" blocker line is suppressed (status label + action already say it)', filePage.includes("topReason !== 'setlist not yet reviewed'"))
 

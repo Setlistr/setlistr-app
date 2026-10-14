@@ -39,13 +39,32 @@
   --sl-nav-bg: rgba(10,9,8,0.95);
   --sl-band-bg: linear-gradient(180deg, #1b1813, #14120e);
   --sl-band-ring: inset 0 0 0 1px rgba(201,168,76,0.2);
-  --sl-disc-shadow: 0 4px 22px rgba(201,168,76,0.32), 0 2px 8px rgba(0,0,0,0.55);
+  /* Capture disc: steady glow (also the reduced-motion glow), and the two
+     ends of the phone disc's breathing halo (the pre-redesign gold-breathe). */
+  --sl-disc-shadow: 0 4px 20px rgba(201,168,76,0.40), 0 2px 8px rgba(0,0,0,0.55);
+  --sl-disc-glow-rest: 0 4px 20px rgba(201,168,76,0.25), 0 2px 8px rgba(0,0,0,0.55);
+  --sl-disc-glow-peak: 0 4px 32px rgba(201,168,76,0.50), 0 2px 8px rgba(0,0,0,0.55), 0 0 44px rgba(201,168,76,0.18);
   --sl-menu-shadow: 0 16px 40px rgba(0,0,0,0.45);
   --sl-hero-glow: radial-gradient(circle, rgba(201,168,76,0.11) 0%, rgba(201,168,76,0.035) 40%, transparent 68%);
   --sl-grain-opacity: 0.03;
   --sl-sidebar-bg: #0e0d0b;
   --sl-nav-active: rgba(201,168,76,0.12);
   --sl-hover: rgba(255,255,255,0.04);
+  /* Legacy-palette bridge for screens converted from their own local
+     palettes: accent is the gold used both as text and as fills (light
+     value darkened to clear 4.5:1 on white, with white text on it). */
+  --sl-accent: #c9a84c;
+  --sl-on-accent: #0a0908;
+  --sl-ok-strong: #16a34a;
+  --sl-danger: #f87171;
+  --sl-info: #60a5fa;
+  --sl-warn: #f59e0b;
+  --sl-card-bg: linear-gradient(180deg, #171512 0%, #121009 100%);
+  --sl-card-inset: inset 0 1px 0 rgba(255,255,255,0.04);
+  --sl-input-bg: #0f0e0c;
+  --sl-input-line: rgba(255,255,255,0.09);
+  --sl-page-glow: radial-gradient(ellipse at 50% 0%, rgba(201,168,76,0.06) 0%, transparent 65%);
+  --sl-scheme: dark;
   --sl-font-display: 'Bebas Neue', 'Oswald', 'Arial Narrow', sans-serif;
 }
 :root[data-appearance="light"] {
@@ -68,12 +87,28 @@
   --sl-band-bg: #f4f4f5;
   --sl-band-ring: none;
   --sl-disc-shadow: 0 6px 16px rgba(138,105,20,0.28), 0 1px 3px rgba(0,0,0,0.18);
+  --sl-disc-glow-rest: 0 6px 16px rgba(138,105,20,0.20), 0 1px 3px rgba(0,0,0,0.18);
+  --sl-disc-glow-peak: 0 6px 24px rgba(138,105,20,0.36), 0 1px 3px rgba(0,0,0,0.18), 0 0 32px rgba(184,150,62,0.16);
   --sl-menu-shadow: 0 16px 40px rgba(17,19,24,0.16);
   --sl-hero-glow: none;
   --sl-grain-opacity: 0;
   --sl-sidebar-bg: #f7f7f8;
   --sl-nav-active: rgba(17,19,24,0.06);
   --sl-hover: rgba(17,19,24,0.04);
+  --sl-accent: #8f701a;
+  --sl-on-accent: #ffffff;
+  --sl-danger: #c0261d;
+  --sl-info: #1d5fbf;
+  --sl-warn: #9a5800;
+  --sl-card-bg: #f4f4f5;
+  --sl-card-inset: none;
+  --sl-input-bg: #ffffff;
+  --sl-input-line: rgba(17,19,24,0.2);
+  --sl-page-glow: none;
+  --sl-scheme: light;
+  /* Deliberately faint Dark details (section overlines, quiet delete
+     marks) render at full strength on white, where faint fails contrast. */
+  --sl-faint: 100%;
   color-scheme: light;
 }
 /* The wordmark exists as two images; show the one for the appearance. */

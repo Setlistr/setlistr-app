@@ -3,11 +3,11 @@ import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
 const C = {
-  bg: '#0a0908', card: '#141210', card2: '#1a1814',
-  border: 'rgba(255,255,255,0.07)', borderGold: 'rgba(201,168,76,0.3)',
-  input: '#0f0e0c', text: '#f0ece3', secondary: '#b8a888', muted: '#8a7a68',
-  gold: '#c9a84c', goldDim: 'rgba(201,168,76,0.1)',
-  green: '#4ade80', red: '#f87171',
+  bg: 'var(--sl-bg)', card: 'var(--sl-surface)', card2: 'var(--sl-surface-2)',
+  border: 'color-mix(in srgb, var(--sl-text) 7%, transparent)', borderGold: 'color-mix(in srgb, var(--sl-accent) 30%, transparent)',
+  input: 'var(--sl-input-bg)', text: 'var(--sl-text)', secondary: 'var(--sl-text-2)', muted: 'var(--sl-text-3)',
+  gold: 'var(--sl-accent)', goldDim: 'color-mix(in srgb, var(--sl-accent) 10%, transparent)',
+  green: 'var(--sl-ok)', red: 'var(--sl-danger)',
 }
 
 const inp: React.CSSProperties = {
@@ -164,7 +164,7 @@ function SongIntelligenceSheet({
       onClick={onClose}>
       <div
         onClick={e => e.stopPropagation()}
-        style={{ width: '100%', maxWidth: 520, background: '#141210', borderRadius: '20px 20px 0 0', border: '1px solid rgba(255,255,255,0.07)', borderBottom: 'none', padding: '20px 20px 44px', display: 'flex', flexDirection: 'column', gap: 0, fontFamily: '"DM Sans", system-ui, sans-serif', maxHeight: '92vh', overflowY: 'auto' }}>
+        style={{ width: '100%', maxWidth: 520, background: 'var(--sl-surface)', borderRadius: '20px 20px 0 0', border: '1px solid color-mix(in srgb, var(--sl-text) 7%, transparent)', borderBottom: 'none', padding: '20px 20px 44px', display: 'flex', flexDirection: 'column', gap: 0, fontFamily: '"DM Sans", system-ui, sans-serif', maxHeight: '92vh', overflowY: 'auto' }}>
 
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 4 }}>
@@ -192,13 +192,13 @@ function SongIntelligenceSheet({
         {song.confirmed_count > 0 && (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 }}>
             {/* Debut */}
-            <div style={{ background: 'rgba(255,255,255,0.02)', border: `1px solid ${C.border}`, borderRadius: 12, padding: '12px 14px' }}>
+            <div style={{ background: 'color-mix(in srgb, var(--sl-text) 2%, transparent)', border: `1px solid ${C.border}`, borderRadius: 12, padding: '12px 14px' }}>
               <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, margin: '0 0 4px' }}>Live Debut</p>
               <p style={{ fontSize: 13, fontWeight: 700, color: C.text, margin: 0 }}>{debutDate}</p>
             </div>
 
             {/* Last performed */}
-            <div style={{ background: 'rgba(255,255,255,0.02)', border: `1px solid ${C.border}`, borderRadius: 12, padding: '12px 14px' }}>
+            <div style={{ background: 'color-mix(in srgb, var(--sl-text) 2%, transparent)', border: `1px solid ${C.border}`, borderRadius: 12, padding: '12px 14px' }}>
               <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, margin: '0 0 4px' }}>Last Performed</p>
               <p style={{ fontSize: 13, fontWeight: 700, color: lastPlayed !== null && lastPlayed > 30 ? C.gold : C.text, margin: 0 }}>
                 {lastPlayed === 0 ? 'Tonight' : lastPlayed === 1 ? 'Yesterday' : lastPlayed !== null ? `${lastPlayed}d ago` : '—'}
@@ -206,10 +206,10 @@ function SongIntelligenceSheet({
             </div>
 
             {/* Cities */}
-            <div style={{ background: 'rgba(255,255,255,0.02)', border: `1px solid ${C.border}`, borderRadius: 12, padding: '12px 14px' }}>
+            <div style={{ background: 'color-mix(in srgb, var(--sl-text) 2%, transparent)', border: `1px solid ${C.border}`, borderRadius: 12, padding: '12px 14px' }}>
               <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, margin: '0 0 4px' }}>Cities Played</p>
               {intel.loading ? (
-                <div style={{ width: 10, height: 10, borderRadius: '50%', border: `1.5px solid rgba(201,168,76,0.3)`, borderTopColor: C.gold, animation: 'spin 0.7s linear infinite', marginTop: 4 }} />
+                <div style={{ width: 10, height: 10, borderRadius: '50%', border: `1.5px solid color-mix(in srgb, var(--sl-accent) 30%, transparent)`, borderTopColor: C.gold, animation: 'spin 0.7s linear infinite', marginTop: 4 }} />
               ) : (
                 <p style={{ fontSize: 13, fontWeight: 700, color: C.text, margin: 0 }}>
                   {cities.length > 0 ? cities.length : '—'}
@@ -218,7 +218,7 @@ function SongIntelligenceSheet({
             </div>
 
             {/* Estimated royalty */}
-            <div style={{ background: 'rgba(201,168,76,0.06)', border: `1px solid rgba(201,168,76,0.18)`, borderRadius: 12, padding: '12px 14px' }}>
+            <div style={{ background: 'color-mix(in srgb, var(--sl-accent) 6%, transparent)', border: `1px solid color-mix(in srgb, var(--sl-accent) 18%, transparent)`, borderRadius: 12, padding: '12px 14px' }}>
               <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, margin: '0 0 4px' }}>Est. Lifetime Value</p>
               <p style={{ fontSize: 13, fontWeight: 800, color: C.gold, margin: 0, fontFamily: '"DM Mono", monospace' }}>~${estimatedRoyalty}</p>
             </div>
@@ -231,7 +231,7 @@ function SongIntelligenceSheet({
             <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, margin: '0 0 8px' }}>Where You've Played It</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               {intel.venues.slice(0, 5).map((v, i) => (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '9px 12px', background: 'rgba(255,255,255,0.02)', border: `1px solid ${C.border}`, borderRadius: 10 }}>
+                <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '9px 12px', background: 'color-mix(in srgb, var(--sl-text) 2%, transparent)', border: `1px solid ${C.border}`, borderRadius: 10 }}>
                   <div style={{ minWidth: 0 }}>
                     <p style={{ fontSize: 12, fontWeight: 600, color: C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{v.venue_name}</p>
                     {v.city && <p style={{ fontSize: 11, color: C.muted, margin: 0 }}>{v.city}</p>}
@@ -252,13 +252,13 @@ function SongIntelligenceSheet({
         {!intel.loading && cities.length > 1 && (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 16 }}>
             {cities.map(city => (
-              <span key={city} style={{ fontSize: 11, color: C.secondary, background: 'rgba(255,255,255,0.04)', border: `1px solid ${C.border}`, borderRadius: 20, padding: '4px 10px' }}>{city}</span>
+              <span key={city} style={{ fontSize: 11, color: C.secondary, background: 'color-mix(in srgb, var(--sl-text) 4%, transparent)', border: `1px solid ${C.border}`, borderRadius: 20, padding: '4px 10px' }}>{city}</span>
             ))}
           </div>
         )}
 
         {/* Metadata completeness */}
-        <div style={{ background: 'rgba(255,255,255,0.02)', border: `1px solid ${score === 3 ? 'rgba(74,222,128,0.2)' : C.border}`, borderRadius: 12, padding: '12px 14px', marginBottom: 16 }}>
+        <div style={{ background: 'color-mix(in srgb, var(--sl-text) 2%, transparent)', border: `1px solid ${score === 3 ? 'color-mix(in srgb, var(--sl-ok) 20%, transparent)' : C.border}`, borderRadius: 12, padding: '12px 14px', marginBottom: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
             <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.muted, margin: 0 }}>Royalty Metadata</p>
             <span style={{ fontSize: 11, fontWeight: 700, color: score === 3 ? C.green : score >= 1 ? C.gold : C.red }}>
@@ -271,7 +271,7 @@ function SongIntelligenceSheet({
               { label: 'Composer', filled: !!song.composer },
               { label: 'Publisher', filled: !!song.publisher },
             ].map(({ label, filled }) => (
-              <div key={label} style={{ flex: 1, padding: '6px 8px', background: filled ? 'rgba(74,222,128,0.06)' : 'rgba(255,255,255,0.02)', border: `1px solid ${filled ? 'rgba(74,222,128,0.2)' : C.border}`, borderRadius: 8, textAlign: 'center' }}>
+              <div key={label} style={{ flex: 1, padding: '6px 8px', background: filled ? 'color-mix(in srgb, var(--sl-ok) 6%, transparent)' : 'color-mix(in srgb, var(--sl-text) 2%, transparent)', border: `1px solid ${filled ? 'color-mix(in srgb, var(--sl-ok) 20%, transparent)' : C.border}`, borderRadius: 8, textAlign: 'center' }}>
                 <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: filled ? C.green : C.muted, margin: 0 }}>{label}</p>
                 <p style={{ fontSize: 10, color: filled ? C.green : C.muted, margin: '2px 0 0', opacity: filled ? 1 : 0.5 }}>{filled ? '✓' : '—'}</p>
               </div>
@@ -287,11 +287,11 @@ function SongIntelligenceSheet({
         {/* Actions */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <button onClick={onEdit}
-            style={{ width: '100%', padding: '13px', background: C.gold, border: 'none', borderRadius: 10, color: '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'inherit' }}>
+            style={{ width: '100%', padding: '13px', background: C.gold, border: 'none', borderRadius: 10, color: 'var(--sl-on-accent)', fontSize: 13, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'inherit' }}>
             Edit Metadata
           </button>
           <button onClick={() => onDelete(song)}
-            style={{ width: '100%', padding: '11px', background: 'rgba(248,113,113,0.06)', border: '1px solid rgba(248,113,113,0.15)', borderRadius: 10, color: C.red, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+            style={{ width: '100%', padding: '11px', background: 'color-mix(in srgb, var(--sl-danger) 6%, transparent)', border: '1px solid color-mix(in srgb, var(--sl-danger) 15%, transparent)', borderRadius: 10, color: C.red, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
             Remove from Catalog
           </button>
         </div>
@@ -318,7 +318,7 @@ function EditSheet({
       onClick={onClose}>
       <div
         onClick={e => e.stopPropagation()}
-        style={{ width: '100%', maxWidth: 520, background: '#141210', borderRadius: '20px 20px 0 0', border: '1px solid rgba(255,255,255,0.07)', borderBottom: 'none', padding: '20px 20px 44px', display: 'flex', flexDirection: 'column', gap: 14, fontFamily: '"DM Sans", system-ui, sans-serif', maxHeight: '90vh', overflowY: 'auto' }}>
+        style={{ width: '100%', maxWidth: 520, background: 'var(--sl-surface)', borderRadius: '20px 20px 0 0', border: '1px solid color-mix(in srgb, var(--sl-text) 7%, transparent)', borderBottom: 'none', padding: '20px 20px 44px', display: 'flex', flexDirection: 'column', gap: 14, fontFamily: '"DM Sans", system-ui, sans-serif', maxHeight: '90vh', overflowY: 'auto' }}>
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <p style={{ fontSize: 15, fontWeight: 700, color: C.text, margin: 0 }}>Edit Metadata</p>
@@ -350,11 +350,11 @@ function EditSheet({
         {saveError && <p style={{ fontSize: 12, color: C.red, margin: 0 }}>{saveError}</p>}
 
         <button onClick={onSave} disabled={saving || !editState.song_title.trim()}
-          style={{ width: '100%', padding: '13px', background: C.gold, border: 'none', borderRadius: 10, color: '#0a0908', fontSize: 13, fontWeight: 800, cursor: saving ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: saving ? 0.7 : 1 }}>
+          style={{ width: '100%', padding: '13px', background: C.gold, border: 'none', borderRadius: 10, color: 'var(--sl-on-accent)', fontSize: 13, fontWeight: 800, cursor: saving ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: saving ? 0.7 : 1 }}>
           {saving ? 'Saving...' : 'Save Changes'}
         </button>
 
-        <div style={{ background: 'rgba(201,168,76,0.06)', border: '1px solid rgba(201,168,76,0.15)', borderRadius: 10, padding: '12px 14px' }}>
+        <div style={{ background: 'color-mix(in srgb, var(--sl-accent) 6%, transparent)', border: '1px solid color-mix(in srgb, var(--sl-accent) 15%, transparent)', borderRadius: 10, padding: '12px 14px' }}>
           <p style={{ fontSize: 12, color: C.secondary, margin: 0, lineHeight: 1.6 }}>
             <strong style={{ color: C.gold }}>Why this matters:</strong> ISRC and composer credits are what your PRO uses to verify royalty eligibility. Missing data means potentially missing payments.
           </p>
@@ -547,7 +547,7 @@ export default function MySongsTab({ userId }: { userId: string }) {
             onChange={e => setAddState(s => ({ ...s, publisher: e.target.value }))} placeholder="Publishing company" />
           <div style={{ display: 'flex', gap: 8 }}>
             <button onClick={addSong} disabled={adding || !addState.song_title.trim()}
-              style={{ flex: 1, padding: '11px', background: addState.song_title.trim() ? C.gold : C.muted, border: 'none', borderRadius: 8, color: '#0a0908', fontSize: 13, fontWeight: 800, cursor: adding || !addState.song_title.trim() ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: adding ? 0.7 : 1 }}>
+              style={{ flex: 1, padding: '11px', background: addState.song_title.trim() ? C.gold : C.muted, border: 'none', borderRadius: 8, color: 'var(--sl-on-accent)', fontSize: 13, fontWeight: 800, cursor: adding || !addState.song_title.trim() ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: adding ? 0.7 : 1 }}>
               {adding ? 'Adding...' : 'Add to Catalog'}
             </button>
             <button onClick={() => setShowAdd(false)}
@@ -596,8 +596,8 @@ export default function MySongsTab({ userId }: { userId: string }) {
             const score = metaScore(song)
             return (
               <div key={song.id} onClick={() => openView(song)}
-                style={{ background: C.card, border: `1px solid ${isDormant ? 'rgba(201,168,76,0.15)' : C.border}`, borderLeft: `3px solid ${score === 3 ? 'rgba(74,222,128,0.4)' : song.confirmed_count > 0 ? 'rgba(201,168,76,0.4)' : 'rgba(255,255,255,0.07)'}`, borderRadius: 12, padding: '14px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12, WebkitTapHighlightColor: 'transparent', minHeight: 60 }}
-                onTouchStart={e => (e.currentTarget.style.background = '#1a1814')}
+                style={{ background: C.card, border: `1px solid ${isDormant ? 'color-mix(in srgb, var(--sl-accent) 15%, transparent)' : C.border}`, borderLeft: `3px solid ${score === 3 ? 'color-mix(in srgb, var(--sl-ok) 40%, transparent)' : song.confirmed_count > 0 ? 'color-mix(in srgb, var(--sl-accent) 40%, transparent)' : 'color-mix(in srgb, var(--sl-text) 7%, transparent)'}`, borderRadius: 12, padding: '14px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12, WebkitTapHighlightColor: 'transparent', minHeight: 60 }}
+                onTouchStart={e => (e.currentTarget.style.background = 'var(--sl-surface-2)')}
                 onTouchEnd={e => (e.currentTarget.style.background = C.card)}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
@@ -620,9 +620,9 @@ export default function MySongsTab({ userId }: { userId: string }) {
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 3, flexShrink: 0 }}>
-                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: song.isrc ? C.green : 'rgba(255,255,255,0.1)', display: 'inline-block' }} />
-                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: song.composer ? C.gold : 'rgba(255,255,255,0.1)', display: 'inline-block' }} />
-                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: song.publisher ? C.gold : 'rgba(255,255,255,0.1)', display: 'inline-block' }} />
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: song.isrc ? C.green : 'color-mix(in srgb, var(--sl-text) 10%, transparent)', display: 'inline-block' }} />
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: song.composer ? C.gold : 'color-mix(in srgb, var(--sl-text) 10%, transparent)', display: 'inline-block' }} />
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: song.publisher ? C.gold : 'color-mix(in srgb, var(--sl-text) 10%, transparent)', display: 'inline-block' }} />
                 </div>
                 <span style={{ fontSize: 12, color: C.muted, flexShrink: 0 }}>→</span>
               </div>
@@ -659,7 +659,7 @@ export default function MySongsTab({ userId }: { userId: string }) {
         @keyframes fadeIn  { from{opacity:0} to{opacity:1} }
         @keyframes sheetUp { from{transform:translateY(100%)} to{transform:translateY(0)} }
         @keyframes spin    { to{transform:rotate(360deg)} }
-        input::placeholder { color: #5a5040; }
+        input::placeholder { color: var(--sl-text-3); }
         input:focus { outline: none; }
       `}</style>
     </div>

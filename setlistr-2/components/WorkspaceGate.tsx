@@ -9,9 +9,9 @@ import { useActingAs, type WorkspaceState } from '@/components/ActingAsProvider'
 // app/app/live/[id]/page.tsx (protected capture code, untouched) — that
 // page keeps reading actingAsArtistId directly exactly as it always has.
 const C = {
-  bg: '#0a0908', card: '#141210', border: 'rgba(255,255,255,0.07)',
-  text: '#f0ece3', secondary: '#b8a888', muted: '#8a7a68',
-  gold: '#c9a84c', red: '#f87171',
+  bg: 'var(--sl-bg)', card: 'var(--sl-surface)', border: 'color-mix(in srgb, var(--sl-text) 7%, transparent)',
+  text: 'var(--sl-text)', secondary: 'var(--sl-text-2)', muted: 'var(--sl-text-3)',
+  gold: 'var(--sl-accent)', red: 'var(--sl-danger)',
 }
 
 function copyFor(state: WorkspaceState): { title: string; body: string } {
@@ -48,13 +48,13 @@ export function WorkspaceGate() {
   const { title, body } = copyFor(state)
   return (
     <div style={{ minHeight: '100svh', background: C.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px 20px', fontFamily: '"DM Sans", system-ui, sans-serif' }}>
-      <div style={{ width: '100%', maxWidth: 380, background: '#141210', border: `1px solid ${C.border}`, borderRadius: 16, padding: '24px 22px', textAlign: 'center' }}>
+      <div style={{ width: '100%', maxWidth: 380, background: 'var(--sl-surface)', border: `1px solid ${C.border}`, borderRadius: 16, padding: '24px 22px', textAlign: 'center' }}>
         <p style={{ fontSize: 18, fontWeight: 800, color: C.text, margin: '0 0 8px' }}>{title}</p>
         <p style={{ fontSize: 14, color: C.secondary, margin: '0 0 20px', lineHeight: 1.5 }}>{body}</p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {state.status === 'verification_failed' && (
             <button onClick={retry}
-              style={{ width: '100%', padding: '13px', background: C.gold, border: 'none', borderRadius: 10, color: '#0a0908', fontSize: 14, fontWeight: 800, letterSpacing: '0.04em', cursor: 'pointer', fontFamily: 'inherit' }}>
+              style={{ width: '100%', padding: '13px', background: C.gold, border: 'none', borderRadius: 10, color: 'var(--sl-on-accent)', fontSize: 14, fontWeight: 800, letterSpacing: '0.04em', cursor: 'pointer', fontFamily: 'inherit' }}>
               Retry
             </button>
           )}
