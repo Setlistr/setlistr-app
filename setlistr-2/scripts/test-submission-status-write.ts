@@ -62,6 +62,9 @@ if (!ANON_KEY || !SERVICE_KEY) {
 
 const service: SupabaseClient = createClient(SUPABASE_URL, SERVICE_KEY)
 const RUN = Date.now().toString(36)
+// performances.artist_name is NOT NULL in the local fixture schema — same
+// fixture value the viewer-write-containment suite uses.
+const FIXTURE_ARTIST_NAME = 'Fixture Artist'
 
 let pass = 0
 let fail = 0
@@ -81,7 +84,7 @@ async function persona(label: string): Promise<Persona> {
   const { data, error } = await service.auth.admin.createUser({ email, password, email_confirm: true })
   if (error || !data.user) throw new Error(`createUser failed for ${label}: ${error?.message}`)
   const userId = data.user.id
-  unwrap(await service.from('profiles').insert({ id: userId, full_name: label, email }).select().single(), `profile for ${label}`)
+  unwrap(await service.from('profiles').upsert({ id: userId, full_name: label, email }, { onConflict: 'id' }).select().single(), `profile for ${label}`)
   const jar = new Map<string, string>()
   const browserClient = createBrowserClient(SUPABASE_URL, ANON_KEY, {
     cookies: {
@@ -120,7 +123,7 @@ async function attemptMarkSubmitted(token: string, performanceId: string) {
 }
 
 async function seedPerformance(ownerId: string, label: string) {
-  return unwrap<{ id: string }>(await service.from('performances').insert({
+  return unwrap<{ id: string }>(await service.from('performances').insert({ artist_name: FIXTURE_ARTIST_NAME,
     user_id: ownerId, venue_name: `Submit Write ${label} ${RUN}`,
   }).select().single(), `perf ${label}`)
 }

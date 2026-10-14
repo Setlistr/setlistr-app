@@ -66,6 +66,9 @@ if (!ANON_KEY || !SERVICE_KEY) {
 const service: SupabaseClient = createClient(SUPABASE_URL, SERVICE_KEY)
 
 const RUN = Date.now().toString(36)
+// performances.artist_name is NOT NULL in the local fixture schema — same
+// fixture value the viewer-write-containment suite uses.
+const FIXTURE_ARTIST_NAME = 'Fixture Artist'
 const createdUserIds: string[] = []
 
 let pass = 0
@@ -93,7 +96,7 @@ async function createPersona(label: string): Promise<Persona> {
   const userId = data.user.id
   createdUserIds.push(userId)
 
-  const { error: profErr } = await service.from('profiles').insert({ id: userId, full_name: label })
+  const { error: profErr } = await service.from('profiles').upsert({ id: userId, full_name: label }, { onConflict: 'id' })
   if (profErr) throw new Error(`profile insert failed for ${label}: ${profErr.message}`)
 
   const client = createClient(SUPABASE_URL, ANON_KEY)
@@ -187,7 +190,7 @@ async function main() {
   // delegate-reassigns-to-self and legitimate-delegate-edit cases.
   await seedDelegation(ownerA.userId, delegateD.userId)
 
-  const { data: p1, error: p1Err } = await ownerA.client.from('performances').insert({
+  const { data: p1, error: p1Err } = await ownerA.client.from('performances').insert({ artist_name: FIXTURE_ARTIST_NAME,
     user_id: ownerA.userId, venue_name: 'Venue One',
   }).select().single()
   if (p1Err || !p1) throw new Error(`fixture performance insert failed: ${p1Err?.message}`)
@@ -355,10 +358,10 @@ async function main() {
 
   console.log('\n8. Legitimate inserts (owner, and delegate creating on behalf of the artist) still work')
   {
-    const { data, error } = await ownerA.client.from('performances').insert({ user_id: ownerA.userId, venue_name: 'Owner Insert' }).select().single()
+    const { data, error } = await ownerA.client.from('performances').insert({ artist_name: FIXTURE_ARTIST_NAME, user_id: ownerA.userId, venue_name: 'Owner Insert' }).select().single()
     check('performances: owner insert succeeds', !error && !!data, JSON.stringify(error))
 
-    const { data: dData, error: dError } = await delegateD.client.from('performances').insert({ user_id: ownerA.userId, venue_name: 'Delegate Insert For Artist' }).select().single()
+    const { data: dData, error: dError } = await delegateD.client.from('performances').insert({ artist_name: FIXTURE_ARTIST_NAME, user_id: ownerA.userId, venue_name: 'Delegate Insert For Artist' }).select().single()
     check('performances: delegate insert on behalf of artist succeeds', !dError && !!dData, JSON.stringify(dError))
 
     const { data: sData, error: sError } = await ownerA.client.from('shows').insert({ created_by: ownerA.userId, status: 'live' }).select().single()
@@ -432,7 +435,7 @@ async function main() {
   console.log('\n11. Profile deletion still cascades to performances via the existing FK (unaffected by this trigger — DELETE, not UPDATE)')
   {
     const ownerG = await createPersona('ownerG')
-    const { data: perfG, error: perfGErr } = await ownerG.client.from('performances').insert({ user_id: ownerG.userId, venue_name: 'Cascade Check' }).select().single()
+    const { data: perfG, error: perfGErr } = await ownerG.client.from('performances').insert({ artist_name: FIXTURE_ARTIST_NAME, user_id: ownerG.userId, venue_name: 'Cascade Check' }).select().single()
     if (perfGErr || !perfG) throw new Error(`ownerG performance insert failed: ${perfGErr?.message}`)
 
     const { error: profDelErr } = await service.from('profiles').delete().eq('id', ownerG.userId)

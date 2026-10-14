@@ -41,6 +41,9 @@ if (!ANON_KEY || !SERVICE_KEY) {
 const service: SupabaseClient = createClient(SUPABASE_URL, SERVICE_KEY)
 
 const RUN = Date.now().toString(36)
+// performances.artist_name is NOT NULL in the local fixture schema — same
+// fixture value the viewer-write-containment suite uses.
+const FIXTURE_ARTIST_NAME = 'Fixture Artist'
 const createdUserIds: string[] = []
 const createdShowIds: string[] = []
 const createdPerformanceIds: string[] = []
@@ -104,7 +107,7 @@ async function createPersona(label: string): Promise<Persona> {
   if (error || !data.user) throw new Error(`createUser failed for ${label}: ${error?.message}`)
   const userId = data.user.id
   createdUserIds.push(userId)
-  unwrap<{ id: string }>(await service.from('profiles').insert({ id: userId, full_name: label }).select().single(), `profile for ${label}`)
+  unwrap<{ id: string }>(await service.from('profiles').upsert({ id: userId, full_name: label }, { onConflict: 'id' }).select().single(), `profile for ${label}`)
   const client = createClient(SUPABASE_URL, ANON_KEY)
   const { error: signInErr } = await client.auth.signInWithPassword({ email, password })
   if (signInErr) throw new Error(`sign-in failed for ${label}: ${signInErr.message}`)
@@ -166,7 +169,7 @@ async function main() {
   console.log('\n1. Owner creating a valid record (show_id matches own user_id)')
   {
     const venue = v('Owner Valid')
-    const { data, error } = await ownerA.client.from('performances').insert({ user_id: ownerA.userId, venue_name: venue, show_id: showA.id }).select().single()
+    const { data, error } = await ownerA.client.from('performances').insert({ artist_name: FIXTURE_ARTIST_NAME, user_id: ownerA.userId, venue_name: venue, show_id: showA.id }).select().single()
     check('owner: valid same-user show_id succeeds', !error && !!data, JSON.stringify(error))
     if (data) createdPerformanceIds.push((data as any).id)
     checkPersisted('owner valid creation', await readPerfByVenue(venue), { user_id: ownerA.userId, show_id: showA.id, setlist_id: null })
@@ -175,7 +178,7 @@ async function main() {
   console.log('\n2. Accepted delegate creating a valid record on behalf of the managed artist')
   {
     const venue = v('Delegate Valid')
-    const { data, error } = await manager.client.from('performances').insert({ user_id: ownerA.userId, venue_name: venue, show_id: showA.id }).select().single()
+    const { data, error } = await manager.client.from('performances').insert({ artist_name: FIXTURE_ARTIST_NAME, user_id: ownerA.userId, venue_name: venue, show_id: showA.id }).select().single()
     check('delegate: valid delegated show_id succeeds', !error && !!data, JSON.stringify(error))
     if (data) createdPerformanceIds.push((data as any).id)
     checkPersisted('delegate valid creation', await readPerfByVenue(venue), { user_id: ownerA.userId, show_id: showA.id, setlist_id: null })
@@ -188,7 +191,7 @@ async function main() {
     // is ownerA, not ownerC. Dual delegation must not substitute for a real
     // artist/event relationship.
     const venue = v('Cross-Artist Invalid')
-    const { data, error } = await manager.client.from('performances').insert({ user_id: ownerC.userId, venue_name: venue, show_id: showA.id }).select().single()
+    const { data, error } = await manager.client.from('performances').insert({ artist_name: FIXTURE_ARTIST_NAME, user_id: ownerC.userId, venue_name: venue, show_id: showA.id }).select().single()
     check('manager (dual delegation): cross-artist attachment rejected, not silently allowed', !data, JSON.stringify({ data, error }))
     checkDenied('manager cross-artist attachment', error, MSG_SHOW_MATCH)
     checkAbsent('manager cross-artist attachment', await readPerfByVenue(venue))
@@ -203,7 +206,7 @@ async function main() {
     // real Postgres RLS violation code/message, not merely "not this
     // trigger's message" (which would also pass for an unrelated failure).
     const venue = v('Impersonation')
-    const { data, error } = await ownerD.client.from('performances').insert({ user_id: ownerA.userId, venue_name: venue, show_id: showA.id }).select().single()
+    const { data, error } = await ownerD.client.from('performances').insert({ artist_name: FIXTURE_ARTIST_NAME, user_id: ownerA.userId, venue_name: venue, show_id: showA.id }).select().single()
     check('unrelated caller: impersonation rejected, not silently allowed', !data, JSON.stringify({ data, error }))
     check('unrelated caller: SQLSTATE 42501 (RLS policy violation)', error?.code === RLS_SQLSTATE, JSON.stringify(error))
     check('unrelated caller: exact RLS rejection message', error?.message === MSG_PERF_RLS, JSON.stringify(error))
@@ -213,7 +216,7 @@ async function main() {
   console.log('\n5. NULL show_id remains permitted (currently-legitimate case untouched)')
   {
     const venue = v('Draft No Show')
-    const { data, error } = await ownerA.client.from('performances').insert({ user_id: ownerA.userId, venue_name: venue }).select().single()
+    const { data, error } = await ownerA.client.from('performances').insert({ artist_name: FIXTURE_ARTIST_NAME, user_id: ownerA.userId, venue_name: venue }).select().single()
     check('owner: NULL show_id still succeeds', !error && !!data, JSON.stringify(error))
     if (data) createdPerformanceIds.push((data as any).id)
     checkPersisted('NULL show_id creation', await readPerfByVenue(venue), { user_id: ownerA.userId, show_id: null, setlist_id: null })
@@ -222,7 +225,7 @@ async function main() {
   console.log('\n6. Non-NULL setlist_id is rejected unconditionally at creation')
   {
     const venue = v('Setlist Attempt')
-    const { data, error } = await ownerA.client.from('performances').insert({ user_id: ownerA.userId, venue_name: venue, show_id: showA.id, setlist_id: crypto.randomUUID() }).select().single()
+    const { data, error } = await ownerA.client.from('performances').insert({ artist_name: FIXTURE_ARTIST_NAME, user_id: ownerA.userId, venue_name: venue, show_id: showA.id, setlist_id: crypto.randomUUID() }).select().single()
     check('owner: non-NULL setlist_id at creation rejected', !data, JSON.stringify({ data, error }))
     checkDenied('non-NULL setlist_id at creation', error, MSG_SETLIST_BLOCKED)
     checkAbsent('non-NULL setlist_id at creation', await readPerfByVenue(venue))
@@ -231,7 +234,7 @@ async function main() {
   console.log('\n7. service_role is not exempt: a mismatched show_id/user_id is still rejected (trigger, not RLS-bypassable)')
   {
     const venue = v('Service Role Mismatch')
-    const { data, error } = await service.from('performances').insert({ user_id: ownerC.userId, venue_name: venue, show_id: showA.id }).select().single()
+    const { data, error } = await service.from('performances').insert({ artist_name: FIXTURE_ARTIST_NAME, user_id: ownerC.userId, venue_name: venue, show_id: showA.id }).select().single()
     check('service_role: cross-artist mismatch rejected', !data, JSON.stringify({ data, error }))
     checkDenied('service_role cross-artist mismatch', error, MSG_SHOW_MATCH)
     checkAbsent('service_role cross-artist mismatch', await readPerfByVenue(venue))
@@ -240,7 +243,7 @@ async function main() {
   console.log('\n8. service_role valid creation still works (regression)')
   {
     const venue = v('Service Role Valid')
-    const { data, error } = await service.from('performances').insert({ user_id: ownerC.userId, venue_name: venue, show_id: showC.id }).select().single()
+    const { data, error } = await service.from('performances').insert({ artist_name: FIXTURE_ARTIST_NAME, user_id: ownerC.userId, venue_name: venue, show_id: showC.id }).select().single()
     check('service_role: matched show_id/user_id still succeeds', !error && !!data, JSON.stringify(error))
     if (data) createdPerformanceIds.push((data as any).id)
     checkPersisted('service_role valid creation', await readPerfByVenue(venue), { user_id: ownerC.userId, show_id: showC.id, setlist_id: null })
@@ -251,7 +254,7 @@ async function main() {
     const venueBefore = v('Edit Regression Before')
     const venueAfter = v('Edit Regression After')
     const created = unwrap<{ id: string; user_id: string; show_id: string | null; setlist_id: string | null }>(
-      await ownerA.client.from('performances').insert({ user_id: ownerA.userId, venue_name: venueBefore, show_id: showA.id }).select().single(),
+      await ownerA.client.from('performances').insert({ artist_name: FIXTURE_ARTIST_NAME, user_id: ownerA.userId, venue_name: venueBefore, show_id: showA.id }).select().single(),
       'fixture: created for edit regression'
     )
     createdPerformanceIds.push(created.id)

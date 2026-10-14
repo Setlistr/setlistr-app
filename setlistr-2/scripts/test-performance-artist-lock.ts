@@ -63,6 +63,9 @@ if (!ANON_KEY || !SERVICE_KEY) {
 
 const service: SupabaseClient = createClient(SUPABASE_URL, SERVICE_KEY)
 const RUN = Date.now().toString(36)
+// performances.artist_name is NOT NULL in the local fixture schema — same
+// fixture value the viewer-write-containment suite uses.
+const FIXTURE_ARTIST_NAME = 'Fixture Artist'
 
 let pass = 0
 let fail = 0
@@ -82,7 +85,7 @@ async function createPersona(label: string): Promise<Persona> {
   const { data, error } = await service.auth.admin.createUser({ email, password, email_confirm: true })
   if (error || !data.user) throw new Error(`createUser failed for ${label}: ${error?.message}`)
   const userId = data.user.id
-  unwrap<{ id: string }>(await service.from('profiles').insert({ id: userId, full_name: label, email }).select().single(), `profile for ${label}`)
+  unwrap<{ id: string }>(await service.from('profiles').upsert({ id: userId, full_name: label, email }, { onConflict: 'id' }).select().single(), `profile for ${label}`)
 
   const jar = new Map<string, string>()
   let latestToken: string | null = null
@@ -131,7 +134,7 @@ async function main() {
   const artistX = unwrap<{ id: string }>(await service.from('artists').insert({ user_id: owner.userId }).select().single(), 'artistX')
   const artistZ = unwrap<{ id: string }>(await service.from('artists').insert({ user_id: owner.userId }).select().single(), 'artistZ (reassignment target)')
   const show = unwrap<{ id: string }>(await service.from('shows').insert({ created_by: owner.userId }).select().single(), 'show')
-  const perf = unwrap<{ id: string }>(await service.from('performances').insert({
+  const perf = unwrap<{ id: string }>(await service.from('performances').insert({ artist_name: FIXTURE_ARTIST_NAME,
     user_id: owner.userId, venue_name: `Artist Lock Fixture ${RUN}`, show_id: show.id, artist_id: artistX.id,
   }).select().single(), 'perf')
 

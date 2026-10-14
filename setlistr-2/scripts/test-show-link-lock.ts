@@ -60,6 +60,9 @@ if (!ANON_KEY || !SERVICE_KEY) {
 const service: SupabaseClient = createClient(SUPABASE_URL, SERVICE_KEY)
 
 const RUN = Date.now().toString(36)
+// performances.artist_name is NOT NULL in the local fixture schema — same
+// fixture value the viewer-write-containment suite uses.
+const FIXTURE_ARTIST_NAME = 'Fixture Artist'
 const createdUserIds: string[] = []
 const createdArtistIds: string[] = []
 const createdShowIds: string[] = []
@@ -125,7 +128,7 @@ async function createPersona(label: string): Promise<Persona> {
   if (error || !data.user) throw new Error(`createUser failed for ${label}: ${error?.message}`)
   const userId = data.user.id
   createdUserIds.push(userId)
-  unwrap<{ id: string }>(await service.from('profiles').insert({ id: userId, full_name: label }).select().single(), `profile for ${label}`)
+  unwrap<{ id: string }>(await service.from('profiles').upsert({ id: userId, full_name: label }, { onConflict: 'id' }).select().single(), `profile for ${label}`)
   const client = createClient(SUPABASE_URL, ANON_KEY)
   const { error: signInErr } = await client.auth.signInWithPassword({ email, password })
   if (signInErr) throw new Error(`sign-in failed for ${label}: ${signInErr.message}`)
@@ -216,7 +219,7 @@ async function main() {
   const setlistC = unwrap<{ id: string }>(await service.from('setlists').insert({ show_id: showC.id, artist_id: artistC.id }).select().single(), 'setlistC')
   createdSetlistIds.push(setlistC.id)
 
-  const perfA = unwrap<{ id: string }>(await service.from('performances').insert({ user_id: ownerA.userId, venue_name: 'A', show_id: showA1.id, setlist_id: setlistA1.id }).select().single(), 'perfA')
+  const perfA = unwrap<{ id: string }>(await service.from('performances').insert({ artist_name: FIXTURE_ARTIST_NAME, user_id: ownerA.userId, venue_name: 'A', show_id: showA1.id, setlist_id: setlistA1.id }).select().single(), 'perfA')
   createdPerformanceIds.push(perfA.id)
 
   console.log('\n1. Cross-artist reassignment blocked (manager authorized for both)')
@@ -320,7 +323,7 @@ async function main() {
 
   console.log('\n8. Legitimate inserts (new rows with fresh links) still work')
   {
-    const newPerf = unwrap<{ id: string }>(await manager.client.from('performances').insert({ user_id: ownerA.userId, venue_name: 'New', show_id: showA2.id, setlist_id: setlistA2.id }).select().single(), 'new performance insert')
+    const newPerf = unwrap<{ id: string }>(await manager.client.from('performances').insert({ artist_name: FIXTURE_ARTIST_NAME, user_id: ownerA.userId, venue_name: 'New', show_id: showA2.id, setlist_id: setlistA2.id }).select().single(), 'new performance insert')
     createdPerformanceIds.push(newPerf.id)
     check('performances: insert with show_id/setlist_id succeeds', !!newPerf)
 
@@ -333,7 +336,7 @@ async function main() {
   {
     const showX = unwrap<{ id: string }>(await service.from('shows').insert({ created_by: ownerA.userId }).select().single(), 'showX')
     createdShowIds.push(showX.id)
-    const perfX = unwrap<{ id: string }>(await service.from('performances').insert({ user_id: ownerA.userId, venue_name: 'X', show_id: showX.id }).select().single(), 'perfX')
+    const perfX = unwrap<{ id: string }>(await service.from('performances').insert({ artist_name: FIXTURE_ARTIST_NAME, user_id: ownerA.userId, venue_name: 'X', show_id: showX.id }).select().single(), 'perfX')
     createdPerformanceIds.push(perfX.id)
     const before = await readPerf(perfX.id)
 
@@ -355,7 +358,7 @@ async function main() {
     createdShowIds.push(showY.id)
     const setlistY = unwrap<{ id: string }>(await service.from('setlists').insert({ show_id: showY.id, artist_id: artistA.id }).select().single(), 'setlistY')
     createdSetlistIds.push(setlistY.id)
-    const perfY = unwrap<{ id: string }>(await service.from('performances').insert({ user_id: ownerA.userId, venue_name: 'Y', setlist_id: setlistY.id }).select().single(), 'perfY')
+    const perfY = unwrap<{ id: string }>(await service.from('performances').insert({ artist_name: FIXTURE_ARTIST_NAME, user_id: ownerA.userId, venue_name: 'Y', setlist_id: setlistY.id }).select().single(), 'perfY')
     createdPerformanceIds.push(perfY.id)
     const before = await readPerf(perfY.id)
 
@@ -411,7 +414,7 @@ async function main() {
     createdShowIds.push(showV.id)
     const setlistV = unwrap<{ id: string }>(await service.from('setlists').insert({ show_id: showV.id, artist_id: artistA.id }).select().single(), 'setlistV')
     createdSetlistIds.push(setlistV.id)
-    const perfV = unwrap<{ id: string }>(await service.from('performances').insert({ user_id: ownerA.userId, venue_name: 'V', show_id: showV.id, setlist_id: setlistV.id }).select().single(), 'perfV')
+    const perfV = unwrap<{ id: string }>(await service.from('performances').insert({ artist_name: FIXTURE_ARTIST_NAME, user_id: ownerA.userId, venue_name: 'V', show_id: showV.id, setlist_id: setlistV.id }).select().single(), 'perfV')
     createdPerformanceIds.push(perfV.id)
     const before = await readPerf(perfV.id)
     check('fixture sanity: perfV starts with both links set', before?.show_id === showV.id && before?.setlist_id === setlistV.id)
@@ -432,7 +435,7 @@ async function main() {
   {
     const showU = unwrap<{ id: string }>(await service.from('shows').insert({ created_by: ownerA.userId }).select().single(), 'showU')
     createdShowIds.push(showU.id)
-    const perfU = unwrap<{ id: string }>(await service.from('performances').insert({ user_id: ownerA.userId, venue_name: 'U', show_id: showU.id }).select().single(), 'perfU')
+    const perfU = unwrap<{ id: string }>(await service.from('performances').insert({ artist_name: FIXTURE_ARTIST_NAME, user_id: ownerA.userId, venue_name: 'U', show_id: showU.id }).select().single(), 'perfU')
     createdPerformanceIds.push(perfU.id)
     const { data: deletedU, error: delErrU } = await service.from('shows').delete().eq('id', showU.id).select()
     check('fixture setup: show delete (orphaning show_id) succeeds with no error', !delErrU, JSON.stringify(delErrU))
@@ -448,7 +451,7 @@ async function main() {
     createdShowIds.push(showT.id)
     const setlistT = unwrap<{ id: string }>(await service.from('setlists').insert({ show_id: showT.id, artist_id: artistA.id }).select().single(), 'setlistT')
     createdSetlistIds.push(setlistT.id)
-    const perfT = unwrap<{ id: string }>(await service.from('performances').insert({ user_id: ownerA.userId, venue_name: 'T', setlist_id: setlistT.id }).select().single(), 'perfT')
+    const perfT = unwrap<{ id: string }>(await service.from('performances').insert({ artist_name: FIXTURE_ARTIST_NAME, user_id: ownerA.userId, venue_name: 'T', setlist_id: setlistT.id }).select().single(), 'perfT')
     createdPerformanceIds.push(perfT.id)
     const { data: deletedT, error: delErrT } = await service.from('setlists').delete().eq('id', setlistT.id).select()
     check('fixture setup: setlist delete (orphaning setlist_id) succeeds with no error', !delErrT, JSON.stringify(delErrT))
@@ -478,7 +481,7 @@ async function main() {
     const ownerZ = await createPersona('ownerZ')
     const showZ2 = unwrap<{ id: string }>(await service.from('shows').insert({ created_by: ownerZ.userId }).select().single(), 'showZ2')
     createdShowIds.push(showZ2.id)
-    const perfMismatch = unwrap<{ id: string }>(await service.from('performances').insert({ user_id: ownerA.userId, venue_name: 'Mismatch', show_id: showZ2.id }).select().single(), 'perfMismatch')
+    const perfMismatch = unwrap<{ id: string }>(await service.from('performances').insert({ artist_name: FIXTURE_ARTIST_NAME, user_id: ownerA.userId, venue_name: 'Mismatch', show_id: showZ2.id }).select().single(), 'perfMismatch')
     createdPerformanceIds.push(perfMismatch.id)
 
     const { data: visibleToOwnerA } = await ownerA.client.from('shows').select('id').eq('id', showZ2.id).maybeSingle()

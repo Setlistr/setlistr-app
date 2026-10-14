@@ -74,6 +74,9 @@ if (!ANON_KEY || !SERVICE_KEY) {
 const service: SupabaseClient = createClient(SUPABASE_URL, SERVICE_KEY)
 
 const RUN = Date.now().toString(36)
+// performances.artist_name is NOT NULL in the local fixture schema — same
+// fixture value the viewer-write-containment suite uses.
+const FIXTURE_ARTIST_NAME = 'Fixture Artist'
 const createdUserIds: string[] = []
 const createdArtistIds: string[] = []
 
@@ -128,7 +131,7 @@ async function createPersona(label: string): Promise<Persona> {
   const userId = data.user.id
   createdUserIds.push(userId)
 
-  const profile = unwrap<{ id: string }>(await service.from('profiles').insert({ id: userId, full_name: label }).select().single(), `profile insert for ${label}`)
+  const profile = unwrap<{ id: string }>(await service.from('profiles').upsert({ id: userId, full_name: label }, { onConflict: 'id' }).select().single(), `profile insert for ${label}`)
   void profile
 
   const client = createClient(SUPABASE_URL, ANON_KEY)
@@ -233,9 +236,9 @@ async function main() {
   const artistC = unwrap<{ id: string }>(await service.from('artists').insert({}).select().single(), 'artistC insert')
   createdArtistIds.push(artistC.id)
 
-  const perfA1 = unwrap<{ id: string }>(await service.from('performances').insert({ user_id: ownerA.userId, venue_name: 'A1' }).select().single(), 'perfA1 insert')
-  const perfA2 = unwrap<{ id: string }>(await service.from('performances').insert({ user_id: ownerA.userId, venue_name: 'A2' }).select().single(), 'perfA2 insert')
-  const perfC = unwrap<{ id: string }>(await service.from('performances').insert({ user_id: ownerC.userId, venue_name: 'C' }).select().single(), 'perfC insert')
+  const perfA1 = unwrap<{ id: string }>(await service.from('performances').insert({ artist_name: FIXTURE_ARTIST_NAME, user_id: ownerA.userId, venue_name: 'A1' }).select().single(), 'perfA1 insert')
+  const perfA2 = unwrap<{ id: string }>(await service.from('performances').insert({ artist_name: FIXTURE_ARTIST_NAME, user_id: ownerA.userId, venue_name: 'A2' }).select().single(), 'perfA2 insert')
+  const perfC = unwrap<{ id: string }>(await service.from('performances').insert({ artist_name: FIXTURE_ARTIST_NAME, user_id: ownerC.userId, venue_name: 'C' }).select().single(), 'perfC insert')
   const song = unwrap<{ id: string }>(await service.from('performance_songs').insert({ performance_id: perfA1.id, title: 'Song One' }).select().single(), 'song insert')
 
   // Same-artist reparenting test needs TWO shows for ownerA (not two
@@ -348,7 +351,7 @@ async function main() {
 
   console.log('\n8. Parent deletion retains its existing CASCADE behavior (DELETE never touches this BEFORE UPDATE trigger)')
   {
-    const perfTemp = unwrap<{ id: string }>(await service.from('performances').insert({ user_id: ownerA.userId, venue_name: 'Temp' }).select().single(), 'perfTemp insert')
+    const perfTemp = unwrap<{ id: string }>(await service.from('performances').insert({ artist_name: FIXTURE_ARTIST_NAME, user_id: ownerA.userId, venue_name: 'Temp' }).select().single(), 'perfTemp insert')
     const songTemp = unwrap<{ id: string }>(await service.from('performance_songs').insert({ performance_id: perfTemp.id, title: 'Temp Song' }).select().single(), 'songTemp insert')
 
     const { data: deletedPerf, error: delErr } = await service.from('performances').delete().eq('id', perfTemp.id).select()

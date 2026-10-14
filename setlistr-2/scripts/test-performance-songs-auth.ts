@@ -53,6 +53,9 @@ if (!ANON_KEY || !SERVICE_KEY) {
 const service: SupabaseClient = createClient(SUPABASE_URL, SERVICE_KEY)
 
 const RUN = Date.now().toString(36)
+// performances.artist_name is NOT NULL in the local fixture schema — same
+// fixture value the viewer-write-containment suite uses.
+const FIXTURE_ARTIST_NAME = 'Fixture Artist'
 const createdUserIds: string[] = []
 const createdPerformanceIds: string[] = []
 
@@ -78,7 +81,7 @@ async function createPersona(label: string): Promise<Persona> {
   const userId = data.user.id
   createdUserIds.push(userId)
 
-  const { error: profErr } = await service.from('profiles').insert({ id: userId, full_name: label })
+  const { error: profErr } = await service.from('profiles').upsert({ id: userId, full_name: label }, { onConflict: 'id' })
   if (profErr) throw new Error(`profile insert failed for ${label}: ${profErr.message}`)
 
   const jar = new Map<string, string>()
@@ -116,7 +119,7 @@ async function seedDelegation(opts: {
 }
 
 async function createPerformanceWithSong(ownerId: string, venueName: string, songTitle: string) {
-  const { data: perf, error: perfErr } = await service.from('performances').insert({
+  const { data: perf, error: perfErr } = await service.from('performances').insert({ artist_name: FIXTURE_ARTIST_NAME,
     user_id: ownerId, venue_name: venueName,
   }).select().single()
   if (perfErr || !perf) throw new Error(`performance insert failed: ${perfErr?.message}`)
@@ -134,7 +137,7 @@ async function createPerformanceWithSong(ownerId: string, venueName: string, son
 // setlists/setlist_items fallback isn't needed for (and can't silently
 // change) the existing empty-result contract.
 async function createPerformanceWithoutSongs(ownerId: string, venueName: string) {
-  const { data: perf, error: perfErr } = await service.from('performances').insert({
+  const { data: perf, error: perfErr } = await service.from('performances').insert({ artist_name: FIXTURE_ARTIST_NAME,
     user_id: ownerId, venue_name: venueName,
   }).select().single()
   if (perfErr || !perf) throw new Error(`performance insert failed: ${perfErr?.message}`)
