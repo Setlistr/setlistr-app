@@ -49,11 +49,19 @@ export async function GET(req: NextRequest) {
     // which needs data_source to exclude imported history. Every existing
     // consumer of this route (app/app/dashboard's loadDelegateContext)
     // simply ignores the two new properties; unaffected.
-    const { data: perfsRaw } = await service
+    const { data: perfsRaw, error: perfsError } = await service
       .from('performances_visible')
       .select(`id, venue_name, artist_name, city, country, status, submission_status, started_at, ended_at, created_at, data_source, performance_date, shows ( show_type ), venues ( capacity )`)
       .eq('user_id', artistId)
       .order('created_at', { ascending: false })
+
+    // A failed read must surface as a failure — returning an empty list
+    // here made the dashboard show a delegate an empty record ("The record
+    // starts with …") instead of saying it didn't load.
+    if (perfsError) {
+      console.error('Context data performances error:', perfsError)
+      return NextResponse.json({ error: 'Could not load performances' }, { status: 500 })
+    }
 
     const performances = (perfsRaw || []).map((p: any) => ({
       id: p.id, venue_name: p.venue_name, artist_name: p.artist_name,
@@ -70,11 +78,15 @@ export async function GET(req: NextRequest) {
     // Get song counts
     const perfIds = performances.map(p => p.id)
     let songCountMap: Record<string, number> = {}
+    // Additive flag: song counts feed only the royalty estimates, so a failed
+    // read is reported rather than sent as "no songs" (which shows no estimate).
+    let songCountsUnavailable = false
     if (perfIds.length > 0) {
-      const { data: songData } = await service
+      const { data: songData, error: songError } = await service
         .from('performance_songs_visible')
         .select('performance_id')
         .in('performance_id', perfIds)
+      if (songError) { console.error('Context data song counts error:', songError); songCountsUnavailable = true }
       songData?.forEach((s: any) => {
         songCountMap[s.performance_id] = (songCountMap[s.performance_id] || 0) + 1
       })
@@ -90,6 +102,7 @@ export async function GET(req: NextRequest) {
       role: delegation.role,
       performances,
       songCountMap,
+      song_counts_unavailable: songCountsUnavailable,
     })
   } catch (err) {
     console.error('Context data error:', err)

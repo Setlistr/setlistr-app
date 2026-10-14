@@ -26,9 +26,7 @@ type Performance = {
   submission_status: string | null; started_at: string
   created_at: string; ended_at?: string
   show_type?: string; venue_capacity?: number | null
-  captured_by_name?: string | null
   data_source?: string | null
-  photo_url?: string | null
   performance_date?: string | null
 }
 
@@ -158,6 +156,7 @@ export default function DashboardPage() {
   // Previously ignored, which rendered a real artist's record as empty
   // ("Your first show starts your record") — wrong, and alarming.
   const [ownLoadError, setOwnLoadError]         = useState(false)
+  const [estimatesUnavailable, setEstimatesUnavailable] = useState(false)
   const [showEstimates, setShowEstimates]       = useState<ShowEstimateInput[]>([])
   const [submittedEstimates, setSubmittedEstimates] = useState<ShowEstimateInput[]>([])
   const [songCountMap, setSongCountMap]         = useState<Record<string, number>>({})
@@ -177,11 +176,22 @@ export default function DashboardPage() {
     if (!resolved) return
     const supabase = createClient()
     async function load() {
+      try { await loadInner() } catch (err) {
+        // Any failed read lands on the error state with Try again — never an
+        // endless skeleton, and never a guess (an unread profile looks like
+        // "no artist name", which would wrongly route to onboarding).
+        console.error('[Dashboard] load failed:', err)
+        setPerformances([]); setLivePerf(null); setMorningAfterPerf(null)
+        if (actingAs) setContextLoadError(true); else setOwnLoadError(true)
+        setLoading(false)
+      }
+    }
+    async function loadInner() {
       const { data: { user } } = await supabase.auth.getUser()
       if (user) setUserId(user.id)
 
       if (user) {
-        const [{ data: profile }, managedRes, { data: betaInvite }] = await Promise.all([
+        const [{ data: profile, error: profileError }, managedRes, { data: betaInvite }] = await Promise.all([
           supabase.from('profiles').select('bandsintown_artist_name, artist_name, full_name, avatar_url').eq('id', user.id).single(),
           fetch('/api/team/managed-artists'),
           // RLS (users_read_own_invite: email = auth.jwt()->>'email') is
@@ -193,7 +203,12 @@ export default function DashboardPage() {
             ? supabase.from('beta_invites').select('invited_role').eq('email', user.email).maybeSingle()
             : Promise.resolve({ data: null }),
         ])
-        const managedData = await managedRes.json()
+        if (profileError) throw profileError
+        // The team list only decides routing for someone with no artist
+        // name of their own; for them a failed read must not be taken as
+        // "no connections".
+        if (!managedRes.ok && !profile?.artist_name?.trim()) throw new Error(`managed-artists ${managedRes.status}`)
+        const managedData = managedRes.ok ? await managedRes.json() : { managed: [] }
         const managed: ManagedArtist[] = managedData.managed || []
         const recruitedAsManager = betaInvite?.invited_role === 'manager'
 
@@ -277,7 +292,7 @@ export default function DashboardPage() {
     const [{ data, error }, { data: profileCareer }] = await Promise.all([
       supabase
         .from('performances_visible')
-        .select(`id, venue_name, artist_name, city, country, status, submission_status, started_at, ended_at, created_at, captured_by_name, data_source, performance_date, photo_url, shows ( show_type ), venues ( capacity )`)
+        .select(`id, venue_name, artist_name, city, country, status, submission_status, started_at, ended_at, created_at, data_source, performance_date, shows ( show_type ), venues ( capacity )`)
         .eq('user_id', targetUserId)
         .order('created_at', { ascending: false }),
       supabase
@@ -294,8 +309,16 @@ export default function DashboardPage() {
   }
 
   async function loadDelegateContext(artistId: string, artistDisplayName: string) {
-    const res  = await fetch(`/api/team/context-data?artist_id=${artistId}`)
-    const data = await res.json()
+    let data: any
+    try {
+      const res = await fetch(`/api/team/context-data?artist_id=${artistId}`)
+      data = await res.json()
+      if (!res.ok && !data?.error) data = { error: `context-data ${res.status}` }
+    } catch (err) {
+      // Network failure or a non-JSON response: same outcome as a refused
+      // re-check — cleared, and said so.
+      data = { error: String(err) }
+    }
     if (data.error) {
       // This route independently re-verifies the accepted/non-revoked
       // delegation on every call (app/api/team/context-data/route.ts) —
@@ -314,10 +337,10 @@ export default function DashboardPage() {
     if (data.bandsintown_artist_name) setLookupName(data.bandsintown_artist_name)
     if (data.career_total_shows) setCareerTotalShows(data.career_total_shows)
     if (data.career_start_year) setCareerStartYear(data.career_start_year)
-    processPerformances(data.performances, data.songCountMap)
+    processPerformances(data.performances, data.songCountMap, !!data.song_counts_unavailable)
   }
 
-  function processPerformances(rawPerfs: any[], existingSongCountMap?: Record<string, number>) {
+  function processPerformances(rawPerfs: any[], existingSongCountMap?: Record<string, number>, songCountsUnavailable = false) {
     const perfs: Performance[] = rawPerfs.map((p: any) => ({
       id: p.id, venue_name: p.venue_name, artist_name: p.artist_name,
       city: p.city, country: p.country, status: p.status,
@@ -325,10 +348,8 @@ export default function DashboardPage() {
       started_at: p.started_at, ended_at: p.ended_at || null, created_at: p.created_at,
       show_type: p.shows?.show_type || p.show_type || 'single',
       venue_capacity: p.venues?.capacity || p.venue_capacity || null,
-      captured_by_name: p.captured_by_name || null,
       data_source: p.data_source || 'captured',
       performance_date: p.performance_date || null,
-      photo_url: p.photo_url || null,
     }))
     setPerformances(perfs)
 
@@ -382,17 +403,21 @@ export default function DashboardPage() {
       setTotalSongs(Object.values(countMap).reduce((a, b) => a + b, 0))
     }
 
+    // Song counts only feed the estimates. When they can't be read the
+    // estimate rows say so instead of silently disappearing.
     if (existingSongCountMap) {
+      setEstimatesUnavailable(songCountsUnavailable)
       buildEstimates(existingSongCountMap)
     } else {
       const supabase = createClient()
       supabase.from('performance_songs_visible').select('performance_id')
         .in('performance_id', capturedPerfs.map(p => p.id))
-        .then(({ data: songData }) => {
+        .then(({ data: songData, error: songError }) => {
+          setEstimatesUnavailable(!!songError)
           const countMap: Record<string, number> = {}
           songData?.forEach((s: any) => { countMap[s.performance_id] = (countMap[s.performance_id] || 0) + 1 })
           buildEstimates(countMap)
-        })
+        }, () => { setEstimatesUnavailable(true); buildEstimates({}) })
     }
   }
 
@@ -431,12 +456,13 @@ export default function DashboardPage() {
 
     setLoading(true)
     setLookupName(null); setUpcomingShows([]); setTodayShow(null)
+    const fail = () => { setPerformances([]); if (actingAs) setContextLoadError(true); else setOwnLoadError(true) }
     if (actingAs) {
-      loadDelegateContext(actingAs.artist_id, actingAs.artist_name).then(() => setLoading(false))
+      loadDelegateContext(actingAs.artist_id, actingAs.artist_name).catch(fail).finally(() => setLoading(false))
     } else {
       setArtistName(ownArtistName)
       const supabase = createClient()
-      loadOwnPerformances(supabase).then(() => setLoading(false))
+      loadOwnPerformances(supabase).catch(fail).finally(() => setLoading(false))
     }
   }, [resolved, actingAs])
 
@@ -516,8 +542,12 @@ export default function DashboardPage() {
 
   async function retryLoad() {
     setLoading(true)
-    if (actingAs) await loadDelegateContext(actingAs.artist_id, actingAs.artist_name)
-    else await loadOwnPerformances(createClient())
+    try {
+      if (actingAs) await loadDelegateContext(actingAs.artist_id, actingAs.artist_name)
+      else await loadOwnPerformances(createClient())
+    } catch {
+      setPerformances([]); if (actingAs) setContextLoadError(true); else setOwnLoadError(true)
+    }
     setLoading(false)
   }
 
@@ -640,7 +670,7 @@ export default function DashboardPage() {
         </p>
         {importedPerfs.length > 0 && (
           <p style={{ fontSize: 13, color: 'var(--sl-text-3)', margin: '12px 0 0', lineHeight: 1.45 }}>
-            {importedPerfs.length} imported {importedPerfs.length === 1 ? 'show is' : 'shows are'} in the history; the live record counts shows captured with Setlistr.
+            The live record counts shows captured or uploaded in Setlistr. {importedPerfs.length} imported {importedPerfs.length === 1 ? 'show is' : 'shows are'} listed in History but not counted here.
           </p>
         )}
       </>
@@ -652,6 +682,12 @@ export default function DashboardPage() {
         {overlineEl}
         <p style={heroStyle}>{record.count}</p>
         <p style={captionStyle}>{caption}</p>
+        {importedPerfs.length > 0 && (
+          // Says what the number counts, in the same words History uses.
+          <p style={{ fontSize: 13, color: 'var(--sl-text-3)', margin: '8px 0 0', lineHeight: 1.45 }}>
+            Counts shows captured or uploaded in Setlistr. {importedPerfs.length} imported {importedPerfs.length === 1 ? 'show is' : 'shows are'} listed in History but not counted here.
+          </p>
+        )}
 
         <div style={{ marginTop: 22, borderTop: '1.5px solid var(--sl-text)' }}>
           <div style={{ ...rowBase, display: 'block' }}>
@@ -671,13 +707,19 @@ export default function DashboardPage() {
             <span style={rowLabel}>Marked submitted</span>
             <span style={rowValue}>{record.submitted} <span style={unit}>of {record.count} {record.count === 1 ? 'show' : 'shows'}</span></span>
           </div>
-          {lifetimeTotal > 0 && (
+          {estimatesUnavailable && (
+            <div style={rowBase}>
+              <span style={rowLabel}>Estimated royalties<small style={rowSmall}>Song counts didn{'\u2019'}t load, so estimates aren{'\u2019'}t shown</small></span>
+              <button onClick={retryLoad} style={{ ...secondaryButton, minHeight: 44, padding: '0 14px', fontSize: 14 }}>Try again</button>
+            </div>
+          )}
+          {!estimatesUnavailable && lifetimeTotal > 0 && (
             <div style={rowBase}>
               <span style={rowLabel}>Estimated royalties<small style={rowSmall}>All shows with setlists</small></span>
               <span style={rowValue}>{money(lifetimeTotal)} <span style={unit}>est.</span></span>
             </div>
           )}
-          {aggregate.unclaimedCount > 0 && (
+          {!estimatesUnavailable && aggregate.unclaimedCount > 0 && (
             // Routes to the Filing Queue — reviewing and marking these is
             // what that page is for.
             <button onClick={() => router.push('/app/file')} style={{ ...rowBase, width: '100%', background: 'none', border: 'none', borderBottom: '1px solid var(--sl-line)', cursor: 'pointer', fontFamily: SANS, textAlign: 'left' }}>
@@ -687,7 +729,7 @@ export default function DashboardPage() {
             </button>
           )}
         </div>
-        {(lifetimeTotal > 0 || aggregate.unclaimedCount > 0) && (
+        {!estimatesUnavailable && (lifetimeTotal > 0 || aggregate.unclaimedCount > 0) && (
           <p style={{ fontSize: 13, color: 'var(--sl-text-3)', margin: '12px 0 0', lineHeight: 1.45 }}>Estimates only, not guaranteed. Payouts vary by PRO.</p>
         )}
       </>

@@ -48,6 +48,7 @@ type Performance = {
   captured_by_name?: string | null
   venue_id?:         string | null
   photo_url?:        string | null
+  data_source?:      string | null
   // The actual filing-readiness result — the SAME computeFilingStatus()
   // app/app/file (Filing Queue) uses, so "Ready to Claim" here and "Ready
   // to file" there are never two different rules wearing two different
@@ -120,7 +121,7 @@ export default function HistoryPage() {
 
     const { data, error } = await supabase
       .from('performances_visible')
-      .select('id, venue_name, venue_id, artist_name, city, country, status, submission_status, started_at, created_at, captured_by_name, photo_url, shows(show_type), venues(capacity)')
+      .select('id, venue_name, venue_id, artist_name, city, country, status, submission_status, started_at, created_at, captured_by_name, photo_url, data_source, shows(show_type), venues(capacity)')
       .eq('user_id', actingAsArtistId || user.id)
       .not('status', 'in', '("live","pending")')
       // Excludes Upload Performance drafts (status='draft', created the
@@ -172,6 +173,7 @@ export default function HistoryPage() {
             captured_by_name: p.captured_by_name || null,
             venue_id: p.venue_id || null,
             photo_url: p.photo_url || null,
+            data_source: p.data_source || null,
             filing,
           }
         })
@@ -290,6 +292,11 @@ export default function HistoryPage() {
 
   const hasFilters = search || dateFrom || dateTo || statusFilter !== 'all'
 
+  // This list's scope is unchanged: it includes imported (setlist.fm)
+  // history. The dashboard's live record does not — so say how the "N
+  // shows" here splits, in the same words the dashboard uses.
+  const importedCount = performances.filter(p => p.data_source === 'setlistfm_imported').length
+
   // counts, the banner below, and the "File them" action all key off the
   // exact same p.filing.state computeFilingStatus() produced — the same
   // rule the Filing Queue uses. A show still needing its setlist reviewed
@@ -346,6 +353,12 @@ export default function HistoryPage() {
             {performances.length} shows
           </div>
         </div>
+
+        {importedCount > 0 && (
+          <p style={{ fontSize: 13, color: C.secondary, margin: '-12px 0 16px', lineHeight: 1.5 }}>
+            {performances.length - importedCount} on your live record · {importedCount} imported (not counted on the dashboard)
+          </p>
+        )}
 
         <SubmissionsSwitcher active="history" filingQueueCount={navCounts?.filingQueueCount} fullHistoryCount={navCounts?.fullHistoryCount} />
 

@@ -86,6 +86,13 @@ function read(rel: string): string {
   check('Dashboard: no "On pace" projection', !/On pace/.test(dashboard))
   check('Dashboard: no "filed"/"documented" wording for self-reported submissions or estimates', !/\bfiled\b<|documented</.test(dashboard))
   check('Root layout: pinch zoom is not capped', !/maximumScale\s*:/.test(read('app/layout.tsx')))
+  check('Dashboard: record query selects only columns it uses (no captured_by_name/photo_url)', !/captured_by_name|photo_url/.test(dashboard))
+  check('Dashboard: a failed load lands on the error state (try/catch around the load, fetch failures handled)', dashboard.includes('try { await loadInner() } catch') && dashboard.includes('setEstimatesUnavailable('))
+  check('Dashboard: says imported shows are listed in History but not counted', dashboard.includes('listed in History but not counted here'))
+  const history = read('app/app/history/page.tsx')
+  check('History: scope unchanged (no data_source filter on the query) but the imported split is stated', !/\.neq\('data_source'/.test(history) && history.includes('on your live record ·'))
+  const ctx = read('app/api/team/context-data/route.ts')
+  check('context-data: a failed performances read returns an error, not an empty list', ctx.includes("if (perfsError)") && ctx.includes('status: 500'))
 }
 
 // ── One coherent Submissions design: shared row component + deadline,
