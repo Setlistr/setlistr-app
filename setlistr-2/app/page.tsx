@@ -58,6 +58,9 @@ export default function HomePage() {
           transition: all .2s; white-space: nowrap;
         }
         .sl-btn-signin:hover { background: rgba(201,168,76,0.12); border-color: #C9A84C; }
+        .sl-btn-signup { background: rgba(201,168,76,0.12); color: #F0ECE3; border-color: #C9A84C; }
+        .sl-btn-signup:hover { background: rgba(201,168,76,0.22); }
+        .sl-btn-signin:focus-visible, .sl-btn-apply:focus-visible, .sl-mobile-access:focus-visible { outline: 2px solid #C9A84C; outline-offset: 3px; }
         .sl-btn-apply {
           font-family: "DM Mono", monospace; font-size: 11px; letter-spacing: .14em;
           text-transform: uppercase; background: #C9A84C; color: #080706;
@@ -85,7 +88,21 @@ export default function HomePage() {
           .sl-logo { height: 26px !important; }
           .sl-nav { height: 60px !important; padding: 0 18px !important; }
           .sl-btn-signin { padding: 8px 12px !important; font-size: 10px !important; }
-          .sl-btn-apply { padding: 9px 14px !important; font-size: 10px !important; }
+          .sl-btn-apply { display: none !important; }
+          .sl-mobile-links { gap: 20px !important; }
+        }
+        @media (max-width: 400px) {
+          .sl-logo { height: 20px !important; }
+          .sl-nav { padding: 0 14px !important; }
+          .sl-nav-actions { gap: 6px !important; }
+          .sl-btn-signin { padding: 8px 9px !important; letter-spacing: .08em !important; }
+          .sl-mobile-links { gap: 14px !important; padding: 0 10px !important; }
+          .sl-mobile-links a { font-size: 10px !important; letter-spacing: .08em !important; white-space: nowrap; }
+        }
+        @media (max-width: 340px) {
+          .sl-logo { height: 16px !important; }
+          .sl-mobile-links { gap: 10px !important; }
+          .sl-mobile-links a { letter-spacing: .03em !important; }
         }
         .sl-mobile-links { display: none; }
 
@@ -107,10 +124,11 @@ export default function HomePage() {
         <Link href="/" style={{ textDecoration: 'none', display: 'flex' }}>
           <Image className="sl-logo" src="/logo-white-tight.png" alt="Setlistr" width={190} height={36} priority style={{ height: 36, width: 'auto', objectFit: 'contain' }} />
         </Link>
-        <nav style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+        <nav className="sl-nav-actions" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <Link href="/get-paid" className="sl-nav-link" style={{ marginRight: 8 }}>For Artists</Link>
           <Link href="/how-it-works" className="sl-nav-link" style={{ marginRight: 8 }}>How It Works</Link>
           <Link href="/auth/login" className="sl-btn-signin">Sign In</Link>
+          <Link href="/auth/login?mode=signup" className="sl-btn-signin sl-btn-signup">Create Account</Link>
           <a href="#access" className="sl-btn-apply">Request Access</a>
         </nav>
       </header>
@@ -126,6 +144,7 @@ export default function HomePage() {
       }}>
         <Link href="/get-paid" style={{ fontFamily: '"DM Mono", monospace', fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: 'rgba(232,228,219,0.8)', textDecoration: 'none' }}>For Artists</Link>
         <Link href="/how-it-works" style={{ fontFamily: '"DM Mono", monospace', fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: 'rgba(232,228,219,0.8)', textDecoration: 'none' }}>How It Works · FAQ</Link>
+        <a href="#access" className="sl-mobile-access" style={{ fontFamily: '"DM Mono", monospace', fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: '#C9A84C', textDecoration: 'none' }}>Request Access</a>
       </div>
 
       <div style={{ position: 'relative', zIndex: 1 }}>

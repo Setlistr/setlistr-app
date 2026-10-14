@@ -26,8 +26,12 @@ function LoginPageInner() {
   const searchParams = useSearchParams()
   const fromStart    = searchParams.get('from') === 'start'
   const next         = sanitizeNextPath(searchParams.get('next'))
+  // ?mode=signup (the marketing page's Create Account link) only picks the
+  // initial tab. Switching tabs is local state, so the URL — and with it
+  // any `next` invite destination — is left untouched either way.
+  const initialMode: Mode = searchParams.get('mode') === 'signup' ? 'signup' : 'signin'
 
-  const [mode, setMode]             = useState<Mode>('signin')
+  const [mode, setMode]             = useState<Mode>(initialMode)
   const [email, setEmail]           = useState('')
   const [password, setPassword]     = useState('')
   const [confirm, setConfirm]       = useState('')
@@ -35,6 +39,8 @@ function LoginPageInner() {
   const [error, setError]           = useState('')
   const [success, setSuccess]       = useState('')
   const [termsAccepted, setTermsAccepted] = useState(false)
+  const [showPassword, setShowPassword]   = useState(false)
+  const [showConfirm, setShowConfirm]     = useState(false)
 
   const [showWaitlist, setShowWaitlist]       = useState(false)
   const [waitlistName, setWaitlistName]       = useState('')
@@ -57,6 +63,8 @@ function LoginPageInner() {
     setPassword('')
     setConfirm('')
     setTermsAccepted(false)
+    setShowPassword(false)
+    setShowConfirm(false)
   }
 
   async function handleSignIn(e?: React.FormEvent) {
@@ -198,6 +206,17 @@ function LoginPageInner() {
     display: 'block', marginBottom: 6,
   }
 
+  // Show/Hide for a password input. Only the input's `type` changes, so the
+  // controlled value (and the caret's field) is kept. type="button" so it
+  // never submits; aria-pressed + a label naming the field for screen readers.
+  const visibilityToggle = (shown: boolean, toggle: () => void, field: string, controls: string) => (
+    <button type="button" className="sl-pw-toggle" onClick={toggle}
+      aria-label={`${shown ? 'Hide' : 'Show'} ${field}`} aria-pressed={shown} aria-controls={controls}
+      style={{ position: 'absolute', top: 0, right: 0, bottom: 0, minWidth: 64, padding: '0 14px', background: 'none', border: 'none', borderRadius: '0 10px 10px 0', color: C.secondary, fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'inherit' }}>
+      {shown ? 'Hide' : 'Show'}
+    </button>
+  )
+
   const Spinner = () => (
     <div style={{ width: 13, height: 13, borderRadius: '50%', border: '2px solid #0a090840', borderTopColor: '#0a0908', animation: 'spin 0.7s linear infinite' }} />
   )
@@ -229,19 +248,26 @@ function LoginPageInner() {
               )}
 
               {/* Sign in / Create account toggle */}
-              <div style={{ display: 'flex', gap: 4, background: 'rgba(255,255,255,0.03)', border: `1px solid ${C.border}`, borderRadius: 10, padding: 4, marginBottom: 24 }}>
+              <div role="group" aria-label="Choose sign in or create account" style={{ display: 'flex', gap: 4, background: 'rgba(255,255,255,0.03)', border: `1px solid ${C.border}`, borderRadius: 10, padding: 4, marginBottom: 20 }}>
                 {(['signin', 'signup'] as Mode[]).map(m => (
-                  <button key={m} onClick={() => switchMode(m)}
-                    style={{ flex: 1, padding: '8px', border: 'none', borderRadius: 7, background: mode === m ? C.goldDim : 'transparent', color: mode === m ? C.gold : C.muted, fontSize: 12, fontWeight: 700, letterSpacing: '0.05em', cursor: 'pointer', transition: 'all 0.15s ease', fontFamily: 'inherit' }}>
+                  <button key={m} type="button" className="sl-auth-tab" onClick={() => switchMode(m)} aria-pressed={mode === m}
+                    style={{ flex: 1, padding: '10px 8px', border: mode === m ? `1px solid ${C.borderGold}` : '1px solid transparent', borderRadius: 7, background: mode === m ? C.goldDim : 'transparent', color: mode === m ? C.gold : C.secondary, fontSize: 12, fontWeight: 700, letterSpacing: '0.05em', cursor: 'pointer', transition: 'all 0.15s ease', fontFamily: 'inherit' }}>
                     {m === 'signin' ? 'Sign In' : 'Create Account'}
                   </button>
                 ))}
               </div>
 
+              <h1 style={{ fontSize: 20, fontWeight: 800, color: C.text, margin: '0 0 4px', letterSpacing: '-0.02em' }}>
+                {mode === 'signin' ? 'Sign in to Setlistr' : 'Create your Setlistr account'}
+              </h1>
+              <p style={{ fontSize: 13, color: C.muted, margin: '0 0 20px', lineHeight: 1.5 }}>
+                {mode === 'signin' ? 'Welcome back. Use the email and password for your account.' : 'New here? Set up your account with your email and a password.'}
+              </p>
+
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                 <div>
-                  <label style={lbl}>Email</label>
-                  <input type="email" value={email} onChange={e => setEmail(e.target.value)}
+                  <label htmlFor="auth-email" style={lbl}>Email</label>
+                  <input id="auth-email" type="email" value={email} onChange={e => setEmail(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && (mode === 'signin' ? handleSignIn() : handleSignUp())}
                     placeholder="you@example.com" autoComplete="email"
                     style={inp(email)}
@@ -250,14 +276,18 @@ function LoginPageInner() {
                 </div>
 
                 <div>
-                  <label style={lbl}>Password</label>
-                  <input type="password" value={password} onChange={e => setPassword(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && mode === 'signin' && handleSignIn()}
-                    placeholder={mode === 'signup' ? 'At least 6 characters' : '••••••••'}
-                    autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
-                    style={inp(password)}
-                    onFocus={e => (e.target.style.borderColor = 'rgba(201,168,76,0.4)')}
-                    onBlur={e => (e.target.style.borderColor = password.trim() ? C.borderGold : C.border)} />
+                  <label htmlFor="auth-password" style={lbl}>Password</label>
+                  <div style={{ position: 'relative' }}>
+                    <input id="auth-password" type={showPassword ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && mode === 'signin' && handleSignIn()}
+                      placeholder={mode === 'signup' ? 'At least 6 characters' : '••••••••'}
+                      autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
+                      autoCapitalize="none" autoCorrect="off" spellCheck={false}
+                      style={{ ...inp(password), paddingRight: 72 }}
+                      onFocus={e => (e.target.style.borderColor = 'rgba(201,168,76,0.4)')}
+                      onBlur={e => (e.target.style.borderColor = password.trim() ? C.borderGold : C.border)} />
+                    {visibilityToggle(showPassword, () => setShowPassword(v => !v), 'password', 'auth-password')}
+                  </div>
                   {mode === 'signin' && (
                     <div style={{ textAlign: 'right', marginTop: 6 }}>
                       <button type="button" onClick={() => { setForgotError(''); setForgotDone(false); setShowForgotPassword(true) }}
@@ -273,13 +303,17 @@ function LoginPageInner() {
                 {mode === 'signup' && (
                   <>
                     <div>
-                      <label style={lbl}>Confirm Password</label>
-                      <input type="password" value={confirm} onChange={e => setConfirm(e.target.value)}
-                        onKeyDown={e => e.key === 'Enter' && handleSignUp()}
-                        placeholder="••••••••" autoComplete="new-password"
-                        style={{ ...inp(confirm), borderColor: confirm && confirm !== password ? 'rgba(248,113,113,0.4)' : confirm && confirm === password ? 'rgba(74,222,128,0.4)' : confirm.trim() ? C.borderGold : C.border }}
-                        onFocus={e => (e.target.style.borderColor = 'rgba(201,168,76,0.4)')}
-                        onBlur={e => (e.target.style.borderColor = confirm && confirm !== password ? 'rgba(248,113,113,0.4)' : confirm && confirm === password ? 'rgba(74,222,128,0.4)' : C.border)} />
+                      <label htmlFor="auth-confirm" style={lbl}>Confirm Password</label>
+                      <div style={{ position: 'relative' }}>
+                        <input id="auth-confirm" type={showConfirm ? 'text' : 'password'} value={confirm} onChange={e => setConfirm(e.target.value)}
+                          onKeyDown={e => e.key === 'Enter' && handleSignUp()}
+                          placeholder="••••••••" autoComplete="new-password"
+                          autoCapitalize="none" autoCorrect="off" spellCheck={false}
+                          style={{ ...inp(confirm), paddingRight: 72, borderColor: confirm && confirm !== password ? 'rgba(248,113,113,0.4)' : confirm && confirm === password ? 'rgba(74,222,128,0.4)' : confirm.trim() ? C.borderGold : C.border }}
+                          onFocus={e => (e.target.style.borderColor = 'rgba(201,168,76,0.4)')}
+                          onBlur={e => (e.target.style.borderColor = confirm && confirm !== password ? 'rgba(248,113,113,0.4)' : confirm && confirm === password ? 'rgba(74,222,128,0.4)' : C.border)} />
+                        {visibilityToggle(showConfirm, () => setShowConfirm(v => !v), 'confirm password', 'auth-confirm')}
+                      </div>
                       {confirm && password && confirm === password && (
                         <p style={{ fontSize: 11, color: C.green, margin: '4px 0 0' }}>✓ Passwords match</p>
                       )}
@@ -355,6 +389,14 @@ function LoginPageInner() {
                   style={{ width: '100%', padding: '13px', background: C.gold, border: 'none', borderRadius: 10, color: '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: (mode === 'signin' ? signInDisabled : signUpDisabled) ? 'not-allowed' : 'pointer', opacity: (mode === 'signin' ? signInDisabled : signUpDisabled) ? 0.6 : 1, transition: 'opacity 0.2s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit', marginTop: 4 }}>
                   {loading ? <><Spinner />{mode === 'signin' ? 'Signing in...' : 'Creating account...'}</> : mode === 'signin' ? 'Sign In' : 'Create Account'}
                 </button>
+
+                <p style={{ fontSize: 12, color: C.muted, margin: 0, textAlign: 'center' }}>
+                  {mode === 'signin' ? 'New to Setlistr?' : 'Already have an account?'}{' '}
+                  <button type="button" className="sl-auth-switch" onClick={() => switchMode(mode === 'signin' ? 'signup' : 'signin')}
+                    style={{ background: 'none', border: 'none', padding: 0, color: C.gold, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                    {mode === 'signin' ? 'Create an account' : 'Sign in instead'}
+                  </button>
+                </p>
               </div>
             </div>
 
@@ -519,6 +561,10 @@ function LoginPageInner() {
         @keyframes spin   { to{transform:rotate(360deg)} }
         * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
         input::placeholder, textarea::placeholder { color: #6a6050; }
+        .sl-pw-toggle:hover, .sl-auth-tab:hover { color: #c9a84c !important; }
+        .sl-auth-tab:focus-visible, .sl-auth-switch:focus-visible { outline: 2px solid #c9a84c; outline-offset: 2px; }
+        .sl-pw-toggle:focus-visible { outline: 2px solid #c9a84c; outline-offset: -3px; }
+        .sl-auth-switch:hover { text-decoration: underline; }
       `}</style>
     </div>
   )
