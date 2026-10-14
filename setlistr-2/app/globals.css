@@ -74,6 +74,11 @@
   --sl-faint: 80%;
   --sl-page-glow: radial-gradient(ellipse at 50% 0%, rgba(201,168,76,0.06) 0%, transparent 65%);
   --sl-scheme: dark;
+  /* Live capture's idle orb (before Tap to start). Listening and catch
+     states keep the literal gold orb in every appearance. */
+  --sl-orb-idle-bg: radial-gradient(circle at 40% 35%, #2a2520, #1a1610 55%, #0f0e0c);
+  --sl-orb-idle-shadow: 0 8px 40px rgba(0,0,0,0.6), 0 2px 8px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06);
+  --sl-orb-idle-ink: #c9a84c;
   --sl-font-display: 'Bebas Neue', 'Oswald', 'Arial Narrow', sans-serif;
 }
 :root[data-appearance="light"] {
@@ -117,6 +122,9 @@
   --sl-text-4: #5f636a;
   --sl-page-glow: none;
   --sl-scheme: light;
+  --sl-orb-idle-bg: radial-gradient(circle at 40% 35%, #ffffff, #f7f1e2 55%, #ede3c8);
+  --sl-orb-idle-shadow: 0 8px 28px rgba(122,94,20,0.18), 0 2px 6px rgba(17,19,24,0.12), inset 0 0 0 1.5px rgba(184,150,62,0.7);
+  --sl-orb-idle-ink: #7a5e14;
   /* Deliberately faint Dark details (section overlines, quiet delete
      marks) render at full strength on white, where faint fails contrast. */
   --sl-faint: 100%;

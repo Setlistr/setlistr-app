@@ -107,7 +107,9 @@ function read(rel: string): string {
   }
   const layout = read('app/layout.tsx'), appearance = read('lib/appearance.ts')
   check('Appearance: boot script runs in <head> before first paint; <html> suppresses only its own hydration attribute warning', layout.includes('__html: APPEARANCE_BOOT_SCRIPT') && layout.includes('<html lang="en" suppressHydrationWarning>') && layout.includes('<AppearanceSync />'))
-  check('Appearance: default preference stays Dark and live capture stays out of scope until its styling is approved', appearance.includes("DEFAULT_APPEARANCE_PREFERENCE: AppearancePreference = 'dark'") && appearance.includes("'/app/live/'"))
+  check('Appearance: default preference stays Dark; installed app locked to Dark in both the boot script and the sync', appearance.includes("DEFAULT_APPEARANCE_PREFERENCE: AppearancePreference = 'dark'") && appearance.includes('var light=!nat&&themed') && appearance.includes('if(!nat&&H.indexOf') && read('components/AppearanceSync.tsx').includes('isNativeApp(window)'))
+  const live = read('app/app/live/[id]/page.tsx')
+  check('Live capture: gold orb stays literal gold in every appearance; idle orb from tokens', live.includes("'radial-gradient(circle at 40% 35%, #c9a84ccc, #c9a84c 55%, #8a6520)'") && live.includes("'radial-gradient(circle at 40% 35%, #e8c76a, #c9a84c 55%, #a07828)'") && live.includes("'var(--sl-orb-idle-bg)'") && read('app/globals.css').split('--sl-orb-idle-bg').length === 3)
   check('Appearance: no selector exposed in Settings', !/sl-appearance|APPEARANCE_STORAGE_KEY/.test(read('app/app/settings/page.tsx')))
   check('Converted fields: focus/filled borders use the 3:1 active line, not a faint gold', !/input:focus\s*\{\s*border-color:\s*color-mix\(in srgb, var\(--sl-accent\) 40%/.test(['app/app/review/[id]/page.tsx', 'app/app/submit/[id]/page.tsx', 'app/app/upload/new/page.tsx', 'app/app/show/upload/page.tsx', 'app/app/history/page.tsx'].map(read).join('\n')))
   const sched = read('components/scheduling/UpcomingShows.tsx')

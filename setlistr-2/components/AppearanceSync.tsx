@@ -3,14 +3,15 @@ import { useEffect } from 'react'
 import { usePathname } from 'next/navigation'
 import {
   APPEARANCE_STORAGE_KEY, DEFAULT_APPEARANCE_PREFERENCE, THEME_COLOR,
-  effectiveAppearance, parsePreference, type AppearancePreference,
+  effectiveAppearance, isNativeApp, parsePreference, type AppearancePreference,
 } from '@/lib/appearance'
 
 // Keeps <html data-appearance> right after the first paint (which the boot
 // script in app/layout.tsx already got right): on client-side navigation
 // between themed and always-Dark routes, when the OS switches appearance
 // while the preference is System, and when another tab changes the stored
-// preference. Renders nothing; no selector is exposed.
+// preference. Renders nothing; no selector is exposed. The installed app is
+// always Dark (see isNativeApp in lib/appearance.ts).
 
 function storedPreference(): AppearancePreference {
   try { return parsePreference(localStorage.getItem(APPEARANCE_STORAGE_KEY)) ?? DEFAULT_APPEARANCE_PREFERENCE }
@@ -19,7 +20,7 @@ function storedPreference(): AppearancePreference {
 
 function apply(pathname: string) {
   const light = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-color-scheme: light)').matches
-  const appearance = effectiveAppearance(pathname, storedPreference(), light)
+  const appearance = effectiveAppearance(pathname, storedPreference(), light, isNativeApp(window))
   const root = document.documentElement
   if (appearance === 'light') root.setAttribute('data-appearance', 'light')
   else root.removeAttribute('data-appearance')
