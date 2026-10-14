@@ -106,17 +106,19 @@ export function ManagerShell({ children, profile }: { children: React.ReactNode;
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
 
         {/* Mobile-only top bar — desktop gets the sidebar's own logo instead */}
-        {/* Safe-area terms: 0 in Safari, device insets in the native iOS
-            app (viewport-fit=cover, app/layout.tsx). */}
+        {/* No top inset, same as AppShell's header: compact bar beside the
+            Dynamic Island. Side insets: landscape clearance, 0 in Safari. */}
         <header className="mgr-mobile-header" style={{
-          height: 'calc(56px + env(safe-area-inset-top, 0px))',
-          padding: 'env(safe-area-inset-top, 0px) max(16px, env(safe-area-inset-right, 0px)) 0 max(16px, env(safe-area-inset-left, 0px))',
+          height: 56,
+          padding: '0 max(16px, env(safe-area-inset-right, 0px)) 0 max(16px, env(safe-area-inset-left, 0px))',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           position: 'sticky', top: 0, zIndex: 40,
           background: 'rgba(10,9,8,0.92)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)',
           borderBottom: `1px solid ${C.border}`, flexShrink: 0,
         }}>
-          <Link href="/app/manager" style={{ display: 'flex', alignItems: 'center', textDecoration: 'none' }}>
+          {/* Clipped to 44px: the padded-square logo made this link 104px
+              tall, catching taps below the header. Wordmark position unchanged. */}
+          <Link href="/app/manager" style={{ display: 'flex', alignItems: 'center', height: 44, overflow: 'hidden', textDecoration: 'none' }}>
             <Image src="/logo-white.png" alt="Setlistr" width={104} height={28} priority style={{ objectFit: 'contain' }} />
           </Link>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
