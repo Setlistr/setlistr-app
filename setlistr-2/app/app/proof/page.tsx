@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useActingAs } from '@/components/ActingAsProvider'
+import { BELOW_APP_HEADER_STICKY_TOP } from '@/components/layout/appHeaderInsets'
 
 const C = {
   bg: '#0a0908', card: '#141210',
@@ -137,12 +138,12 @@ export default function ProofPage() {
     <div style={{ minHeight: '100svh', background: '#0a0908', fontFamily: '"DM Sans", system-ui, sans-serif', paddingBottom: 80 }}>
 
       {/* NAV */}
-      {/* Rendered inside AppShell. In Safari (inset 0) it sticks at 0 over
-          the app header, as before. In the native iOS app it sticks right
-          under AppShell's compact 56px header instead (min(56px, inset)), so
-          "Back" and the centred title never ride up under the Dynamic Island
-          and no strip of content shows between the two bars. */}
-      <div style={{ position: 'sticky', top: 'min(56px, env(safe-area-inset-top, 0px))', zIndex: 50, background: 'rgba(10,9,8,0.95)', backdropFilter: 'blur(12px)', borderBottom: '1px solid rgba(255,255,255,0.04)', padding: '12px 24px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      {/* Rendered inside AppShell. Inset 0 (Safari): sticks at 0 over the app
+          header, as it always has. Any top inset (native app): sticks exactly
+          at AppShell's header bottom edge, which is itself below the safe
+          area — so this bar and its Back button/title are always inside the
+          safe area, whatever the inset, with no gap between the two bars. */}
+      <div style={{ position: 'sticky', top: BELOW_APP_HEADER_STICKY_TOP, zIndex: 50, background: 'rgba(10,9,8,0.95)', backdropFilter: 'blur(12px)', borderBottom: '1px solid rgba(255,255,255,0.04)', padding: '12px 24px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <button onClick={() => router.back()} style={{ background: 'none', border: 'none', color: '#8a7a68', fontSize: 14, cursor: 'pointer', fontFamily: 'inherit', padding: '4px 0' }}>← Back</button>
         <span style={{ fontSize: 12, fontWeight: 600, color: '#c9a84c', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Performance Record</span>
         <button onClick={() => window.print()} style={{ background: '#c9a84c', border: 'none', borderRadius: 8, color: '#0a0908', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', padding: '6px 14px', letterSpacing: '0.04em' }}>Export PDF</button>

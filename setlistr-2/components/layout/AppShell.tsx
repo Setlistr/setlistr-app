@@ -10,6 +10,7 @@ import { useActingAs } from '@/components/ActingAsProvider'
 import { WorkspaceGate } from '@/components/WorkspaceGate'
 import { ManagerShell } from '@/components/layout/ManagerShell'
 import { AccountMenu } from '@/components/layout/AccountMenu'
+import { APP_HEADER_HEIGHT, APP_HEADER_PADDING_TOP } from '@/components/layout/appHeaderInsets'
 import { useState, useEffect } from 'react'
 
 // Set by app/app/manager/artists/[artistId]/page.tsx right before it
@@ -22,11 +23,6 @@ import { useState, useEffect } from 'react'
 export const MANAGER_RETURN_KEY = 'setlistr_manager_return_artist_id'
 
 const FULLSCREEN_ROUTES = ['/app/live/']
-
-// 1px in the native iOS app in portrait (any top safe-area inset), 0px in
-// Safari and landscape, where env() reports no top inset. Multiplied below
-// to switch a length on only where a top cutout exists.
-const TOP_CUTOUT_SWITCH = 'min(1px, env(safe-area-inset-top, 0px))'
 
 const GRAIN_URI = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)'/%3E%3C/svg%3E")`
 
@@ -122,7 +118,6 @@ export function AppShell({ children, profile }: { children: React.ReactNode; pro
   // moment they land without a selection, and once they DO select a
   // managed artist, actingAsArtistId is set and the full nav returns.
   const hasWorkspace = !!profile.artist_name?.trim() || !!actingAsArtistId
-  const showManagerPill = !!actingAsArtistId && managerReturnArtistId === actingAsArtistId
 
   // Submissions previously landed on /app/history (Your Record — the full
   // searchable log, submitted shows included), while carrying a
@@ -154,18 +149,13 @@ export function AppShell({ children, profile }: { children: React.ReactNode; pro
 
       {/* ── Header — logo, plus a Back to Manager pill when this acting-as
            session was entered from Manager mode ── */}
-      {/* Deliberately no top safe-area inset: in the native iOS app this
-          compact bar sits in the status-bar band, logo left and avatar right,
-          beside the centred Dynamic Island (adding the inset made it ~115px
-          tall). Side insets keep it clear of the cutout in landscape; they
-          are 0 in Safari (default viewport, app/layout.tsx). */}
-      {/* With the Back to Manager pill: in the native iOS app (portrait) the
-          pill can't share the 56px row with the centred Dynamic Island, so
-          the header gains a 44px second row for it there only; in Safari the
-          switch is 0 and the pill stays inline, exactly as before. */}
+      {/* Compact 56px wherever the top safe-area inset is 0 (Safari,
+          landscape); with a top inset, controls sit in a 44px row below it —
+          see appHeaderInsets.ts for why the band beside the cutout isn't used.
+          Side insets: landscape clearance, 0 in Safari. */}
       <header style={{
-        height: showManagerPill ? `calc(56px + ${TOP_CUTOUT_SWITCH} * 44)` : 56,
-        padding: `0 max(16px, env(safe-area-inset-right, 0px)) ${showManagerPill ? `calc(${TOP_CUTOUT_SWITCH} * 44)` : '0'} max(16px, env(safe-area-inset-left, 0px))`,
+        height: APP_HEADER_HEIGHT,
+        padding: `${APP_HEADER_PADDING_TOP} max(16px, env(safe-area-inset-right, 0px)) 0 max(16px, env(safe-area-inset-left, 0px))`,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         position: 'sticky', top: 0, zIndex: 40,
         background: 'rgba(10,9,8,0.88)',
@@ -185,12 +175,8 @@ export function AppShell({ children, profile }: { children: React.ReactNode; pro
               is still acting as that same artist — invisible to every other
               user and every other existing flow, including a plain dashboard-
               switcher session acting as a different artist. */}
-          {/* Absolutely positioned so the native-only switch can move it: in
-              Safari (switch 0) it sits exactly where the inline pill did,
-              left of the avatar, vertically centred; in the native app it
-              drops to the second row, right-aligned, clear of the island. */}
-          {showManagerPill && (
-            <button onClick={backToManager} style={{ position: 'absolute', top: `calc(12px + ${TOP_CUTOUT_SWITCH} * 50)`, right: `calc(max(16px, env(safe-area-inset-right, 0px)) + 50px - ${TOP_CUTOUT_SWITCH} * 50)`, display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.25)', borderRadius: 20, padding: '6px 12px 6px 10px', color: '#c9a84c', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent' }}>
+          {actingAsArtistId && managerReturnArtistId === actingAsArtistId && (
+            <button onClick={backToManager} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.25)', borderRadius: 20, padding: '6px 12px 6px 10px', color: '#c9a84c', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent' }}>
               <ArrowLeft size={13} /> Back to Manager
             </button>
           )}

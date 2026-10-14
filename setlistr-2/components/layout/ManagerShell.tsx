@@ -6,6 +6,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { LayoutDashboard, Users, BarChart3, Calendar, Settings } from 'lucide-react'
 import type { Profile } from '@/types'
 import { useActingAs } from '@/components/ActingAsProvider'
+import { APP_HEADER_HEIGHT, APP_HEADER_PADDING_TOP } from '@/components/layout/appHeaderInsets'
 
 // Dedicated shell for /app/manager* — a desktop sidebar and its own mobile
 // bottom nav, deliberately separate from AppShell's own artist-facing
@@ -106,11 +107,11 @@ export function ManagerShell({ children, profile }: { children: React.ReactNode;
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
 
         {/* Mobile-only top bar — desktop gets the sidebar's own logo instead */}
-        {/* No top inset, same as AppShell's header: compact bar beside the
-            Dynamic Island. Side insets: landscape clearance, 0 in Safari. */}
+        {/* Same geometry as AppShell's header (appHeaderInsets.ts): compact
+            56px with no top inset, controls below the inset otherwise. */}
         <header className="mgr-mobile-header" style={{
-          height: 56,
-          padding: '0 max(16px, env(safe-area-inset-right, 0px)) 0 max(16px, env(safe-area-inset-left, 0px))',
+          height: APP_HEADER_HEIGHT,
+          padding: `${APP_HEADER_PADDING_TOP} max(16px, env(safe-area-inset-right, 0px)) 0 max(16px, env(safe-area-inset-left, 0px))`,
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           position: 'sticky', top: 0, zIndex: 40,
           background: 'rgba(10,9,8,0.92)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)',
