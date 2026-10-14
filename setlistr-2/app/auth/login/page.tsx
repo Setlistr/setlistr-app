@@ -244,8 +244,6 @@ function LoginPageInner() {
     <div style={{ width: 13, height: 13, borderRadius: '50%', border: '2px solid #0a090840', borderTopColor: '#0a0908', animation: 'spin 0.7s linear infinite' }} />
   )
 
-  const signUpDisabled = loading || !email.trim() || !password.trim() || !confirm.trim() || password !== confirm || !termsAccepted
-  const signInDisabled = loading || !email.trim() || !password.trim()
 
   return (
     <div style={{ minHeight: '100svh', background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif', display: 'flex', flexDirection: 'column' }}>
@@ -288,7 +286,7 @@ function LoginPageInner() {
               )}
 
               {/* Sign in / Create account toggle */}
-              <div role="group" aria-label="Choose sign in or create account" style={{ display: 'flex', gap: 4, background: 'rgba(255,255,255,0.03)', border: `1px solid ${C.border}`, borderRadius: 10, padding: 4, marginBottom: 20 }}>
+              <div role="group" aria-label="Choose sign in or create account" style={{ display: 'flex', gap: 4, background: 'rgba(255,255,255,0.03)', border: `1px solid ${C.border}`, borderRadius: 10, padding: 4, marginBottom: 12 }}>
                 {(['signin', 'signup'] as Mode[]).map(m => (
                   <button key={m} type="button" className="sl-auth-tab" onClick={() => switchMode(m)} aria-pressed={mode === m}
                     style={{ flex: 1, minHeight: 44, padding: '10px 8px', border: mode === m ? `1px solid ${C.borderGold}` : '1px solid transparent', borderRadius: 7, background: mode === m ? C.goldDim : 'transparent', color: mode === m ? C.gold : C.secondary, fontSize: 13, fontWeight: 700, letterSpacing: '0.04em', cursor: 'pointer', transition: 'all 0.15s ease', fontFamily: 'inherit' }}>
@@ -297,11 +295,13 @@ function LoginPageInner() {
                 ))}
               </div>
 
-              <h1 style={{ fontSize: 20, fontWeight: 800, color: C.text, margin: '0 0 4px', letterSpacing: '-0.02em' }}>
+              {/* The selected tab already shows the mode visually; the heading
+                  stays for screen readers and document structure only. */}
+              <h1 className="sl-sr-only">
                 {mode === 'signin' ? 'Sign in to Setlistr' : 'Create your Setlistr account'}
               </h1>
-              <p style={{ fontSize: 13, color: C.muted, margin: '0 0 20px', lineHeight: 1.5 }}>
-                {mode === 'signin' ? 'Welcome back. Use the email and password for your account.' : 'New here? Set up your account with your email and a password.'}
+              <p style={{ fontSize: 13, color: C.muted, margin: '0 0 12px', lineHeight: 1.4 }}>
+                {mode === 'signin' ? 'Welcome back.' : 'Set up with your email and a password.'}
               </p>
 
               {/* A real <form>: Enter / the phone keyboard's Go key submit
@@ -310,7 +310,7 @@ function LoginPageInner() {
                   handlers exactly as before. */}
               <form onSubmit={mode === 'signin' ? handleSignIn : handleSignUp} noValidate
                 aria-label={mode === 'signin' ? 'Sign in' : 'Create account'}
-                style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 <div>
                   <label htmlFor="auth-email" style={lbl}>Email</label>
                   <input id="auth-email" name="email" type="email" inputMode="email" value={email} onChange={e => setEmail(e.target.value)}
@@ -335,7 +335,9 @@ function LoginPageInner() {
                     {visibilityToggle(showPassword, () => setShowPassword(v => !v), 'password', 'auth-password')}
                   </div>
                   {mode === 'signin' && (
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 2 }}>
+                    // Negative margins pull the row into the surrounding gaps:
+                    // less vertical space, same 44px tap target.
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', margin: '-4px 0 -10px' }}>
                       <button type="button" className="sl-auth-switch" onClick={() => { setForgotError(''); setForgotDone(false); setShowForgotPassword(true) }}
                         style={{ minHeight: 44, display: 'inline-flex', alignItems: 'center', background: 'none', border: 'none', color: C.secondary, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', padding: '0 0 0 12px', letterSpacing: '0.02em' }}
                         onMouseEnter={e => (e.currentTarget.style.color = C.gold)}
@@ -433,17 +435,15 @@ function LoginPageInner() {
                   </div>
                 )}
 
-                {/* Only truly disabled while a request is in flight. When the
-                    form is incomplete it LOOKS disabled (aria-disabled) but
-                    still submits, so tapping it or pressing Enter/Go runs the
-                    handler's validation and says what's missing — a disabled
-                    submit would silently block Enter inside a <form>. */}
+                {/* Enabled until a request is in flight: submitting an
+                    incomplete form runs the handler's validation, which says
+                    what's missing (a disabled submit would silently block
+                    Enter/Go inside a <form>). Disabled + spinner while loading. */}
                 <button
                   type="submit"
                   disabled={loading}
-                  aria-disabled={mode === 'signin' ? signInDisabled : signUpDisabled}
                   aria-busy={loading}
-                  style={{ width: '100%', minHeight: 50, padding: '13px', background: C.gold, border: 'none', borderRadius: 10, color: '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: (mode === 'signin' ? signInDisabled : signUpDisabled) ? 'not-allowed' : 'pointer', opacity: (mode === 'signin' ? signInDisabled : signUpDisabled) ? 0.6 : 1, transition: 'opacity 0.2s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit', marginTop: 4 }}>
+                  style={{ width: '100%', minHeight: 50, padding: '13px', background: C.gold, border: 'none', borderRadius: 10, color: '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: loading ? 'progress' : 'pointer', opacity: loading ? 0.7 : 1, transition: 'opacity 0.2s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit', marginTop: 4 }}>
                   {loading ? <><Spinner />{mode === 'signin' ? 'Signing in...' : 'Creating account...'}</> : mode === 'signin' ? 'Sign In' : 'Create Account'}
                 </button>
 
@@ -620,11 +620,27 @@ function LoginPageInner() {
         * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
         input::placeholder, textarea::placeholder { color: #6a6050; }
         .sl-terms input:focus-visible + .sl-terms-box { outline: 2px solid #c9a84c; outline-offset: 2px; }
+        .sl-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+        /* Autofill (iOS Keychain/Contacts, Chrome): the UA paints a pale
+           background with !important, which can't be overridden directly;
+           an inset shadow paints over it and -webkit-text-fill-color wins over
+           the forced text colour. Styling only — the autofill itself, the
+           autocomplete hints and Safari's Strong Password UI are untouched. */
+        .sl-auth-main input { color-scheme: dark; }
+        .sl-auth-main input:-webkit-autofill,
+        .sl-auth-main input:-webkit-autofill:hover,
+        .sl-auth-main input:-webkit-autofill:focus {
+          -webkit-box-shadow: 0 0 0 1000px #0f0e0c inset;
+          box-shadow: 0 0 0 1000px #0f0e0c inset;
+          -webkit-text-fill-color: #f0ece3;
+          caret-color: #f0ece3;
+          transition: background-color 9999s ease-out 0s;
+        }
         /* Phones: top-aligned (so the keyboard opening doesn't re-centre the
            form under the user's thumb), tighter card, no tagline. */
         @media (max-width: 600px) {
-          .sl-auth-main { justify-content: flex-start !important; padding-top: 16px !important; }
-          .sl-auth-card { padding: 20px !important; border-radius: 16px !important; }
+          .sl-auth-main { justify-content: flex-start !important; padding-top: 12px !important; }
+          .sl-auth-card { padding: 16px 18px 18px !important; border-radius: 16px !important; }
           .sl-auth-tagline { display: none; }
         }
         .sl-pw-toggle:hover, .sl-auth-tab:hover { color: #c9a84c !important; }

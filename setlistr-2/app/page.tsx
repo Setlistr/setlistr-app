@@ -81,6 +81,11 @@ export default function HomePage() {
         .sl-stat:last-child { border-right: none; }
 
         .sl-mobile-links { display: none; }
+        /* Desktop keeps the larger marketing wordmark (190×36, the file's
+           ratio); ≤820px uses BrandLogo's app-header size. */
+        @media (min-width: 821px) {
+          .sl-brand-logo { height: 36px !important; width: 190px !important; }
+        }
         .sl-mobile-links a { display: flex; align-items: center; height: 100%; white-space: nowrap; }
 
         /* Phone/tablet: the app shell's own header geometry (56px bar, 16px
@@ -139,7 +144,7 @@ export default function HomePage() {
         borderBottom: '1px solid rgba(255,255,255,0.05)',
       }}>
         <Link href="/" className="sl-brand-link" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', minHeight: 44, flexShrink: 0 }}>
-          <BrandLogo priority />
+          <BrandLogo priority className="sl-brand-logo" />
         </Link>
         <nav className="sl-nav-actions" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <Link href="/get-paid" className="sl-nav-link" style={{ marginRight: 8 }}>For Artists</Link>

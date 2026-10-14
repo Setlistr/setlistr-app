@@ -15,13 +15,17 @@ export const BRAND_LOGO_HEIGHT = 18
 // BrandLogo, drop this to 0 there and here together.
 export const BRAND_LOGO_APP_INSET = 12
 
-export function BrandLogo({ priority = false }: { priority?: boolean }) {
+export function BrandLogo({ priority = false, className }: { priority?: boolean; className?: string }) {
   return (
     <Image
       src="/logo-white-tight.png"
       alt="Setlistr"
-      width={95}
-      height={BRAND_LOGO_HEIGHT}
+      className={className}
+      // Intrinsic 190×36 (same ratio) so next/image's srcset stays sharp
+      // where a page renders it at the larger marketing size on Retina;
+      // the style below sets the displayed app-header size.
+      width={190}
+      height={36}
       priority={priority}
       // Both dimensions fixed (95×18 ≈ the file's 5.28:1 ratio): with only one
       // set, next/image warns, since preflight's height:auto changes the other.
