@@ -106,8 +106,11 @@ export function ManagerShell({ children, profile }: { children: React.ReactNode;
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
 
         {/* Mobile-only top bar — desktop gets the sidebar's own logo instead */}
+        {/* Safe-area terms: 0 in Safari, device insets in the native iOS
+            app (viewport-fit=cover, app/layout.tsx). */}
         <header className="mgr-mobile-header" style={{
-          height: 56, padding: '0 16px',
+          height: 'calc(56px + env(safe-area-inset-top, 0px))',
+          padding: 'env(safe-area-inset-top, 0px) max(16px, env(safe-area-inset-right, 0px)) 0 max(16px, env(safe-area-inset-left, 0px))',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           position: 'sticky', top: 0, zIndex: 40,
           background: 'rgba(10,9,8,0.92)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)',

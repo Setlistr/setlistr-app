@@ -148,8 +148,12 @@ export function AppShell({ children, profile }: { children: React.ReactNode; pro
 
       {/* ── Header — logo, plus a Back to Manager pill when this acting-as
            session was entered from Manager mode ── */}
+      {/* Top/side safe-area terms resolve to 0 in Safari (default viewport)
+          and to the device's insets in the native iOS app (viewport-fit=cover,
+          app/layout.tsx), where the header otherwise sat under the island. */}
       <header style={{
-        height: 56, padding: '0 16px',
+        height: 'calc(56px + env(safe-area-inset-top, 0px))',
+        padding: 'env(safe-area-inset-top, 0px) max(16px, env(safe-area-inset-right, 0px)) 0 max(16px, env(safe-area-inset-left, 0px))',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         position: 'sticky', top: 0, zIndex: 40,
         background: 'rgba(10,9,8,0.88)',

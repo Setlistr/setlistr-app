@@ -59,10 +59,30 @@ export const viewport: Viewport = {
   themeColor: '#1a1814',
 }
 
+// Native iOS app only (Capacitor WKWebView): opt the page into
+// viewport-fit=cover so env(safe-area-inset-*) report the device's real
+// insets. Capacitor's WKWebView uses contentInsetAdjustmentBehavior .never
+// (its default; capacitor.config.ts doesn't override ios.contentInset), so
+// the web view fills the screen under the Dynamic Island/home indicator,
+// and without cover every env() inset is 0 — headers drew under the island.
+// Safari is deliberately left on the default viewport: there the browser
+// already keeps the page inside the safe area, and cover would hand that
+// job to the page everywhere. Detection mirrors Capacitor's own iOS check
+// (native-bridge.js getPlatformId: window.webkit.messageHandlers.bridge),
+// which the native app injects at document start, before this runs.
+// Runs before first paint: Next emits the viewport <meta> first in <head>.
+// It also re-applies whenever the viewport <meta> is replaced or rewritten:
+// when hydration fails outside a Suspense boundary (the homepage's existing
+// style-text mismatch does this), React re-renders the whole document
+// client-side with a fresh <meta>, and this inline script doesn't run again.
+// The observer's callback is one querySelector, a no-op once applied.
+const NATIVE_IOS_VIEWPORT_FIT = `(function(){try{var w=window;if(!(w.webkit&&w.webkit.messageHandlers&&w.webkit.messageHandlers.bridge)||w.androidBridge)return;function fit(){var m=document.querySelector('meta[name="viewport"]');if(m&&m.content.indexOf('viewport-fit')<0)m.setAttribute('content',m.content+', viewport-fit=cover')}fit();new MutationObserver(fit).observe(document,{childList:true,subtree:true,attributes:true,attributeFilter:['content']})}catch(e){}})()`
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <head>
+        <script dangerouslySetInnerHTML={{ __html: NATIVE_IOS_VIEWPORT_FIT }} />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
