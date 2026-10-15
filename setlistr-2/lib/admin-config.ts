@@ -17,3 +17,11 @@ export const ADMIN_EMAILS = [
   'srclarke7@gmail.com',
   'kode.roberts@gmail.com',
 ]
+
+// Temporary rollout gate for the Appearance control in the INSTALLED app
+// (lib/appearance.ts) — not a permission: it grants no access, only shows
+// the control so Light can be verified on one installed build before every
+// native user gets it. Browsers show the control to everyone.
+export const NATIVE_APPEARANCE_PREVIEW_EMAILS = [
+  'jesse.slack.music@gmail.com',
+]

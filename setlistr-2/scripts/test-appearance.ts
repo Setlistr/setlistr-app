@@ -3,6 +3,7 @@
 import * as vm from 'vm'
 import {
   APPEARANCE_BOOT_SCRIPT, APPEARANCE_STORAGE_KEY, THEME_COLOR,
+  NATIVE_APPEARANCE_GRANT_KEY,
   effectiveAppearance, isNativeApp, isThemedPath, parsePreference, resolveAppearance,
 } from '../lib/appearance'
 
@@ -29,10 +30,11 @@ check('native detection: iOS bridge, Android bridge, Capacitor API; plain browse
 check('in scope follows preference', effectiveAppearance('/app/dashboard', 'light', false) === 'light')
 
 // ── Boot script (runs before first paint) ────────────────────────────────
-function boot({ path = '/app/dashboard', search = '', host = 'localhost', stored = null as string | null, osLight = false, storageThrows = false, native = '' as '' | 'ios' | 'android' | 'capacitor' } = {}) {
+function boot({ path = '/app/dashboard', search = '', host = 'localhost', stored = null as string | null, osLight = false, storageThrows = false, native = '' as '' | 'ios' | 'android' | 'capacitor', grant = null as string | null } = {}) {
   const attrs: Record<string, string> = {}
   const meta = { content: THEME_COLOR.dark, setAttribute(_k: string, v: string) { this.content = v } }
   const store: Record<string, string> = stored === null ? {} : { [APPEARANCE_STORAGE_KEY]: stored }
+  if (grant !== null) store[NATIVE_APPEARANCE_GRANT_KEY] = grant
   const localStorage = {
     getItem: (k: string) => { if (storageThrows) throw new Error('blocked'); return k in store ? store[k] : null },
     setItem: (k: string, v: string) => { if (storageThrows) throw new Error('blocked'); store[k] = v },
@@ -72,6 +74,22 @@ check('boot: review param honoured off production and stored', (() => { const r 
 check('boot: review param ignored on setlistr.ai', (() => { const r = boot({ search: '?appearance=light', host: 'setlistr.ai' }); return !r.light && r.stored === undefined })())
 check('boot: review param ignored on www.setlistr.ai', !boot({ search: '?appearance=light', host: 'www.setlistr.ai' }).light)
 check('boot: invalid review param ignored', !boot({ search: '?appearance=sepia', host: 'localhost' }).light)
+
+// ── Installed app: temporary rollout grant (account-bound, Dark otherwise) ──
+check('browser: grant irrelevant, preference applies', effectiveAppearance('/app/dashboard', 'light', false, false, false) === 'light')
+check('installed app without grant → Dark whatever the preference', effectiveAppearance('/app/dashboard', 'light', true, true, false) === 'dark' && effectiveAppearance('/app/dashboard', 'system', true, true, false) === 'dark')
+check('installed app with grant → preference applies on themed routes only', effectiveAppearance('/app/live/1', 'light', false, true, true) === 'light' && effectiveAppearance('/auth/login', 'light', false, true, true) === 'dark' && effectiveAppearance('/app/admin', 'light', false, true, true) === 'dark')
+check('installed app with grant + System follows the phone', effectiveAppearance('/app/dashboard', 'system', true, true, true) === 'light' && effectiveAppearance('/app/dashboard', 'system', false, true, true) === 'dark')
+check('installed app with grant + Dark → Dark', effectiveAppearance('/app/dashboard', 'dark', true, true, true) === 'dark')
+const G = '11111111-2222-4333-8444-555555555555'
+check('boot: installed app + grant + Light → Light', boot({ native: 'ios', grant: G, stored: 'light' }).light)
+check('boot: installed app + grant on auth/marketing → Dark', !boot({ native: 'ios', grant: G, stored: 'light', path: '/auth/login' }).light && !boot({ native: 'ios', grant: G, stored: 'light', path: '/' }).light)
+check('boot: installed app + Light but no grant → Dark', !boot({ native: 'android', stored: 'light' }).light)
+check('boot: installed app + grant + System → follows phone', boot({ native: 'ios', grant: G, stored: 'system', osLight: true }).light && !boot({ native: 'ios', grant: G, stored: 'system', osLight: false }).light)
+check('boot: installed app + grant + Dark → Dark (instant switch back)', !boot({ native: 'ios', grant: G, stored: 'dark' }).light)
+check('boot: installed app + grant, storage blocked → Dark', !boot({ native: 'ios', grant: G, stored: 'light', storageThrows: true }).light)
+check('boot: installed app ignores ?appearance= even with a grant', (() => { const r = boot({ native: 'ios', grant: G, stored: 'dark', search: '?appearance=light' }); return !r.light && r.stored === 'dark' })())
+check('boot: browser default (nothing stored) → Dark', !boot({}).light)
 
 console.log(`\n${passed} passed, ${failed} failed`)
 process.exit(failed ? 1 : 0)

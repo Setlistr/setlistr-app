@@ -4,8 +4,9 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Check, KeyRound, User, Music2, Search, Download, Radio, Users, Clock, AlertCircle, LogOut, Shield, Trash2 } from 'lucide-react'
-import { ADMIN_EMAILS } from '@/lib/admin-config'
+import { ADMIN_EMAILS, NATIVE_APPEARANCE_PREVIEW_EMAILS } from '@/lib/admin-config'
 import { useSessionGuard } from '@/lib/useSessionGuard'
+import { isNativeApp, saveAppearancePreference, storedAppearancePreference, type AppearancePreference } from '@/lib/appearance'
 import { diffFields, toWirePayload } from '@/lib/profileFormDiff'
 
 const CARD = {
@@ -135,6 +136,17 @@ export default function SettingsPage() {
   const [deleteConfirmText, setDeleteConfirmText] = useState('')
   const [deleting, setDeleting]                   = useState(false)
   const [deleteError, setDeleteError]             = useState('')
+
+  // Appearance — saved on this device, Dark by default (lib/appearance.ts).
+  const [appearance, setAppearance] = useState<AppearancePreference>('dark')
+  const [nativeApp, setNativeApp]   = useState(false)
+  useEffect(() => { setNativeApp(isNativeApp(window)); setAppearance(storedAppearancePreference()) }, [])
+  function chooseAppearance(pref: AppearancePreference) {
+    // In the installed app the choice also sets (Light/System) or removes
+    // (Dark) the rollout grant for the signed-in account.
+    saveAppearancePreference(pref, nativeApp ? loadedViewerId : undefined)
+    setAppearance(pref)
+  }
 
   const sessionGuard = useSessionGuard(loadedViewerId)
 
@@ -466,6 +478,8 @@ export default function SettingsPage() {
   }
 
   const isAdmin = ADMIN_EMAILS.includes(email)
+  // Browsers: everyone. Installed app: temporary rollout gate only.
+  const showAppearance = !nativeApp || (NATIVE_APPEARANCE_PREVIEW_EMAILS.includes(email) && !!loadedViewerId && !sessionGuard.invalid)
 
   const inputStyle: React.CSSProperties = {
     width: '100%', boxSizing: 'border-box',
@@ -880,6 +894,24 @@ export default function SettingsPage() {
             {passwordSaved ? <><Check size={14} strokeWidth={2.5} />Updated</> : passwordSaving ? 'Updating...' : 'Update Password'}
           </button>
         </div>
+
+        {/* ── Appearance ── */}
+        {showAppearance && (
+          <div style={{ background: CARD.background, border: `1px solid ${C.border}`, borderRadius: 16, padding: '20px', display: 'flex', flexDirection: 'column', gap: 12, boxShadow: CARD.boxShadow }}>
+            <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.secondary, margin: 0 }}>Appearance</p>
+            <div role="radiogroup" aria-label="Appearance" style={{ display: 'flex', gap: 6 }}>
+              {([['dark', 'Dark'], ['light', 'Light'], ['system', 'System']] as const).map(([value, label]) => (
+                <button key={value} type="button" role="radio" aria-checked={appearance === value} onClick={() => chooseAppearance(value)}
+                  style={{ flex: 1, minHeight: 44, borderRadius: 10, border: `1px solid ${appearance === value ? 'var(--sl-input-line-active)' : C.border}`, background: appearance === value ? C.goldDim : 'transparent', color: appearance === value ? C.gold : C.secondary, fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  {label}
+                </button>
+              ))}
+            </div>
+            <p style={{ fontSize: 12, color: C.muted, margin: 0, lineHeight: 1.5 }}>
+              {appearance === 'system' ? 'Follows your device’s light or dark setting.' : 'Saved on this device.'} Sign-in and public pages stay dark.
+            </p>
+          </div>
+        )}
 
         {/* ── Account ── */}
         <div style={{ background: CARD.background, border: `1px solid ${C.border}`, borderRadius: 16, padding: '20px', display: 'flex', flexDirection: 'column', gap: 10, boxShadow: CARD.boxShadow }}>
