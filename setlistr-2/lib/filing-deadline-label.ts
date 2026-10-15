@@ -9,8 +9,12 @@ export function deadlineNeedsAttention(urgency: Urgency): boolean {
   return urgency !== 'open'
 }
 
+// Shared theme tokens (app/globals.css), so the label reads in Light and
+// Dark alike — the same danger/warn colours the Submit page's deadline
+// banner uses. Previously fixed dark-theme hex, which fell to ~2.2–2.8:1
+// on a Light page. Urgency itself is unchanged (lib/pro-rules.ts).
 const URGENCY_COLOR: Record<Urgency, string> = {
-  expired: '#f87171', urgent: '#f87171', soon: '#f59e0b', open: '#8a7a68',
+  expired: 'var(--sl-danger)', urgent: 'var(--sl-danger)', soon: 'var(--sl-warn)', open: 'var(--sl-text-3)',
 }
 
 // Pure — the same deadline computation app/app/submit/[id]/page.tsx's own
