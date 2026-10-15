@@ -141,7 +141,7 @@ function read(rel: string): string {
   check('Your Record: dot fill is restored to the original condition (Marked Submitted only, not Ready to Claim)', historyPage.includes("dotFilled={displayStatus.color === C.green}"))
 
   for (const [label, src] of [['Filing Queue', filePage], ['Your Record', historyPage]] as const) {
-    check(`${label}: responsive page container caps at a readable width, not a wide multi-column layout`, src.includes('className="subm-page"') && src.includes('@media (min-width: 768px)') && !src.includes('@media (min-width: 1024px)'))
+    check(`${label}: responsive page container caps at a readable width, not a wide multi-column layout`, src.includes('className="subm-page"') && src.includes('<div className="subm-cq">') && src.includes('<SubmissionsDesktopStyles />') && !src.includes('@media (min-width: 768px)'))
     check(`${label}: row list stays a single column at every width (no grid reflow)`, src.includes('className="subm-list"') && !src.includes('grid-template-columns'))
     check(`${label}: no fixed maxWidth left on the old phone-width column`, !/maxWidth:\s*(480|600),\s*(width:\s*'100%',\s*)?margin:\s*'0 auto'/.test(src))
   }
@@ -173,7 +173,7 @@ function read(rel: string): string {
   check('Filing Queue header carries a count chip like Your Record does', filePage.includes('{rows.length} to file'))
 
   for (const [label, src] of [['Filing Queue', filePage], ['Your Record', historyPage]] as const) {
-    check(`${label}: desktop reading width widened for a more intentional feel (700px, not the cramped 640px)`, src.includes('max-width: 700px'))
+    check(`${label}: desktop follows the dashboard's container tiers and margins, list bounded to 880px`, (() => { const r = read('components/SubmissionEntryRow.tsx'); return r.includes('@container subm (min-width: 600px)') && r.includes('max-width: 640px !important; padding: 0 32px 56px') && r.includes('@container subm (min-width: 900px)') && r.includes('max-width: 1120px !important; padding: 0 48px 64px') && r.includes('.subm-page > * { max-width: 880px; }') })())
   }
 
   check('Your Record: muted/secondary tokens match Filing Queue\'s (contrast + cross-page consistency)', historyPage.includes("secondary: 'var(--sl-text-2)', muted: 'var(--sl-text-3)'") && read('app/app/file/page.tsx').includes("secondary: 'var(--sl-text-2)', muted: 'var(--sl-text-3)'"))

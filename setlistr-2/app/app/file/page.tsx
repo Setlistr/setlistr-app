@@ -10,7 +10,7 @@ import { loadFilingProfile, type FilingProfileContext } from '@/lib/load-filing-
 import { readClaimInputs } from '@/lib/claim-inputs-storage'
 import { countsFromRows, type SubmissionsNavCounts } from '@/lib/submissions-nav-counts'
 import { SubmissionsSwitcher } from '@/components/SubmissionsSwitcher'
-import { SubmissionEntryRow, SubmissionRowsSkeleton, SubmissionListError, CountChipPlaceholder } from '@/components/SubmissionEntryRow'
+import { SubmissionEntryRow, SubmissionRowsSkeleton, SubmissionListError, CountChipPlaceholder, SubmissionsDesktopStyles } from '@/components/SubmissionEntryRow'
 import { filingDeadlineLabel, deadlineNeedsAttention, type DeadlineLabel } from '@/lib/filing-deadline-label'
 
 const C = {
@@ -176,6 +176,7 @@ export default function FilingQueuePage() {
   return (
     <div style={{ minHeight: 'var(--sl-page-min-height, 100svh)', background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif' }}>
       <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '50vh', pointerEvents: 'none', zIndex: 0, background: 'var(--sl-page-glow)' }} />
+      <div className="subm-cq">
       <div className="subm-page" style={{ position: 'relative', zIndex: 1, width: '100%', padding: '0 16px 80px', boxSizing: 'border-box' as const }}>
 
         {/* Header — same structure, spacing, and back-button style as
@@ -270,7 +271,9 @@ export default function FilingQueuePage() {
           </div>
         )}
       </div>
+      </div>
 
+      <SubmissionsDesktopStyles />
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500;700&display=swap');
         * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
@@ -280,7 +283,6 @@ export default function FilingQueuePage() {
            purpose; on larger screens it grows only as far as a comfortable
            reading measure, not to fill the whole viewport. */
         .subm-page { max-width: 480px; margin: 0 auto; }
-        @media (min-width: 768px) { .subm-page { max-width: 700px; } }
         .subm-list { display: flex; flex-direction: column; }
       `}</style>
     </div>

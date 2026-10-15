@@ -11,7 +11,7 @@ import { loadFilingProfile } from '@/lib/load-filing-profile'
 import { readClaimInputs } from '@/lib/claim-inputs-storage'
 import { countsFromRows } from '@/lib/submissions-nav-counts'
 import { SubmissionsSwitcher } from '@/components/SubmissionsSwitcher'
-import { SubmissionEntryRow, SubmissionRowsSkeleton, SubmissionListError, CountChipPlaceholder } from '@/components/SubmissionEntryRow'
+import { SubmissionEntryRow, SubmissionRowsSkeleton, SubmissionListError, CountChipPlaceholder, SubmissionsDesktopStyles } from '@/components/SubmissionEntryRow'
 import { useWorkspaceRole } from '@/components/layout/WorkspaceRole'
 
 const CARD = {
@@ -364,6 +364,7 @@ export default function HistoryPage() {
     <div style={{ minHeight: 'var(--sl-page-min-height, 100svh)', background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif' }}>
       <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '40vh', pointerEvents: 'none', zIndex: 0, background: 'var(--sl-page-glow)' }} />
 
+      <div className="subm-cq">
       <div className="subm-page" style={{ padding: '0 16px', position: 'relative', zIndex: 1 }}>
 
         {/* Header */}
@@ -429,9 +430,9 @@ export default function HistoryPage() {
           </div>
         )}
 
-        {/* Search */}
-        <div style={{ marginBottom: 10 }}>
-          <div style={{ position: 'relative', marginBottom: 10 }}>
+        {/* Search — on desktop, one compact toolbar (SubmissionsDesktopStyles) */}
+        <div className="subm-tb" style={{ marginBottom: 10 }}>
+          <div className="subm-tb-search" style={{ position: 'relative', marginBottom: 10 }}>
             <Search size={14} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: C.muted, pointerEvents: 'none' }} />
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search venue, artist, or city..."
               style={{ width: '100%', background: C.card, border: `1px solid ${search ? 'var(--sl-input-line-active)' : 'var(--sl-input-line)'}`, borderRadius: 12, padding: '13px 16px 13px 44px', color: C.text, fontSize: 16, fontFamily: 'inherit', transition: 'border-color 0.15s ease', boxSizing: 'border-box' as const }} />
@@ -448,7 +449,7 @@ export default function HistoryPage() {
              heavy gold bar sitting right under the filters). Touch/trackpad
              scrolling and every filter stay reachable — only the visible
              track/thumb is hidden, not the scroll behavior itself. */}
-          <div className="subm-filter-scroll" style={{ display: 'flex', gap: 6, marginBottom: 8, overflowX: 'auto' as const, paddingRight: 16, WebkitOverflowScrolling: 'touch' as const }}>
+          <div className="subm-filter-scroll subm-tb-tabs" style={{ display: 'flex', gap: 6, marginBottom: 8, overflowX: 'auto' as const, paddingRight: 16, WebkitOverflowScrolling: 'touch' as const }}>
             {([
               { key: 'all',       label: 'All',             color: C.muted,  count: counts.all },
               { key: 'review',    label: 'Needs Review',    color: C.gold,   count: counts.review },
@@ -470,7 +471,7 @@ export default function HistoryPage() {
             })}
           </div>
 
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <div className="subm-tb-tools" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <button onClick={() => setShowFilters(!showFilters)}
               style={{ background: showFilters ? C.goldDim : 'transparent', border: `1px solid ${showFilters ? C.borderGold : C.border}`, borderRadius: 8, padding: '7px 12px', color: showFilters ? C.gold : C.muted, fontSize: 13, fontWeight: 700, cursor: 'pointer', letterSpacing: '0.06em', textTransform: 'uppercase' as const, fontFamily: 'inherit' }}>
               Date Range {showFilters ? '▲' : '▼'}
@@ -486,7 +487,7 @@ export default function HistoryPage() {
           </div>
 
           {showFilters && (
-            <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
+            <div className="subm-tb-dates" style={{ display: 'flex', gap: 10, marginTop: 10 }}>
               {[{ label: 'From', value: dateFrom, set: setDateFrom }, { label: 'To', value: dateTo, set: setDateTo }].map(({ label, value, set }) => (
                 <div key={label} style={{ flex: 1 }}>
                   <label style={{ fontSize: 10, color: C.muted, display: 'block', marginBottom: 5, letterSpacing: '0.1em', textTransform: 'uppercase' as const, fontWeight: 700 }}>{label}</label>
@@ -601,7 +602,9 @@ export default function HistoryPage() {
           )}
         </div>
       </div>
+      </div>
 
+      <SubmissionsDesktopStyles />
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500;700&display=swap');
         @keyframes fadeUp  { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
@@ -615,7 +618,6 @@ export default function HistoryPage() {
            width, not a card grid. Grows only to a comfortable reading
            measure on larger screens, not to fill the viewport. */
         .subm-page { max-width: 480px; margin: 0 auto; }
-        @media (min-width: 768px) { .subm-page { max-width: 700px; } }
         .subm-list { display: flex; flex-direction: column; }
 
         /* Hides only the visible scrollbar track/thumb on the status-tab
