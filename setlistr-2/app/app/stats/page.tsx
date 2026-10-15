@@ -2,10 +2,17 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { Music2, MapPin, Calendar, TrendingUp, Mic2, Shield, ChevronDown } from 'lucide-react'
+import { Music2, MapPin, Shield } from 'lucide-react'
 import MySongsTab from '@/components/MySongsTab'
 import { estimateRoyalties, capacityToBand } from '@/lib/royalty-estimate'
 import { useActingAs } from '@/components/ActingAsProvider'
+import { showDate } from '@/lib/record-summary'
+import { ESTIMATE_DISCLAIMER, ESTIMATE_UNIT, formatEstimate } from '@/lib/estimate-copy'
+import { PageFrame } from '@/components/ui/PageFrame'
+import { PageHeader } from '@/components/ui/PageHeader'
+import { ViewSwitcher } from '@/components/ui/ViewSwitcher'
+import { Skeleton } from '@/components/ui/Skeleton'
+import { LoadError } from '@/components/ui/LoadError'
 
 const CARD = {
   background: 'var(--sl-card-bg)',
@@ -28,9 +35,12 @@ type Performance = {
 type UserSong    = { id: string; song_title: string; canonical_artist: string; confirmed_count: number; last_confirmed_at: string }
 type SongDebut   = { title: string; artist: string | null; first_performed_at: string }
 
+// Debut dates arrive as a date or a timestamp; showDate() reads either as
+// the show's calendar day (the shipped formatter split only "YYYY-MM-DD"
+// and printed "Invalid Date" for timestamps).
 function formatDebutDate(d: string): string {
-  const [y, m, day] = d.split('-').map(Number)
-  return new Date(y, m - 1, day).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  const date = showDate({ performance_date: d })
+  return date ? date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'
 }
 
 function formatRelative(dateStr: string): string {
@@ -50,57 +60,69 @@ function isCanadian(country?: string | null, city?: string | null) {
   return ['toronto', 'vancouver', 'montreal', 'calgary', 'edmonton', 'ottawa', 'winnipeg'].some(c => lowerCity.includes(c))
 }
 
+type CareerData = { performances: Performance[]; allSongs: Song[]; userSongs: UserSong[]; songDebuts: SongDebut[]; debutsFailed: boolean }
+const NO_DATA: CareerData = { performances: [], allSongs: [], userSongs: [], songDebuts: [], debutsFailed: false }
+
 export default function StatsPage() {
   const router = useRouter()
   const { actingAsArtistId, resolved } = useActingAs()
   const [tab, setTab]                   = useState<'stats' | 'songs'>('stats')
-  const [performances, setPerformances] = useState<Performance[]>([])
-  const [allSongs, setAllSongs]         = useState<Song[]>([])
-  const [userSongs, setUserSongs]       = useState<UserSong[]>([])
   const [userId, setUserId]             = useState<string | null>(null)
-  const [songDebuts, setSongDebuts]     = useState<SongDebut[]>([])
-  const [loading, setLoading]           = useState(true)
   const [showTopSongs, setShowTopSongs]   = useState(false)
   const [showTopVenues, setShowTopVenues] = useState(false)
   const [showDebuts, setShowDebuts]       = useState(false)
   const [markerOverlay, setMarkerOverlay] = useState<string>('')
   const [usePlainMap, setUsePlainMap]     = useState(false)
 
+  // Loading standard (docs/ui-standard.md → Loading): results are tagged
+  // with the workspace they were loaded for and shown only while it is
+  // still the active one — switching artists never shows the previous
+  // artist's record, and a late response for an old workspace is dropped.
+  const workspaceKey = actingAsArtistId || 'own'
+  const [loaded, setLoaded] = useState<{ key: string; status: 'ok'; data: CareerData } | { key: string; status: 'error' } | null>(null)
+  const [reloadToken, setReloadToken] = useState(0)
+  const current = loaded && loaded.key === workspaceKey ? loaded : null
+  const ready = current?.status === 'ok'
+  const failed = current?.status === 'error'
+  const { performances, allSongs, userSongs, songDebuts, debutsFailed } = current?.status === 'ok' ? current.data : NO_DATA
+
   useEffect(() => {
     if (!resolved) return
     const supabase = createClient()
-    async function load() {
+    const key = actingAsArtistId || 'own'
+    let cancelled = false
+    setShowTopSongs(false); setShowTopVenues(false); setShowDebuts(false)
+    async function load(): Promise<CareerData | null> {
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-
+      if (!user) { router.push('/auth/login'); return null }
       const targetUserId = actingAsArtistId || user.id
-      setUserId(targetUserId)
+      if (!cancelled) setUserId(targetUserId)
 
       let perfList: Performance[] = []
+      let uSongs: UserSong[] = []
+      let debuts: SongDebut[] = []
+      let debutsFailed = false
 
       if (actingAsArtistId) {
         const [ctxRes, debutRes] = await Promise.all([
           fetch(`/api/team/context-data?artist_id=${actingAsArtistId}`),
           fetch(`/api/song-debuts?userId=${actingAsArtistId}`),
         ])
-        const ctxData   = await ctxRes.json()
-        const debutData = await debutRes.json()
-        if (!ctxData.error) {
-          perfList = (ctxData.performances || []).filter((p: any) =>
-            ['completed', 'complete', 'exported', 'review'].includes(p.status)
-          ).map((p: any) => ({
-            id: p.id, venue_name: p.venue_name, venue_id: p.venue_id || null,
-            city: p.city, country: p.country,
-            started_at: p.started_at, ended_at: p.ended_at || null,
-            set_duration_minutes: p.set_duration_minutes,
-            submission_status: p.submission_status || null,
-            show_type: p.show_type || 'single',
-            venue_capacity: p.venue_capacity || null,
-          }))
-          setPerformances(perfList)
-          setUserSongs([])
-        }
-        if (!debutData.error) setSongDebuts(debutData.debuts || [])
+        const ctxData = await ctxRes.json().catch(() => ({}))
+        if (!ctxRes.ok || ctxData.error) throw new Error(ctxData.error || `context-data ${ctxRes.status}`)
+        perfList = (ctxData.performances || []).filter((p: any) =>
+          ['completed', 'complete', 'exported', 'review'].includes(p.status)
+        ).map((p: any) => ({
+          id: p.id, venue_name: p.venue_name, venue_id: p.venue_id || null,
+          city: p.city, country: p.country,
+          started_at: p.started_at, ended_at: p.ended_at || null,
+          set_duration_minutes: p.set_duration_minutes,
+          submission_status: p.submission_status || null,
+          show_type: p.show_type || 'single',
+          venue_capacity: p.venue_capacity || null,
+        }))
+        const debutData = await debutRes.json().catch(() => ({ error: 'unreadable' }))
+        if (!debutRes.ok || debutData.error) debutsFailed = true; else debuts = debutData.debuts || []
       } else {
         const [perfsResult, uSongsResult, debutRes] = await Promise.all([
           supabase.from('performances_visible')
@@ -114,7 +136,8 @@ export default function StatsPage() {
             .order('confirmed_count', { ascending: false }),
           fetch('/api/song-debuts'),
         ])
-        const debutData = await debutRes.json()
+        if (perfsResult.error) throw perfsResult.error
+        if (uSongsResult.error) throw uSongsResult.error
         perfList = (perfsResult.data || []).map((p: any) => ({
           id: p.id, venue_name: p.venue_name, venue_id: p.venue_id || null,
           city: p.city, country: p.country,
@@ -124,26 +147,43 @@ export default function StatsPage() {
           show_type: (p.shows as any)?.show_type || 'single',
           venue_capacity: (p.venues as any)?.capacity || null,
         }))
-        setPerformances(perfList)
-        setUserSongs(uSongsResult.data || [])
-        if (!debutData.error) setSongDebuts(debutData.debuts || [])
+        uSongs = uSongsResult.data || []
+        const debutData = await debutRes.json().catch(() => ({ error: 'unreadable' }))
+        if (!debutRes.ok || debutData.error) debutsFailed = true; else debuts = debutData.debuts || []
       }
 
+      let songs: Song[] = []
       if (perfList.length > 0) {
-        const { data: songs } = await supabase.from('performance_songs_visible')
+        const { data, error } = await supabase.from('performance_songs_visible')
           .select('title, artist, position, performance_id').in('performance_id', perfList.map(p => p.id))
-        setAllSongs((songs || []) as Song[])
+        if (error) throw error
+        songs = (data || []) as Song[]
       }
-      setLoading(false)
+      return { performances: perfList, allSongs: songs, userSongs: uSongs, songDebuts: debuts, debutsFailed }
     }
     load()
-  }, [resolved, actingAsArtistId])
+      .then(data => { if (!cancelled && data) setLoaded({ key, status: 'ok', data }) })
+      .catch(err => { console.error('[Career] load failed:', err); if (!cancelled) setLoaded({ key, status: 'error' }) })
+    return () => { cancelled = true }
+  }, [resolved, actingAsArtistId, reloadToken]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Marker-pin geocoding for Career Map card ─────────────────────────────
+  // Page-level retry returns to the skeleton; a section retry refreshes in
+  // place (the loaded record stays on screen until the new one replaces it).
+  function retryPage() { setLoaded(null); setReloadToken(t => t + 1) }
+  function retrySection() { setReloadToken(t => t + 1) }
+
+  // ── Map: the existing Mapbox static image, framed to the pins ─────────────
+  // Geocoding (unchanged: top 6 cities, cached per city set) settles before
+  // the image is requested, so the map draws once, already framed, instead
+  // of drawing a fixed view and then re-framing when the pins arrive.
+  const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || ''
+  const [geoSettled, setGeoSettled] = useState(false)
+  const [mapImg, setMapImg] = useState<'loading' | 'ready' | 'failed'>('loading')
   useEffect(() => {
-    if (!mapboxToken || performances.length === 0) return
+    setMarkerOverlay(''); setGeoSettled(false)
+    if (!mapboxToken || performances.length === 0) { setGeoSettled(true); return }
+    let cancelled = false
 
-    // Derive top 6 cities by show count
     const cityCount: Record<string, { city: string; country: string; count: number }> = {}
     performances.forEach(p => {
       if (!p.city) return
@@ -152,21 +192,18 @@ export default function StatsPage() {
       cityCount[key].count++
     })
     const topCities = Object.values(cityCount).sort((a, b) => b.count - a.count).slice(0, 6)
-    if (topCities.length === 0) return
+    if (topCities.length === 0) { setGeoSettled(true); return }
 
-    // Cache key: sorted city+country pairs so order doesn't matter
     const cacheKey = `setlistr_mapmarkers_${topCities.map(c => `${c.city}__${c.country}`).sort().join('|')}`
-
     try {
       const cached = localStorage.getItem(cacheKey)
       if (cached) {
         const isClean = !cached.includes('NaN') && !cached.includes('null') && !cached.includes('undefined') && cached.startsWith('pin-s+')
-        if (isClean) { setMarkerOverlay(cached); return }
+        if (isClean) { setMarkerOverlay(cached); setGeoSettled(true); return }
         try { localStorage.removeItem(cacheKey) } catch {}
       }
     } catch {}
 
-    // Not cached — geocode async; card renders plain map in the meantime
     ;(async () => {
       const markers: string[] = []
       for (const { city, country } of topCities) {
@@ -179,17 +216,20 @@ export default function StatsPage() {
           if (data.features?.[0]) {
             const [lng, lat] = data.features[0].center
             if (Number.isFinite(lng) && Number.isFinite(lat)) {
-              markers.push(`pin-s+c9a84c(${lng.toFixed(4)},${lat.toFixed(4)})`)
+              markers.push(`pin-s+c9a84c(${lng.toFixed(4)},${lat.toFixed(4)})`) // map imagery: Mapbox pin colour (hex only)
             }
           }
         } catch {} // drop this pin, continue
       }
+      if (cancelled) return
       if (markers.length > 0) {
         const overlay = markers.join(',')
         setMarkerOverlay(overlay)
         try { localStorage.setItem(cacheKey, overlay) } catch {}
       }
+      setGeoSettled(true)
     })()
+    return () => { cancelled = true }
   }, [performances]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Reset fallback flag whenever markerOverlay changes so we retry the marker URL
@@ -249,8 +289,6 @@ export default function StatsPage() {
     ? new Date(firstShow.started_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
     : null
 
-  // Mapbox static image for Career Map card
-  const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || ''
   const topCountry = (() => {
     const cc: Record<string, number> = {}
     performances.forEach(p => { if (p.country) cc[p.country] = (cc[p.country] || 0) + 1 })
@@ -262,16 +300,19 @@ export default function StatsPage() {
     topCountry === 'AU' || topCountry === 'Australia' ? [134, -26, 3] :
     [-98, 38, 3]
   const plainMapUrl = mapboxToken
-    ? `https://api.mapbox.com/styles/v1/mapbox/dark-v11/static/${mapLon},${mapLat},${mapZoom}/480x200@2x?access_token=${mapboxToken}`
+    ? `https://api.mapbox.com/styles/v1/mapbox/dark-v11/static/${mapLon},${mapLat},${mapZoom}/600x340@2x?access_token=${mapboxToken}`
     : ''
   const isValidOverlay = markerOverlay.length > 0
     && !markerOverlay.includes('NaN')
     && !markerOverlay.includes('null')
     && !markerOverlay.includes('undefined')
+  // Same Static Images API and dark-v11 style; `auto` fits the view to the
+  // pins (padding leaves room for the caption) instead of a fixed centre.
   const markerMapUrl = (isValidOverlay && mapboxToken)
-    ? `https://api.mapbox.com/styles/v1/mapbox/dark-v11/static/${markerOverlay}/${mapLon},${mapLat},${mapZoom}/480x200@2x?access_token=${mapboxToken}`
+    ? `https://api.mapbox.com/styles/v1/mapbox/dark-v11/static/${markerOverlay}/auto/600x340@2x?padding=56,64,110,64&access_token=${mapboxToken}`
     : ''
-  const activeMapUrl = (isValidOverlay && !usePlainMap && markerMapUrl) ? markerMapUrl : plainMapUrl
+  const activeMapUrl = !geoSettled ? '' : (isValidOverlay && !usePlainMap && markerMapUrl) ? markerMapUrl : plainMapUrl
+  useEffect(() => { setMapImg(activeMapUrl ? 'loading' : (geoSettled ? 'failed' : 'loading')) }, [activeMapUrl, geoSettled])
 
   // Song analysis
   const songCounts: Record<string, { title: string; artist: string; count: number; positions: number[] }> = {}
@@ -290,6 +331,9 @@ export default function StatsPage() {
         ? Math.round(s.positions.reduce((a, b) => a + b, 0) / s.positions.length)
         : null,
     }))
+  // Honest ties: when several songs share the top count, none of them is
+  // presented as "the" signature song.
+  const tiedTop = topSongs.length > 0 ? Object.values(songCounts).filter(s => s.count === topSongs[0].count) : []
 
   const venueCounts: Record<string, { name: string; city: string; count: number; id: string | null }> = {}
   performances.forEach(p => {
@@ -314,380 +358,287 @@ export default function StatsPage() {
   const maxMonthCount = Math.max(...last6Months.map(m => monthCounts[m] ?? 0), 1)
   const totalUniqueSongs = userSongs.length
 
-  if (loading) {
-    return (
-      <div style={{ minHeight: 'var(--sl-page-min-height, 100svh)', background: C.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ width: 28, height: 28, borderRadius: '50%', border: `1.5px solid color-mix(in srgb, ${C.gold} 25%, transparent)`, borderTopColor: C.gold, animation: 'spin 1s linear infinite' }} />
-        <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+  const LABEL: React.CSSProperties = { fontSize: 12, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.muted, margin: 0 }
+  const SECTION_HEAD: React.CSSProperties = { display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, marginBottom: 6 }
+  const SECTION_TITLE: React.CSSProperties = { fontSize: 17, fontWeight: 700, color: C.text, margin: 0 }
+  const HAIR = '1px solid color-mix(in srgb, var(--sl-text) 8%, transparent)'
+  const moreBtn: React.CSSProperties = { minHeight: 44, background: 'none', border: 'none', padding: '0 0 0 8px', color: 'var(--sl-gold-text)', fontSize: 13.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }
+  const listRow: React.CSSProperties = { display: 'grid', gridTemplateColumns: '22px minmax(0,1fr) auto', columnGap: 12, alignItems: 'center', padding: '11px 0', borderBottom: HAIR }
+  const rank: React.CSSProperties = { fontSize: 12, fontWeight: 700, color: 'var(--sl-gold-text)', textAlign: 'right', fontFamily: '"DM Mono", monospace' }
+  const SONGS_SHOWN = 5, VENUES_SHOWN = 3, DEBUTS_SHOWN = 3
+
+  // Skeleton: the same columns and blocks as the finished Overview, so
+  // nothing moves when the record arrives.
+  const skeleton = (
+    <div className="cr-grid" aria-busy="true">
+      <span role="status" style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap' }}>Loading your career</span>
+      <div className="cr-col cr-col-a">
+        <div className="cr-map" style={{ aspectRatio: '600 / 340' }}><Skeleton h="100%" r={18} /></div>
+        <div className="cr-sig"><Skeleton h={168} r={18} /></div>
+        <div className="cr-songs"><Skeleton w="45%" h={18} r={6} />{[0, 1, 2, 3, 4].map(i => <Skeleton key={i} h={46} mt={12} r={8} />)}</div>
       </div>
-    )
-  }
+      <div className="cr-col cr-col-b">
+        <div className="cr-stats" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>{[0, 1, 2, 3].map(i => <div key={i}><Skeleton w="55%" h={30} r={6} /><Skeleton w="70%" h={12} mt={8} r={4} /></div>)}</div>
+        <div className="cr-est"><Skeleton h={128} r={16} /></div>
+        <div className="cr-recent"><Skeleton h={86} r={10} /></div>
+        <div className="cr-month"><Skeleton w="45%" h={18} r={6} /><Skeleton h={110} mt={14} r={8} /></div>
+        <div className="cr-venues"><Skeleton w="35%" h={18} r={6} />{[0, 1, 2].map(i => <Skeleton key={i} h={46} mt={12} r={8} />)}</div>
+      </div>
+    </div>
+  )
 
   return (
     <div style={{ minHeight: 'var(--sl-page-min-height, 100svh)', background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif' }}>
-
-      <div style={{ padding: '32px 20px 0', maxWidth: 520, margin: '0 auto' }}>
-        <h1 style={{ fontSize: 36, fontWeight: 800, color: C.text, margin: '0 0 20px', letterSpacing: '-0.02em' }}>Career</h1>
-
-        <div style={{ display: 'flex', gap: 4, background: 'color-mix(in srgb, var(--sl-text) 3%, transparent)', border: '1px solid color-mix(in srgb, var(--sl-text) 4%, transparent)', borderRadius: 12, padding: 4, marginBottom: 20 }}>
-          {([['stats', 'Overview'], ['songs', 'My Songs']] as const).map(([key, label]) => (
-            <button key={key} onClick={() => setTab(key)}
-              style={{ flex: 1, padding: '9px', border: 'none', borderRadius: 9, background: tab === key ? C.goldDim : 'transparent', color: tab === key ? C.gold : C.muted, fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', cursor: 'pointer', transition: 'all 0.15s ease', fontFamily: 'inherit' }}>
-              {label}
-              {key === 'songs' && totalUniqueSongs > 0 && (
-                <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 500 }}>{totalUniqueSongs}</span>
-              )}
-            </button>
-          ))}
+      <PageFrame>
+        <PageHeader title="Career" />
+        <div style={{ marginBottom: 20 }}>
+          <ViewSwitcher label="Career views" active={tab} onSelect={k => setTab(k as 'stats' | 'songs')}
+            options={[{ key: 'stats', label: 'Overview' }, { key: 'songs', label: 'My Songs', count: ready && totalUniqueSongs > 0 ? totalUniqueSongs : null }]} />
         </div>
-      </div>
 
-      {/* ── Overview tab ── */}
-      {tab === 'stats' && (
-        <div style={{ padding: '0 20px 40px', maxWidth: 520, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {totalShows === 0 ? (
+        {tab === 'stats' && (
+          !ready && !failed ? skeleton
+          : failed ? <LoadError message={actingAsArtistId ? 'This artist’s career didn’t load.' : 'Your career didn’t load.'} onRetry={retryPage} />
+          : totalShows === 0 ? (
             <div style={{ textAlign: 'center', padding: '60px 0' }}>
               <Music2 size={36} style={{ color: C.muted, opacity: 0.2, marginBottom: 16 }} />
               <p style={{ fontSize: 14, color: C.secondary, margin: 0 }}>Your stats, venues, and map build automatically as you play.</p>
             </div>
           ) : (
-            <>
-              {/* Primary stat grid */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                {[
-                  { icon: Calendar, label: 'Shows Played',      value: totalShows },
-                  { icon: Music2,   label: 'Song Performances', value: totalSongs },
-                  { icon: MapPin,   label: 'Cities',            value: totalCities },
-                ].map(({ icon: Icon, label, value }) => (
-                  <div key={label} style={{ background: CARD.background, border: '1px solid color-mix(in srgb, var(--sl-text) 4%, transparent)', borderRadius: 16, boxShadow: CARD.boxShadow, padding: '14px' }}>
-                    <Icon size={16} color={C.gold} style={{ marginBottom: 8 }} />
-                    <p style={{ fontSize: 32, fontWeight: 800, color: C.text, margin: 0, letterSpacing: '-0.02em' }}>{value}</p>
-                    <p style={{ fontSize: 11, letterSpacing: '0.04em', color: C.muted, margin: '3px 0 0' }}>{label}</p>
-                  </div>
-                ))}
-
-                {/* 4th cell: hours on stage if N ≥ 30% of shows, else first show date */}
-                <div style={{ background: CARD.background, border: '1px solid color-mix(in srgb, var(--sl-text) 4%, transparent)', borderRadius: 16, boxShadow: CARD.boxShadow, padding: '14px' }}>
-                  <TrendingUp size={16} style={{ color: C.gold, marginBottom: 8 }} />
-                  {showHours ? (
-                    <>
-                      <p style={{ fontSize: 32, fontWeight: 800, color: C.text, margin: 0, letterSpacing: '-0.02em' }}>{realTotalHours}</p>
-                      <p style={{ fontSize: 11, letterSpacing: '0.04em', color: C.muted, margin: '3px 0 0' }}>Hours on Stage</p>
-                      <p style={{ fontSize: 10, color: 'var(--sl-text-4)', margin: '2px 0 0' }}>from {N} timed shows</p>
-                    </>
-                  ) : firstShowLabel ? (
-                    <>
-                      <p style={{ fontSize: 22, fontWeight: 800, color: C.text, margin: 0, letterSpacing: '-0.02em', lineHeight: 1.1 }}>{firstShowLabel}</p>
-                      <p style={{ fontSize: 11, letterSpacing: '0.04em', color: C.muted, margin: '4px 0 0' }}>First Show</p>
-                    </>
-                  ) : (
-                    <>
-                      <p style={{ fontSize: 32, fontWeight: 800, color: C.text, margin: 0, letterSpacing: '-0.02em' }}>—</p>
-                      <p style={{ fontSize: 11, letterSpacing: '0.04em', color: C.muted, margin: '3px 0 0' }}>Hours on Stage</p>
-                    </>
+            <div className="cr-grid">
+              <div className="cr-col cr-col-a">
+                {/* Career Map — the existing Mapbox static image and tap-through.
+                   Its space is reserved from the first frame; the scrim is fixed
+                   dark in both appearances because the map imagery is dark in both. */}
+                <button className="cr-map" onClick={() => router.push('/app/career-map')} aria-label={`${totalCities} cities, ${totalShows} shows. View your map`}
+                  style={{ width: '100%', aspectRatio: '600 / 340', position: 'relative', overflow: 'hidden', borderRadius: 18, cursor: 'pointer', border: '1px solid color-mix(in srgb, var(--sl-text) 8%, transparent)', padding: 0, display: 'block', background: '#141210' /* map imagery: fixed */ }}>
+                  {mapImg !== 'ready' && mapImg !== 'failed' && <Skeleton h="100%" r={0} onDark style={{ position: 'absolute', inset: 0 }} />}
+                  {activeMapUrl && mapImg !== 'failed' && (
+                    <img src={activeMapUrl} alt="" aria-hidden="true"
+                      onLoad={() => setMapImg('ready')}
+                      onError={() => { if (activeMapUrl === markerMapUrl && !usePlainMap) setUsePlainMap(true); else setMapImg('failed') }}
+                      style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block', opacity: mapImg === 'ready' ? 1 : 0 }} />
                   )}
-                </div>
-              </div>
-
-              {/* Career Map — focal card with Mapbox static image + gold marker pins */}
-              <button onClick={() => router.push('/app/career-map')}
-                style={{
-                  width: '100%', height: 200, position: 'relative', overflow: 'hidden',
-                  borderRadius: 16, cursor: 'pointer', border: 'none', padding: 0, display: 'block',
-                  // The map image is dark in every appearance, so this card keeps
-                  // fixed dark-on-image colours rather than following the theme.
-                  background: '#141210', transition: 'opacity 0.15s ease', // map imagery: fixed
-                }}
-                onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.85'}
-                onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}>
-                {/* Map image layer — img fires onError; CSS background-image cannot */}
-                {plainMapUrl && (
-                  <img
-                    src={activeMapUrl}
-                    alt=""
-                    aria-hidden="true"
-                    onError={() => setUsePlainMap(true)}
-                    style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-                  />
-                )}
-                {/* Night-map gradient overlay */}
-                <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, color-mix(in srgb, var(--sl-bg) 55%, transparent) 0%, color-mix(in srgb, var(--sl-bg) 92%, transparent) 100%)' }} />
-                {/* Fallback icon when no token */}
-                {!plainMapUrl && (
-                  <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <MapPin size={36} style={{ color: C.gold, opacity: 0.2 }} />
-                  </div>
-                )}
-                {/* Text hierarchy — bottom-left over darkest zone */}
-                <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '0 20px 20px' }}>
-                  {/* map imagery: fixed */}
-                  <p style={{ fontSize: 36, fontWeight: 800, color: '#f3eee4', margin: '0 0 4px', letterSpacing: '-0.02em', lineHeight: 1 }}>
-                    {totalCities} Cities
-                  </p>
-                  {/* map imagery: fixed */}
-                  <p style={{ fontSize: 14, color: '#cdc2a8', margin: 0 }}>
-                    {totalShows} verified shows · view your map →
-                  </p>
-                </div>
-              </button>
-
-              {/* Lifetime royalty estimate */}
-              {estimatedLifetimeRoyalty > 0 && (
-                <div style={{ background: 'color-mix(in srgb, var(--sl-accent) 7%, transparent)', border: '1px solid color-mix(in srgb, var(--sl-accent) 12%, transparent)', borderRadius: 16, padding: '18px 20px', boxShadow: 'var(--sl-card-inset)' }}>
-                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+                  {mapImg === 'failed' && (
+                    <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, paddingBottom: 56 }}>
+                      <MapPin size={30} style={{ color: '#c9a84c', opacity: 0.5 }} /* map imagery: fixed */ />
+                      <span style={{ fontSize: 12.5, color: '#b9ae96' /* map imagery: fixed */ }}>Map preview unavailable</span>
+                    </div>
+                  )}
+                  <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(10,9,8,0.88) 0%, rgba(10,9,8,0.55) 28%, rgba(10,9,8,0) 58%)' /* map imagery: fixed */ }} />
+                  <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: '0 18px 16px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12, textAlign: 'left', flexWrap: 'wrap' }}>
                     <div>
-                      <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: C.muted, margin: '0 0 4px' }}>Estimated Lifetime Royalties</p>
-                      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                        <p style={{ fontSize: 42, fontWeight: 800, color: C.gold, margin: 0, fontFamily: '"DM Mono", monospace', letterSpacing: '-0.02em', lineHeight: 1 }}>
-                          ~${estimatedLifetimeRoyalty.toLocaleString()}
+                      <p style={{ fontSize: 34, fontWeight: 800, color: '#f3eee4', margin: 0, letterSpacing: '-0.02em', lineHeight: 1 }} /* map imagery: fixed */>{totalCities} {totalCities === 1 ? 'City' : 'Cities'}</p>
+                      <p style={{ fontSize: 14, color: '#d9cfb7', margin: '5px 0 0' }} /* map imagery: fixed */>{totalShows} {totalShows === 1 ? 'show' : 'shows'}</p>
+                    </div>
+                    <span style={{ fontSize: 13.5, fontWeight: 700, color: '#e3c66f', whiteSpace: 'nowrap', background: 'rgba(10,9,8,0.55)', border: '1px solid rgba(227,198,111,0.35)', borderRadius: 999, padding: '7px 12px' }} /* map imagery: fixed */>View your map →</span>
+                  </div>
+                </button>
+
+                {/* Signature song — most played, counted from setlists; ties are said as ties. */}
+                {topSongs.length > 0 && (
+                  <div className="cr-sig" style={{ background: 'color-mix(in srgb, var(--sl-accent) 7%, transparent)', border: '1px solid color-mix(in srgb, var(--sl-accent) 25%, transparent)', borderRadius: 18, padding: '20px 20px 18px' }}>
+                    <p style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--sl-gold-text)', margin: '0 0 10px' }}>{tiedTop.length > 1 ? 'Most played live · tied' : 'Most played live'}</p>
+                    {tiedTop.length > 1 ? (
+                      <>
+                        <p style={{ fontSize: 26, fontWeight: 800, color: C.text, margin: '0 0 14px', letterSpacing: '-0.02em', lineHeight: 1.15 }}>
+                          {tiedTop.slice(0, 3).map(s => s.title).join(', ')}{tiedTop.length > 3 ? ` and ${tiedTop.length - 3} more` : ''}
                         </p>
-                        <span style={{ fontSize: 12, color: C.muted, fontWeight: 500 }}>documented</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                          <span style={{ fontSize: 40, fontWeight: 800, color: 'var(--sl-gold-text)', letterSpacing: '-0.02em', fontFamily: '"DM Mono", monospace', lineHeight: 1 }}>{topSongs[0].count}×</span>
+                          <span style={{ fontSize: 13.5, color: C.secondary, lineHeight: 1.4 }}>each, tied for most played.<br />Counted from your setlists.</span>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <p style={{ fontSize: 30, fontWeight: 800, color: C.text, margin: '0 0 4px', letterSpacing: '-0.02em', lineHeight: 1.1 }}>{topSongs[0].title}</p>
+                        <p style={{ fontSize: 14, color: C.secondary, margin: '0 0 14px' }}>{topSongs[0].artist}</p>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                          <span style={{ fontSize: 40, fontWeight: 800, color: 'var(--sl-gold-text)', letterSpacing: '-0.02em', fontFamily: '"DM Mono", monospace', lineHeight: 1 }}>{topSongs[0].count}×</span>
+                          <span style={{ fontSize: 13.5, color: C.secondary, lineHeight: 1.4 }}>times played live. Your signature song.<br />Counted from your setlists.</span>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
+
+                {/* Most played songs — top five on the page, the rest in place */}
+                {topSongs.length > 0 && (
+                  <div className="cr-songs">
+                    <div style={SECTION_HEAD}>
+                      <h2 style={SECTION_TITLE}>Most played songs</h2>
+                      {topSongs.length > SONGS_SHOWN && <button style={moreBtn} aria-expanded={showTopSongs} onClick={() => setShowTopSongs(v => !v)}>{showTopSongs ? 'Show fewer' : `Show all ${topSongs.length}`}</button>}
+                    </div>
+                    {(showTopSongs ? topSongs : topSongs.slice(0, SONGS_SHOWN)).map((song, i) => (
+                      <div key={song.title} style={listRow}>
+                        <span style={rank}>{i + 1}</span>
+                        <div style={{ minWidth: 0 }}>
+                          <p style={{ fontSize: 15.5, color: C.text, margin: 0, fontWeight: 600, overflowWrap: 'anywhere' }}>{song.title}</p>
+                          <p style={{ fontSize: 13, color: C.muted, margin: '1px 0 0' }}>{[song.artist, song.avgPosition ? `usually #${song.avgPosition}` : null].filter(Boolean).join(' · ')}</p>
+                          <div style={{ marginTop: 6, height: 3, borderRadius: 2, background: 'color-mix(in srgb, var(--sl-text) 6%, transparent)' }}>
+                            <div style={{ height: '100%', borderRadius: 2, width: `${(song.count / topSongs[0].count) * 100}%`, background: i === 0 ? C.gold : 'color-mix(in srgb, var(--sl-accent) 45%, transparent)' }} />
+                          </div>
+                        </div>
+                        <span style={{ fontSize: 13.5, fontWeight: 700, color: C.text, fontFamily: '"DM Mono", monospace' }}>{song.count}×</span>
                       </div>
-                      <p style={{ fontSize: 14, color: C.muted, margin: '6px 0 0', lineHeight: 1.5 }}>
-                        Based on {totalSongs} song appearances across {totalShows} shows
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="cr-col cr-col-b">
+                {/* Career statistics — the same four figures, flat */}
+                <div className="cr-stats" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', borderTop: HAIR }}>
+                  {[
+                    { label: 'Shows played', value: String(totalShows), note: null as string | null },
+                    { label: 'Song performances', value: String(totalSongs), note: null },
+                    { label: 'Cities', value: String(totalCities), note: null },
+                    showHours
+                      ? { label: 'Hours on stage', value: String(realTotalHours), note: `from ${N} timed shows` }
+                      : firstShowLabel ? { label: 'First show', value: firstShowLabel, note: null } : { label: 'Hours on stage', value: '—', note: null },
+                  ].map((s, i) => (
+                    <div key={s.label} style={{ padding: '14px 4px 14px 0', borderBottom: HAIR, borderRight: i % 2 === 0 ? HAIR : 'none', paddingLeft: i % 2 === 1 ? 16 : 0 }}>
+                      <p style={{ fontSize: 30, fontWeight: 800, color: C.text, margin: 0, letterSpacing: '-0.02em', lineHeight: 1.05, fontVariantNumeric: 'tabular-nums' }}>{s.value}</p>
+                      <p style={{ fontSize: 13.5, color: C.secondary, margin: '4px 0 0' }}>{s.label}</p>
+                      {s.note && <p style={{ fontSize: 12, color: C.muted, margin: '1px 0 0' }}>{s.note}</p>}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Lifetime royalty estimate — same calculation and place, standard estimate wording */}
+                {estimatedLifetimeRoyalty > 0 && (
+                  <div className="cr-est" style={{ background: 'color-mix(in srgb, var(--sl-accent) 7%, transparent)', border: '1px solid color-mix(in srgb, var(--sl-accent) 14%, transparent)', borderRadius: 16, padding: '16px 18px' }}>
+                    <p style={LABEL}>Estimated lifetime royalties</p>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 6 }}>
+                      <p style={{ fontSize: 38, fontWeight: 800, color: 'var(--sl-gold-text)', margin: 0, fontFamily: '"DM Mono", monospace', letterSpacing: '-0.02em', lineHeight: 1 }}>{formatEstimate(estimatedLifetimeRoyalty)}</p>
+                      <span style={{ fontSize: 14, color: C.muted, fontWeight: 500 }}>{ESTIMATE_UNIT}</span>
+                    </div>
+                    <p style={{ fontSize: 14, color: C.secondary, margin: '8px 0 0', lineHeight: 1.5 }}>Based on {totalSongs} song appearances across {totalShows} shows</p>
+                    <p style={{ fontSize: 12, color: C.muted, margin: '4px 0 0' }}>{ESTIMATE_DISCLAIMER}</p>
+                  </div>
+                )}
+
+                {/* Last show + dormant songs */}
+                <div className="cr-recent">
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', borderTop: HAIR, borderBottom: HAIR }}>
+                    <div style={{ padding: '14px 0', borderRight: HAIR }}>
+                      <p style={LABEL}>Last show</p>
+                      <p style={{ fontSize: 26, fontWeight: 800, color: daysSinceLastShow !== null && daysSinceLastShow > 14 ? 'var(--sl-gold-text)' : C.text, margin: '6px 0 0', fontFamily: '"DM Mono", monospace', letterSpacing: '-0.02em' }}>
+                        {daysSinceLastShow === null ? '—' : daysSinceLastShow === 0 ? 'Today' : `${daysSinceLastShow}d`}
                       </p>
-                      <p style={{ fontSize: 10, color: 'var(--sl-text-4)', margin: '4px 0 0' }}>Estimate only, not guaranteed — actual payouts vary by PRO.</p>
+                      {daysSinceLastShow !== null && <p style={{ fontSize: 13, color: C.muted, margin: '2px 0 0' }}>{daysSinceLastShow === 0 ? 'just performed' : daysSinceLastShow === 1 ? 'yesterday' : 'since last show'}</p>}
+                    </div>
+                    <div style={{ padding: '14px 0 14px 16px' }}>
+                      <p style={LABEL}>Dormant songs</p>
+                      <p style={{ fontSize: 26, fontWeight: 800, color: dormantSongs > 0 ? 'var(--sl-gold-text)' : C.text, margin: '6px 0 0', fontFamily: '"DM Mono", monospace', letterSpacing: '-0.02em' }}>{dormantSongs}</p>
+                      <p style={{ fontSize: 13, color: C.muted, margin: '2px 0 0' }}>{dormantSongs === 0 ? 'all active' : 'not played in 45d+'}</p>
                     </div>
                   </div>
-                </div>
-              )}
-
-              {/* Intelligence row — last show + dormant */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                <div style={{ background: CARD.background, border: '1px solid color-mix(in srgb, var(--sl-text) 4%, transparent)', borderRadius: 16, boxShadow: CARD.boxShadow, padding: '14px' }}>
-                  <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', color: C.muted, margin: '0 0 6px' }}>Last Show</p>
-                  {daysSinceLastShow !== null ? (
-                    <>
-                      <p style={{ fontSize: 28, fontWeight: 800, color: daysSinceLastShow > 14 ? C.gold : C.text, margin: 0, fontFamily: '"DM Mono", monospace', letterSpacing: '-0.02em' }}>
-                        {daysSinceLastShow === 0 ? 'Today' : `${daysSinceLastShow}d`}
-                      </p>
-                      <p style={{ fontSize: 13, color: C.muted, margin: '3px 0 0' }}>
-                        {daysSinceLastShow === 0 ? 'just performed' : daysSinceLastShow === 1 ? 'yesterday' : 'since last show'}
-                      </p>
-                    </>
-                  ) : (
-                    <p style={{ fontSize: 13, color: C.muted, margin: 0 }}>—</p>
+                  {dormantSongs > 0 && (
+                    <button onClick={() => setTab('songs')} style={{ width: '100%', minHeight: 44, textAlign: 'left', background: 'none', border: 'none', padding: '8px 0 0', cursor: 'pointer', fontFamily: 'inherit', fontSize: 14, color: C.secondary, lineHeight: 1.5 }}>
+                      {dormantSongs} song{dormantSongs !== 1 ? 's' : ''} in your catalog {dormantSongs !== 1 ? "haven't" : "hasn't"} been played live in 45+ days <span style={{ color: 'var(--sl-gold-text)', fontWeight: 700 }}>→</span>
+                    </button>
                   )}
                 </div>
 
-                <div style={{ background: CARD.background, border: '1px solid color-mix(in srgb, var(--sl-text) 4%, transparent)', borderRadius: 16, boxShadow: CARD.boxShadow, padding: '14px' }}>
-                  <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', color: C.muted, margin: '0 0 6px' }}>Dormant Songs</p>
-                  <p style={{ fontSize: 28, fontWeight: 800, color: dormantSongs > 0 ? C.gold : C.text, margin: 0, fontFamily: '"DM Mono", monospace', letterSpacing: '-0.02em' }}>
-                    {dormantSongs}
-                  </p>
-                  <p style={{ fontSize: 13, color: C.muted, margin: '3px 0 0' }}>
-                    {dormantSongs === 0 ? 'all active' : 'not played in 45d+'}
-                  </p>
-                </div>
-              </div>
-
-              {/* Dormant callout — soft one-line text link */}
-              {dormantSongs > 0 && (
-                <button onClick={() => setTab('songs')}
-                  style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '2px 0', cursor: 'pointer', fontFamily: 'inherit', transition: 'opacity 0.15s ease' }}
-                  onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.7'}
-                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}>
-                  <p style={{ fontSize: 14, color: C.secondary, margin: 0, lineHeight: 1.5 }}>
-                    {dormantSongs} song{dormantSongs !== 1 ? 's' : ''} in your catalog {dormantSongs !== 1 ? "haven't" : "hasn't"} been played live in 45+ days →
-                  </p>
-                </button>
-              )}
-
-              {/* Shows per month */}
-              <div style={{ background: CARD.background, border: '1px solid color-mix(in srgb, var(--sl-text) 4%, transparent)', borderRadius: 16, boxShadow: CARD.boxShadow, padding: '16px' }}>
-                {/* Title in its own row — clear of bars */}
-                <p style={{ fontSize: 13, letterSpacing: '0.04em', color: C.secondary, margin: '0 0 16px', fontWeight: 600 }}>Shows per Month</p>
-                {/* Value labels row — own line so bar tops never collide with title */}
-                <div style={{ display: 'flex', gap: 8, marginBottom: 4 }}>
-                  {last6Months.map(month => {
-                    const count = monthCounts[month] ?? 0
-                    return (
-                      <div key={month} style={{ flex: 1, textAlign: 'center' }}>
-                        <span style={{ fontSize: 12, color: count > 0 ? C.text : C.muted }}>{count || ''}</span>
-                      </div>
-                    )
-                  })}
-                </div>
-                {/* Bars-only container — no value labels inside so height is clean */}
-                <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, height: 64 }}>
-                  {last6Months.map(month => {
-                    const count  = monthCounts[month] ?? 0
-                    const height = count === 0 ? 4 : Math.max(8, (count / maxMonthCount) * 64)
-                    return (
-                      <div key={month} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-                        <div style={{ width: '100%', borderRadius: '3px 3px 0 0', height: `${height}px`, background: count > 0 ? C.gold : 'color-mix(in srgb, var(--sl-text) 5%, transparent)' }} />
-                        <span style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', color: C.muted }}>{month.split(' ')[0]}</span>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-
-              {topSongs.length > 0 && (
-                <div style={{
-                  background: 'color-mix(in srgb, var(--sl-accent) 7%, transparent)',
-                  border: '1px solid color-mix(in srgb, var(--sl-accent) 25%, transparent)',
-                  borderRadius: 16, padding: '20px',
-                  marginBottom: 12,
-                  boxShadow: 'var(--sl-card-inset)',
-                }}>
-                  <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: C.gold, margin: '0 0 12px' }}>
-                    Most Played Live
-                  </p>
-                  <p style={{ fontSize: 28, fontWeight: 800, color: C.text, margin: '0 0 4px', letterSpacing: '-0.02em', lineHeight: 1.1 }}>
-                    {topSongs[0].title}
-                  </p>
-                  <p style={{ fontSize: 14, color: C.secondary, margin: '0 0 16px' }}>{topSongs[0].artist}</p>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <span style={{ fontSize: 36, fontWeight: 800, color: C.gold, letterSpacing: '-0.02em', fontFamily: '"DM Mono", monospace' }}>
-                      {topSongs[0].count}×
-                    </span>
-                    <span style={{ fontSize: 13, color: C.muted, lineHeight: 1.4 }}>
-                      times played live.<br />Your signature song.
-                    </span>
+                {/* Shows per month — the same six months */}
+                <div className="cr-month">
+                  <div style={SECTION_HEAD}><h2 style={SECTION_TITLE}>Shows per month</h2></div>
+                  <div style={{ display: 'flex', gap: 10, marginTop: 12, marginBottom: 4 }}>
+                    {last6Months.map(month => { const count = monthCounts[month] ?? 0; return <div key={month} style={{ flex: 1, textAlign: 'center' }}><span style={{ fontSize: 13, fontWeight: 600, color: count > 0 ? C.text : C.muted }}>{count || ''}</span></div> })}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10, height: 76, borderBottom: HAIR }}>
+                    {last6Months.map(month => { const count = monthCounts[month] ?? 0; const height = count === 0 ? 3 : Math.max(8, (count / maxMonthCount) * 76); return <div key={month} style={{ flex: 1, borderRadius: '4px 4px 0 0', height: `${height}px`, background: count > 0 ? C.gold : 'color-mix(in srgb, var(--sl-text) 6%, transparent)' }} /> })}
+                  </div>
+                  <div style={{ display: 'flex', gap: 10, marginTop: 6 }}>
+                    {last6Months.map(month => <span key={month} style={{ flex: 1, textAlign: 'center', fontSize: 11.5, textTransform: 'uppercase', letterSpacing: '0.06em', color: C.muted }}>{month.split(' ')[0]}</span>)}
                   </div>
                 </div>
-              )}
 
-              {/* Top songs */}
-              {topSongs.length > 0 && (
-                <div style={{ background: CARD.background, border: '1px solid color-mix(in srgb, var(--sl-text) 4%, transparent)', borderRadius: 16, boxShadow: CARD.boxShadow, padding: '16px' }}>
-                  <button onClick={() => setShowTopSongs(v => !v)}
-                    style={{ width: '100%', background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: showTopSongs ? 16 : 0, transition: 'opacity 0.15s ease' }}
-                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.7'}
-                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <Mic2 size={14} style={{ color: C.gold }} />
-                      <p style={{ fontSize: 13, letterSpacing: '0.04em', color: C.secondary, margin: 0, fontWeight: 600 }}>Most Played Songs</p>
+                {/* Top venues — top three on the page; each row opens the venue page */}
+                {topVenues.length > 0 && (
+                  <div className="cr-venues">
+                    <div style={SECTION_HEAD}>
+                      <h2 style={SECTION_TITLE}>Top venues</h2>
+                      {topVenues.length > VENUES_SHOWN && <button style={moreBtn} aria-expanded={showTopVenues} onClick={() => setShowTopVenues(v => !v)}>{showTopVenues ? 'Show fewer' : `Show all ${topVenues.length}`}</button>}
                     </div>
-                    <ChevronDown size={14} style={{ color: C.muted, transition: 'transform 0.2s ease', transform: showTopSongs ? 'rotate(180deg)' : 'rotate(0deg)' }} />
-                  </button>
-                  {showTopSongs && <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                    {topSongs.map((song, i) => (
-                      <div key={song.title} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                        <span style={{ fontSize: 11, fontWeight: 700, color: C.gold, minWidth: 16, textAlign: 'right', fontFamily: '"DM Mono", monospace' }}>{i + 1}</span>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                            <div style={{ minWidth: 0 }}>
-                              <p style={{ fontSize: 15, color: C.text, margin: 0, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{song.title}</p>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 1, flexWrap: 'wrap' }}>
-                                {song.artist && <p style={{ fontSize: 13, color: C.secondary, margin: 0 }}>{song.artist}</p>}
-                                {(song as any).avgPosition && (
-                                  <span style={{ fontSize: 11, color: C.muted, background: 'color-mix(in srgb, var(--sl-text) 4%, transparent)', borderRadius: 4, padding: '1px 6px', whiteSpace: 'nowrap' }}>
-                                    usually #{(song as any).avgPosition}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                            <span style={{ fontSize: 12, color: C.gold, background: 'color-mix(in srgb, var(--sl-accent) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--sl-accent) 15%, transparent)', borderRadius: 20, padding: '2px 8px', flexShrink: 0, fontFamily: '"DM Mono", monospace' }}>{song.count}×</span>
-                          </div>
-                          <div style={{ marginTop: 6, height: 2, borderRadius: 1, background: 'color-mix(in srgb, var(--sl-text) 5%, transparent)' }}>
-                            <div style={{ height: '100%', borderRadius: 1, width: `${(song.count / topSongs[0].count) * 100}%`, background: i === 0 ? C.gold : 'color-mix(in srgb, var(--sl-accent) 40%, transparent)' }} />
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>}
-                </div>
-              )}
-
-              {/* Top venues */}
-              {topVenues.length > 0 && (
-                <div style={{ background: CARD.background, border: '1px solid color-mix(in srgb, var(--sl-text) 4%, transparent)', borderRadius: 16, boxShadow: CARD.boxShadow, padding: '16px' }}>
-                  <button onClick={() => setShowTopVenues(v => !v)}
-                    style={{ width: '100%', background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: showTopVenues ? 16 : 0, transition: 'opacity 0.15s ease' }}
-                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.7'}
-                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <MapPin size={14} style={{ color: C.gold }} />
-                      <p style={{ fontSize: 13, letterSpacing: '0.04em', color: C.secondary, margin: 0, fontWeight: 600 }}>Top Venues</p>
-                    </div>
-                    <ChevronDown size={14} style={{ color: C.muted, transition: 'transform 0.2s ease', transform: showTopVenues ? 'rotate(180deg)' : 'rotate(0deg)' }} />
-                  </button>
-                  {showTopVenues && <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                    {topVenues.map((venue, i) => (
-                      <div key={venue.name} onClick={() => { if (venue.id) router.push(`/app/venue/${venue.id}`) }}
-                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, cursor: venue.id ? 'pointer' : 'default', borderRadius: 8, padding: '4px 6px', margin: '-4px -6px', transition: 'background 0.12s ease' }}
-                        onMouseEnter={e => { if (venue.id) (e.currentTarget as HTMLElement).style.background = C.cardHover }}
-                        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-                          <span style={{ fontSize: 11, fontWeight: 700, color: C.gold, minWidth: 16, textAlign: 'right', fontFamily: '"DM Mono", monospace' }}>{i + 1}</span>
-                          <div style={{ minWidth: 0 }}>
-                            <p style={{ fontSize: 15, color: C.text, margin: 0, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{venue.name}</p>
-                            {venue.city && <p style={{ fontSize: 13, color: C.secondary, margin: '1px 0 0' }}>{venue.city}</p>}
-                          </div>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                          <span style={{ fontSize: 12, color: C.gold, background: 'color-mix(in srgb, var(--sl-accent) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--sl-accent) 15%, transparent)', borderRadius: 20, padding: '2px 8px' }}>
-                            {venue.count} {venue.count === 1 ? 'show' : 'shows'}
-                          </span>
-                          {venue.id && <span style={{ fontSize: 13, color: C.muted }}>→</span>}
-                        </div>
-                      </div>
-                    ))}
-                  </div>}
-                </div>
-              )}
-
-              {/* Song Debuts */}
-              {songDebuts.length > 0 && (
-                <div style={{ background: CARD.background, border: '1px solid color-mix(in srgb, var(--sl-text) 4%, transparent)', borderRadius: 16, boxShadow: CARD.boxShadow, padding: '16px' }}>
-                  <button onClick={() => setShowDebuts(v => !v)}
-                    style={{ width: '100%', background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: showDebuts ? 16 : 0, transition: 'opacity 0.15s ease' }}
-                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.7'}
-                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <Calendar size={14} style={{ color: C.gold }} />
-                      <p style={{ fontSize: 13, letterSpacing: '0.04em', color: C.secondary, margin: 0, fontWeight: 600 }}>Song Debuts</p>
-                    </div>
-                    <ChevronDown size={14} style={{ color: C.muted, transition: 'transform 0.2s ease', transform: showDebuts ? 'rotate(180deg)' : 'rotate(0deg)' }} />
-                  </button>
-                  {showDebuts && <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    {songDebuts.map((debut, i) => (
-                      <div key={`${debut.title}-${i}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-                        <div style={{ minWidth: 0 }}>
-                          <p style={{ fontSize: 15, color: C.text, margin: 0, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{debut.title}</p>
-                          {debut.artist && <p style={{ fontSize: 13, color: C.secondary, margin: '1px 0 0' }}>{debut.artist}</p>}
-                        </div>
-                        <span style={{ fontSize: 12, color: C.muted, whiteSpace: 'nowrap', flexShrink: 0, fontFamily: '"DM Mono", monospace' }}>
-                          {formatDebutDate(debut.first_performed_at)}
+                    {(showTopVenues ? topVenues : topVenues.slice(0, VENUES_SHOWN)).map((venue, i) => {
+                      const inner = (<>
+                        <span style={rank}>{i + 1}</span>
+                        <span style={{ minWidth: 0 }}>
+                          <span style={{ display: 'block', fontSize: 15.5, color: C.text, fontWeight: 600, overflowWrap: 'anywhere' }}>{venue.name}</span>
+                          {venue.city && <span style={{ display: 'block', fontSize: 13, color: C.muted, marginTop: 1 }}>{venue.city}</span>}
                         </span>
+                        <span style={{ fontSize: 13.5, fontWeight: 600, color: C.secondary, whiteSpace: 'nowrap' }}>{venue.count} {venue.count === 1 ? 'show' : 'shows'}{venue.id ? ' →' : ''}</span>
+                      </>)
+                      return venue.id
+                        ? <button key={venue.name} onClick={() => router.push(`/app/venue/${venue.id}`)} style={{ ...listRow, width: '100%', minHeight: 56, background: 'none', borderLeft: 'none', borderRight: 'none', borderTop: 'none', textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit', color: 'inherit' }}>{inner}</button>
+                        : <div key={venue.name} style={listRow}>{inner}</div>
+                    })}
+                  </div>
+                )}
+
+                {/* Song debuts — the first three on the page (existing order); a failed
+                   lookup says so here without taking the rest of the page down */}
+                {debutsFailed ? (
+                  <div className="cr-debuts">
+                    <div style={SECTION_HEAD}><h2 style={SECTION_TITLE}>Song debuts</h2></div>
+                    <LoadError compact message="Song debuts didn’t load." onRetry={retrySection} />
+                  </div>
+                ) : songDebuts.length > 0 && (
+                  <div className="cr-debuts">
+                    <div style={SECTION_HEAD}>
+                      <h2 style={SECTION_TITLE}>Song debuts</h2>
+                      {songDebuts.length > DEBUTS_SHOWN && <button style={moreBtn} aria-expanded={showDebuts} onClick={() => setShowDebuts(v => !v)}>{showDebuts ? 'Show fewer' : `Show all ${songDebuts.length}`}</button>}
+                    </div>
+                    {(showDebuts ? songDebuts : songDebuts.slice(0, DEBUTS_SHOWN)).map((debut, i) => (
+                      <div key={`${debut.title}-${i}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '11px 0', borderBottom: HAIR }}>
+                        <div style={{ minWidth: 0 }}>
+                          <p style={{ fontSize: 15.5, color: C.text, margin: 0, fontWeight: 600, overflowWrap: 'anywhere' }}>{debut.title}</p>
+                          {debut.artist && <p style={{ fontSize: 13, color: C.muted, margin: '1px 0 0' }}>{debut.artist}</p>}
+                        </div>
+                        <span style={{ fontSize: 12.5, color: C.secondary, whiteSpace: 'nowrap', fontFamily: '"DM Mono", monospace' }}>{formatDebutDate(debut.first_performed_at)}</span>
                       </div>
                     ))}
-                  </div>}
-                </div>
-              )}
-
-              {/* Performance Proof File */}
-              <button onClick={() => router.push('/app/proof')}
-                style={{ width: '100%', padding: '16px 20px', background: CARD.background, border: '1px solid color-mix(in srgb, var(--sl-text) 4%, transparent)', borderRadius: 16, boxShadow: CARD.boxShadow, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'space-between', transition: 'opacity 0.15s ease' }}
-                onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.7'}
-                onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <Shield size={18} style={{ color: C.gold, flexShrink: 0 }} />
-                  <div style={{ textAlign: 'left' }}>
-                    <p style={{ fontSize: 15, fontWeight: 600, color: C.secondary, margin: '0 0 2px' }}>Performance Proof File</p>
-                    <p style={{ fontSize: 13, color: C.muted, margin: 0 }}>Your verified career record.</p>
                   </div>
-                </div>
-                <span style={{ fontSize: 18, color: C.muted }}>→</span>
-              </button>
-            </>
-          )}
-        </div>
-      )}
+                )}
 
-      {/* ── My Songs tab ── */}
-      {tab === 'songs' && userId && (
-        <div style={{ padding: '0 20px 40px', maxWidth: 520, margin: '0 auto' }}>
-          <MySongsTab userId={userId} />
-        </div>
-      )}
+                {/* Performance Proof File */}
+                <button className="cr-proof" onClick={() => router.push('/app/proof')}
+                  style={{ width: '100%', minHeight: 64, padding: '14px 18px', background: CARD.background, border: '1px solid color-mix(in srgb, var(--sl-text) 6%, transparent)', borderRadius: 16, boxShadow: CARD.boxShadow, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <Shield size={18} style={{ color: C.gold, flexShrink: 0 }} />
+                    <span style={{ textAlign: 'left' }}>
+                      <span style={{ display: 'block', fontSize: 15.5, fontWeight: 700, color: C.text, marginBottom: 2 }}>Performance Proof File</span>
+                      <span style={{ display: 'block', fontSize: 13, color: C.muted }}>Your verified career record.</span>
+                    </span>
+                  </span>
+                  <span style={{ fontSize: 18, color: C.muted }}>→</span>
+                </button>
+              </div>
+            </div>
+          )
+        )}
+
+        {/* ── My Songs tab ── */}
+        {/* My Songs keeps its reading width for now (adoption: later batch). */}
+        {tab === 'songs' && (userId ? <div style={{ maxWidth: 560 }}><MySongsTab userId={userId} /></div> : <div aria-busy="true">{[0, 1, 2, 3].map(i => <Skeleton key={i} h={52} mt={i ? 12 : 0} r={10} />)}</div>)}
+      </PageFrame>
 
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500;700&display=swap');
         input::placeholder { color: var(--sl-text-3); }
-        * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
+        /* Career's own column split inside the shared frame: one stacked
+           column on phones (map, statistics, estimate, recent, monthly,
+           signature song, songs, venues, debuts, Proof File), and from 900px
+           a wide map column beside a statistics column. */
+        .cr-grid { display: flex; flex-direction: column; gap: 22px; position: relative; }
+        .cr-col { display: contents; }
+        .cr-map { order: 1; } .cr-stats { order: 2; } .cr-est { order: 3; } .cr-recent { order: 4; } .cr-month { order: 5; }
+        .cr-sig { order: 6; } .cr-songs { order: 7; } .cr-venues { order: 8; } .cr-debuts { order: 9; } .cr-proof { order: 10; }
+        @container sl-frame (min-width: 900px) {
+          .cr-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(340px, 400px); column-gap: 48px; align-items: start; }
+          .cr-col { display: flex; flex-direction: column; gap: 26px; }
+        }
       `}</style>
     </div>
   )

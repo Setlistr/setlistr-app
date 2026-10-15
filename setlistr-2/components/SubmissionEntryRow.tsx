@@ -1,4 +1,6 @@
 'use client'
+import { StatusLabel } from '@/components/ui/StatusLabel'
+import { Skeleton } from '@/components/ui/Skeleton'
 
 const C = { text: 'var(--sl-text)', secondary: 'var(--sl-text-2)', muted: 'var(--sl-text-3)', gold: 'var(--sl-accent)', goldText: 'var(--sl-gold-text)', hair: 'color-mix(in srgb, var(--sl-text) 7%, transparent)' }
 
@@ -51,18 +53,6 @@ export interface HistoryRowProps extends CommonProps {
 
 export type SubmissionEntryRowProps = QueueRowProps | HistoryRowProps
 
-function StatusLine({ label, color, filled, children }: { label: string; color: string; filled?: boolean; children?: React.ReactNode }) {
-  return (
-    <span className="subm-statusline" style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap' as const, columnGap: 10, rowGap: 2, marginTop: 5 }}>
-      <span className="subm-s1" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-        <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: '50%', flexShrink: 0, boxSizing: 'border-box' as const, background: filled ? C.gold : 'transparent', border: `1.5px solid ${C.gold}` }} />
-        <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase' as const, color, whiteSpace: 'nowrap' as const }}>{label}</span>
-      </span>
-      {children}
-    </span>
-  )
-}
-
 export function SubmissionEntryRow(props: SubmissionEntryRowProps) {
   const { onNavigate, disabled, day, month, venueName, statusLabel, statusTextColor, dotFilled } = props
 
@@ -92,9 +82,9 @@ export function SubmissionEntryRow(props: SubmissionEntryRowProps) {
             <span className="subm-l2" style={{ fontSize: 14.5, lineHeight: 1.35, color: C.secondary, overflowWrap: 'break-word' as const }}>
               {[venueName, props.city].filter(Boolean).join(' · ')}
             </span>
-            <StatusLine label={statusLabel} color={statusTextColor} filled={dotFilled}>
+            <StatusLabel label={statusLabel} color={statusTextColor} filled={dotFilled}>
               {props.statusNote && <span className="subm-l3" style={{ fontSize: 13, color: C.muted, overflowWrap: 'break-word' as const }}>{props.statusNote}</span>}
-            </StatusLine>
+            </StatusLabel>
             {props.deadlineLabel && (
               <span className="subm-s2" style={{ fontSize: 12.5, fontWeight: 600, color: props.deadlineColor || C.muted, marginTop: 2 }}>{props.deadlineLabel}</span>
             )}
@@ -115,11 +105,11 @@ export function SubmissionEntryRow(props: SubmissionEntryRowProps) {
               <span style={{ fontSize: 17, fontWeight: 600, lineHeight: 1.25, color: C.text, overflowWrap: 'break-word' as const, minWidth: 0 }}>{venueName}</span>
             </span>
             <span className="subm-l2" style={{ fontSize: 14.5, lineHeight: 1.35, color: C.secondary, overflowWrap: 'break-word' as const }}>{props.metaLine}</span>
-            <StatusLine label={statusLabel} color={statusTextColor} filled={dotFilled}>
+            <StatusLabel label={statusLabel} color={statusTextColor} filled={dotFilled}>
               {props.estimate != null && props.estimate > 0 && (
                 <span className="subm-s2" style={{ fontSize: 13, color: C.secondary }}>~${props.estimate} est.</span>
               )}
-            </StatusLine>
+            </StatusLabel>
           </span>
           <svg className="subm-go" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, color: C.muted }}><path d="M9 6l6 6-6 6" /></svg>
         </>
@@ -134,7 +124,7 @@ export function SubmissionEntryRow(props: SubmissionEntryRowProps) {
 export function SubmissionRowsSkeleton({ variant, count = 5 }: { variant: 'queue' | 'history'; count?: number }) {
   const line = (cls: string, h: number, w: string, bar: number, extra?: React.CSSProperties) => (
     <span className={cls} style={{ height: h, display: 'flex', alignItems: 'center', ...extra }}>
-      <span className="sl-subm-skel" style={{ display: 'block', width: w, height: bar, borderRadius: 5, background: 'var(--sl-skeleton)' }} />
+      <Skeleton w={w} h={bar} r={5} />
     </span>
   )
   return (
@@ -142,8 +132,8 @@ export function SubmissionRowsSkeleton({ variant, count = 5 }: { variant: 'queue
       {Array.from({ length: count }, (_, i) => (
         <div key={i} className={`subm-row subm-row--${variant}`} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '15px 4px', minHeight: 72, borderBottom: `1px solid ${C.hair}`, boxSizing: 'border-box' as const }}>
           <span className="subm-date" style={{ width: 38, flexShrink: 0, alignSelf: 'flex-start', display: 'flex', flexDirection: 'column' as const, alignItems: 'center', gap: 6, paddingTop: 2 }}>
-            <span className="sl-subm-skel" style={{ width: 22, height: 18, borderRadius: 5, background: 'var(--sl-skeleton)' }} />
-            <span className="sl-subm-skel" style={{ width: 26, height: 10, borderRadius: 4, background: 'var(--sl-skeleton)' }} />
+            <Skeleton w={22} h={18} r={5} />
+            <Skeleton w={26} h={10} r={4} />
           </span>
           <span className="subm-main" style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' as const, gap: 3 }}>
             {line('subm-l1', 21, variant === 'queue' ? '56%' : ['62%', '48%', '70%'][i % 3], 14)}
@@ -154,37 +144,17 @@ export function SubmissionRowsSkeleton({ variant, count = 5 }: { variant: 'queue
             {line('subm-s2 subm-skel-trail', 16, '52%', 9, { display: 'none' })}
           </span>
           {variant === 'queue'
-            ? <span className="sl-subm-skel subm-go" style={{ width: 40, height: 40, borderRadius: '50%', flexShrink: 0, background: 'var(--sl-skeleton)' }} />
+            ? <span className="subm-go" style={{ flexShrink: 0 }}><Skeleton w={40} h={40} r={20} /></span>
             : <span className="subm-go" style={{ width: 16, flexShrink: 0 }} />}
         </div>
       ))}
-      <style>{`@keyframes sl-subm-skel { 0%,100% { opacity: .55 } 50% { opacity: 1 } }
-        .sl-subm-skel { animation: sl-subm-skel 1.6s ease-in-out infinite; }
-        @media (prefers-reduced-motion: reduce) { .sl-subm-skel { animation: none; } }`}</style>
-    </div>
-  )
-}
-
-// Shown in place of the list when it fails to load — never an empty state,
-// never an endless loader.
-export function SubmissionListError({ message, onRetry }: { message: string; onRetry: () => void }) {
-  return (
-    <div role="alert" style={{ background: 'color-mix(in srgb, var(--sl-warn) 7%, transparent)', border: '1px solid color-mix(in srgb, var(--sl-warn) 28%, transparent)', borderRadius: 12, padding: '16px', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' as const }}>
-      <span style={{ flex: '1 1 200px', minWidth: 0 }}>
-        <span style={{ display: 'block', fontSize: 15, fontWeight: 600, color: C.text }}>{message}</span>
-        <span style={{ display: 'block', fontSize: 13, color: C.secondary, marginTop: 2 }}>Check your connection, then try again.</span>
-      </span>
-      <button onClick={onRetry}
-        style={{ minHeight: 44, padding: '0 18px', borderRadius: 10, border: '1px solid color-mix(in srgb, var(--sl-accent) 45%, transparent)', background: 'color-mix(in srgb, var(--sl-accent) 12%, transparent)', color: C.goldText, fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
-        Try again
-      </button>
     </div>
   )
 }
 
 // Keeps the header's count chip its usual size while the number is unknown.
 export function CountChipPlaceholder() {
-  return <span className="sl-subm-skel" aria-hidden="true" style={{ display: 'inline-block', width: 52, height: 10, borderRadius: 4, background: 'var(--sl-skeleton)', verticalAlign: 'middle' }} />
+  return <Skeleton w={52} h={10} r={4} style={{ display: 'inline-block', verticalAlign: 'middle' }} />
 }
 
 // Desktop composition for both Submissions screens, rendered once per page.

@@ -169,7 +169,7 @@ function read(rel: string): string {
   check('Filing Queue header uses the same back-button style as Your Record (bordered pill + ChevronLeft)', filePage.includes('<ChevronLeft size={14} /> Back') && filePage.includes("border: `1px solid ${C.border}`, borderRadius: 8, padding: '7px 10px'"))
   check('Filing Queue header H1 matches Your Record\'s size/weight/spacing rhythm', [filePage, historyPage].every(p => p.includes("fontSize: 28, fontWeight: 800, color: C.text, margin: 0, letterSpacing: '-0.02em', flex: '1 1 auto', minWidth: 0")))
   check('Submissions headers wrap the count chip instead of overflowing at larger text', [filePage, historyPage].every(p => p.includes("flexWrap: 'wrap' as const, gap: 12, rowGap: 8, padding: '20px 0 24px'")))
-  check('Submissions loading: skeleton rows, error with Try again, results keyed to the workspace (no stale rows)', [filePage, historyPage].every(p => p.includes('SubmissionRowsSkeleton') && p.includes('SubmissionListError') && p.includes('onRetry={retry}') && p.includes('workspaceKey')) && !filePage.includes('SetlistrLoader') && !historyPage.includes('if (loading) return'))
+  check('Submissions loading: skeleton rows, error with Try again, results keyed to the workspace (no stale rows)', [filePage, historyPage].every(p => p.includes('SubmissionRowsSkeleton') && p.includes('<LoadError ') && p.includes('onRetry={retry}') && p.includes('workspaceKey')) && !filePage.includes('SetlistrLoader') && !historyPage.includes('if (loading) return'))
   check('Filing Queue header carries a count chip like Your Record does', filePage.includes('{rows.length} to file'))
 
   for (const [label, src] of [['Filing Queue', filePage], ['Your Record', historyPage]] as const) {
@@ -182,6 +182,29 @@ function read(rel: string): string {
 
   check('Your Record: delete is behind Edit, offered only to write-capable accounts (not Viewers), and rendered beside the row, not inside it', historyPage.includes('const { canWrite } = useWorkspaceRole()') && historyPage.includes('{canWrite && performances.length > 0 && (') && historyPage.includes('{editing && canWrite && (') && historyPage.includes('handleDeleteTap(e, perf.id)'))
   check('Your Record: delete keeps its tap-to-arm confirmation and the undo banner', historyPage.includes("isPendingDel ? 'Delete?' : '✕'") && historyPage.includes('undoDelete') && historyPage.includes('/delete/undo'))
+}
+
+// ── Shared app UI standard (docs/ui-standard.md) ──────────────────────────
+{
+  const globals = read('app/globals.css')
+  const dashboard = read('app/app/dashboard/page.tsx')
+  const career = read('app/app/stats/page.tsx')
+  const rows = read('components/SubmissionEntryRow.tsx')
+  const subSwitch = read('components/SubmissionsSwitcher.tsx')
+  const historyPage = read('app/app/history/page.tsx')
+  const filePage = read('app/app/file/page.tsx')
+  check('Loading: one skeleton shimmer, defined once in globals.css with a reduced-motion stop', (globals.match(/@keyframes sl-shimmer/g) || []).length === 1 && globals.includes('@media (prefers-reduced-motion: reduce) { .sl-skel::after { animation: none; display: none; } }') && !dashboard.includes('@keyframes sl-shimmer') && !rows.includes('sl-subm-skel'))
+  check('Loading: dashboard, Submissions rows and Career all use the shared Skeleton', [dashboard, rows, career].every(src => src.includes("from '@/components/ui/Skeleton'")) && !/function Skeleton\(/.test(dashboard))
+  check('View switcher: Career and Submissions use the shared ViewSwitcher', career.includes('<ViewSwitcher') && subSwitch.includes('<ViewSwitcher') && career.includes('onSelect=') && subSwitch.includes("href: '/app/file'"))
+  check('Filters stay a separate pattern: History status chips are not the view switcher', historyPage.includes('subm-filter-scroll') && !historyPage.includes('<ViewSwitcher'))
+  check('Errors: Career and both Submissions screens use the shared LoadError', [career, historyPage, filePage].every(src => src.includes("from '@/components/ui/LoadError'")))
+  check('Status label: Submissions rows use the shared StatusLabel (MARKED SUBMITTED = green text + filled gold dot)', rows.includes("from '@/components/ui/StatusLabel'") && !rows.includes('function StatusLine(') && historyPage.includes('dotFilled={displayStatus.color === C.green}'))
+  check('Career: shared frame and header; results keyed to the workspace; page and section retry', career.includes('<PageFrame>') && career.includes('<PageHeader title="Career" />') && career.includes('workspaceKey') && career.includes('onRetry={retryPage}') && career.includes('onRetry={retrySection}'))
+  check('Career: standard estimate wording, no "documented", no "verified shows"', career.includes('{ESTIMATE_DISCLAIMER}') && career.includes('formatEstimate(estimatedLifetimeRoyalty)') && !/documented/.test(career) && !/verified shows/.test(career))
+  check('Career: honest signature-song ties and the debut-date fix', career.includes('tiedTop.length > 1') && career.includes("'Most played live · tied'") && career.includes('showDate({ performance_date: d })'))
+  check('Career: data scopes unchanged (same status filter and selects)', (career.match(/\['completed', 'complete', 'exported', 'review'\]/g) || []).length === 2 && career.includes("select('id, venue_name, venue_id, city, country, started_at, ended_at, set_duration_minutes, submission_status, shows(show_type), venues(capacity)')") && career.includes("select('title, artist, position, performance_id')"))
+  check('Career map: same Static Images style and tap-through; fitted to the pins; reserved space with a fallback', career.includes('mapbox/dark-v11/static/${markerOverlay}/auto/600x340@2x') && career.includes("router.push('/app/career-map')") && career.includes("aspectRatio: '600 / 340'") && career.includes('Map preview unavailable'))
+  check('Career: venue rows are buttons (keyboard reachable), not clickable divs', career.includes("onClick={() => router.push(`/app/venue/${venue.id}`)} style={{ ...listRow"))
 }
 
 console.log(`\n${pass} passed, ${fail} failed`)

@@ -10,7 +10,8 @@ import { loadFilingProfile, type FilingProfileContext } from '@/lib/load-filing-
 import { readClaimInputs } from '@/lib/claim-inputs-storage'
 import { countsFromRows, type SubmissionsNavCounts } from '@/lib/submissions-nav-counts'
 import { SubmissionsSwitcher } from '@/components/SubmissionsSwitcher'
-import { SubmissionEntryRow, SubmissionRowsSkeleton, SubmissionListError, CountChipPlaceholder, SubmissionsDesktopStyles } from '@/components/SubmissionEntryRow'
+import { SubmissionEntryRow, SubmissionRowsSkeleton, CountChipPlaceholder, SubmissionsDesktopStyles } from '@/components/SubmissionEntryRow'
+import { LoadError } from '@/components/ui/LoadError'
 import { filingDeadlineLabel, deadlineNeedsAttention, type DeadlineLabel } from '@/lib/filing-deadline-label'
 
 const C = {
@@ -216,7 +217,7 @@ export default function FilingQueuePage() {
         )}
 
         {failed && (
-          <SubmissionListError message={actingAs ? `Couldn't load ${actingAs.artist_name}'s shows.` : "Couldn't load your shows."} onRetry={retry} />
+          <LoadError message={actingAs ? `Couldn't load ${actingAs.artist_name}'s shows.` : "Couldn't load your shows."} onRetry={retry} />
         )}
 
         {ready && rows.length === 0 && (

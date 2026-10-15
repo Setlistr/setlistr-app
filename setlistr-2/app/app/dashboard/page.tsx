@@ -15,6 +15,7 @@ import {
   estimateRoyalties, aggregateUnclaimedEarnings,
   capacityToBand, type ShowEstimateInput,
 } from '@/lib/royalty-estimate'
+import { Skeleton } from '@/components/ui/Skeleton'
 
 // Direction B ("Editorial"): one Bebas Neue number, one sentence, one ruled
 // ledger. Colours come from the --sl-* tokens in app/globals.css so this
@@ -133,9 +134,6 @@ function MilestoneTicks({ first, next, count }: { first: number; next: number; c
   )
 }
 
-function Skeleton({ w, h, mt = 0, r = 10 }: { w?: string; h: number; mt?: number; r?: number }) {
-  return <div className="sl-skel" style={{ width: w || '100%', height: h, marginTop: mt, borderRadius: r, background: 'var(--sl-skeleton)', position: 'relative', overflow: 'hidden' }} />
-}
 
 export default function DashboardPage() {
   const router = useRouter()
@@ -846,11 +844,6 @@ export default function DashboardPage() {
       </div>
 
       <style>{`
-        @keyframes sl-shimmer { from { transform: translateX(-100%) } to { transform: translateX(100%) } }
-        .sl-skel::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent); animation: sl-shimmer 1.4s infinite; }
-        :root[data-appearance="light"] .sl-skel::after { background: linear-gradient(90deg, transparent, rgba(255,255,255,0.7), transparent); }
-        @media (prefers-reduced-motion: reduce) { .sl-skel::after { animation: none; display: none; } }
-
         /* Layout follows the width this page actually has (the content area
            beside the desktop sidebar, or the phone screen), not the window. */
         .sl-dash { container-type: inline-size; container-name: sl-dash; }

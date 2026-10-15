@@ -11,7 +11,8 @@ import { loadFilingProfile } from '@/lib/load-filing-profile'
 import { readClaimInputs } from '@/lib/claim-inputs-storage'
 import { countsFromRows } from '@/lib/submissions-nav-counts'
 import { SubmissionsSwitcher } from '@/components/SubmissionsSwitcher'
-import { SubmissionEntryRow, SubmissionRowsSkeleton, SubmissionListError, CountChipPlaceholder, SubmissionsDesktopStyles } from '@/components/SubmissionEntryRow'
+import { SubmissionEntryRow, SubmissionRowsSkeleton, CountChipPlaceholder, SubmissionsDesktopStyles } from '@/components/SubmissionEntryRow'
+import { LoadError } from '@/components/ui/LoadError'
 import { useWorkspaceRole } from '@/components/layout/WorkspaceRole'
 
 const CARD = {
@@ -507,7 +508,7 @@ export default function HistoryPage() {
               <SubmissionRowsSkeleton variant="history" />
             </div>
           ) : failed ? (
-            <SubmissionListError message={actingAs ? `Couldn't load ${actingAs.artist_name}'s shows.` : "Couldn't load your shows."} onRetry={retry} />
+            <LoadError message={actingAs ? `Couldn't load ${actingAs.artist_name}'s shows.` : "Couldn't load your shows."} onRetry={retry} />
           ) : filtered.length === 0 ? (
             <div style={{ background: CARD.background, border: `1px solid ${C.border}`, borderRadius: 16, padding: '52px 20px', textAlign: 'center', boxShadow: CARD.boxShadow }}>
               <div style={{ width: 52, height: 52, borderRadius: '50%', background: C.goldDim, border: `1px solid ${C.borderGold}`, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px' }}>

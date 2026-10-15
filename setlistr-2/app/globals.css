@@ -166,6 +166,26 @@ body {
 
 .pb-safe { padding-bottom: env(safe-area-inset-bottom, 16px); }
 
+/* ── Shared app UI (docs/ui-standard.md) ──────────────────────────────
+   Skeleton: one surface (--sl-skeleton), one shimmer rhythm (1.4s), and
+   no motion under prefers-reduced-motion. Used through components/ui/Skeleton. */
+@keyframes sl-shimmer { from { transform: translateX(-100%) } to { transform: translateX(100%) } }
+.sl-skel::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent); animation: sl-shimmer 1.4s infinite; }
+:root[data-appearance="light"] .sl-skel::after { background: linear-gradient(90deg, transparent, rgba(255,255,255,0.7), transparent); }
+/* On imagery that is dark in both appearances (the Mapbox map). */
+.sl-skel.sl-skel-dark::after { background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent); }
+@media (prefers-reduced-motion: reduce) { .sl-skel::after { animation: none; display: none; } }
+
+/* View switcher (components/ui/ViewSwitcher): visible keyboard focus. */
+.sl-seg:focus-visible { outline: 2px solid var(--sl-accent); outline-offset: 2px; }
+
+/* Page frame (components/ui/PageFrame): the dashboard's width tiers and
+   gutters, measured on the content area beside the desktop sidebar. */
+.sl-frame-cq { container: sl-frame / inline-size; }
+.sl-frame { max-width: 480px; margin: 0 auto; padding: 0 20px 48px; }
+@container sl-frame (min-width: 600px) { .sl-frame { max-width: 640px; padding: 0 32px 56px; } }
+@container sl-frame (min-width: 900px) { .sl-frame { max-width: 1120px; padding: 0 48px 64px; } }
+
 .text-primary   { color: #f0ece3; }
 .text-secondary { color: #a09880; }
 .text-muted     { color: #5a5448; }
