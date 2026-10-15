@@ -26,11 +26,14 @@ export interface FilingProfileContext {
 export async function loadFilingProfile(
   supabase: ReturnType<typeof createClient>,
   actingAs: { artist_id: string; artist_name: string } | null,
+  // The signed-in user's id when the caller already has it — skips a second
+  // auth round trip (auth calls are serialised, so each one is a full wait).
+  knownUserId?: string,
 ): Promise<FilingProfileContext> {
   if (actingAs) {
     const res = await fetch(`/api/team/context-data?artist_id=${actingAs.artist_id}`)
-    const data = await res.json()
-    if (data.error) throw new Error(data.error)
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok || data.error) throw new Error(data.error || `context-data ${res.status}`)
     return {
       profile: { pro_affiliation: data.pro_affiliation ?? null, legal_name: null, ipi_number: null },
       isDelegate: true,
@@ -40,12 +43,19 @@ export async function loadFilingProfile(
     }
   }
 
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error('Not signed in')
-  const { data: profile } = await supabase
+  let userId = knownUserId
+  if (!userId) {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('Not signed in')
+    userId = user.id
+  }
+  const { data: profile, error } = await supabase
     .from('profiles')
     .select('pro_affiliation, legal_name, ipi_number')
-    .eq('id', user.id).single()
+    .eq('id', userId).single()
+  // A failed request is an error, not "no PRO selected" (PGRST116 = no row,
+  // which keeps its old meaning).
+  if (error && error.code !== 'PGRST116') throw error
 
   return {
     profile: {

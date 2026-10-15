@@ -2,16 +2,15 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { AlertTriangle, ChevronLeft } from 'lucide-react'
+import { ChevronLeft } from 'lucide-react'
 import { useActingAs } from '@/components/ActingAsProvider'
-import { SetlistrLoader, useLoaderVariant } from '@/components/SetlistrLoader'
 import { computeFilingStatus, filingActionPath, type FilingStatusResult, type FilingAction } from '@/lib/filing-status'
 import { isCapturedShow } from '@/lib/performance-status'
 import { loadFilingProfile, type FilingProfileContext } from '@/lib/load-filing-profile'
 import { readClaimInputs } from '@/lib/claim-inputs-storage'
-import { loadSubmissionsNavCounts, type SubmissionsNavCounts } from '@/lib/submissions-nav-counts'
+import { countsFromRows, type SubmissionsNavCounts } from '@/lib/submissions-nav-counts'
 import { SubmissionsSwitcher } from '@/components/SubmissionsSwitcher'
-import { SubmissionEntryRow } from '@/components/SubmissionEntryRow'
+import { SubmissionEntryRow, SubmissionRowsSkeleton, SubmissionListError, CountChipPlaceholder } from '@/components/SubmissionEntryRow'
 import { filingDeadlineLabel, deadlineNeedsAttention, type DeadlineLabel } from '@/lib/filing-deadline-label'
 
 const C = {
@@ -61,44 +60,66 @@ function statusLabelFor(state: FilingStatusResult['state']): string {
   return state === 'ready' ? 'Ready to submit' : 'Needs review'
 }
 
+const NO_ROWS: ShowRow[] = []
+const SR_ONLY: React.CSSProperties = { position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap' }
+
 export default function FilingQueuePage() {
   const router = useRouter()
   const { actingAs, resolved } = useActingAs()
-  const loaderVariant = useLoaderVariant()
 
-  const [rows, setRows] = useState<ShowRow[]>([])
-  const [artistName, setArtistName] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [loadError, setLoadError] = useState(false)
-  const [navCounts, setNavCounts] = useState<SubmissionsNavCounts | null>(null)
+  // Every result is tagged with the workspace it was loaded for and shown
+  // only while that workspace is still the active one — so switching
+  // artists never shows the previous artist's rows (or counts), and a slow
+  // response for an old workspace is simply ignored.
+  const workspaceKey = actingAs?.artist_id || 'own'
+  type Loaded =
+    | { key: string; status: 'ok'; rows: ShowRow[]; navCounts: SubmissionsNavCounts; artistName: string | null }
+    | { key: string; status: 'error' }
+  const [loaded, setLoaded] = useState<Loaded | null>(null)
+  const [reloadToken, setReloadToken] = useState(0)
+  const current = loaded && loaded.key === workspaceKey ? loaded : null
+  const ready = current?.status === 'ok' ? current : null
+  const failed = current?.status === 'error'
+  const rows = ready ? ready.rows : NO_ROWS
+  const navCounts = ready ? ready.navCounts : null
+  const artistName = ready ? ready.artistName : null
 
   useEffect(() => {
     if (!resolved) return
     const supabase = createClient()
+    const key = workspaceKey
+    let cancelled = false
 
     async function run() {
-      const ctx: FilingProfileContext = await loadFilingProfile(supabase, actingAs)
-      setArtistName(ctx.artistName)
-
+      let ctx: FilingProfileContext
       let perfs: any[]
-      let songCountMap: Record<string, number>
-      if (ctx.delegatePerformances) {
-        perfs = ctx.delegatePerformances
+      let songCountMap: Record<string, number> = {}
+      if (actingAs) {
+        // One request returns the artist's PRO, shows and song counts.
+        ctx = await loadFilingProfile(supabase, actingAs)
+        perfs = ctx.delegatePerformances || []
         songCountMap = ctx.delegateSongCountMap || {}
       } else {
+        // One sign-in check, then the profile and the show list together;
+        // song counts need the show ids, so they follow.
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) { router.push('/auth/login'); return }
-        const { data } = await supabase
-          .from('performances_visible')
-          .select('id, venue_name, city, country, status, submission_status, started_at, data_source, venues ( capacity )')
-          .eq('user_id', user.id)
-          .order('started_at', { ascending: false })
-        perfs = data || []
+        const [profileCtx, perfRes] = await Promise.all([
+          loadFilingProfile(supabase, null, user.id),
+          supabase
+            .from('performances_visible')
+            .select('id, venue_name, city, country, status, submission_status, started_at, data_source, venues ( capacity )')
+            .eq('user_id', user.id)
+            .order('started_at', { ascending: false }),
+        ])
+        if (perfRes.error) throw perfRes.error
+        ctx = profileCtx
+        perfs = perfRes.data || []
         const ids = perfs.map(p => p.id)
-        songCountMap = {}
         if (ids.length > 0) {
-          const { data: songData } = await supabase
+          const { data: songData, error: songError } = await supabase
             .from('performance_songs_visible').select('performance_id').in('performance_id', ids)
+          if (songError) throw songError
           songData?.forEach((s: any) => { songCountMap[s.performance_id] = (songCountMap[s.performance_id] || 0) + 1 })
         }
       }
@@ -136,26 +157,21 @@ export default function FilingQueuePage() {
         return new Date(b.started_at).getTime() - new Date(a.started_at).getTime()
       })
 
-      setRows(built)
+      if (cancelled) return
+      // The switcher's counts come from this same show list (the same
+      // definitions lib/submissions-nav-counts applies) rather than a
+      // second fetch of it.
+      setLoaded({ key, status: 'ok', rows: built, navCounts: countsFromRows(perfs), artistName: ctx.artistName })
     }
 
-    setLoading(true)
-    setLoadError(false)
-    run().catch(err => { console.error('[FilingQueue] load failed:', err); setLoadError(true) })
-      .finally(() => setLoading(false))
+    run().catch(err => {
+      console.error('[FilingQueue] load failed:', err)
+      if (!cancelled) setLoaded({ key, status: 'error' })
+    })
+    return () => { cancelled = true }
+  }, [resolved, actingAs, reloadToken])
 
-    // Independent of the main list load — the switcher renders immediately
-    // with its counts filling in separately, never blocking the page on a
-    // second network round trip.
-    setNavCounts(null)
-    loadSubmissionsNavCounts(supabase, actingAs)
-      .then(setNavCounts)
-      .catch(err => console.error('[FilingQueue] nav counts failed:', err))
-  }, [resolved, actingAs])
-
-  if (loading) return (
-    <SetlistrLoader variant={loaderVariant} label={actingAs ? `Loading ${actingAs.artist_name}'s shows...` : 'Loading'} />
-  )
+  function retry() { setLoaded(null); setReloadToken(t => t + 1) }
 
   return (
     <div style={{ minHeight: 'var(--sl-page-min-height, 100svh)', background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif' }}>
@@ -165,16 +181,18 @@ export default function FilingQueuePage() {
         {/* Header — same structure, spacing, and back-button style as
            app/app/history's, so the two Submissions screens read as one
            navigation, not two differently-built pages. */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '20px 0 24px' }}>
+        {/* Wraps the count chip under the title when the row can't fit it
+           (larger text sizes, narrow phones) instead of overflowing. */}
+        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap' as const, gap: 12, rowGap: 8, padding: '20px 0 24px' }}>
           <button onClick={() => router.push('/app/dashboard')}
             style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, padding: '7px 10px', color: C.secondary, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 4, fontSize: 14 }}>
             <ChevronLeft size={14} /> Back
           </button>
-          <h1 style={{ fontSize: 28, fontWeight: 800, color: C.text, margin: 0, letterSpacing: '-0.02em', flex: 1 }}>
+          <h1 style={{ fontSize: 28, fontWeight: 800, color: C.text, margin: 0, letterSpacing: '-0.02em', flex: '1 1 auto', minWidth: 0 }}>
             Submissions
           </h1>
-          <div style={{ fontSize: 13, color: C.muted, background: C.card, border: `1px solid ${C.border}`, borderRadius: 20, padding: '5px 10px' }}>
-            {rows.length} to file
+          <div style={{ fontSize: 13, color: C.muted, background: C.card, border: `1px solid ${C.border}`, borderRadius: 20, padding: '5px 10px', whiteSpace: 'nowrap' as const }}>
+            {ready ? `${rows.length} to file` : <CountChipPlaceholder />}
           </div>
         </div>
 
@@ -189,14 +207,18 @@ export default function FilingQueuePage() {
            not a small link, so it's never a second-class option. */}
         <SubmissionsSwitcher active="file" filingQueueCount={navCounts?.filingQueueCount} fullHistoryCount={navCounts?.fullHistoryCount} />
 
-        {loadError && (
-          <div style={{ background: C.amberDim, border: '1px solid color-mix(in srgb, var(--sl-warn) 25%, transparent)', borderRadius: 12, padding: '14px 16px', display: 'flex', gap: 10 }}>
-            <AlertTriangle size={16} style={{ color: C.amber, flexShrink: 0, marginTop: 1 }} />
-            <p style={{ fontSize: 13, color: C.secondary, margin: 0, lineHeight: 1.5 }}>Couldn't load your shows. Try again in a moment.</p>
+        {!ready && !failed && (
+          <div aria-busy="true">
+            <span role="status" style={SR_ONLY}>{actingAs ? `Loading ${actingAs.artist_name}'s shows` : 'Loading your shows'}</span>
+            <SubmissionRowsSkeleton variant="queue" />
           </div>
         )}
 
-        {!loadError && rows.length === 0 && (
+        {failed && (
+          <SubmissionListError message={actingAs ? `Couldn't load ${actingAs.artist_name}'s shows.` : "Couldn't load your shows."} onRetry={retry} />
+        )}
+
+        {ready && rows.length === 0 && (
           <div style={{ background: CARD.background, border: `1px solid ${C.border}`, borderRadius: 16, padding: '32px 20px', textAlign: 'center', boxShadow: CARD.boxShadow }}>
             <p style={{ fontSize: 15, color: C.secondary, margin: '0 0 16px', lineHeight: 1.5 }}>
               No captured shows yet. Once you've played and reviewed a show, it shows up here.
@@ -208,7 +230,7 @@ export default function FilingQueuePage() {
           </div>
         )}
 
-        {!loadError && rows.length > 0 && (
+        {ready && rows.length > 0 && (
           <div className="subm-list">
             {rows.map(row => {
               const d = parseLocalDate(row.started_at)

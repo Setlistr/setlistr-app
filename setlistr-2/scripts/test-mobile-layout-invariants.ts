@@ -150,7 +150,7 @@ function read(rel: string): string {
   check('SubmissionEntryRow: venue name is allowed to wrap, not truncated with ellipsis', !rowSrc.includes("textOverflow: 'ellipsis'") || !/venueName[\s\S]{0,200}textOverflow/.test(rowSrc))
   check('SubmissionEntryRow: flat list row (bottom divider), not a bordered card', rowSrc.includes('borderBottom:') && !rowSrc.includes('boxShadow:'))
   check('SubmissionEntryRow: explicit queue/history variants; Filing Queue leads with the task, History with the venue', rowSrc.includes("variant: 'queue'") && rowSrc.includes("variant: 'history'") && filePage.includes('variant="queue"') && filePage.includes('task={row.action.label}') && historyPage.includes('variant="history"'))
-  check('SubmissionEntryRow: the whole row is the one control — no nested buttons or links inside it', (rowSrc.match(/<button/g) || []).length === 1 && !/<a[\s>]/.test(rowSrc))
+  check('SubmissionEntryRow: the whole row is the one control — no nested buttons or links inside it', (() => { const row = rowSrc.slice(rowSrc.indexOf('export function SubmissionEntryRow('), rowSrc.indexOf('export function SubmissionRowsSkeleton(')); return (row.match(/<button/g) || []).length === 1 && !/<a[\s>]/.test(row) })())
   check('Filing Queue actions read "Review the setlist" / "Open the claim sheet" (destinations unchanged)', read('lib/filing-status.ts').includes("label: 'Review the setlist'") && read('lib/filing-status.ts').includes("label: 'Open the claim sheet'"))
   check('Ready state reads "Ready to submit" on both screens (same filing.state === ready)', filePage.includes("state === 'ready' ? 'Ready to submit'") && historyPage.includes("label: 'Ready to submit'") && !historyPage.includes('Ready to Claim'))
   check('Your Record: Marked Submitted keeps green text with the filled gold dot', historyPage.includes("label: 'Marked Submitted', color: C.green") && historyPage.includes('dotFilled={displayStatus.color === C.green}'))
@@ -167,7 +167,9 @@ function read(rel: string): string {
   check('Your Record: scrollbar-hiding does not touch the global ::-webkit-scrollbar rule', !historyPage.includes('*::-webkit-scrollbar'))
 
   check('Filing Queue header uses the same back-button style as Your Record (bordered pill + ChevronLeft)', filePage.includes('<ChevronLeft size={14} /> Back') && filePage.includes("border: `1px solid ${C.border}`, borderRadius: 8, padding: '7px 10px'"))
-  check('Filing Queue header H1 matches Your Record\'s size/weight/spacing rhythm', filePage.includes("fontSize: 28, fontWeight: 800, color: C.text, margin: 0, letterSpacing: '-0.02em', flex: 1"))
+  check('Filing Queue header H1 matches Your Record\'s size/weight/spacing rhythm', [filePage, historyPage].every(p => p.includes("fontSize: 28, fontWeight: 800, color: C.text, margin: 0, letterSpacing: '-0.02em', flex: '1 1 auto', minWidth: 0")))
+  check('Submissions headers wrap the count chip instead of overflowing at larger text', [filePage, historyPage].every(p => p.includes("flexWrap: 'wrap' as const, gap: 12, rowGap: 8, padding: '20px 0 24px'")))
+  check('Submissions loading: skeleton rows, error with Try again, results keyed to the workspace (no stale rows)', [filePage, historyPage].every(p => p.includes('SubmissionRowsSkeleton') && p.includes('SubmissionListError') && p.includes('onRetry={retry}') && p.includes('workspaceKey')) && !filePage.includes('SetlistrLoader') && !historyPage.includes('if (loading) return'))
   check('Filing Queue header carries a count chip like Your Record does', filePage.includes('{rows.length} to file'))
 
   for (const [label, src] of [['Filing Queue', filePage], ['Your Record', historyPage]] as const) {

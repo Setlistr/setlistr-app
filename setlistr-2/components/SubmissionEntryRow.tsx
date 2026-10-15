@@ -126,3 +126,59 @@ export function SubmissionEntryRow(props: SubmissionEntryRowProps) {
     </button>
   )
 }
+
+// Placeholder rows shaped like the real ones: same padding, date block, line
+// heights and (queue) arrow, so nothing shifts when the list arrives. Pulses
+// gently; still under prefers-reduced-motion.
+export function SubmissionRowsSkeleton({ variant, count = 5 }: { variant: 'queue' | 'history'; count?: number }) {
+  const line = (h: number, w: string, bar: number, extra?: React.CSSProperties) => (
+    <span style={{ height: h, display: 'flex', alignItems: 'center', ...extra }}>
+      <span className="sl-subm-skel" style={{ display: 'block', width: w, height: bar, borderRadius: 5, background: 'var(--sl-skeleton)' }} />
+    </span>
+  )
+  return (
+    <div aria-hidden="true">
+      {Array.from({ length: count }, (_, i) => (
+        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '15px 4px', minHeight: 72, borderBottom: `1px solid ${C.hair}`, boxSizing: 'border-box' as const }}>
+          <span style={{ width: 38, flexShrink: 0, alignSelf: 'flex-start', display: 'flex', flexDirection: 'column' as const, alignItems: 'center', gap: 6, paddingTop: 2 }}>
+            <span className="sl-subm-skel" style={{ width: 22, height: 18, borderRadius: 5, background: 'var(--sl-skeleton)' }} />
+            <span className="sl-subm-skel" style={{ width: 26, height: 10, borderRadius: 4, background: 'var(--sl-skeleton)' }} />
+          </span>
+          <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' as const, gap: 3 }}>
+            {line(21, variant === 'queue' ? '56%' : ['62%', '48%', '70%'][i % 3], 14)}
+            {line(20, ['44%', '58%', '38%'][i % 3], 11)}
+            {line(16, '32%', 9, { marginTop: 5 })}
+          </span>
+          {variant === 'queue'
+            ? <span className="sl-subm-skel" style={{ width: 40, height: 40, borderRadius: '50%', flexShrink: 0, background: 'var(--sl-skeleton)' }} />
+            : <span style={{ width: 16, flexShrink: 0 }} />}
+        </div>
+      ))}
+      <style>{`@keyframes sl-subm-skel { 0%,100% { opacity: .55 } 50% { opacity: 1 } }
+        .sl-subm-skel { animation: sl-subm-skel 1.6s ease-in-out infinite; }
+        @media (prefers-reduced-motion: reduce) { .sl-subm-skel { animation: none; } }`}</style>
+    </div>
+  )
+}
+
+// Shown in place of the list when it fails to load — never an empty state,
+// never an endless loader.
+export function SubmissionListError({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return (
+    <div role="alert" style={{ background: 'color-mix(in srgb, var(--sl-warn) 7%, transparent)', border: '1px solid color-mix(in srgb, var(--sl-warn) 28%, transparent)', borderRadius: 12, padding: '16px', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' as const }}>
+      <span style={{ flex: '1 1 200px', minWidth: 0 }}>
+        <span style={{ display: 'block', fontSize: 15, fontWeight: 600, color: C.text }}>{message}</span>
+        <span style={{ display: 'block', fontSize: 13, color: C.secondary, marginTop: 2 }}>Check your connection, then try again.</span>
+      </span>
+      <button onClick={onRetry}
+        style={{ minHeight: 44, padding: '0 18px', borderRadius: 10, border: '1px solid color-mix(in srgb, var(--sl-accent) 45%, transparent)', background: 'color-mix(in srgb, var(--sl-accent) 12%, transparent)', color: C.goldText, fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+        Try again
+      </button>
+    </div>
+  )
+}
+
+// Keeps the header's count chip its usual size while the number is unknown.
+export function CountChipPlaceholder() {
+  return <span className="sl-subm-skel" aria-hidden="true" style={{ display: 'inline-block', width: 52, height: 10, borderRadius: 4, background: 'var(--sl-skeleton)', verticalAlign: 'middle' }} />
+}

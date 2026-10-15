@@ -9,9 +9,9 @@ import { isRealVenue } from '@/lib/performance-status'
 import { computeFilingStatus, type FilingStatusResult } from '@/lib/filing-status'
 import { loadFilingProfile } from '@/lib/load-filing-profile'
 import { readClaimInputs } from '@/lib/claim-inputs-storage'
-import { loadSubmissionsNavCounts, type SubmissionsNavCounts } from '@/lib/submissions-nav-counts'
+import { countsFromRows } from '@/lib/submissions-nav-counts'
 import { SubmissionsSwitcher } from '@/components/SubmissionsSwitcher'
-import { SubmissionEntryRow } from '@/components/SubmissionEntryRow'
+import { SubmissionEntryRow, SubmissionRowsSkeleton, SubmissionListError, CountChipPlaceholder } from '@/components/SubmissionEntryRow'
 import { useWorkspaceRole } from '@/components/layout/WorkspaceRole'
 
 const CARD = {
@@ -80,12 +80,23 @@ function getTerritory(country?: string, city?: string): string {
   return 'US'
 }
 
+const NO_PERFORMANCES: Performance[] = []
+const SR_ONLY: React.CSSProperties = { position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap' }
+
 export default function HistoryPage() {
   const router = useRouter()
   const { actingAs, actingAsArtistId, resolved } = useActingAs()
-  const [performances, setPerformances] = useState<Performance[]>([])
+  const [loadedPerformances, setPerformances] = useState<Performance[]>([])
   const [filtered, setFiltered]         = useState<Performance[]>([])
-  const [loading, setLoading]           = useState(true)
+  // The list is shown only while the workspace it was loaded for is still
+  // the active one — switching artists never shows the previous artist's
+  // shows or counts, and a slow response for an old workspace is ignored.
+  const workspaceKey = actingAsArtistId || 'own'
+  const [loaded, setLoaded] = useState<{ key: string; status: 'ok' | 'error' } | null>(null)
+  const [reloadToken, setReloadToken] = useState(0)
+  const ready  = loaded?.key === workspaceKey && loaded.status === 'ok'
+  const failed = loaded?.key === workspaceKey && loaded.status === 'error'
+  const performances = ready ? loadedPerformances : NO_PERFORMANCES
   const [search, setSearch]             = useState('')
   const [dateFrom, setDateFrom]         = useState('')
   const [dateTo, setDateTo]             = useState('')
@@ -100,17 +111,17 @@ export default function HistoryPage() {
   const undoBannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [undoing, setUndoing]             = useState(false)
   const [undoError, setUndoError]         = useState('')
-  const [navCounts, setNavCounts]         = useState<SubmissionsNavCounts | null>(null)
   // Delete controls live behind Edit, which only accounts that can write in
   // this workspace see (Viewers and unknown roles never do — the delete
   // route already refuses them; this just stops offering a dead end).
   const { canWrite } = useWorkspaceRole()
   const [editing, setEditing]             = useState(false)
 
-  async function loadPerformances() {
+  async function loadPerformances(isCancelled: () => boolean) {
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { router.push('/auth/login'); return }
+    const key = actingAsArtistId || 'own'
 
     // Same profile fetch (and the same owner/delegate identity-privacy
     // boundary) app/app/file (Filing Queue) uses — see
@@ -118,15 +129,14 @@ export default function HistoryPage() {
     // than crashing the page if the delegate-context lookup errors, since
     // that's the same as any other case computeFilingStatus already
     // treats as not-yet-ready.
-    let filingCtx
-    try {
-      filingCtx = await loadFilingProfile(supabase, actingAs)
-    } catch (e) {
+    // The profile and the show list are fetched together (neither needs
+    // the other), after the single sign-in check above.
+    const filingCtxPromise = loadFilingProfile(supabase, actingAs, user.id).catch(e => {
       console.error('History: filing profile load failed:', e)
-      filingCtx = { profile: { pro_affiliation: null, legal_name: null, ipi_number: null }, isDelegate: !!actingAsArtistId }
-    }
+      return { profile: { pro_affiliation: null, legal_name: null, ipi_number: null }, isDelegate: !!actingAsArtistId }
+    })
 
-    const { data, error } = await supabase
+    const perfQuery = supabase
       .from('performances_visible')
       .select('id, venue_name, venue_id, artist_name, city, country, status, submission_status, started_at, created_at, captured_by_name, photo_url, data_source, shows(show_type), venues(capacity)')
       .eq('user_id', actingAsArtistId || user.id)
@@ -141,14 +151,20 @@ export default function HistoryPage() {
       .neq('status', 'draft')
       .order('started_at', { ascending: false })
 
-    if (error) console.error('History error:', error)
+    const [filingCtx, { data, error }] = await Promise.all([filingCtxPromise, perfQuery])
+    // A failed request shows the error with Try again — never an empty
+    // "Your record starts tonight".
+    if (error) throw error
 
     if (data) {
       const perfIds = data.map((p: any) => p.id)
-      const { data: songData } = await supabase
-        .from('performance_songs_visible')
-        .select('performance_id')
-        .in('performance_id', perfIds)
+      const { data: songData, error: songError } = perfIds.length > 0
+        ? await supabase
+          .from('performance_songs_visible')
+          .select('performance_id')
+          .in('performance_id', perfIds)
+        : { data: [], error: null }
+      if (songError) throw songError
 
       const countMap: Record<string, number> = {}
       songData?.forEach((s: any) => { countMap[s.performance_id] = (countMap[s.performance_id] || 0) + 1 })
@@ -185,27 +201,39 @@ export default function HistoryPage() {
           }
         })
 
+      if (isCancelled()) return
       setPerformances(clean)
       setFiltered(clean)
+      setLoaded({ key, status: 'ok' })
     }
-    setLoading(false)
   }
 
   useEffect(() => {
     if (!resolved) return
-    loadPerformances()
-  }, [resolved, actingAsArtistId])
+    let cancelled = false
+    const key = actingAsArtistId || 'own'
+    loadPerformances(() => cancelled).catch(err => {
+      console.error('History load failed:', err)
+      if (!cancelled) setLoaded({ key, status: 'error' })
+    })
+    return () => { cancelled = true }
+  }, [resolved, actingAsArtistId, reloadToken])
 
-  // Independent of the main list load, for the Filing Queue / Full History
-  // switcher at the top — never blocks the page's own content on a second
-  // round trip; renders with a placeholder until this resolves.
+  // Nothing armed or pending carries over to another artist's workspace.
   useEffect(() => {
-    if (!resolved) return
-    setNavCounts(null)
-    loadSubmissionsNavCounts(createClient(), actingAs)
-      .then(setNavCounts)
-      .catch(err => console.error('[History] nav counts failed:', err))
-  }, [resolved, actingAsArtistId])
+    setEditing(false)
+    setDeletePending(null)
+    setDeleteErrors({})
+    setUndoBanner(null)
+  }, [workspaceKey])
+
+  function retry() { setLoaded(null); setReloadToken(t => t + 1) }
+
+  // The switcher's counts come from this page's own show list (the same
+  // definitions lib/submissions-nav-counts applies — this list already
+  // excludes only rows neither count includes), so they need no second
+  // fetch and stay current after a delete.
+  const navCounts = ready ? countsFromRows(loadedPerformances) : null
 
   function handleDeleteTap(e: React.MouseEvent, id: string) {
     e.stopPropagation()
@@ -259,7 +287,8 @@ export default function HistoryPage() {
       if (undoBannerTimerRef.current) clearTimeout(undoBannerTimerRef.current)
       setUndoBanner(null)
       setUndoing(false)
-      await loadPerformances()
+      // Refresh in place: the current list stays until the new one arrives.
+      setReloadToken(t => t + 1)
     } catch {
       setUndoError('Network error — try again')
       setUndoing(false)
@@ -331,16 +360,6 @@ export default function HistoryPage() {
     return sum + est.expected
   }, 0)
 
-  if (loading) return (
-    <div style={{ minHeight: 'var(--sl-page-min-height, 100svh)', background: C.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: '"DM Sans", system-ui, sans-serif' }}>
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
-        <div style={{ width: 44, height: 44, borderRadius: '50%', border: `1.5px solid ${C.gold}`, animation: 'breathe 1.8s ease-in-out infinite' }} />
-        <span style={{ color: C.muted, fontSize: 11, letterSpacing: '0.15em', textTransform: 'uppercase' as const }}>Loading</span>
-      </div>
-      <style>{`@keyframes breathe{0%,100%{transform:scale(1);opacity:.3}50%{transform:scale(1.2);opacity:.8}}`}</style>
-    </div>
-  )
-
   return (
     <div style={{ minHeight: 'var(--sl-page-min-height, 100svh)', background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif' }}>
       <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '40vh', pointerEvents: 'none', zIndex: 0, background: 'var(--sl-page-glow)' }} />
@@ -348,16 +367,18 @@ export default function HistoryPage() {
       <div className="subm-page" style={{ padding: '0 16px', position: 'relative', zIndex: 1 }}>
 
         {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '20px 0 24px' }}>
+        {/* Wraps the count chip under the title when the row can't fit it
+           (larger text sizes, narrow phones) instead of overflowing. */}
+        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap' as const, gap: 12, rowGap: 8, padding: '20px 0 24px' }}>
           <button onClick={() => router.push('/app/dashboard')}
             style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, padding: '7px 10px', color: C.secondary, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 4, fontSize: 14 }}>
             <ChevronLeft size={14} /> Back
           </button>
-          <h1 style={{ fontSize: 28, fontWeight: 800, color: C.text, margin: 0, letterSpacing: '-0.02em', flex: 1 }}>
+          <h1 style={{ fontSize: 28, fontWeight: 800, color: C.text, margin: 0, letterSpacing: '-0.02em', flex: '1 1 auto', minWidth: 0 }}>
             Your Record
           </h1>
-          <div style={{ fontSize: 13, color: C.muted, background: C.card, border: `1px solid ${C.border}`, borderRadius: 20, padding: '5px 10px' }}>
-            {performances.length} shows
+          <div style={{ fontSize: 13, color: C.muted, background: C.card, border: `1px solid ${C.border}`, borderRadius: 20, padding: '5px 10px', whiteSpace: 'nowrap' as const }}>
+            {ready ? `${performances.length} shows` : <CountChipPlaceholder />}
           </div>
         </div>
 
@@ -455,7 +476,7 @@ export default function HistoryPage() {
               Date Range {showFilters ? '▲' : '▼'}
             </button>
             {hasFilters && <button onClick={clearFilters} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>Clear ×</button>}
-            <span style={{ marginLeft: 'auto', fontSize: 12, color: C.muted }}>{filtered.length} result{filtered.length !== 1 ? 's' : ''}</span>
+            <span style={{ marginLeft: 'auto', fontSize: 12, color: C.muted }}>{ready ? `${filtered.length} result${filtered.length !== 1 ? 's' : ''}` : ''}</span>
             {canWrite && performances.length > 0 && (
               <button onClick={() => { setEditing(v => !v); setDeletePending(null) }} aria-pressed={editing}
                 style={{ minHeight: 36, background: 'none', border: 'none', padding: '0 0 0 6px', color: editing ? 'var(--sl-gold-text)' : C.secondary, fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
@@ -479,7 +500,14 @@ export default function HistoryPage() {
 
         {/* List */}
         <div style={{ paddingBottom: 48 }}>
-          {filtered.length === 0 ? (
+          {!ready && !failed ? (
+            <div aria-busy="true">
+              <span role="status" style={SR_ONLY}>{actingAs ? `Loading ${actingAs.artist_name}'s shows` : 'Loading your shows'}</span>
+              <SubmissionRowsSkeleton variant="history" />
+            </div>
+          ) : failed ? (
+            <SubmissionListError message={actingAs ? `Couldn't load ${actingAs.artist_name}'s shows.` : "Couldn't load your shows."} onRetry={retry} />
+          ) : filtered.length === 0 ? (
             <div style={{ background: CARD.background, border: `1px solid ${C.border}`, borderRadius: 16, padding: '52px 20px', textAlign: 'center', boxShadow: CARD.boxShadow }}>
               <div style={{ width: 52, height: 52, borderRadius: '50%', background: C.goldDim, border: `1px solid ${C.borderGold}`, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px' }}>
                 <Music2 size={20} style={{ color: C.gold }} />
