@@ -149,6 +149,11 @@ function read(rel: string): string {
   const rowSrc = read('components/SubmissionEntryRow.tsx')
   check('SubmissionEntryRow: venue name is allowed to wrap, not truncated with ellipsis', !rowSrc.includes("textOverflow: 'ellipsis'") || !/venueName[\s\S]{0,200}textOverflow/.test(rowSrc))
   check('SubmissionEntryRow: flat list row (bottom divider), not a bordered card', rowSrc.includes('borderBottom:') && !rowSrc.includes('boxShadow:'))
+  check('SubmissionEntryRow: explicit queue/history variants; Filing Queue leads with the task, History with the venue', rowSrc.includes("variant: 'queue'") && rowSrc.includes("variant: 'history'") && filePage.includes('variant="queue"') && filePage.includes('task={row.action.label}') && historyPage.includes('variant="history"'))
+  check('SubmissionEntryRow: the whole row is the one control — no nested buttons or links inside it', (rowSrc.match(/<button/g) || []).length === 1 && !/<a[\s>]/.test(rowSrc))
+  check('Filing Queue actions read "Review the setlist" / "Open the claim sheet" (destinations unchanged)', read('lib/filing-status.ts').includes("label: 'Review the setlist'") && read('lib/filing-status.ts').includes("label: 'Open the claim sheet'"))
+  check('Ready state reads "Ready to submit" on both screens (same filing.state === ready)', filePage.includes("state === 'ready' ? 'Ready to submit'") && historyPage.includes("label: 'Ready to submit'") && !historyPage.includes('Ready to Claim'))
+  check('Your Record: Marked Submitted keeps green text with the filled gold dot', historyPage.includes("label: 'Marked Submitted', color: C.green") && historyPage.includes('dotFilled={displayStatus.color === C.green}'))
   check('SubmissionEntryRow: dot color is fixed gold, independent of the status text color prop', rowSrc.includes('C.gold') && !/dotFilled \? statusTextColor/.test(rowSrc))
 }
 
@@ -173,7 +178,8 @@ function read(rel: string): string {
 
   check('Filing Queue: the redundant "setlist not yet reviewed" blocker line is suppressed (status label + action already say it)', filePage.includes("topReason !== 'setlist not yet reviewed'"))
 
-  check('Your Record: delete control aligns with the row\'s own top line, not floating mid-height', historyPage.includes("alignSelf: 'flex-start'") && historyPage.includes('marginTop: 16'))
+  check('Your Record: delete is behind Edit, offered only to write-capable accounts (not Viewers), and rendered beside the row, not inside it', historyPage.includes('const { canWrite } = useWorkspaceRole()') && historyPage.includes('{canWrite && performances.length > 0 && (') && historyPage.includes('{editing && canWrite && (') && historyPage.includes('handleDeleteTap(e, perf.id)'))
+  check('Your Record: delete keeps its tap-to-arm confirmation and the undo banner', historyPage.includes("isPendingDel ? 'Delete?' : '✕'") && historyPage.includes('undoDelete') && historyPage.includes('/delete/undo'))
 }
 
 console.log(`\n${pass} passed, ${fail} failed`)

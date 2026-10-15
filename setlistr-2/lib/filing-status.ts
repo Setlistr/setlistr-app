@@ -119,7 +119,7 @@ export interface FilingAction {
 // re-deriving this decision inline.
 export function filingActionPath(performanceId: string, status: string | null | undefined, songCount: number): FilingAction {
   if (songCount === 0 || !isCompleteStage({ status: status ?? null })) {
-    return { href: `/app/review/${performanceId}`, label: 'Review Setlist' }
+    return { href: `/app/review/${performanceId}`, label: 'Review the setlist' }
   }
-  return { href: `/app/submit/${performanceId}`, label: 'Open Submit' }
+  return { href: `/app/submit/${performanceId}`, label: 'Open the claim sheet' }
 }

@@ -31,6 +31,7 @@ type ShowRow = {
   id: string; venue_name: string; city: string | null; started_at: string
   status: FilingStatusResult
   action: FilingAction
+  songCount: number
   // Only ever set when the deadline itself decided it needs attention
   // (see deadlineNeedsAttention below) — a comfortably-open deadline is
   // simply not carried here at all, not merely hidden at render time.
@@ -57,7 +58,7 @@ const STATE_ORDER: Record<FilingStatusResult['state'], number> = { needs_review:
 // actually distinguishes them, so status text isn't one more competing
 // color on the row.
 function statusLabelFor(state: FilingStatusResult['state']): string {
-  return state === 'ready' ? 'Ready to file' : 'Needs review'
+  return state === 'ready' ? 'Ready to submit' : 'Needs review'
 }
 
 export default function FilingQueuePage() {
@@ -126,7 +127,7 @@ export default function FilingQueuePage() {
         const action = filingActionPath(p.id, p.status, songCount)
         const computedDeadline = p.started_at ? filingDeadlineLabel(ctx.profile.pro_affiliation, parseLocalDate(p.started_at)) : null
         const deadline = computedDeadline && deadlineNeedsAttention(computedDeadline.urgency) ? computedDeadline : null
-        return { id: p.id, venue_name: p.venue_name, city: p.city || null, started_at: p.started_at, status, action, deadline }
+        return { id: p.id, venue_name: p.venue_name, city: p.city || null, started_at: p.started_at, status, action, songCount, deadline }
       })
 
       built.sort((a, b) => {
@@ -228,17 +229,19 @@ export default function FilingQueuePage() {
               return (
                 <SubmissionEntryRow
                   key={row.id}
+                  variant="queue"
                   onNavigate={() => router.push(row.action.href)}
-                  dateLabel={d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                  day={String(d.getDate())}
+                  month={d.toLocaleDateString('en-US', { month: 'short' })}
+                  task={row.action.label}
                   venueName={row.venue_name}
-                  metaLine={[row.city, row.status.proName || 'No PRO selected'].filter(Boolean).join(' · ')}
+                  city={row.city}
                   statusLabel={statusLabelFor(row.status.state)}
-                  statusTextColor={C.secondary}
+                  statusTextColor={row.status.state === 'ready' ? 'var(--sl-gold-text)' : C.secondary}
                   dotFilled={row.status.state === 'ready'}
-                  blocker={blocker}
+                  statusNote={blocker || [`${row.songCount} song${row.songCount === 1 ? '' : 's'}`, row.status.proName || 'No PRO selected'].join(' · ')}
                   deadlineLabel={row.deadline?.label}
                   deadlineColor={row.deadline?.color}
-                  actionLabel={row.action.label}
                 />
               )
             })}

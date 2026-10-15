@@ -12,6 +12,7 @@ import { readClaimInputs } from '@/lib/claim-inputs-storage'
 import { loadSubmissionsNavCounts, type SubmissionsNavCounts } from '@/lib/submissions-nav-counts'
 import { SubmissionsSwitcher } from '@/components/SubmissionsSwitcher'
 import { SubmissionEntryRow } from '@/components/SubmissionEntryRow'
+import { useWorkspaceRole } from '@/components/layout/WorkspaceRole'
 
 const CARD = {
   background: 'var(--sl-card-bg)',
@@ -50,11 +51,10 @@ type Performance = {
   photo_url?:        string | null
   data_source?:      string | null
   // The actual filing-readiness result — the SAME computeFilingStatus()
-  // app/app/file (Filing Queue) uses, so "Ready to Claim" here and "Ready
-  // to file" there are never two different rules wearing two different
-  // names. A show whose setlist still needs review, or whose PRO/identity/
+  // app/app/file (Filing Queue) uses, so "Ready to submit" means the same rule on
+  // both screens. A show whose setlist still needs review, or whose PRO/identity/
   // required details aren't filled in, is 'needs_review' here exactly like
-  // it is on the Filing Queue — not "Ready to Claim" merely because its
+  // it is on the Filing Queue — not "Ready to submit" merely because its
   // raw `status` says complete/completed/exported.
   filing: FilingStatusResult
 }
@@ -66,8 +66,10 @@ function getDisplayStatus(p: Performance): { label: string; color: string } {
   // "Submitted" on its own reads as if someone/something confirmed it.
   if (p.submission_status === 'submitted') return { label: 'Marked Submitted', color: C.green }
   if (p.status === 'live' || p.status === 'pending') return { label: 'Live', color: C.red }
-  if (p.filing.state === 'ready') return { label: 'Ready to Claim', color: C.gold }
-  return { label: 'Needs Review', color: C.gold }
+  if (p.filing.state === 'ready') return { label: 'Ready to submit', color: 'var(--sl-gold-text)' }
+  // Same quiet text colour the Filing Queue uses for this state, so it
+  // reads differently from Ready to submit (gold) at a glance.
+  return { label: 'Needs Review', color: C.secondary }
 }
 
 function getTerritory(country?: string, city?: string): string {
@@ -99,6 +101,11 @@ export default function HistoryPage() {
   const [undoing, setUndoing]             = useState(false)
   const [undoError, setUndoError]         = useState('')
   const [navCounts, setNavCounts]         = useState<SubmissionsNavCounts | null>(null)
+  // Delete controls live behind Edit, which only accounts that can write in
+  // this workspace see (Viewers and unknown roles never do — the delete
+  // route already refuses them; this just stops offering a dead end).
+  const { canWrite } = useWorkspaceRole()
+  const [editing, setEditing]             = useState(false)
 
   async function loadPerformances() {
     const supabase = createClient()
@@ -301,7 +308,7 @@ export default function HistoryPage() {
   // exact same p.filing.state computeFilingStatus() produced — the same
   // rule the Filing Queue uses. A show still needing its setlist reviewed
   // or a required filing detail filled in is 'needs_review' here too, not
-  // "Ready to Claim" just because its raw status says complete.
+  // "Ready to submit" just because its raw status says complete.
   const counts = {
     all:       performances.length,
     review:    performances.filter(p => p.filing.state === 'needs_review').length,
@@ -309,7 +316,7 @@ export default function HistoryPage() {
     submitted: performances.filter(p => p.filing.state === 'submitted').length,
   }
 
-  // Same population as the "Ready to Claim" tab above — computeFilingStatus
+  // Same population as the "Ready to submit" tab above — computeFilingStatus
   // already requires songs > 0 for 'ready', so no separate song_count check
   // is needed here to keep this in lockstep with that count.
   const unclaimedShows = performances.filter(p => p.filing.state === 'ready')
@@ -424,7 +431,7 @@ export default function HistoryPage() {
             {([
               { key: 'all',       label: 'All',             color: C.muted,  count: counts.all },
               { key: 'review',    label: 'Needs Review',    color: C.gold,   count: counts.review },
-              { key: 'complete',  label: 'Ready to Claim',  color: C.gold,   count: counts.complete },
+              { key: 'complete',  label: 'Ready to submit', color: C.gold,   count: counts.complete },
               { key: 'submitted', label: 'Marked Submitted', color: C.green,  count: counts.submitted },
             ] as const).map(tab => {
               const active = statusFilter === tab.key
@@ -449,6 +456,12 @@ export default function HistoryPage() {
             </button>
             {hasFilters && <button onClick={clearFilters} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>Clear ×</button>}
             <span style={{ marginLeft: 'auto', fontSize: 12, color: C.muted }}>{filtered.length} result{filtered.length !== 1 ? 's' : ''}</span>
+            {canWrite && performances.length > 0 && (
+              <button onClick={() => { setEditing(v => !v); setDeletePending(null) }} aria-pressed={editing}
+                style={{ minHeight: 36, background: 'none', border: 'none', padding: '0 0 0 6px', color: editing ? 'var(--sl-gold-text)' : C.secondary, fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                {editing ? 'Done' : 'Edit'}
+              </button>
+            )}
           </div>
 
           {showFilters && (
@@ -506,65 +519,49 @@ export default function HistoryPage() {
                 return (
                   <div key={perf.id}>
                   <div style={{ display: 'flex', alignItems: 'stretch', gap: 4 }}>
-                    {/* Shared with app/app/file's Filing Queue rows — same
-                       date+venue line, same city/songs+status line. Your
-                       Record's own purpose (the $ estimate, and statuses
-                       that include Marked Submitted) stays visible via the
-                       component's optional slots rather than a different
-                       row shape. */}
+                    {/* Shared row (history variant): the show leads, then
+                       city and songs, then status with any estimate. The
+                       dot is filled only for Marked Submitted (green). */}
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <SubmissionEntryRow
+                        variant="history"
                         onNavigate={() => navigateTo(perf)}
                         disabled={isPendingDel || isDeleting}
                         photoUrl={perf.photo_url}
-                        dateLabel={date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                        day={date.toLocaleDateString('en-US', { day: 'numeric' })}
+                        month={date.toLocaleDateString('en-US', { month: 'short' })}
                         venueName={perf.venue_name}
-                        metaLine={isPendingDel ? 'Tap ✕ again to delete' : [perf.city, (perf.song_count || 0) > 0 ? `${perf.song_count} songs` : null].filter(Boolean).join(' · ')}
+                        metaLine={isPendingDel ? 'Tap Delete again to remove this show' : [perf.city, (perf.song_count || 0) > 0 ? `${perf.song_count} songs` : null].filter(Boolean).join(' · ')}
                         estimate={est?.expected}
                         statusLabel={displayStatus.label}
                         statusTextColor={displayStatus.color}
-                        // Restored exactly as it was originally: the dot is
-                        // filled (gold) only for the one truly self-reported
-                        // -done state, Marked Submitted (green text) — not
-                        // for Ready to Claim, which stays an outline like
-                        // Needs Review. The gold hue itself is fixed inside
-                        // SubmissionEntryRow; this only decides fill state.
                         dotFilled={displayStatus.color === C.green}
                       />
                     </div>
 
-                    {/* Delete control — sibling, not nested; small and
-                        quiet at rest (a full bordered pill sitting fully
-                        exposed on every row read as clutter), still a
-                        visible tap target, red pill only once armed — the
-                        tap-to-arm/confirm safety is unchanged. */}
-                    <button onClick={e => handleDeleteTap(e, perf.id)} disabled={isDeleting}
+                    {/* Delete — only while editing, and never for a Viewer
+                        (Edit isn't offered to them). A sibling of the row,
+                        never nested in it. Tap once to arm, again to delete;
+                        the undo banner above is unchanged. */}
+                    {editing && canWrite && (
+                      <button onClick={e => handleDeleteTap(e, perf.id)} disabled={isDeleting}
+                        aria-label={isPendingDel ? `Confirm delete ${perf.venue_name}` : `Delete ${perf.venue_name}`}
                         style={{
-                          flexShrink: 0,
-                          // flex-start + matching top offset (not center)
-                          // so this sits level with the row's own date/
-                          // venue line instead of floating mid-height,
-                          // unrelated-looking, against a now-taller,
-                          // borderless row.
-                          alignSelf: 'flex-start',
-                          marginTop: 16,
+                          flexShrink: 0, alignSelf: 'center',
+                          minWidth: 44, minHeight: 44,
                           background: isPendingDel ? 'color-mix(in srgb, var(--sl-danger) 15%, transparent)' : 'transparent',
                           border: isPendingDel ? '1px solid color-mix(in srgb, var(--sl-danger) 35%, transparent)' : 'none',
-                          borderRadius: 6,
-                          color: isPendingDel ? 'var(--sl-danger)' : 'color-mix(in srgb, var(--sl-text-3) var(--sl-faint, 55%), transparent)',
+                          borderRadius: 8,
+                          color: isPendingDel ? 'var(--sl-danger)' : C.secondary,
                           cursor: isDeleting ? 'not-allowed' : 'pointer',
-                          padding: isPendingDel ? '4px 8px' : '4px 6px',
-                          fontSize: isPendingDel ? 11 : 14,
-                          lineHeight: 1,
-                          opacity: isDeleting ? 0.4 : 1,
-                          fontWeight: isPendingDel ? 700 : 400,
-                          transition: 'all 0.15s ease',
-                          fontFamily: 'inherit',
-                          WebkitTapHighlightColor: 'transparent',
-                          whiteSpace: 'nowrap' as const,
+                          padding: isPendingDel ? '0 10px' : 0,
+                          fontSize: isPendingDel ? 12 : 16, fontWeight: isPendingDel ? 700 : 400,
+                          opacity: isDeleting ? 0.4 : 1, transition: 'all 0.15s ease',
+                          fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent', whiteSpace: 'nowrap' as const,
                         }}>
-                        {isPendingDel ? '✕ Delete?' : '✕'}
+                        {isPendingDel ? 'Delete?' : '✕'}
                       </button>
+                    )}
                   </div>
                     {deleteErrors[perf.id] && (
                       <p style={{ fontSize: 11, color: C.red, margin: '4px 0 0 14px' }}>{deleteErrors[perf.id]}</p>
