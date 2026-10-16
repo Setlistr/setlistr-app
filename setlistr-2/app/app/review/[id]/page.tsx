@@ -118,34 +118,44 @@ type ShowIntelligence = {
   milestone: number | null
 }
 
+// Returns false when the catalog may not reflect this show (a write failed),
+// so callers don't present catalog-derived moments as fact.
 async function writeUserSongFromReview(
   supabase: ReturnType<typeof import('@/lib/supabase/client').createClient>,
   title: string, artist: string, userId: string, performanceId: string
-): Promise<void> {
+): Promise<boolean> {
   try {
     const normalizedTitle = normalizeSongKey(title)
-    if (!normalizedTitle) return
+    if (!normalizedTitle) return true
     const { error: guardError } = await supabase
       .from('user_song_performances')
       .insert({ user_id: userId, performance_id: performanceId, normalized_title: normalizedTitle })
-    if (guardError) { if (guardError.code === '23505') return; return }
+    if (guardError) return guardError.code === '23505'   // already counted for this show
     const { data: existing } = await supabase
       .from('user_songs').select('id, confirmed_count')
       .eq('user_id', userId).eq('song_title', title).single()
     if (existing) {
-      await supabase.from('user_songs').update({
+      const { error } = await supabase.from('user_songs').update({
         confirmed_count: existing.confirmed_count + 1,
         canonical_artist: artist || null,
         last_confirmed_at: new Date().toISOString(),
       }).eq('id', existing.id)
+      if (error) throw error
     } else {
-      await supabase.from('user_songs').insert({
+      const { error } = await supabase.from('user_songs').insert({
         user_id: userId, song_title: title, canonical_artist: artist || null,
         confirmed_count: 1, last_confirmed_at: new Date().toISOString(),
       })
+      if (error) throw error
     }
-  } catch (err) { console.error('[UserSongs] review write failed:', err) }
+    return true
+  } catch (err) { console.error('[UserSongs] review write failed:', err); return false }
 }
+
+// performances.status allows only draft/live/processing/review/complete
+// (supabase-schema.sql); any other value is rejected with 23514. shows.status
+// is a separate vocabulary that does use 'completed'.
+const PERFORMANCE_COMPLETE = 'complete'
 
 function useKeyboardOffset(): number {
   const [offset, setOffset] = useState(0)
@@ -448,7 +458,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
   // 'loading' until the post-save query answers; 'failed' hides the optional
   // moments (never an endless "Reading the night…").
   const [intelligenceState, setIntelligenceState] = useState<'idle' | 'loading' | 'ok' | 'failed'>('idle')
-  const [saveError, setSaveError] = useState<{ text: string; ref: string } | null>(null)
+  const [saveError, setSaveError] = useState<{ text: string; ref: string; retry: boolean } | null>(null)
   // Rows created for songs added during review, by the song's temporary id,
   // kept across save attempts so Try again never inserts them twice.
   const savedNewRowsRef = useRef<Record<string, string>>({})
@@ -553,7 +563,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
   }
 
   // ── Fetch post-show intelligence after save ───────────────────────────────
-  async function fetchIntelligence(uid: string, venueName: string, songTitles: string[]) {
+  async function fetchIntelligence(uid: string, venueName: string, songTitles: string[], catalogComplete = true) {
     setIntelligenceState('loading')
     try {
       const supabase = createClient()
@@ -599,7 +609,9 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
       const capturedShows = totalResult.count || 0
       const totalShows = capturedShows
       const venueVisits = venueResult.count || 0
-      const songDebuts = debutResult.data?.map((r: { song_title: string }) => r.song_title) || []
+      // A failed catalog write can leave a returning song at count 1, so
+      // first appearances are only shown when every write landed.
+      const songDebuts = catalogComplete ? debutResult.data?.map((r: { song_title: string }) => r.song_title) || [] : []
       const milestone = MILESTONES.find(m => m === totalShows) || null
 
       setIntelligence({ totalShows, venueVisits, songDebuts, milestone, capturedShows })
@@ -876,10 +888,11 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
     const removed = songs.filter(s => s.isRemoved && !s.isNew)
     const wasComplete = performance.status === 'completed' || performance.status === 'complete'
 
-    // REQUIRED save: the show's songs and its completed status. Only these
-    // decide whether the setlist saved. Everything after (legacy setlist
-    // mirror, linked show, song catalog, intelligence, show number,
-    // telemetry) is optional and never reports the setlist as unsaved.
+    // REQUIRED save: the show's songs, the linked show's finished status and
+    // the performance's complete status (last, so it marks the whole save).
+    // Only these decide whether the setlist saved. Everything after (legacy
+    // setlist mirror, song catalog, intelligence, show number, telemetry)
+    // never reports the setlist as unsaved.
     let lastOp = ''
     let wroteSomething = false
     // `changes` is false for writes that only restate what's already stored
@@ -893,7 +906,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
       return r
     }
     let confirmed = false
-    let failure: { op: string; code: string } | null = null
+    let failure: { op: string; code: string; message: string } | null = null
     try {
       // Songs added during review that an earlier attempt already saved —
       // including one whose response was lost after the server accepted it —
@@ -963,11 +976,14 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
 
       // Mark every row for this performance artist-reviewed
       await step('mark songs reviewed', supabase.from('performance_songs').update({ artist_save_complete: true }).eq('performance_id', performance.id))
-      const done = await step('mark the show complete', supabase.from('performances').update({ status: 'completed' }).eq('id', performance.id).select('id'))
+      // Schedule and show start read shows.status; live → completed is the
+      // supported transition (also written when capture ends). Idempotent.
+      if (performance.show_id) await step('mark the linked show finished', supabase.from('shows').update({ status: 'completed' }).eq('id', performance.show_id))
+      const done = await step('mark the show complete', supabase.from('performances').update({ status: PERFORMANCE_COMPLETE }).eq('id', performance.id).select('id'))
       confirmed = !!done.data && done.data.length === 1
     } catch (err: any) {
-      failure = { op: err?.op || lastOp, code: err?.code || '' }
-      console.error('[ReviewSave] save failed:', { ...failure, message: err?.message })
+      failure = { op: err?.op || lastOp, code: err?.code || '', message: err?.message || '' }
+      console.error('[ReviewSave] save failed:', failure)
     }
 
     // No confirmed row (a lost response, or an update that returned no row):
@@ -976,25 +992,40 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
     if (!confirmed) {
       try {
         const { data: check, error } = await supabase.from('performances_visible').select('status').eq('id', performance.id).single()
-        if (!error && !wasComplete && check?.status === 'completed') confirmed = true
+        if (!error && !wasComplete && check?.status === PERFORMANCE_COMPLETE) confirmed = true
       } catch { /* stays unconfirmed */ }
     }
     if (!confirmed) {
       const f = failure
       const op = f?.op || 'mark the show complete'
       const code = f?.code || ''
-      const refused = !f   // every write returned without error, yet the show isn't complete
+      // Every write returned without error, yet the show isn't complete
+      // (no row updated), or the database refused on permission grounds.
+      const refused = !f || code === '42501'
       const lostConnection = !!f && !code
+      // A rejection the database will repeat (data, integrity constraint,
+      // permission/syntax, raised exception, request shape) — unlike a dropped
+      // connection or busy server, retrying the same save can't succeed, so
+      // it isn't offered as the fix.
+      const repeats = /^(22|23|42|P0|PGRST)/.test(code)
+      const constraint = (f?.message.match(/constraint "([^"]+)"/) || [])[1]
       setSaving(false)
       setSaveError({
         text: refused
           ? 'This account can’t save changes to this setlist. Your edits are still here.'
           : lostConnection
             ? 'The connection dropped before the save could be confirmed. Your edits are still here, and trying again won’t add any song twice.'
-            : wroteSomething
-              ? 'Only part of the setlist was saved. Your edits are still here, and trying again finishes the save without adding any song twice.'
-              : 'The setlist couldn’t be saved. Your edits are still here, so you can try again.',
-        ref: `Reference: ${op}${code ? ` · ${code}` : ''}`,
+            : repeats
+              ? op === 'mark the show complete'
+                ? 'Your songs and edits are saved, but the show couldn’t be marked complete because the database refused the change. Trying again won’t fix this, so please send us the reference below.'
+                : wroteSomething
+                  ? 'Part of the setlist was saved, but the database refused one change, so the save can’t finish. Your edits are still here. Trying again won’t fix this, so please send us the reference below.'
+                  : 'The database refused this save. Your edits are still here. Trying again won’t fix this, so please send us the reference below.'
+              : wroteSomething
+                ? 'Only part of the setlist was saved. Your edits are still here, and trying again finishes the save without adding any song twice.'
+                : 'The setlist couldn’t be saved. Your edits are still here, so you can try again.',
+        ref: `Reference: ${op}${code ? ` · ${code}` : ''}${constraint ? ` · ${constraint}` : ''}`,
+        retry: !refused && !repeats,
       })
       return
     }
@@ -1019,10 +1050,6 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
         const { error: confErr } = await supabase.from('setlists').update({ status: 'confirmed', confirmed_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', setlistId)
         if (confErr) throw confErr
       } catch (err) { console.error('[ReviewSave] legacy setlist mirror (optional) failed:', err) }
-    }
-    if (performance.show_id) {
-      const { error: showErr } = await supabase.from('shows').update({ status: 'completed' }).eq('id', performance.show_id)
-      if (showErr) console.error('[ReviewSave] linked show status (optional) failed:', showErr)
     }
 
     // show_locked is not a separate emitted event today — review_completed
@@ -1054,14 +1081,15 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
+        let catalogComplete = true
         for (const song of kept) {
           if (!song.title?.trim()) continue
-          await writeUserSongFromReview(supabase, song.title, song.artist || '', actingAsArtistId || user.id, performance.id)
+          if (!await writeUserSongFromReview(supabase, song.title, song.artist || '', actingAsArtistId || user.id, performance.id)) catalogComplete = false
         }
         // computeShowNumber uses performance.user_id, not actingAsArtistId like
         // fetchIntelligence above — a show's number belongs to the artist whose
         // career it is, not whoever's looking. Same rule as submit's PRO identity.
-        fetchIntelligence(actingAsArtistId || user.id, performance.venue_name, kept.map(s => s.title).filter(Boolean))
+        fetchIntelligence(actingAsArtistId || user.id, performance.venue_name, kept.map(s => s.title).filter(Boolean), catalogComplete)
         const num = await computeShowNumber(performance.user_id, performance.id)
         setComputedShowNumber(num)
       }
@@ -1709,7 +1737,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
             style={{ width: '100%', padding: '15px', background: saved ? 'var(--sl-ok-strong)' : C.gold, border: 'none', borderRadius: 12, color: saved ? '#fff' : 'var(--sl-on-accent)', fontSize: 13, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: saving || saved ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1, transition: 'all 0.25s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit' }}
             onMouseEnter={e => { if (!saving && !saved) (e.currentTarget as HTMLElement).style.opacity = '0.8' }}
             onMouseLeave={e => { if (!saving && !saved) (e.currentTarget as HTMLElement).style.opacity = '1' }}>
-            {saved ? <><Check size={16} strokeWidth={2.5} /> Saved</> : saving ? <><div style={{ width: 14, height: 14, borderRadius: '50%', border: `2px solid color-mix(in srgb, var(--sl-on-accent) 25%, transparent)`, borderTopColor: 'var(--sl-on-accent)', animation: 'spin 0.7s linear infinite' }} />Saving...</> : saveError ? 'Try again' : 'Save & Complete'}
+            {saved ? <><Check size={16} strokeWidth={2.5} /> Saved</> : saving ? <><div style={{ width: 14, height: 14, borderRadius: '50%', border: `2px solid color-mix(in srgb, var(--sl-on-accent) 25%, transparent)`, borderTopColor: 'var(--sl-on-accent)', animation: 'spin 0.7s linear infinite' }} />Saving...</> : saveError?.retry ? 'Try again' : 'Save & Complete'}
           </button>
           <button onClick={() => router.push('/app/dashboard')}
             style={{ background: 'none', border: 'none', color: C.muted, fontSize: 12, cursor: 'pointer', letterSpacing: '0.04em', fontFamily: 'inherit', padding: '6px', transition: 'opacity 0.15s ease' }}
