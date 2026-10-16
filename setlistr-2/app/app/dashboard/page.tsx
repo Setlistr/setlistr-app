@@ -141,6 +141,14 @@ export default function DashboardPage() {
 
   const [performances, setPerformances]         = useState<Performance[]>([])
   const [loading, setLoading]                   = useState(true)
+  // Stale-response guard (docs/ui-standard.md → Loading). Every load takes
+  // a generation number; only the newest one may write results, errors or
+  // the loading flag, so a slow response for a workspace the user has
+  // already left is dropped. `dataFor` records which workspace the data on
+  // screen belongs to; until it matches the current one the page shows the
+  // skeleton, never the previous workspace's record under the new header.
+  const loadGenRef = useRef(0)
+  const [dataFor, setDataFor]                   = useState<string | null>(null)
   const [livePerf, setLivePerf]                 = useState<Performance | null>(null)
   const [morningAfterPerf, setMorningAfterPerf] = useState<Performance | null>(null)
   const [totalSongs, setTotalSongs]             = useState(0)
@@ -177,14 +185,18 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!resolved) return
     const supabase = createClient()
+    const gen = ++loadGenRef.current
+    const current = () => gen === loadGenRef.current
     async function load() {
       try { await loadInner() } catch (err) {
+        if (!current()) return
         // Any failed read lands on the error state with Try again — never an
         // endless skeleton, and never a guess (an unread profile looks like
         // "no artist name", which would wrongly route to onboarding).
         console.error('[Dashboard] load failed:', err)
         setPerformances([]); setLivePerf(null); setMorningAfterPerf(null)
         if (actingAs) setContextLoadError(true); else setOwnLoadError(true)
+        setDataFor(actingAs ? actingAs.artist_id : 'own')
         setLoading(false)
       }
     }
@@ -268,20 +280,21 @@ export default function DashboardPage() {
         setManagedArtists(managed)
 
         if (actingAs) {
-          await loadDelegateContext(actingAs.artist_id, actingAs.artist_name)
-          setLoading(false); return
+          await loadDelegateContext(actingAs.artist_id, actingAs.artist_name, gen)
+          if (current()) setLoading(false)
+          return
         }
 
         setArtistName(name)
       }
 
-      await loadOwnPerformances(supabase)
-      setLoading(false)
+      await loadOwnPerformances(supabase, gen)
+      if (current()) setLoading(false)
     }
     load()
   }, [resolved])
 
-  async function loadOwnPerformances(supabase: any) {
+  async function loadOwnPerformances(supabase: any, gen: number) {
     // Deliberately session-user-only, never actingAsArtistId — this is only
     // ever called from the !actingAs branch of the load effect and from
     // switchToOwn(), both meant to show just the logged-in user's own data.
@@ -303,14 +316,16 @@ export default function DashboardPage() {
         .eq('id', targetUserId)
         .single()
     ])
+    if (gen !== loadGenRef.current) return
     if (profileCareer?.career_total_shows) setCareerTotalShows(profileCareer.career_total_shows)
     if (profileCareer?.career_start_year) setCareerStartYear(profileCareer.career_start_year)
+    setDataFor('own')
     if (error) { setPerformances([]); setLivePerf(null); setMorningAfterPerf(null); setOwnLoadError(true); return }
     setOwnLoadError(false)
-    if (data) processPerformances(data)
+    if (data) processPerformances(data, undefined, false, gen)
   }
 
-  async function loadDelegateContext(artistId: string, artistDisplayName: string) {
+  async function loadDelegateContext(artistId: string, artistDisplayName: string, gen: number) {
     let data: any
     try {
       const res = await fetch(`/api/team/context-data?artist_id=${artistId}`)
@@ -321,6 +336,8 @@ export default function DashboardPage() {
       // re-check — cleared, and said so.
       data = { error: String(err) }
     }
+    if (gen !== loadGenRef.current) return
+    setDataFor(artistId)
     if (data.error) {
       // This route independently re-verifies the accepted/non-revoked
       // delegation on every call (app/api/team/context-data/route.ts) —
@@ -339,10 +356,10 @@ export default function DashboardPage() {
     if (data.bandsintown_artist_name) setLookupName(data.bandsintown_artist_name)
     if (data.career_total_shows) setCareerTotalShows(data.career_total_shows)
     if (data.career_start_year) setCareerStartYear(data.career_start_year)
-    processPerformances(data.performances, data.songCountMap, !!data.song_counts_unavailable)
+    processPerformances(data.performances, data.songCountMap, !!data.song_counts_unavailable, gen)
   }
 
-  function processPerformances(rawPerfs: any[], existingSongCountMap?: Record<string, number>, songCountsUnavailable = false) {
+  function processPerformances(rawPerfs: any[], existingSongCountMap?: Record<string, number>, songCountsUnavailable = false, gen?: number) {
     const perfs: Performance[] = rawPerfs.map((p: any) => ({
       id: p.id, venue_name: p.venue_name, artist_name: p.artist_name,
       city: p.city, country: p.country, status: p.status,
@@ -415,24 +432,27 @@ export default function DashboardPage() {
       supabase.from('performance_songs_visible').select('performance_id')
         .in('performance_id', capturedPerfs.map(p => p.id))
         .then(({ data: songData, error: songError }) => {
+          if (gen !== undefined && gen !== loadGenRef.current) return
           setEstimatesUnavailable(!!songError)
           const countMap: Record<string, number> = {}
           songData?.forEach((s: any) => { countMap[s.performance_id] = (countMap[s.performance_id] || 0) + 1 })
           buildEstimates(countMap)
-        }, () => { setEstimatesUnavailable(true); buildEstimates({}) })
+        }, () => { if (gen !== undefined && gen !== loadGenRef.current) return; setEstimatesUnavailable(true); buildEstimates({}) })
     }
   }
 
   async function switchToOwn() {
+    const gen = ++loadGenRef.current
     setLoading(true)
     setActingAs(null)
     setLookupName(null); setUpcomingShows([]); setTodayShow(null)
     setArtistName(ownArtistName)
     const supabase = createClient()
     const { data: profile } = await supabase.from('profiles').select('bandsintown_artist_name').eq('id', userId!).single()
+    if (gen !== loadGenRef.current) return
     if (profile?.bandsintown_artist_name) setLookupName(profile.bandsintown_artist_name)
-    await loadOwnPerformances(supabase)
-    setLoading(false)
+    await loadOwnPerformances(supabase, gen)
+    if (gen === loadGenRef.current) setLoading(false)
   }
 
   // Workspace switching now also happens from AccountMenu (the shared
@@ -456,15 +476,17 @@ export default function DashboardPage() {
     if (prevActingAsIdRef.current === currentId) return
     prevActingAsIdRef.current = currentId
 
+    const gen = ++loadGenRef.current
+    const current = () => gen === loadGenRef.current
     setLoading(true)
     setLookupName(null); setUpcomingShows([]); setTodayShow(null)
-    const fail = () => { setPerformances([]); if (actingAs) setContextLoadError(true); else setOwnLoadError(true) }
+    const fail = () => { if (!current()) return; setPerformances([]); setDataFor(actingAs ? actingAs.artist_id : 'own'); if (actingAs) setContextLoadError(true); else setOwnLoadError(true) }
     if (actingAs) {
-      loadDelegateContext(actingAs.artist_id, actingAs.artist_name).catch(fail).finally(() => setLoading(false))
+      loadDelegateContext(actingAs.artist_id, actingAs.artist_name, gen).catch(fail).finally(() => { if (current()) setLoading(false) })
     } else {
       setArtistName(ownArtistName)
       const supabase = createClient()
-      loadOwnPerformances(supabase).catch(fail).finally(() => setLoading(false))
+      loadOwnPerformances(supabase, gen).catch(fail).finally(() => { if (current()) setLoading(false) })
     }
   }, [resolved, actingAs])
 
@@ -543,14 +565,16 @@ export default function DashboardPage() {
   }
 
   async function retryLoad() {
+    const gen = ++loadGenRef.current
     setLoading(true)
     try {
-      if (actingAs) await loadDelegateContext(actingAs.artist_id, actingAs.artist_name)
-      else await loadOwnPerformances(createClient())
+      if (actingAs) await loadDelegateContext(actingAs.artist_id, actingAs.artist_name, gen)
+      else await loadOwnPerformances(createClient(), gen)
     } catch {
-      setPerformances([]); if (actingAs) setContextLoadError(true); else setOwnLoadError(true)
+      if (gen !== loadGenRef.current) return
+      setPerformances([]); setDataFor(actingAs ? actingAs.artist_id : 'own'); if (actingAs) setContextLoadError(true); else setOwnLoadError(true)
     }
-    setLoading(false)
+    if (gen === loadGenRef.current) setLoading(false)
   }
 
   // Capture-adjacent actions (the "Tonight" row, starting from a listing,
@@ -559,6 +583,7 @@ export default function DashboardPage() {
   const { canWrite: canCapture } = useWorkspaceRole()
   const overline      = actingAs ? `${possessive(actingAs.artist_name)} live record` : 'Your live record'
   const loadFailed    = (contextLoadError && !!actingAs) || (ownLoadError && !actingAs)
+  const showLoading   = loading || dataFor !== (actingAs ? actingAs.artist_id : 'own')
   const linkRow: React.CSSProperties = { ...rowBase, width: '100%', background: 'none', border: 'none', borderBottom: '1px solid var(--sl-line)', cursor: 'pointer', fontFamily: SANS, textAlign: 'left' }
 
   // ── "What's happening now" rows: compact, above the record, never
@@ -611,7 +636,7 @@ export default function DashboardPage() {
     </button>
   )
 
-  const hasBand = !!(liveBand || reviewBand || todayBand)
+  const hasBand = !showLoading && (!!(liveBand || reviewBand || todayBand))
   const bands = hasBand && (
     <div style={{ display: 'grid', gap: 8, paddingTop: 8 }}>{liveBand}{reviewBand}{todayBand}</div>
   )
@@ -648,7 +673,7 @@ export default function DashboardPage() {
   // poster, as in the approved desktop design.
   let poster: React.ReactNode = null
   let ledger: React.ReactNode = null
-  if (loading) {
+  if (showLoading) {
     poster = (
       <div aria-busy="true" aria-label={actingAs ? `Loading ${possessive(actingAs.artist_name)} record` : 'Loading your record'} style={{ paddingTop: 20 }}>
         <Skeleton w="40%" h={16} />
@@ -747,7 +772,7 @@ export default function DashboardPage() {
     )
   }
 
-  const more = !loading && !loadFailed && (
+  const more = !showLoading && !loadFailed && (
     <>
       {/* ── Coming up: the next scheduled show, plus external listings ── */}
       {userId && (
