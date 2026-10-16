@@ -300,7 +300,7 @@ export default function StatsPage() {
     topCountry === 'AU' || topCountry === 'Australia' ? [134, -26, 3] :
     [-98, 38, 3]
   const plainMapUrl = mapboxToken
-    ? `https://api.mapbox.com/styles/v1/mapbox/dark-v11/static/${mapLon},${mapLat},${mapZoom}/600x340@2x?access_token=${mapboxToken}`
+    ? `https://api.mapbox.com/styles/v1/mapbox/dark-v11/static/${mapLon},${mapLat},${mapZoom}/600x340@2x?attribution=false&access_token=${mapboxToken}`
     : ''
   const isValidOverlay = markerOverlay.length > 0
     && !markerOverlay.includes('NaN')
@@ -309,7 +309,7 @@ export default function StatsPage() {
   // Same Static Images API and dark-v11 style; `auto` fits the view to the
   // pins (padding leaves room for the caption) instead of a fixed centre.
   const markerMapUrl = (isValidOverlay && mapboxToken)
-    ? `https://api.mapbox.com/styles/v1/mapbox/dark-v11/static/${markerOverlay}/auto/600x340@2x?padding=56,64,110,64&access_token=${mapboxToken}`
+    ? `https://api.mapbox.com/styles/v1/mapbox/dark-v11/static/${markerOverlay}/auto/600x340@2x?padding=56,64,110,64&attribution=false&access_token=${mapboxToken}`
     : ''
   const activeMapUrl = !geoSettled ? '' : (isValidOverlay && !usePlainMap && markerMapUrl) ? markerMapUrl : plainMapUrl
   useEffect(() => { setMapImg(activeMapUrl ? 'loading' : (geoSettled ? 'failed' : 'loading')) }, [activeMapUrl, geoSettled])
@@ -425,8 +425,15 @@ export default function StatsPage() {
                       <span style={{ fontSize: 12.5, color: '#b9ae96' /* map imagery: fixed */ }}>Map preview unavailable</span>
                     </div>
                   )}
-                  <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(10,9,8,0.88) 0%, rgba(10,9,8,0.55) 28%, rgba(10,9,8,0) 58%)' /* map imagery: fixed */ }} />
-                  <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: '0 18px 16px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12, textAlign: 'left', flexWrap: 'wrap' }}>
+                  {/* The bottom 24px stays light so the map's Mapbox logo (drawn in
+                     the image) and the attribution (drawn below, inside the card's
+                     padding so the rounded corner can't clip it) stay legible. The
+                     caption sits above that strip. */}
+                  <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(10,9,8,0.15) 0px, rgba(10,9,8,0.15) 22px, rgba(10,9,8,0.86) 34px, rgba(10,9,8,0.5) 42%, rgba(10,9,8,0) 64%)' /* map imagery: fixed */ }} />
+                  {activeMapUrl && mapImg === 'ready' && (
+                    <span style={{ position: 'absolute', right: 12, bottom: 6, fontSize: 10.5, color: 'rgba(243,238,228,0.78)', textShadow: '0 0 3px rgba(10,9,8,0.9)', pointerEvents: 'none' }} /* map imagery: fixed */>© Mapbox © OpenStreetMap</span>
+                  )}
+                  <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: '0 18px 34px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12, textAlign: 'left', flexWrap: 'wrap' }}>
                     <div>
                       <p style={{ fontSize: 34, fontWeight: 800, color: '#f3eee4', margin: 0, letterSpacing: '-0.02em', lineHeight: 1 }} /* map imagery: fixed */>{totalCities} {totalCities === 1 ? 'City' : 'Cities'}</p>
                       <p style={{ fontSize: 14, color: '#d9cfb7', margin: '5px 0 0' }} /* map imagery: fixed */>{totalShows} {totalShows === 1 ? 'show' : 'shows'}</p>
