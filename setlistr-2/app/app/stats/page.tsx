@@ -7,6 +7,7 @@ import MySongsTab from '@/components/MySongsTab'
 import { estimateRoyalties, capacityToBand } from '@/lib/royalty-estimate'
 import { useActingAs } from '@/components/ActingAsProvider'
 import { showDate } from '@/lib/record-summary'
+import { CAREER_SHOW_STATUSES } from '@/lib/performance-status'
 import { ESTIMATE_DISCLAIMER, ESTIMATE_UNIT, formatEstimate } from '@/lib/estimate-copy'
 import { PageFrame } from '@/components/ui/PageFrame'
 import { PageHeader } from '@/components/ui/PageHeader'
@@ -111,7 +112,7 @@ export default function StatsPage() {
         const ctxData = await ctxRes.json().catch(() => ({}))
         if (!ctxRes.ok || ctxData.error) throw new Error(ctxData.error || `context-data ${ctxRes.status}`)
         perfList = (ctxData.performances || []).filter((p: any) =>
-          ['completed', 'complete', 'exported', 'review'].includes(p.status)
+          CAREER_SHOW_STATUSES.includes(p.status)
         ).map((p: any) => ({
           id: p.id, venue_name: p.venue_name, venue_id: p.venue_id || null,
           city: p.city, country: p.country,
@@ -128,7 +129,7 @@ export default function StatsPage() {
           supabase.from('performances_visible')
             .select('id, venue_name, venue_id, city, country, started_at, ended_at, set_duration_minutes, submission_status, shows(show_type), venues(capacity)')
             .eq('user_id', user.id)
-            .in('status', ['completed', 'complete', 'exported', 'review'])
+            .in('status', CAREER_SHOW_STATUSES)
             .order('started_at', { ascending: false }),
           supabase.from('user_songs')
             .select('id, song_title, canonical_artist, confirmed_count, last_confirmed_at')

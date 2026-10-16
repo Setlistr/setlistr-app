@@ -37,6 +37,12 @@ export function isRealVenue(name: string | null | undefined): boolean {
 // deliberately excluded: a show still there has not been reviewed yet,
 // regardless of what other fields happen to already be filled in.
 const COMPLETE_STAGE_STATUSES = new Set(['complete', 'completed', 'exported'])
+
+// performances.status values Career (app/app/stats) treats as shows on the
+// artist's record: reviewed, or captured and awaiting review. Shared so
+// Career's lists (its show list and My Songs' venue list) agree. These are
+// performances values only — shows.status has its own vocabulary.
+export const CAREER_SHOW_STATUSES = ['completed', 'complete', 'exported', 'review']
 export function isCompleteStage(p: Pick<PerformanceLifecycleFields, 'status'>): boolean {
   return !!p.status && COMPLETE_STAGE_STATUSES.has(p.status)
 }

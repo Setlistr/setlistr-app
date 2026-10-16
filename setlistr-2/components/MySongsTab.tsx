@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { CAREER_SHOW_STATUSES } from '@/lib/performance-status'
 
 const C = {
   bg: 'var(--sl-bg)', card: 'var(--sl-surface)', card2: 'var(--sl-surface-2)',
@@ -132,13 +133,15 @@ function SongIntelligenceSheet({
 
         const perfIds = pSongs.map(p => p.performance_id).filter(Boolean)
 
-        // Step 2: get performance details for those IDs scoped to this user
+        // Step 2: get performance details for those IDs scoped to this user,
+        // counting the same shows Career does (performances_visible already
+        // leaves out deleted shows)
         const { data: perfs } = await supabase
           .from('performances_visible')
           .select('venue_name, city, started_at')
           .in('id', perfIds)
           .eq('user_id', userId)
-          .eq('status', 'completed')
+          .in('status', CAREER_SHOW_STATUSES)
           .order('started_at', { ascending: false })
           .limit(50)
 
