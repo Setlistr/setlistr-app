@@ -448,7 +448,10 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
   // 'loading' until the post-save query answers; 'failed' hides the optional
   // moments (never an endless "Reading the night…").
   const [intelligenceState, setIntelligenceState] = useState<'idle' | 'loading' | 'ok' | 'failed'>('idle')
-  const [saveError, setSaveError] = useState<string | null>(null)
+  const [saveError, setSaveError] = useState<{ text: string; ref: string } | null>(null)
+  // Rows created for songs added during review, by the song's temporary id,
+  // kept across save attempts so Try again never inserts them twice.
+  const savedNewRowsRef = useRef<Record<string, string>>({})
   const { canWrite } = useWorkspaceRole()
   const [photoUrl, setPhotoUrl] = useState<string | null>(null)
   const [photoUploading, setPhotoUploading] = useState(false)
@@ -867,83 +870,159 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
     setSaving(true)
     setSaveError(null)
     const supabase = createClient()
-    // The celebration only follows a save that actually landed: every write
-    // is checked, and the final status change must confirm it changed this
-    // show (a write the database refuses for this account changes nothing).
-    const must = <T extends { error: any }>(r: T): T => { if (r.error) throw r.error; return r }
     // Kept songs (visible, non-removed, non-planned) in display order, plus the
     // existing rows the artist removed. No delete/reinsert — we update in place.
     const kept    = songs.filter(s => !s.isRemoved && s.source !== 'planned')
     const removed = songs.filter(s => s.isRemoved && !s.isNew)
+    const wasComplete = performance.status === 'completed' || performance.status === 'complete'
+
+    // REQUIRED save: the show's songs and its completed status. Only these
+    // decide whether the setlist saved. Everything after (legacy setlist
+    // mirror, linked show, song catalog, intelligence, show number,
+    // telemetry) is optional and never reports the setlist as unsaved.
+    let lastOp = ''
+    let wroteSomething = false
+    // `changes` is false for writes that only restate what's already stored
+    // (an unchanged song's position), so "partly saved" is only said when
+    // something the artist would see has actually changed.
+    const step = async <T extends { error: any }>(op: string, run: PromiseLike<T>, changes = true): Promise<T> => {
+      lastOp = op
+      const r = await run
+      if (r.error) throw Object.assign(new Error(r.error.message || op), { op, code: r.error.code || '' })
+      if (changes) wroteSomething = true
+      return r
+    }
+    let confirmed = false
+    let failure: { op: string; code: string } | null = null
     try {
-
-    // Legacy setlist_items mirror — rebuilt from the kept songs (unchanged behaviour)
-    if (setlistId) {
-      must(await supabase.from('setlist_items').delete().eq('setlist_id', setlistId))
-      must(await supabase.from('setlist_items').insert(kept.map((s, i) => {
-        const n = normalizeSong({ title: s.title, artist: s.artist })
-        return { setlist_id: setlistId, title: n.title, artist_name: n.artist, position: i + 1, source: s.source || 'manual', recognition_decision_id: s.recognition_decision_id || null }
-      })))
-      must(await supabase.from('setlists').update({ status: 'confirmed', confirmed_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', setlistId))
-    }
-
-    // ── performance_songs: in-place updates, no delete/reinsert ───────────────
-    for (let i = 0; i < kept.length; i++) {
-      const s = kept[i]
-      const n = normalizeSong({ title: s.title, artist: s.artist })
-      const position = i + 1
-      if (s.isNew) {
-        // Artist added a song the system missed → false negative
-        must(await supabase.from('performance_songs').insert({
-          performance_id: performance.id, title: n.title, artist: n.artist, position,
-          isrc: s.isrc || null, composer: s.composer || null, publisher: s.publisher || null,
-          was_planned: s.was_planned || false,
-          inclusion_reason: 'manually added post-show', confusion_matrix_result: 'FN', artist_modified: true,
-        }))
-      } else if (s.isModified) {
-        // Artist corrected a detection → keep the record, log what it was
-        must(await supabase.from('performance_songs').update({
-          title: n.title, artist: n.artist, position,
-          isrc: s.isrc || null, composer: s.composer || null, publisher: s.publisher || null,
-          artist_modified: true, notes: `was ${s.origArtist || ''}-${s.origTitle || ''}`,
-        }).eq('id', s.id))
-      } else {
-        // Unchanged detection → just keep ordering current
-        must(await supabase.from('performance_songs').update({ position }).eq('id', s.id))
+      // Songs added during review that an earlier attempt already saved —
+      // including one whose response was lost after the server accepted it —
+      // are updated, never inserted a second time.
+      const newOnes = kept.filter(s => s.isNew && !savedNewRowsRef.current[s.id])
+      if (newOnes.length > 0) {
+        lastOp = 'check songs already saved'
+        const { data: existingRows, error } = await supabase.from('performance_songs')
+          .select('id, title').eq('performance_id', performance.id).eq('inclusion_reason', 'manually added post-show')
+        if (error) throw Object.assign(new Error(error.message), { op: lastOp, code: error.code || '' })
+        const claimed = new Set<string>([...songs.map(s => s.id), ...Object.values(savedNewRowsRef.current)])
+        for (const s of newOnes) {
+          const n = normalizeSong({ title: s.title, artist: s.artist })
+          const row = (existingRows || []).find(r => !claimed.has(r.id) && r.title === n.title)
+          if (row) { savedNewRowsRef.current[s.id] = row.id; claimed.add(row.id) }
+        }
       }
-    }
 
-    // Removed rows stay in the DB: a removed never-detected song is a true negative,
-    // a removed detected song is a false positive.
-    for (const s of removed) {
-      const undetected = s.inclusion_reason === 'planned setlist - not detected' || s.inclusion_reason === 'added mid-show - not detected'
-      must(await supabase.from('performance_songs').update({
-        artist_removed: true, confusion_matrix_result: undetected ? 'TN' : 'FP',
-      }).eq('id', s.id))
-    }
+      // ── performance_songs: in-place updates, no delete/reinsert ───────────────
+      for (let i = 0; i < kept.length; i++) {
+        const s = kept[i]
+        const n = normalizeSong({ title: s.title, artist: s.artist })
+        const position = i + 1
+        const savedRow = s.isNew ? savedNewRowsRef.current[s.id] : undefined
+        if (s.isNew && !savedRow) {
+          // Artist added a song the system missed → false negative
+          const r = await step('add a song', supabase.from('performance_songs').insert({
+            performance_id: performance.id, title: n.title, artist: n.artist, position,
+            isrc: s.isrc || null, composer: s.composer || null, publisher: s.publisher || null,
+            was_planned: s.was_planned || false,
+            inclusion_reason: 'manually added post-show', confusion_matrix_result: 'FN', artist_modified: true,
+          }).select('id').single())
+          if ((r as any).data?.id) savedNewRowsRef.current[s.id] = (r as any).data.id
+        } else if (savedRow) {
+          await step('update a song', supabase.from('performance_songs').update({ title: n.title, artist: n.artist, position }).eq('id', savedRow))
+        } else if (s.isModified) {
+          // Artist corrected a detection → keep the record, log what it was
+          await step('update a song', supabase.from('performance_songs').update({
+            title: n.title, artist: n.artist, position,
+            isrc: s.isrc || null, composer: s.composer || null, publisher: s.publisher || null,
+            artist_modified: true, notes: `was ${s.origArtist || ''}-${s.origTitle || ''}`,
+          }).eq('id', s.id))
+        } else {
+          // Unchanged detection → just keep ordering current
+          await step('update song order', supabase.from('performance_songs').update({ position }).eq('id', s.id), s.position !== position)
+        }
+      }
 
-    // Resolve the kept rows still pending (TBD): never-detected songs the artist kept
-    // are false negatives (system missed a played song); everything else is a true positive.
-    must(await supabase.from('performance_songs')
-      .update({ confusion_matrix_result: 'FN' })
-      .eq('performance_id', performance.id).eq('confusion_matrix_result', 'TBD')
-      .in('inclusion_reason', ['planned setlist - not detected', 'added mid-show - not detected']))
-    must(await supabase.from('performance_songs')
-      .update({ confusion_matrix_result: 'TP' })
-      .eq('performance_id', performance.id).eq('confusion_matrix_result', 'TBD'))
+      // Removed rows stay in the DB: a removed never-detected song is a true negative,
+      // a removed detected song is a false positive.
+      for (const s of removed) {
+        const undetected = s.inclusion_reason === 'planned setlist - not detected' || s.inclusion_reason === 'added mid-show - not detected'
+        await step('remove a song', supabase.from('performance_songs').update({
+          artist_removed: true, confusion_matrix_result: undetected ? 'TN' : 'FP',
+        }).eq('id', s.id))
+      }
 
-    // Mark every row for this performance artist-reviewed
-    must(await supabase.from('performance_songs').update({ artist_save_complete: true }).eq('performance_id', performance.id))
-    const done = must(await supabase.from('performances').update({ status: 'completed' }).eq('id', performance.id).select('id'))
-    if (!done.data || done.data.length !== 1) throw new Error('This show could not be marked complete from this account.')
-    if (performance.show_id) must(await supabase.from('shows').update({ status: 'completed' }).eq('id', performance.show_id))
+      // Resolve the kept rows still pending (TBD): never-detected songs the artist kept
+      // are false negatives (system missed a played song); everything else is a true positive.
+      await step('resolve detections', supabase.from('performance_songs')
+        .update({ confusion_matrix_result: 'FN' })
+        .eq('performance_id', performance.id).eq('confusion_matrix_result', 'TBD')
+        .in('inclusion_reason', ['planned setlist - not detected', 'added mid-show - not detected']))
+      await step('resolve detections', supabase.from('performance_songs')
+        .update({ confusion_matrix_result: 'TP' })
+        .eq('performance_id', performance.id).eq('confusion_matrix_result', 'TBD'))
+
+      // Mark every row for this performance artist-reviewed
+      await step('mark songs reviewed', supabase.from('performance_songs').update({ artist_save_complete: true }).eq('performance_id', performance.id))
+      const done = await step('mark the show complete', supabase.from('performances').update({ status: 'completed' }).eq('id', performance.id).select('id'))
+      confirmed = !!done.data && done.data.length === 1
     } catch (err: any) {
-      console.error('[ReviewSave] save failed:', err)
+      failure = { op: err?.op || lastOp, code: err?.code || '' }
+      console.error('[ReviewSave] save failed:', { ...failure, message: err?.message })
+    }
+
+    // No confirmed row (a lost response, or an update that returned no row):
+    // read the show back. Completed now, when it wasn't before, means the
+    // final required write landed. Anything else is not confirmed.
+    if (!confirmed) {
+      try {
+        const { data: check, error } = await supabase.from('performances_visible').select('status').eq('id', performance.id).single()
+        if (!error && !wasComplete && check?.status === 'completed') confirmed = true
+      } catch { /* stays unconfirmed */ }
+    }
+    if (!confirmed) {
+      const f = failure
+      const op = f?.op || 'mark the show complete'
+      const code = f?.code || ''
+      const refused = !f   // every write returned without error, yet the show isn't complete
+      const lostConnection = !!f && !code
       setSaving(false)
-      setSaveError(err?.message?.includes('could not be marked complete')
-        ? 'This setlist couldn’t be saved from this account. Nothing was marked complete.'
-        : 'The setlist didn’t save. Nothing was marked complete. Check your connection, then try again.')
+      setSaveError({
+        text: refused
+          ? 'This account can’t save changes to this setlist. Your edits are still here.'
+          : lostConnection
+            ? 'The connection dropped before the save could be confirmed. Your edits are still here, and trying again won’t add any song twice.'
+            : wroteSomething
+              ? 'Only part of the setlist was saved. Your edits are still here, and trying again finishes the save without adding any song twice.'
+              : 'The setlist couldn’t be saved. Your edits are still here, so you can try again.',
+        ref: `Reference: ${op}${code ? ` · ${code}` : ''}`,
+      })
       return
+    }
+
+    // ── Optional after a confirmed save: never decides whether it saved ──
+    // Legacy setlist mirror, non-destructive: new rows first, old rows removed
+    // only once those exist. (recognition_decision_id is not sent: no
+    // migration defines that column and nothing reads it.)
+    if (setlistId) {
+      try {
+        const { data: oldItems, error: readErr } = await supabase.from('setlist_items').select('id').eq('setlist_id', setlistId)
+        if (readErr) throw readErr
+        const { error: insErr } = await supabase.from('setlist_items').insert(kept.map((s, i) => {
+          const n = normalizeSong({ title: s.title, artist: s.artist })
+          return { setlist_id: setlistId, title: n.title, artist_name: n.artist, position: i + 1, source: s.source || 'manual' }
+        }))
+        if (insErr) throw insErr
+        if (oldItems && oldItems.length > 0) {
+          const { error: delErr } = await supabase.from('setlist_items').delete().in('id', oldItems.map(o => o.id))
+          if (delErr) throw delErr
+        }
+        const { error: confErr } = await supabase.from('setlists').update({ status: 'confirmed', confirmed_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', setlistId)
+        if (confErr) throw confErr
+      } catch (err) { console.error('[ReviewSave] legacy setlist mirror (optional) failed:', err) }
+    }
+    if (performance.show_id) {
+      const { error: showErr } = await supabase.from('shows').update({ status: 'completed' }).eq('id', performance.show_id)
+      if (showErr) console.error('[ReviewSave] linked show status (optional) failed:', showErr)
     }
 
     // show_locked is not a separate emitted event today — review_completed
@@ -1622,7 +1701,8 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
           <p style={{ fontSize: 11, color: C.muted, textAlign: 'center', margin: '0 0 2px' }}>By saving, you confirm these songs were performed at this show.</p>
           {saveError && (
             <div role="alert" style={{ background: 'color-mix(in srgb, var(--sl-warn) 7%, transparent)', border: '1px solid color-mix(in srgb, var(--sl-warn) 28%, transparent)', borderRadius: 12, padding: '12px 14px', fontSize: 14, color: 'var(--sl-text)', lineHeight: 1.45 }}>
-              {saveError}
+              {saveError.text}
+              <span style={{ display: 'block', fontSize: 12, color: 'var(--sl-text-3)', marginTop: 4, fontFamily: '"DM Mono", monospace' }}>{saveError.ref}</span>
             </div>
           )}
           <button onClick={handleSave} disabled={saving || saved}
