@@ -25,7 +25,12 @@ Consistency applies to frame, controls and states, not to every layout. Each scr
   - 600–899px: a 640px column with 32px gutters
   - 900px+: a 1120px frame with 48px gutters
 - **Column splits inside the frame are per page.** Dashboard: poster | ledger (360–440px, gap 72). Career: map column | statistics column (340–400px, gap 48). Submissions: one bounded 880px list.
-- **Safe areas are owned by AppShell** (header top inset, nav bottom inset, side insets). Pages add no `env(safe-area-*)` padding. Live capture is the exception (full-screen, outside the frame).
+- **Safe areas: AppShell owns them for framed routes**, meaning every `/app/*` route it draws its header and nav around. It covers the header top inset, the nav bottom inset and the side insets. Framed pages add no `env(safe-area-*)` padding of their own.
+- **Full-screen capture owns its own safe areas.** `/app/live/[id]` is listed in AppShell's `FULLSCREEN_ROUTES`, so the shell draws no frame there. The page handles its own insets:
+  - side insets once at its root
+  - an inert strip over the top inset
+  - bottom clearance of `max(40px, 16px + inset)`
+  This is documented in that page and guarded by the "Live capture safe areas" check in `scripts/test-mobile-layout-invariants.ts`. This standard doesn't change capture.
 - **Page height** uses `var(--sl-page-min-height, 100svh)`, never a bare `100svh`.
 
 ## Page header
@@ -125,7 +130,7 @@ Audited on the shipped dashboard (`app/app/dashboard/page.tsx`): the frame stays
 - **Dashboard:**
   - Its poster number, ledger and hero-scale load error are its identity. It keeps its own two-column split, and its error is a full-poster state rather than an inline `LoadError`.
   - Its 20px gutter is the standard.
-- **Live capture** (`/app/live/[id]`): full-screen, outside the frame and header rules. It owns its safe areas and the gold orb stays literal gold in every appearance.
+- **Live capture** (`/app/live/[id]`): full-screen (AppShell `FULLSCREEN_ROUTES`), outside the frame and header rules. It owns its documented safe-area handling (see Layout), and the gold orb stays literal gold in every appearance. No capture changes are part of this standard.
 - **Career map card:** fixed dark colours over the map image in both themes (the imagery is dark in both).
 - **Public pages** (`/s/[id]`, marketing): not covered by this standard.
 
@@ -160,7 +165,7 @@ Audited on the shipped dashboard (`app/app/dashboard/page.tsx`): the frame stays
 | `/app/proof` | ○ | ○ | n/a | ○ | ○ | ○ | |
 | `/app/review/[id]`, `/app/submit/[id]` | ○ | ○ | n/a | ○ | ○ | ◐ | Fields already on input tokens |
 | `/app/show/new`, `/app/upload/new` | ○ | ○ | n/a | ○ | ○ | ○ | |
-| `/app/live/[id]` | exception | exception | n/a | — | — | — | Capture orb, own safe areas |
+| `/app/live/[id]` | exception | exception | n/a | — | — | — | Full-screen capture: owns its documented safe areas; orb; no changes |
 | `/app/settings`, `/app/team`, `/app/accept-invite`, `/app/onboarding` | ○ | ○ | ○ | ○ | ○ | ○ | |
 | `/app/artist/[id]`, `/app/manager/*` | ○ | ○ | ○ | ○ | ○ | ○ | ManagerShell |
 | `/app/admin/*` | ○ | ○ | n/a | ○ | ○ | ○ | Internal; lowest priority |
