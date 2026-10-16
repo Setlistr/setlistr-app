@@ -33,7 +33,7 @@ export default function SongDebutCard({ songTitle, artistName, venueName, date, 
           <span style={{
             fontSize: 13, fontWeight: 800, color: '#c9a84c',
             letterSpacing: '0.18em', textTransform: 'uppercase', whiteSpace: 'nowrap',
-          }}>LIVE DEBUT</span>
+          }}>FIRST APPEARANCE</span>
           <img src="/logo-horizontal.png" alt="Setlistr"
             style={{ height: 36, width: 'auto', objectFit: 'contain' }} />
         </div>
@@ -45,7 +45,7 @@ export default function SongDebutCard({ songTitle, artistName, venueName, date, 
           <div style={{
             fontSize: 13, fontWeight: 700, color: '#c9a84c',
             letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: '3%',
-          }}>FIRST TIME PLAYED LIVE</div>
+          }}>FIRST APPEARANCE ON YOUR RECORD</div>
 
           <div style={{
             fontSize: 48, fontWeight: 800, color: '#f0ece3',
@@ -55,7 +55,7 @@ export default function SongDebutCard({ songTitle, artistName, venueName, date, 
           {totalDebuts > 1 && (
             <div style={{
               fontSize: 15, color: '#b8a888', marginBottom: '6%',
-            }}>+{totalDebuts - 1} more debut{totalDebuts - 1 > 1 ? 's' : ''} tonight.</div>
+            }}>+{totalDebuts - 1} more first appearance{totalDebuts - 1 > 1 ? 's' : ''} tonight.</div>
           )}
 
           <div style={{ width: '50%', height: 2, background: 'linear-gradient(90deg, #c9a84c, transparent)', marginBottom: '6%' }} />

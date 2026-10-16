@@ -25,6 +25,10 @@ import RoyaltyMomentCard from '@/components/share-cards/RoyaltyMomentCard'
 import MilestoneCard from '@/components/share-cards/MilestoneCard'
 import html2canvas from 'html2canvas'
 import { countAt, capturedLabel, type FlowSource } from '@/lib/ceremony-display'
+import { ESTIMATE_DISCLAIMER, ESTIMATE_UNIT, formatEstimate } from '@/lib/estimate-copy'
+import { PageFrame } from '@/components/ui/PageFrame'
+import { Skeleton } from '@/components/ui/Skeleton'
+import { useWorkspaceRole } from '@/components/layout/WorkspaceRole'
 
 const C = {
   bg: 'var(--sl-bg)', card: 'var(--sl-surface)', cardGrad: 'var(--sl-card-bg)', cardHover: 'var(--sl-surface-2)',
@@ -33,10 +37,18 @@ const C = {
   gold: 'var(--sl-accent)', goldDim: 'color-mix(in srgb, var(--sl-accent) 10%, transparent)', green: 'var(--sl-ok)', red: 'var(--sl-danger)',
 }
 
+// Real ordinals: 1st, 2nd, 3rd, 4th … 11th, 12th, 13th, 21st.
+function ordinal(n: number): string {
+  const v = n % 100
+  return n + (v >= 11 && v <= 13 ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' } as Record<number, string>)[n % 10] || 'th')
+}
+
 function useCountUp(target: number, duration: number = 1200, delay: number = 0): number {
   const [count, setCount] = useState(0)
   useEffect(() => {
     if (target === 0) return
+    // Reduced motion: the real number, immediately.
+    if (typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches) { setCount(target); return }
     let startTime: number | null = null
     let animFrame: number
     const delayTimer = setTimeout(() => {
@@ -348,9 +360,9 @@ function CeremonyCountCard({ songCount, showDate, verifiedCount, autoCount, manu
   verifiedCount: number; autoCount: number; manualCount: number
   songs: Song[]; flowSource: FlowSource
 }) {
-  const count = useCountUp(songCount, 1000, 500)
+  const count = useCountUp(songCount, 900, 450)
   return (
-    <div style={{ background: C.cardGrad, border: '1px solid color-mix(in srgb, var(--sl-text) 4%, transparent)', borderRadius: 24, overflow: 'hidden', marginBottom: 12, opacity: 0, animation: 'fadeUp 0.6s 0.5s ease forwards', boxShadow: 'var(--sl-card-inset)' }}>
+    <div className="cer-in" style={{ background: C.cardGrad, border: '1px solid color-mix(in srgb, var(--sl-text) 4%, transparent)', borderRadius: 24, overflow: 'hidden', opacity: 0, animation: 'fadeUp 0.45s 0.5s ease forwards', boxShadow: 'var(--sl-card-inset)' }}>
       <div style={{ padding: '20px 24px 16px', borderBottom: `1px solid color-mix(in srgb, var(--sl-text) 5%, transparent)` }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 4 }}>
           <span style={{ fontSize: 64, fontWeight: 800, color: 'var(--sl-text)', fontFamily: '"DM Mono", monospace', letterSpacing: '-0.04em', lineHeight: 1, animation: count === songCount ? 'countPulse 0.4s ease' : 'none' }}>
@@ -366,9 +378,9 @@ function CeremonyCountCard({ songCount, showDate, verifiedCount, autoCount, manu
       </div>
       <div style={{ padding: '16px 0 8px' }}>
         {songs.map((s, i) => (
-          <div key={s.id} style={{ display: 'flex', alignItems: 'baseline', gap: 14, padding: '9px 24px', opacity: 0, animation: `fadeUp 0.4s ${0.55 + i * 0.04}s ease forwards` }}>
+          <div key={s.id} style={{ display: 'flex', alignItems: 'baseline', gap: 14, padding: '9px 24px', opacity: 0, animation: `fadeUp 0.35s ${Math.min(0.55 + i * 0.03, 1.0)}s ease forwards` }}>
             <span style={{ fontSize: 11, color: 'var(--sl-text-4)', minWidth: 18, textAlign: 'right', fontFamily: '"DM Mono", monospace', flexShrink: 0 }}>{i + 1}</span>
-            <p style={{ fontSize: 16, fontWeight: s.was_planned ? 600 : 500, color: 'var(--sl-text)', margin: 0, flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', letterSpacing: '-0.005em' }}>{s.title}</p>
+            <p style={{ fontSize: 16, fontWeight: s.was_planned ? 600 : 500, color: 'var(--sl-text)', margin: 0, flex: 1, minWidth: 0, overflowWrap: 'anywhere', letterSpacing: '-0.005em' }}>{s.title}</p>
           </div>
         ))}
       </div>
@@ -383,27 +395,30 @@ function CeremonyCountCard({ songCount, showDate, verifiedCount, autoCount, manu
 
 function CeremonyRoyaltyCard({ expected, low, high, performanceId, onClaim }: {
   expected: number; low: number; high: number
-  performanceId: string; onClaim: () => void
+  performanceId: string; onClaim: (() => void) | null
 }) {
-  const count = useCountUp(expected, 1200, 800)
+  const count = useCountUp(expected, 900, 400)
+  // Secondary to the show and its moments: a quiet surface, a smaller figure,
+  // always labelled as an estimate.
   return (
-    <div style={{ background: 'color-mix(in srgb, var(--sl-accent) 5%, transparent)', border: `1px solid color-mix(in srgb, var(--sl-accent) 14%, transparent)`, borderRadius: 20, padding: '20px 22px', marginBottom: 12, opacity: 0, animation: 'fadeUp 0.6s 0.85s ease forwards' }}>
+    <div style={{ background: 'transparent', border: `1px solid color-mix(in srgb, var(--sl-text) 9%, transparent)`, borderRadius: 20, padding: '18px 20px', opacity: 0, animation: 'fadeUp 0.45s 0.4s ease forwards' }}>
       <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--sl-text-3)', margin: '0 0 8px' }}>
-        What tonight generated
+        Estimated royalties for tonight
       </p>
-      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, marginBottom: 6 }}>
-        <span style={{ fontSize: 52, fontWeight: 800, color: 'var(--sl-accent)', fontFamily: '"DM Mono", monospace', letterSpacing: '-0.03em', lineHeight: 1 }}>
-          ~${count.toLocaleString()}
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 6 }}>
+        <span style={{ fontSize: 36, fontWeight: 700, color: 'var(--sl-text)', fontFamily: '"DM Mono", monospace', letterSpacing: '-0.03em', lineHeight: 1 }}>
+          {formatEstimate(count)}
         </span>
+        <span style={{ fontSize: 15, color: 'var(--sl-text-3)', fontWeight: 500 }}>{ESTIMATE_UNIT}</span>
       </div>
-      <p style={{ fontSize: 13, color: 'var(--sl-text-4)', margin: '0 0 6px' }}>${low}–${high} estimated range · <span style={{ color: 'var(--sl-accent)' }}>for the songs you performed</span></p>
-      <p style={{ fontSize: 11, color: 'var(--sl-text-4)', margin: '0 0 16px' }}>Estimate only, not guaranteed — actual payouts vary by PRO.</p>
-      <button onClick={onClaim}
-        style={{ width: '100%', padding: '13px', background: C.gold, border: 'none', borderRadius: 12, color: 'var(--sl-on-accent)', fontSize: 15, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', letterSpacing: '0.06em', transition: 'transform 0.15s ease' }}
-        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = 'scale(1.01)' }}
-        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = 'scale(1)' }}>
-        Submit the setlist →
-      </button>
+      <p style={{ fontSize: 13.5, color: 'var(--sl-text-2)', margin: '0 0 6px' }}>${low}–${high} estimated range for the songs you performed</p>
+      <p style={{ fontSize: 12, color: 'var(--sl-text-3)', margin: onClaim ? '0 0 16px' : 0 }}>{ESTIMATE_DISCLAIMER}</p>
+      {onClaim && (
+        <button onClick={onClaim}
+          style={{ width: '100%', minHeight: 52, padding: '0 16px', background: C.gold, border: 'none', borderRadius: 14, color: 'var(--sl-on-accent)', fontSize: 15, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', letterSpacing: '0.02em' }}>
+          Open the claim sheet →
+        </button>
+      )}
     </div>
   )
 }
@@ -430,6 +445,11 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
   const [assignSheet, setAssignSheet]   = useState<{ songId: string; currentTitle: string } | null>(null)
   const [userId, setUserId]             = useState<string | null>(null)
   const [intelligence, setIntelligence] = useState<ShowIntelligence | null>(null)
+  // 'loading' until the post-save query answers; 'failed' hides the optional
+  // moments (never an endless "Reading the night…").
+  const [intelligenceState, setIntelligenceState] = useState<'idle' | 'loading' | 'ok' | 'failed'>('idle')
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const { canWrite } = useWorkspaceRole()
   const [photoUrl, setPhotoUrl] = useState<string | null>(null)
   const [photoUploading, setPhotoUploading] = useState(false)
   const shareCardRef = useRef<HTMLDivElement>(null)
@@ -531,6 +551,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
 
   // ── Fetch post-show intelligence after save ───────────────────────────────
   async function fetchIntelligence(uid: string, venueName: string, songTitles: string[]) {
+    setIntelligenceState('loading')
     try {
       const supabase = createClient()
       const MILESTONES = [5, 10, 25, 50, 100, 250, 500]
@@ -552,7 +573,10 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
           .eq('venue_name', venueName)
           .in('status', ['complete', 'completed']),
 
-        // Song debuts — confirmed_count === 1 means performed for first time tonight
+        // confirmed_count === 1 after this save: the song's first confirmed
+        // appearance in the catalog (user_songs). It does not prove a first
+        // live performance (imported or earlier history may predate it), so
+        // the UI says "First appearance on your record".
         supabase
           .from('user_songs')
           .select('song_title')
@@ -568,6 +592,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
           .single(),
       ])
 
+      if (totalResult.error || venueResult.error || debutResult.error) throw totalResult.error || venueResult.error || debutResult.error
       const capturedShows = totalResult.count || 0
       const totalShows = capturedShows
       const venueVisits = venueResult.count || 0
@@ -575,8 +600,10 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
       const milestone = MILESTONES.find(m => m === totalShows) || null
 
       setIntelligence({ totalShows, venueVisits, songDebuts, milestone, capturedShows })
+      setIntelligenceState('ok')
     } catch (err) {
       console.error('[Intelligence] fetch failed:', err)
+      setIntelligenceState('failed')
     }
   }
 
@@ -684,45 +711,14 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
   // changed since).
   useEffect(() => {
     if (loading || !justCompleted) return
-    const reduced = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    if (reduced) { setSeqPhase(7); setShowComplete(true); return }
-
-    const cs = songs.filter(s => s.source !== 'planned' && !s.isRemoved)
-    const pp = songs.filter(s => s.source === 'planned' && !s.isRemoved)
-    const hasSongs  = cs.length > 0
-    const hasGaps   = pp.length > 0
-    const hasShowNum = computedShowNumber != null
-
-    // Each confirmed song gets 1400ms: 600ms fade-in, 400ms hold, 400ms fade-out.
-    // Max 5 individual moments; if more, first 5 then "+N more" as one extra moment.
-    const songMoments = hasSongs ? Math.min(cs.length, 5) + (cs.length > 5 ? 1 : 0) : 0
-    const songMs = songMoments * 1400
-
-    // Cumulative phase start times (ms)
-    const venueAt   = 1200
-    const songAt    = hasSongs ? 2200 : -1
-    const afterSong = hasSongs ? 2200 + songMs : 2200
-    const gapAt     = hasGaps ? afterSong : -1
-    const royaltyAt = afterSong + (hasGaps ? 2000 : 0)
-    const stampAt   = hasShowNum ? royaltyAt + 1800 : -1
-    const fadeAt    = royaltyAt + 1800 + (hasShowNum ? 600 : 0)
-    const doneAt    = fadeAt + 400
-
-    setSeqPhase(1)
-    const timers: ReturnType<typeof setTimeout>[] = []
-    timers.push(setTimeout(() => setSkipEnabled(true), 2000))
-    timers.push(setTimeout(() => setSeqPhase(2), venueAt))
-    if (songAt > 0)  timers.push(setTimeout(() => setSeqPhase(3), songAt))
-    if (gapAt  > 0)  timers.push(setTimeout(() => setSeqPhase(4), gapAt))
-    timers.push(setTimeout(() => setSeqPhase(5), royaltyAt))
-    if (stampAt > 0) timers.push(setTimeout(() => setSeqPhase(6), stampAt))
-    timers.push(setTimeout(() => setSeqFading(true), fadeAt))
-    timers.push(setTimeout(() => { setSeqPhase(7); setShowComplete(true) }, doneAt))
-
-    return () => {
-      timers.forEach(clearTimeout)
-      if (seqRafRef.current) cancelAnimationFrame(seqRafRef.current)
-    }
+    // A successful save goes straight to the celebration, whose own entrance
+    // is the brief sequence (about a second; nothing waits on it and every
+    // control is live at once). The former full-screen reveal held the
+    // screen ~15s for a 12-song show; its render branch below is no longer
+    // reached (seqPhase only ever becomes 7 here).
+    setSeqPhase(7); setShowComplete(true)
+    // Save sits at the bottom of a long review; the celebration opens at its top.
+    window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior })
   }, [loading, justCompleted]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Advance song index once per 1400ms while in phase 3
@@ -869,20 +865,26 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
   const handleSave = useCallback(async () => {
     if (!performance) return
     setSaving(true)
+    setSaveError(null)
     const supabase = createClient()
+    // The celebration only follows a save that actually landed: every write
+    // is checked, and the final status change must confirm it changed this
+    // show (a write the database refuses for this account changes nothing).
+    const must = <T extends { error: any }>(r: T): T => { if (r.error) throw r.error; return r }
     // Kept songs (visible, non-removed, non-planned) in display order, plus the
     // existing rows the artist removed. No delete/reinsert — we update in place.
     const kept    = songs.filter(s => !s.isRemoved && s.source !== 'planned')
     const removed = songs.filter(s => s.isRemoved && !s.isNew)
+    try {
 
     // Legacy setlist_items mirror — rebuilt from the kept songs (unchanged behaviour)
     if (setlistId) {
-      await supabase.from('setlist_items').delete().eq('setlist_id', setlistId)
-      await supabase.from('setlist_items').insert(kept.map((s, i) => {
+      must(await supabase.from('setlist_items').delete().eq('setlist_id', setlistId))
+      must(await supabase.from('setlist_items').insert(kept.map((s, i) => {
         const n = normalizeSong({ title: s.title, artist: s.artist })
         return { setlist_id: setlistId, title: n.title, artist_name: n.artist, position: i + 1, source: s.source || 'manual', recognition_decision_id: s.recognition_decision_id || null }
-      }))
-      await supabase.from('setlists').update({ status: 'confirmed', confirmed_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', setlistId)
+      })))
+      must(await supabase.from('setlists').update({ status: 'confirmed', confirmed_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', setlistId))
     }
 
     // ── performance_songs: in-place updates, no delete/reinsert ───────────────
@@ -892,22 +894,22 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
       const position = i + 1
       if (s.isNew) {
         // Artist added a song the system missed → false negative
-        await supabase.from('performance_songs').insert({
+        must(await supabase.from('performance_songs').insert({
           performance_id: performance.id, title: n.title, artist: n.artist, position,
           isrc: s.isrc || null, composer: s.composer || null, publisher: s.publisher || null,
           was_planned: s.was_planned || false,
           inclusion_reason: 'manually added post-show', confusion_matrix_result: 'FN', artist_modified: true,
-        })
+        }))
       } else if (s.isModified) {
         // Artist corrected a detection → keep the record, log what it was
-        await supabase.from('performance_songs').update({
+        must(await supabase.from('performance_songs').update({
           title: n.title, artist: n.artist, position,
           isrc: s.isrc || null, composer: s.composer || null, publisher: s.publisher || null,
           artist_modified: true, notes: `was ${s.origArtist || ''}-${s.origTitle || ''}`,
-        }).eq('id', s.id)
+        }).eq('id', s.id))
       } else {
         // Unchanged detection → just keep ordering current
-        await supabase.from('performance_songs').update({ position }).eq('id', s.id)
+        must(await supabase.from('performance_songs').update({ position }).eq('id', s.id))
       }
     }
 
@@ -915,25 +917,34 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
     // a removed detected song is a false positive.
     for (const s of removed) {
       const undetected = s.inclusion_reason === 'planned setlist - not detected' || s.inclusion_reason === 'added mid-show - not detected'
-      await supabase.from('performance_songs').update({
+      must(await supabase.from('performance_songs').update({
         artist_removed: true, confusion_matrix_result: undetected ? 'TN' : 'FP',
-      }).eq('id', s.id)
+      }).eq('id', s.id))
     }
 
     // Resolve the kept rows still pending (TBD): never-detected songs the artist kept
     // are false negatives (system missed a played song); everything else is a true positive.
-    await supabase.from('performance_songs')
+    must(await supabase.from('performance_songs')
       .update({ confusion_matrix_result: 'FN' })
       .eq('performance_id', performance.id).eq('confusion_matrix_result', 'TBD')
-      .in('inclusion_reason', ['planned setlist - not detected', 'added mid-show - not detected'])
-    await supabase.from('performance_songs')
+      .in('inclusion_reason', ['planned setlist - not detected', 'added mid-show - not detected']))
+    must(await supabase.from('performance_songs')
       .update({ confusion_matrix_result: 'TP' })
-      .eq('performance_id', performance.id).eq('confusion_matrix_result', 'TBD')
+      .eq('performance_id', performance.id).eq('confusion_matrix_result', 'TBD'))
 
     // Mark every row for this performance artist-reviewed
-    await supabase.from('performance_songs').update({ artist_save_complete: true }).eq('performance_id', performance.id)
-    await supabase.from('performances').update({ status: 'completed' }).eq('id', performance.id)
-    if (performance.show_id) await supabase.from('shows').update({ status: 'completed' }).eq('id', performance.show_id)
+    must(await supabase.from('performance_songs').update({ artist_save_complete: true }).eq('performance_id', performance.id))
+    const done = must(await supabase.from('performances').update({ status: 'completed' }).eq('id', performance.id).select('id'))
+    if (!done.data || done.data.length !== 1) throw new Error('This show could not be marked complete from this account.')
+    if (performance.show_id) must(await supabase.from('shows').update({ status: 'completed' }).eq('id', performance.show_id))
+    } catch (err: any) {
+      console.error('[ReviewSave] save failed:', err)
+      setSaving(false)
+      setSaveError(err?.message?.includes('could not be marked complete')
+        ? 'This setlist couldn’t be saved from this account. Nothing was marked complete.'
+        : 'The setlist didn’t save. Nothing was marked complete. Check your connection, then try again.')
+      return
+    }
 
     // show_locked is not a separate emitted event today — review_completed
     // IS that boundary in the current architecture (no separate finalize
@@ -1180,276 +1191,271 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
     const durMins   = performance?.started_at && performance?.ended_at ? Math.round((new Date(performance.ended_at).getTime() - new Date(performance.started_at).getTime()) / 60000) : null
     const manualCount = confirmedSongs.filter(s => s.source === 'manual' && !s.was_planned).length
 
-    const insights: Array<{ label: string; highlight: boolean }> = []
+    // What tonight's save earned, from the post-save intelligence query.
+    // A "first appearance" is the song's first confirmed appearance in this
+    // record's song catalog (user_songs.confirmed_count reached 1 with this
+    // save); it isn't proof of a first live performance, so it isn't called one.
+    const moments: Array<{ label: string; detail: string }> = []
     if (intelligence) {
-      if (intelligence.milestone) {
-        const milestoneWords: Record<number, string> = { 5: 'Five', 10: 'Ten', 25: 'Twenty-five', 50: 'Fifty', 100: 'One hundred', 250: 'Two fifty', 500: 'Five hundred' }
-        const word = milestoneWords[intelligence.milestone] || `${intelligence.milestone}`
-        insights.push({ label: `Show ${word.toLowerCase()}. That's not nothing.`, highlight: true })
-      }
-      if (intelligence.venueVisits === 1) insights.push({ label: `First time on record here.`, highlight: false })
-      else if (intelligence.venueVisits === 2) insights.push({ label: `Second time at ${performance?.venue_name}. A pattern forming.`, highlight: false })
-      else if (intelligence.venueVisits > 2) insights.push({ label: `${performance?.venue_name} knows your name now. ${intelligence.venueVisits}th time.`, highlight: false })
-      if (intelligence.totalShows > 0 && !intelligence.milestone) {
-        insights.push({ label: `${intelligence.totalShows} shows on record. The road remembers.`, highlight: false })
-      }
+      if (intelligence.songDebuts.length > 0) moments.push({ label: 'First appearance on your record', detail: intelligence.songDebuts.join(', ') })
+      if (intelligence.milestone) moments.push({ label: 'Milestone', detail: `Show ${intelligence.milestone} on your record` })
+      const v = intelligence.venueVisits
+      if (v === 1) moments.push({ label: 'New room', detail: `First show on your record at ${performance?.venue_name}` })
+      else if (v > 1) moments.push({ label: 'Back again', detail: `${ordinal(v)} show at ${performance?.venue_name}` })
     }
+    // One brief entrance (about a second). Opacity only; every control is
+    // live from the first frame. Reduced motion: everything at once.
+    const enter = (delay: number): React.CSSProperties => ({ opacity: 0, animation: `fadeUp 0.45s ${delay}s ease forwards` })
 
     return (
-      <div style={{ minHeight: '100svh', background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif', overflowY: 'auto' }}>
-        {/* Gold flare on entry */}
-        <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '80vh', pointerEvents: 'none', zIndex: 0, background: 'radial-gradient(ellipse at 50% 0%, color-mix(in srgb, var(--sl-accent) 10%, transparent) 0%, transparent 55%)', animation: 'goldFlare 2s ease forwards' }} />
-
-        <div style={{ maxWidth: 420, margin: '0 auto', padding: '0 24px 80px', position: 'relative', zIndex: 1 }}>
-
-          {/* ── CEREMONY HEADER ── */}
-          <div style={{ paddingTop: 72, paddingBottom: 56, textAlign: 'center' }}>
-            <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: C.gold, margin: '0 0 16px', opacity: 0, animation: 'fadeUp 0.5s 0.1s ease forwards' }}>
+      <div className="cer" style={{ minHeight: 'var(--sl-page-min-height, 100svh)', background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif', position: 'relative', overflow: 'hidden' }}>
+        {/* The existing restrained gold halo, held behind the opening */}
+        <div aria-hidden="true" style={{ position: 'absolute', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120%', height: 560, pointerEvents: 'none', zIndex: 0, background: 'radial-gradient(ellipse at 50% 0%, color-mix(in srgb, var(--sl-accent) 10%, transparent) 0%, transparent 60%)', animation: 'goldFlare 1.6s ease forwards' }} />
+        <PageFrame style={{ position: 'relative', zIndex: 1 }}>
+          {/* ── The finish of the night ── */}
+          <div className="cer-head" style={{ paddingTop: 52, paddingBottom: 30, textAlign: 'center' }}>
+            <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'var(--sl-gold-text)', margin: '0 0 16px', ...enter(0) }}>
               Show complete
             </p>
-            <h1 style={{ fontSize: 48, fontWeight: 800, color: C.text, margin: '0 0 12px', letterSpacing: '-0.035em', lineHeight: 1.05, opacity: 0, animation: 'fadeUp 0.6s 0.2s ease forwards' }}>
+            <h1 style={{ fontSize: 48, fontWeight: 800, color: C.text, margin: '0 0 12px', letterSpacing: '-0.035em', lineHeight: 1.04, textWrap: 'balance' as any, overflowWrap: 'anywhere', ...enter(0.06) }}>
               {performance?.venue_name}
             </h1>
-            <p style={{ fontSize: 15, color: C.secondary, margin: '0 0 28px', opacity: 0, animation: 'fadeUp 0.5s 0.3s ease forwards' }}>
+            <p style={{ fontSize: 15, color: C.secondary, margin: '0 0 26px', ...enter(0.12) }}>
               {performance?.city && <span>{performance.city}</span>}
               {showDate && <><span style={{ color: 'var(--sl-text-4)', margin: '0 8px' }}>·</span><span>{showDate}</span></>}
               {!!durMins && <><span style={{ color: 'var(--sl-text-4)', margin: '0 8px' }}>·</span><span>{durMins} min</span></>}
             </p>
-            <p style={{ fontSize: 22, fontWeight: 700, color: C.gold, margin: 0, letterSpacing: '-0.01em', fontStyle: 'italic', opacity: 0, animation: 'fadeUp 0.6s 0.45s ease forwards' }}>
-              Another one. In the books.
+            {/* Saved confirmation and record count: two lines, each whole */}
+            <p style={{ fontSize: 22, fontWeight: 700, color: C.text, margin: 0, letterSpacing: '-0.01em', ...enter(0.18) }}>
+              {songCount} {songCount === 1 ? 'song' : 'songs'} saved
             </p>
-          </div>
-
-          {/* ── SONG COUNT — counted up ── */}
-          <CeremonyCountCard
-            songCount={confirmedSongs.length}
-            showDate={showDate}
-            verifiedCount={verifiedCount}
-            autoCount={autoCount}
-            manualCount={manualCount}
-            songs={confirmedSongs}
-            flowSource={flowSourceRef.current}
-          />
-
-          {/* ── INTELLIGENCE ── */}
-            {/* ── SONG DEBUTS ── */}
-            {intelligence && intelligence.songDebuts.length > 0 && (
-              <div style={{ marginBottom: 12, opacity: 0, animation: 'fadeUp 0.6s 0.65s ease forwards' }}>
-                {intelligence.songDebuts.map((song, i) => (
-                  <div key={i} style={{
-                    padding: '16px 20px', marginBottom: 6,
-                    background: 'color-mix(in srgb, var(--sl-accent) 8%, transparent)',
-                    border: '1px solid color-mix(in srgb, var(--sl-accent) 25%, transparent)',
-                    borderRadius: 16,
-                    display: 'flex', alignItems: 'center', gap: 12,
-                  }}>
-                    <div style={{
-                      width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
-                      background: 'color-mix(in srgb, var(--sl-accent) 15%, transparent)',
-                      border: '1px solid color-mix(in srgb, var(--sl-accent) 30%, transparent)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: 16,
-                    }}>★</div>
-                    <div>
-                      <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--sl-accent)', margin: '0 0 3px' }}>Live Debut</p>
-                      <p style={{ fontSize: 17, fontWeight: 700, color: 'var(--sl-text)', margin: 0, letterSpacing: '-0.01em' }}>{song}</p>
-                      <p style={{ fontSize: 12, color: 'var(--sl-text-3)', margin: '2px 0 0' }}>First time played live. It counts.</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
+            {computedShowNumber != null && (
+              <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--sl-gold-text)', margin: '6px 0 0', ...enter(0.24) }}>
+                Show {computedShowNumber} on your record
+              </p>
             )}
-
-          {intelligence && insights.length > 0 && (
-            <div style={{ marginBottom: 12, opacity: 0, animation: 'fadeUp 0.6s 0.7s ease forwards' }}>
-              {insights.slice(0, 2).map((insight, i) => (
-                <div key={i} style={{ padding: '14px 20px', background: insight.highlight ? 'color-mix(in srgb, var(--sl-accent) 7%, transparent)' : 'transparent', border: `1px solid ${insight.highlight ? 'color-mix(in srgb, var(--sl-accent) 20%, transparent)' : 'color-mix(in srgb, var(--sl-text) 4%, transparent)'}`, borderRadius: 16, marginBottom: 6 }}>
-                  <p style={{ fontSize: 16, fontWeight: insight.highlight ? 600 : 400, color: insight.highlight ? C.gold : C.secondary, margin: 0, lineHeight: 1.5, letterSpacing: '-0.005em' }}>{insight.label}</p>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {!intelligence && (
-            <div style={{ marginBottom: 12, padding: '14px 20px', background: 'color-mix(in srgb, var(--sl-text) 2%, transparent)', border: `1px solid color-mix(in srgb, var(--sl-text) 5%, transparent)`, borderRadius: 12, opacity: 0, animation: 'fadeUp 0.6s 0.7s ease forwards' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ width: 10, height: 10, borderRadius: '50%', border: `1.5px solid color-mix(in srgb, var(--sl-accent) 30%, transparent)`, borderTopColor: C.gold, animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />
-                <span style={{ fontSize: 13, color: C.muted }}>Reading the night...</span>
-              </div>
-            </div>
-          )}
-
-          {/* ── ROYALTY — counted up ── */}
-          <CeremonyRoyaltyCard
-            expected={estimate.expected}
-            low={estimate.low}
-            high={estimate.high}
-            performanceId={params.id}
-            onClaim={() => router.push(`/app/submit/${params.id}`)}
-          />
-
-          {/* ── SHARE CARDS ── */}
-          {(() => {
-              const SPECIAL_MILESTONES = [1, 5, 10, 25, 50, 75, 100, 150, 200, 250]
-              const showNumber = computedShowNumber || 0
-              const isMilestone = showNumber > 0 && SPECIAL_MILESTONES.includes(showNumber)
-              const royaltyAmount = estimate.expected
-
-              const cards = [
-                {
-                  id: 'tonights_run',
-                  label: "Tonight's Run",
-                  component: (
-                    <TonightsRunCard
-                      artistName={performance?.artist_name || ''}
-                      venueName={performance?.venue_name || ''}
-                      city={performance?.city || ''}
-                      date={showDate}
-                      songCount={confirmedSongs.length}
-                      minutes={durMins && durMins > 0 ? durMins : undefined}
-                      showNumber={showNumber}
-                      photoUrl={photoUrl}
-                    />
-                  )
-                },
-                ...(intelligence && intelligence.songDebuts.length > 0 ? [{
-                  id: 'song_debut',
-                  label: `Live Debut`,
-                  component: (
-                    <SongDebutCard
-                      songTitle={intelligence!.songDebuts[0]}
-                      artistName={performance?.artist_name || ''}
-                      venueName={performance?.venue_name || ''}
-                      date={showDate}
-                      totalDebuts={intelligence!.songDebuts.length}
-                    />
-                  )
-                }] : []),
-                ...(showNumber > 0 ? [{
-                  id: 'milestone',
-                  label: `Show #${showNumber}`,
-                  component: (
-                    <MilestoneCard
-                      showNumber={showNumber}
-                      artistName={performance?.artist_name || ''}
-                    />
-                  )
-                }] : []),
-                {
-                  id: 'royalty_moment',
-                  label: 'Royalty Moment',
-                  component: (
-                    <RoyaltyMomentCard
-                      artistName={performance?.artist_name || ''}
-                      venueName={performance?.venue_name || ''}
-                      date={showDate}
-                      amount={royaltyAmount}
-                    />
-                  )
-                },
-              ]
-
-              return (
-                <div style={{ marginBottom: 16, opacity: 0, animation: 'fadeUp 0.6s 1.0s ease forwards' }}>
-                  <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.muted, margin: '0 0 12px' }}>
-                    Your cards
-                  </p>
-
-                  {/* Card display with swipe support */}
-                  <div
-                    ref={shareCardRef}
-                    style={{ marginBottom: 12, touchAction: 'pan-y' }}
-                    onTouchStart={(e) => {
-                      const touch = e.touches[0]
-                      ;(e.currentTarget as any)._touchStartX = touch.clientX
-                    }}
-                    onTouchEnd={(e) => {
-                      const startX = (e.currentTarget as any)._touchStartX
-                      if (startX === undefined) return
-                      const endX = e.changedTouches[0].clientX
-                      const diff = startX - endX
-                      if (Math.abs(diff) < 50) return
-                      if (diff > 0 && activeCardIndex < cards.length - 1) {
-                        setActiveCardIndex(activeCardIndex + 1)
-                      } else if (diff < 0 && activeCardIndex > 0) {
-                        setActiveCardIndex(activeCardIndex - 1)
-                      }
-                    }}
-                  >
-                    {cards[activeCardIndex].component}
-                  </div>
-
-                  {/* Card selector dots */}
-                  {cards.length > 1 && (
-                    <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginBottom: 12 }}>
-                      {cards.map((card, i) => (
-                        <button
-                          key={card.id}
-                          onClick={() => setActiveCardIndex(i)}
-                          style={{
-                            width: activeCardIndex === i ? 24 : 8,
-                            height: 8,
-                            borderRadius: 4,
-                            background: activeCardIndex === i ? C.gold : 'color-mix(in srgb, var(--sl-text) 20%, transparent)',
-                            border: 'none',
-                            cursor: 'pointer',
-                            transition: 'all 0.2s ease',
-                            padding: 0,
-                          }}
-                        />
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Share button */}
-                  <button
-                    onClick={shareCard}
-                    style={{
-                      width: '100%', padding: '14px',
-                      background: 'transparent',
-                      border: `1px solid ${C.borderGold}`,
-                      borderRadius: 12, color: C.gold,
-                      fontSize: 14, fontWeight: 700,
-                      cursor: 'pointer', fontFamily: 'inherit',
-                      display: 'flex', alignItems: 'center',
-                      justifyContent: 'center', gap: 8,
-                      letterSpacing: '0.04em',
-                    }}>
-                    ✦ Share this card
-                  </button>
-                </div>
-              )
-            })()}
-
-          {/* ── ACTIONS ── */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, opacity: 0, animation: 'fadeUp 0.6s 1.1s ease forwards' }}>
-            <button onClick={() => router.push('/app/submit/' + params.id)}
-              style={{ width: '100%', padding: '17px', background: C.gold, border: 'none', borderRadius: 16, color: 'var(--sl-on-accent)', fontSize: 15, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'inherit', transition: 'transform 0.15s ease' }}
-              onMouseEnter={e => (e.currentTarget as HTMLElement).style.transform = 'scale(1.01)'}
-              onMouseLeave={e => (e.currentTarget as HTMLElement).style.transform = 'scale(1)'}>
-              Submit the setlist →
-            </button>
-            <button onClick={() => router.push('/app/dashboard')}
-              style={{ width: '100%', padding: '14px', background: 'transparent', border: '1px solid color-mix(in srgb, var(--sl-accent) 30%, transparent)', borderRadius: 16, color: C.gold, fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', transition: 'opacity 0.15s ease' }}
-              onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.7'}
-              onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}>
-              Back to your record
-            </button>
-            <button onClick={() => setShowComplete(false)}
-              style={{ width: '100%', padding: '14px', background: 'transparent', border: 'none', borderRadius: 10, color: C.muted, fontSize: 14, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>
-              Review the night
-            </button>
           </div>
 
-        </div>
+          <div className="cer-grid">
+            <div className="cer-col cer-col-a">
+              {/* ── The full saved setlist, counted up ── */}
+              <div className="cer-setlist">
+                <CeremonyCountCard
+                  songCount={confirmedSongs.length}
+                  showDate={showDate}
+                  verifiedCount={verifiedCount}
+                  autoCount={autoCount}
+                  manualCount={manualCount}
+                  songs={confirmedSongs}
+                  flowSource={flowSourceRef.current}
+                />
+              </div>
+            </div>
+
+            <div className="cer-col cer-col-b">
+              {/* ── Tonight's moments: emphasis by type and gold, no extra cards ── */}
+              {(intelligenceState === 'loading' || intelligenceState === 'idle') && (
+                <div className="cer-moments" aria-busy="true" style={{ padding: '6px 2px', ...enter(0.3) }}>
+                  <p style={{ fontSize: 13.5, color: C.muted, margin: '0 0 10px' }}>Reading the night…</p>
+                  <Skeleton h={16} w="70%" r={5} />
+                  <Skeleton h={16} w="52%" r={5} mt={10} />
+                </div>
+              )}
+              {intelligenceState === 'ok' && moments.length > 0 && (
+                <div className="cer-moments" style={{ borderTop: '1px solid color-mix(in srgb, var(--sl-accent) 30%, transparent)', borderBottom: '1px solid color-mix(in srgb, var(--sl-accent) 30%, transparent)', padding: '4px 2px', ...enter(0.3) }}>
+                  <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--sl-gold-text)', margin: '14px 0 4px' }}>Tonight’s moments</p>
+                  {moments.map((m, i) => (
+                    <div key={i} style={{ padding: '10px 0', borderTop: i ? '1px solid color-mix(in srgb, var(--sl-text) 7%, transparent)' : 'none' }}>
+                      <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--sl-gold-text)', margin: 0 }}>{m.label}</p>
+                      <p style={{ fontSize: 20, fontWeight: 700, color: C.text, margin: '2px 0 0', letterSpacing: '-0.01em', lineHeight: 1.25, overflowWrap: 'anywhere' }}>{m.detail}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* ── Estimate and the primary next action ── */}
+              <div className="cer-estimate">
+                <CeremonyRoyaltyCard
+                  expected={estimate.expected}
+                  low={estimate.low}
+                  high={estimate.high}
+                  performanceId={params.id}
+                  onClaim={canWrite ? () => router.push(`/app/submit/${params.id}`) : null}
+                />
+              </div>
+
+              <div className="cer-share" style={enter(0.55)}>
+          {/* ── SHARE CARDS ── */}
+              {(() => {
+                  const SPECIAL_MILESTONES = [1, 5, 10, 25, 50, 75, 100, 150, 200, 250]
+                  const showNumber = computedShowNumber || 0
+                  const isMilestone = showNumber > 0 && SPECIAL_MILESTONES.includes(showNumber)
+                  const royaltyAmount = estimate.expected
+
+                  const cards = [
+                    {
+                      id: 'tonights_run',
+                      label: "Tonight's Run",
+                      component: (
+                        <TonightsRunCard
+                          artistName={performance?.artist_name || ''}
+                          venueName={performance?.venue_name || ''}
+                          city={performance?.city || ''}
+                          date={showDate}
+                          songCount={confirmedSongs.length}
+                          minutes={durMins && durMins > 0 ? durMins : undefined}
+                          showNumber={showNumber}
+                          photoUrl={photoUrl}
+                        />
+                      )
+                    },
+                    ...(intelligence && intelligence.songDebuts.length > 0 ? [{
+                      id: 'song_debut',
+                      label: `First appearance`,
+                      component: (
+                        <SongDebutCard
+                          songTitle={intelligence!.songDebuts[0]}
+                          artistName={performance?.artist_name || ''}
+                          venueName={performance?.venue_name || ''}
+                          date={showDate}
+                          totalDebuts={intelligence!.songDebuts.length}
+                        />
+                      )
+                    }] : []),
+                    ...(showNumber > 0 ? [{
+                      id: 'milestone',
+                      label: `Show #${showNumber}`,
+                      component: (
+                        <MilestoneCard
+                          showNumber={showNumber}
+                          artistName={performance?.artist_name || ''}
+                        />
+                      )
+                    }] : []),
+                    {
+                      id: 'royalty_moment',
+                      label: 'Royalty Moment',
+                      component: (
+                        <RoyaltyMomentCard
+                          artistName={performance?.artist_name || ''}
+                          venueName={performance?.venue_name || ''}
+                          date={showDate}
+                          amount={royaltyAmount}
+                        />
+                      )
+                    },
+                  ]
+
+                  return (
+                    <div style={{ marginBottom: 16, opacity: 0, animation: 'fadeUp 0.6s 1.0s ease forwards' }}>
+                      <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.muted, margin: '0 0 12px' }}>
+                        Your cards
+                      </p>
+
+                      {/* Card display with swipe support */}
+                      <div
+                        ref={shareCardRef}
+                        style={{ marginBottom: 12, touchAction: 'pan-y' }}
+                        onTouchStart={(e) => {
+                          const touch = e.touches[0]
+                          ;(e.currentTarget as any)._touchStartX = touch.clientX
+                        }}
+                        onTouchEnd={(e) => {
+                          const startX = (e.currentTarget as any)._touchStartX
+                          if (startX === undefined) return
+                          const endX = e.changedTouches[0].clientX
+                          const diff = startX - endX
+                          if (Math.abs(diff) < 50) return
+                          if (diff > 0 && activeCardIndex < cards.length - 1) {
+                            setActiveCardIndex(activeCardIndex + 1)
+                          } else if (diff < 0 && activeCardIndex > 0) {
+                            setActiveCardIndex(activeCardIndex - 1)
+                          }
+                        }}
+                      >
+                        {cards[activeCardIndex].component}
+                      </div>
+
+                      {/* Card selector dots */}
+                      {cards.length > 1 && (
+                        <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginBottom: 12 }}>
+                          {cards.map((card, i) => (
+                            <button
+                              key={card.id}
+                              onClick={() => setActiveCardIndex(i)}
+                              style={{
+                                width: activeCardIndex === i ? 24 : 8,
+                                height: 8,
+                                borderRadius: 4,
+                                background: activeCardIndex === i ? C.gold : 'color-mix(in srgb, var(--sl-text) 20%, transparent)',
+                                border: 'none',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s ease',
+                                padding: 0,
+                              }}
+                            />
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Share button */}
+                      <button
+                        onClick={shareCard}
+                        style={{
+                          width: '100%', padding: '14px',
+                          background: 'transparent',
+                          border: `1px solid ${C.borderGold}`,
+                          borderRadius: 12, color: C.gold,
+                          fontSize: 14, fontWeight: 700,
+                          cursor: 'pointer', fontFamily: 'inherit',
+                          display: 'flex', alignItems: 'center',
+                          justifyContent: 'center', gap: 8,
+                          letterSpacing: '0.04em',
+                        }}>
+                        ✦ Share this card
+                      </button>
+                    </div>
+                  )
+                })()}
+
+              </div>
+
+              <div className="cer-actions" style={{ display: 'flex', flexDirection: 'column', gap: 4, ...enter(0.6) }}>
+                <button onClick={() => router.push('/app/dashboard')}
+                  style={{ width: '100%', minHeight: 48, background: 'transparent', border: '1px solid color-mix(in srgb, var(--sl-accent) 35%, transparent)', borderRadius: 14, color: 'var(--sl-gold-text)', fontSize: 14.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  Back to your record
+                </button>
+                <button onClick={() => setShowComplete(false)}
+                  style={{ width: '100%', minHeight: 44, background: 'transparent', border: 'none', borderRadius: 10, color: C.secondary, fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  Review the night
+                </button>
+              </div>
+            </div>
+          </div>
+        </PageFrame>
 
         <style>{`
           @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500;700&display=swap');
-          @keyframes fadeUp { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
+          @keyframes fadeUp { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
           @keyframes spin { to{transform:rotate(360deg)} }
-          @keyframes goldFlare { 0%{opacity:0} 30%{opacity:1} 100%{opacity:0.6} }
+          @keyframes goldFlare { 0%{opacity:0} 30%{opacity:1} 100%{opacity:0.7} }
           @keyframes countPulse { 0%{transform:scale(1)} 50%{transform:scale(1.04)} 100%{transform:scale(1)} }
           * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
+          /* Phones: the show and its moments first, then the estimate and the
+             claim sheet, the full saved setlist, cards and links.
+             900px+: the saved setlist beside moments, estimate and cards. */
+          .cer-grid { display: flex; flex-direction: column; gap: 14px; }
+          .cer-col { display: contents; }
+          .cer-moments { order: 1; } .cer-estimate { order: 2; } .cer-setlist { order: 3; } .cer-share { order: 4; } .cer-actions { order: 5; }
+          @container sl-frame (min-width: 900px) {
+            .cer-head { padding-top: 64px !important; }
+            .cer-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(360px, 420px); column-gap: 40px; align-items: start; max-width: 960px; margin: 0 auto; }
+            .cer-col { display: flex; flex-direction: column; gap: 14px; }
+          }
+          /* Reduced motion: everything is there at once. */
+          @media (prefers-reduced-motion: reduce) {
+            .cer *, .cer *::before, .cer *::after { animation-duration: 0.01ms !important; animation-delay: 0s !important; }
+          }
         `}</style>
       </div>
     )
@@ -1614,11 +1620,16 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
 
         <div style={{ paddingTop: 14, paddingBottom: 40, display: 'flex', flexDirection: 'column', gap: 10, animation: 'fadeUp 0.4s 0.2s ease both' }}>
           <p style={{ fontSize: 11, color: C.muted, textAlign: 'center', margin: '0 0 2px' }}>By saving, you confirm these songs were performed at this show.</p>
+          {saveError && (
+            <div role="alert" style={{ background: 'color-mix(in srgb, var(--sl-warn) 7%, transparent)', border: '1px solid color-mix(in srgb, var(--sl-warn) 28%, transparent)', borderRadius: 12, padding: '12px 14px', fontSize: 14, color: 'var(--sl-text)', lineHeight: 1.45 }}>
+              {saveError}
+            </div>
+          )}
           <button onClick={handleSave} disabled={saving || saved}
             style={{ width: '100%', padding: '15px', background: saved ? 'var(--sl-ok-strong)' : C.gold, border: 'none', borderRadius: 12, color: saved ? '#fff' : 'var(--sl-on-accent)', fontSize: 13, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: saving || saved ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1, transition: 'all 0.25s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit' }}
             onMouseEnter={e => { if (!saving && !saved) (e.currentTarget as HTMLElement).style.opacity = '0.8' }}
             onMouseLeave={e => { if (!saving && !saved) (e.currentTarget as HTMLElement).style.opacity = '1' }}>
-            {saved ? <><Check size={16} strokeWidth={2.5} /> Saved</> : saving ? <><div style={{ width: 14, height: 14, borderRadius: '50%', border: `2px solid color-mix(in srgb, var(--sl-on-accent) 25%, transparent)`, borderTopColor: 'var(--sl-on-accent)', animation: 'spin 0.7s linear infinite' }} />Saving...</> : 'Save & Complete'}
+            {saved ? <><Check size={16} strokeWidth={2.5} /> Saved</> : saving ? <><div style={{ width: 14, height: 14, borderRadius: '50%', border: `2px solid color-mix(in srgb, var(--sl-on-accent) 25%, transparent)`, borderTopColor: 'var(--sl-on-accent)', animation: 'spin 0.7s linear infinite' }} />Saving...</> : saveError ? 'Try again' : 'Save & Complete'}
           </button>
           <button onClick={() => router.push('/app/dashboard')}
             style={{ background: 'none', border: 'none', color: C.muted, fontSize: 12, cursor: 'pointer', letterSpacing: '0.04em', fontFamily: 'inherit', padding: '6px', transition: 'opacity 0.15s ease' }}

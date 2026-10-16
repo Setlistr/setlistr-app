@@ -207,5 +207,16 @@ function read(rel: string): string {
   check('Career: venue rows are buttons (keyboard reachable), not clickable divs', career.includes("onClick={() => router.push(`/app/venue/${venue.id}`)} style={{ ...listRow"))
 }
 
+// ── Post-save celebration (app/app/review/[id] showComplete) ──────────────
+{
+  const review = read('app/app/review/[id]/page.tsx')
+  const debutCard = read('components/share-cards/SongDebutCard.tsx')
+  check('Celebration only after a save that landed: every save write checked; the status change must confirm one row', (review.match(/must\(await supabase\.from\(/g) || []).length >= 12 && review.includes(".update({ status: 'completed' }).eq('id', performance.id).select('id'))") && review.includes('done.data.length !== 1') && review.includes('setSaveError('))
+  check('Celebration: shared frame, shared estimate wording, "Open the claim sheet" only where the role can write', review.includes('<PageFrame style=') && review.includes('{ESTIMATE_DISCLAIMER}') && review.includes('Open the claim sheet →') && review.includes("onClaim={canWrite ? () => router.push(`/app/submit/${params.id}`) : null}"))
+  check('Celebration: no unsupported first-live claims; ordinals are real', !/first time played live/i.test(review) && !/FIRST TIME PLAYED LIVE|LIVE DEBUT/.test(debutCard) && review.includes('First appearance on your record') && review.includes('function ordinal('))
+  check('Celebration: opens straight after save at the top; reduced motion shows everything at once', review.includes('setSeqPhase(7); setShowComplete(true)') && review.includes("window.scrollTo({ top: 0") && review.includes('@media (prefers-reduced-motion: reduce)') && review.includes("matchMedia('(prefers-reduced-motion: reduce)').matches) { setCount(target); return }"))
+  check('Celebration: optional intelligence has loading and failed states (never an endless loader)', review.includes("setIntelligenceState('failed')") && review.includes("intelligenceState === 'ok' && moments.length > 0"))
+}
+
 console.log(`\n${pass} passed, ${fail} failed`)
 if (fail > 0) process.exit(1)

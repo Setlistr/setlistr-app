@@ -162,7 +162,8 @@ Audited on the shipped dashboard (`app/app/dashboard/page.tsx`): the frame stays
 | `/app/schedule` | ○ | ○ | ○ | ○ | ○ | ○ | |
 | `/app/venue/[id]` | ○ | ○ | n/a | ○ | ○ | ○ | |
 | `/app/proof` | ○ | ○ | n/a | ○ | ○ | ○ | |
-| `/app/review/[id]`, `/app/submit/[id]` | ○ | ○ | n/a | ○ | ○ | ◐ | Fields already on input tokens |
+| `/app/review/[id]` — post-save celebration | ✅ | (ceremony header) | n/a | ✅ intelligence skeleton, failed state | ✅ save failure + Try again | ✅ estimate, "First appearance on your record" | Branch design/celebration-earned |
+| `/app/review/[id]` — editing, `/app/submit/[id]` | ○ | ○ | n/a | ○ | ○ | ◐ | Fields already on input tokens |
 | `/app/show/new`, `/app/upload/new` | ○ | ○ | n/a | ○ | ○ | ○ | |
 | `/app/live/[id]` | exception | exception | n/a | — | — | — | Full-screen capture: owns its documented safe areas; orb; no changes |
 | `/app/settings`, `/app/team`, `/app/accept-invite`, `/app/onboarding` | ○ | ○ | ○ | ○ | ○ | ○ | |
