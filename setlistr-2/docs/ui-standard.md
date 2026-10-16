@@ -109,6 +109,7 @@ Audited on the shipped dashboard (`app/app/dashboard/page.tsx`): the frame stays
   - Reserve the final size from the first frame (aspect-ratio box).
   - Show an on-dark skeleton until the image loads; show "Map preview unavailable" in the same box if it fails or there's no token.
   - Never block the rest of the page on it. Request the image once, after its framing inputs (geocoded pins) settle, rather than drawing a view and then re-framing.
+  - Keep map attribution legible. The image keeps its Mapbox logo; "© Mapbox © OpenStreetMap" is drawn inside the card's padding (image requested with `attribution=false`) so the rounded corner can't clip it. Any scrim stays light over the bottom strip, and captions sit above it.
 - **Requests:** trace before changing them (CLAUDE.md, Submissions handoff). Remove proven serial waits and duplicate fetches. Never restart expensive content for visual consistency.
 
 ## Empty states
@@ -140,9 +141,7 @@ Audited on the shipped dashboard (`app/app/dashboard/page.tsx`): the frame stays
   - Mobile gutter is 16px (standard 20px). Its layout was approved before this standard. Fix when it adopts `PageFrame`.
   - Has its own container (`.subm-cq`, same tiers as `PageFrame`) and hand-built headers that match `PageHeader` visually. Migrate both.
   - History's banner uses "Estimate only, not guaranteed — actual payouts vary by PRO." Switch to `ESTIMATE_DISCLAIMER`.
-- **Dashboard:**
-  - The workspace-switch reload has no stale-response guard. A slow response from a previous switch can land after a quick second switch.
-  - Its recent-shows rows say "Completed" where Submissions says "Ready to submit" / "Needs review".
+- **Dashboard:** its recent-shows rows say "Completed" where Submissions says "Ready to submit" / "Needs review". (The missing stale-response guard on workspace switches is fixed in 377d798.)
 - **Career:**
   - Counts shows by status, so imported shows are included (29 vs 27 on the dashboard and full map). Count-definition alignment is a separate decision.
   - Map-card geocoding runs up to 6 lookups one after another. A candidate fix, not changed until traced with Mapbox.
@@ -155,7 +154,7 @@ Audited on the shipped dashboard (`app/app/dashboard/page.tsx`): the frame stays
 
 | Route | Frame | Header | Switch / filters | Loading | Errors | Copy | Notes |
 |---|---|---|---|---|---|---|---|
-| `/app/dashboard` | ✅ (own tiers) | ✅ | n/a | ✅ shared Skeleton | ✅ (page-level exception) | ◐ "Completed" label | Add stale-response guard on switch |
+| `/app/dashboard` | ✅ (own tiers) | ✅ | n/a | ✅ shared Skeleton, stale responses dropped | ✅ (page-level exception) | ◐ "Completed" label | |
 | `/app/stats` (Career Overview) | ✅ | ✅ | ✅ tabs | ✅ | ✅ page + section | ✅ | My Songs tab internals ○ |
 | `/app/file` (Filing Queue) | ◐ `.subm-cq`, 16px | ◐ hand-built | ✅ | ✅ | ✅ | ✅ | Migrate to PageFrame/PageHeader |
 | `/app/history` | ◐ `.subm-cq`, 16px | ◐ hand-built | ✅ switcher + filter chips | ✅ | ✅ | ◐ banner disclaimer | |
