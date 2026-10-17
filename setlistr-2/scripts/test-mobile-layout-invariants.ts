@@ -82,7 +82,14 @@ function read(rel: string): string {
     check(`${rel}: no bare 100svh page minimum inside the shell (forced a scroll of header + nav height)`, !read(rel).includes("minHeight: '100svh'"))
   }
   const dashboard = read('app/app/dashboard/page.tsx')
-  check('Dashboard: hero, milestone, submitted and last show all come from summarizeRecord()', dashboard.includes('summarizeRecord(performances)') && dashboard.includes('record.count') && dashboard.includes('record.milestone') && dashboard.includes('record.submitted') && dashboard.includes('record.lastShow'))
+  check('Dashboard: hero, milestone, submitted and last show all come from summarizeRecord()', dashboard.includes('summarizeRecord(performances)') && dashboard.includes('record.count') && dashboard.includes('<NextMilestoneRow count={record.count} />') && dashboard.includes('record.submitted') && dashboard.includes('record.lastShow'))
+  // One milestone component for the dashboard and the post-save celebration:
+  // dots from milestoneFor(), the celebration's step only when the save added a counted show.
+  const nextMilestone = read('components/record/NextMilestone.tsx'), recordFinish = read('components/record/RecordFinish.tsx'), reviewSrc = read('app/app/review/[id]/page.tsx')
+  check('Milestone row: one shared component (dots, milestoneFor) used by the dashboard and the celebration', nextMilestone.includes('milestoneFor(count)') && nextMilestone.includes('Each dot is one show') && !dashboard.includes('function MilestoneTicks') && recordFinish.includes('<NextMilestoneRow'))
+  check('Celebration: count steps up only when this save put the show on the record (isCapturedShow before vs after)', reviewSrc.includes('const wasCounted = isCapturedShow(') && reviewSrc.includes('added: counted && !wasCounted') && recordFinish.includes('step = d.added'))
+  check('Celebration: Milestone moment only for a genuinely added show completing a block', reviewSrc.includes("recordFinish.added && recordFinish.count % MILESTONE_STEP === 0") && !reviewSrc.includes('intelligence.milestone)'))
+  check('Celebration: reduced motion renders no orb', recordFinish.includes('const orb = !reduced &&'))
   check('Dashboard: no "On pace" projection', !/On pace/.test(dashboard))
   check('Dashboard: no "filed"/"documented" wording for self-reported submissions or estimates', !/\bfiled\b<|documented</.test(dashboard))
   check('Root layout: pinch zoom is not capped', !/maximumScale\s*:/.test(read('app/layout.tsx')))

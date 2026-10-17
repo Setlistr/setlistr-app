@@ -16,6 +16,7 @@ import {
   capacityToBand, type ShowEstimateInput,
 } from '@/lib/royalty-estimate'
 import { Skeleton } from '@/components/ui/Skeleton'
+import { NextMilestoneRow } from '@/components/record/NextMilestone'
 
 // Direction B ("Editorial"): one Bebas Neue number, one sentence, one ruled
 // ledger. Colours come from the --sl-* tokens in app/globals.css so this
@@ -112,25 +113,6 @@ function StatusLine({ color, children }: { color: string; children: React.ReactN
       <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: '50%', background: color, flexShrink: 0 }} />
       {children}
     </span>
-  )
-}
-
-// One tick per show in the current block of 25, filled through the SAME
-// count the hero shows — so the hero, the ticks, "N to go" and "of N
-// shows" can never disagree.
-function MilestoneTicks({ first, next, count }: { first: number; next: number; count: number }) {
-  const ticks = []
-  for (let n = first; n <= next; n++) {
-    const i = n - first
-    ticks.push(<i key={n} style={{ flex: 1, height: 12, borderRadius: 2, background: n <= count ? 'var(--sl-gold)' : 'var(--sl-tick)', marginRight: n === next ? 0 : (i % 5 === 4 ? 9 : 3) }} />)
-  }
-  return (
-    <>
-      <div role="img" aria-label={`Shows ${first} to ${next}, one tick per show; ${Math.max(0, count - first + 1)} of ${next - first + 1} played`} style={{ display: 'flex', alignItems: 'center', marginTop: 12 }}>{ticks}</div>
-      <div aria-hidden="true" style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--sl-text-3)', marginTop: 6 }}>
-        <span>{first}</span><span>Each tick is one show</span><span>{next}</span>
-      </div>
-    </>
   )
 }
 
@@ -726,13 +708,9 @@ export default function DashboardPage() {
     ledger = (
       <>
         <div style={{ marginTop: 'var(--d-ledger-mt, 22px)', borderTop: '1.5px solid var(--sl-text)' }}>
-          <div style={{ ...rowBase, display: 'block' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <span style={rowLabel}>Next milestone</span>
-              <span style={rowValue}>Show {record.milestone.next} <span style={unit}>· {record.milestone.toGo} to go</span></span>
-            </div>
-            <MilestoneTicks first={record.milestone.first} next={record.milestone.next} count={record.count} />
-          </div>
+          {/* One dot per show, filled through the SAME count the hero shows
+              (components/record/NextMilestone, shared with the celebration). */}
+          <NextMilestoneRow count={record.count} />
           {!hasBand && record.lastShow && (
             <div style={rowBase}>
               <span style={rowLabel}>Last show</span>
@@ -878,6 +856,7 @@ export default function DashboardPage() {
           .sl-dash-inner {
             --d-max: 640px; --d-pad: 0 32px 56px;
             --d-label: 15px; --d-value: 17px; --d-row: 60px; --d-cap: 18px; --d-ov: 15px; --d-band: 76px;
+            --d-dot: 10px; --d-dot-gap: 5px;
             --d-hero: clamp(160px, 40cqw, 260px); --d-hero-band: clamp(160px, 40cqw, 260px);
           }
         }

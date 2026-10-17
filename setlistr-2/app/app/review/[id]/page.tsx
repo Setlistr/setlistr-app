@@ -29,6 +29,9 @@ import { ESTIMATE_DISCLAIMER, ESTIMATE_UNIT, formatEstimate } from '@/lib/estima
 import { PageFrame } from '@/components/ui/PageFrame'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { useWorkspaceRole } from '@/components/layout/WorkspaceRole'
+import { RecordFinish, ORB_GOLD, type RecordFinishData } from '@/components/record/RecordFinish'
+import { isCapturedShow } from '@/lib/performance-status'
+import { summarizeRecord, MILESTONE_STEP } from '@/lib/record-summary'
 
 const C = {
   bg: 'var(--sl-bg)', card: 'var(--sl-surface)', cardGrad: 'var(--sl-card-bg)', cardHover: 'var(--sl-surface-2)',
@@ -106,6 +109,7 @@ type Performance = {
   set_duration_minutes: number; setlist_id?: string | null
   show_id?: string | null; show_type?: string | null; venue_capacity?: number | null
   status?: string | null
+  data_source?: string | null
 }
 
 type PRO = 'SOCAN' | 'ASCAP' | 'BMI'
@@ -445,6 +449,11 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
   const [showComplete, setShowComplete] = useState(false)
   const [justCompleted, setJustCompleted] = useState(false)
   const [computedShowNumber, setComputedShowNumber] = useState<number | null>(null)
+  // The record counter shown after the save, counted as the dashboard counts.
+  const [recordFinish, setRecordFinish] = useState<RecordFinishData>({ status: 'loading' })
+  const [orbLanded, setOrbLanded] = useState(false)
+  const venueHeadingRef = useRef<HTMLHeadingElement>(null)
+  const pipRef = useRef<HTMLSpanElement>(null)
   const [activeCardIndex, setActiveCardIndex] = useState(0)
   const [newTitle, setNewTitle]         = useState('')
   const [newArtist, setNewArtist]       = useState('')
@@ -1037,6 +1046,26 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
     // artist to leave a show that was already complete without ever seeing it.
     setSaving(false); setSaved(true); setJustCompleted(true)
 
+    // The record counter, read first so the celebration's finish can land on
+    // it. Counted exactly as the dashboard counts (summarizeRecord →
+    // isCapturedShow). It steps up only when THIS save put the show on the
+    // record: a show that reached review was already counted, so a review
+    // save — and every re-save — keeps its existing dot and implies no
+    // milestone. Read-only; a failed or slow read just leaves the counter out.
+    const wasCounted = isCapturedShow({ status: performance.status ?? null, data_source: performance.data_source, venue_name: performance.venue_name })
+    Promise.race([
+      Promise.resolve(supabase.from('performances_visible')
+        .select('id, venue_name, status, submission_status, data_source, performance_date, started_at, created_at')
+        .eq('user_id', performance.user_id)),
+      new Promise<{ data: null; error: string }>(res => setTimeout(() => res({ data: null, error: 'timeout' }), 10000)),
+    ]).then(({ data, error }: { data: any[] | null; error: any }) => {
+      if (error || !data) { setRecordFinish({ status: 'unavailable' }); return }
+      const record = summarizeRecord(data)
+      const me = data.find(r => r.id === performance.id)
+      const counted = !!me && isCapturedShow(me)
+      setRecordFinish({ status: 'ready', count: record.count, isLatest: counted && record.lastShow?.id === performance.id, added: counted && !wasCounted })
+    }, () => setRecordFinish({ status: 'unavailable' }))
+
     // ── Optional after a confirmed save: never decides whether it saved ──
     // Legacy setlist mirror, non-destructive: new rows first, old rows removed
     // only once those exist. (recognition_decision_id is not sent: no
@@ -1316,7 +1345,9 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
     const moments: Array<{ label: string; detail: string }> = []
     if (intelligence) {
       if (intelligence.songDebuts.length > 0) moments.push({ label: 'First appearance on your record', detail: intelligence.songDebuts.join(', ') })
-      if (intelligence.milestone) moments.push({ label: 'Milestone', detail: `Show ${intelligence.milestone} on your record` })
+      // Only when this save put the show on the record AND completed a block
+      // of the dashboard's milestones — never for an already-counted show.
+      if (recordFinish.status === 'ready' && recordFinish.added && recordFinish.count % MILESTONE_STEP === 0) moments.push({ label: 'Milestone', detail: `Show ${recordFinish.count} on your record` })
       const v = intelligence.venueVisits
       if (v === 1) moments.push({ label: 'New room', detail: `First show on your record at ${performance?.venue_name}` })
       else if (v > 1) moments.push({ label: 'Back again', detail: `${ordinal(v)} show at ${performance?.venue_name}` })
@@ -1332,27 +1363,35 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
         <PageFrame style={{ position: 'relative', zIndex: 1 }}>
           {/* ── The finish of the night ── */}
           <div className="cer-head" style={{ paddingTop: 52, paddingBottom: 30, textAlign: 'center' }}>
-            <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'var(--sl-gold-text)', margin: '0 0 16px', ...enter(0) }}>
+            {/* The orb breathes over the venue first, so the title card
+                arrives as it leaves; "N songs saved" is there from the start. */}
+            <p style={{ display: 'inline-flex', alignItems: 'center', gap: 9, fontSize: 11, fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'var(--sl-gold-text)', margin: '0 0 16px', ...enter(0.33) }}>
+              <span ref={pipRef} aria-hidden="true" style={{ width: 9, height: 9, borderRadius: '50%', flexShrink: 0, background: ORB_GOLD, opacity: orbLanded ? 1 : 0, transition: 'opacity 0.2s ease' }} />
               Show complete
             </p>
-            <h1 style={{ fontSize: 48, fontWeight: 800, color: C.text, margin: '0 0 12px', letterSpacing: '-0.035em', lineHeight: 1.04, textWrap: 'balance' as any, overflowWrap: 'anywhere', ...enter(0.06) }}>
+            <h1 ref={venueHeadingRef} style={{ fontSize: 48, fontWeight: 800, color: C.text, margin: '0 0 12px', letterSpacing: '-0.035em', lineHeight: 1.04, textWrap: 'balance' as any, overflowWrap: 'anywhere', ...enter(0.4) }}>
               {performance?.venue_name}
             </h1>
-            <p style={{ fontSize: 15, color: C.secondary, margin: '0 0 26px', ...enter(0.12) }}>
+            <p style={{ fontSize: 15, color: C.secondary, margin: '0 0 26px', ...enter(0.47) }}>
               {performance?.city && <span>{performance.city}</span>}
               {showDate && <><span style={{ color: 'var(--sl-text-4)', margin: '0 8px' }}>·</span><span>{showDate}</span></>}
               {!!durMins && <><span style={{ color: 'var(--sl-text-4)', margin: '0 8px' }}>·</span><span>{durMins} min</span></>}
             </p>
-            {/* Saved confirmation and record count: two lines, each whole */}
+            {/* Tonight's figure. Shows on the record are the counter below. */}
             <p style={{ fontSize: 22, fontWeight: 700, color: C.text, margin: 0, letterSpacing: '-0.01em', ...enter(0.18) }}>
               {songCount} {songCount === 1 ? 'song' : 'songs'} saved
             </p>
-            {computedShowNumber != null && (
-              <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--sl-gold-text)', margin: '6px 0 0', ...enter(0.24) }}>
-                Show {computedShowNumber} on your record
-              </p>
-            )}
           </div>
+
+          {/* ── The record: the dashboard's counter, with the orb finishing onto it ── */}
+          <RecordFinish
+            data={recordFinish}
+            venueName={performance?.venue_name || ''}
+            overline={actingAsArtistId && performance?.artist_name ? `${/s$/i.test(performance.artist_name) ? `${performance.artist_name}’` : `${performance.artist_name}’s`} live record` : 'Your live record'}
+            startRef={venueHeadingRef}
+            pipRef={pipRef}
+            onLanded={() => setOrbLanded(true)}
+          />
 
           <div className="cer-grid">
             <div className="cer-col cer-col-a">
@@ -1565,7 +1604,13 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
           .cer-grid { display: flex; flex-direction: column; gap: 14px; }
           .cer-col { display: contents; }
           .cer-moments { order: 1; } .cer-estimate { order: 2; } .cer-setlist { order: 3; } .cer-share { order: 4; } .cer-actions { order: 5; }
+          /* The record counter: stacked on phones; from 600px the dashboard's
+             wider sizes; from 900px its number | ledger split. */
+          @container sl-frame (min-width: 600px) {
+            .rf { --rf-hero: 128px; --d-dot: 10px; --d-dot-gap: 5px; }
+          }
           @container sl-frame (min-width: 900px) {
+            .rf { display: grid; grid-template-columns: minmax(0, 1fr) minmax(360px, 420px); column-gap: 56px; align-items: start; max-width: 960px; margin-left: auto; margin-right: auto; --rf-hero: 150px; --rf-ledger-mt: 30px; }
             .cer-head { padding-top: 64px !important; }
             .cer-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(360px, 420px); column-gap: 40px; align-items: start; max-width: 960px; margin: 0 auto; }
             .cer-col { display: flex; flex-direction: column; gap: 14px; }
