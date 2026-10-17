@@ -3,7 +3,6 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useActingAs } from '@/components/ActingAsProvider'
-import { normalizeSongKey } from '@/lib/reconciliation/normalize'
 import { logProductEvent, awaitWithTimeout, type ReviewActionType } from '@/lib/telemetry'
 import {
   DndContext, closestCenter, KeyboardSensor, PointerSensor,
@@ -119,40 +118,6 @@ type ShowIntelligence = {
   venueVisits: number
   songDebuts: string[]
   milestone: number | null
-}
-
-// Returns false when the catalog may not reflect this show (a write failed),
-// so callers don't present catalog-derived moments as fact.
-async function writeUserSongFromReview(
-  supabase: ReturnType<typeof import('@/lib/supabase/client').createClient>,
-  title: string, artist: string, userId: string, performanceId: string
-): Promise<boolean> {
-  try {
-    const normalizedTitle = normalizeSongKey(title)
-    if (!normalizedTitle) return true
-    const { error: guardError } = await supabase
-      .from('user_song_performances')
-      .insert({ user_id: userId, performance_id: performanceId, normalized_title: normalizedTitle })
-    if (guardError) return guardError.code === '23505'   // already counted for this show
-    const { data: existing } = await supabase
-      .from('user_songs').select('id, confirmed_count')
-      .eq('user_id', userId).eq('song_title', title).single()
-    if (existing) {
-      const { error } = await supabase.from('user_songs').update({
-        confirmed_count: existing.confirmed_count + 1,
-        canonical_artist: artist || null,
-        last_confirmed_at: new Date().toISOString(),
-      }).eq('id', existing.id)
-      if (error) throw error
-    } else {
-      const { error } = await supabase.from('user_songs').insert({
-        user_id: userId, song_title: title, canonical_artist: artist || null,
-        confirmed_count: 1, last_confirmed_at: new Date().toISOString(),
-      })
-      if (error) throw error
-    }
-    return true
-  } catch (err) { console.error('[UserSongs] review write failed:', err); return false }
 }
 
 // performances.status allows only draft/live/processing/review/complete
@@ -874,8 +839,13 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
     const removed = songs.filter(s => s.isRemoved && !s.isNew)
     const wasComplete = performance.status === 'completed' || performance.status === 'complete'
 
+    // A kept song that was on the plan but never detected: kept means played.
+    const playedPlanned = (s: Song) => s.inclusion_reason === 'planned setlist - not detected'
+
     // REQUIRED save: the show's songs, the linked show's finished status and
     // the performance's complete status (last, so it marks the whole save).
+    // The database records the song catalogue inside that final write
+    // (performances_record_catalog trigger), so a confirmed save has its catalogue.
     // Only these decide whether the setlist saved. Everything after (legacy
     // setlist mirror, song catalog, intelligence, show number, telemetry)
     // never reports the setlist as unsaved.
@@ -934,7 +904,12 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
             title: n.title, artist: n.artist, position,
             isrc: s.isrc || null, composer: s.composer || null, publisher: s.publisher || null,
             artist_modified: true, notes: `was ${s.origArtist || ''}-${s.origTitle || ''}`,
+            ...(playedPlanned(s) ? { source: 'manual', was_planned: true } : {}),
           }).eq('id', s.id))
+        } else if (playedPlanned(s)) {
+          // A planned song the artist marked played: store it as played, so the
+          // catalogue (recorded by the database with the final write) counts it.
+          await step('mark a planned song played', supabase.from('performance_songs').update({ position, source: 'manual', was_planned: true }).eq('id', s.id))
         } else {
           // Unchanged detection → just keep ordering current
           await step('update song order', supabase.from('performance_songs').update({ position }).eq('id', s.id), s.position !== position)
@@ -1075,8 +1050,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
     // this one speculatively.
     //
     // Started here (not awaited yet) so its network time overlaps with the
-    // writeUserSongFromReview loop / fetchIntelligence / computeShowNumber
-    // work below — awaited (bounded) right before this function's effective
+    // fetchIntelligence work below — awaited (bounded) right before this function's effective
     // exit, since the artist may background/close the app the moment the
     // "Saved" success screen appears (it now appears before this work).
     const actorType: 'owner' | 'delegate' = actingAsArtistId && actingAsArtistId !== performance.user_id ? 'delegate' : 'owner'
@@ -1098,11 +1072,8 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
-        let catalogComplete = true
-        for (const song of kept) {
-          if (!song.title?.trim()) continue
-          if (!await writeUserSongFromReview(supabase, song.title, song.artist || '', actingAsArtistId || user.id, performance.id)) catalogComplete = false
-        }
+        // The catalogue was recorded with the confirmed final write.
+        const catalogComplete = true
         momentsStarted = true
         fetchIntelligence(actingAsArtistId || user.id, performance.venue_name, kept.map(s => s.title).filter(Boolean), catalogComplete)
         // No chronological show number: the share cards use the milestone this
