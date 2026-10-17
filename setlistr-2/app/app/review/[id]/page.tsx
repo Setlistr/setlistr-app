@@ -1030,6 +1030,13 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
       return
     }
 
+    // The setlist is saved: celebrate now. Everything below is optional and
+    // finishes behind the celebration, which fills in the show number and
+    // moments as they arrive. Awaiting it first held "Saving…" for every
+    // catalog round trip (about 9s for 18 songs at 150ms), long enough for the
+    // artist to leave a show that was already complete without ever seeing it.
+    setSaving(false); setSaved(true); setJustCompleted(true)
+
     // ── Optional after a confirmed save: never decides whether it saved ──
     // Legacy setlist mirror, non-destructive: new rows first, old rows removed
     // only once those exist. (recognition_decision_id is not sent: no
@@ -1064,7 +1071,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
     // writeUserSongFromReview loop / fetchIntelligence / computeShowNumber
     // work below — awaited (bounded) right before this function's effective
     // exit, since the artist may background/close the app the moment the
-    // "Saved" success screen appears.
+    // "Saved" success screen appears (it now appears before this work).
     const actorType: 'owner' | 'delegate' = actingAsArtistId && actingAsArtistId !== performance.user_id ? 'delegate' : 'owner'
     const reviewCompletedLogged = logProductEvent(supabase, {
       event_name: 'review_completed',
@@ -1078,6 +1085,9 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
     // is evidence of attendance — a city centre would destroy it on every
     // completed show. Nothing reads a city-level coordinate; the maps in
     // stats and career-map each geocode independently.
+    // The celebration is already up, so moments that never start must not
+    // leave it on "Reading the night…".
+    let momentsStarted = false
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
@@ -1089,13 +1099,14 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
         // computeShowNumber uses performance.user_id, not actingAsArtistId like
         // fetchIntelligence above — a show's number belongs to the artist whose
         // career it is, not whoever's looking. Same rule as submit's PRO identity.
+        momentsStarted = true
         fetchIntelligence(actingAsArtistId || user.id, performance.venue_name, kept.map(s => s.title).filter(Boolean), catalogComplete)
         const num = await computeShowNumber(performance.user_id, performance.id)
         setComputedShowNumber(num)
       }
     } catch (err) { console.error('[ReviewSave]', err) }
+    if (!momentsStarted) setIntelligenceState('failed')
     await awaitWithTimeout(reviewCompletedLogged)
-    setSaving(false); setSaved(true); setJustCompleted(true)
   }, [performance, songs, setlistId, actingAsArtistId])
 
   async function generateExportCSV(pro: PRO) {
