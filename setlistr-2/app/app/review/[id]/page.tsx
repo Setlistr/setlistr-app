@@ -1423,7 +1423,10 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
                   const artist = performance?.artist_name || ''
                   const venue = performance?.venue_name || ''
 
-                  const cards: Array<{ id: string; label: string; formats: boolean; component: React.ReactNode }> = [
+                  // First Appearance and Royalty Moment are held back from
+                  // selection and sharing until they're refined; their code stays.
+                  const HELD_CARDS = new Set(['song_debut', 'royalty_moment'])
+                  const cards: Array<{ id: string; label: string; formats: boolean; component: React.ReactNode }> = ([
                     {
                       id: 'night',
                       label: 'The night',
@@ -1481,7 +1484,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
                         />
                       )
                     },
-                  ]
+                  ] as Array<{ id: string; label: string; formats: boolean; component: React.ReactNode }>).filter(c => !HELD_CARDS.has(c.id))
 
                   const active = cards[Math.min(activeCardIndex, cards.length - 1)]
                   const format: ShareFormat = active.formats ? shareFormat : 'story'

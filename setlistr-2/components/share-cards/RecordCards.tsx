@@ -6,11 +6,12 @@
 //   MilestoneCard  a show that is itself the 25th, 50th, 75th… on the artist's record
 //                  in show-date order (lib/record-summary.ts recordPositionOf).
 //
-// Neither says "tonight" or "new", so re-sharing later stays true. The milestone
-// says "Through <date>": the number is the shows on the record up to and
-// including that night, which stays accurate even though a backdated show can
-// later move the milestone to another night (the card is then no longer offered
-// for this one).
+// Neither says "tonight" or "new". The milestone says "Through <date>": the
+// number of shows the record currently holds up to and including that night.
+// It reflects the record as it stands when the card is made, not a permanent
+// historical figure: a show added later with an earlier date changes that
+// total, and can move the milestone to another night (this card is then no
+// longer offered for this one; images already shared don't change).
 //
 // Story is 9:16 and keeps clear of Instagram's top bar (~13%) and reply bar
 // (~18%); Feed is 4:5, composed for its own frame. Sizes are in container

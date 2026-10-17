@@ -4,7 +4,6 @@
 // (lib/share-card-export.ts), so the shared image can be checked on a device.
 import { useRef, useState } from 'react'
 import { NightCard, MilestoneCard } from '@/components/share-cards/RecordCards'
-import RoyaltyMomentCard from '@/components/share-cards/RoyaltyMomentCard'
 import { exportShareCard, type ShareFormat } from '@/lib/share-card-export'
 
 const SAMPLE = { artist: 'Northern Lights', venue: 'The Horseshoe Tavern', city: 'Toronto', date: 'Sat, Oct 10, 2026', songs: 12 }
@@ -65,9 +64,7 @@ export default function SharePreviewPage() {
         <Exportable label="Milestone 250" format={format}>
           <MilestoneCard format={format} milestone={250} artistName="The Weather Station & the Northern Lights Orchestra" venueName="The Rex Hotel Jazz & Blues Bar" date={SAMPLE.date} />
         </Exportable>
-        <Exportable label="Royalty moment (unchanged)" format="story">
-          <RoyaltyMomentCard artistName={SAMPLE.artist} venueName={SAMPLE.venue} date={SAMPLE.date} amount={38} />
-        </Exportable>
+        {/* Royalty Moment and First Appearance are held back until they're refined. */}
       </div>
     </div>
   )
