@@ -52,7 +52,7 @@ Since the celebration appears as soon as the required save is confirmed (commit 
 
 fd60200 makes this more likely: before it, "Saving…" stayed up until the catalogue work finished, so the page looked unfinished during that window.
 
-**Repair needed (separate, needs approval):** issue 1's atomic database function, plus running the catalogue update where a page close can't interrupt it (a server route, or the database function called once for the whole setlist). Keeping "Saving…" up until the catalogue finishes would narrow the window again but bring back the long wait.
+**Release blocker.** Repair proposed in [catalog-on-complete-proposal.md](catalog-on-complete-proposal.md): record the catalogue inside the save's final write (one transaction), so a confirmed save can't lose it. Not applied; needs approval.
 
 ## 4. Historical shows may have been left in `review`
 
