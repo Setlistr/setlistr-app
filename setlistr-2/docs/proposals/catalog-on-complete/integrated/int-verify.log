@@ -1,0 +1,16 @@
+  ok   [Owner] save completes and the artist's catalogue is recorded with it (3 songs, 1 each) 
+  ok   [Manager] save completes and the artist's catalogue is recorded with it (3 songs, 1 each) 
+  ok   [Tour Manager] save completes and the artist's catalogue is recorded with it (3 songs, 1 each) 
+  ok   [Viewer] save refused with a clear message; show stays in review; nothing in the catalogue 
+  ok   [played planned] the planned song marked played is counted; the one not marked is not 
+  ok   [capture] a song already counted during capture is not counted again at review 
+  ok   [re-save] saving the completed show again changes nothing 
+  ok   [concurrent] both saves complete; one catalogue row for the shared new song, counted twice (1:2) 
+  ok   [catalogue failure] completion rejected with a clear error (Reference: mark the show complete · 23514 · zz_fail); show still in review; no partial catalogue 
+  ok   [catalogue failure] the earlier edit is saved (Paper Boats (Edited)) 
+  ok   [retry] saving again completes it; catalogue recorded once; no duplicate songs 
+  ok   [lost response] the page confirms by reading back and celebrates; catalogue recorded exactly once 
+  ok   [close at success] the page closed the moment the summary appeared: all 18 songs are in the catalogue (18 markers, 18 rows) 
+  ok   [import] an imported complete show is inserted and nothing is counted (an insert doesn't fire the trigger) 
+  ok   [import] the imported show saved later from Review is counted (as today) 
+15 passed, 0 failed

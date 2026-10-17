@@ -7,6 +7,7 @@
 - **SQL, exactly as proposed:** [proposals/catalog-on-complete/proposed-migration.sql](proposals/catalog-on-complete/proposed-migration.sql). Not applied anywhere.
 - **Application diff, exactly as proposed:** [proposals/catalog-on-complete/app.patch](proposals/catalog-on-complete/app.patch), against `design/share-cards` @ 0c9a567. The page stops writing the catalogue, and a planned song marked played is stored as played. The two must ship together.
 - **Tests and their output:** [proposals/catalog-on-complete/tests/](proposals/catalog-on-complete/tests/README.md).
+- **Integrated test (approved, disposable stack only):** the real patched save against the proposed migration with RLS on: [proposals/catalog-on-complete/integrated/](proposals/catalog-on-complete/integrated/README.md). 15/15, save-stages 94/94; results and remaining limitations there.
 
 ## The problem, measured
 

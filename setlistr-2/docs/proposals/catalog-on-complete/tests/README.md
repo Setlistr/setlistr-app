@@ -29,4 +29,4 @@ docker rm -f sl-catalog-test
 - The show is saved `complete`.
 - The page wrote no catalogue rows. That is why the patch and the SQL ship together, never separately.
 
-The combined path (patched app plus trigger) needs a database with the migration applied, and isn't run yet.
+The combined path (patched app plus trigger) was run on a disposable stack; see [../integrated/](../integrated/README.md).
