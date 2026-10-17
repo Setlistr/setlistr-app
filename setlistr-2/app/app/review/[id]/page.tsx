@@ -857,12 +857,12 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
     const step = async <T extends { error: any }>(op: string, run: PromiseLike<T>, changes = true): Promise<T> => {
       lastOp = op
       const r = await run
-      if (r.error) throw Object.assign(new Error(r.error.message || op), { op, code: r.error.code || '' })
+      if (r.error) throw Object.assign(new Error(r.error.message || op), { op, code: r.error.code || '', hint: r.error.hint || '' })
       if (changes) wroteSomething = true
       return r
     }
     let confirmed = false
-    let failure: { op: string; code: string; message: string } | null = null
+    let failure: { op: string; code: string; message: string; hint: string } | null = null
     try {
       // Songs added during review that an earlier attempt already saved —
       // including one whose response was lost after the server accepted it —
@@ -943,7 +943,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
       const done = await step('mark the show complete', supabase.from('performances').update({ status: PERFORMANCE_COMPLETE }).eq('id', performance.id).select('id'))
       confirmed = !!done.data && done.data.length === 1
     } catch (err: any) {
-      failure = { op: err?.op || lastOp, code: err?.code || '', message: err?.message || '' }
+      failure = { op: err?.op || lastOp, code: err?.code || '', message: err?.message || '', hint: err?.hint || '' }
       console.error('[ReviewSave] save failed:', failure)
     }
 
@@ -958,21 +958,36 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
     }
     if (!confirmed) {
       const f = failure
-      const op = f?.op || 'mark the show complete'
+      // The database records the song catalogue inside the final write and
+      // tags any failure there (hint 'setlistr:song-catalogue', original code
+      // kept), so it can be told apart from the write itself.
+      const catalogue = f?.hint === 'setlistr:song-catalogue'
+      const op = catalogue ? 'record the song catalogue' : (f?.op || 'mark the show complete')
       const code = f?.code || ''
       // Every write returned without error, yet the show isn't complete
       // (no row updated), or the database refused on permission grounds.
-      const refused = !f || code === '42501'
+      const refused = !f || (code === '42501' && !catalogue)
       const lostConnection = !!f && !code
+      // Failures that pass: a serialization failure or deadlock, a lock or
+      // statement timeout, a busy or restarting server. Retrying is the fix.
+      const temporary = /^(40001|40P01|55P03|57014|53|08|57P0)/.test(code)
       // A rejection the database will repeat (data, integrity constraint,
       // permission/syntax, raised exception, request shape) — unlike a dropped
       // connection or busy server, retrying the same save can't succeed, so
       // it isn't offered as the fix.
-      const repeats = /^(22|23|42|P0|PGRST)/.test(code)
+      const repeats = !temporary && /^(22|23|42|P0|PGRST)/.test(code)
       const constraint = (f?.message.match(/constraint "([^"]+)"/) || [])[1]
+      // Only the final write can fail this way, so every earlier edit is saved.
+      const finalWrite = catalogue || op === 'mark the show complete'
       setSaving(false)
       setSaveError({
-        text: refused
+        text: catalogue
+          ? repeats
+            ? 'Your songs and edits are saved, but the show couldn’t be completed because its songs couldn’t be added to your song catalogue. Trying again won’t fix this, so please send us the reference below.'
+            : 'Your songs and edits are saved, but the show couldn’t be completed just now while its songs were being added to your song catalogue. Try again; nothing will be added twice.'
+          : finalWrite && temporary
+            ? 'Your songs and edits are saved, but the show couldn’t be completed just now. Try again; nothing will be added twice.'
+          : refused
           ? 'This account can’t save changes to this setlist. Your edits are still here.'
           : lostConnection
             ? 'The connection dropped before the save could be confirmed. Your edits are still here, and trying again won’t add any song twice.'
