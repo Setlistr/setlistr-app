@@ -2,6 +2,12 @@
 
 **Status:** proposal for review, 2026-10-17; verification added the same day. **Nothing here is applied.** No migration, SQL, backfill or permission change is authorized. Fixes [data-integrity issues 1 and 3](data-integrity-open-issues.md); release blocker for `design/record-finish`.
 
+## Review package
+
+- **SQL, exactly as proposed:** [proposals/catalog-on-complete/proposed-migration.sql](proposals/catalog-on-complete/proposed-migration.sql). Not applied anywhere.
+- **Application diff, exactly as proposed:** [proposals/catalog-on-complete/app.patch](proposals/catalog-on-complete/app.patch), against `design/share-cards` @ 0c9a567. The page stops writing the catalogue, and a planned song marked played is stored as played. The two must ship together.
+- **Tests and their output:** [proposals/catalog-on-complete/tests/](proposals/catalog-on-complete/tests/README.md).
+
 ## The problem, measured
 
 After a confirmed review save, the page writes each kept song to the artist's catalogue as separate requests: insert a per-show marker in `user_song_performances`, then increment or create the `user_songs` row.

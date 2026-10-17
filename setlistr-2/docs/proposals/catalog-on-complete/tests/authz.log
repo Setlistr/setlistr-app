@@ -1,0 +1,48 @@
+== OWNER
+  today's page path: write a marker for the artist directly
+    inserted
+  proposal: the save's final write (status -> complete)
+    updated
+    show status: complete
+    catalogue: Harbour Song=1, Paper Boats (Live)=1, Polar Night=1
+    markers: 3
+  calling the catalogue function directly
+    ERROR:  permission denied for function record_performance_catalog
+== MGR
+  today's page path: write a marker for the artist directly
+    ERROR:  new row violates row-level security policy for table "user_song_performances"
+  proposal: the save's final write (status -> complete)
+    updated
+    show status: complete
+    catalogue: Harbour Song=1, Paper Boats (Live)=1, Polar Night=1
+    markers: 3
+  calling the catalogue function directly
+    ERROR:  permission denied for function record_performance_catalog
+== TM
+  today's page path: write a marker for the artist directly
+    ERROR:  new row violates row-level security policy for table "user_song_performances"
+  proposal: the save's final write (status -> complete)
+    updated
+    show status: complete
+    catalogue: Harbour Song=1, Paper Boats (Live)=1, Polar Night=1
+    markers: 3
+  calling the catalogue function directly
+    ERROR:  permission denied for function record_performance_catalog
+== VIEW
+  today's page path: write a marker for the artist directly
+    ERROR:  new row violates row-level security policy for table "user_song_performances"
+  proposal: the save's final write (status -> complete)
+    show status: review
+    catalogue: (none)
+    markers: 0
+  calling the catalogue function directly
+    ERROR:  permission denied for function record_performance_catalog
+== OTHER
+  today's page path: write a marker for the artist directly
+    ERROR:  new row violates row-level security policy for table "user_song_performances"
+  proposal: the save's final write (status -> complete)
+    show status: review
+    catalogue: (none)
+    markers: 0
+  calling the catalogue function directly
+    ERROR:  permission denied for function record_performance_catalog

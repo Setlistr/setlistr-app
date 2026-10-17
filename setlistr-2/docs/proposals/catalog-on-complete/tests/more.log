@@ -1,0 +1,32 @@
+== Concurrency: two shows of the same artist saved at the same moment (owner + manager), both introduce the same new song
+    Brand New Song: 1 row(s), counts 2
+   ...same race with the advisory lock removed from the function (to show the lock is what prevents it):
+    lock present: f
+    Brand New Song: 2 row(s), counts 1+1
+    lock restored: t
+== Re-saves
+    catalogue: Low Tide=1, Polar Night=1
+    (re-save)
+    catalogue: Low Tide=1, Polar Night=1
+    (manager re-saves after adding Copper Sky)
+    catalogue: Copper Sky=1, Low Tide=1, Polar Night=1
+    (marked submitted: no status in SET)
+    catalogue: Copper Sky=1, Low Tide=1, Polar Night=1
+== Songs already counted during live capture (marker written by capture) are not counted again at review
+    catalogue: Low Tide=1, Polar Night=5
+== Imports
+    setlist.fm import inserts a complete show (no songs today; an INSERT doesn't fire the trigger):
+    catalogue: Polar Night=2
+    the same imported show later saved from Review (counted, as the page does today):
+    catalogue: Polar Night=3
+== The final write fails: what stays saved
+    earlier save requests, each its own transaction (as the page sends them):
+    final write (status -> complete) with a forced catalogue failure:
+    ERROR:  new row for relation "user_songs" violates check constraint "zz_fail"
+    status=review
+    songs persisted: Polar Night (Acoustic) [reviewed], Low Tide [reviewed], Added In Review [reviewed]
+    markers: 0
+    catalogue: (none)
+    Try again after the cause is gone:
+    status=complete
+    catalogue: Added In Review=1, Low Tide=1, Polar Night (Acoustic)=1
