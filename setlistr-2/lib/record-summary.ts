@@ -68,6 +68,29 @@ export function summarizeRecord(perfs: RecordShow[]): RecordSummary {
   }
 }
 
+// A show's place on the record: its 1-based position among the shows the
+// record counts (isCapturedShow, as the dashboard counts), in show-date order.
+// Shows on the same day are ordered by start time, then creation, then id, so
+// the order is stable. Saving never changes it. A show dated earlier that is
+// added later moves every later show up one, so a position — and the
+// milestone it holds — can pass to another show.
+export function recordPositionOf(perfs: RecordShow[], id: string): number | null {
+  const shows = perfs.filter(isCapturedShow)
+  if (!shows.some(p => p.id === id)) return null
+  const LAST = 8.64e15
+  const day = (p: RecordShow) => { const d = showDate(p); return d ? new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime() : LAST }
+  const at = (v?: string | null) => { const t = v ? new Date(v).getTime() : NaN; return isNaN(t) ? LAST : t }
+  const ordered = [...shows].sort((a, b) => day(a) - day(b) || at(a.started_at) - at(b.started_at) || at(a.created_at) - at(b.created_at) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+  return ordered.findIndex(p => p.id === id) + 1
+}
+
+// The milestone a show holds, if any: its position when that is a multiple of
+// MILESTONE_STEP (25, 50, 75…). Earned by the show, not by a save.
+export function milestoneHeldBy(perfs: RecordShow[], id: string): number | null {
+  const position = recordPositionOf(perfs, id)
+  return position && position % MILESTONE_STEP === 0 ? position : null
+}
+
 // "Today", "Yesterday", "9 days ago" — calendar days, not 24-hour periods —
 // then a plain date once it's more than ~2 months back.
 export function lastShowLabel(date: Date, now: Date = new Date()): string {

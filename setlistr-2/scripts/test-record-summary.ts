@@ -5,7 +5,7 @@
 // Run via:
 //   npx ts-node --transpile-only -P scripts/tsconfig.json scripts/test-record-summary.ts
 
-import { summarizeRecord, milestoneFor, showDate, lastShowLabel, type RecordShow } from '../lib/record-summary'
+import { summarizeRecord, milestoneFor, showDate, lastShowLabel, recordPositionOf, milestoneHeldBy, type RecordShow } from '../lib/record-summary'
 
 let pass = 0
 let fail = 0
@@ -92,6 +92,28 @@ const show = (o: Partial<RecordShow> = {}): RecordShow => ({
   check('previous calendar day, under 24h -> Yesterday', lastShowLabel(new Date(2026, 9, 13, 23, 30), now) === 'Yesterday')
   check('9 calendar days -> "9 days ago"', lastShowLabel(new Date(2026, 9, 5), now) === '9 days ago')
   check('over ~2 months -> a date', /2026/.test(lastShowLabel(new Date(2026, 5, 1), now)))
+}
+
+// ── recordPositionOf / milestoneHeldBy: earned by a show, in show-date order ──
+{
+  const days = (k: number) => { const d = new Date(Date.UTC(2026, 0, 1) + k * 86400000); return d.toISOString().slice(0, 10) }
+  // 50 shows, created in reverse order of their dates: position follows the show's date, not when it was saved.
+  const fifty = Array.from({ length: 50 }, (_, i) => show({ id: `s${i + 1}`, performance_date: days(i), started_at: `${days(i)}T02:00:00Z`, created_at: `2026-12-${String(30 - Math.floor(i / 2)).padStart(2, '0')}T00:00:00Z` }))
+  check('position follows show date, not creation order', recordPositionOf(fifty, 's1') === 1 && recordPositionOf(fifty, 's50') === 50)
+  check('the 50th show by date holds milestone 50', milestoneHeldBy(fifty, 's50') === 50)
+  check('the 25th holds 25; the 24th and 49th hold none', milestoneHeldBy(fifty, 's25') === 25 && milestoneHeldBy(fifty, 's24') === null && milestoneHeldBy(fifty, 's49') === null)
+  // A backdated show added later moves every later show up one.
+  const backdated = [...fifty, show({ id: 'early', performance_date: '2025-12-15', started_at: '2025-12-15T02:00:00Z', created_at: '2027-01-05T00:00:00Z' })]
+  check('backdated show: the old 50th becomes the 51st and holds nothing', recordPositionOf(backdated, 's50') === 51 && milestoneHeldBy(backdated, 's50') === null)
+  check('backdated show: the milestone passes to the show before it', milestoneHeldBy(backdated, 's49') === 50 && milestoneHeldBy(backdated, 's24') === 25)
+  // Same-day shows: start time decides, then creation, then id.
+  const sameDay = [show({ id: 'late', performance_date: '2026-05-01', started_at: '2026-05-01T23:00:00Z' }), show({ id: 'early-set', performance_date: '2026-05-01', started_at: '2026-05-01T19:00:00Z' })]
+  check('same day: the earlier start comes first', recordPositionOf(sameDay, 'early-set') === 1 && recordPositionOf(sameDay, 'late') === 2)
+  // Only shows the record counts.
+  const mixed = [...fifty.slice(0, 24), show({ id: 'imp', data_source: 'setlistfm_imported', performance_date: days(0) }), show({ id: 'draft', status: 'draft', performance_date: days(1) }), show({ id: 'placeholder', venue_name: '', performance_date: days(2) }), fifty[24]]
+  check('imports, drafts and placeholder venues are not on the record', recordPositionOf(mixed, 's25') === 25 && milestoneHeldBy(mixed, 's25') === 25 && recordPositionOf(mixed, 'imp') === null && recordPositionOf(mixed, 'draft') === null)
+  check('a show already counted in review holds its place too', milestoneHeldBy([...fifty.slice(0, 24), { ...fifty[24], status: 'review' }], 's25') === 25)
+  check('unknown id -> null', recordPositionOf(fifty, 'nope') === null)
 }
 
 console.log(`\n${pass} passed, ${fail} failed`)

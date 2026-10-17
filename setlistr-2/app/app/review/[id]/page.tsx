@@ -19,11 +19,10 @@ import { estimateRoyalties, capacityToBand } from '@/lib/royalty-estimate'
 import CatalogSearch, { type CatalogSong } from '@/components/CatalogSearch'
 import { normalizeSong } from '@/lib/song-utils'
 import { PlannedVsPlayed } from '@/components/PlannedVsPlayed'
-import TonightsRunCard from '@/components/share-cards/TonightsRunCard'
 import SongDebutCard from '@/components/share-cards/SongDebutCard'
 import RoyaltyMomentCard from '@/components/share-cards/RoyaltyMomentCard'
-import MilestoneCard from '@/components/share-cards/MilestoneCard'
-import html2canvas from 'html2canvas'
+import { NightCard, MilestoneCard } from '@/components/share-cards/RecordCards'
+import { exportShareCard, type ShareFormat } from '@/lib/share-card-export'
 import { countAt, capturedLabel, type FlowSource } from '@/lib/ceremony-display'
 import { ESTIMATE_DISCLAIMER, ESTIMATE_UNIT, formatEstimate } from '@/lib/estimate-copy'
 import { PageFrame } from '@/components/ui/PageFrame'
@@ -31,7 +30,7 @@ import { Skeleton } from '@/components/ui/Skeleton'
 import { useWorkspaceRole } from '@/components/layout/WorkspaceRole'
 import { RecordFinish, ORB_GOLD, type RecordFinishData } from '@/components/record/RecordFinish'
 import { isCapturedShow } from '@/lib/performance-status'
-import { summarizeRecord, MILESTONE_STEP } from '@/lib/record-summary'
+import { summarizeRecord, milestoneHeldBy, MILESTONE_STEP } from '@/lib/record-summary'
 
 const C = {
   bg: 'var(--sl-bg)', card: 'var(--sl-surface)', cardGrad: 'var(--sl-card-bg)', cardHover: 'var(--sl-surface-2)',
@@ -452,6 +451,11 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
   // The record counter shown after the save, counted as the dashboard counts.
   const [recordFinish, setRecordFinish] = useState<RecordFinishData>({ status: 'loading' })
   const [orbLanded, setOrbLanded] = useState(false)
+  // The milestone this show holds on the artist's record (25, 50, 75…), if
+  // any: earned by the show's place in show-date order, not by this save.
+  const [heldMilestone, setHeldMilestone] = useState<number | null>(null)
+  const [shareFormat, setShareFormat] = useState<ShareFormat>('story')
+  const [shareState, setShareState] = useState<'idle' | 'working' | 'failed'>('idle')
   const venueHeadingRef = useRef<HTMLHeadingElement>(null)
   const pipRef = useRef<HTMLSpanElement>(null)
   const [activeCardIndex, setActiveCardIndex] = useState(0)
@@ -829,61 +833,34 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
     }
   }
 
-  async function shareCard() {
-    if (!shareCardRef.current) return
+  // Shares the card exactly as previewed (lib/share-card-export.ts). A failed
+  // export says so; there is no fallback renderer.
+  async function shareCard(format: ShareFormat) {
+    const cardDiv = shareCardRef.current?.firstElementChild as HTMLElement | null
+    if (!cardDiv || shareState === 'working') return
+    setShareState('working')
+    let blob: Blob
+    try { blob = await exportShareCard(cardDiv, format) } catch (err) {
+      console.error('Share card export failed:', err)
+      setShareState('failed'); return
+    }
+    setShareState('idle')
+    const file = new File([blob], `setlistr-${format}.png`, { type: 'image/png' })
     try {
-      const element = shareCardRef.current
-      const cardDiv = element.firstElementChild as HTMLElement
-      if (!cardDiv) return
-
-      // Force explicit dimensions before capture
-      const width = cardDiv.offsetWidth
-      const height = Math.round(width * (16 / 9))
-
-      // Temporarily set explicit height so html2canvas captures correctly
-      const originalHeight = cardDiv.style.height
-      const originalAspectRatio = cardDiv.style.aspectRatio
-      cardDiv.style.height = `${height}px`
-      cardDiv.style.aspectRatio = 'unset'
-
-      await new Promise(r => setTimeout(r, 100)) // let browser reflow
-
-      const canvas = await html2canvas(cardDiv, {
-        scale: 3,
-        backgroundColor: '#0a0908', // html2canvas: can't read CSS variables
-        useCORS: true,
-        allowTaint: true,
-        logging: false,
-        width,
-        height,
-        scrollX: 0,
-        scrollY: 0,
-      })
-
-      // Restore original styles
-      cardDiv.style.height = originalHeight
-      cardDiv.style.aspectRatio = originalAspectRatio
-
-      canvas.toBlob(async (blob) => {
-        if (!blob) return
-        const file = new File([blob], 'setlistr-card.png', { type: 'image/png' })
-        if (navigator.share && navigator.canShare({ files: [file] })) {
-          await navigator.share({
-            files: [file],
-            title: `${performance?.artist_name} at ${performance?.venue_name}`,
-          })
-        } else {
-          const url = URL.createObjectURL(blob)
-          const a = document.createElement('a')
-          a.href = url
-          a.download = 'setlistr-card.png'
-          a.click()
-          URL.revokeObjectURL(url)
-        }
-      }, 'image/png')
+      if (navigator.share && navigator.canShare?.({ files: [file] })) {
+        await navigator.share({ files: [file], title: `${performance?.artist_name} at ${performance?.venue_name}` })
+        return
+      }
     } catch (err) {
+      if ((err as any)?.name === 'AbortError') return   // the artist closed the share sheet
       console.error('Share failed:', err)
     }
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = file.name
+    a.click()
+    URL.revokeObjectURL(url)
   }
 
   const handleSave = useCallback(async () => {
@@ -1064,6 +1041,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
       const me = data.find(r => r.id === performance.id)
       const counted = !!me && isCapturedShow(me)
       setRecordFinish({ status: 'ready', count: record.count, isLatest: counted && record.lastShow?.id === performance.id, added: counted && !wasCounted })
+      setHeldMilestone(milestoneHeldBy(data, performance.id))
     }, () => setRecordFinish({ status: 'unavailable' }))
 
     // ── Optional after a confirmed save: never decides whether it saved ──
@@ -1125,13 +1103,10 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
           if (!song.title?.trim()) continue
           if (!await writeUserSongFromReview(supabase, song.title, song.artist || '', actingAsArtistId || user.id, performance.id)) catalogComplete = false
         }
-        // computeShowNumber uses performance.user_id, not actingAsArtistId like
-        // fetchIntelligence above — a show's number belongs to the artist whose
-        // career it is, not whoever's looking. Same rule as submit's PRO identity.
         momentsStarted = true
         fetchIntelligence(actingAsArtistId || user.id, performance.venue_name, kept.map(s => s.title).filter(Boolean), catalogComplete)
-        const num = await computeShowNumber(performance.user_id, performance.id)
-        setComputedShowNumber(num)
+        // No chronological show number: the share cards use the milestone this
+        // show holds on the record (heldMilestone, from the record read above).
       }
     } catch (err) { console.error('[ReviewSave]', err) }
     if (!momentsStarted) setIntelligenceState('failed')
@@ -1345,9 +1320,9 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
     const moments: Array<{ label: string; detail: string }> = []
     if (intelligence) {
       if (intelligence.songDebuts.length > 0) moments.push({ label: 'First appearance on your record', detail: intelligence.songDebuts.join(', ') })
-      // Only when this save put the show on the record AND completed a block
-      // of the dashboard's milestones — never for an already-counted show.
-      if (recordFinish.status === 'ready' && recordFinish.added && recordFinish.count % MILESTONE_STEP === 0) moments.push({ label: 'Milestone', detail: `Show ${recordFinish.count} on your record` })
+      // The milestone this show holds by its place on the record (show-date
+      // order), whether this is its first save or a later one. Never "new".
+      if (heldMilestone) moments.push({ label: 'Milestone', detail: `Show ${heldMilestone} on your record` })
       const v = intelligence.venueVisits
       if (v === 1) moments.push({ label: 'New room', detail: `First show on your record at ${performance?.venue_name}` })
       else if (v > 1) moments.push({ label: 'Back again', detail: `${ordinal(v)} show at ${performance?.venue_name}` })
@@ -1444,31 +1419,31 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
               <div className="cer-share" style={enter(0.55)}>
           {/* ── SHARE CARDS ── */}
               {(() => {
-                  const SPECIAL_MILESTONES = [1, 5, 10, 25, 50, 75, 100, 150, 200, 250]
-                  const showNumber = computedShowNumber || 0
-                  const isMilestone = showNumber > 0 && SPECIAL_MILESTONES.includes(showNumber)
                   const royaltyAmount = estimate.expected
+                  const artist = performance?.artist_name || ''
+                  const venue = performance?.venue_name || ''
 
-                  const cards = [
+                  const cards: Array<{ id: string; label: string; formats: boolean; component: React.ReactNode }> = [
                     {
-                      id: 'tonights_run',
-                      label: "Tonight's Run",
+                      id: 'night',
+                      label: 'The night',
+                      formats: true,
                       component: (
-                        <TonightsRunCard
-                          artistName={performance?.artist_name || ''}
-                          venueName={performance?.venue_name || ''}
+                        <NightCard
+                          format={shareFormat}
+                          photoUrl={photoUrl}
+                          artistName={artist}
+                          venueName={venue}
                           city={performance?.city || ''}
                           date={showDate}
                           songCount={confirmedSongs.length}
-                          minutes={durMins && durMins > 0 ? durMins : undefined}
-                          showNumber={showNumber}
-                          photoUrl={photoUrl}
                         />
                       )
                     },
                     ...(intelligence && intelligence.songDebuts.length > 0 ? [{
                       id: 'song_debut',
                       label: `First appearance`,
+                      formats: false,
                       component: (
                         <SongDebutCard
                           songTitle={intelligence!.songDebuts[0]}
@@ -1479,19 +1454,24 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
                         />
                       )
                     }] : []),
-                    ...(showNumber > 0 ? [{
+                    ...(heldMilestone ? [{
                       id: 'milestone',
-                      label: `Show #${showNumber}`,
+                      label: `Milestone ${heldMilestone}`,
+                      formats: true,
                       component: (
                         <MilestoneCard
-                          showNumber={showNumber}
-                          artistName={performance?.artist_name || ''}
+                          format={shareFormat}
+                          milestone={heldMilestone}
+                          artistName={artist}
+                          venueName={venue}
+                          date={showDate}
                         />
                       )
                     }] : []),
                     {
                       id: 'royalty_moment',
                       label: 'Royalty Moment',
+                      formats: false,
                       component: (
                         <RoyaltyMomentCard
                           artistName={performance?.artist_name || ''}
@@ -1503,11 +1483,26 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
                     },
                   ]
 
+                  const active = cards[Math.min(activeCardIndex, cards.length - 1)]
+                  const format: ShareFormat = active.formats ? shareFormat : 'story'
                   return (
                     <div style={{ marginBottom: 16, opacity: 0, animation: 'fadeUp 0.6s 1.0s ease forwards' }}>
-                      <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.muted, margin: '0 0 12px' }}>
-                        Your cards
-                      </p>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, margin: '0 0 12px' }}>
+                        <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.muted, margin: 0 }}>
+                          Your cards
+                        </p>
+                        {/* Story (9:16) or Feed (4:5): each composed for its frame; the preview is what's shared. */}
+                        {active.formats && (
+                          <div role="group" aria-label="Card format" style={{ display: 'inline-flex', border: '1px solid color-mix(in srgb, var(--sl-text) 14%, transparent)', borderRadius: 999, padding: 2 }}>
+                            {(['story', 'feed'] as ShareFormat[]).map(f => (
+                              <button key={f} onClick={() => { setShareFormat(f); setShareState('idle') }} aria-pressed={shareFormat === f}
+                                style={{ minHeight: 32, padding: '0 12px', borderRadius: 999, border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: 12.5, fontWeight: 700, background: shareFormat === f ? 'color-mix(in srgb, var(--sl-accent) 16%, transparent)' : 'transparent', color: shareFormat === f ? 'var(--sl-gold-text)' : C.secondary }}>
+                                {f === 'story' ? 'Story' : 'Feed'}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
 
                       {/* Card display with swipe support */}
                       <div
@@ -1530,7 +1525,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
                           }
                         }}
                       >
-                        {cards[activeCardIndex].component}
+                        {active.component}
                       </div>
 
                       {/* Card selector dots */}
@@ -1556,8 +1551,12 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
                       )}
 
                       {/* Share button */}
+                      {shareState === 'failed' && (
+                        <p role="alert" style={{ fontSize: 13.5, color: 'var(--sl-text)', margin: '0 0 10px', lineHeight: 1.45 }}>The image couldn’t be created. Try again.</p>
+                      )}
                       <button
-                        onClick={shareCard}
+                        onClick={() => shareCard(format)}
+                        disabled={shareState === 'working'}
                         style={{
                           width: '100%', padding: '14px',
                           background: 'transparent',
@@ -1569,7 +1568,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
                           justifyContent: 'center', gap: 8,
                           letterSpacing: '0.04em',
                         }}>
-                        ✦ Share this card
+                        {shareState === 'working' ? 'Preparing the image…' : '✦ Share this card'}
                       </button>
                     </div>
                   )
