@@ -1,0 +1,29 @@
+# Production-size timing on the disposable stack (production shape). Seed: user_songs 1088, largest artist 598, performance_songs 3548, markers 2103. An 18-song show (12 known songs, 6 new), completed and rolled back, 5 runs:
+Trigger performances_record_catalog: time=1.583 calls=1 Execution Time: 2.918 ms 
+Trigger performances_record_catalog: time=1.531 calls=1 Execution Time: 2.937 ms 
+Trigger performances_record_catalog: time=1.286 calls=1 Execution Time: 2.327 ms 
+Trigger performances_record_catalog: time=1.212 calls=1 Execution Time: 2.179 ms 
+Trigger performances_record_catalog: time=1.231 calls=1 Execution Time: 2.188 ms 
+
+# Plan of the function's lookups on that data:
+Hash Left Join
+  Hash Cond: (ps.title = us.song_title)
+  InitPlan 1
+    ->  Seq Scan on performances
+          Filter: (artist_name = 'Timed'::text)
+  InitPlan 2
+    ->  Seq Scan on performances performances_1
+          Filter: (artist_name = 'Timed'::text)
+  InitPlan 3
+    ->  Seq Scan on performances performances_2
+          Filter: (artist_name = 'Timed'::text)
+  ->  Nested Loop Left Join
+        ->  Seq Scan on performance_songs ps
+              Filter: (performance_id = (InitPlan 3).col1)
+        ->  Index Scan using idx_usp_lookup on user_song_performances m
+              Index Cond: ((user_id = (InitPlan 1).col1) AND (performance_id = (ps.performance_id)::text) AND (normalized_title = lower(ps.title)))
+  ->  Hash
+        ->  Bitmap Heap Scan on user_songs us
+              Recheck Cond: (user_id = (InitPlan 2).col1)
+              ->  Bitmap Index Scan on user_songs_user_id_song_title_key
+                    Index Cond: (user_id = (InitPlan 2).col1)

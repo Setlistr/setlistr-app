@@ -1,62 +1,61 @@
-# Catalogue repair: final review package
+# Catalogue repair: review package, revision 2
 
-**Status:** prepared for approval. **Not applied anywhere.** No production check, write, backfill or deployment has been made. Merge held.
+**Status:** revised against the production preflight. **Not applied anywhere.** No migration, production write, backfill, deployment or merge. Approval stays held until preflight Runs 2 and 3 are back and reviewed.
 
 ## What to approve
 
 | Item | Where |
 |---|---|
-| SQL, exact | `proposed-migration.sql` (statement-for-statement the SQL tested on the disposable stack) |
-| App candidate | `fix/catalog-on-complete-app` @ **0d5dd82cc4ce2854184191b7a7507e69f3c04593** (on `design/share-cards` @ e47c879); diff in `app.patch` |
-| Preflight (read-only) | SQL Editor: [PREFLIGHT.md](PREFLIGHT.md) (`preflight-sql-editor-run1.sql`, `-run2-plan.sql`); psql: `preflight.sql` |
-| Rollout / rollback (revised: the SQL stays) | [ROLLOUT.md](ROLLOUT.md) |
-| Mixed-writer guarantees and races | [OVERLAP.md](OVERLAP.md) |
+| SQL, exact (revision 2) | [`proposed-migration.sql`](proposed-migration.sql); the file tested is byte-identical |
+| App candidate (unchanged) | `fix/catalog-on-complete-app` @ **0d5dd82cc4ce2854184191b7a7507e69f3c04593**, local only (remote deleted to contain the Preview), on `design/share-cards` @ e47c879; diff in `app.patch` |
+| Preflight | [PREFLIGHT.md](PREFLIGHT.md): Run 1 findings; Runs 2 and 3 prepared |
+| Rollout / rollback | [ROLLOUT.md](ROLLOUT.md): SQL first; the SQL stays; fix forward |
+| Mixed writers | [OVERLAP.md](OVERLAP.md): corrected for production's unique key |
+| Separate permission finding | [FINDING-catalogue-policies.md](FINDING-catalogue-policies.md) |
 
-## Behaviour after release
+## What changed from revision 1, and why
 
-- **Recorded with the save:** a review save records the artist's song catalogue inside its final write. A confirmed save always has its catalogue, including when the page closes the moment the summary appears.
-- **Manager and Tour Manager** saves update the artist's catalogue. Viewers remain refused.
-- **A catalogue failure rejects completion.** The page says the songs and edits are saved and the show couldn't be completed.
-  - **Permanent rejections** (constraint, data, permission) don't offer Try again and give a reference: `record the song catalogue · <code> · <constraint>`.
-  - **Temporary failures** (serialization failure, deadlock, lock or statement timeout, busy server) offer Try again, which completes without adding anything twice.
-- **Played planned songs:** a planned song marked "Played" is stored as played and counted; a planned song not marked isn't.
+| Production finding | Change |
+|---|---|
+| `user_songs` has UNIQUE (user_id, song_title) | **Bug fixed.** Revision 1 updated, then inserted. When another writer created the song's row in between, its insert failed with `23505`, and the page would have reported a permanent failure. Revision 2 uses one atomic `INSERT … ON CONFLICT DO UPDATE`. Demonstrated failing on revision 1 and passing on revision 2. |
+| The unique key serializes writers of the same song | the per-artist advisory lock is removed; songs are written in key order (0 deadlocks in 12 concurrent rounds) |
+| `user_song_performances.performance_id` is text | markers written explicitly as `id::text`, the app's form (revision 1 also worked, through an assignment cast) |
+| the migration's correctness depends on production's shape | a precondition block aborts the migration, changing nothing, if the column type, either unique key or the status check differs |
 
-## Test results (disposable stack, RLS on, real patched page)
+**Intended behaviour (unchanged):**
+- authorized Managers and Tour Managers update the artist's catalogue;
+- a catalogue failure prevents final completion while keeping edits;
+- Try again is offered only for temporary failures.
+
+## Test results: disposable stack in production's shape
+
+**The shape is verified:** the same Run 1 on the disposable database matches production on every column type, nullability, constraint, policy, access function, index and trigger the repair touches (`final2/shape-check.out`). The only extra object is the proposed trigger. Production's Notion webhook trigger is reproduced against a closed local port.
 
 | Suite | Result |
 |---|---|
-| A · candidate: roles, played planned, capture, re-save, concurrency, failure boundary, optional failures | 23/23 (`final/suite-A-candidate.log`) |
-| B · overlap with deployed `main` and old tabs; rollback order; plus the candidate's lost response, close-at-success and imports, which ran in this second run | 6/6 + 4/4 (`final/suite-B-overlap-rollback.log`) |
-| save-stages (a lost response and a retry at every stage) | 94/94 |
-| fix-verify (scenario 5 replaced by the boundary tests) | 54/54 |
-| Layout invariants · record summary | 146/146 · 31/31 |
-| Type-check · production build | pass |
+| Database level (`db-verify`): types, unique-key races, deadlocks, Notion webhook, function permissions, table access | **17/17**, plus 7 reported findings |
+| Browser (`prod-verify`): roles, played planned, capture, re-save, concurrency, failure boundary 5a–5d, overlap B1–B5, lost response, close at success, imports | **34/34** |
+| save-stages (a lost response and a retry at every stage) | **94/94** |
+| fix-verify (scenario 5 replaced by 5a–5d) | **54/54** |
+| Production-size timing (1,088 catalogue rows, largest artist 598; 3,548 songs; 2,103 markers) | **1.2–1.6 ms** per 18-song completion; both lookups use the unique indexes |
 
-The suites ran against the commit's code; save-stages and fix-verify also ran with the wording change in place.
+Checks against the earlier claims:
+- **5c real contention** is now a row lock on the artist's catalogue row. The statement timeout arrives as `57014` untagged, is treated as temporary, and the retry completes.
+- **B1** passes for both the owner and a Manager through deployed `main`.
+- **B4** (`main` + candidate at once): the candidate completes, 2 markers, always one row; the total is 2, or 1 if `main` loses the race.
 
-**The failure boundary (rewrites of fix-verify #5 and opt-fail's catalogue case).** Each injection is confirmed by the final write's own response:
+## Remaining risks and open items
 
-| Case | Response | Result |
-|---|---|---|
-| Permanent catalogue rejection | 23514, tagged | the original safety assertions hold: no celebration, show not complete, no partial catalogue, no first-appearance claim; edits and the linked show's finish kept. A retry, once the cause is gone, completes, and the first-appearance claims match the catalogue exactly. |
-| Temporary catalogue failure | 40001, tagged | Try again offered and completes |
-| Real lock contention | 57014, untagged (statement timeout) | treated as temporary; Try again completes |
-| Telemetry and intelligence failures | fired 2 and 1 times | the save still completes; the page sent 0 catalogue writes |
+- **Preflight Runs 2 and 3 are not yet run.** They cover the production plan, the table grants, column defaults and the unmatched-marker categories.
+- **Unmatched markers:** 1,007 of 2,103 don't match a current song of their show. Uncategorized until Run 3. They're not treated as lost counts, and there's no backfill.
+- **Unlocked writers can lose a count** when racing on the same new or existing song (R2, R3 in OVERLAP.md). They never add one. Affected: old tabs until they reload; capture, uploads and delete/undo permanently, until those paths are repaired.
+- **Viewer write access to the catalogue** (separate finding). Not changed by this repair.
+- **Completion now depends on the catalogue:** a persistent catalogue error would stop shows completing; the SQL is fixed forward.
+- **Previews use the production database.** Don't publish a candidate Preview before the migration.
+- **Not tested:** native iOS sharing.
 
-## Remaining risks
-
-- **Production differs from the test schema.** The disposable schema was the local app schema plus the production objects this depends on (catalogue RLS, the status constraint). Other production-only objects weren't present. The preflight checks for them.
-- **No index on `user_songs (user_id, song_title)`.** The function scans per song: about 1–3 ms per save here, unmeasured at production size (preflight checks 10–11). Adding an index is a separate schema change.
-- **Completion now depends on the catalogue.** A persistent catalogue error would stop shows completing. Mitigation: the reference line names it, and rollback is app-first.
-- **Statement timeouts** reach the page untagged (PL/pgSQL can't catch them). They're still classified as temporary.
-- **Mixed-writer races** ([OVERLAP.md](OVERLAP.md)): no song is ever counted twice for a show, but an unlocked writer (old page-side loop, capture, uploads, delete/undo) racing another writer can lose an increment or split a new song across two rows.
-- **Rollback keeps the SQL:** removing the trigger while candidate code can still run loses data; see [ROLLOUT.md](ROLLOUT.md).
-- **Previews** appear to use the production database (see ROLLOUT.md).
-- **Native iOS** is not tested.
-
-## Explicitly NOT repaired by this change (remain open)
-
-- **Historical backfill:** counts already lost stay lost. Needs a separately approved backfill.
-- **Live capture and uploads:** `app/api/identify`, the live page, `upload-identify` and `upload-reconcile` still write the catalogue in two steps and can lose a count the same way.
-- **Notion webhook deduplication:** a repeated delivery is still counted twice.
-- **Historical shows left in `review`:** needs a separate read-only audit.
+**Explicitly NOT repaired by this change (still open):**
+- historical backfill;
+- the live-capture and upload catalogue writes;
+- Notion webhook deduplication;
+- the audit of historical shows left in review.

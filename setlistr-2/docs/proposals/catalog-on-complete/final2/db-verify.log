@@ -1,0 +1,45 @@
+
+— Production column types
+  ok   [types] markers are written to the text performance_id in the app's form (the uuid's text): 2 markers, match=true 
+  ok   [types] a marker written by the app (capture) is recognised by the trigger: Low Tide stays 1/1 
+  ok   [types, revision 1] revision 1 also writes markers on production's types (uuid → text is an assignment cast): no error, 1 marker 
+
+— Production uniqueness: user_songs UNIQUE (user_id, song_title)
+ERROR:  duplicate key value violates unique constraint "user_songs_user_id_song_title_key"
+DETAIL:  Key (user_id, song_title)=(53bfc9a1-0d2b-4f8e-812e-55553f5ce447, Race Song) already exists.
+CONTEXT:  SQL statement "INSERT INTO user_songs (user_id, song_title, canonical_artist, confirmed_count, last_confirmed_at)
+      VALUES (v_user, r.title, r.artist, 1, now())"
+PL/pgSQL function zz_rev1_record_performance_catalog(uuid) line 31 at SQL statement
+  ok   [race, revision 1] the concurrent row makes revision 1 fail: duplicate key value violates unique constraint "user_songs_user_id_song_title_key" 
+  ok   [race, revision 2] the upsert waits for the other writer, then counts onto its row: no error; Race Song 2/1 (total/rows) 
+  ok   [race, through the trigger] the final write completes the show: no error; status complete; Race Song 2/1 
+  FINDING [R2 lost count, not a split row] an unlocked writer that read "no row" and inserts after the trigger created it gets 23505 (main ignores it): two shows marked, Race Song 1/1 (total/rows) — one show's count is lost; no second row can exist
+  ok   [R2] production uniqueness: never two rows for the song; the unlocked writer's show is under-counted 
+  FINDING [R3 lost update] an unlocked writer that read 5, then wrote 5+1 after the trigger's atomic +1: Known Song 6/1 after two shows (should be 7/1)
+  ok   [R3] the trigger's own increment is atomic; the unlocked writer's absolute write overwrites it 
+
+— Concurrency: saves of the same artist sharing songs (trigger only)
+  ok   [deadlock-free] 12 rounds of two simultaneous completions sharing two songs in opposite positions: 0 errors; Shared A 24/1, Shared B 24/1 
+
+— Notion webhook trigger (production's notion_show_count, pointed at a closed local port)
+  ok   [notion] a successful completion still queues its webhook (1) and records the catalogue 
+ERROR:  song catalogue: new row for relation "user_songs" violates check constraint "zz_fail"
+HINT:  setlistr:song-catalogue
+CONTEXT:  PL/pgSQL function performances_record_catalog() line 6 at RAISE
+  ok   [notion] a rejected completion queues no webhook (0): the webhook and the catalogue roll back together (song catalogue: new row for relation "user_songs" violates c…) 
+
+— Function permissions
+  ok   [permissions] a signed-in user can't call the catalogue function directly (42501) 
+  ok   [permissions] nor the trigger function (PGRST202) 
+  ok   [permissions] EXECUTE revoked from anon and authenticated (record_performance_catalog:postgres=X/postgres service_role=X/postgres | performances_record_catalog:postgres=X/postgres service_role=X/postgres) 
+
+— Catalogue table access under production's policies (ALL USING can_act_for) — reported separately
+  FINDING [access] Manager on the artist's catalogue: read yes; insert yes; update yes; delete yes; pre-insert a show marker yes → song NOT counted at completion
+  FINDING [access] Viewer on the artist's catalogue: read yes; insert yes; update yes; delete yes; pre-insert a show marker yes → song NOT counted at completion
+  ok   [access] (demonstrated permission issue) a Viewer can write the artist's catalogue and pre-insert markers that stop songs being counted 
+  FINDING [access] Unrelated signed-in user on the artist's catalogue: read no rows; insert 42501; update no rows; delete no rows; pre-insert a show marker 42501
+  ok   [access] Unrelated signed-in user: no read, no write 
+  FINDING [access] Signed-out (anon) on the artist's catalogue: read no rows; insert 42501; update no rows; delete no rows; pre-insert a show marker 42501
+  ok   [access] Signed-out (anon): no read, no write 
+
+17 passed, 0 failed

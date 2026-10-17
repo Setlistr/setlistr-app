@@ -1,0 +1,223 @@
+◇ injected env (4) from ../../../../../../../Users/jesseslack/setlistr-manager-workspace/setlistr-2/.env.local // tip: ⌘ override existing { override: true }
+
+[setlist_items delete · rejected] fired=false · stages seen: position update, edited song update, new song insert, removed song update, not-detected resolve, detected resolve, mark songs reviewed, show status complete
+  1st: celebrated=true | status=complete show=live setlist=draft items=12 rows=14 encoreRows=1 edited=true removed=Copper Sky tbd=0 reviewedRows=14 guards=12
+  msg: 
+
+[setlist_items delete · lost] fired=false · stages seen: position update, edited song update, new song insert, removed song update, not-detected resolve, detected resolve, mark songs reviewed, show status complete
+  1st: celebrated=true | status=complete show=live setlist=draft items=12 rows=14 encoreRows=1 edited=true removed=Copper Sky tbd=0 reviewedRows=14 guards=12
+  msg: 
+
+[setlist_items insert · rejected] fired=false · stages seen: position update, edited song update, new song insert, removed song update, not-detected resolve, detected resolve, mark songs reviewed, show status complete
+  1st: celebrated=true | status=complete show=live setlist=draft items=12 rows=14 encoreRows=1 edited=true removed=Copper Sky tbd=0 reviewedRows=14 guards=12
+  msg: 
+
+[setlist_items insert · lost] fired=false · stages seen: position update, edited song update, new song insert, removed song update, not-detected resolve, detected resolve, mark songs reviewed, show status complete
+  1st: celebrated=true | status=complete show=live setlist=draft items=12 rows=14 encoreRows=1 edited=true removed=Copper Sky tbd=0 reviewedRows=14 guards=12
+  msg: 
+
+[setlists confirm · rejected] fired=false · stages seen: position update, edited song update, new song insert, removed song update, not-detected resolve, detected resolve, mark songs reviewed, show status complete
+  1st: celebrated=true | status=complete show=live setlist=draft items=12 rows=14 encoreRows=1 edited=true removed=Copper Sky tbd=0 reviewedRows=14 guards=12
+  msg: 
+
+[setlists confirm · lost] fired=false · stages seen: position update, edited song update, new song insert, removed song update, not-detected resolve, detected resolve, mark songs reviewed, show status complete
+  1st: celebrated=true | status=complete show=live setlist=draft items=12 rows=14 encoreRows=1 edited=true removed=Copper Sky tbd=0 reviewedRows=14 guards=12
+  msg: 
+  ok   new song insert · rejected: no duplicated song (1 copy) 
+  ok   new song insert · rejected: first attempt celebrates only if the show is complete in the database 
+  ok   new song insert · rejected: no "Nothing was marked complete" 
+  ok   new song insert · rejected: message matches what persisted (partial written; "Only part of the setlist was saved.") 
+  ok   new song insert · rejected: Try again completes (celebration after confirmed completion) 
+  ok   new song insert · rejected: catalog counted once (Encore 1, Paper Boats +1) 
+
+[new song insert · rejected] fired=true · stages seen: position update, edited song update, new song insert, removed song update, not-detected resolve, detected resolve, mark songs reviewed, show status complete
+  1st: celebrated=false | status=review show=live setlist=draft items=12 rows=13 encoreRows=0 edited=true removed=- tbd=13 reviewedRows=0 guards=0
+  msg: Only part of the setlist was saved. Your edits are still here, and trying again finishes the save without adding any song twice.
+Reference: add a song · XX000
+  retry: celebrated=true count=12 | status=complete show=live setlist=draft items=12 rows=14 encoreRows=1 tbd=0 guards=12 encoreCount=1 paperCount=26 (seed 25)
+  ok   new song insert · lost: no duplicated song (1 copy) 
+  ok   new song insert · lost: first attempt celebrates only if the show is complete in the database 
+  ok   new song insert · lost: no "Nothing was marked complete" 
+  ok   new song insert · lost: message matches what persisted (partial written; "The connection dropped before the save could be confirmed.") 
+  ok   new song insert · lost: Try again completes (celebration after confirmed completion) 
+  ok   new song insert · lost: catalog counted once (Encore 1, Paper Boats +1) 
+
+[new song insert · lost] fired=true · stages seen: position update, edited song update, new song insert, removed song update, not-detected resolve, detected resolve, mark songs reviewed, show status complete
+  1st: celebrated=false | status=review show=live setlist=draft items=12 rows=14 encoreRows=1 edited=true removed=- tbd=13 reviewedRows=0 guards=0
+  msg: The connection dropped before the save could be confirmed. Your edits are still here, and trying again won’t add any song twice.
+Reference: add a song
+  retry: celebrated=true count=12 | status=complete show=live setlist=draft items=12 rows=14 encoreRows=1 tbd=0 guards=12 encoreCount=1 paperCount=26 (seed 25)
+  ok   edited song update · rejected: no duplicated song (1 copy) 
+  ok   edited song update · rejected: first attempt celebrates only if the show is complete in the database 
+  ok   edited song update · rejected: no "Nothing was marked complete" 
+  ok   edited song update · rejected: message matches what persisted (nothing written; "The setlist couldn’t be saved.") 
+  ok   edited song update · rejected: Try again completes (celebration after confirmed completion) 
+  ok   edited song update · rejected: catalog counted once (Encore 1, Paper Boats +1) 
+
+[edited song update · rejected] fired=true · stages seen: position update, edited song update, new song insert, removed song update, not-detected resolve, detected resolve, mark songs reviewed, show status complete
+  1st: celebrated=false | status=review show=live setlist=draft items=12 rows=13 encoreRows=0 edited=false removed=- tbd=13 reviewedRows=0 guards=0
+  msg: The setlist couldn’t be saved. Your edits are still here, so you can try again.
+Reference: update a song · XX000
+  retry: celebrated=true count=12 | status=complete show=live setlist=draft items=12 rows=14 encoreRows=1 tbd=0 guards=12 encoreCount=1 paperCount=26 (seed 25)
+  ok   edited song update · lost: no duplicated song (1 copy) 
+  ok   edited song update · lost: first attempt celebrates only if the show is complete in the database 
+  ok   edited song update · lost: no "Nothing was marked complete" 
+  ok   edited song update · lost: message matches what persisted (partial written; "The connection dropped before the save could be confirmed.") 
+  ok   edited song update · lost: Try again completes (celebration after confirmed completion) 
+  ok   edited song update · lost: catalog counted once (Encore 1, Paper Boats +1) 
+
+[edited song update · lost] fired=true · stages seen: position update, edited song update, new song insert, removed song update, not-detected resolve, detected resolve, mark songs reviewed, show status complete
+  1st: celebrated=false | status=review show=live setlist=draft items=12 rows=13 encoreRows=0 edited=true removed=- tbd=13 reviewedRows=0 guards=0
+  msg: The connection dropped before the save could be confirmed. Your edits are still here, and trying again won’t add any song twice.
+Reference: update a song
+  retry: celebrated=true count=12 | status=complete show=live setlist=draft items=12 rows=14 encoreRows=1 tbd=0 guards=12 encoreCount=1 paperCount=26 (seed 25)
+  ok   position update · rejected: no duplicated song (1 copy) 
+  ok   position update · rejected: first attempt celebrates only if the show is complete in the database 
+  ok   position update · rejected: no "Nothing was marked complete" 
+  ok   position update · rejected: message matches what persisted (nothing written; "The setlist couldn’t be saved.") 
+  ok   position update · rejected: Try again completes (celebration after confirmed completion) 
+  ok   position update · rejected: catalog counted once (Encore 1, Paper Boats +1) 
+
+[position update · rejected] fired=true · stages seen: position update, edited song update, new song insert, removed song update, not-detected resolve, detected resolve, mark songs reviewed, show status complete
+  1st: celebrated=false | status=review show=live setlist=draft items=12 rows=13 encoreRows=0 edited=false removed=- tbd=13 reviewedRows=0 guards=0
+  msg: The setlist couldn’t be saved. Your edits are still here, so you can try again.
+Reference: update song order · XX000
+  retry: celebrated=true count=12 | status=complete show=live setlist=draft items=12 rows=14 encoreRows=1 tbd=0 guards=12 encoreCount=1 paperCount=26 (seed 25)
+  ok   position update · lost: no duplicated song (1 copy) 
+  ok   position update · lost: first attempt celebrates only if the show is complete in the database 
+  ok   position update · lost: no "Nothing was marked complete" 
+  ok   position update · lost: message matches what persisted (nothing written; "The connection dropped before the save could be confirmed.") 
+  ok   position update · lost: Try again completes (celebration after confirmed completion) 
+  ok   position update · lost: catalog counted once (Encore 1, Paper Boats +1) 
+
+[position update · lost] fired=true · stages seen: position update, edited song update, new song insert, removed song update, not-detected resolve, detected resolve, mark songs reviewed, show status complete
+  1st: celebrated=false | status=review show=live setlist=draft items=12 rows=13 encoreRows=0 edited=false removed=- tbd=13 reviewedRows=0 guards=0
+  msg: The connection dropped before the save could be confirmed. Your edits are still here, and trying again won’t add any song twice.
+Reference: update song order
+  retry: celebrated=true count=12 | status=complete show=live setlist=draft items=12 rows=14 encoreRows=1 tbd=0 guards=12 encoreCount=1 paperCount=26 (seed 25)
+  ok   removed song update · rejected: no duplicated song (1 copy) 
+  ok   removed song update · rejected: first attempt celebrates only if the show is complete in the database 
+  ok   removed song update · rejected: no "Nothing was marked complete" 
+  ok   removed song update · rejected: message matches what persisted (partial written; "Only part of the setlist was saved.") 
+  ok   removed song update · rejected: Try again completes (celebration after confirmed completion) 
+  ok   removed song update · rejected: catalog counted once (Encore 1, Paper Boats +1) 
+
+[removed song update · rejected] fired=true · stages seen: position update, edited song update, new song insert, removed song update, not-detected resolve, detected resolve, mark songs reviewed, show status complete
+  1st: celebrated=false | status=review show=live setlist=draft items=12 rows=14 encoreRows=1 edited=true removed=- tbd=13 reviewedRows=0 guards=0
+  msg: Only part of the setlist was saved. Your edits are still here, and trying again finishes the save without adding any song twice.
+Reference: remove a song · XX000
+  retry: celebrated=true count=12 | status=complete show=live setlist=draft items=12 rows=14 encoreRows=1 tbd=0 guards=12 encoreCount=1 paperCount=26 (seed 25)
+  ok   removed song update · lost: no duplicated song (1 copy) 
+  ok   removed song update · lost: first attempt celebrates only if the show is complete in the database 
+  ok   removed song update · lost: no "Nothing was marked complete" 
+  ok   removed song update · lost: message matches what persisted (partial written; "The connection dropped before the save could be confirmed.") 
+  ok   removed song update · lost: Try again completes (celebration after confirmed completion) 
+  ok   removed song update · lost: catalog counted once (Encore 1, Paper Boats +1) 
+
+[removed song update · lost] fired=true · stages seen: position update, edited song update, new song insert, removed song update, not-detected resolve, detected resolve, mark songs reviewed, show status complete
+  1st: celebrated=false | status=review show=live setlist=draft items=12 rows=14 encoreRows=1 edited=true removed=Copper Sky tbd=12 reviewedRows=0 guards=0
+  msg: The connection dropped before the save could be confirmed. Your edits are still here, and trying again won’t add any song twice.
+Reference: remove a song
+  retry: celebrated=true count=12 | status=complete show=live setlist=draft items=12 rows=14 encoreRows=1 tbd=0 guards=12 encoreCount=1 paperCount=26 (seed 25)
+  ok   not-detected resolve · rejected: no duplicated song (1 copy) 
+  ok   not-detected resolve · rejected: first attempt celebrates only if the show is complete in the database 
+  ok   not-detected resolve · rejected: no "Nothing was marked complete" 
+  ok   not-detected resolve · rejected: message matches what persisted (partial written; "Only part of the setlist was saved.") 
+  ok   not-detected resolve · rejected: Try again completes (celebration after confirmed completion) 
+  ok   not-detected resolve · rejected: catalog counted once (Encore 1, Paper Boats +1) 
+
+[not-detected resolve · rejected] fired=true · stages seen: position update, edited song update, new song insert, removed song update, not-detected resolve, detected resolve, mark songs reviewed, show status complete
+  1st: celebrated=false | status=review show=live setlist=draft items=12 rows=14 encoreRows=1 edited=true removed=Copper Sky tbd=12 reviewedRows=0 guards=0
+  msg: Only part of the setlist was saved. Your edits are still here, and trying again finishes the save without adding any song twice.
+Reference: resolve detections · XX000
+  retry: celebrated=true count=12 | status=complete show=live setlist=draft items=12 rows=14 encoreRows=1 tbd=0 guards=12 encoreCount=1 paperCount=26 (seed 25)
+  ok   not-detected resolve · lost: no duplicated song (1 copy) 
+  ok   not-detected resolve · lost: first attempt celebrates only if the show is complete in the database 
+  ok   not-detected resolve · lost: no "Nothing was marked complete" 
+  ok   not-detected resolve · lost: message matches what persisted (partial written; "The connection dropped before the save could be confirmed.") 
+  ok   not-detected resolve · lost: Try again completes (celebration after confirmed completion) 
+  ok   not-detected resolve · lost: catalog counted once (Encore 1, Paper Boats +1) 
+
+[not-detected resolve · lost] fired=true · stages seen: position update, edited song update, new song insert, removed song update, not-detected resolve, detected resolve, mark songs reviewed, show status complete
+  1st: celebrated=false | status=review show=live setlist=draft items=12 rows=14 encoreRows=1 edited=true removed=Copper Sky tbd=11 reviewedRows=0 guards=0
+  msg: The connection dropped before the save could be confirmed. Your edits are still here, and trying again won’t add any song twice.
+Reference: resolve detections
+  retry: celebrated=true count=12 | status=complete show=live setlist=draft items=12 rows=14 encoreRows=1 tbd=0 guards=12 encoreCount=1 paperCount=26 (seed 25)
+  ok   detected resolve · rejected: no duplicated song (1 copy) 
+  ok   detected resolve · rejected: first attempt celebrates only if the show is complete in the database 
+  ok   detected resolve · rejected: no "Nothing was marked complete" 
+  ok   detected resolve · rejected: message matches what persisted (partial written; "Only part of the setlist was saved.") 
+  ok   detected resolve · rejected: Try again completes (celebration after confirmed completion) 
+  ok   detected resolve · rejected: catalog counted once (Encore 1, Paper Boats +1) 
+
+[detected resolve · rejected] fired=true · stages seen: position update, edited song update, new song insert, removed song update, not-detected resolve, detected resolve, mark songs reviewed, show status complete
+  1st: celebrated=false | status=review show=live setlist=draft items=12 rows=14 encoreRows=1 edited=true removed=Copper Sky tbd=11 reviewedRows=0 guards=0
+  msg: Only part of the setlist was saved. Your edits are still here, and trying again finishes the save without adding any song twice.
+Reference: resolve detections · XX000
+  retry: celebrated=true count=12 | status=complete show=live setlist=draft items=12 rows=14 encoreRows=1 tbd=0 guards=12 encoreCount=1 paperCount=26 (seed 25)
+  ok   detected resolve · lost: no duplicated song (1 copy) 
+  ok   detected resolve · lost: first attempt celebrates only if the show is complete in the database 
+  ok   detected resolve · lost: no "Nothing was marked complete" 
+  ok   detected resolve · lost: message matches what persisted (partial written; "The connection dropped before the save could be confirmed.") 
+  ok   detected resolve · lost: Try again completes (celebration after confirmed completion) 
+  ok   detected resolve · lost: catalog counted once (Encore 1, Paper Boats +1) 
+
+[detected resolve · lost] fired=true · stages seen: position update, edited song update, new song insert, removed song update, not-detected resolve, detected resolve, mark songs reviewed, show status complete
+  1st: celebrated=false | status=review show=live setlist=draft items=12 rows=14 encoreRows=1 edited=true removed=Copper Sky tbd=0 reviewedRows=0 guards=0
+  msg: The connection dropped before the save could be confirmed. Your edits are still here, and trying again won’t add any song twice.
+Reference: resolve detections
+  retry: celebrated=true count=12 | status=complete show=live setlist=draft items=12 rows=14 encoreRows=1 tbd=0 guards=12 encoreCount=1 paperCount=26 (seed 25)
+  ok   mark songs reviewed · rejected: no duplicated song (1 copy) 
+  ok   mark songs reviewed · rejected: first attempt celebrates only if the show is complete in the database 
+  ok   mark songs reviewed · rejected: no "Nothing was marked complete" 
+  ok   mark songs reviewed · rejected: message matches what persisted (partial written; "Only part of the setlist was saved.") 
+  ok   mark songs reviewed · rejected: Try again completes (celebration after confirmed completion) 
+  ok   mark songs reviewed · rejected: catalog counted once (Encore 1, Paper Boats +1) 
+
+[mark songs reviewed · rejected] fired=true · stages seen: position update, edited song update, new song insert, removed song update, not-detected resolve, detected resolve, mark songs reviewed, show status complete
+  1st: celebrated=false | status=review show=live setlist=draft items=12 rows=14 encoreRows=1 edited=true removed=Copper Sky tbd=0 reviewedRows=0 guards=0
+  msg: Only part of the setlist was saved. Your edits are still here, and trying again finishes the save without adding any song twice.
+Reference: mark songs reviewed · XX000
+  retry: celebrated=true count=12 | status=complete show=live setlist=draft items=12 rows=14 encoreRows=1 tbd=0 guards=12 encoreCount=1 paperCount=26 (seed 25)
+  ok   mark songs reviewed · lost: no duplicated song (1 copy) 
+  ok   mark songs reviewed · lost: first attempt celebrates only if the show is complete in the database 
+  ok   mark songs reviewed · lost: no "Nothing was marked complete" 
+  ok   mark songs reviewed · lost: message matches what persisted (partial written; "The connection dropped before the save could be confirmed.") 
+  ok   mark songs reviewed · lost: Try again completes (celebration after confirmed completion) 
+  ok   mark songs reviewed · lost: catalog counted once (Encore 1, Paper Boats +1) 
+
+[mark songs reviewed · lost] fired=true · stages seen: position update, edited song update, new song insert, removed song update, not-detected resolve, detected resolve, mark songs reviewed, show status complete
+  1st: celebrated=false | status=review show=live setlist=draft items=12 rows=14 encoreRows=1 edited=true removed=Copper Sky tbd=0 reviewedRows=14 guards=0
+  msg: The connection dropped before the save could be confirmed. Your edits are still here, and trying again won’t add any song twice.
+Reference: mark songs reviewed
+  retry: celebrated=true count=12 | status=complete show=live setlist=draft items=12 rows=14 encoreRows=1 tbd=0 guards=12 encoreCount=1 paperCount=26 (seed 25)
+  ok   show status complete · rejected: no duplicated song (1 copy) 
+  ok   show status complete · rejected: first attempt celebrates only if the show is complete in the database 
+  ok   show status complete · rejected: no "Nothing was marked complete" 
+  ok   show status complete · rejected: message matches what persisted (partial written; "Only part of the setlist was saved.") 
+  ok   show status complete · rejected: Try again completes (celebration after confirmed completion) 
+  ok   show status complete · rejected: catalog counted once (Encore 1, Paper Boats +1) 
+
+[show status complete · rejected] fired=true · stages seen: position update, edited song update, new song insert, removed song update, not-detected resolve, detected resolve, mark songs reviewed, show status complete
+  1st: celebrated=false | status=review show=live setlist=draft items=12 rows=14 encoreRows=1 edited=true removed=Copper Sky tbd=0 reviewedRows=14 guards=0
+  msg: Only part of the setlist was saved. Your edits are still here, and trying again finishes the save without adding any song twice.
+Reference: mark the show complete · XX000
+  retry: celebrated=true count=12 | status=complete show=live setlist=draft items=12 rows=14 encoreRows=1 tbd=0 guards=12 encoreCount=1 paperCount=26 (seed 25)
+  ok   show status complete · lost: no duplicated song (1 copy) 
+  ok   show status complete · lost: first attempt celebrates only if the show is complete in the database 
+  ok   show status complete · lost: no "Nothing was marked complete" 
+  ok   show status complete · lost: catalog counted once (Encore 1, Paper Boats +1) 
+
+[show status complete · lost] fired=true · stages seen: position update, edited song update, new song insert, removed song update, not-detected resolve, detected resolve, mark songs reviewed, show status complete
+  1st: celebrated=true | status=complete show=live setlist=draft items=12 rows=14 encoreRows=1 edited=true removed=Copper Sky tbd=0 reviewedRows=14 guards=12
+  msg: 
+
+[linked show complete · rejected] fired=false · stages seen: position update, edited song update, new song insert, removed song update, not-detected resolve, detected resolve, mark songs reviewed, show status complete
+  1st: celebrated=true | status=complete show=live setlist=draft items=12 rows=14 encoreRows=1 edited=true removed=Copper Sky tbd=0 reviewedRows=14 guards=12
+  msg: 
+
+[linked show complete · lost] fired=false · stages seen: position update, edited song update, new song insert, removed song update, not-detected resolve, detected resolve, mark songs reviewed, show status complete
+  1st: celebrated=true | status=complete show=live setlist=draft items=12 rows=14 encoreRows=1 edited=true removed=Copper Sky tbd=0 reviewedRows=14 guards=12
+  msg: 
+
+94 passed, 0 failed

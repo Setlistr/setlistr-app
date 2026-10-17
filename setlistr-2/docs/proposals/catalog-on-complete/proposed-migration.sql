@@ -1,9 +1,38 @@
--- PROPOSED MIGRATION — NOT APPLIED. Intended as supabase/migrations/0025_catalog_on_complete.sql
--- once approved. Apply BEFORE deploying the app candidate (see ROLLOUT.md).
+-- PROPOSED MIGRATION (revision 2, matched to the production preflight of 2026-10-17) — NOT APPLIED.
+-- Intended as supabase/migrations/0025_catalog_on_complete.sql once approved.
+-- Apply BEFORE deploying the app candidate (see ROLLOUT.md). Once applied, it stays.
+--
+-- Changes from revision 1, each from a production finding:
+--  * user_song_performances.performance_id is TEXT in production (performance ids are uuid):
+--    markers are written as p_performance_id::text, the form the app writes.
+--  * user_songs has UNIQUE (user_id, song_title) in production: the count is an atomic
+--    INSERT … ON CONFLICT DO UPDATE. Revision 1 updated, then inserted if nothing matched;
+--    against the unique key, a concurrent writer creating the row in between made the
+--    insert fail with 23505, which the page would have reported as a permanent failure.
+--  * The per-artist advisory lock is removed: the unique key and the upsert serialize
+--    writers of the same song; songs are written in key order, so two saves can't deadlock.
+--  * The migration first checks the production shape it depends on and aborts, changing
+--    nothing, if any part differs.
 
-
--- DRAFT for review — not applied anywhere. Catalogue update made part of the
--- review save's final write, in the same transaction.
+DO $$
+BEGIN
+  IF (SELECT data_type FROM information_schema.columns WHERE table_schema = 'public'
+        AND table_name = 'user_song_performances' AND column_name = 'performance_id') IS DISTINCT FROM 'text' THEN
+    RAISE EXCEPTION 'catalog_on_complete: expected user_song_performances.performance_id to be text';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'public.user_songs'::regclass AND contype = 'u'
+                   AND pg_get_constraintdef(oid) = 'UNIQUE (user_id, song_title)') THEN
+    RAISE EXCEPTION 'catalog_on_complete: expected UNIQUE (user_id, song_title) on user_songs';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'public.user_song_performances'::regclass AND contype = 'u'
+                   AND pg_get_constraintdef(oid) = 'UNIQUE (user_id, performance_id, normalized_title)') THEN
+    RAISE EXCEPTION 'catalog_on_complete: expected UNIQUE (user_id, performance_id, normalized_title) on user_song_performances';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'performances_status_check'
+                   AND conrelid = 'public.performances'::regclass) THEN
+    RAISE EXCEPTION 'catalog_on_complete: expected performances_status_check';
+  END IF;
+END $$;
 
 -- Same key as lib/reconciliation/normalize.ts normalizeSongKey() (checked on a corpus).
 CREATE OR REPLACE FUNCTION public.song_catalog_key(title text)
@@ -24,8 +53,6 @@ DECLARE
 BEGIN
   SELECT user_id INTO v_user FROM performances WHERE id = p_performance_id;
   IF v_user IS NULL THEN RETURN 0; END IF;
-  -- One catalogue writer per artist at a time (user_songs has no unique key).
-  PERFORM pg_advisory_xact_lock(hashtextextended('user_songs:' || v_user::text, 0));
   FOR r IN
     SELECT DISTINCT ON (song_catalog_key(ps.title))
            song_catalog_key(ps.title) AS k, ps.title AS title, nullif(btrim(ps.artist), '') AS artist
@@ -34,27 +61,26 @@ BEGIN
       AND NOT coalesce(ps.artist_removed, false)
       AND coalesce(ps.source, '') <> 'planned'          -- planned, never marked played
       AND nullif(btrim(ps.title), '') IS NOT NULL
-    ORDER BY song_catalog_key(ps.title), ps.position
+    ORDER BY song_catalog_key(ps.title), ps.position   -- a fixed order: concurrent saves can't deadlock
   LOOP
     CONTINUE WHEN r.k = '';
     INSERT INTO user_song_performances (user_id, performance_id, normalized_title)
-    VALUES (v_user, p_performance_id, r.k)
+    VALUES (v_user, p_performance_id::text, r.k)
     ON CONFLICT (user_id, performance_id, normalized_title) DO NOTHING;
     CONTINUE WHEN NOT FOUND;                            -- already counted for this show
-    UPDATE user_songs SET confirmed_count = coalesce(confirmed_count, 0) + 1,
-                          canonical_artist = r.artist, last_confirmed_at = now()
-    WHERE id = (SELECT id FROM user_songs WHERE user_id = v_user AND song_title = r.title
-                ORDER BY confirmed_count DESC NULLS LAST, id LIMIT 1);
-    IF NOT FOUND THEN
-      INSERT INTO user_songs (user_id, song_title, canonical_artist, confirmed_count, last_confirmed_at)
-      VALUES (v_user, r.title, r.artist, 1, now());
-    END IF;
+    INSERT INTO user_songs AS us (user_id, song_title, canonical_artist, confirmed_count, last_confirmed_at)
+    VALUES (v_user, r.title, r.artist, 1, now())
+    ON CONFLICT (user_id, song_title) DO UPDATE
+      SET confirmed_count = coalesce(us.confirmed_count, 0) + 1,
+          canonical_artist = EXCLUDED.canonical_artist,
+          last_confirmed_at = EXCLUDED.last_confirmed_at;
     v_added := v_added + 1;
   END LOOP;
   RETURN v_added;
 END $$;
 -- Supabase grants EXECUTE on new public functions to anon and authenticated by
--- default, so revoking from PUBLIC alone is not enough. Only the trigger may run this.
+-- default (confirmed in production's default ACL), so revoking from PUBLIC alone
+-- is not enough. Only the trigger may run this.
 REVOKE EXECUTE ON FUNCTION public.record_performance_catalog(uuid) FROM PUBLIC, anon, authenticated;
 
 -- The review save's final required write sets status = 'complete' (the only

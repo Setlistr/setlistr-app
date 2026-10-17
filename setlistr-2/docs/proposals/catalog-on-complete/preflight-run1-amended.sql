@@ -1,16 +1,20 @@
--- Catalogue repair · PRODUCTION PREFLIGHT for the Supabase SQL Editor · RUN 1 of 2 · READ-ONLY
--- Same checks as preflight.sql, shaped for the SQL Editor (which shows only the last
--- statement's result): the session is made read-only, then ONE SELECT returns every
--- check as a single JSON document of definitions and counts. No personal row data.
--- Any write in this session would fail with "cannot execute ... in a read-only transaction".
-SET default_transaction_read_only = on;
-SET statement_timeout = '30s';
+-- Catalogue repair · PRODUCTION PREFLIGHT for the Supabase SQL Editor · RUN 1 of 2 · READ-ONLY · AMENDED
+-- Amendment (diagnosis only): checks 13 and 14 compare performance ids as text, because production's two
+-- performance_id columns differ in type. Adds 00_cli_login_roles (role names and expiry only).
+-- Same checks as preflight.sql: inside a READ ONLY transaction that is rolled back, ONE SELECT
+-- returns every check as a single JSON document of definitions and counts. No personal row data.
+-- Any write in this transaction would fail with "cannot execute ... in a read-only transaction".
+BEGIN TRANSACTION READ ONLY;
+SET LOCAL statement_timeout = '30s';
 
 SELECT jsonb_pretty(jsonb_build_object(
   'ran_at', now(),
-  'read_only', current_setting('default_transaction_read_only'),
+  'read_only', current_setting('transaction_read_only'),
   'database', current_database(),
   'role', jsonb_build_object('name', current_user, 'bypass_rls', (SELECT rolbypassrls FROM pg_roles WHERE rolname = current_user)),
+
+  '00_cli_login_roles', (SELECT coalesce(jsonb_agg(jsonb_build_object('name', rolname, 'can_login', rolcanlogin, 'valid_until', rolvaliduntil) ORDER BY rolname), '[]'::jsonb)
+                         FROM pg_roles WHERE rolname LIKE 'cli\_login\_%'),
 
   '01_columns', (SELECT jsonb_agg(jsonb_build_object('t', table_name, 'c', column_name, 'type', data_type, 'null', is_nullable) ORDER BY table_name, column_name)
                  FROM information_schema.columns
@@ -55,12 +59,14 @@ SELECT jsonb_pretty(jsonb_build_object(
                                            btrim(lower(ps.title)), '\(.*?\)', '', 'g'), '\[.*?\]', '', 'g'), '[-–—]', ' ', 'g'), '[^a-z0-9 ]', '', 'g'), '\s+', ' ', 'g')) AS key
                                   FROM public.performance_songs ps WHERE ps.title IS NOT NULL)
                                 SELECT jsonb_build_object('markers', count(*),
-                                  'matched', count(*) FILTER (WHERE EXISTS (SELECT 1 FROM k WHERE k.performance_id = m.performance_id AND k.key = m.normalized_title)))
+                                  'matched', count(*) FILTER (WHERE EXISTS (SELECT 1 FROM k WHERE k.performance_id::text = m.performance_id::text AND k.key = m.normalized_title)))
                                 FROM public.user_song_performances m),
 
-  '14_planned_rows_on_complete_shows', (SELECT count(*) FROM public.performance_songs ps JOIN public.performances p ON p.id = ps.performance_id
+  '14_planned_rows_on_complete_shows', (SELECT count(*) FROM public.performance_songs ps JOIN public.performances p ON p.id::text = ps.performance_id::text
                                         WHERE p.status = 'complete' AND ps.source = 'planned' AND NOT coalesce(ps.artist_removed, false)),
 
   '15_catalogue_rows_per_artist', (SELECT jsonb_build_object('artists', count(*), 'max_rows', coalesce(max(n), 0), 'p95_rows', coalesce(percentile_disc(0.95) WITHIN GROUP (ORDER BY n), 0))
                                    FROM (SELECT user_id, count(*) AS n FROM public.user_songs GROUP BY 1) a)
 )) AS preflight;
+
+ROLLBACK;

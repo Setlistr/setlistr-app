@@ -1,45 +1,50 @@
-# Mixed writers: what's guaranteed and what isn't
+# Mixed writers: what's guaranteed and what isn't (revision 2, corrected for production)
+
+**Corrected 2026-10-17.** The earlier version of this page was written against the local schema. Production has `UNIQUE (user_id, song_title)` on `user_songs`, which the local schema lacked. So:
+- **split rows can't happen in production;**
+- **the race instead loses a count;**
+- the earlier claim that the trigger "takes a per-artist lock" no longer applies, because revision 2 uses the unique key instead.
+
+All results below are from the disposable stack in production's shape (`final2/db-verify.log`, `final2/prod-verify.log`).
 
 ## Who writes the catalogue
 
 | Writer | How it counts a song for a show |
 |---|---|
-| **The trigger** (this migration) | inserts the per-show marker; if new, increments or creates the catalogue row **in the same transaction, under a per-artist lock**, with an atomic `confirmed_count = confirmed_count + 1` |
-| Review page in `main` and earlier builds (page-side loop) | inserts the marker; if new, **reads** the row, then **writes `existing + 1`** or inserts a new row; separate requests, no lock |
-| Live capture page, `api/identify`, `api/upload-identify`, `api/upload-reconcile` | the same read-then-write pattern, no lock |
-| Delete / undo routes | read the row, then write a recomputed count, no lock |
+| **The trigger** (revision 2) | inserts the per-show marker; if new, **one atomic upsert**, `INSERT … ON CONFLICT (user_id, song_title) DO UPDATE SET confirmed_count = confirmed_count + 1`, in the same transaction |
+| Review page in `main` and earlier builds (page-side loop) | inserts the marker; if new, **reads** the row, then **writes `existing + 1`**, or inserts a new row; separate requests |
+| Live capture page, `api/identify`, `api/upload-identify`, `api/upload-reconcile` | the same marker → read → write sequence |
+| Delete / undo routes | read the row, then write a recomputed count |
 
-## Guaranteed: no song is counted twice for the same show
+## Guaranteed
 
-Every writer must first insert the marker `(user, performance, normalized title)`, which is unique. Only the writer whose insert succeeds counts that song for that show, and all writers use the same key (`normalizeSongKey`, reproduced exactly in SQL).
+1. **No song is counted twice for the same show, by any mix of writers.** Every writer first inserts the unique marker `(user, performance, normalized title)`, and only the writer whose insert succeeds counts the song. All writers use the same key, `normalizeSongKey`, which has been unchanged since markers were introduced (checked in git history) and is reproduced exactly in SQL.
+2. **Never two catalogue rows for the same artist and title.** Production's unique key enforces it.
+3. **The trigger never fails, and never loses a count, because of another writer.** If another writer creates the song's row mid-save, the upsert waits and then counts onto that row (db-verify R1). For comparison, revision 1 failed there with `23505`, which the page would have shown as permanent.
+4. **Trigger with trigger is exact.** 12 rounds of two simultaneous completions sharing two songs in opposite positions: 0 errors, 0 deadlocks, both songs at exactly 24.
 
-This holds for every combination of writers. It was demonstrated with:
-- old tab, then candidate (B2);
-- old tab and candidate at once (B3);
-- `main` and candidate at once (B4);
-- capture markers, then review (suite A);
-- re-saves.
+## Not guaranteed: two races, both losing a count, never adding one
 
-## Not guaranteed: two mixed-writer races remain
+Both need **the same artist and the same song** written for two different shows at overlapping moments, where at least one writer is an **unlocked page or route writer**.
 
-Both need **the same artist and the same song** written by two different shows at overlapping moments (within roughly one round trip), where at least one writer is not the trigger.
-
-| Race | When | Effect on counts | Effect on catalogue lookups |
+| Race | Sequence (replayed step by step through PostgREST, as those writers run it) | Effect on counts | Effect on catalogue lookups |
 |---|---|---|---|
-| **Lost update (under-count)** | an unlocked writer reads N; the trigger, or another writer, raises it to N+1; the unlocked writer then writes its stale N+1 | the song ends 1 lower than it should; never higher | My Songs and Career show one fewer play; search ranks it slightly lower; a song left at 1 can look like a "first appearance" |
-| **Split row** | no row exists yet; an unlocked writer and the trigger (or two unlocked writers) each insert one | the total is correct, but spread over two rows (e.g. 1 + 1) | My Songs lists the song twice with partial counts; search ranks each row lower; "first appearance" (`confirmed_count = 1`) can be claimed wrongly; later trigger increments go to the higher-count row; the delete route may decrement either row. Capture matching (catalogue membership) is unaffected. |
+| **R2 · lost count** | the unlocked writer reads "no row"; another writer creates the row; the unlocked writer's insert gets `23505`. `main` ignores the error; the old candidate tab reports it. | one show's play of a **new** song is never counted (1 instead of 2). Its marker exists, so nothing later recounts it. | one row, one play too few; a song left at 1 can look like a "first appearance" on its second show |
+| **R3 · lost update** | the unlocked writer reads N; another writer makes it N+1; the unlocked writer writes its stale N+1 | one play too few (6 instead of 7 in the test) | the count, ranking and "first appearance" can be off by one |
 
-**What the tests show:**
-- **Trigger with trigger:** neither race can happen, because the lock serializes them. B3 found one row counted twice, and the race-free result reappears only with the lock in place.
-- **`main` with the candidate (B4):** no double count, and one row in that run. **That doesn't prove the races can't happen.** They were not reproduced deterministically; they follow from the code (table above).
+**The earlier "split row" race doesn't exist in production.** It was an artifact of the local schema lacking the unique key. Preflight check 12 confirms production has 0 duplicate sets.
 
-**How long the exposure lasts:**
-- **Old page-side loop:** until no session runs it, so after the candidate ships and old tabs reload.
-- **Capture and upload writers and delete/undo:** **permanently, until those paths are repaired.** That's out of scope here and remains open.
-- **Two unlocked writers racing each other:** a separate, existing exposure today, already possible between two `main` tabs.
+**Which mixes are exposed:**
 
-**Preflight check 12** reports how many split rows already exist in production.
+| Writers | Exposed? |
+|---|---|
+| Trigger + trigger (candidate + candidate) | no |
+| Trigger + old page loop (old tabs, deployed `main`) | yes, R2/R3, the old writer's count is the one lost, until those tabs are gone |
+| Trigger + capture, uploads, delete/undo | **yes, permanently, until those paths are repaired (open, out of scope)** |
+| Two unlocked writers | yes, as today, independent of this change |
 
-**Remedies (not part of this change, need approval):**
-- move the remaining writers onto the same locked function;
-- after de-duplicating existing rows, add a unique index on `user_songs (user_id, song_title)`. That prevents new split rows, and also gives the lookup an index.
+**Browser evidence (B4, deployed `main` + candidate at once):** the candidate completes; markers 2; always one row; the total is 2, or 1 when `main`'s loop loses the race.
+
+## What would close them (not part of this change; needs approval)
+
+Move the remaining writers onto the same database function, or make them use an atomic increment. That's the open live-capture/upload catalogue repair. The unique key already prevents duplicate rows, so no de-duplication or new index is needed.
