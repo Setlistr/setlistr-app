@@ -24,8 +24,8 @@
 
 | Suite | Result |
 |---|---|
-| A · candidate: roles, played planned, capture, re-save, concurrency, lost response, close-at-success, imports, failure boundary, optional failures | 23/23 (`final/suite-A-candidate.log`) |
-| B · overlap with deployed `main` and old tabs; rollback order | 10/10 (`final/suite-B-overlap-rollback.log`) |
+| A · candidate: roles, played planned, capture, re-save, concurrency, failure boundary, optional failures | 23/23 (`final/suite-A-candidate.log`) |
+| B · overlap with deployed `main` and old tabs; rollback order; plus the candidate's lost response, close-at-success and imports, which ran in this second run | 6/6 + 4/4 (`final/suite-B-overlap-rollback.log`) |
 | save-stages (a lost response and a retry at every stage) | 94/94 |
 | fix-verify (scenario 5 replaced by the boundary tests) | 54/54 |
 | Layout invariants · record summary | 146/146 · 31/31 |
