@@ -8,8 +8,9 @@
 |---|---|
 | SQL, exact | `proposed-migration.sql` (statement-for-statement the SQL tested on the disposable stack) |
 | App candidate | `fix/catalog-on-complete-app` @ **0d5dd82cc4ce2854184191b7a7507e69f3c04593** (on `design/share-cards` @ e47c879); diff in `app.patch` |
-| Preflight (read-only) | `preflight.sql` |
-| Rollout / rollback | `ROLLOUT.md` |
+| Preflight (read-only) | SQL Editor: [PREFLIGHT.md](PREFLIGHT.md) (`preflight-sql-editor-run1.sql`, `-run2-plan.sql`); psql: `preflight.sql` |
+| Rollout / rollback (revised: the SQL stays) | [ROLLOUT.md](ROLLOUT.md) |
+| Mixed-writer guarantees and races | [OVERLAP.md](OVERLAP.md) |
 
 ## Behaviour after release
 
@@ -48,7 +49,8 @@ The suites ran against the commit's code; save-stages and fix-verify also ran wi
 - **No index on `user_songs (user_id, song_title)`.** The function scans per song: about 1–3 ms per save here, unmeasured at production size (preflight checks 10–11). Adding an index is a separate schema change.
 - **Completion now depends on the catalogue.** A persistent catalogue error would stop shows completing. Mitigation: the reference line names it, and rollback is app-first.
 - **Statement timeouts** reach the page untagged (PL/pgSQL can't catch them). They're still classified as temporary.
-- **`main` and the candidate saving at once** could split a brand-new song's count across two rows (B4 note). It's not a double count, and the same race exists between page-side loops today.
+- **Mixed-writer races** ([OVERLAP.md](OVERLAP.md)): no song is ever counted twice for a show, but an unlocked writer (old page-side loop, capture, uploads, delete/undo) racing another writer can lose an increment or split a new song across two rows.
+- **Rollback keeps the SQL:** removing the trigger while candidate code can still run loses data; see [ROLLOUT.md](ROLLOUT.md).
 - **Previews** appear to use the production database (see ROLLOUT.md).
 - **Native iOS** is not tested.
 

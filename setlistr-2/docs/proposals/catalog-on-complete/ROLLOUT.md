@@ -1,48 +1,55 @@
-# Catalogue repair: rollout and rollback
+# Catalogue repair: rollout and rollback (revised)
 
 Nothing here has been run against production. Every step needs explicit approval.
 
-## Order
+## The rule: once applied, the SQL stays
 
-**SQL first, then the app. To roll back, revert the app first, then the SQL.** The reverse in either direction loses data: the candidate app doesn't write the catalogue itself, so it must never run against a database without the trigger (demonstrated, `final/suite-B-overlap-rollback.log`, B5).
+An app rollback doesn't retire the candidate code that's already loaded. Browser tabs and the iOS app's web view keep running it until they reload, and that can take any length of time. Candidate code doesn't write the catalogue itself, so any session still running it needs the trigger.
 
-### Rollout
+**So the trigger is never removed as part of a rollback.** Removing it while candidate code can still complete shows silently loses catalogue data (demonstrated: `final/suite-B-overlap-rollback.log`, B5).
 
-1. **Preflight (read-only).** Run `preflight.sql` in production with authorization and compare each result with the expectation noted beside it. Stop on any difference. It writes nothing: SELECTs and an EXPLAIN without ANALYZE, inside `BEGIN TRANSACTION READ ONLY … ROLLBACK`. It was run once on the disposable stack to prove it runs (`final/preflight-run-on-disposable.out`).
-2. **Apply `proposed-migration.sql`** (as `0025_catalog_on_complete.sql`). The currently deployed app keeps working unchanged (next section).
-3. **Smoke check (read-only).** A show completed after step 2 has one marker per kept song: `select count(*) from user_song_performances where performance_id = '<id>'`.
-4. **Deploy the app candidate:** `fix/catalog-on-complete-app` @ 0d5dd82. It sits on `design/share-cards` @ e47c879, so it ships with or after that branch.
-5. **Monitor:** the save's reference line `record the song catalogue · <code>` in support reports, and review saves that stay in `review`.
+The SQL can stay safely, because it is compatible with every version that could be running (demonstrated):
 
-### Rollback
-
-1. **Revert the app** to the previous deployment. With the trigger still in place, the previous app works and nothing is counted twice (B1, B2).
-2. **Only then, if needed, remove the SQL:**
-
-```sql
-DROP TRIGGER IF EXISTS performances_record_catalog ON public.performances;
-DROP FUNCTION IF EXISTS public.performances_record_catalog();
-DROP FUNCTION IF EXISTS public.record_performance_catalog(uuid);
-DROP FUNCTION IF EXISTS public.song_catalog_key(text);
-```
-
-Catalogue rows recorded while the trigger was in place stay correct and need no undo.
-
-## Overlap with older app versions (demonstrated on the disposable stack)
-
-During rollout, browsers keep running whatever code they loaded. Both kinds of older code are safe with the trigger in place.
-
-| Running code | What happens with the migration applied | Result (B suite) |
+| Running code | With the SQL in place | Evidence |
 |---|---|---|
-| **Deployed `main` (0bd17c4)**, still writing `'completed'` | `performances_status_check` rejects `'completed'` (the error is ignored, as today), so the trigger never fires; main's own page-side loop counts the songs | each song once; same as today (B1) |
-| **An old tab of a build with the page-side loop and `'complete'`** (e47c879) | the trigger records the catalogue in the final write; the old loop then finds each per-show marker and skips the song | each song once (B2); re-saving in the candidate changes nothing |
-| Old tab and candidate at once, sharing a new song | the trigger takes a per-artist lock; the old loop only ever finds markers | one row, counted twice (B3) |
-| `main` and candidate at once, sharing a new song | main's loop doesn't take the lock | no show counted twice; one row in this run (B4). Two rows split between them is possible in principle under exact timing: main's unlocked loop already races itself today. |
+| Deployed `main` (0bd17c4) | writes `'completed'`, which `performances_status_check` rejects (ignored, as today), so the trigger doesn't fire; main's own page-side loop records the catalogue as today | B1 |
+| Builds with the page-side loop that write `'complete'` (e.g. e47c879, the share-cards and record-finish Previews) | the trigger records it in the final write; the loop then finds every marker and adds nothing | B2, B3 |
+| The candidate (0d5dd82) | the trigger records it | suite A |
 
-**Why it can't double-count:** every writer, old or new, first inserts the per-show marker `(user, performance, normalized title)`, which is unique. A song is counted only by the writer whose marker insert succeeds. The trigger writes marker and count in one transaction, so a marker never exists without its count.
+## Rollout
 
-## Previews use the production database
+1. **Read-only preflight** ([PREFLIGHT.md](PREFLIGHT.md)). Stop on any unexpected result.
+2. **Apply `proposed-migration.sql`.** Every running version stays correct (table above).
+3. **Read-only smoke check:** a show completed after step 2 has one marker per kept song.
+4. **Deploy the app candidate,** with or after `design/share-cards`, which it's built on.
+5. **Monitor** for `record the song catalogue · <code>` references, and for review saves left in `review`.
 
-The `23514` error seen on an earlier Preview came from production's status constraint, which the local database doesn't have. So Vercel Previews of this repo appear to use the production database.
+Don't publish a Preview of the candidate before step 2. Previews appear to use the production database. The one that was published has been deleted (404 `DEPLOYMENT_NOT_FOUND`), and its remote branch removed.
 
-**Until the migration is applied, don't save shows on any Preview of `fix/catalog-on-complete-app`:** those shows would complete without their catalogue. Previews of other branches still have the page-side loop and are unaffected.
+## Rollback
+
+### An app problem
+
+**Revert the app deployment only. The SQL stays as it is.** Reverted builds and still-open candidate tabs both keep recording correctly (table above). No database change is needed.
+
+### A defect in the SQL itself
+
+Examples: the trigger rejects completions it shouldn't, or counts wrongly.
+
+**Fix forward. Don't remove.** Ship a reviewed `CREATE OR REPLACE FUNCTION public.record_performance_catalog(...)` with the trigger left in place, tested on a disposable stack like this migration.
+
+Until the fix lands:
+- **Candidate sessions** get the tagged error. A permanent one doesn't offer Try again; their edits are kept, and the show completes once the fix is in.
+- **Deployed `main`** is unaffected: it never fires the trigger.
+- **Page-side-loop builds that write `'complete'`** would also be rejected.
+
+### Removing the SQL
+
+**Not planned.** It would only be safe once no session could be running candidate code, which can't be guaranteed for open tabs.
+
+If removal is ever required, it needs a guard built and tested first. The proposal, **not built or tested**:
+- The candidate marks its final write with a request header (e.g. `x-setlistr-catalogue: database`).
+- A "paused" mode in the trigger function then rejects that marked write, tagged and temporary, while letting page-side-loop builds through to record the catalogue themselves.
+- Candidate tabs would then refuse to complete, rather than completing without a catalogue.
+
+It's a separate change for approval.
