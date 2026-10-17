@@ -1,6 +1,6 @@
 # Proposal: record the song catalogue inside the review save
 
-**Status:** proposal for review, 2026-10-17. **Nothing here is applied.** No migration, SQL, backfill or permission change is authorized. Fixes [data-integrity issues 1 and 3](data-integrity-open-issues.md); release blocker for `design/record-finish`.
+**Status:** proposal for review, 2026-10-17; verification added the same day. **Nothing here is applied.** No migration, SQL, backfill or permission change is authorized. Fixes [data-integrity issues 1 and 3](data-integrity-open-issues.md); release blocker for `design/record-finish`.
 
 ## The problem, measured
 
@@ -13,13 +13,15 @@ After a confirmed review save, the page writes each kept song to the artist's ca
 
 ## Smallest reliable repair
 
-Make the catalogue part of the save's final required write, in one database transaction.
+Make the catalogue part of the save's **final required write** (the one that sets `complete`), in that write's transaction.
+
+**The save as a whole is not atomic, and this doesn't make it so.** The page sends the save as a sequence of separate requests (song edits, added songs, removals, detection results, the "reviewed" flags, the linked show), each committed on its own, followed by the final write. Only the final write and the catalogue are atomic together.
 
 1. **One database function** counts a performance's kept songs once each. The per-show marker and the count are written together, so neither can exist without the other, and running it again changes nothing.
 2. **A trigger on the save's final write** runs it. The review save is the only writer of `performances.status = 'complete'`. An `AFTER UPDATE OF status … WHEN (NEW.status = 'complete')` trigger records the catalogue inside that statement:
    - A **confirmed save** (the app already requires that update to return its row) always has its catalogue.
    - **Closing the page** after confirmation can't interrupt it: the transaction has already committed.
-   - **A catalogue failure fails the save statement**, with nothing partial. The app already reports a failed final write, and Try again is safe; songs saved by the failed attempt are updated, not re-inserted.
+   - **A catalogue failure fails the final write**, with no partial catalogue. Everything the earlier requests saved stays saved (see "If the final write fails" below). The app already reports a failed final write, and Try again is safe: songs saved by the failed attempt are updated, not re-inserted.
    - **A re-save** runs it again; only songs not yet counted for this show are added.
 3. **One change to the required save, so the database knows which songs were kept.** Today, marking a planned song "Played" changes it only in the page; the save writes just its position, and the row still says `source = 'planned'`. The database can't tell it from a planned song never marked played. The save's song update for a kept song whose loaded source is `planned` must also write `source = 'manual'`, the value the page already uses. Without this, played planned songs would stop being counted.
 4. **Remove the page's catalogue loop** (`writeUserSongFromReview`). Tonight's moments can then treat the catalogue as complete whenever the save is confirmed.
@@ -80,7 +82,9 @@ BEGIN
   END LOOP;
   RETURN v_added;
 END $$;
-REVOKE EXECUTE ON FUNCTION public.record_performance_catalog(uuid) FROM PUBLIC;
+-- Supabase grants EXECUTE on new public functions to anon and authenticated by
+-- default, so revoking from PUBLIC alone is not enough. Only the trigger may run this.
+REVOKE EXECUTE ON FUNCTION public.record_performance_catalog(uuid) FROM PUBLIC, anon, authenticated;
 
 -- The review save's final required write sets status = 'complete' (the only
 -- writer of that value). The catalogue is recorded inside that statement, so
@@ -92,7 +96,7 @@ BEGIN
   PERFORM record_performance_catalog(NEW.id);
   RETURN NULL;
 END $$;
-REVOKE EXECUTE ON FUNCTION public.performances_record_catalog() FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.performances_record_catalog() FROM PUBLIC, anon, authenticated;
 
 DROP TRIGGER IF EXISTS performances_record_catalog ON public.performances;
 CREATE TRIGGER performances_record_catalog
@@ -101,23 +105,58 @@ CREATE TRIGGER performances_record_catalog
   EXECUTE FUNCTION public.performances_record_catalog();
 ```
 
-### Verified so far (local, inside a transaction that was rolled back)
+### Verified
+
+**1. Rolled-back transaction on the shared local database (2026-10-17):** the key function matches `normalizeSongKey()` on 26/26 titles; the save logic behaves as described. Nothing persisted.
+
+**2. Disposable Postgres container (Supabase's own image), with RLS enabled on all five tables** using the production `can_act_for`/`can_write_for` functions, the 0016 performance and song policies, and the baseline catalogue policies. Each request ran as its own transaction under the real `authenticated` role. The container was deleted afterwards.
+
+| Who | Today: page writes the artist's catalogue | Proposal: the save's final write | Calling the function directly |
+|---|---|---|---|
+| Owner | allowed | allowed; catalogue recorded | refused |
+| Manager | **refused by RLS** | allowed; catalogue recorded | refused |
+| Tour Manager | **refused by RLS** | allowed; catalogue recorded | refused |
+| Viewer | refused | refused (0 rows); nothing recorded | refused |
+| Unrelated user | refused | refused (0 rows); nothing recorded | refused |
+
+Managers' and Tour Managers' review saves therefore skip the catalogue today. The proposal records it for any role that is already allowed to complete the show, and for no one else.
+
+**A hole found and fixed in the first draft:** Supabase grants `EXECUTE` on new public functions to `anon` and `authenticated` by default, so `REVOKE … FROM PUBLIC` alone left the catalogue function callable. A Viewer and an unrelated user could write catalogue rows for someone else's show. The SQL above revokes from `anon` and `authenticated` too, and the test confirms "permission denied" for every client role.
 
 | Case | Result |
 |---|---|
-| Save, review → complete | each kept song counted once; played planned counts; pending planned, removed and duplicate titles don't |
-| Song already counted by today's app code (marker present) | not counted again |
-| Re-save, complete → complete | no change |
-| Re-save after adding a song | only the new song counts |
-| Failure inside the catalogue step | the whole save statement fails; no marker left behind |
-| Other updates (e.g. marking submitted) | catalogue untouched |
-| After rollback | none of the functions remain |
+| Two shows of one artist saved at the same moment (owner + manager), both introducing the same new song | one catalogue row, count 2 |
+| Same race with the advisory lock removed | **two rows, count 1 each**: the lock is what prevents duplicates |
+| Re-save | no change |
+| Manager re-saves after adding a song | only that song counts |
+| Marking a show submitted | catalogue untouched |
+| Song already counted during live capture | not counted again at review |
+| setlist.fm import (inserts a complete show) | nothing counted (an insert doesn't fire the trigger), as today |
+| That imported show later saved from Review | counted, as the page does today |
 
-Not yet verified: the app changes (items 3 and 4), production RLS, a manager's save, and production performance.
+#### If the final write fails
+
+Measured with a forced catalogue failure after the page's earlier requests had succeeded:
+
+- **Persisted:** the edited song title, the song added in review, and the "reviewed" (`artist_save_complete`) flags on every song. Removals, detection results and the linked show's `completed` status, when present, are earlier requests too and also persist.
+- **Not persisted:** `performances.status` stays `review`; no markers; no catalogue change.
+- **Try again** after the cause is gone completes the save and records the catalogue for the show as it now stands.
+
+So a failed save leaves the setlist edits saved but the show unfinished and uncounted, which the app reports with Try again. It never leaves a show marked complete without its catalogue.
+
+#### Other writers of the catalogue (unchanged by this proposal)
+
+Live capture (`app/api/identify`, the live page) and uploads (`upload-identify`, `upload-reconcile`) count songs during capture with the same per-show marker. Deleting a show removes its markers and reduces counts; undo restores them. The Spotify and admin imports write counts directly, with no marker. All markers use `normalizeSongKey()`, which the SQL reproduces exactly.
+
+Two existing inconsistencies to note, not fixed here:
+- Capture writes its marker and count as separate requests, the same pattern as issue 1, so it can lose a count the same way.
+- The delete route finds the catalogue row by normalized key; review and capture match on the exact title.
+
+Not yet verified: the app changes (items 3 and 4), and the save's final write at 25 and 60 songs.
 
 ## Decisions needed
 
-- **Managers' saves would start updating the artist's catalogue.** Production policies on `user_songs` and `user_song_performances` allow writes only where `user_id = auth.uid()`, and the page writes under the artist's id. So a manager's review save very likely has its catalogue writes refused today (unverified; local RLS is off on these tables). The trigger function is `SECURITY DEFINER` and acts only after an update the caller was already allowed to make; Viewers can't make it (0016). That is a behaviour change and needs explicit approval.
+- **Managers' and Tour Managers' saves would start updating the artist's catalogue.** With production RLS, their saves skip it today (verified above). The trigger acts only after an update the caller was already allowed to make, so Viewers and others gain nothing. This is a behaviour change and needs explicit approval.
 - **A catalogue failure becomes a save failure.** The alternative, catching errors inside the trigger, keeps saves succeeding but can silently skip the catalogue again. Recommended: fail the save.
 - **Existing damage is not repaired.** See the read-only queries below; any repair is a separate, approved backfill.
 
