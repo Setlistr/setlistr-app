@@ -1383,11 +1383,11 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
             </p>
           </div>
 
-          {/* ── The record: the dashboard's counter, with the orb finishing onto it ── */}
+          {/* ── Lifetime progress, compact: the saved show stays the subject.
+              The large lifetime counter is the dashboard's. ── */}
           <RecordFinish
             data={recordFinish}
-            venueName={performance?.venue_name || ''}
-            overline={actingAsArtistId && performance?.artist_name ? `${/s$/i.test(performance.artist_name) ? `${performance.artist_name}’` : `${performance.artist_name}’s`} live record` : 'Your live record'}
+            label={actingAsArtistId && performance?.artist_name ? `${/s$/i.test(performance.artist_name) ? `${performance.artist_name}’` : `${performance.artist_name}’s`} record` : 'Your record'}
             startRef={venueHeadingRef}
             pipRef={pipRef}
             onLanded={() => setOrbLanded(true)}
@@ -1604,13 +1604,13 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
           .cer-grid { display: flex; flex-direction: column; gap: 14px; }
           .cer-col { display: contents; }
           .cer-moments { order: 1; } .cer-estimate { order: 2; } .cer-setlist { order: 3; } .cer-share { order: 4; } .cer-actions { order: 5; }
-          /* The record counter: stacked on phones; from 600px the dashboard's
-             wider sizes; from 900px its number | ledger split. */
+          /* Lifetime progress: full width on phones; a ledger-width block
+             centred under the header from 600px, with the dashboard's
+             wider dot size. */
           @container sl-frame (min-width: 600px) {
-            .rf { --rf-hero: 128px; --d-dot: 10px; --d-dot-gap: 5px; }
+            .rf { max-width: 440px; margin-left: auto; margin-right: auto; --d-dot: 10px; --d-dot-gap: 5px; }
           }
           @container sl-frame (min-width: 900px) {
-            .rf { display: grid; grid-template-columns: minmax(0, 1fr) minmax(360px, 420px); column-gap: 56px; align-items: start; max-width: 960px; margin-left: auto; margin-right: auto; --rf-hero: 150px; --rf-ledger-mt: 30px; }
             .cer-head { padding-top: 64px !important; }
             .cer-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(360px, 420px); column-gap: 40px; align-items: start; max-width: 960px; margin: 0 auto; }
             .cer-col { display: flex; flex-direction: column; gap: 14px; }

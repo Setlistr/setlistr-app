@@ -1,15 +1,17 @@
 'use client'
-// The post-save celebration's record counter: the dashboard's own counter
-// ("Your live record", the Bebas Neue count, its morning-after sentence and
-// the shared Next milestone row) at celebration scale, with the capture orb
-// finishing onto it.
+// The post-save celebration's lifetime progress: a compact, labelled
+// "Your record · N shows" line and the dashboard's shared Next milestone row,
+// with the capture orb finishing onto it. The celebration is about the saved
+// show, so the large lifetime counter stays on the dashboard, and nothing
+// here gives this show a number of its own.
 //
 // The orb breathes once over the venue, then travels to this show's dot and
 // becomes it. The count steps up ONLY when this save is what put the show on
 // the record (data.added); a show that was already counted — any show that
 // reached review, every re-save — lands on its existing dot with no step and
 // no milestone. If this show isn't the newest on the record, its dot isn't
-// "the last one", so the orb rests on the pip beside "Show complete" instead.
+// "the last one" (a backdated show), so the orb rests on the pip beside
+// "Show complete" instead.
 // Count data that isn't ready when the orb chooses (about 0.3s in) gets the
 // pip too; the counter then appears, already settled, when it arrives.
 // Reduced motion: no orb, the settled counter at once. Nothing here blocks
@@ -34,10 +36,9 @@ const LAND_MS = 930     // orb arrives on the dot (or the pip)
 const FADE_MS = 150     // orb hands over to the dot
 const HOLD_MS = 520     // a block completed by THIS save holds before the next starts
 
-export function RecordFinish({ data, venueName, overline, startRef, pipRef, onLanded }: {
+export function RecordFinish({ data, label, startRef, pipRef, onLanded }: {
   data: RecordFinishData
-  venueName: string
-  overline: string
+  label: string
   startRef: React.RefObject<HTMLElement>
   pipRef: React.RefObject<HTMLElement>
   onLanded: () => void
@@ -138,37 +139,30 @@ export function RecordFinish({ data, venueName, overline, startRef, pipRef, onLa
   if (data.status === 'unavailable') return <>{orb}</>
   if (data.status === 'loading') return (<>{orb}
     <div ref={rootRef} className="rf" aria-busy="true" aria-label="Loading your record" style={{ textAlign: 'left', marginBottom: 28 }}>
-      <div><Skeleton w="40%" h={14} mt={20} /><Skeleton w="34%" h={84} mt={14} r={10} /><Skeleton w="80%" h={16} mt={16} /></div>
-      <div><Skeleton h={1.5} mt={22} r={0} /><Skeleton h={18} mt={14} /><Skeleton h={10} mt={14} /></div>
+      <Skeleton w="45%" h={16} />
+      <Skeleton h={1.5} mt={10} r={0} /><Skeleton h={18} mt={14} /><Skeleton h={10} mt={14} />
     </div>
   </>)
 
   const before = phase === 'pre' && (decision ? decision.step : data.added && data.isLatest)
   const shown = before ? data.count - 1 : data.count
-  const stepped = !!decision?.step && !before
   const holdBlock = phase === 'hold' ? { first: data.count - MILESTONE_STEP + 1, next: data.count } : undefined
   const arrivedLate = !!decision && !decision.hadData
 
+  // Lifetime progress in the dashboard's own small type: the label as its
+  // overline (14/600 gold), the figure as a ledger value (16/600). No display
+  // numeral, no clipping container, no transform.
   return (<>{orb}
-    <div ref={rootRef} className="rf" style={{ textAlign: 'left', marginBottom: 28, animation: arrivedLate ? 'rfFade 0.35s ease both' : undefined }}>
-      <div className="rf-poster">
-        <p style={{ fontSize: 'var(--d-ov, 14px)', fontWeight: 600, color: 'var(--sl-gold-text)', margin: '20px 0 0' }}>{overline}</p>
-        <p aria-hidden={before} style={{ fontFamily: 'var(--sl-font-display)', fontWeight: 400, fontSize: 'var(--rf-hero, 104px)', lineHeight: 0.8, letterSpacing: '0.005em', margin: '14px 0 0 -3px', color: 'var(--sl-text)', fontVariantNumeric: 'tabular-nums', overflow: 'hidden' }}>
-          <span key={shown} style={{ display: 'inline-block', animation: stepped ? 'rfRoll 0.3s cubic-bezier(.2,.65,.25,1) both' : undefined }}>{shown}</span>
-        </p>
-        <p style={{ fontSize: 'var(--d-cap, 16px)', color: 'var(--sl-text-2)', margin: '16px 0 0', lineHeight: 1.45, maxWidth: '22em', opacity: before ? 0 : 1, transition: 'opacity 0.3s ease' }}>
-          {data.isLatest
-            ? <>{venueName} is on the record as <b style={{ color: 'var(--sl-text)', fontWeight: 600 }}>show {data.count}</b>.</>
-            : <><b style={{ color: 'var(--sl-text)', fontWeight: 600 }}>Shows on the record</b>.</>}
-        </p>
-      </div>
-      <div className="rf-ledger" style={{ marginTop: 'var(--rf-ledger-mt, 22px)', borderTop: '1.5px solid var(--sl-text)' }}>
+    <section ref={rootRef} className="rf" aria-label={`${label}, ${data.count} ${data.count === 1 ? 'show' : 'shows'}`} style={{ textAlign: 'left', marginBottom: 28, animation: arrivedLate ? 'rfFade 0.35s ease both' : undefined }}>
+      <p aria-hidden="true" style={{ display: 'flex', alignItems: 'baseline', gap: 8, margin: '0 0 10px', lineHeight: 1.35 }}>
+        <span style={{ fontSize: 'var(--d-ov, 14px)', fontWeight: 600, color: 'var(--sl-gold-text)' }}>{label}</span>
+        <span style={{ color: 'var(--sl-text-3)' }}>·</span>
+        <span data-record-count={shown} style={{ fontSize: 'var(--d-value, 16px)', fontWeight: 600, color: 'var(--sl-text)', fontVariantNumeric: 'tabular-nums' }}>{shown} <span style={{ fontWeight: 400, color: 'var(--sl-text-3)' }}>{shown === 1 ? 'show' : 'shows'}</span></span>
+      </p>
+      <div style={{ borderTop: '1.5px solid var(--sl-text)' }}>
         <NextMilestoneRow count={shown} block={holdBlock} hideValue={!!holdBlock} />
       </div>
-      <style>{`
-        @keyframes rfRoll { from { transform: translateY(55%); opacity: 0; } to { transform: none; opacity: 1; } }
-        @keyframes rfFade { from { opacity: 0; } to { opacity: 1; } }
-      `}</style>
-    </div>
+      <style>{`@keyframes rfFade { from { opacity: 0; } to { opacity: 1; } }`}</style>
+    </section>
   </>)
 }
