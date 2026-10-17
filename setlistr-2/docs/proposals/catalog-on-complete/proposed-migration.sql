@@ -1,6 +1,6 @@
 -- PROPOSED MIGRATION — NOT APPLIED. Intended as supabase/migrations/0025_catalog_on_complete.sql
--- once approved. Must ship together with app.patch (the page stops writing the
--- catalogue itself). See ../../catalog-on-complete-proposal.md.
+-- once approved. Apply BEFORE deploying the app candidate (see ROLLOUT.md).
+
 
 -- DRAFT for review — not applied anywhere. Catalogue update made part of the
 -- review save's final write, in the same transaction.
@@ -59,12 +59,22 @@ REVOKE EXECUTE ON FUNCTION public.record_performance_catalog(uuid) FROM PUBLIC, 
 
 -- The review save's final required write sets status = 'complete' (the only
 -- writer of that value). The catalogue is recorded inside that statement, so
--- a confirmed save always has its catalogue, and any failure fails the save
--- (which the app already reports, and retry is safe).
+-- a confirmed save always has its catalogue, and any failure rejects the
+-- final write (earlier save requests stay saved; retrying is safe).
+--
+-- A failure is re-raised with its ORIGINAL error code, tagged with the hint
+-- 'setlistr:song-catalogue', so the app can tell a catalogue failure from
+-- any other and still tell permanent (22/23/42/P0…) from temporary
+-- (40001, 40P01, 55P03…). A statement timeout (57014) can't be caught in
+-- PL/pgSQL and reaches the app untagged; the app treats it as temporary.
 CREATE OR REPLACE FUNCTION public.performances_record_catalog()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 BEGIN
-  PERFORM record_performance_catalog(NEW.id);
+  BEGIN
+    PERFORM record_performance_catalog(NEW.id);
+  EXCEPTION WHEN OTHERS THEN
+    RAISE EXCEPTION USING ERRCODE = SQLSTATE, MESSAGE = 'song catalogue: ' || SQLERRM, HINT = 'setlistr:song-catalogue';
+  END;
   RETURN NULL;
 END $$;
 REVOKE EXECUTE ON FUNCTION public.performances_record_catalog() FROM PUBLIC, anon, authenticated;

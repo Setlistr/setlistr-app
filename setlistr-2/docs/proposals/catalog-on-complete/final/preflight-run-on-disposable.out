@@ -1,0 +1,176 @@
+BEGIN
+       table_name       |    column_name    |        data_type         | is_nullable 
+------------------------+-------------------+--------------------------+-------------
+ performance_songs      | artist            | text                     | YES
+ performance_songs      | artist_removed    | boolean                  | NO
+ performance_songs      | inclusion_reason  | text                     | YES
+ performance_songs      | performance_id    | uuid                     | NO
+ performance_songs      | position          | integer                  | NO
+ performance_songs      | source            | text                     | YES
+ performance_songs      | title             | text                     | NO
+ performance_songs      | was_planned       | boolean                  | YES
+ performances           | data_source       | text                     | YES
+ performances           | id                | uuid                     | NO
+ performances           | status            | text                     | YES
+ performances           | user_id           | uuid                     | NO
+ performances           | venue_name        | text                     | NO
+ user_song_performances | id                | uuid                     | NO
+ user_song_performances | normalized_title  | text                     | NO
+ user_song_performances | performance_id    | uuid                     | NO
+ user_song_performances | user_id           | uuid                     | NO
+ user_songs             | canonical_artist  | text                     | YES
+ user_songs             | confirmed_count   | integer                  | YES
+ user_songs             | id                | uuid                     | NO
+ user_songs             | last_confirmed_at | timestamp with time zone | YES
+ user_songs             | song_title        | text                     | NO
+ user_songs             | user_id           | uuid                     | NO
+(23 rows)
+
+       table_name       |                             conname                             |                                                    definition                                                     
+------------------------+-----------------------------------------------------------------+-------------------------------------------------------------------------------------------------------------------
+ performances           | performances_pkey                                               | PRIMARY KEY (id)
+ performances           | performances_status_check                                       | CHECK ((status = ANY (ARRAY['draft'::text, 'live'::text, 'processing'::text, 'review'::text, 'complete'::text])))
+ user_song_performances | user_song_performances_pkey                                     | PRIMARY KEY (id)
+ user_song_performances | user_song_performances_user_id_performance_id_normalized_ti_key | UNIQUE (user_id, performance_id, normalized_title)
+ user_songs             | user_songs_pkey                                                 | PRIMARY KEY (id)
+(5 rows)
+
+        relname         | relrowsecurity | relforcerowsecurity 
+------------------------+----------------+---------------------
+ performance_songs      | t              | f
+ performances           | t              | f
+ user_song_performances | t              | f
+ user_songs             | t              | f
+(4 rows)
+
+       tablename        |         policyname          |  cmd   |  roles   |                                                   qual                                                   |                                                with_check                                                
+------------------------+-----------------------------+--------+----------+----------------------------------------------------------------------------------------------------------+----------------------------------------------------------------------------------------------------------
+ performance_songs      | songs_delete                | DELETE | {public} | (EXISTS ( SELECT 1                                                                                      +| 
+                        |                             |        |          |    FROM performances                                                                                    +| 
+                        |                             |        |          |   WHERE ((performances.id = performance_songs.performance_id) AND can_write_for(performances.user_id)))) | 
+ performance_songs      | songs_insert                | INSERT | {public} |                                                                                                          | (EXISTS ( SELECT 1                                                                                      +
+                        |                             |        |          |                                                                                                          |    FROM performances                                                                                    +
+                        |                             |        |          |                                                                                                          |   WHERE ((performances.id = performance_songs.performance_id) AND can_write_for(performances.user_id))))
+ performance_songs      | songs_read                  | SELECT | {public} | (EXISTS ( SELECT 1                                                                                      +| 
+                        |                             |        |          |    FROM performances                                                                                    +| 
+                        |                             |        |          |   WHERE ((performances.id = performance_songs.performance_id) AND can_act_for(performances.user_id))))   | 
+ performance_songs      | songs_write                 | UPDATE | {public} | (EXISTS ( SELECT 1                                                                                      +| (EXISTS ( SELECT 1                                                                                      +
+                        |                             |        |          |    FROM performances                                                                                    +|    FROM performances                                                                                    +
+                        |                             |        |          |   WHERE ((performances.id = performance_songs.performance_id) AND can_write_for(performances.user_id)))) |   WHERE ((performances.id = performance_songs.performance_id) AND can_write_for(performances.user_id))))
+ performances           | performances_delete         | DELETE | {public} | can_write_for(user_id)                                                                                   | 
+ performances           | performances_insert         | INSERT | {public} |                                                                                                          | can_write_for(user_id)
+ performances           | performances_read           | SELECT | {public} | can_act_for(user_id)                                                                                     | 
+ performances           | performances_write          | UPDATE | {public} | can_write_for(user_id)                                                                                   | can_write_for(user_id)
+ user_song_performances | user_song_performances_self | ALL    | {public} | (user_id = auth.uid())                                                                                   | 
+ user_songs             | user_songs_self             | ALL    | {public} | (user_id = auth.uid())                                                                                   | 
+(10 rows)
+
+    proname    | security_definer |                                   definition                                    
+---------------+------------------+---------------------------------------------------------------------------------
+ can_act_for   | t                | CREATE OR REPLACE FUNCTION public.can_act_for(target uuid)                     +
+               |                  |  RETURNS boolean                                                               +
+               |                  |  LANGUAGE sql                                                                  +
+               |                  |  STABLE SECURITY DEFINER                                                       +
+               |                  |  SET search_path TO 'public'                                                   +
+               |                  | AS $function$                                                                  +
+               |                  |   select                                                                       +
+               |                  |     auth.uid() = target                                                        +
+               |                  |     or exists (                                                                +
+               |                  |       select 1                                                                 +
+               |                  |       from artist_delegates                                                    +
+               |                  |       where artist_delegates.artist_id = target                                +
+               |                  |         and artist_delegates.delegate_id = auth.uid()                          +
+               |                  |         and artist_delegates.accepted_at is not null                           +
+               |                  |         and artist_delegates.revoked_at is null                                +
+               |                  |     );                                                                         +
+               |                  | $function$                                                                     +
+               |                  | 
+ can_write_for | t                | CREATE OR REPLACE FUNCTION public.can_write_for(target uuid)                   +
+               |                  |  RETURNS boolean                                                               +
+               |                  |  LANGUAGE sql                                                                  +
+               |                  |  STABLE SECURITY DEFINER                                                       +
+               |                  |  SET search_path TO 'public'                                                   +
+               |                  | AS $function$                                                                  +
+               |                  |   select                                                                       +
+               |                  |     auth.uid() = target                                                        +
+               |                  |     or exists (                                                                +
+               |                  |       select 1                                                                 +
+               |                  |       from artist_delegates                                                    +
+               |                  |       where artist_delegates.artist_id = target                                +
+               |                  |         and artist_delegates.delegate_id = auth.uid()                          +
+               |                  |         and artist_delegates.accepted_at is not null                           +
+               |                  |         and artist_delegates.revoked_at is null                                +
+               |                  |         and artist_delegates.role in ('manager', 'tour_manager', 'band_member')+
+               |                  |     );                                                                         +
+               |                  | $function$                                                                     +
+               |                  | 
+(2 rows)
+
+                   finding                    
+----------------------------------------------
+ function exists: performances_record_catalog
+ function exists: record_performance_catalog
+ function exists: song_catalog_key
+(3 rows)
+
+                  tgname                  |                                                                                         definition                                                                                          
+------------------------------------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ performances_lock_links                  | CREATE TRIGGER performances_lock_links BEFORE UPDATE ON public.performances FOR EACH ROW EXECUTE FUNCTION reject_performance_link_change()
+ performances_lock_owner                  | CREATE TRIGGER performances_lock_owner BEFORE UPDATE ON public.performances FOR EACH ROW EXECUTE FUNCTION reject_performance_owner_change()
+ performances_record_catalog              | CREATE TRIGGER performances_record_catalog AFTER UPDATE OF status ON public.performances FOR EACH ROW WHEN ((new.status = 'complete'::text)) EXECUTE FUNCTION performances_record_catalog()
+ performances_reject_scheduled_bypass     | CREATE TRIGGER performances_reject_scheduled_bypass BEFORE INSERT ON public.performances FOR EACH ROW EXECUTE FUNCTION reject_performance_insert_for_scheduled_show()
+ performances_require_authorized_creation | CREATE TRIGGER performances_require_authorized_creation BEFORE INSERT ON public.performances FOR EACH ROW EXECUTE FUNCTION reject_unauthorized_performance_creation()
+(5 rows)
+
+     owner      | defaclobjtype |                                                   defaclacl                                                    
+----------------+---------------+----------------------------------------------------------------------------------------------------------------
+ supabase_admin | f             | {postgres=X/supabase_admin,anon=X/supabase_admin,authenticated=X/supabase_admin,service_role=X/supabase_admin}
+ postgres       | f             | {postgres=X/postgres,anon=X/postgres,authenticated=X/postgres,service_role=X/postgres}
+(2 rows)
+
+ current_user | rolbypassrls | rolsuper 
+--------------+--------------+----------
+ postgres     | t            | f
+(1 row)
+
+       tablename        |                            indexname                            |                                                                                   indexdef                                                                                   
+------------------------+-----------------------------------------------------------------+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ performance_songs      | performance_songs_pkey                                          | CREATE UNIQUE INDEX performance_songs_pkey ON public.performance_songs USING btree (id)
+ user_song_performances | user_song_performances_pkey                                     | CREATE UNIQUE INDEX user_song_performances_pkey ON public.user_song_performances USING btree (id)
+ user_song_performances | user_song_performances_user_id_performance_id_normalized_ti_key | CREATE UNIQUE INDEX user_song_performances_user_id_performance_id_normalized_ti_key ON public.user_song_performances USING btree (user_id, performance_id, normalized_title)
+ user_songs             | user_songs_pkey                                                 | CREATE UNIQUE INDEX user_songs_pkey ON public.user_songs USING btree (id)
+(4 rows)
+
+        relname         | n_live_tup 
+------------------------+------------
+ performance_songs      |         33
+ performances           |         11
+ user_song_performances |          3
+ user_songs             |          3
+(4 rows)
+
+                                                  QUERY PLAN                                                   
+---------------------------------------------------------------------------------------------------------------
+ Limit  (cost=1.05..1.06 rows=1 width=20)
+   ->  Sort  (cost=1.05..1.06 rows=1 width=20)
+         Sort Key: confirmed_count DESC NULLS LAST, id
+         ->  Seq Scan on user_songs  (cost=0.00..1.04 rows=1 width=20)
+               Filter: ((user_id = '00000000-0000-0000-0000-000000000000'::uuid) AND (song_title = 'x'::text))
+(5 rows)
+
+ duplicate_sets | rows_in_them 
+----------------+--------------
+              0 |            0
+(1 row)
+
+ markers | matched 
+---------+---------
+       3 |       3
+(1 row)
+
+ planned_rows_on_complete_shows 
+--------------------------------
+                              1
+(1 row)
+
+ROLLBACK

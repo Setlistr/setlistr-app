@@ -1,0 +1,55 @@
+  ok   plain: completion request sends status "complete" (the constraint's value), unmodified, answered 200 
+  ok   plain: show complete in the database (status 'complete') 
+  ok   plain: linked show finished (shows.status 'completed') 
+  ok   plain: songs and edits kept: Encore once (1), edit saved, Copper Sky removed, all 14 rows reviewed 
+  ok   plain: catalog counted once (Encore 1 in 1 row, Paper Boats 26 = seed+1) 
+  ok   plain: celebration shown, no error 
+  ok   plain: Tonight’s moments shows first appearances (Encore Test Song) 
+  ok   refused: no celebration; show stays in review 
+  ok   refused: says songs and edits are saved, and that trying again won’t fix it 
+  ok   refused: reference names operation, code and constraint 
+  ok   refused: button is not "Try again" 
+  ok   refused: everything before completion persisted (songs, edits, removal, reviewed, linked show) 
+  ok   refused → reload: saved edits load from the record (Encore Test Song once, Small Hours Reprise, no Copper Sky) 
+  ok   refused → reload → one Save: show complete in the database (status 'complete') 
+  ok   refused → reload → one Save: linked show finished (shows.status 'completed') 
+  ok   refused → reload → one Save: songs and edits kept: Encore once (1), edit saved, Copper Sky removed, all 14 rows reviewed 
+  ok   refused → reload → one Save: catalog counted once (Encore 1 in 1 row, Paper Boats 26 = seed+1) 
+  ok   refused → reload → one Save: celebration shown, no error 
+  ok   add a song lost → reload: first attempt not celebrated 
+  ok   add a song lost → reload: unsaved removal is not kept across a reload (Copper Sky still listed; expected) 
+  ok   add a song lost → reload: show complete in the database (status 'complete') 
+  ok   add a song lost → reload: linked show finished (shows.status 'completed') 
+  ok   add a song lost → reload: songs and edits kept: Encore once (1), edit saved, Copper Sky removed, all 14 rows reviewed 
+  ok   add a song lost → reload: catalog counted once (Encore 1 in 1 row, Paper Boats 26 = seed+1) 
+  ok   add a song lost → reload: celebration shown, no error 
+  ok   mark songs reviewed lost → reload: first attempt not celebrated 
+  ok   mark songs reviewed lost → reload: show complete in the database (status 'complete') 
+  ok   mark songs reviewed lost → reload: linked show finished (shows.status 'completed') 
+  ok   mark songs reviewed lost → reload: songs and edits kept: Encore once (1), edit saved, Copper Sky removed, all 14 rows reviewed 
+  ok   mark songs reviewed lost → reload: catalog counted once (Encore 1 in 1 row, Paper Boats 26 = seed+1) 
+  ok   mark songs reviewed lost → reload: celebration shown, no error 
+  ok   mark songs reviewed rejected → reload: first attempt not celebrated 
+  ok   mark songs reviewed rejected → reload: show complete in the database (status 'complete') 
+  ok   mark songs reviewed rejected → reload: linked show finished (shows.status 'completed') 
+  ok   mark songs reviewed rejected → reload: songs and edits kept: Encore once (1), edit saved, Copper Sky removed, all 14 rows reviewed 
+  ok   mark songs reviewed rejected → reload: catalog counted once (Encore 1 in 1 row, Paper Boats 26 = seed+1) 
+  ok   mark songs reviewed rejected → reload: celebration shown, no error 
+  ok   complete lost → reload: completion landed despite the lost response → celebration on first attempt 
+  ok   complete lost → reload: show complete in the database (status 'complete') 
+  ok   complete lost → reload: linked show finished (shows.status 'completed') 
+  ok   complete lost → reload: songs and edits kept: Encore once (1), edit saved, Copper Sky removed, all 14 rows reviewed 
+  ok   complete lost → reload: catalog counted once (Encore 1 in 1 row, Paper Boats 26 = seed+1) 
+  ok   linked show not sent: no celebration, show not marked complete, connection message 
+  ok   linked show not sent → Try again: show complete in the database (status 'complete') 
+  ok   linked show not sent → Try again: linked show finished (shows.status 'completed') 
+  ok   linked show not sent → Try again: songs and edits kept: Encore once (1), edit saved, Copper Sky removed, all 14 rows reviewed 
+  ok   linked show not sent → Try again: catalog counted once (Encore 1 in 1 row, Paper Boats 26 = seed+1) 
+  ok   linked show not sent → Try again: celebration shown, no error 
+  ok   linked show lost: no celebration, show not marked complete, connection message 
+  ok   linked show lost → Try again: show complete in the database (status 'complete') 
+  ok   linked show lost → Try again: linked show finished (shows.status 'completed') 
+  ok   linked show lost → Try again: songs and edits kept: Encore once (1), edit saved, Copper Sky removed, all 14 rows reviewed 
+  ok   linked show lost → Try again: catalog counted once (Encore 1 in 1 row, Paper Boats 26 = seed+1) 
+  ok   linked show lost → Try again: celebration shown, no error 
+54 passed, 0 failed

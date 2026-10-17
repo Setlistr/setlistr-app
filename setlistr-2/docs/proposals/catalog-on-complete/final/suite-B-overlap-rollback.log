@@ -1,0 +1,11 @@
+  ok   [B1 deployed main] same as today: its 'completed' is rejected so the trigger never fires; its own loop counts each song once (status review, markers 3, rows 3) 
+  ok   [B2 old tab] trigger and old page loop together: each song counted once ({"Low Tide":1,"Paper Boats":1,"Polar Night":1}, markers 3) 
+  ok   [B2 old tab → re-saved in the candidate] no change 
+  ok   [B3 old tab + candidate at once] the shared song: one row, counted twice (1:2) 
+  ok   [B4 main + candidate at once] no show counted twice (markers for the song: 2); total for the song: 2 over 1 row(s) 
+  ok   [B5 wrong rollback order] trigger dropped while the candidate is deployed: the show completes with NO catalogue (markers 0) — so the app must be rolled back first 
+  ok   [lost response] the page confirms by reading back and celebrates; catalogue recorded exactly once 
+  ok   [close at success] the page closed the moment the summary appeared: all 18 songs are in the catalogue (18 markers, 18 rows) 
+  ok   [import] an imported complete show is inserted and nothing is counted (an insert doesn't fire the trigger) 
+  ok   [import] the imported show saved later from Review is counted (as today) 
+10 passed, 0 failed

@@ -2,7 +2,11 @@
 
 **Status:** proposal for review, 2026-10-17; verification added the same day. **Nothing here is applied.** No migration, SQL, backfill or permission change is authorized. Fixes [data-integrity issues 1 and 3](data-integrity-open-issues.md); release blocker for `design/record-finish`.
 
-## Review package
+## Final review package
+
+See [proposals/catalog-on-complete/REVIEW.md](proposals/catalog-on-complete/REVIEW.md) (final SQL, app candidate 0d5dd82, preflight, rollout and rollback, results, risks). The sections below record how the proposal was developed.
+
+## Review package (earlier)
 
 - **SQL, exactly as proposed:** [proposals/catalog-on-complete/proposed-migration.sql](proposals/catalog-on-complete/proposed-migration.sql). Not applied anywhere.
 - **Application diff, exactly as proposed:** [proposals/catalog-on-complete/app.patch](proposals/catalog-on-complete/app.patch), against `design/share-cards` @ 0c9a567. The page stops writing the catalogue, and a planned song marked played is stored as played. The two must ship together.
