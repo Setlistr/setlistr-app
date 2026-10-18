@@ -1,0 +1,2 @@
+read_only on
+each of 9 planted markers in its expected category: True {'M1_matched_kept_song': 1, 'U3_show_soft_deleted': 1, 'U2_show_no_longer_exists': 1, 'U5_show_has_no_song_rows': 1, 'U4_marker_user_is_not_show_owner': 1, 'U1_marker_id_not_a_performance_id': 1, 'U7_song_not_in_show_nor_catalogue': 1, 'M2_matched_song_now_removed_by_artist': 1, 'U6_song_not_in_show_but_in_artists_catalogue': 1}

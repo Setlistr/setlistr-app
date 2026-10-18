@@ -1,0 +1,43 @@
+
+— The migration applied, and refuses to run over anything else
+  ok   [migration] catalogue policies now: user_song_performances.user_song_performances_delete:DELETE user_song_performances.user_song_performances_insert:INSERT user_song_performances.user_song_performances_read:SELECT user_song_performances.user_song_performances_update:UPDATE user_songs.user_songs_delete:DELETE user_songs.user_songs_insert:INSERT user_songs.user_songs_read:SELECT user_songs.user_songs_update:UPDATE 
+  ok   [migration] re-running it over a different policy state aborts, changing nothing: catalogue_write_access: user_songs's policies differ from the reviewed production state 
+
+— Access matrix on the artist's catalogue rows and show markers
+  ok   [access] artist          read yes · writes allowed: insertRow, updateRow, deleteRow, insertMarker, updateMarker, deleteMarker 
+  ok   [access] manager         read yes · writes allowed: insertRow, updateRow, deleteRow, insertMarker, updateMarker, deleteMarker 
+  ok   [access] tour_manager    read yes · writes allowed: insertRow, updateRow, deleteRow, insertMarker, updateMarker, deleteMarker 
+  ok   [access] band_member     read yes · writes allowed: insertRow, updateRow, deleteRow, insertMarker, updateMarker, deleteMarker 
+  ok   [access] viewer          read yes · writes allowed: none 
+  ok   [access] revoked_manager read no  · writes allowed: none 
+  ok   [access] pending_manager read no  · writes allowed: none 
+  ok   [access] stranger        read no  · writes allowed: none 
+  ok   [access] signed out      read no  · writes allowed: none 
+
+— Ownership can't move
+  ok   [ownership] a Manager of both artists moves a catalogue row to the other artist: refused (23514) 
+  ok   [ownership] a Manager of both artists moves a show marker to the other artist: refused (23514) 
+  ok   [ownership] the artist gives a row away to an unrelated user: refused (23514) 
+  ok   [ownership] the artist clears a row's owner: refused (23514) 
+  ok   [ownership] a Viewer moves a row to themselves: refused (no rows) 
+  ok   [ownership] a Manager inserts a row for an artist they don't manage: refused (42501) 
+  ok   [ownership] afterwards the row and marker still belong to the artist 
+  ok   [ownership] even the service role / postgres can't move it (user_songs.user_id cannot be changed after creation) 
+
+— Authorized writers keep working
+  ok   [capture/live page + old review loop] artist: counted; Manager on another show: counted; Tour Manager on the same show: already counted; Live Song 2/1 
+  ok   [capture/live page] a Viewer's write is refused (refused 42501); nothing changed 
+  ok   [My Songs] artist: add yes, edit yes, delete yes 
+  ok   [My Songs] manager: add yes, edit yes, delete yes 
+  ok   [My Songs] viewer: add no, edit no, delete no 
+  ok   [Spotify import] the artist's own delete and re-insert still work 
+  ok   [capture identify / uploads / delete / undo, service role] count counted; delete → 0/1; undo → 1/1 
+  ok   [trigger] a Viewer can no longer pre-insert a marker (42501); the Manager's completion records both songs (1/1, 1/1) 
+  ok   [trigger] a Viewer still can't complete a show 
+
+— Stale writes from read-then-write writers (overlap guarantee)
+  ok   [O1] trigger committed 6/1; the older writer then wrote its stale 5+1: Known Song 6/1 after two counted shows (true value 7/1) — the trigger's increment is overwritten 
+  ok   [O2] delete committed 4/1; the older writer then wrote its stale 5+1: Known Song 6/1 (true value 5/1: one show removed, one added) — an over-count 
+  ok   [O3] two trigger completions: Known Song 7/1 (exact) 
+
+31 passed, 0 failed

@@ -1,35 +1,60 @@
-# Separate finding: catalogue tables are writable by every delegate, including Viewers
+# Separate finding and repair: catalogue tables were writable by every delegate, including Viewers
 
-**Demonstrated on the disposable stack in production's shape. Not fixed; no production change proposed or made.** Reported separately from the catalogue repair, which neither depends on it nor changes it.
+**Status:**
+- the finding is demonstrated;
+- the repair, [`proposed-catalogue-write-access.sql`](proposed-catalogue-write-access.sql), is **tested on the disposable production-shaped stack only; NOT APPLIED; no production policy change;**
+- it's independent of the catalogue repair and can be approved, applied or rolled back on its own.
 
-## Production's policies (preflight Run 1)
+## The finding (production, preflight Run 1)
 
 ```
 user_songs_self              FOR ALL  TO public  USING (can_act_for(user_id))   -- no WITH CHECK
 user_song_performances_self  FOR ALL  TO public  USING (can_act_for(user_id))   -- no WITH CHECK
 ```
 
-- **`can_act_for`** admits the artist and **every accepted, unrevoked delegate of any role**, Viewers included. Only `can_write_for` filters by role (manager, tour_manager, band_member).
-- **The missing WITH CHECK:** a policy without WITH CHECK uses its USING expression for writes, so the same test governs both.
-- **Grants:** anon and authenticated have INSERT, UPDATE and DELETE on both tables, assuming Supabase's default grants. Preflight Run 3 confirms the production grants.
+`can_act_for` admits every accepted, unrevoked delegate, Viewers included. Without WITH CHECK, the same test governs writes. Demonstrated through PostgREST with a Viewer's own session (`final2/db-verify.log`): a Viewer could:
+- insert, change and delete the artist's catalogue rows;
+- insert a show marker ahead of time, which **stopped that song being counted** when the show completed.
 
-## Demonstrated (PostgREST with each user's own session; `final2/db-verify.log`)
+## The repair
 
-| User | Read the artist's catalogue | Insert | Update counts | Delete | Insert a show marker |
-|---|---|---|---|---|---|
-| Manager | yes | yes | yes | yes | yes |
-| **Viewer** | yes | **yes** | **yes** | **yes** | **yes** |
-| Unrelated signed-in user | no rows | refused (42501) | no rows | no rows | refused (42501) |
-| Signed out | no rows | refused (42501) | no rows | no rows | refused (42501) |
+- **Reads unchanged:** SELECT `can_act_for(user_id)`, for the artist and every current delegate, Viewers included.
+- **Writes:** INSERT, UPDATE and DELETE on **both** tables require `can_write_for(user_id)`: the artist, and accepted, unrevoked managers, tour managers and band members. That's the same rule as `performances` and `performance_songs`.
+- **Ownership locked:** `user_songs_lock_owner` and `user_song_performances_lock_owner` reject any change of `user_id` (23514), the same pattern as `performances_lock_owner`.
+- **Precondition:** it aborts, changing nothing, unless each table has exactly the one `_self` policy found in production.
 
-**Effect on counting:** a marker inserted ahead of time for a show makes that song **not counted** when the show completes. This applies to both the trigger and the page loops, since the marker is what says "already counted". Demonstrated for the Manager and Viewer rows.
+## Who writes these tables, and why each keeps working
 
-## Why it matters, and what it doesn't affect
+| Writer | Client | After the repair |
+|---|---|---|
+| Live capture page; old review loop (`main`) | user session | artist, Manager, Tour Manager and band member still write; Viewer refused (as its review save already is) |
+| My Songs (add, edit, delete) | user session | artist and writing delegates; Viewer refused |
+| Spotify import route | the artist's own session | unchanged |
+| `api/identify`, `api/upload-identify`, `api/upload-reconcile`, delete, undo, admin routes | service role (RLS bypassed) | unaffected; none changes `user_id` |
+| The catalogue repair's trigger | SECURITY DEFINER, `postgres` | unaffected |
 
-- A Viewer is meant to be read-only. Through the API, any Viewer can change the artist's song counts, delete catalogue rows, or suppress future counting. The app's UI doesn't offer this; it needs direct API calls with the Viewer's own session.
-- **The catalogue repair doesn't rely on these policies.** Its function is SECURITY DEFINER, owned by `postgres` (bypass RLS), and runs only inside a status update that `performances_write` (`can_write_for`) has already authorized. Viewers' saves are still refused (browser test, Viewer row).
-- **The old page loops do rely on them:** `main` and live capture write as the signed-in user. So tightening these policies to `can_write_for` would keep Managers, Tour Managers and band members working, while blocking Viewers.
+## Tests (`final3/policy-verify.log`: 31/31; browser `final3/prod-verify-policy.log`)
 
-## Possible remedy (needs its own review and approval; not drafted as SQL here)
+| User | Read rows and markers | Insert / update / delete rows | Insert / update / delete markers |
+|---|---|---|---|
+| Artist, Manager, Tour Manager, band member | yes | yes | yes |
+| Viewer | **yes** | **no** | **no** |
+| Revoked Manager, pending (unaccepted) Manager | no | no | no |
+| Unrelated signed-in user, signed out | no | no | no |
 
-Split each `FOR ALL` policy into SELECT USING `can_act_for` and INSERT/UPDATE/DELETE using `can_write_for`. Before proposing it, check every writer of these tables (capture, uploads, delete/undo, imports, the service-role admin routes).
+**Ownership attempts, all refused:**
+- a Manager of two artists moving a row or a marker between them (23514);
+- the artist giving a row away or clearing its owner (23514);
+- a Viewer taking a row (no rows);
+- a Tour Manager inserting a row for an artist they don't manage (42501);
+- the service role moving a row (23514).
+
+**Writer paths:**
+- the capture page's exact calls (artist, Manager; Tour Manager on an already-counted show gets "already counted");
+- My Songs add, edit and delete;
+- the Spotify import's delete and re-insert;
+- the service-role identify, upload, delete and undo sequences;
+- a Manager's completion recorded by the trigger;
+- a Viewer can no longer plant a marker.
+
+**Rollback:** restore the two `_self` policies and drop the two lock triggers. It's a pure permission change with no data change.

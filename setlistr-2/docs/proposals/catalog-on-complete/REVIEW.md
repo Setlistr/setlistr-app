@@ -1,61 +1,58 @@
-# Catalogue repair: review package, revision 2
+# Release package for approval (revision 2, 2026-10-18)
 
-**Status:** revised against the production preflight. **Not applied anywhere.** No migration, production write, backfill, deployment or merge. Approval stays held until preflight Runs 2 and 3 are back and reviewed.
+**Status:** **nothing applied anywhere.** No migration, production policy change, production write, backfill, deployment or merge. Approval stays held until preflight Runs 2 and 3 are back and reviewed.
 
-## What to approve
+There are two independent proposals, each approved, applied and rolled back on its own.
+
+## A · Catalogue repair (the release)
 
 | Item | Where |
 |---|---|
-| SQL, exact (revision 2) | [`proposed-migration.sql`](proposed-migration.sql); the file tested is byte-identical |
-| App candidate (unchanged) | `fix/catalog-on-complete-app` @ **0d5dd82cc4ce2854184191b7a7507e69f3c04593**, local only (remote deleted to contain the Preview), on `design/share-cards` @ e47c879; diff in `app.patch` |
-| Preflight | [PREFLIGHT.md](PREFLIGHT.md): Run 1 findings; Runs 2 and 3 prepared |
-| Rollout / rollback | [ROLLOUT.md](ROLLOUT.md): SQL first; the SQL stays; fix forward |
-| Mixed writers | [OVERLAP.md](OVERLAP.md): corrected for production's unique key |
-| Separate permission finding | [FINDING-catalogue-policies.md](FINDING-catalogue-policies.md) |
+| SQL, exact | [`proposed-migration.sql`](proposed-migration.sql) (revision 2; byte-identical to the file tested) |
+| App candidate | `fix/catalog-on-complete-app` @ **0d5dd82cc4ce2854184191b7a7507e69f3c04593**, local only, on `design/share-cards` @ e47c879; diff in [`app.patch`](app.patch) |
+| Preflight | [PREFLIGHT.md](PREFLIGHT.md): Run 1 done; Runs 2 and 3 prepared and validated |
+| Rollout / rollback | [ROLLOUT.md](ROLLOUT.md): SQL first, then the app; the SQL stays; fix forward |
+| Mixed writers | [OVERLAP.md](OVERLAP.md): corrected 2026-10-18 |
 
-## What changed from revision 1, and why
-
-| Production finding | Change |
-|---|---|
-| `user_songs` has UNIQUE (user_id, song_title) | **Bug fixed.** Revision 1 updated, then inserted. When another writer created the song's row in between, its insert failed with `23505`, and the page would have reported a permanent failure. Revision 2 uses one atomic `INSERT … ON CONFLICT DO UPDATE`. Demonstrated failing on revision 1 and passing on revision 2. |
-| The unique key serializes writers of the same song | the per-artist advisory lock is removed; songs are written in key order (0 deadlocks in 12 concurrent rounds) |
-| `user_song_performances.performance_id` is text | markers written explicitly as `id::text`, the app's form (revision 1 also worked, through an assignment cast) |
-| the migration's correctness depends on production's shape | a precondition block aborts the migration, changing nothing, if the column type, either unique key or the status check differs |
-
-**Intended behaviour (unchanged):**
+**Intended behaviour:**
 - authorized Managers and Tour Managers update the artist's catalogue;
 - a catalogue failure prevents final completion while keeping edits;
 - Try again is offered only for temporary failures.
 
-## Test results: disposable stack in production's shape
+**Revision 2 vs revision 1:** an atomic upsert replaces update-then-insert (revision 1 failed with `23505` against production's unique key); the advisory lock is removed; markers are written as `id::text`; a shape precondition aborts the migration if production differs.
 
-**The shape is verified:** the same Run 1 on the disposable database matches production on every column type, nullability, constraint, policy, access function, index and trigger the repair touches (`final2/shape-check.out`). The only extra object is the proposed trigger. Production's Notion webhook trigger is reproduced against a closed local port.
+## B · Catalogue write access (separate permission repair)
 
-| Suite | Result |
+| Item | Where |
 |---|---|
-| Database level (`db-verify`): types, unique-key races, deadlocks, Notion webhook, function permissions, table access | **17/17**, plus 7 reported findings |
-| Browser (`prod-verify`): roles, played planned, capture, re-save, concurrency, failure boundary 5a–5d, overlap B1–B5, lost response, close at success, imports | **34/34** |
-| save-stages (a lost response and a retry at every stage) | **94/94** |
-| fix-verify (scenario 5 replaced by 5a–5d) | **54/54** |
-| Production-size timing (1,088 catalogue rows, largest artist 598; 3,548 songs; 2,103 markers) | **1.2–1.6 ms** per 18-song completion; both lookups use the unique indexes |
+| SQL, exact | [`proposed-catalogue-write-access.sql`](proposed-catalogue-write-access.sql), byte-identical to the file tested |
+| Rollback, exact | [`proposed-catalogue-write-access.rollback.sql`](proposed-catalogue-write-access.rollback.sql), tested: restores production's current policies exactly |
+| Finding, design, tests | [FINDING-catalogue-policies.md](FINDING-catalogue-policies.md) |
 
-Checks against the earlier claims:
-- **5c real contention** is now a row lock on the artist's catalogue row. The statement timeout arrives as `57014` untagged, is treated as temporary, and the retry completes.
-- **B1** passes for both the owner and a Manager through deployed `main`.
-- **B4** (`main` + candidate at once): the candidate completes, 2 markers, always one row; the total is 2, or 1 if `main` loses the race.
+## Test results (disposable stack, verified to match production's shape)
 
-## Remaining risks and open items
+| Suite | Configuration | Result |
+|---|---|---|
+| Database level: types, unique-key races, deadlocks, Notion webhook, function permissions | A only | 17/17 (`final2/db-verify.log`) |
+| Browser: roles, played planned, capture, re-save, concurrency, failure boundary 5a–5d, overlap B1–B5, lost response, close at success, imports | A only | 34/34 (`final2/prod-verify.log`) |
+| Browser, same suite | **A + B** | 34/34 (`final3/prod-verify-policy.log`) |
+| Policy access matrix, ownership, writer paths, stale-write interleavings O1–O3 | A + B | 31/31 (`final3/policy-verify.log`) |
+| Policy rollback restores production's policies; re-apply works | B | pass (`final3/policy-rollback-check.log`) |
+| save-stages · fix-verify | A | 94/94 · 54/54 |
+| Production-size timing | A | 1.2–1.6 ms per 18-song completion |
+| Run 2 / Run 3 at production size; Run 3 categories on planted markers | — | 38 ms / 60 ms; 9 of 9 correct |
 
-- **Preflight Runs 2 and 3 are not yet run.** They cover the production plan, the table grants, column defaults and the unmatched-marker categories.
-- **Unmatched markers:** 1,007 of 2,103 don't match a current song of their show. Uncategorized until Run 3. They're not treated as lost counts, and there's no backfill.
-- **Unlocked writers can lose a count** when racing on the same new or existing song (R2, R3 in OVERLAP.md). They never add one. Affected: old tabs until they reload; capture, uploads and delete/undo permanently, until those paths are repaired.
-- **Viewer write access to the catalogue** (separate finding). Not changed by this repair.
+## Remaining risks
+
+- **Runs 2 and 3 not yet run in production:** plan, table grants, column defaults, unmatched-marker categories.
+- **Unmatched markers:** 1,007 of 2,103. Uncategorized until Run 3; not treated as lost counts; no backfill.
+- **Stale writes ([OVERLAP.md](OVERLAP.md)):** a read-then-write writer can overwrite any committed count, the trigger's included, with a stale value. The count can then drift **either way**: under (O1, R2, R3) or over (O2). Guaranteed for every writer: at most one count per song per show, and one row per title. Exposure: old tabs until they reload; capture, uploads and delete/undo until those paths are repaired.
 - **Completion now depends on the catalogue:** a persistent catalogue error would stop shows completing; the SQL is fixed forward.
-- **Previews use the production database.** Don't publish a candidate Preview before the migration.
+- **Previews use the production database:** don't publish a candidate Preview before the migration.
 - **Not tested:** native iOS sharing.
 
-**Explicitly NOT repaired by this change (still open):**
+**Explicitly NOT repaired (open):**
 - historical backfill;
 - the live-capture and upload catalogue writes;
 - Notion webhook deduplication;
-- the audit of historical shows left in review.
+- the historical review audit.

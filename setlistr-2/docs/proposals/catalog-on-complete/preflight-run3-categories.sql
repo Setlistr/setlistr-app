@@ -1,21 +1,17 @@
 -- Catalogue repair · PRODUCTION PREFLIGHT for the Supabase SQL Editor · RUN 3 · READ-ONLY
 -- Table grants, column defaults and the unmatched per-show markers in aggregate categories.
 -- Counts only: no titles, no ids, no personal row data. Categories describe where a marker's
--- song is now; they do not say a count was lost, and they authorize nothing.
+-- song is now; they do not say a count was lost, and they authorize nothing. Structural checks
+-- (id shape, show missing, soft-deleted, wrong owner) come first; then whether the song is still in the show.
 BEGIN TRANSACTION READ ONLY;
 SET LOCAL statement_timeout = '30s';
 
 WITH
-k AS MATERIALIZED (
-  SELECT DISTINCT ps.performance_id::text AS pid,
+k AS MATERIALIZED (   -- every song's key, computed once, with whether the artist removed it at review
+  SELECT DISTINCT ps.performance_id::text AS pid, coalesce(ps.artist_removed, false) AS removed,
          btrim(regexp_replace(regexp_replace(regexp_replace(regexp_replace(regexp_replace(
            btrim(lower(ps.title)), '\(.*?\)', '', 'g'), '\[.*?\]', '', 'g'), '[-–—]', ' ', 'g'), '[^a-z0-9 ]', '', 'g'), '\s+', ' ', 'g')) AS key
   FROM public.performance_songs ps),
-kr AS MATERIALIZED (   -- the same, for songs the artist removed at review (artist_removed)
-  SELECT DISTINCT ps.performance_id::text AS pid,
-         btrim(regexp_replace(regexp_replace(regexp_replace(regexp_replace(regexp_replace(
-           btrim(lower(ps.title)), '\(.*?\)', '', 'g'), '\[.*?\]', '', 'g'), '[-–—]', ' ', 'g'), '[^a-z0-9 ]', '', 'g'), '\s+', ' ', 'g')) AS key
-  FROM public.performance_songs ps WHERE coalesce(ps.artist_removed, false)),
 songs AS MATERIALIZED (SELECT DISTINCT performance_id::text AS pid FROM public.performance_songs),
 cat AS MATERIALIZED (
   SELECT DISTINCT us.user_id,
@@ -25,15 +21,12 @@ cat AS MATERIALIZED (
 c AS (
   SELECT m.created_at, p.status, p.data_source,
     CASE
-      WHEN EXISTS (SELECT 1 FROM k WHERE k.pid = m.performance_id AND k.key = m.normalized_title)
-        THEN CASE WHEN EXISTS (SELECT 1 FROM kr WHERE kr.pid = m.performance_id AND kr.key = m.normalized_title)
-                    AND NOT EXISTS (SELECT 1 FROM public.performance_songs ps WHERE ps.performance_id::text = m.performance_id AND NOT coalesce(ps.artist_removed, false)
-                                      AND btrim(regexp_replace(regexp_replace(regexp_replace(regexp_replace(regexp_replace(btrim(lower(ps.title)), '\(.*?\)', '', 'g'), '\[.*?\]', '', 'g'), '[-–—]', ' ', 'g'), '[^a-z0-9 ]', '', 'g'), '\s+', ' ', 'g')) = m.normalized_title)
-                  THEN 'M2_matched_song_now_removed_by_artist' ELSE 'M1_matched_kept_song' END
       WHEN m.performance_id !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN 'U1_marker_id_not_a_performance_id'
       WHEN p.id IS NULL THEN 'U2_show_no_longer_exists'
       WHEN (to_jsonb(p) ->> 'deleted_at') IS NOT NULL THEN 'U3_show_soft_deleted'
       WHEN p.user_id IS DISTINCT FROM m.user_id THEN 'U4_marker_user_is_not_show_owner'
+      WHEN EXISTS (SELECT 1 FROM k WHERE k.pid = m.performance_id AND k.key = m.normalized_title AND NOT k.removed) THEN 'M1_matched_kept_song'
+      WHEN EXISTS (SELECT 1 FROM k WHERE k.pid = m.performance_id AND k.key = m.normalized_title AND k.removed) THEN 'M2_matched_song_now_removed_by_artist'
       WHEN NOT EXISTS (SELECT 1 FROM songs WHERE songs.pid = m.performance_id) THEN 'U5_show_has_no_song_rows'
       WHEN EXISTS (SELECT 1 FROM cat WHERE cat.user_id = m.user_id AND cat.key = m.normalized_title) THEN 'U6_song_not_in_show_but_in_artists_catalogue'
       ELSE 'U7_song_not_in_show_nor_catalogue'

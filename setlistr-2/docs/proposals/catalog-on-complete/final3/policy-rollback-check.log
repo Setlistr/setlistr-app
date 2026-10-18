@@ -1,0 +1,4 @@
+MATCHES PRODUCTION
+extra here (expected: the migration): ['performances_record_catalog']
+catalogue lock triggers left: 0
+re-apply after rollback: 8 policies

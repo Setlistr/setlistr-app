@@ -1,0 +1,23 @@
+-- Run 2 on the disposable stack at production size (read-only; plan only)
+Nested Loop Left Join  (cost=129.19..186.60 rows=3 width=64)
+  ->  Nested Loop Left Join  (cost=128.91..161.70 rows=3 width=79)
+        ->  Nested Loop  (cost=128.62..136.72 rows=3 width=63)
+              ->  Unique  (cost=128.34..128.36 rows=3 width=51)
+                    ->  Sort  (cost=128.34..128.35 rows=3 width=51)
+                          Sort Key: (btrim(regexp_replace(regexp_replace(regexp_replace(regexp_replace(regexp_replace(btrim(lower(ps.title)), '\(.*?\)'::text, ''::text, 'g'::text), '\[.*?\]'::text, ''::text, 'g'::text), '[-–—]'::text, ' '::text, 'g'::text), '[^a-z0-9 ]'::text, ''::text, 'g'::text), '\s+'::text, ' '::text, 'g'::text))), ps."position"
+                          ->  Seq Scan on performance_songs ps  (cost=0.00..128.32 rows=3 width=51)
+                                Filter: ((NOT COALESCE(artist_removed, false)) AND (COALESCE(source, ''::text) <> 'planned'::text) AND (performance_id = '00000000-0000-0000-0000-000000000000'::uuid) AND (NULLIF(btrim(title), ''::text) IS NOT NULL))
+              ->  Materialize  (cost=0.28..8.30 rows=1 width=16)
+                    ->  Index Scan using performances_pkey on performances  (cost=0.28..8.29 rows=1 width=16)
+                          Index Cond: (id = '00000000-0000-0000-0000-000000000000'::uuid)
+        ->  Memoize  (cost=0.29..8.31 rows=1 width=46)
+              Cache Key: performances.user_id, (btrim(regexp_replace(regexp_replace(regexp_replace(regexp_replace(regexp_replace(btrim(lower(ps.title)), '\(.*?\)'::text, ''::text, 'g'::text), '\[.*?\]'::text, ''::text, 'g'::text), '[-–—]'::text, ' '::text, 'g'::text), '[^a-z0-9 ]'::text, ''::text, 'g'::text), '\s+'::text, ' '::text, 'g'::text)))
+              Cache Mode: logical
+              ->  Index Scan using idx_usp_lookup on user_song_performances m  (cost=0.28..8.30 rows=1 width=46)
+                    Index Cond: ((user_id = performances.user_id) AND (performance_id = '00000000-0000-0000-0000-000000000000'::text) AND (normalized_title = (btrim(regexp_replace(regexp_replace(regexp_replace(regexp_replace(regexp_replace(btrim(lower(ps.title)), '\(.*?\)'::text, ''::text, 'g'::text), '\[.*?\]'::text, ''::text, 'g'::text), '[-–—]'::text, ' '::text, 'g'::text), '[^a-z0-9 ]'::text, ''::text, 'g'::text), '\s+'::text, ' '::text, 'g'::text)))))
+  ->  Index Scan using user_songs_user_id_song_title_key on user_songs us  (cost=0.28..8.30 rows=1 width=47)
+        Index Cond: ((user_id = performances.user_id) AND (song_title = ps.title))
+
+-- ON CONFLICT arbiter indexes (disposable only; EXPLAIN of the two INSERTs in a READ ONLY transaction, nothing executed)
+Insert on user_song_performances: Conflict Resolution NOTHING; Conflict Arbiter Indexes: user_song_performances_user_id_performance_id_normalized_ti_key
+Insert on user_songs: Conflict Resolution UPDATE; Conflict Arbiter Indexes: user_songs_user_id_song_title_key
