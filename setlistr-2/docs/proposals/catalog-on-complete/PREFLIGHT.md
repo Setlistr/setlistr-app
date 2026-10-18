@@ -9,7 +9,7 @@
 | 3 | [`preflight-run3-categories.sql`](preflight-run3-categories.sql): table grants, column defaults, webhook dependencies, unmatched markers by category (counts only) | **run 2026-10-18 15:06Z, `read_only: on`** |
 
 **About the Run 1 amendment (diagnosis only):** checks 13 and 14 compare performance ids as text, because production's `user_song_performances.performance_id` is `text` and the original run stopped with `42883`. It also adds `00_cli_login_roles`.
-| 4 | [`preflight-run4-access.sql`](preflight-run4-access.sql): client-role reachability of Run 3's administrative grants (server version, login, schema CREATE, MAINTAIN, GraphQL, client-callable dynamic-SQL functions) | prepared and validated; **not yet run**; affects only the separate grants repair |
+| 4 | [`preflight-run4-access.sql`](preflight-run4-access.sql): client-role reachability of Run 3's administrative grants (server version, login, schema CREATE, MAINTAIN, GraphQL, client-callable dynamic-SQL functions) | **run 2026-10-18 15:32Z, `read_only: on`**: PostgreSQL 17.6; MAINTAIN granted on the three tables; no login, no CREATE, no GraphQL, no dynamic-SQL RPC |
 
 ## Runs 2 and 3: production results and verdict
 

@@ -1,0 +1,175 @@
+
+> setlistr@0.1.0 build
+> next build
+
+  ▲ Next.js 14.2.35
+  - Environments: .env.local
+
+   Creating an optimized production build ...
+Browserslist: caniuse-lite is outdated. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+<w> [webpack.cache.PackFileCacheStrategy] Serializing big strings (231kiB) impacts deserialization performance (consider using Buffer instead and decode when needed)
+Browserslist: browsers data (caniuse-lite) is 6 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+Browserslist: caniuse-lite is outdated. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+ ✓ Compiled successfully
+   Linting and checking validity of types ...
+   Collecting page data ...
+ ⚠ Using edge runtime on a page currently disables static generation for that page
+   Generating static pages (0/82) ...
+   Generating static pages (20/82) 
+Context data error: B [Error]: Dynamic server usage: Route /api/team/context-data couldn't be rendered statically because it used `nextUrl.searchParams`. See more info here: https://nextjs.org/docs/messages/dynamic-server-error
+    at V (/Users/jesseslack/setlistr-manager-workspace/setlistr-2/node_modules/next/dist/compiled/next-server/app-route.runtime.prod.js:6:21778)
+    at Object.get (/Users/jesseslack/setlistr-manager-workspace/setlistr-2/node_modules/next/dist/compiled/next-server/app-route.runtime.prod.js:6:29137)
+    at d (/Users/jesseslack/setlistr-manager-workspace/setlistr-2/.next/server/app/api/team/context-data/route.js:1:923)
+    at /Users/jesseslack/setlistr-manager-workspace/setlistr-2/node_modules/next/dist/compiled/next-server/app-route.runtime.prod.js:6:38417
+    at /Users/jesseslack/setlistr-manager-workspace/setlistr-2/node_modules/next/dist/server/lib/trace/tracer.js:140:36
+    at NoopContextManager.with (/Users/jesseslack/setlistr-manager-workspace/setlistr-2/node_modules/next/dist/compiled/@opentelemetry/api/index.js:1:7062)
+    at ContextAPI.with (/Users/jesseslack/setlistr-manager-workspace/setlistr-2/node_modules/next/dist/compiled/@opentelemetry/api/index.js:1:518)
+    at NoopTracer.startActiveSpan (/Users/jesseslack/setlistr-manager-workspace/setlistr-2/node_modules/next/dist/compiled/@opentelemetry/api/index.js:1:18093)
+    at ProxyTracer.startActiveSpan (/Users/jesseslack/setlistr-manager-workspace/setlistr-2/node_modules/next/dist/compiled/@opentelemetry/api/index.js:1:18854)
+    at /Users/jesseslack/setlistr-manager-workspace/setlistr-2/node_modules/next/dist/server/lib/trace/tracer.js:122:103 {
+  description: "Route /api/team/context-data couldn't be rendered statically because it used `nextUrl.searchParams`. See more info here: https://nextjs.org/docs/messages/dynamic-server-error",
+  digest: 'DYNAMIC_SERVER_USAGE'
+}
+Managed artists error: n [Error]: Dynamic server usage: Route /api/team/managed-artists couldn't be rendered statically because it used `cookies`. See more info here: https://nextjs.org/docs/messages/dynamic-server-error
+    at l (/Users/jesseslack/setlistr-manager-workspace/setlistr-2/.next/server/chunks/8948.js:1:37220)
+    at f (/Users/jesseslack/setlistr-manager-workspace/setlistr-2/.next/server/chunks/9702.js:5:9237)
+    at a (/Users/jesseslack/setlistr-manager-workspace/setlistr-2/.next/server/app/api/parse-setlist/route.js:12:3208)
+    at c (/Users/jesseslack/setlistr-manager-workspace/setlistr-2/.next/server/app/api/team/managed-artists/route.js:1:925)
+    at /Users/jesseslack/setlistr-manager-workspace/setlistr-2/node_modules/next/dist/compiled/next-server/app-route.runtime.prod.js:6:38417
+    at /Users/jesseslack/setlistr-manager-workspace/setlistr-2/node_modules/next/dist/server/lib/trace/tracer.js:140:36
+    at NoopContextManager.with (/Users/jesseslack/setlistr-manager-workspace/setlistr-2/node_modules/next/dist/compiled/@opentelemetry/api/index.js:1:7062)
+    at ContextAPI.with (/Users/jesseslack/setlistr-manager-workspace/setlistr-2/node_modules/next/dist/compiled/@opentelemetry/api/index.js:1:518)
+    at NoopTracer.startActiveSpan (/Users/jesseslack/setlistr-manager-workspace/setlistr-2/node_modules/next/dist/compiled/@opentelemetry/api/index.js:1:18093)
+    at ProxyTracer.startActiveSpan (/Users/jesseslack/setlistr-manager-workspace/setlistr-2/node_modules/next/dist/compiled/@opentelemetry/api/index.js:1:18854) {
+  description: "Route /api/team/managed-artists couldn't be rendered statically because it used `cookies`. See more info here: https://nextjs.org/docs/messages/dynamic-server-error",
+  digest: 'DYNAMIC_SERVER_USAGE'
+}
+   Generating static pages (40/82) 
+   Generating static pages (61/82) 
+ ✓ Generating static pages (82/82)
+   Finalizing page optimization ...
+   Collecting build traces ...
+
+Route (app)                              Size     First Load JS
+┌ ○ /                                    6.55 kB         108 kB
+├ ○ /_not-found                          878 B          88.3 kB
+├ ƒ /api/account/delete                  0 B                0 B
+├ ƒ /api/admin/assign-delegate           0 B                0 B
+├ ƒ /api/admin/beta-invite               0 B                0 B
+├ ƒ /api/admin/delete-show               0 B                0 B
+├ ƒ /api/admin/preload-setlist           0 B                0 B
+├ ƒ /api/admin/run-reconciliation        0 B                0 B
+├ ƒ /api/admin/spotify-import            0 B                0 B
+├ ƒ /api/admin/waitlist                  0 B                0 B
+├ ƒ /api/bandsintown/upcoming            0 B                0 B
+├ ƒ /api/email-sync                      0 B                0 B
+├ ƒ /api/enrich-song                     0 B                0 B
+├ ƒ /api/identify                        0 B                0 B
+├ ƒ /api/lastfm                          0 B                0 B
+├ ƒ /api/notion-sync                     0 B                0 B
+├ ƒ /api/og/[id]                         0 B                0 B
+├ ○ /api/og/card                         0 B                0 B
+├ ƒ /api/og/setlist/[id]                 0 B                0 B
+├ ƒ /api/parse-setlist                   0 B                0 B
+├ ƒ /api/performance-songs               0 B                0 B
+├ ƒ /api/performances/[id]/delete        0 B                0 B
+├ ƒ /api/performances/[id]/delete/undo   0 B                0 B
+├ ƒ /api/profile/update                  0 B                0 B
+├ ƒ /api/publisher/artist-search         0 B                0 B
+├ ƒ /api/publisher/dashboard             0 B                0 B
+├ ƒ /api/publisher/invite                0 B                0 B
+├ ƒ /api/publisher/roster/add            0 B                0 B
+├ ƒ /api/rd-log                          0 B                0 B
+├ ƒ /api/rd-log/structure                0 B                0 B
+├ ƒ /api/recent-songs                    0 B                0 B
+├ ƒ /api/setlistfm                       0 B                0 B
+├ ƒ /api/shows/schedule                  0 B                0 B
+├ ƒ /api/shows/schedule/[id]             0 B                0 B
+├ ƒ /api/shows/schedule/[id]/cancel      0 B                0 B
+├ ƒ /api/shows/schedule/[id]/start       0 B                0 B
+├ ƒ /api/song-debuts                     0 B                0 B
+├ ƒ /api/spotify-import                  0 B                0 B
+├ ƒ /api/spotify-search                  0 B                0 B
+├ ƒ /api/team/accept                     0 B                0 B
+├ ƒ /api/team/context-data               0 B                0 B
+├ ƒ /api/team/delegates                  0 B                0 B
+├ ƒ /api/team/invite                     0 B                0 B
+├ ƒ /api/team/managed-artists            0 B                0 B
+├ ƒ /api/team/request                    0 B                0 B
+├ ƒ /api/team/respond                    0 B                0 B
+├ ƒ /api/ticketmaster/upcoming           0 B                0 B
+├ ƒ /api/transcript-sync                 0 B                0 B
+├ ƒ /api/upload-identify                 0 B                0 B
+├ ƒ /api/upload-performance              0 B                0 B
+├ ƒ /api/upload-recognize                0 B                0 B
+├ ƒ /api/upload-reconcile                0 B                0 B
+├ ƒ /api/waitlist                        0 B                0 B
+├ ƒ /api/weekly-digest                   0 B                0 B
+├ ƒ /app/accept-invite                   5.14 kB         155 kB
+├ ƒ /app/admin                           13.9 kB         101 kB
+├ ƒ /app/admin/rd-log                    4.96 kB        92.3 kB
+├ ƒ /app/artist/[id]                     4.94 kB         155 kB
+├ ƒ /app/career-map                      4.7 kB          631 kB
+├ ƒ /app/dashboard                       8.62 kB         214 kB
+├ ƒ /app/file                            4.83 kB         164 kB
+├ ƒ /app/history                         7.72 kB         168 kB
+├ ƒ /app/live/[id]                       11.2 kB         168 kB
+├ ƒ /app/manager                         6.99 kB         166 kB
+├ ƒ /app/manager/analytics               7.84 kB         158 kB
+├ ƒ /app/manager/artists                 4.6 kB          163 kB
+├ ƒ /app/manager/artists/[artistId]      3.59 kB         222 kB
+├ ƒ /app/manager/schedule                1.55 kB         220 kB
+├ ƒ /app/new                             11.1 kB         161 kB
+├ ƒ /app/onboarding                      8.13 kB         158 kB
+├ ƒ /app/performances/[id]               178 B          96.2 kB
+├ ƒ /app/performances/new                377 B          87.8 kB
+├ ƒ /app/proof                           4.82 kB         155 kB
+├ ƒ /app/review/[id]                     39.4 kB         200 kB
+├ ƒ /app/schedule                        1.66 kB         193 kB
+├ ƒ /app/settings                        12.2 kB         171 kB
+├ ƒ /app/share-preview                   3.21 kB        95.5 kB
+├ ƒ /app/show/new                        12.1 kB         645 kB
+├ ƒ /app/show/upload                     6.11 kB         156 kB
+├ ƒ /app/stats                           17.3 kB         167 kB
+├ ƒ /app/submit/[id]                     12.5 kB         166 kB
+├ ƒ /app/team                            8.15 kB         167 kB
+├ ƒ /app/upload/new                      11.7 kB         638 kB
+├ ƒ /app/venue/[id]                      4.96 kB         155 kB
+├ ○ /apple-icon.png                      0 B                0 B
+├ ○ /auth/confirm                        1.76 kB         152 kB
+├ ○ /auth/login                          7.64 kB         171 kB
+├ ○ /auth/reset-password                 3.52 kB         159 kB
+├ ƒ /beta                                3.95 kB         159 kB
+├ ○ /get-paid                            206 B           101 kB
+├ ○ /get-paid-for-live-shows             206 B           101 kB
+├ ○ /how-it-works                        206 B           101 kB
+├ ○ /icon.png                            0 B                0 B
+├ ○ /imprint                             155 B          87.5 kB
+├ ○ /privacy                             155 B          87.5 kB
+├ ○ /publisher                           9.22 kB        96.6 kB
+├ ○ /robots.txt                          0 B                0 B
+├ ƒ /s/[id]                              297 B          92.8 kB
+├ ○ /sitemap.xml                         0 B                0 B
+├ ○ /start                               1.69 kB        89.1 kB
+├ ○ /submit-setlists-pro                 208 B           101 kB
+├ ○ /support                             154 B          87.5 kB
+├ ○ /terms                               152 B          87.5 kB
+├ ○ /unclaimed-music-royalties           206 B           101 kB
+└ ○ /what-is-live-performance-royalty    206 B           101 kB
++ First Load JS shared by all            87.4 kB
+  ├ chunks/2117-e876a945471d7b83.js      31.7 kB
+  ├ chunks/fd9d1056-e3a2359b584e6221.js  53.7 kB
+  └ other shared chunks (total)          1.99 kB
+
+
+ƒ Middleware                             82.1 kB
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+

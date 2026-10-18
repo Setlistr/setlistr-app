@@ -16,8 +16,9 @@
   ok   [client] a signed-in artist's own insert, update, read and delete through PostgREST still work 
 
 — Rollback
-  ok   [rollback] TRUNCATE, TRIGGER and REFERENCES are restored exactly as Run 3 found them 
-  ok   [rollback] MAINTAIN stays revoked unless its block is enabled (decided by Run 4) 
+  ok   [rollback] TRUNCATE, TRIGGER, REFERENCES and MAINTAIN are restored on the three tables, as Runs 3 and 4 found them 
+  ok   [rollback] DML unchanged; performances still has none of the four (as Run 4 found) 
+  ok   [rollback] the full table ACLs equal the pre-change snapshot exactly 
   ok   [re-apply] the revoke applies cleanly again 
 
-13 passed, 0 failed
+14 passed, 0 failed

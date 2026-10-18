@@ -30,6 +30,7 @@ const asClient = (role, q) => SQLerr(`begin; set local role ${role}; ${q}; rollb
   ok('[before] anon and authenticated hold TRUNCATE, TRIGGER, REFERENCES and MAINTAIN on the three tables', all(privs(['anon', 'authenticated'], TABLES, ADMIN), 't'))
   ok('[before] …and none of them on performances (0010)', all(privs(['anon', 'authenticated'], ['performances'], ADMIN), 'f'))
 
+  const ACL0 = SQL(`select string_agg(relname || '=' || relacl::text, ' ' order by relname) from pg_class where oid in ('public.user_songs'::regclass, 'public.user_song_performances'::regclass, 'public.performance_songs'::regclass, 'public.performances'::regclass)`)
   SQL(fs.readFileSync(path.join(MIG, 'admin-privileges-migration.sql'), 'utf8'))
   console.log('\n— After the revoke')
   ok('[after] anon and authenticated hold none of the four administrative privileges on the three tables', all(privs(['anon', 'authenticated'], TABLES, ADMIN), 'f'))
@@ -54,9 +55,10 @@ const asClient = (role, q) => SQLerr(`begin; set local role ${role}; ${q}; rollb
 
   console.log('\n— Rollback')
   SQL(fs.readFileSync(path.join(MIG, 'admin-privileges-rollback.sql'), 'utf8'))
-  const back = privs(['anon', 'authenticated'], TABLES, ['TRUNCATE', 'TRIGGER', 'REFERENCES'])
-  ok('[rollback] TRUNCATE, TRIGGER and REFERENCES are restored exactly as Run 3 found them', all(back, 't'))
-  ok('[rollback] MAINTAIN stays revoked unless its block is enabled (decided by Run 4)', all(privs(['anon', 'authenticated'], TABLES, ['MAINTAIN']), 'f'))
+  // Production before the change (Runs 3 + 4): all four administrative privileges plus DML on the three tables; none on performances.
+  ok('[rollback] TRUNCATE, TRIGGER, REFERENCES and MAINTAIN are restored on the three tables, as Runs 3 and 4 found them', all(privs(['anon', 'authenticated'], TABLES, ADMIN), 't'))
+  ok('[rollback] DML unchanged; performances still has none of the four (as Run 4 found)', all(privs(['anon', 'authenticated'], TABLES, DML), 't') && all(privs(['anon', 'authenticated'], ['performances'], ADMIN), 'f'))
+  ok('[rollback] the full table ACLs equal the pre-change snapshot exactly', SQL(`select string_agg(relname || '=' || relacl::text, ' ' order by relname) from pg_class where oid in ('public.user_songs'::regclass, 'public.user_song_performances'::regclass, 'public.performance_songs'::regclass, 'public.performances'::regclass)`) === ACL0)
   SQL(fs.readFileSync(path.join(MIG, 'admin-privileges-migration.sql'), 'utf8'))
   ok('[re-apply] the revoke applies cleanly again', all(privs(['anon', 'authenticated'], TABLES, ADMIN), 'f'))
 

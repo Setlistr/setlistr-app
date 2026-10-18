@@ -24,6 +24,19 @@ These grants are separate from row policies:
 
 **Conclusion:** through the app's existing client paths, none of these privileges is reachable today. The remaining check is Run 4 confirming no client-callable dynamic-SQL function exists. They're a latent risk: any future SQL-executing path, such as a careless RPC, would expose an RLS-free table wipe and cross-user triggers.
 
+## Run 4 (production, 2026-10-18 15:32Z, read-only)
+
+| Check | Result |
+|---|---|
+| server | PostgreSQL **17.6**, so MAINTAIN applies |
+| MAINTAIN | **granted** to anon and authenticated on `user_songs`, `user_song_performances`, `performance_songs`; not on `performances` |
+| client roles can log in | anon: no; authenticated: no |
+| schemas client roles can CREATE in | none |
+| GraphQL | `pg_graphql` not installed |
+| client-callable plpgsql functions running dynamic SQL | none |
+
+**Reachability, confirmed:** none of the four privileges is reachable through any existing client path. There's no direct login, no object creation, no GraphQL, and no RPC that runs dynamic SQL. Only PostgREST's DML and calls to existing functions remain, and those are governed by RLS and function grants.
+
 ## Minimum change
 
 [`proposed-catalogue-admin-privileges.sql`](proposed-catalogue-admin-privileges.sql) applies **0010's rule, unchanged**, to the three tables:
@@ -37,7 +50,7 @@ No app code uses any of these privileges.
 
 ## Verification (disposable stack; privilege checks and refusals only)
 
-`final4/grant-verify.log`: **13/13.**
+`final4/grant-verify.log`: **14/14.**
 
 | Stage | Checks |
 |---|---|
@@ -45,7 +58,7 @@ No app code uses any of these privileges.
 | After | none of the four privileges remains for anon/authenticated; their DML is unchanged; `service_role` keeps everything |
 | Refusals | TRUNCATE and CREATE TRIGGER as `authenticated` are refused with *permission denied* on each table, inside rolled-back transactions; `service_role` TRUNCATE still allowed (rolled back) |
 | Client path | a signed-in artist's own insert, update, read and delete through PostgREST work |
-| Rollback | [`proposed-catalogue-admin-privileges.rollback.sql`](proposed-catalogue-admin-privileges.rollback.sql) restores TRUNCATE, TRIGGER and REFERENCES exactly as Run 3 found them. Its MAINTAIN line is enabled only if Run 4 shows MAINTAIN granted today. Re-applying the revoke works. |
+| Rollback | [`proposed-catalogue-admin-privileges.rollback.sql`](proposed-catalogue-admin-privileges.rollback.sql) restores **TRUNCATE, TRIGGER, REFERENCES and MAINTAIN** as Runs 3 and 4 found them. The **full table ACLs equal the pre-change snapshot exactly**. Re-applying the revoke works. |
 | Full app suites | all pass with all three proposals applied: browser 34/34, policy 31/31, save-stages, fix-verify |
 
 **Verification limit:** exploit chains were deliberately not built. The checks above show the privileges exist, then are removed and refused. They don't demonstrate misuse.
