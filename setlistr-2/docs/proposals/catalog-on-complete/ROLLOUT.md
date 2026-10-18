@@ -16,7 +16,24 @@ The SQL is compatible with every version that could be running (demonstrated on 
 | Builds with the page-side loop that write `'complete'` (e47c879) | the trigger records it in the final write; the loop then finds every marker and adds nothing | B2, B3 |
 | The candidate (0d5dd82) | the trigger records it | suite A, 34/34 overall |
 
-## Rollout
+## The three proposals, and their order
+
+| | Proposal | Depends on | Rollback |
+|---|---|---|---|
+| **C** | [`proposed-catalogue-admin-privileges.sql`](proposed-catalogue-admin-privileges.sql): revoke TRUNCATE, TRIGGER, REFERENCES and MAINTAIN from client roles on the three tables | nothing; no app change | [`.rollback.sql`](proposed-catalogue-admin-privileges.rollback.sql) (enable its MAINTAIN line only if Run 4 shows MAINTAIN granted today) |
+| **B** | [`proposed-catalogue-write-access.sql`](proposed-catalogue-write-access.sql): catalogue writes only for the artist and writing delegates; ownership locked | nothing; no app change | [`.rollback.sql`](proposed-catalogue-write-access.rollback.sql) |
+| **A** | [`proposed-migration.sql`](proposed-migration.sql): the catalogue repair, then the app candidate 0d5dd82 | see below | app first; the SQL stays (below) |
+
+Each is independent: tested alone (A), together (A + B), and all three together. They can be approved separately.
+
+**Suggested order:**
+1. C;
+2. B, each followed by a read-only check of its privileges or policies;
+3. then A's steps below.
+
+C and B change permissions only and need no app deployment.
+
+## Rollout (A)
 
 1. **Read-only preflight** ([PREFLIGHT.md](PREFLIGHT.md)). Run 1 is done; Runs 2 and 3 are still to run. Stop on any unexpected result.
 2. **Apply `proposed-migration.sql` (revision 2).** It first checks production's shape and aborts, changing nothing, if anything differs:

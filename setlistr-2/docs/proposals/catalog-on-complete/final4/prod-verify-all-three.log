@@ -1,0 +1,36 @@
+  ok   [Owner] save completes and the artist's catalogue is recorded with it (3 songs, 1 each) 
+  ok   [Manager] save completes and the artist's catalogue is recorded with it (3 songs, 1 each) 
+  ok   [Tour Manager] save completes and the artist's catalogue is recorded with it (3 songs, 1 each) 
+  ok   [Viewer] save refused with a clear message; show stays in review; nothing in the catalogue 
+  ok   [played planned] the planned song marked played is counted; the one not marked is not 
+  ok   [capture] a song already counted during capture is not counted again at review 
+  ok   [re-save] saving the completed show again changes nothing 
+  ok   [concurrent] both saves complete; one catalogue row for the shared new song, counted twice (1:2) 
+  ok   [5a permanent] injection fired: the final write returned 400 23514 tagged song-catalogue 
+  ok   [5a permanent] message: edits saved, show not completed, catalogue named, retry not offered as the fix 
+  ok   [5a permanent] (original safety) no celebration; show not complete; no partial catalogue; no first-appearance claim 
+  ok   [5a permanent] (original safety) the edit and the linked show’s finish are kept 
+  ok   [5a retry] once the cause is gone, saving again completes; catalogue once; no duplicate songs 
+  ok   [5a retry] (original safety) first-appearance claims match the catalogue exactly (Brand New Debut, Paper Boats (Edited), Polar Night) 
+  ok   [5b temporary] injection fired: final write returned 40001 tagged song-catalogue 
+  ok   [5b temporary] message: edits saved, not completed just now, Try again offered 
+  ok   [5b retry] Try again completes; catalogue once 
+  ok   [5c contention] another session holds the lock on the artist’s Polar Night row 
+  ok   [5c contention] injection fired: final write returned 500 57014 untagged 
+  ok   [5c contention] treated as temporary: edits saved, Try again offered; show not complete 
+  ok   [5c retry] after the lock is released, Try again completes; catalogue once (Polar Night 1 → 2) 
+  ok   [5d optional] injections fired (telemetry 2, intelligence 1); the save still celebrates and completes 
+  ok   [5d optional] the page sends no catalogue writes (0); the database recorded all 3 songs 
+  ok   [B1 deployed main, owner] same as today: its 'completed' is rejected so the trigger never fires; its own loop counts each song once (status review, markers 3, rows 3) 
+  ok   [B1 deployed main, Manager] same as today: its 'completed' is rejected so the trigger never fires; its own loop counts each song once (status review, markers 3, rows 3) 
+  ok   [B2 old tab] trigger and old page loop together: each song counted once ({"Low Tide":1,"Paper Boats":1,"Polar Night":1}, markers 3) 
+  ok   [B2 old tab → re-saved in the candidate] no change 
+  ok   [B3 old tab + candidate at once] the shared song: one row, counted twice (1:2) 
+  ok   [B4 main + candidate at once] the candidate completes; no show counted twice (markers 2); one row (unique key); total 2 — 2, or 1 if main's unlocked loop lost the race 
+  ok   [B5 wrong rollback order] trigger dropped while the candidate is deployed: the show completes with NO catalogue (markers 0) — so the app must be rolled back first 
+  ok   [lost response] the page confirms by reading back and celebrates; catalogue recorded exactly once 
+  ok   [close at success] the page closed the moment the summary appeared: all 18 songs are in the catalogue (18 markers, 18 rows) 
+  ok   [import] an imported complete show is inserted and nothing is counted (an insert doesn't fire the trigger) 
+  ok   [import] the imported show saved later from Review is counted (as today) 
+
+34 passed, 0 failed

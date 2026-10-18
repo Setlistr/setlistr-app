@@ -1,0 +1,23 @@
+
+— Before the revoke (production state, preflight Run 3)
+  ok   [before] anon and authenticated hold TRUNCATE, TRIGGER, REFERENCES and MAINTAIN on the three tables 
+  ok   [before] …and none of them on performances (0010) 
+
+— After the revoke
+  ok   [after] anon and authenticated hold none of the four administrative privileges on the three tables 
+  ok   [after] their SELECT/INSERT/UPDATE/DELETE are unchanged (still governed by RLS) 
+  ok   [after] service_role keeps every privilege 
+  ok   [after] authenticated is refused on user_songs: TRUNCATE (permission denied for table user_songs), CREATE TRIGGER (permission denied for table user_songs) 
+  ok   [after] authenticated is refused on user_song_performances: TRUNCATE (permission denied for table user_song_performances), CREATE TRIGGER (permission denied for table user_song_performances) 
+  ok   [after] authenticated is refused on performance_songs: TRUNCATE (permission denied for table performance_songs), CREATE TRIGGER (permission denied for table performance_songs) 
+  ok   [after] service_role can still TRUNCATE (rolled back) 
+
+— The client path is unchanged
+  ok   [client] a signed-in artist's own insert, update, read and delete through PostgREST still work 
+
+— Rollback
+  ok   [rollback] TRUNCATE, TRIGGER and REFERENCES are restored exactly as Run 3 found them 
+  ok   [rollback] MAINTAIN stays revoked unless its block is enabled (decided by Run 4) 
+  ok   [re-apply] the revoke applies cleanly again 
+
+13 passed, 0 failed
