@@ -175,8 +175,25 @@ function ShareCardButton({ performanceId, artistName, venueName }: {
   )
 }
 
-function SortableRow({ song, index, onDelete, onTap }: {
-  song: Song; index: number; onDelete: (id: string) => void; onTap: (id: string) => void
+const AUTO_SOURCES = ['recognized', 'detected', 'fingerprint', 'humming']
+// A kept song with was_planned set is on the planned setlist. Its stored source
+// says what confirmed it: a recognition source means recognition matched the
+// plan (live capture); 'manual' means the artist marked it played (live capture
+// or Review). Anything else is ambiguous and gets the common label.
+function verificationLabel(song: { source?: string }): string {
+  if (AUTO_SOURCES.includes(song.source || '')) return 'Matched setlist ✓'
+  if (song.source === 'manual') return 'Played from setlist ✓'
+  return 'On your setlist ✓'
+}
+function sourceLine(song: Song): string {
+  const origin = song.was_planned && song.source !== 'planned' ? verificationLabel(song).replace(' ✓', '')
+    : song.source === 'unidentified' ? 'Not identified'
+    : AUTO_SOURCES.includes(song.source || '') ? 'Detected' : 'Added by you'
+  return [origin, song.isrc ? `ISRC ${song.isrc}` : null].filter(Boolean).join(' · ')
+}
+
+function SortableRow({ song, index, onDelete, onTap, editMode }: {
+  song: Song; index: number; onDelete: (id: string) => void; onTap: (id: string) => void; editMode: boolean
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: song.id })
   const [swipeX, setSwipeX]   = useState(0)
@@ -220,28 +237,30 @@ function SortableRow({ song, index, onDelete, onTap }: {
         onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
         onClick={() => { if (swipeX < -10) { closeSwipe(); return } onTap(song.id) }}
         style={{ transform: `translateX(${swipeX}px)`, transition: swiping ? 'none' : 'transform 0.22s cubic-bezier(0.25,1,0.5,1)', background: isDragging ? C.cardHover : C.card, border: '1px solid color-mix(in srgb, var(--sl-text) 4%, transparent)', borderLeft: `3px solid ${leftBorder}`, borderRadius: 12, display: 'flex', alignItems: 'center', gap: 12, padding: '14px 14px 14px 12px', minHeight: 64, cursor: 'pointer', WebkitTapHighlightColor: 'transparent', userSelect: 'none' }}>
-        <div {...attributes} {...listeners} onClick={e => e.stopPropagation()} style={{ color: C.muted, cursor: 'grab', flexShrink: 0, display: 'flex', alignItems: 'center', padding: '4px 2px', touchAction: 'none' }}>
+        <div {...attributes} {...listeners} onClick={e => e.stopPropagation()} style={{ color: C.muted, cursor: 'grab', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '15px', margin: '-15px -12px -15px -14px', touchAction: 'none' }}>
           <GripVertical size={15} />
         </div>
         <span style={{ fontSize: 11, fontWeight: 700, color: C.muted, minWidth: 18, textAlign: 'right', flexShrink: 0, fontFamily: '"DM Mono", monospace', fontVariantNumeric: 'tabular-nums' }}>{index + 1}</span>
         <div style={{ flex: 1, minWidth: 0 }}>
           {needsReview ? (
             <div>
-              <p style={{ fontSize: 14, fontWeight: 600, color: C.gold, margin: 0, fontStyle: 'italic' }}>{isUnknown ? 'Unknown — tap to fix' : song.title}</p>
-              <p style={{ fontSize: 11, color: C.gold, margin: '2px 0 0', fontWeight: 500 }}>Tap to fix</p>
+              <p style={{ fontSize: 16, fontWeight: 600, color: C.gold, margin: 0, fontStyle: 'italic' }}>{isUnknown ? 'Unidentified song' : song.title}</p>
+              <p style={{ fontSize: 13, color: C.gold, margin: '2px 0 0', fontWeight: 600 }}>{isUnknown ? 'Tap to name it' : 'Tap to check it'}</p>
             </div>
           ) : (
             <div>
-              <p style={{ fontSize: 16, fontWeight: 600, color: C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{song.title}</p>
-              {isVerified
-                ? <p style={{ fontSize: 12, color: C.green, margin: '2px 0 0', fontWeight: 600 }}>Verified ✓</p>
-                : song.isrc
-                ? <p style={{ fontSize: 10, color: C.muted, margin: '2px 0 0', fontFamily: '"DM Mono", monospace', letterSpacing: '0.04em' }}>{song.isrc}</p>
-                : null
-              }
+              <p style={{ fontSize: 17, fontWeight: 600, color: C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', letterSpacing: '-0.01em' }}>{song.title}</p>
+              {isVerified ? <p style={{ fontSize: 13, color: C.green, margin: '2px 0 0', fontWeight: 600 }}>{verificationLabel(song)}</p> : null}
             </div>
           )}
         </div>
+        {/* Edit mode: an accessible remove in place of the status mark (swipe stays). */}
+        {editMode ? (
+          <button onClick={e => { e.stopPropagation(); onDelete(song.id) }} aria-label={`Remove ${isUnknown ? 'song ' + (index + 1) : song.title}`}
+            style={{ flexShrink: 0, width: 44, height: 44, margin: '-10px -6px -10px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 10, background: 'color-mix(in srgb, var(--sl-danger) 12%, transparent)', border: '1px solid color-mix(in srgb, var(--sl-danger) 30%, transparent)', color: C.red, cursor: 'pointer' }}>
+            <X size={17} strokeWidth={2.5} />
+          </button>
+        ) : (
         <div onClick={hovered ? (e) => { e.stopPropagation(); onDelete(song.id) } : undefined}
           style={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: 6, background: hovered ? 'color-mix(in srgb, var(--sl-danger) 12%, transparent)' : 'transparent', border: hovered ? '1px solid color-mix(in srgb, var(--sl-danger) 25%, transparent)' : '1px solid transparent', transition: 'all 0.15s ease', cursor: hovered ? 'pointer' : 'default' }}>
           {hovered ? (
@@ -254,12 +273,14 @@ function SortableRow({ song, index, onDelete, onTap }: {
             <span style={{ width: 9, height: 9, borderRadius: '50%', background: 'transparent', border: `1.5px solid ${C.gold}`, display: 'inline-block', opacity: 0.6, flexShrink: 0 }} />
           )}
         </div>
+        )}
       </div>
     </div>
   )
 }
 
 function EditSheet({ song, onSave, onClose }: { song: Song; onSave: (id: string, title: string, artist: string) => void; onClose: () => void }) {
+  const details = sourceLine(song)
   const [title, setTitle]   = useState(song.title === 'Unknown song' ? '' : song.title)
   const [artist, setArtist] = useState(song.artist)
   const bottomOffset        = useKeyboardOffset()
@@ -267,11 +288,11 @@ function EditSheet({ song, onSave, onClose }: { song: Song; onSave: (id: string,
     <div style={{ position: 'fixed', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', animation: 'fadeIn 0.15s ease' }} onClick={onClose}>
       <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 520, background: C.cardGrad, borderRadius: '20px 20px 0 0', border: '1px solid color-mix(in srgb, var(--sl-text) 7%, transparent)', borderBottom: 'none', padding: '20px 20px 40px', display: 'flex', flexDirection: 'column', gap: 12, animation: 'sheetUp 0.22s ease', fontFamily: '"DM Sans", system-ui, sans-serif', marginBottom: bottomOffset, transition: 'margin-bottom 0.15s ease', boxShadow: 'var(--sl-card-inset)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-          <p style={{ fontSize: 13, fontWeight: 700, color: C.text, margin: 0 }}>Edit song</p>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: C.muted, cursor: 'pointer', padding: 4 }}><X size={16} /></button>
+          <div><p style={{ fontSize: 16, fontWeight: 700, color: C.text, margin: 0 }}>Edit song</p>{details && <p style={{ fontSize: 13, color: C.secondary, margin: '2px 0 0' }}>{details}</p>}</div>
+          <button onClick={onClose} aria-label="Close" style={{ width: 44, height: 44, marginRight: -10, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', color: C.secondary, cursor: 'pointer' }}><X size={18} /></button>
         </div>
-        <input autoFocus value={title} onChange={e => setTitle(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && title.trim()) { onSave(song.id, title.trim(), artist.trim()); onClose() } }} placeholder="Song title" spellCheck={false} autoCorrect="off" autoCapitalize="words" style={{ background: C.input, border: '1px solid var(--sl-input-line-active)', borderRadius: 10, padding: '13px 14px', color: C.text, fontSize: 15, outline: 'none', fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' }} />
-        <input value={artist} onChange={e => setArtist(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && title.trim()) { onSave(song.id, title.trim(), artist.trim()); onClose() } }} placeholder="Artist" spellCheck={false} autoCorrect="off" autoCapitalize="words" style={{ background: C.input, border: `1px solid var(--sl-input-line)`, borderRadius: 10, padding: '13px 14px', color: C.text, fontSize: 15, outline: 'none', fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' }} />
+        <input autoFocus value={title} onChange={e => setTitle(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && title.trim()) { onSave(song.id, title.trim(), artist.trim()); onClose() } }} placeholder="Song title" spellCheck={false} autoCorrect="off" autoCapitalize="words" style={{ background: C.input, border: '1px solid var(--sl-input-line-active)', borderRadius: 10, padding: '13px 14px', color: C.text, fontSize: 16, outline: 'none', fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' }} />
+        <input value={artist} onChange={e => setArtist(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && title.trim()) { onSave(song.id, title.trim(), artist.trim()); onClose() } }} placeholder="Artist" spellCheck={false} autoCorrect="off" autoCapitalize="words" style={{ background: C.input, border: `1px solid var(--sl-input-line)`, borderRadius: 10, padding: '13px 14px', color: C.text, fontSize: 16, outline: 'none', fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' }} />
         <button onClick={() => { if (title.trim()) { onSave(song.id, title.trim(), artist.trim()); onClose() } }} disabled={!title.trim()} style={{ width: '100%', padding: '14px', background: title.trim() ? C.gold : C.muted, border: 'none', borderRadius: 10, color: 'var(--sl-on-accent)', fontSize: 13, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: title.trim() ? 'pointer' : 'not-allowed', opacity: title.trim() ? 1 : 0.4, fontFamily: 'inherit', marginTop: 4 }}>
           Save
         </button>
@@ -294,7 +315,7 @@ function AssignSheet({ assignSheet, onAssign, onClose, onCatalogSelect, userId, 
             <p style={{ fontSize: 14, fontWeight: 700, color: C.text, margin: 0 }}>What song was this?</p>
             {assignSheet.currentTitle && assignSheet.currentTitle !== 'Unknown song' ? <p style={{ fontSize: 11, color: C.muted, margin: '2px 0 0' }}>replacing: {assignSheet.currentTitle}</p> : null}
           </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: C.muted, cursor: 'pointer', padding: 4 }}><X size={16} /></button>
+          <button onClick={onClose} aria-label="Close" style={{ width: 44, height: 44, marginRight: -10, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', color: C.secondary, cursor: 'pointer' }}><X size={18} /></button>
         </div>
         <CatalogSearch userId={userId} placeholder="Search or type any song title..." autoFocus showEmpty currentSongs={currentSongs} onSelect={(song) => onCatalogSelect(song, assignSheet.songId)} />
         <p style={{ fontSize: 11, color: C.muted, margin: '4px 0 0', lineHeight: 1.5, textAlign: 'center' }}>Search your catalog or type any title to add it</p>
@@ -324,12 +345,12 @@ function PlannedSongRow({ song, onPlayed, onRemove }: {
       <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
         <button
           onClick={() => onPlayed(song.id)}
-          style={{ padding: '6px 12px', background: 'color-mix(in srgb, var(--sl-ok) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--sl-ok) 25%, transparent)', borderRadius: 8, color: C.green, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', letterSpacing: '0.04em', WebkitTapHighlightColor: 'transparent', whiteSpace: 'nowrap' }}>
+          style={{ minHeight: 44, padding: '0 14px', background: 'color-mix(in srgb, var(--sl-ok) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--sl-ok) 25%, transparent)', borderRadius: 8, color: C.green, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', letterSpacing: '0.02em', WebkitTapHighlightColor: 'transparent', whiteSpace: 'nowrap' }}>
           ✓ Played
         </button>
         <button
-          onClick={() => onRemove(song.id)}
-          style={{ padding: '6px 10px', background: 'transparent', border: `1px solid ${C.border}`, borderRadius: 8, color: C.muted, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent' }}>
+          onClick={() => onRemove(song.id)} aria-label={`Didn't play ${song.title}`}
+          style={{ minWidth: 44, minHeight: 44, padding: '0 10px', background: 'transparent', border: `1px solid ${C.border}`, borderRadius: 8, color: C.muted, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent' }}>
           ✕
         </button>
       </div>
@@ -421,6 +442,8 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
   const [songsError, setSongsError]     = useState(false)
   const [reloadKey, setReloadKey]       = useState(0)
   const [photoError, setPhotoError]     = useState(false)
+  // Edit mode: a tap alternative to swipe-to-remove.
+  const [editMode, setEditMode]         = useState(false)
   const [saving, setSaving]             = useState(false)
   const [saved, setSaved]               = useState(false)
   const [showComplete, setShowComplete] = useState(false)
@@ -1647,21 +1670,21 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
   )
 
   return (
-    <div style={{ minHeight: '100svh', background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ minHeight: 'var(--sl-page-min-height, 100svh)', background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif', display: 'flex', flexDirection: 'column' }}>
       <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '100vw', height: '40vh', pointerEvents: 'none', zIndex: 0, background: 'var(--sl-page-glow)' }} />
-      <div style={{ position: 'relative', zIndex: 1, flex: 1, display: 'flex', flexDirection: 'column', maxWidth: 480, width: '100%', margin: '0 auto', padding: '0 16px', boxSizing: 'border-box' }}>
+      <div style={{ position: 'relative', zIndex: 1, flex: 1, display: 'flex', flexDirection: 'column', maxWidth: 720, width: '100%', margin: '0 auto', padding: '0 20px', boxSizing: 'border-box' }}>
 
-        <div style={{ paddingTop: 28, paddingBottom: 20, animation: 'fadeUp 0.4s ease' }}>
-          <h1 style={{ fontSize: 34, fontWeight: 800, color: C.text, margin: '0 0 8px', letterSpacing: '-0.025em', lineHeight: 1.15 }}>{performance?.venue_name}</h1>
+        <div style={{ paddingTop: 32, paddingBottom: 24, animation: 'fadeUp 0.4s ease' }}>
+          <h1 style={{ fontSize: 'clamp(32px, 5vw, 44px)', fontWeight: 800, color: C.text, margin: '0 0 10px', letterSpacing: '-0.03em', lineHeight: 1.08, textWrap: 'balance' as any }}>{performance?.venue_name}</h1>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: C.secondary }}><MapPin size={11} />{performance?.city}</span>
-            {theShowDate ? <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: C.secondary }}><Calendar size={11} />{theShowDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</span> : null}
-            {dur ? <span style={{ fontSize: 12, color: C.secondary }}>· {dur}</span> : null}
+            <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 14, color: C.secondary }}><MapPin size={13} />{performance?.city}</span>
+            {theShowDate ? <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 14, color: C.secondary }}><Calendar size={13} />{theShowDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</span> : null}
+            {dur ? <span style={{ fontSize: 14, color: C.secondary }}>· {dur}</span> : null}
           </div>
           <div style={{ marginTop: 12, display: 'flex', gap: 6, alignItems: 'center' }}>
             <span style={{ fontSize: 14, color: C.secondary }}>{confirmedSongs.length} songs</span>
             {autoCount > 0 && <><span style={{ color: 'var(--sl-text-4)' }}>·</span><span style={{ fontSize: 14, color: C.muted }}>{autoCount} detected</span></>}
-            {needsReviewCount > 0 && <><span style={{ color: 'var(--sl-text-4)' }}>·</span><span style={{ fontSize: 14, color: 'var(--sl-danger)' }}>{needsReviewCount} need attention</span></>}
+            {needsReviewCount > 0 && <><span style={{ color: 'var(--sl-text-4)' }}>·</span><span style={{ fontSize: 14, color: C.gold, fontWeight: 600 }}>{needsReviewCount} {needsReviewCount === 1 ? 'needs a name' : 'need names'}</span></>}
           </div>
         </div>
 
@@ -1715,11 +1738,19 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, animation: 'fadeUp 0.4s 0.05s ease both' }}>
           <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', color: C.muted }}>Setlist</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          {confirmedSongs.length > 0 && (
+            <button onClick={() => setEditMode(m => !m)} aria-pressed={editMode}
+              style={{ minHeight: 44, padding: '0 12px', background: 'none', border: 'none', color: editMode ? C.gold : C.secondary, fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+              {editMode ? 'Done' : 'Edit'}
+            </button>
+          )}
           <button onClick={() => setShowAdd(!showAdd)}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, background: showAdd ? 'transparent' : C.goldDim, border: `1px solid ${showAdd ? C.border : C.borderGold}`, borderRadius: 10, padding: '9px 16px', color: showAdd ? C.muted : C.gold, fontSize: 13, fontWeight: 700, cursor: 'pointer', letterSpacing: '0.04em', transition: 'all 0.15s ease', fontFamily: 'inherit', minHeight: 40, WebkitTapHighlightColor: 'transparent' }}>
+            style={{ display: 'flex', alignItems: 'center', gap: 6, background: showAdd ? 'transparent' : C.goldDim, border: `1px solid ${showAdd ? C.border : C.borderGold}`, borderRadius: 10, padding: '9px 16px', color: showAdd ? C.muted : C.gold, fontSize: 13, fontWeight: 700, cursor: 'pointer', letterSpacing: '0.04em', transition: 'all 0.15s ease', fontFamily: 'inherit', minHeight: 44, WebkitTapHighlightColor: 'transparent' }}>
             <span style={{ display: 'inline-block', transform: showAdd ? 'rotate(45deg)' : 'rotate(0)', transition: 'transform 0.2s ease', fontSize: 16, lineHeight: 1, fontWeight: 400 }}>+</span>
             Add Song
           </button>
+          </div>
         </div>
 
         {showAdd ? (
@@ -1749,11 +1780,11 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
 
         {confirmedSongs.length > 0 ? (
           <div style={{ animation: 'fadeUp 0.4s 0.1s ease both' }}>
-            {confirmedSongs.length > 0 ? <p style={{ fontSize: 14, color: C.muted, margin: '0 0 10px' }}>Tap any song to edit · swipe to delete</p> : null}
+            {confirmedSongs.length > 0 ? <p style={{ fontSize: 14, color: C.muted, margin: '0 0 12px' }}>{editMode ? 'Tap ✕ to remove a song. Removed songs won’t count.' : 'Tap any song to edit · swipe to delete'}</p> : null}
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
               <SortableContext items={confirmedSongs.map(s => s.id)} strategy={verticalListSortingStrategy}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {confirmedSongs.map((song, index) => <SortableRow key={song.id} song={song} index={index} onDelete={handleDelete} onTap={handleRowTap} />)}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {confirmedSongs.map((song, index) => <SortableRow key={song.id} song={song} index={index} onDelete={handleDelete} onTap={handleRowTap} editMode={editMode} />)}
                 </div>
               </SortableContext>
             </DndContext>
@@ -1815,13 +1846,13 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
             </div>
           )}
           <button onClick={handleSave} disabled={saving || saved || songsError}
-            style={{ width: '100%', padding: '15px', background: saved ? 'var(--sl-ok-strong)' : C.gold, border: 'none', borderRadius: 12, color: saved ? '#fff' : 'var(--sl-on-accent)', fontSize: 13, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: saving || saved || songsError ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : songsError ? 0.5 : 1, transition: 'all 0.25s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit' }}
+            style={{ width: '100%', padding: '15px', minHeight: 52, background: saved ? 'var(--sl-ok-strong)' : C.gold, border: 'none', borderRadius: 12, color: saved ? '#fff' : 'var(--sl-on-accent)', fontSize: 13, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: saving || saved || songsError ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : songsError ? 0.5 : 1, transition: 'all 0.25s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit' }}
             onMouseEnter={e => { if (!saving && !saved) (e.currentTarget as HTMLElement).style.opacity = '0.8' }}
             onMouseLeave={e => { if (!saving && !saved) (e.currentTarget as HTMLElement).style.opacity = '1' }}>
             {saved ? <><Check size={16} strokeWidth={2.5} /> Saved</> : saving ? <><div style={{ width: 14, height: 14, borderRadius: '50%', border: `2px solid color-mix(in srgb, var(--sl-on-accent) 25%, transparent)`, borderTopColor: 'var(--sl-on-accent)', animation: 'spin 0.7s linear infinite' }} />Saving...</> : saveError?.retry ? 'Try again' : 'Save & Complete'}
           </button>
           <button onClick={() => router.push('/app/dashboard')}
-            style={{ background: 'none', border: 'none', color: C.muted, fontSize: 12, cursor: 'pointer', letterSpacing: '0.04em', fontFamily: 'inherit', padding: '6px', transition: 'opacity 0.15s ease' }}
+            style={{ background: 'none', border: 'none', color: C.muted, fontSize: 13, cursor: 'pointer', letterSpacing: '0.04em', fontFamily: 'inherit', minHeight: 44, padding: '0 12px', alignSelf: 'center', transition: 'opacity 0.15s ease' }}
             onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.7'}
             onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}>
             Back to Dashboard
