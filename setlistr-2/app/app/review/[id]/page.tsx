@@ -25,6 +25,7 @@ import { exportShareCard, type ShareFormat } from '@/lib/share-card-export'
 import { countAt, capturedLabel, type FlowSource } from '@/lib/ceremony-display'
 import { ESTIMATE_DISCLAIMER, ESTIMATE_UNIT, formatEstimate } from '@/lib/estimate-copy'
 import { PageFrame } from '@/components/ui/PageFrame'
+import { LoadError } from '@/components/ui/LoadError'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { useWorkspaceRole } from '@/components/layout/WorkspaceRole'
 import { RecordFinish, ORB_GOLD, type RecordFinishData } from '@/components/record/RecordFinish'
@@ -408,6 +409,12 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
   const [setlistId, setSetlistId]       = useState<string | null>(null)
   const [songs, setSongs]               = useState<Song[]>([])
   const [loading, setLoading]           = useState(true)
+  // A failed load is never shown as an empty show, and nothing can be saved
+  // until the show and its songs have loaded (docs/ui-standard.md → Errors).
+  const [loadError, setLoadError]       = useState<'show' | 'missing' | null>(null)
+  const [songsError, setSongsError]     = useState(false)
+  const [reloadKey, setReloadKey]       = useState(0)
+  const [photoError, setPhotoError]     = useState(false)
   const [saving, setSaving]             = useState(false)
   const [saved, setSaved]               = useState(false)
   const [showComplete, setShowComplete] = useState(false)
@@ -636,9 +643,11 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
   useEffect(() => {
     const supabase = createClient()
     supabase.auth.getUser().then(({ data: { user } }) => { if (user) setUserId(actingAsArtistId || user.id) })
-    supabase.from('performances_visible').select('*, status, shows(show_type), venues(capacity)').eq('id', params.id).single()
-      .then(async ({ data: perf }) => {
-        if (!perf) { setLoading(false); return }
+    setLoading(true); setLoadError(null); setSongsError(false)
+    supabase.from('performances_visible').select('*, status, shows(show_type), venues(capacity)').eq('id', params.id).maybeSingle()
+      .then(async ({ data: perf, error: perfError }) => {
+        if (perfError) { setLoadError('show'); setLoading(false); return }
+        if (!perf) { setLoadError('missing'); setLoading(false); return }
         setPerformance({ ...perf, show_type: perf.shows?.show_type || null, venue_capacity: perf.venues?.capacity || null })
         if (perf.photo_url) setPhotoUrl(perf.photo_url)
         if (!reviewOpenedLoggedRef.current) {
@@ -661,7 +670,8 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
         // Primary source: performance_songs — holds the row ids we update in place
         // plus the confusion-matrix columns. Rows the artist already removed stay in
         // the DB but are hidden here.
-        const { data: songData } = await supabase.from('performance_songs').select('*').eq('performance_id', params.id).order('position')
+        const { data: songData, error: songsErr } = await supabase.from('performance_songs').select('*').eq('performance_id', params.id).order('position')
+        if (songsErr) { setSongsError(true); setLoading(false); return }
         if (songData && songData.length > 0) {
           setSongs(songData.filter(s => !s.artist_removed).map(s => {
             const isUnidentified = s.source === 'unidentified' || !s.title
@@ -685,7 +695,8 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
 
         // Fallback (legacy): setlist_items, only when there are no performance_songs rows.
         if (resolvedSetlistId) {
-          const { data: items } = await supabase.from('setlist_items').select('*').eq('setlist_id', resolvedSetlistId).order('position')
+          const { data: items, error: itemsErr } = await supabase.from('setlist_items').select('*').eq('setlist_id', resolvedSetlistId).order('position')
+          if (itemsErr) { setSongsError(true); setLoading(false); return }
           if (items && items.length > 0) {
             setSongs(items.map(s => {
               const n = normalizeSong({ title: s.title, artist: s.artist_name || '' })
@@ -695,8 +706,8 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
           }
         }
         setLoading(false)
-      })
-  }, [params.id])
+      }, () => { setLoadError('show'); setLoading(false) })
+  }, [params.id, reloadKey])
 
   // Sequence: start only right after the artist completes this review in
   // this session — not on every load, or revisiting an already-completed
@@ -777,7 +788,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
   async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file || !performance) return
-    setPhotoUploading(true)
+    setPhotoUploading(true); setPhotoError(false)
     try {
       const supabase = createClient()
       const ext = file.name.split('.').pop()
@@ -789,10 +800,12 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
       const { data: { publicUrl } } = supabase.storage
         .from('performance-photos')
         .getPublicUrl(path)
-      await supabase.from('performances').update({ photo_url: publicUrl }).eq('id', performance.id)
+      const { error: photoErr } = await supabase.from('performances').update({ photo_url: publicUrl }).eq('id', performance.id)
+      if (photoErr) throw photoErr
       setPhotoUrl(publicUrl)
     } catch (err) {
       console.error('Photo upload failed:', err)
+      setPhotoError(true)
     } finally {
       setPhotoUploading(false)
     }
@@ -1612,6 +1625,18 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
     )
   }
 
+  // The show itself didn't load: say so, offer Try again, and offer no Save.
+  if (loadError) return (
+    <div style={{ minHeight: 'var(--sl-page-min-height, 100svh)', background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif' }}>
+      <div style={{ maxWidth: 480, margin: '0 auto', padding: '28px 20px' }}>
+        <LoadError message={loadError === 'missing' ? 'This show isn’t available.' : 'This show couldn’t be loaded.'}
+          detail={loadError === 'missing' ? 'It may have been removed, or this account can’t open it.' : undefined}
+          onRetry={() => setReloadKey(k => k + 1)} />
+        <button onClick={() => router.push('/app/dashboard')} style={{ marginTop: 12, minHeight: 44, background: 'none', border: 'none', color: C.secondary, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>Back to Dashboard</button>
+      </div>
+    </div>
+  )
+
   return (
     <div style={{ minHeight: '100svh', background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif', display: 'flex', flexDirection: 'column' }}>
       <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '100vw', height: '40vh', pointerEvents: 'none', zIndex: 0, background: 'var(--sl-page-glow)' }} />
@@ -1676,6 +1701,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
               <input type="file" accept="image/*" onChange={handlePhotoUpload} style={{ display: 'none' }} />
             </label>
           )}
+          {photoError && <p role="alert" style={{ fontSize: 13.5, color: C.text, margin: '8px 0 0' }}>The photo couldn’t be added. Try again.</p>}
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, animation: 'fadeUp 0.4s 0.05s ease both' }}>
@@ -1700,7 +1726,9 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
           </div>
         ) : null}
 
-        {confirmedSongs.length === 0 && plannedPending.length === 0 ? (
+        {songsError ? (
+          <LoadError compact message="The songs for this show couldn’t be loaded." detail="Saving is unavailable until they load." onRetry={() => setReloadKey(k => k + 1)} />
+        ) : confirmedSongs.length === 0 && plannedPending.length === 0 ? (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '64px 0', animation: 'fadeUp 0.4s ease' }}>
             <div style={{ width: 56, height: 56, borderRadius: '50%', background: C.card, border: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
               <Music2 size={22} style={{ color: C.muted }} />
@@ -1777,8 +1805,8 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
               <span style={{ display: 'block', fontSize: 12, color: 'var(--sl-text-3)', marginTop: 4, fontFamily: '"DM Mono", monospace' }}>{saveError.ref}</span>
             </div>
           )}
-          <button onClick={handleSave} disabled={saving || saved}
-            style={{ width: '100%', padding: '15px', background: saved ? 'var(--sl-ok-strong)' : C.gold, border: 'none', borderRadius: 12, color: saved ? '#fff' : 'var(--sl-on-accent)', fontSize: 13, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: saving || saved ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1, transition: 'all 0.25s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit' }}
+          <button onClick={handleSave} disabled={saving || saved || songsError}
+            style={{ width: '100%', padding: '15px', background: saved ? 'var(--sl-ok-strong)' : C.gold, border: 'none', borderRadius: 12, color: saved ? '#fff' : 'var(--sl-on-accent)', fontSize: 13, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: saving || saved || songsError ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : songsError ? 0.5 : 1, transition: 'all 0.25s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit' }}
             onMouseEnter={e => { if (!saving && !saved) (e.currentTarget as HTMLElement).style.opacity = '0.8' }}
             onMouseLeave={e => { if (!saving && !saved) (e.currentTarget as HTMLElement).style.opacity = '1' }}>
             {saved ? <><Check size={16} strokeWidth={2.5} /> Saved</> : saving ? <><div style={{ width: 14, height: 14, borderRadius: '50%', border: `2px solid color-mix(in srgb, var(--sl-on-accent) 25%, transparent)`, borderTopColor: 'var(--sl-on-accent)', animation: 'spin 0.7s linear infinite' }} />Saving...</> : saveError?.retry ? 'Try again' : 'Save & Complete'}
