@@ -1,12 +1,14 @@
 # Data-integrity open issues
 
-Known problems that need separate work. Nothing here is fixed. **No SQL, migration or backfill is authorized for any of them yet.**
+Known problems that need separate work. **No SQL, migration or backfill is authorized for any of them.**
+
+**Update 2026-10-18:** the review save path of issues 1 and 3 is repaired in production by commit 1aee35b and migration 0027 (see [`catalog-release-handoff.md`](catalog-release-handoff.md)). Everything else here remains open.
 
 ## 1. Song catalogue counts can be lost permanently (review save)
 
-**Status:** open, recorded 2026-10-16. Needs separate database work.
+**Status:** **review save repaired 2026-10-18** (1aee35b + 0027). The review page no longer writes the catalogue; the database records it inside the save's final write, marker and count together. **Still open:** the same marker → read → write pattern in live capture (`app/app/live/[id]/page.tsx`), `api/identify`, `api/upload-identify` and `api/upload-reconcile`. Counts already lost are not recomputed.
 
-**Where:** `writeUserSongFromReview` in `app/app/review/[id]/page.tsx`. It runs after a confirmed review save, once per kept song, as separate client requests:
+**Where (before the repair):** `writeUserSongFromReview` in `app/app/review/[id]/page.tsx`. It runs after a confirmed review save, once per kept song, as separate client requests:
 
 1. Insert a per-show marker in `user_song_performances` (unique per user, performance and normalized title).
 2. Read the song's `user_songs` row.
@@ -42,7 +44,7 @@ The reverse order (count first, marker second) would trade lost counts for doubl
 
 ## 3. Background catalogue work stops if the page is closed or reloaded
 
-**Status:** open, measured 2026-10-17 (local, 18-song show, 150ms added latency per request). Not fixed.
+**Status:** **repaired for the review save 2026-10-18** (1aee35b + 0027): the catalogue is recorded with the final write, so closing the page can no longer interrupt it (tested: 18/18 songs recorded when the page closed the moment the summary appeared). The description below is the pre-repair measurement, kept for the record.
 
 Since the celebration appears as soon as the required save is confirmed (commit fd60200), the catalogue writes from issue 1, the show-intelligence reads and the show number run **after** the summary is on screen, in the page itself.
 
@@ -63,3 +65,25 @@ Until commit 909338b, the review save wrote `performances.status = 'completed'`,
 **Effects:** they still count on the record (the dashboard counts `review`), but they appear as "Needs review" (History, the app shell's needs-review badge) and are excluded wherever `complete` is required.
 
 **Not verified:** the production data hasn't been checked. An audit would count `review` shows whose `performance_songs` are all `artist_save_complete`, for the user to decide on. Changing any status is a separate decision.
+
+## 5. Read-then-write writers can overwrite catalogue counts with stale values
+
+**Status:** open, demonstrated 2026-10-18 on a disposable copy of production's schema (`docs/proposals/catalog-on-complete/OVERLAP.md`).
+
+Live capture, `api/identify`, the upload routes and delete/undo read `confirmed_count` and later write back an absolute value. A concurrent change to the same artist's same song committed in between is discarded, including the review save's atomic increment. Counts can therefore drift **in either direction**: under, when an increment is discarded; over, when a delete's decrement is discarded.
+
+Each song is still counted at most once per show (the per-show marker), and there's one catalogue row per title (production's unique key). The fix is for these writers to use an atomic increment or the same database function: the open capture/upload repair. No counts are recomputed.
+
+## 6. Historical per-show markers that no longer match their show
+
+**Status:** informational, measured read-only in production 2026-10-18 (preflight Run 3). **No marker altered, no count changed.**
+
+Of 2,103 markers:
+- 1,096 match a song still in the show;
+- 636 name a title no longer in the show but still in the catalogue (599 of them on shows still in `review`);
+- 243 belong to shows with no saved songs (live, draft or review);
+- 121 belong to shows that no longer exist;
+- 7 are in neither show nor catalogue.
+
+**Effect:** when one of the 599 review shows is completed, titles edited at review are counted under their new title alongside the capture-time count. That's the same as before the release. Any correction belongs with issue 4's audit and needs its own approval.
+
