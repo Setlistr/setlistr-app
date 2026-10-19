@@ -36,7 +36,7 @@ export function MilestoneDots({ first, next, count }: { first: number; next: num
     <>
       <div role="img" aria-label={`Shows ${first} to ${next}, one dot per show; ${Math.max(0, Math.min(count, next) - first + 1)} of ${next - first + 1} played`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 12 }}>{groups}</div>
       <div aria-hidden="true" style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--sl-text-3)', marginTop: 6 }}>
-        <span>{first}</span><span>Each dot is one show</span><span>{next}</span>
+        <span>{first}</span><span>{next}</span>
       </div>
     </>
   )

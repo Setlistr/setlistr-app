@@ -3,7 +3,7 @@ import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { ChevronRight, Mic } from 'lucide-react'
+import { ChevronRight, Mic, Info } from 'lucide-react'
 import { useActingAs } from '@/components/ActingAsProvider'
 import { openAccountMenu } from '@/components/layout/AccountMenu'
 import { useWorkspaceRole } from '@/components/layout/WorkspaceRole'
@@ -160,6 +160,8 @@ export default function DashboardPage() {
   const [managedArtists, setManagedArtists]     = useState<ManagedArtist[]>([])
   const [careerTotalShows, setCareerTotalShows] = useState<number>(0)
   const [careerStartYear, setCareerStartYear]   = useState<number>(0)
+  // How the record is counted: on demand, behind the information button.
+  const [countInfoOpen, setCountInfoOpen]       = useState(false)
 
   // Gated on `resolved` (not just present-but-still-validating `actingAs`) so
   // this never runs before the provider has finished checking a saved value
@@ -633,23 +635,38 @@ export default function DashboardPage() {
   } else if (!livePerf && morningAfterPerf && record.lastShow?.id === morningAfterPerf.id) {
     caption = <>{morningAfterPerf.venue_name} is on the record as <b style={{ color: 'var(--sl-text)', fontWeight: 600 }}>show {record.count}</b>.</>
   } else {
-    const where = recordCities > 0 ? ` across ${recordCities} ${recordCities === 1 ? 'city' : 'cities'}` : ''
-    const when = careerYears > 0 ? `${where ? ',' : ''} in ${careerYears} ${careerYears === 1 ? 'year' : 'years'} on stage` : ''
-    caption = <><b style={{ color: 'var(--sl-text)', fontWeight: 600 }}>Shows on the record</b>{where}{when}.</>
+    const where = recordCities > 0 ? `${recordCities} ${recordCities === 1 ? 'city' : 'cities'}` : ''
+    const when = careerYears > 0 ? `${careerYears} ${careerYears === 1 ? 'year' : 'years'} on stage` : ''
+    caption = where || when
+      ? <><b style={{ color: 'var(--sl-text)', fontWeight: 600 }}>{where || when}</b>{where && when ? `, ${when}` : ''}.</>
+      : <><b style={{ color: 'var(--sl-text)', fontWeight: 600 }}>Shows on the record</b>.</>
   }
 
   // Hero size: phones as reviewed (200, or 168 under a session row, capped
   // by width); the wider layouts set --d-hero / --d-hero-band from the
   // space the content actually has (container units, not the window).
   const heroSize = hasBand ? 'var(--d-hero-band, min(168px, 48cqw))' : 'var(--d-hero, min(200px, 56cqw))'
-  const overlineEl = <p style={{ fontSize: 'var(--d-ov, 14px)', fontWeight: 600, color: 'var(--sl-gold-text)', margin: '20px 0 0' }}>{overline}</p>
-  const heroStyle: React.CSSProperties = { fontFamily: 'var(--sl-font-display)', fontWeight: 400, fontSize: heroSize, lineHeight: 0.8, letterSpacing: '0.005em', margin: '14px 0 0 -5px', color: 'var(--sl-text)', fontVariantNumeric: 'tabular-nums' }
-  const captionStyle: React.CSSProperties = { fontSize: 'var(--d-cap, 16px)', color: 'var(--sl-text-2)', margin: '16px 0 0', lineHeight: 1.45, maxWidth: '22em' }
-  const scopeNote = (lead: string) => importedPerfs.length > 0 && (
-    // Says what the number counts, in the same words History uses.
-    <p style={{ fontSize: 13, color: 'var(--sl-text-3)', margin: '10px 0 0', lineHeight: 1.45, maxWidth: '30em' }}>
-      {lead} {importedPerfs.length} imported {importedPerfs.length === 1 ? 'show is' : 'shows are'} listed in History but not counted here.
-    </p>
+  // The overline carries the information button (44px target, named, with its
+  // expanded state); Escape closes the explanation and focus stays on the button.
+  const overlineEl = (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingTop: 8 }}>
+      <p style={{ fontSize: 'var(--d-ov, 14px)', fontWeight: 600, color: 'var(--sl-gold-text)', margin: 0 }}>{overline}</p>
+      <button onClick={() => setCountInfoOpen(o => !o)} onKeyDown={e => { if (e.key === 'Escape') setCountInfoOpen(false) }}
+        aria-label="How the record is counted" aria-expanded={countInfoOpen} aria-controls="record-count-info"
+        style={{ width: 44, height: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', borderRadius: 22, color: countInfoOpen ? 'var(--sl-gold-text)' : 'var(--sl-text-3)', cursor: 'pointer', flexShrink: 0 }}>
+        <Info size={17} aria-hidden="true" />
+      </button>
+    </div>
+  )
+  const heroStyle: React.CSSProperties = { fontFamily: 'var(--sl-font-display)', fontWeight: 400, fontSize: heroSize, lineHeight: 0.8, letterSpacing: '0.005em', margin: '6px 0 0 -5px', color: 'var(--sl-text)', fontVariantNumeric: 'tabular-nums' }
+  const captionStyle: React.CSSProperties = { fontSize: 'var(--d-cap, 16px)', color: 'var(--sl-text-2)', margin: '12px 0 0', lineHeight: 1.45, maxWidth: '22em' }
+  // The counting rule, on demand. Kept in the page (hidden when closed) so the
+  // button's aria-controls always points at it.
+  const countInfo = (
+    <div id="record-count-info" hidden={!countInfoOpen} style={{ fontSize: 14, color: 'var(--sl-text-2)', margin: '10px 0 0', lineHeight: 1.5, maxWidth: '30em' }}>
+      Your live record counts shows captured or uploaded in Setlistr, once they’re finished. Drafts and shows still being captured aren’t counted.
+      {importedPerfs.length > 0 && <> {importedPerfs.length} {importedPerfs.length === 1 ? 'show' : 'shows'} imported from setlist.fm {importedPerfs.length === 1 ? 'is' : 'are'} listed in <Link href="/app/history" style={{ color: 'var(--sl-text)' }}>History</Link> and not counted.</>}
+    </div>
   )
 
   // Each state fills the same three areas: the poster (number + sentence),
@@ -661,13 +678,15 @@ export default function DashboardPage() {
   if (showLoading) {
     poster = (
       <div aria-busy="true" aria-label={actingAs ? `Loading ${possessive(actingAs.artist_name)} record` : 'Loading your record'} style={{ paddingTop: 20 }}>
+        {/* Follows the loaded record: overline, number (its own size), the
+            one-line sentence, then the milestone dots and Last show. */}
         <Skeleton w="40%" h={16} />
-        <Skeleton w="62%" h={150} mt={16} r={14} />
-        <Skeleton w="85%" h={18} mt={20} />
-        <Skeleton w="60%" h={18} mt={8} />
+        <Skeleton w="62%" h="calc(var(--d-hero, min(200px, 56cqw)) * 0.8)" mt={22} r={14} />
+        <Skeleton w="70%" h={20} mt={14} />
+        <Skeleton w="100%" h={140} mt={14} />
       </div>
     )
-    ledger = <div aria-hidden="true" style={{ paddingTop: 6 }}>{[0, 1, 2, 3].map(i => <Skeleton key={i} h={44} mt={14} />)}</div>
+    ledger = <div aria-hidden="true" style={{ paddingTop: 'var(--d-ledger-mt, 44px)' }}><Skeleton w={130} h={14} />{[0, 1, 2].map(i => <Skeleton key={i} h={44} mt={14} />)}</div>
   } else if (loadFailed) {
     // Never the previous workspace's figures in its place — the load paths
     // above clear them before this renders.
@@ -696,7 +715,7 @@ export default function DashboardPage() {
           </b>
           {canCapture && <> Tap the gold button when the set starts. Played already? You can <Link href="/app/upload/new" style={{ color: 'var(--sl-gold-text)', fontWeight: 600 }}>upload a recording</Link>.</>}
         </p>
-        {scopeNote('The live record counts shows captured or uploaded in Setlistr.')}
+        {countInfo}
       </>
     )
   } else {
@@ -705,14 +724,9 @@ export default function DashboardPage() {
         {overlineEl}
         <p style={heroStyle}>{record.count}</p>
         <p style={captionStyle}>{caption}</p>
-        {scopeNote('Counts shows captured or uploaded in Setlistr.')}
-      </>
-    )
-    ledger = (
-      <>
-        <div style={{ marginTop: 'var(--d-ledger-mt, 22px)', borderTop: '1.5px solid var(--sl-text)' }}>
-          {/* One dot per show, filled through the SAME count the hero shows
-              (components/record/NextMilestone, shared with the celebration). */}
+        {countInfo}
+        {/* The record, complete: number, sentence and the run to the next milestone. */}
+        <div style={{ marginTop: 8 }}>
           <NextMilestoneRow count={record.count} />
           {!hasBand && record.lastShow && (
             <div style={rowBase}>
@@ -720,6 +734,14 @@ export default function DashboardPage() {
               <span style={rowValue}>{lastShowLabel(record.lastShow.date)}</span>
             </div>
           )}
+        </div>
+      </>
+    )
+    ledger = (
+      <>
+        {/* Secondary: filing progress and the estimates, set apart by space and a heading. */}
+        <h2 style={{ fontSize: 14, fontWeight: 600, color: 'var(--sl-text-2)', margin: 'var(--d-ledger-mt, 44px) 0 10px' }}>Filing and royalties</h2>
+        <div style={{ borderTop: '1.5px solid var(--sl-text)' }}>
           <div style={rowBase}>
             <span style={rowLabel}>Marked submitted</span>
             <span style={rowValue}>{record.submitted} <span style={unit}>of {record.count} {record.count === 1 ? 'show' : 'shows'}</span></span>
@@ -733,15 +755,18 @@ export default function DashboardPage() {
           {!estimatesUnavailable && lifetimeTotal > 0 && (
             <div style={rowBase}>
               <span style={rowLabel}>Estimated royalties<small style={rowSmall}>All shows with setlists</small></span>
-              <span style={rowValue}>{money(lifetimeTotal)} <span style={unit}>est.</span></span>
+              <span style={{ ...rowValue, fontSize: 'var(--d-value-lg, 18px)' }}>{money(lifetimeTotal)} <span style={unit}>est.</span></span>
             </div>
           )}
           {!estimatesUnavailable && aggregate.unclaimedCount > 0 && (
             // Routes to the Filing Queue — reviewing and marking these is
             // what that page is for.
-            <button onClick={() => router.push('/app/file')} className="sl-hoverable" style={linkRow}>
-              <span style={rowLabel}>Not yet marked submitted<small style={rowSmall}>Estimated royalties · review in Submissions</small></span>
-              <span style={rowValue}>{money(aggregate.unclaimedExpected)} <span style={unit}>est.</span></span>
+            // Part of the total above: indented, and said so to assistive technology.
+            <button onClick={() => router.push('/app/file')} className="sl-hoverable"
+              aria-label={`Not yet marked submitted: ${money(aggregate.unclaimedExpected)} estimated${lifetimeTotal > 0 ? `, part of the ${money(lifetimeTotal)} estimated total` : ''}. Open Submissions`}
+              style={{ ...linkRow, minHeight: 48, paddingLeft: 16 }}>
+              <span style={{ ...rowLabel, fontSize: 14 }}>Not yet marked submitted</span>
+              <span style={{ ...rowValue, fontSize: 15, fontWeight: 500, color: 'var(--sl-text-2)' }}>{money(aggregate.unclaimedExpected)} <span style={unit}>est.</span></span>
               {chevron}
             </button>
           )}
@@ -808,10 +833,6 @@ export default function DashboardPage() {
               const displayStatus = getDisplayStatus(perf)
               const d = showDay(perf, perf.show_timezone)
               const songCount = songCountMap[perf.id] || 0
-              const isFinished = perf.status !== 'live' && perf.status !== 'pending'
-              const perfEst = isFinished && songCount > 0
-                ? estimateRoyalties({ songCount, venueCapacityBand: capacityToBand(perf.venue_capacity), showType: (perf.show_type as any) || 'single', territory: isCanadian(perf.country, perf.city) ? 'CA' : 'US' })
-                : null
               return (
                 <button key={perf.id} onClick={() => navigateToPerformance(perf)} className="sl-hoverable" style={linkRow}>
                   <span style={{ width: 40, flexShrink: 0, textAlign: 'center' }}>
@@ -822,10 +843,7 @@ export default function DashboardPage() {
                     <span style={{ display: 'block', fontSize: 16, fontWeight: 600, color: 'var(--sl-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{perf.venue_name || 'Untitled show'}</span>
                     <span style={{ display: 'block', fontSize: 13, color: 'var(--sl-text-3)' }}>{[perf.city, songCount > 0 ? `${songCount} songs` : null].filter(Boolean).join(' · ')}</span>
                   </span>
-                  <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2, flexShrink: 0 }}>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: displayStatus.color }}>{displayStatus.label}</span>
-                    {perfEst && perfEst.expected > 0 && <span style={{ fontSize: 13, color: 'var(--sl-text-3)' }}>{money(perfEst.expected)} est.</span>}
-                  </span>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: displayStatus.color, flexShrink: 0 }}>{displayStatus.label}</span>
                   {chevron}
                 </button>
               )
@@ -866,18 +884,18 @@ export default function DashboardPage() {
         /* Room for the approved two-column composition: poster | ledger. */
         @container sl-dash (min-width: 900px) {
           .sl-dash-inner {
-            --d-max: 1120px; --d-pad: 0 48px 64px; --d-ledger-mt: 6px;
+            --d-max: 1120px; --d-pad: 0 48px 64px; --d-ledger-mt: 26px;
             --d-hero: clamp(160px, 26cqw, 300px); --d-hero-band: clamp(160px, 26cqw, 300px);
             --d-glow: 760px; --d-glow-left: 120px;
           }
           .sl-dash-grid {
             display: grid; grid-template-columns: minmax(0, 1fr) minmax(360px, 440px); column-gap: 72px;
-            grid-template-areas: "band band" "poster ledger" "more ledger"; grid-template-rows: auto auto 1fr;
+            grid-template-areas: "band band" "poster ledger" "poster more"; grid-template-rows: auto auto 1fr;
             align-items: start; padding-top: 8px;
           }
           .sl-a-band { grid-area: band; margin-bottom: 12px; }
           .sl-a-poster { grid-area: poster; }
-          .sl-a-ledger { grid-area: ledger; padding-top: 20px; }
+          .sl-a-ledger { grid-area: ledger; padding-top: 0; }
           .sl-a-more { grid-area: more; }
         }
       `}</style>

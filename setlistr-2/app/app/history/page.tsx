@@ -2,7 +2,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { Search, ChevronLeft, Music2, DollarSign } from 'lucide-react'
+import { Search, Music2, ChevronDown, ChevronUp, SlidersHorizontal } from 'lucide-react'
 import { estimateRoyalties, capacityToBand } from '@/lib/royalty-estimate'
 import { useActingAs } from '@/components/ActingAsProvider'
 import { isRealVenue } from '@/lib/performance-status'
@@ -12,7 +12,8 @@ import { loadFilingProfile } from '@/lib/load-filing-profile'
 import { readClaimInputs } from '@/lib/claim-inputs-storage'
 import { countsFromRows } from '@/lib/submissions-nav-counts'
 import { SubmissionsSwitcher } from '@/components/SubmissionsSwitcher'
-import { SubmissionEntryRow, SubmissionRowsSkeleton, CountChipPlaceholder, SubmissionsDesktopStyles } from '@/components/SubmissionEntryRow'
+import { SubmissionEntryRow, SubmissionRowsSkeleton, SubmissionsDesktopStyles } from '@/components/SubmissionEntryRow'
+import { Skeleton } from '@/components/ui/Skeleton'
 import { LoadError } from '@/components/ui/LoadError'
 import { useWorkspaceRole } from '@/components/layout/WorkspaceRole'
 
@@ -350,21 +351,6 @@ export default function HistoryPage() {
     submitted: performances.filter(p => p.filing.state === 'submitted').length,
   }
 
-  // Same population as the "Ready to submit" tab above — computeFilingStatus
-  // already requires songs > 0 for 'ready', so no separate song_count check
-  // is needed here to keep this in lockstep with that count.
-  const unclaimedShows = performances.filter(p => p.filing.state === 'ready')
-
-  const totalUnclaimed = unclaimedShows.reduce((sum, p) => {
-    const est = estimateRoyalties({
-      songCount: p.song_count || 0,
-      venueCapacityBand: capacityToBand(p.venue_capacity),
-      showType: (p.show_type as any) || 'single',
-      territory: getTerritory(p.country, p.city),
-    })
-    return sum + est.expected
-  }, 0)
-
   return (
     <div style={{ minHeight: 'var(--sl-page-min-height, 100svh)', background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif' }}>
       <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120vw', height: '40vh', pointerEvents: 'none', zIndex: 0, background: 'var(--sl-page-glow)' }} />
@@ -372,27 +358,16 @@ export default function HistoryPage() {
       <div className="subm-cq">
       <div className="subm-page" style={{ padding: '0 16px', position: 'relative', zIndex: 1 }}>
 
-        {/* Header */}
-        {/* Wraps the count chip under the title when the row can't fit it
-           (larger text sizes, narrow phones) instead of overflowing. */}
-        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap' as const, gap: 12, rowGap: 8, padding: '20px 0 24px' }}>
-          <button onClick={() => router.push('/app/dashboard')}
-            style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, padding: '7px 10px', color: C.secondary, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 4, fontSize: 14 }}>
-            <ChevronLeft size={14} /> Back
-          </button>
-          <h1 style={{ fontSize: 28, fontWeight: 800, color: C.text, margin: 0, letterSpacing: '-0.02em', flex: '1 1 auto', minWidth: 0 }}>
-            Your Record
-          </h1>
-          <div style={{ fontSize: 13, color: C.muted, background: C.card, border: `1px solid ${C.border}`, borderRadius: 20, padding: '5px 10px', whiteSpace: 'nowrap' as const }}>
-            {ready ? `${performances.length} shows` : <CountChipPlaceholder />}
-          </div>
-        </div>
-
-        {importedCount > 0 && (
-          <p style={{ fontSize: 13, color: C.secondary, margin: '-12px 0 16px', lineHeight: 1.5 }}>
-            {performances.length - importedCount} on your live record · {importedCount} imported (not counted on the dashboard)
-          </p>
-        )}
+        {/* Submissions is a navigation tab, so no Back; the switcher carries the total.
+            The record line's space is held while loading, so nothing below moves. */}
+        <h1 style={{ fontSize: 28, fontWeight: 800, color: C.text, margin: 0, letterSpacing: '-0.02em', padding: '20px 0 8px' }}>
+          Your Record
+        </h1>
+        <p style={{ fontSize: 13.5, color: C.secondary, margin: '0 0 16px', lineHeight: 1.5, minHeight: 20 }}>
+          {ready
+            ? <>{performances.length - importedCount} on your live record{importedCount > 0 && <> · {importedCount} imported</>}</>
+            : !failed && <Skeleton w={190} h={12} r={4} style={{ display: 'inline-block', verticalAlign: 'middle' }} />}
+        </p>
 
         <SubmissionsSwitcher active="history" filingQueueCount={navCounts?.filingQueueCount} fullHistoryCount={navCounts?.fullHistoryCount} />
 
@@ -410,99 +385,82 @@ export default function HistoryPage() {
           </div>
         )}
 
-        {/* ── Unclaimed earnings banner ── */}
-        {unclaimedShows.length > 0 && (
-          <div style={{ marginBottom: 16, background: 'color-mix(in srgb, var(--sl-accent) 5%, transparent)', border: '1px solid color-mix(in srgb, var(--sl-accent) 15%, transparent)', borderRadius: 16, padding: '16px 18px', display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div style={{ width: 40, height: 40, borderRadius: '50%', background: C.goldDim, border: `1px solid ${C.borderGold}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <DollarSign size={18} style={{ color: C.gold }} />
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <p style={{ fontSize: 20, fontWeight: 800, color: C.gold, margin: '0 0 2px' }}>
-                ~${totalUnclaimed.toLocaleString()} unclaimed
-              </p>
-              <p style={{ fontSize: 14, color: C.secondary, margin: 0 }}>
-                {unclaimedShows.length} show{unclaimedShows.length !== 1 ? 's' : ''} ready to submit to your PRO
-              </p>
-              <p style={{ fontSize: 10, color: C.muted, margin: '4px 0 0' }}>Estimate only, not guaranteed — actual payouts vary by PRO.</p>
-            </div>
-            <button
-              onClick={() => setStatusFilter('complete')}
-              style={{ flexShrink: 0, padding: '10px 16px', background: C.gold, border: 'none', borderRadius: 10, color: 'var(--sl-on-accent)', fontSize: 13, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' as const, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', transition: 'opacity 0.15s ease' }}
-              onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.7'}
-              onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}>
-              File them →
-            </button>
-          </div>
-        )}
-
-        {/* Search — on desktop, one compact toolbar (SubmissionsDesktopStyles) */}
-        <div className="subm-tb" style={{ marginBottom: 10 }}>
-          <div className="subm-tb-search" style={{ position: 'relative', marginBottom: 10 }}>
-            <Search size={14} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: C.muted, pointerEvents: 'none' }} />
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search venue, artist, or city..."
-              style={{ width: '100%', background: C.card, border: `1px solid ${search ? 'var(--sl-input-line-active)' : 'var(--sl-input-line)'}`, borderRadius: 12, padding: '13px 16px 13px 44px', color: C.text, fontSize: 16, fontFamily: 'inherit', transition: 'border-color 0.15s ease', boxSizing: 'border-box' as const }} />
-          </div>
-
-          {/* Status tabs — paddingRight (not just gap) so the last chip
-             gets real breathing room at the scrolled-end edge instead of
-             sitting flush against it, which read as "cut off" even though
-             the row was already scrollable. className hides the native
-             horizontal scrollbar (globals.css's ::-webkit-scrollbar rule
-             is sized for a thin vertical thumb — width:4px, no height —
-             so a horizontal track here rendered at the browser's default,
-             much thicker height, all in the same gold thumb color: a
-             heavy gold bar sitting right under the filters). Touch/trackpad
-             scrolling and every filter stay reachable — only the visible
-             track/thumb is hidden, not the scroll behavior itself. */}
-          <div className="subm-filter-scroll subm-tb-tabs" style={{ display: 'flex', gap: 6, marginBottom: 8, overflowX: 'auto' as const, paddingRight: 16, WebkitOverflowScrolling: 'touch' as const }}>
-            {([
-              { key: 'all',       label: 'All',             color: C.muted,  count: counts.all },
-              { key: 'review',    label: 'Needs Review',    color: C.gold,   count: counts.review },
-              { key: 'complete',  label: 'Ready to submit', color: C.gold,   count: counts.complete },
-              { key: 'submitted', label: 'Marked Submitted', color: C.green,  count: counts.submitted },
-            ] as const).map(tab => {
-              const active = statusFilter === tab.key
-              return (
-                <button key={tab.key} onClick={() => setStatusFilter(tab.key)}
-                  style={{ flexShrink: 0, padding: '8px 16px', borderRadius: 20, border: `1px solid ${active ? `color-mix(in srgb, ${tab.color} 38%, transparent)` : C.border}`, background: active ? `color-mix(in srgb, ${tab.color} 8%, transparent)` : 'transparent', color: active ? tab.color : C.muted, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 5, transition: 'all 0.15s ease', letterSpacing: '0.04em' }}>
-                  {tab.label}
-                  {tab.count > 0 && (
-                    <span style={{ fontSize: 12, background: active ? `color-mix(in srgb, ${tab.color} 15%, transparent)` : 'color-mix(in srgb, var(--sl-text) 6%, transparent)', borderRadius: 10, padding: '1px 5px', color: active ? tab.color : C.muted }}>
-                      {tab.count}
-                    </span>
-                  )}
-                </button>
-              )
-            })}
-          </div>
-
-          <div className="subm-tb-tools" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <button onClick={() => setShowFilters(!showFilters)}
-              style={{ background: showFilters ? C.goldDim : 'transparent', border: `1px solid ${showFilters ? C.borderGold : C.border}`, borderRadius: 8, padding: '7px 12px', color: showFilters ? C.gold : C.muted, fontSize: 13, fontWeight: 700, cursor: 'pointer', letterSpacing: '0.06em', textTransform: 'uppercase' as const, fontFamily: 'inherit' }}>
-              Date Range {showFilters ? '▲' : '▼'}
-            </button>
-            {hasFilters && <button onClick={clearFilters} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>Clear ×</button>}
-            <span style={{ marginLeft: 'auto', fontSize: 12, color: C.muted }}>{ready ? `${filtered.length} result${filtered.length !== 1 ? 's' : ''}` : ''}</span>
-            {canWrite && performances.length > 0 && (
-              <button onClick={() => { setEditing(v => !v); setDeletePending(null) }} aria-pressed={editing}
-                style={{ minHeight: 36, background: 'none', border: 'none', padding: '0 0 0 6px', color: editing ? 'var(--sl-gold-text)' : C.secondary, fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-                {editing ? 'Done' : 'Edit'}
-              </button>
-            )}
-          </div>
-
-          {showFilters && (
-            <div className="subm-tb-dates" style={{ display: 'flex', gap: 10, marginTop: 10 }}>
-              {[{ label: 'From', value: dateFrom, set: setDateFrom }, { label: 'To', value: dateTo, set: setDateTo }].map(({ label, value, set }) => (
-                <div key={label} style={{ flex: 1 }}>
-                  <label style={{ fontSize: 10, color: C.muted, display: 'block', marginBottom: 5, letterSpacing: '0.1em', textTransform: 'uppercase' as const, fontWeight: 700 }}>{label}</label>
-                  <input type="date" value={value} onChange={e => set(e.target.value)}
-                    style={{ width: '100%', background: C.input, border: `1px solid ${value ? 'var(--sl-input-line-active)' : 'var(--sl-input-line)'}`, borderRadius: 8, padding: '9px 12px', color: C.text, fontSize: 13, fontFamily: 'inherit', colorScheme: 'var(--sl-scheme)', boxSizing: 'border-box' as const }} />
+        {/* Finding a show comes first: search, then one Filters control on phones
+            (status and dates behind it, selections kept when closed); wider
+            screens show the status filters inline with Dates and wrap as one
+            group. Edit sits apart, at the list's top edge. */}
+        {(() => {
+          const STATUS = { all: 'All', review: 'Needs review', complete: 'Ready to submit', submitted: 'Marked submitted' } as Record<string, string>
+          const activeCount = (statusFilter !== 'all' ? 1 : 0) + (dateFrom || dateTo ? 1 : 0)
+          const fmt = (d: string) => new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+          const active = [
+            statusFilter !== 'all' ? STATUS[statusFilter] : null,
+            dateFrom || dateTo ? (dateFrom && dateTo ? `${fmt(dateFrom)} – ${fmt(dateTo)}` : dateFrom ? `From ${fmt(dateFrom)}` : `Until ${fmt(dateTo)}`) : null,
+          ].filter(Boolean) as string[]
+          const filtering = activeCount > 0 || !!search.trim()
+          return (
+            <>
+              <div className={`hx-tb${showFilters ? ' open' : ''}`}>
+                <div className="hx-search" style={{ position: 'relative', minWidth: 0 }}>
+                  <Search size={15} aria-hidden="true" style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: C.muted, pointerEvents: 'none' }} />
+                  <input type="search" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search shows" aria-label="Search shows by venue, artist or city"
+                    style={{ width: '100%', minHeight: 48, background: C.card, border: `1px solid ${search ? 'var(--sl-input-line-active)' : 'var(--sl-input-line)'}`, borderRadius: 12, padding: '0 14px 0 40px', color: C.text, fontSize: 16, fontFamily: 'inherit', boxSizing: 'border-box' as const }} />
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
+                <button className="hx-filters" onClick={() => setShowFilters(v => !v)} aria-expanded={showFilters} aria-controls="hx-filter-options hx-date-options"
+                  aria-label={activeCount ? `Filters, ${activeCount} active` : 'Filters'}
+                  style={{ minHeight: 48, padding: '0 14px', display: 'inline-flex', alignItems: 'center', gap: 7, borderRadius: 12, border: `1px solid ${activeCount ? 'color-mix(in srgb, var(--sl-accent) 50%, transparent)' : 'var(--sl-input-line)'}`, background: activeCount ? C.goldDim : C.card, color: activeCount ? 'var(--sl-gold-text)' : C.text, fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' as const }}>
+                  <SlidersHorizontal size={16} aria-hidden="true" /> Filters{activeCount ? ` · ${activeCount}` : ''}
+                </button>
+                <div id="hx-filter-options" className="hx-status" role="group" aria-label="Show status">
+                  {([
+                    { key: 'all',       color: C.muted,  count: counts.all },
+                    { key: 'review',    color: C.gold,   count: counts.review },
+                    { key: 'complete',  color: C.gold,   count: counts.complete },
+                    { key: 'submitted', color: C.green,  count: counts.submitted },
+                  ] as const).map(tab => {
+                    const on = statusFilter === tab.key
+                    return (
+                      <button key={tab.key} onClick={() => setStatusFilter(tab.key)} aria-pressed={on}
+                        style={{ minHeight: 44, padding: '0 13px', borderRadius: 22, border: `1px solid ${on ? `color-mix(in srgb, ${tab.color} 45%, transparent)` : C.border}`, background: on ? `color-mix(in srgb, ${tab.color} 10%, transparent)` : 'transparent', color: on ? tab.color : C.secondary, fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' as const }}>
+                        {STATUS[tab.key]}
+                        {tab.count > 0 && <span style={{ fontSize: 12.5, color: on ? tab.color : C.muted, fontVariantNumeric: 'tabular-nums' as const }}>{tab.count}</span>}
+                      </button>
+                    )
+                  })}
+                </div>
+                <button className="hx-dates-btn" onClick={() => setShowFilters(v => !v)} aria-expanded={showFilters} aria-controls="hx-date-options"
+                  style={{ minHeight: 44, alignItems: 'center', gap: 4, background: 'none', border: 'none', padding: '0 2px', color: dateFrom || dateTo ? 'var(--sl-gold-text)' : C.secondary, fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' as const }}>
+                  Dates {showFilters ? <ChevronUp size={15} aria-hidden="true" /> : <ChevronDown size={15} aria-hidden="true" />}
+                </button>
+                <div id="hx-date-options" className="hx-dates" role="group" aria-label="Date range">
+                  {[{ label: 'From', value: dateFrom, set: setDateFrom }, { label: 'To', value: dateTo, set: setDateTo }].map(({ label, value, set }) => (
+                    <label key={label} style={{ flex: '1 1 140px', maxWidth: 220, display: 'flex', flexDirection: 'column' as const, gap: 5, fontSize: 13, color: C.secondary, fontWeight: 600 }}>
+                      {label}
+                      <input type="date" value={value} onChange={e => set(e.target.value)}
+                        style={{ width: '100%', minHeight: 44, background: C.input, border: `1px solid ${value ? 'var(--sl-input-line-active)' : 'var(--sl-input-line)'}`, borderRadius: 10, padding: '0 12px', color: C.text, fontSize: 16, fontFamily: 'inherit', colorScheme: 'var(--sl-scheme)', boxSizing: 'border-box' as const }} />
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* The list's top edge: what's showing and Clear while filtering; Edit apart on the right. */}
+              <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap' as const, gap: '0 10px', minHeight: 44, marginTop: 4 }}>
+                <span aria-live="polite" style={{ flex: '1 1 160px', minWidth: 0, fontSize: 14, color: C.secondary }}>
+                  {ready && filtering && <>{filtered.length} of {performances.length}{active.length > 0 && <> · <b style={{ color: C.text, fontWeight: 600 }}>{active.join(' · ')}</b></>}</>}
+                </span>
+                {filtering && (
+                  <button onClick={clearFilters} style={{ minHeight: 44, background: 'none', border: 'none', padding: '0 4px', color: 'var(--sl-gold-text)', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Clear</button>
+                )}
+                {canWrite && performances.length > 0 && (
+                  <button onClick={() => { setEditing(v => !v); setDeletePending(null) }} aria-pressed={editing}
+                    style={{ minHeight: 44, background: 'none', border: 'none', padding: '0 0 0 10px', borderLeft: filtering ? `1px solid ${C.border}` : 'none', color: editing ? 'var(--sl-gold-text)' : C.secondary, fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                    {editing ? 'Done' : 'Edit'}
+                  </button>
+                )}
+              </div>
+            </>
+          )
+        })()}
 
         {/* List */}
         <div style={{ paddingBottom: 48 }}>
@@ -630,6 +588,36 @@ export default function HistoryPage() {
            untouched, this is purely cosmetic. */
         .subm-filter-scroll::-webkit-scrollbar { display: none; }
         .subm-filter-scroll { scrollbar-width: none; }
+
+        /* Phones: search + Filters; status and dates open beneath. */
+        .hx-tb { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "search filters" "status status" "dates dates"; gap: 10px; }
+        .hx-search { grid-area: search; } .hx-filters { grid-area: filters; }
+        .hx-status { grid-area: status; display: none; flex-wrap: wrap; gap: 6px; }
+        .hx-dates { grid-area: dates; display: none; flex-wrap: wrap; gap: 10px; }
+        .hx-dates-btn { display: none; }
+        .hx-tb.open .hx-status, .hx-tb.open .hx-dates { display: flex; }
+        /* Wider: one toolbar — search, the status filters inline, Dates — that
+           wraps as a group at narrower widths and larger text. */
+        @container subm (min-width: 600px) {
+          .hx-tb { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; }
+          .hx-search { flex: 1 1 220px; max-width: 300px; }
+          .hx-filters { display: none !important; }
+          .hx-status { display: flex !important; flex: 0 1 auto; }
+          .hx-dates-btn { display: inline-flex !important; margin-left: auto; }
+          .hx-dates { flex-basis: 100%; display: none; }
+          .hx-tb.open .hx-dates { display: flex; }
+        }
+        /* Between those widths the group would orphan Dates on a third line:
+           search and Dates share the first line, the status filters the second. */
+        @container subm (min-width: 600px) and (max-width: 899px) {
+          .hx-search { order: 0; flex: 1 1 220px; max-width: none; }
+          .hx-dates-btn { order: 1; }
+          .hx-status { order: 2; flex-basis: 100%; }
+          .hx-dates { order: 3; }
+        }
+        @container subm (min-width: 900px) {
+          .subm-page > .hx-tb { max-width: none; }
+        }
       `}</style>
     </div>
   )
