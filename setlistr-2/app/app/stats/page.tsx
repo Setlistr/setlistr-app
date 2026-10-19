@@ -7,7 +7,7 @@ import MySongsTab from '@/components/MySongsTab'
 import { estimateRoyalties, capacityToBand } from '@/lib/royalty-estimate'
 import { useActingAs } from '@/components/ActingAsProvider'
 import { showDate } from '@/lib/record-summary'
-import { CAREER_SHOW_STATUSES } from '@/lib/performance-status'
+import { CAREER_SHOW_STATUSES, isCapturedShow } from '@/lib/performance-status'
 import { ESTIMATE_DISCLAIMER, ESTIMATE_UNIT, formatEstimate } from '@/lib/estimate-copy'
 import { PageFrame } from '@/components/ui/PageFrame'
 import { PageHeader } from '@/components/ui/PageHeader'
@@ -32,6 +32,7 @@ type Performance = {
   id: string; venue_name: string; venue_id: string | null; city: string; country: string;
   started_at: string; ended_at: string | null; set_duration_minutes: number;
   submission_status: string | null; show_type?: string; venue_capacity?: number | null
+  status?: string | null; data_source?: string | null
 }
 type UserSong    = { id: string; song_title: string; canonical_artist: string; confirmed_count: number; last_confirmed_at: string }
 type SongDebut   = { title: string; artist: string | null; first_performed_at: string }
@@ -121,13 +122,14 @@ export default function StatsPage() {
           submission_status: p.submission_status || null,
           show_type: p.show_type || 'single',
           venue_capacity: p.venue_capacity || null,
+          status: p.status || null, data_source: p.data_source || null,
         }))
         const debutData = await debutRes.json().catch(() => ({ error: 'unreadable' }))
         if (!debutRes.ok || debutData.error) debutsFailed = true; else debuts = debutData.debuts || []
       } else {
         const [perfsResult, uSongsResult, debutRes] = await Promise.all([
           supabase.from('performances_visible')
-            .select('id, venue_name, venue_id, city, country, started_at, ended_at, set_duration_minutes, submission_status, shows(show_type), venues(capacity)')
+            .select('id, venue_name, venue_id, city, country, started_at, ended_at, set_duration_minutes, submission_status, status, data_source, shows(show_type), venues(capacity)')
             .eq('user_id', user.id)
             .in('status', CAREER_SHOW_STATUSES)
             .order('started_at', { ascending: false }),
@@ -147,6 +149,7 @@ export default function StatsPage() {
           submission_status: p.submission_status || null,
           show_type: (p.shows as any)?.show_type || 'single',
           venue_capacity: (p.venues as any)?.capacity || null,
+          status: p.status || null, data_source: p.data_source || null,
         }))
         uSongs = uSongsResult.data || []
         const debutData = await debutRes.json().catch(() => ({ error: 'unreadable' }))
@@ -238,6 +241,15 @@ export default function StatsPage() {
 
   // ── Derived stats ─────────────────────────────────────────────────────────
   const totalShows  = performances.length
+  // The headline counts the live record, by the dashboard's own rule
+  // (isCapturedShow). Career's lists and the other figures keep its broader
+  // set, and say so: imported shows, and any other shows it lists outside the
+  // live record.
+  const liveShows      = performances.filter(p => isCapturedShow({ status: p.status ?? null, data_source: p.data_source ?? null, venue_name: p.venue_name }))
+  const liveCount      = liveShows.length
+  const beyondLive     = totalShows - liveCount
+  const importedCount  = performances.filter(p => p.data_source === 'setlistfm_imported').length
+  const beyondLabel    = beyondLive === 0 ? '' : beyondLive === importedCount ? `${beyondLive} imported` : `${beyondLive} not on the live record`
   const totalSongs  = allSongs.length
   const totalCities = new Set(performances.map(p => p.city).filter(Boolean)).size
 
@@ -411,7 +423,7 @@ export default function StatsPage() {
                 {/* Career Map — the existing Mapbox static image and tap-through.
                    Its space is reserved from the first frame; the scrim is fixed
                    dark in both appearances because the map imagery is dark in both. */}
-                <button className="cr-map" onClick={() => router.push('/app/career-map')} aria-label={`${totalCities} cities, ${totalShows} shows. View your map`}
+                <button className="cr-map" onClick={() => router.push('/app/career-map')} aria-label={`${totalCities} cities, ${liveCount} shows on the live record${beyondLabel ? ` plus ${beyondLabel}` : ''}. View your map`}
                   style={{ width: '100%', aspectRatio: '600 / 340', position: 'relative', overflow: 'hidden', borderRadius: 18, cursor: 'pointer', border: '1px solid color-mix(in srgb, var(--sl-text) 8%, transparent)', padding: 0, display: 'block', background: '#141210' /* map imagery: fixed */ }}>
                   {mapImg !== 'ready' && mapImg !== 'failed' && <Skeleton h="100%" r={0} onDark style={{ position: 'absolute', inset: 0 }} />}
                   {activeMapUrl && mapImg !== 'failed' && (
@@ -437,7 +449,7 @@ export default function StatsPage() {
                   <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: '0 18px 34px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12, textAlign: 'left', flexWrap: 'wrap' }}>
                     <div>
                       <p style={{ fontSize: 34, fontWeight: 800, color: '#f3eee4', margin: 0, letterSpacing: '-0.02em', lineHeight: 1 }} /* map imagery: fixed */>{totalCities} {totalCities === 1 ? 'City' : 'Cities'}</p>
-                      <p style={{ fontSize: 14, color: '#d9cfb7', margin: '5px 0 0' }} /* map imagery: fixed */>{totalShows} {totalShows === 1 ? 'show' : 'shows'}</p>
+                      <p style={{ fontSize: 14, color: '#d9cfb7', margin: '5px 0 0' }} /* map imagery: fixed */>{liveCount} {liveCount === 1 ? 'show' : 'shows'}{beyondLabel ? ` · ${beyondLabel}` : ''}</p>
                     </div>
                     <span style={{ fontSize: 13.5, fontWeight: 700, color: '#e3c66f', whiteSpace: 'nowrap', background: 'rgba(10,9,8,0.55)', border: '1px solid rgba(227,198,111,0.35)', borderRadius: 999, padding: '7px 12px' }} /* map imagery: fixed */>View your map →</span>
                   </div>
@@ -498,11 +510,11 @@ export default function StatsPage() {
                 {/* Career statistics — the same four figures, flat */}
                 <div className="cr-stats" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', borderTop: HAIR }}>
                   {[
-                    { label: 'Shows played', value: String(totalShows), note: null as string | null },
-                    { label: 'Song performances', value: String(totalSongs), note: null },
-                    { label: 'Cities', value: String(totalCities), note: null },
+                    { label: 'Shows played', value: String(liveCount), note: beyondLabel ? `+ ${beyondLabel}` : null as string | null },
+                    { label: 'Song performances', value: String(totalSongs), note: beyondLabel ? `incl. ${beyondLabel}` : null },
+                    { label: 'Cities', value: String(totalCities), note: beyondLabel ? `incl. ${beyondLabel}` : null },
                     showHours
-                      ? { label: 'Hours on stage', value: String(realTotalHours), note: `from ${N} timed shows` }
+                      ? { label: 'Hours on stage', value: String(realTotalHours), note: `from ${N} timed shows${beyondLabel ? `, incl. ${beyondLabel}` : ''}` }
                       : firstShowLabel ? { label: 'First show', value: firstShowLabel, note: null } : { label: 'Hours on stage', value: '—', note: null },
                   ].map((s, i) => (
                     <div key={s.label} style={{ padding: '14px 4px 14px 0', borderBottom: HAIR, borderRight: i % 2 === 0 ? HAIR : 'none', paddingLeft: i % 2 === 1 ? 16 : 0 }}>
@@ -521,7 +533,7 @@ export default function StatsPage() {
                       <p style={{ fontSize: 38, fontWeight: 800, color: 'var(--sl-gold-text)', margin: 0, fontFamily: '"DM Mono", monospace', letterSpacing: '-0.02em', lineHeight: 1 }}>{formatEstimate(estimatedLifetimeRoyalty)}</p>
                       <span style={{ fontSize: 14, color: C.muted, fontWeight: 500 }}>{ESTIMATE_UNIT}</span>
                     </div>
-                    <p style={{ fontSize: 14, color: C.secondary, margin: '8px 0 0', lineHeight: 1.5 }}>Based on {totalSongs} song appearances across {totalShows} shows</p>
+                    <p style={{ fontSize: 14, color: C.secondary, margin: '8px 0 0', lineHeight: 1.5 }}>Based on {totalSongs} song appearances across {totalShows} shows{beyondLabel ? `, including ${beyondLabel}` : ''}</p>
                     <p style={{ fontSize: 12, color: C.muted, margin: '4px 0 0' }}>{ESTIMATE_DISCLAIMER}</p>
                   </div>
                 )}
