@@ -31,6 +31,7 @@ import { useWorkspaceRole } from '@/components/layout/WorkspaceRole'
 import { RecordFinish, ORB_GOLD, type RecordFinishData } from '@/components/record/RecordFinish'
 import { isCapturedShow } from '@/lib/performance-status'
 import { summarizeRecord, milestoneHeldBy, MILESTONE_STEP } from '@/lib/record-summary'
+import { showDay } from '@/lib/show-date'
 
 const C = {
   bg: 'var(--sl-bg)', card: 'var(--sl-surface)', cardGrad: 'var(--sl-card-bg)', cardHover: 'var(--sl-surface-2)',
@@ -109,6 +110,9 @@ type Performance = {
   show_id?: string | null; show_type?: string | null; venue_capacity?: number | null
   status?: string | null
   data_source?: string | null
+  performance_date?: string | null; created_at?: string | null
+  // The linked show's IANA zone (shows.timezone); 'UTC' is its unset placeholder.
+  show_timezone?: string | null
 }
 
 type PRO = 'SOCAN' | 'ASCAP' | 'BMI'
@@ -644,11 +648,11 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
     const supabase = createClient()
     supabase.auth.getUser().then(({ data: { user } }) => { if (user) setUserId(actingAsArtistId || user.id) })
     setLoading(true); setLoadError(null); setSongsError(false)
-    supabase.from('performances_visible').select('*, status, shows(show_type), venues(capacity)').eq('id', params.id).maybeSingle()
+    supabase.from('performances_visible').select('*, status, shows(show_type, timezone), venues(capacity)').eq('id', params.id).maybeSingle()
       .then(async ({ data: perf, error: perfError }) => {
         if (perfError) { setLoadError('show'); setLoading(false); return }
         if (!perf) { setLoadError('missing'); setLoading(false); return }
-        setPerformance({ ...perf, show_type: perf.shows?.show_type || null, venue_capacity: perf.venues?.capacity || null })
+        setPerformance({ ...perf, show_type: perf.shows?.show_type || null, show_timezone: perf.shows?.timezone || null, venue_capacity: perf.venues?.capacity || null })
         if (perf.photo_url) setPhotoUrl(perf.photo_url)
         if (!reviewOpenedLoggedRef.current) {
           reviewOpenedLoggedRef.current = true
@@ -1114,7 +1118,8 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
 
   async function generateExportCSV(pro: PRO) {
     if (!performance) return
-    const date = parseLocalDate(performance.started_at).toLocaleDateString()
+    const day = showDay(performance, performance.show_timezone) || parseLocalDate(performance.started_at)
+    const date = day.toLocaleDateString()
     const confirmedSongs = songs.filter(s => s.source !== 'planned' && !s.isRemoved)
     const headers: Record<PRO, string[]> = {
       SOCAN: ['Title', 'Artist', 'Composer', 'Publisher', 'ISRC', 'Duration', 'Date', 'Venue', 'City'],
@@ -1131,7 +1136,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
     const blob = new Blob([csv], { type: 'text/csv' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a'); a.href = url
-    a.download = `${pro}-setlist-${performance.venue_name}-${parseLocalDate(performance.started_at).toLocaleDateString().replace(/\//g, '-')}.csv`
+    a.download = `${pro}-setlist-${performance.venue_name}-${date.replace(/\//g, '-')}.csv`
     a.click(); URL.revokeObjectURL(url)
     // Download already triggered synchronously above — this only bounds
     // how long we wait for the telemetry insert before the artist might
@@ -1167,6 +1172,8 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
     </div>
   )
 
+  // The show's own day (lib/show-date.ts), not the UTC date part of started_at.
+  const theShowDate       = performance ? showDay(performance, performance.show_timezone) : null
   const confirmedSongs    = songs.filter(s => s.source !== 'planned' && !s.isRemoved)
   const plannedPending    = songs.filter(s => s.source === 'planned' && !s.isRemoved)
   const autoCount         = confirmedSongs.filter(s => s.source === 'recognized' || s.source === 'detected' || s.source === 'fingerprint' || s.source === 'humming').length
@@ -1308,7 +1315,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
     const territory = getTerritory(performance?.country, performance?.city)
     const songCount = confirmedSongs.length
     const estimate  = estimateRoyalties({ songCount, venueCapacityBand: capacityToBand(performance?.venue_capacity), showType: (performance?.show_type as any) || 'single', territory })
-    const showDate  = performance?.started_at ? parseLocalDate(performance.started_at).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) : ''
+    const showDate  = theShowDate ? theShowDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) : ''
     const durMins   = performance?.started_at && performance?.ended_at ? Math.round((new Date(performance.ended_at).getTime() - new Date(performance.started_at).getTime()) / 60000) : null
     const manualCount = confirmedSongs.filter(s => s.source === 'manual' && !s.was_planned).length
 
@@ -1646,7 +1653,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
           <h1 style={{ fontSize: 34, fontWeight: 800, color: C.text, margin: '0 0 8px', letterSpacing: '-0.025em', lineHeight: 1.15 }}>{performance?.venue_name}</h1>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
             <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: C.secondary }}><MapPin size={11} />{performance?.city}</span>
-            {performance?.started_at ? <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: C.secondary }}><Calendar size={11} />{formatDate(performance.started_at)}</span> : null}
+            {theShowDate ? <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: C.secondary }}><Calendar size={11} />{theShowDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</span> : null}
             {dur ? <span style={{ fontSize: 12, color: C.secondary }}>· {dur}</span> : null}
           </div>
           <div style={{ marginTop: 12, display: 'flex', gap: 6, alignItems: 'center' }}>

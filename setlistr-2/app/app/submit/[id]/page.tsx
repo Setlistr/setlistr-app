@@ -11,6 +11,7 @@ import {
 import { isWriteCapableRole } from '@/lib/writeCapableRoles'
 import { missingIdentityFields } from '@/lib/submission-identity'
 import { parseLocalDate } from '@/lib/date-format'
+import { showDay } from '@/lib/show-date'
 
 const CARD = {
   background: 'var(--sl-card-bg)',
@@ -55,6 +56,9 @@ type Performance = {
   venue_capacity?: number | null; submission_status?: string | null
   submitted_at?: string | null; setlist_id?: string | null
   venue_city?: string | null; venue_country?: string | null
+  performance_date?: string | null; created_at?: string | null
+  // The linked show's IANA zone; 'UTC' is its unset placeholder.
+  show_timezone?: string | null
 }
 type Profile = {
   pro_affiliation: string | null; legal_name: string | null
@@ -113,7 +117,7 @@ function downloadSubmissionBrief({
   rule: ProRule | null; deadline: DeadlineResult | null
   suggestedTitle: string; effectiveCapacity: number | null; inputs: ClaimInputs
 }) {
-  const showDate = parseLocalDate(performance.started_at)
+  const showDate = showDay(performance, performance.show_timezone) || parseLocalDate(performance.started_at)
   const showDateLong = showDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
   const resolvedCity = performance.city || performance.venue_city || inputs.city.trim() || ''
   const line = (char = '─', n = 52) => char.repeat(n)
@@ -238,7 +242,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
       if (!user) { router.push('/auth/login'); return }
 
       const { data: perf } = await supabase
-        .from('performances_visible').select('*, shows(show_type), venues(capacity, city, country)')
+        .from('performances_visible').select('*, shows(show_type, timezone), venues(capacity, city, country)')
         .eq('id', params.id).single()
 
       if (!perf) { setLoading(false); return }
@@ -250,6 +254,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
       const perfRecord: Performance = {
         ...perf,
         show_type:         perf.shows?.show_type || null,
+        show_timezone:     perf.shows?.timezone || null,
         venue_capacity:    perf.venues?.capacity || null,
         submission_status: perf.submission_status || null,
         submitted_at:      perf.submitted_at || null,
@@ -463,7 +468,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
   const proName        = rule?.name || pro || 'your PRO'
   const stepsCompleted = stepsDone.filter(Boolean).length
   const totalSteps     = stepsDone.length
-  const showDate       = parseLocalDate(performance.started_at)
+  const showDate       = showDay(performance, performance.show_timezone) || parseLocalDate(performance.started_at)
   const artistDisplayName = profile?.artist_name || performance.artist_name
   const suggestedTitle = `${artistDisplayName} - ${performance.venue_name}`
   const fullCount    = songs.filter(s => s.matchConfidence === 'full').length

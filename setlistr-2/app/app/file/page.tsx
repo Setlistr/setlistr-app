@@ -13,6 +13,7 @@ import { SubmissionsSwitcher } from '@/components/SubmissionsSwitcher'
 import { SubmissionEntryRow, SubmissionRowsSkeleton, CountChipPlaceholder, SubmissionsDesktopStyles } from '@/components/SubmissionEntryRow'
 import { LoadError } from '@/components/ui/LoadError'
 import { filingDeadlineLabel, deadlineNeedsAttention, type DeadlineLabel } from '@/lib/filing-deadline-label'
+import { showDay } from '@/lib/show-date'
 
 const C = {
   bg: 'var(--sl-bg)', card: 'var(--sl-surface)',
@@ -29,6 +30,8 @@ const CARD = {
 
 type ShowRow = {
   id: string; venue_name: string; city: string | null; started_at: string
+  // The show's own day (lib/show-date.ts), for the row date and the deadline.
+  day: Date
   status: FilingStatusResult
   action: FilingAction
   songCount: number
@@ -109,7 +112,7 @@ export default function FilingQueuePage() {
           loadFilingProfile(supabase, null, user.id),
           supabase
             .from('performances_visible')
-            .select('id, venue_name, city, country, status, submission_status, started_at, data_source, venues ( capacity )')
+            .select('id, venue_name, city, country, status, submission_status, started_at, performance_date, created_at, data_source, shows ( timezone ), venues ( capacity )')
             .eq('user_id', user.id)
             .order('started_at', { ascending: false }),
         ])
@@ -147,9 +150,10 @@ export default function FilingQueuePage() {
         const claimInputs = readClaimInputs(p.id)
         const status = computeFilingStatus(perfFields, songCount, ctx.profile, ctx.isDelegate, claimInputs)
         const action = filingActionPath(p.id, p.status, songCount)
-        const computedDeadline = p.started_at ? filingDeadlineLabel(ctx.profile.pro_affiliation, parseLocalDate(p.started_at)) : null
+        const day = showDay(p, p.shows?.timezone) || parseLocalDate(p.started_at)
+        const computedDeadline = p.started_at ? filingDeadlineLabel(ctx.profile.pro_affiliation, day) : null
         const deadline = computedDeadline && deadlineNeedsAttention(computedDeadline.urgency) ? computedDeadline : null
-        return { id: p.id, venue_name: p.venue_name, city: p.city || null, started_at: p.started_at, status, action, songCount, deadline }
+        return { id: p.id, venue_name: p.venue_name, city: p.city || null, started_at: p.started_at, day, status, action, songCount, deadline }
       })
 
       built.sort((a, b) => {
@@ -235,7 +239,7 @@ export default function FilingQueuePage() {
         {ready && rows.length > 0 && (
           <div className="subm-list">
             {rows.map(row => {
-              const d = parseLocalDate(row.started_at)
+              const d = row.day
               // The single most important reason this show isn't ready —
               // computeFilingStatus already orders `missing` by importance
               // (review-stage, then PRO, then songs, then identity, then

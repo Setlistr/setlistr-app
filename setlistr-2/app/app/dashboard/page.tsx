@@ -10,6 +10,7 @@ import { useWorkspaceRole } from '@/components/layout/WorkspaceRole'
 import { NextShowSummary } from '@/components/scheduling/UpcomingShows'
 import { isCapturedShow, isRealVenue } from '@/lib/performance-status'
 import { summarizeRecord, showDate, lastShowLabel } from '@/lib/record-summary'
+import { showDay } from '@/lib/show-date'
 import { hasEverBeenConnected } from '@/lib/teamConnectionHistory'
 import {
   estimateRoyalties, aggregateUnclaimedEarnings,
@@ -31,6 +32,7 @@ type Performance = {
   show_type?: string; venue_capacity?: number | null
   data_source?: string | null
   performance_date?: string | null
+  show_timezone?: string | null
 }
 
 type BitEvent = {
@@ -289,7 +291,7 @@ export default function DashboardPage() {
     const [{ data, error }, { data: profileCareer }] = await Promise.all([
       supabase
         .from('performances_visible')
-        .select(`id, venue_name, artist_name, city, country, status, submission_status, started_at, ended_at, created_at, data_source, performance_date, shows ( show_type ), venues ( capacity )`)
+        .select(`id, venue_name, artist_name, city, country, status, submission_status, started_at, ended_at, created_at, data_source, performance_date, shows ( show_type, timezone ), venues ( capacity )`)
         .eq('user_id', targetUserId)
         .order('created_at', { ascending: false }),
       supabase
@@ -351,6 +353,7 @@ export default function DashboardPage() {
       venue_capacity: p.venues?.capacity || p.venue_capacity || null,
       data_source: p.data_source || 'captured',
       performance_date: p.performance_date || null,
+      show_timezone: p.shows?.timezone || null,
     }))
     setPerformances(perfs)
 
@@ -803,7 +806,7 @@ export default function DashboardPage() {
           <div style={{ borderTop: '1px solid var(--sl-line)', marginTop: 4 }}>
             {recentPerfs.map(perf => {
               const displayStatus = getDisplayStatus(perf)
-              const d = showDate(perf)
+              const d = showDay(perf, perf.show_timezone)
               const songCount = songCountMap[perf.id] || 0
               const isFinished = perf.status !== 'live' && perf.status !== 'pending'
               const perfEst = isFinished && songCount > 0

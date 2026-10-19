@@ -6,6 +6,7 @@ import { Search, ChevronLeft, Music2, DollarSign } from 'lucide-react'
 import { estimateRoyalties, capacityToBand } from '@/lib/royalty-estimate'
 import { useActingAs } from '@/components/ActingAsProvider'
 import { isRealVenue } from '@/lib/performance-status'
+import { showDay } from '@/lib/show-date'
 import { computeFilingStatus, type FilingStatusResult } from '@/lib/filing-status'
 import { loadFilingProfile } from '@/lib/load-filing-profile'
 import { readClaimInputs } from '@/lib/claim-inputs-storage'
@@ -44,6 +45,8 @@ type Performance = {
   submission_status: string | null
   started_at:        string
   created_at:        string
+  performance_date?: string | null
+  show_timezone?:    string | null
   venue_capacity?:   number | null
   show_type?:        string | null
   song_count?:       number
@@ -139,7 +142,7 @@ export default function HistoryPage() {
 
     const perfQuery = supabase
       .from('performances_visible')
-      .select('id, venue_name, venue_id, artist_name, city, country, status, submission_status, started_at, created_at, captured_by_name, photo_url, data_source, shows(show_type), venues(capacity)')
+      .select('id, venue_name, venue_id, artist_name, city, country, status, submission_status, started_at, created_at, performance_date, captured_by_name, photo_url, data_source, shows(show_type, timezone), venues(capacity)')
       .eq('user_id', actingAsArtistId || user.id)
       .not('status', 'in', '("live","pending")')
       // Excludes Upload Performance drafts (status='draft', created the
@@ -191,6 +194,7 @@ export default function HistoryPage() {
             city: p.city, country: p.country, status: p.status,
             submission_status: p.submission_status || null,
             started_at: p.started_at, created_at: p.created_at,
+            performance_date: p.performance_date || null, show_timezone: p.shows?.timezone || null,
             venue_capacity: p.venues?.capacity || null,
             show_type: p.shows?.show_type || 'single',
             song_count: songCount,
@@ -534,7 +538,7 @@ export default function HistoryPage() {
               {filtered.map((perf) => {
                 const displayStatus  = getDisplayStatus(perf)
                 const dateStr        = perf.started_at || perf.created_at
-                const date           = new Date(dateStr)
+                const date           = showDay(perf, perf.show_timezone) || new Date(dateStr)
                 const isClaimable    = perf.filing.state === 'ready'
                 const est            = isClaimable ? estimateRoyalties({
                   songCount: perf.song_count || 0,
