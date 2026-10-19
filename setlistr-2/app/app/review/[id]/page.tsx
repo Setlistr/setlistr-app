@@ -340,6 +340,8 @@ function PlannedSongRow({ song, onPlayed, onRemove }: {
 
 function CeremonyCountCard({ songCount, showDate, verifiedCount, autoCount, manualCount, songs, flowSource }: {
   songCount: number; showDate: string
+  // verifiedCount: songs on the setlist; autoCount: detected songs NOT on it;
+  // manualCount: added songs not on it. The three never overlap.
   verifiedCount: number; autoCount: number; manualCount: number
   songs: Song[]; flowSource: FlowSource
 }) {
@@ -369,7 +371,7 @@ function CeremonyCountCard({ songCount, showDate, verifiedCount, autoCount, manu
       </div>
       <div style={{ padding: '12px 24px 18px', borderTop: `1px solid color-mix(in srgb, var(--sl-text) 4%, transparent)`, display: 'flex', gap: 16, flexWrap: 'wrap' as const }}>
         {verifiedCount > 0 && <span style={{ fontSize: 13, color: 'var(--sl-text-4)' }}>✓ {verifiedCount} from setlist</span>}
-        {autoCount > verifiedCount && <span style={{ fontSize: 13, color: 'var(--sl-text-4)' }}>◈ {autoCount - verifiedCount} detected</span>}
+        {autoCount > 0 && <span style={{ fontSize: 13, color: 'var(--sl-text-4)' }}>◈ {autoCount} detected</span>}
         {manualCount > 0 && <span style={{ fontSize: 13, color: 'var(--sl-text-4)' }}>+ {manualCount} added</span>}
       </div>
     </div>
@@ -1382,7 +1384,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
                   songCount={confirmedSongs.length}
                   showDate={showDate}
                   verifiedCount={verifiedCount}
-                  autoCount={autoCount}
+                  autoCount={confirmedSongs.filter(s => (s.source === 'recognized' || s.source === 'detected' || s.source === 'fingerprint' || s.source === 'humming') && !s.was_planned).length}
                   manualCount={manualCount}
                   songs={confirmedSongs}
                   flowSource={flowSourceRef.current}
