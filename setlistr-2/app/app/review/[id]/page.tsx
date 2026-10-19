@@ -1213,8 +1213,10 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
     const overflowCount = seqCs.length > 5 ? seqCs.length - 5 : 0
     const isOverflowMoment = seqPhase === 3 && seqSongIdx === 5 && overflowCount > 0
     const currentSong = seqPhase === 3 && seqSongIdx < 5 ? seqCs[seqSongIdx] : null
-    const venueDate = performance?.started_at
-      ? parseLocalDate(performance.started_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    // The show's own day (lib/show-date), as in the header and celebration —
+    // not the UTC date part of started_at.
+    const venueDate = theShowDate
+      ? theShowDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
       : null
 
     return (
