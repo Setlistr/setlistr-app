@@ -250,6 +250,12 @@ export default function StatsPage() {
   const beyondLive     = totalShows - liveCount
   const importedCount  = performances.filter(p => p.data_source === 'setlistfm_imported').length
   const beyondLabel    = beyondLive === 0 ? '' : beyondLive === importedCount ? `${beyondLive} imported` : `${beyondLive} not on the live record`
+  // One explanation for every figure built from the broader set (checked
+  // against their sources): song performances, cities, hours, the estimate,
+  // the monthly chart, and the song, venue and debut lists. Dormant songs
+  // read the song catalogue, which imports never write, so it isn't named.
+  const beyondShows    = beyondLive === importedCount ? `${beyondLive} imported ${beyondLive === 1 ? 'show' : 'shows'}` : `${beyondLive} ${beyondLive === 1 ? 'show' : 'shows'} outside the live record`
+  const scopeNote      = beyondLive === 0 ? '' : `Shows played is your live record. Song performances, cities, hours, the estimate, the monthly chart, and the song, venue and debut lists also include ${beyondShows}.`
   const totalSongs  = allSongs.length
   const totalCities = new Set(performances.map(p => p.city).filter(Boolean)).size
 
@@ -511,10 +517,10 @@ export default function StatsPage() {
                 <div className="cr-stats" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', borderTop: HAIR }}>
                   {[
                     { label: 'Shows played', value: String(liveCount), note: beyondLabel ? `+ ${beyondLabel}` : null as string | null },
-                    { label: 'Song performances', value: String(totalSongs), note: beyondLabel ? `incl. ${beyondLabel}` : null },
-                    { label: 'Cities', value: String(totalCities), note: beyondLabel ? `incl. ${beyondLabel}` : null },
+                    { label: 'Song performances', value: String(totalSongs), note: null },
+                    { label: 'Cities', value: String(totalCities), note: null },
                     showHours
-                      ? { label: 'Hours on stage', value: String(realTotalHours), note: `from ${N} timed shows${beyondLabel ? `, incl. ${beyondLabel}` : ''}` }
+                      ? { label: 'Hours on stage', value: String(realTotalHours), note: `from ${N} timed shows` }
                       : firstShowLabel ? { label: 'First show', value: firstShowLabel, note: null } : { label: 'Hours on stage', value: '—', note: null },
                   ].map((s, i) => (
                     <div key={s.label} style={{ padding: '14px 4px 14px 0', borderBottom: HAIR, borderRight: i % 2 === 0 ? HAIR : 'none', paddingLeft: i % 2 === 1 ? 16 : 0 }}>
@@ -524,6 +530,7 @@ export default function StatsPage() {
                     </div>
                   ))}
                 </div>
+                {scopeNote && <p className="cr-scope" style={{ fontSize: 13, color: C.muted, margin: '-4px 0 0', lineHeight: 1.5 }}>{scopeNote}</p>}
 
                 {/* Lifetime royalty estimate — same calculation and place, standard estimate wording */}
                 {estimatedLifetimeRoyalty > 0 && (
@@ -533,7 +540,7 @@ export default function StatsPage() {
                       <p style={{ fontSize: 38, fontWeight: 800, color: 'var(--sl-gold-text)', margin: 0, fontFamily: '"DM Mono", monospace', letterSpacing: '-0.02em', lineHeight: 1 }}>{formatEstimate(estimatedLifetimeRoyalty)}</p>
                       <span style={{ fontSize: 14, color: C.muted, fontWeight: 500 }}>{ESTIMATE_UNIT}</span>
                     </div>
-                    <p style={{ fontSize: 14, color: C.secondary, margin: '8px 0 0', lineHeight: 1.5 }}>Based on {totalSongs} song appearances across {totalShows} shows{beyondLabel ? `, including ${beyondLabel}` : ''}</p>
+                    <p style={{ fontSize: 14, color: C.secondary, margin: '8px 0 0', lineHeight: 1.5 }}>Based on {totalSongs} song appearances across {totalShows} shows</p>
                     <p style={{ fontSize: 12, color: C.muted, margin: '4px 0 0' }}>{ESTIMATE_DISCLAIMER}</p>
                   </div>
                 )}
@@ -653,7 +660,7 @@ export default function StatsPage() {
            a wide map column beside a statistics column. */
         .cr-grid { display: flex; flex-direction: column; gap: 22px; position: relative; }
         .cr-col { display: contents; }
-        .cr-map { order: 1; } .cr-stats { order: 2; } .cr-est { order: 3; } .cr-recent { order: 4; } .cr-month { order: 5; }
+        .cr-map { order: 1; } .cr-stats, .cr-scope { order: 2; } .cr-est { order: 3; } .cr-recent { order: 4; } .cr-month { order: 5; }
         .cr-sig { order: 6; } .cr-songs { order: 7; } .cr-venues { order: 8; } .cr-debuts { order: 9; } .cr-proof { order: 10; }
         @container sl-frame (min-width: 900px) {
           .cr-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(340px, 400px); column-gap: 48px; align-items: start; }
