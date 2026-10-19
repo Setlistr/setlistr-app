@@ -6,10 +6,9 @@ const C = { text: 'var(--sl-text)', secondary: 'var(--sl-text-2)', muted: 'var(-
 
 // The shared show row for both Submissions screens, with one hierarchy per
 // screen:
-//   - 'queue' (Filing Queue): the next task is the first line ("Review the
-//     setlist" / "Open the claim sheet"), the show identifies it beneath,
-//     then the status. A gold arrow marks the one action; it is a mark, not
-//     a second control — the whole row is the single button.
+//   - 'queue' (Filing Queue): the show (venue) is the first line, then city
+//     and songs, then the one next step in the status line's words. A quiet
+//     chevron marks the row; the whole row is the single button.
 //   - 'history' (Full History): the show is the first line (venue), then
 //     city and song count, then the status with any estimate.
 // Both: the dashboard's stacked date, a flat divided list (no cards), the
@@ -78,20 +77,17 @@ export function SubmissionEntryRow(props: SubmissionEntryRowProps) {
       {props.variant === 'queue' ? (
         <>
           <span className="subm-main" style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' as const, gap: 3 }}>
-            <span className="subm-l1" style={{ fontSize: 16.5, fontWeight: 700, lineHeight: 1.25, color: C.text }}>{props.task}</span>
+            <span className="subm-l1" style={{ fontSize: 17, fontWeight: 600, lineHeight: 1.25, color: C.text, overflowWrap: 'break-word' as const }}>{venueName}</span>
             <span className="subm-l2" style={{ fontSize: 14.5, lineHeight: 1.35, color: C.secondary, overflowWrap: 'break-word' as const }}>
-              {[venueName, props.city].filter(Boolean).join(' · ')}
+              {[props.city, props.statusNote].filter(Boolean).join(' · ')}
             </span>
-            <StatusLabel label={statusLabel} color={statusTextColor} filled={dotFilled}>
-              {props.statusNote && <span className="subm-l3" style={{ fontSize: 13, color: C.muted, overflowWrap: 'break-word' as const }}>{props.statusNote}</span>}
-            </StatusLabel>
+            {/* The next step, once, in the status line's own words. */}
+            <StatusLabel label={props.task} color={statusTextColor} filled={dotFilled} />
             {props.deadlineLabel && (
               <span className="subm-s2" style={{ fontSize: 12.5, fontWeight: 600, color: props.deadlineColor || C.muted, marginTop: 2 }}>{props.deadlineLabel}</span>
             )}
           </span>
-          <span className="subm-go" aria-hidden="true" style={{ flexShrink: 0, width: 40, height: 40, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'color-mix(in srgb, var(--sl-accent) 12%, transparent)', border: '1px solid color-mix(in srgb, var(--sl-accent) 45%, transparent)', color: C.goldText }}>
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
-          </span>
+          <svg className="subm-go" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, color: C.muted }}><path d="M9 6l6 6-6 6" /></svg>
         </>
       ) : (
         <>
@@ -136,16 +132,14 @@ export function SubmissionRowsSkeleton({ variant, count = 5 }: { variant: 'queue
             <Skeleton w={26} h={10} r={4} />
           </span>
           <span className="subm-main" style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' as const, gap: 3 }}>
-            {line('subm-l1', 21, variant === 'queue' ? '56%' : ['62%', '48%', '70%'][i % 3], 14)}
+            {line('subm-l1', 21, ['62%', '48%', '70%'][i % 3], 14)}
             {line('subm-l2', 20, ['44%', '58%', '38%'][i % 3], 11)}
             {line('subm-l3', 16, '32%', 9, { marginTop: 5 })}
             {/* Trailing status/deadline placeholders: desktop layout only. */}
             {line('subm-s1 subm-skel-trail', 16, '70%', 9, { display: 'none' })}
             {line('subm-s2 subm-skel-trail', 16, '52%', 9, { display: 'none' })}
           </span>
-          {variant === 'queue'
-            ? <span className="subm-go" style={{ flexShrink: 0 }}><Skeleton w={40} h={40} r={20} /></span>
-            : <span className="subm-go" style={{ width: 16, flexShrink: 0 }} />}
+          <span className="subm-go" style={{ width: 16, flexShrink: 0 }} />
         </div>
       ))}
     </div>
@@ -173,7 +167,7 @@ export function SubmissionsDesktopStyles() {
       @container subm (min-width: 600px) {
         .subm-page { max-width: 640px !important; padding: 0 32px 56px !important; }
         .subm-row { display: grid !important; column-gap: 16px !important; row-gap: 3px !important; align-items: start !important; padding: 16px 4px !important; }
-        .subm-row--queue { grid-template-columns: 38px minmax(0, 1fr) 168px 40px; grid-template-areas: "date l1 s1 go" "date l2 s2 go" "date l3 s2 go"; }
+        .subm-row--queue { grid-template-columns: 38px minmax(0, 1fr) 168px 16px; grid-template-areas: "date l1 s1 go" "date l2 s2 go"; }
         .subm-row--history { grid-template-columns: 38px minmax(0, 1fr) 168px 16px; grid-template-areas: "date l1 s1 go" "date l2 s2 go"; }
         .subm-main, .subm-statusline { display: contents !important; }
         .subm-date { grid-area: date; }
@@ -187,8 +181,7 @@ export function SubmissionsDesktopStyles() {
         .subm-skel-trail { display: flex !important; width: 112px; }
         .subm-row:focus-visible { outline: 2px solid var(--sl-accent); outline-offset: 2px; border-radius: 6px; }
         @media (hover: hover) {
-          .subm-row--queue:hover .subm-go { background: color-mix(in srgb, var(--sl-accent) 22%, transparent) !important; }
-          .subm-row--history:hover .subm-go { color: var(--sl-text-2) !important; }
+          .subm-row:hover .subm-go { color: var(--sl-text-2) !important; }
           .subm-row:hover .subm-l1 { text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--sl-text) 30%, transparent); text-underline-offset: 3px; }
         }
         /* History toolbar: search with the date/Edit controls beside it,
@@ -202,7 +195,7 @@ export function SubmissionsDesktopStyles() {
       @container subm (min-width: 900px) {
         .subm-page { max-width: 1120px !important; padding: 0 48px 64px !important; }
         .subm-page > * { max-width: 880px; }
-        .subm-row--queue { grid-template-columns: 38px minmax(0, 1fr) 196px 40px; column-gap: 20px !important; }
+        .subm-row--queue { grid-template-columns: 38px minmax(0, 1fr) 196px 16px; column-gap: 20px !important; }
         .subm-row--history { grid-template-columns: 38px minmax(0, 1fr) 196px 16px; column-gap: 20px !important; }
       }
     `}</style>

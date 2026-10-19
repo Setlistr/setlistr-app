@@ -1,8 +1,7 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Fragment } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { ChevronLeft } from 'lucide-react'
 import { useActingAs } from '@/components/ActingAsProvider'
 import { computeFilingStatus, filingActionPath, type FilingStatusResult, type FilingAction } from '@/lib/filing-status'
 import { isCapturedShow } from '@/lib/performance-status'
@@ -10,10 +9,12 @@ import { loadFilingProfile, type FilingProfileContext } from '@/lib/load-filing-
 import { readClaimInputs } from '@/lib/claim-inputs-storage'
 import { countsFromRows, type SubmissionsNavCounts } from '@/lib/submissions-nav-counts'
 import { SubmissionsSwitcher } from '@/components/SubmissionsSwitcher'
-import { SubmissionEntryRow, SubmissionRowsSkeleton, CountChipPlaceholder, SubmissionsDesktopStyles } from '@/components/SubmissionEntryRow'
+import { SubmissionEntryRow, SubmissionRowsSkeleton, SubmissionsDesktopStyles } from '@/components/SubmissionEntryRow'
 import { LoadError } from '@/components/ui/LoadError'
 import { filingDeadlineLabel, deadlineNeedsAttention, type DeadlineLabel } from '@/lib/filing-deadline-label'
 import { showDay } from '@/lib/show-date'
+import { estimateRoyalties, capacityToBand } from '@/lib/royalty-estimate'
+import { ESTIMATE_DISCLAIMER, formatEstimate, ESTIMATE_UNIT } from '@/lib/estimate-copy'
 
 const C = {
   bg: 'var(--sl-bg)', card: 'var(--sl-surface)',
@@ -39,6 +40,15 @@ type ShowRow = {
   // (see deadlineNeedsAttention below) — a comfortably-open deadline is
   // simply not carried here at all, not merely hidden at render time.
   deadline: DeadlineLabel | null
+  // Estimated royalties, only for a show ready to submit (computed as History computes it).
+  estimate: number | null
+}
+
+// The same territory rule app/app/history applies to the same estimate.
+function getTerritory(country?: string | null, city?: string | null): string {
+  const t = ((country || '') + ' ' + (city || '')).toLowerCase()
+  if (t.includes('canada') || t.includes('ontario') || t.includes('british columbia') || t.includes('alberta') || t.includes('quebec') || t.includes('toronto') || t.includes('vancouver') || t.includes('montreal') || t.trim() === 'ca') return 'CA'
+  return 'US'
 }
 
 function parseLocalDate(d: string): Date {
@@ -56,12 +66,22 @@ function parseLocalDate(d: string): Date {
 // key stays so this remains a total function over FilingStatusResult['state'].
 const STATE_ORDER: Record<FilingStatusResult['state'], number> = { needs_review: 0, ready: 1, submitted: 2 }
 
-// Text stays one calm, consistent color for both states here — the dot
-// (always gold, filled only when ready — see SubmissionEntryRow) is what
-// actually distinguishes them, so status text isn't one more competing
-// color on the row.
-function statusLabelFor(state: FilingStatusResult['state']): string {
-  return state === 'ready' ? 'Ready to submit' : 'Needs review'
+// Details that belong to the account, not the show: said once, above the list.
+const PROFILE_FIELDS = new Set(['No PRO selected', 'legal name', 'IPI number'])
+const STEP_FIELD: Record<string, string> = { city: 'Add the city', 'venue capacity': 'Add the venue capacity', 'start time': 'Add the start time', 'ticket price': 'Add the ticket price', promoter: 'Add the promoter', attendance: 'Add the attendance' }
+
+// The one next step for a show, in the status line's words. computeFilingStatus
+// orders `missing` by importance, so the first show-level entry is the step.
+function nextStepFor(status: FilingStatusResult): string {
+  if (status.state === 'ready') return 'Ready to submit'
+  const showOnly = status.missing.filter(m => !PROFILE_FIELDS.has(m))
+  if (showOnly[0] === 'setlist not yet reviewed' || showOnly[0] === 'no songs added') return 'Review the setlist'
+  if (showOnly.length > 0) return STEP_FIELD[showOnly[0]] || `Add the ${showOnly[0]}`
+  return 'Waiting on your details'
+}
+function joinFields(fields: string[]): string {
+  const f = fields.map(x => x === 'No PRO selected' ? 'PRO' : x)
+  return f.length <= 1 ? f.join('') : `${f.slice(0, -1).join(', ')} and ${f[f.length - 1]}`
 }
 
 const NO_ROWS: ShowRow[] = []
@@ -112,7 +132,7 @@ export default function FilingQueuePage() {
           loadFilingProfile(supabase, null, user.id),
           supabase
             .from('performances_visible')
-            .select('id, venue_name, city, country, status, submission_status, started_at, performance_date, created_at, data_source, shows ( timezone ), venues ( capacity )')
+            .select('id, venue_name, city, country, status, submission_status, started_at, performance_date, created_at, data_source, shows ( show_type, timezone ), venues ( capacity )')
             .eq('user_id', user.id)
             .order('started_at', { ascending: false }),
         ])
@@ -153,7 +173,10 @@ export default function FilingQueuePage() {
         const day = showDay(p, p.shows?.timezone) || parseLocalDate(p.started_at)
         const computedDeadline = p.started_at ? filingDeadlineLabel(ctx.profile.pro_affiliation, day) : null
         const deadline = computedDeadline && deadlineNeedsAttention(computedDeadline.urgency) ? computedDeadline : null
-        return { id: p.id, venue_name: p.venue_name, city: p.city || null, started_at: p.started_at, day, status, action, songCount, deadline }
+        const estimate = status.state === 'ready' && songCount > 0
+          ? estimateRoyalties({ songCount, venueCapacityBand: capacityToBand(perfFields.venue_capacity), showType: (p.shows?.show_type || p.show_type || 'single') as any, territory: getTerritory(p.country, p.city) }).expected
+          : null
+        return { id: p.id, venue_name: p.venue_name, city: p.city || null, started_at: p.started_at, day, status, action, songCount, deadline, estimate }
       })
 
       built.sort((a, b) => {
@@ -184,27 +207,10 @@ export default function FilingQueuePage() {
       <div className="subm-cq">
       <div className="subm-page" style={{ position: 'relative', zIndex: 1, width: '100%', padding: '0 16px 80px', boxSizing: 'border-box' as const }}>
 
-        {/* Header — same structure, spacing, and back-button style as
-           app/app/history's, so the two Submissions screens read as one
-           navigation, not two differently-built pages. */}
-        {/* Wraps the count chip under the title when the row can't fit it
-           (larger text sizes, narrow phones) instead of overflowing. */}
-        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap' as const, gap: 12, rowGap: 8, padding: '20px 0 24px' }}>
-          <button onClick={() => router.push('/app/dashboard')}
-            style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, padding: '7px 10px', color: C.secondary, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 4, fontSize: 14 }}>
-            <ChevronLeft size={14} /> Back
-          </button>
-          <h1 style={{ fontSize: 28, fontWeight: 800, color: C.text, margin: 0, letterSpacing: '-0.02em', flex: '1 1 auto', minWidth: 0 }}>
-            Submissions
-          </h1>
-          <div style={{ fontSize: 13, color: C.muted, background: C.card, border: `1px solid ${C.border}`, borderRadius: 20, padding: '5px 10px', whiteSpace: 'nowrap' as const }}>
-            {ready ? `${rows.length} to file` : <CountChipPlaceholder />}
-          </div>
-        </div>
-
-        <p style={{ fontSize: 14, color: C.secondary, margin: '0 0 16px' }}>
-          {actingAs ? `${artistName || actingAs.artist_name}'s unfiled shows` : 'Your unfiled shows'} — what's ready, what still needs something.
-        </p>
+        {/* Submissions is a tab in the navigation, so no Back; the switcher carries the count. */}
+        <h1 style={{ fontSize: 28, fontWeight: 800, color: C.text, margin: 0, letterSpacing: '-0.02em', padding: '20px 0 16px', overflowWrap: 'break-word' as const }}>
+          {actingAs ? `${artistName || actingAs.artist_name}’s submissions` : 'Submissions'}
+        </h1>
 
         {/* This page only ever shows unfinished, actionable shows —
            submitted ones are excluded outright (see buildRows below). Your
@@ -236,41 +242,63 @@ export default function FilingQueuePage() {
           </div>
         )}
 
+        {/* Account details several shows wait on, said once. */}
+        {ready && (() => {
+          const fields = Array.from(new Set(rows.flatMap(r => r.status.missing.filter(m => PROFILE_FIELDS.has(m)))))
+          const affected = rows.filter(r => r.status.missing.some(m => PROFILE_FIELDS.has(m))).length
+          if (fields.length === 0 || affected === 0) return null
+          return (
+            <div role="note" style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap' as const, gap: '4px 12px', padding: '10px 14px', margin: '0 0 8px', borderRadius: 12, background: 'color-mix(in srgb, var(--sl-accent) 6%, transparent)', border: '1px solid color-mix(in srgb, var(--sl-accent) 22%, transparent)' }}>
+              <span style={{ flex: '1 1 220px', fontSize: 14.5, color: C.text, lineHeight: 1.45 }}>
+                {actingAs
+                  ? `${affected} ${affected === 1 ? 'show waits' : 'shows wait'} on ${artistName || actingAs.artist_name}’s ${joinFields(fields)}.`
+                  : `Add your ${joinFields(fields)} to file ${affected} ${affected === 1 ? 'show' : 'shows'}.`}
+              </span>
+              {!actingAs && (
+                <button onClick={() => router.push('/app/settings#pro-section')}
+                  style={{ minHeight: 44, padding: 0, background: 'none', border: 'none', color: 'var(--sl-gold-text)', fontSize: 14.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  Open Settings
+                </button>
+              )}
+            </div>
+          )
+        })()}
+
         {ready && rows.length > 0 && (
           <div className="subm-list">
-            {rows.map(row => {
+            {rows.map((row, i) => {
               const d = row.day
-              // The single most important reason this show isn't ready —
-              // computeFilingStatus already orders `missing` by importance
-              // (review-stage, then PRO, then songs, then identity, then
-              // per-field), so its first entry is that reason. The rest
-              // lives on the show's own page, one tap away via the action
-              // below, not repeated here. When that reason is "the setlist
-              // hasn't been reviewed yet," it's dropped entirely — the
-              // status label ("Needs review") and the action ("Review
-              // Setlist") already say exactly that between them; showing
-              // it a third time added no new information, just repetition.
-              const topReason = row.status.state === 'needs_review' ? row.status.missing[0] : undefined
-              const blocker = topReason && topReason !== 'setlist not yet reviewed'
-                ? `Needs: ${topReason}`
-                : undefined
+              // The ready group opens with what it adds up to (the estimate History used to promote).
+              const startsReady = row.status.state === 'ready' && (i === 0 || rows[i - 1].status.state !== 'ready')
+              const readyRows = startsReady ? rows.filter(r => r.status.state === 'ready') : []
+              const readyTotal = readyRows.reduce((sum, r) => sum + (r.estimate || 0), 0)
+              const step = nextStepFor(row.status)
               return (
-                <SubmissionEntryRow
-                  key={row.id}
-                  variant="queue"
-                  onNavigate={() => router.push(row.action.href)}
-                  day={String(d.getDate())}
-                  month={d.toLocaleDateString('en-US', { month: 'short' })}
-                  task={row.action.label}
-                  venueName={row.venue_name}
-                  city={row.city}
-                  statusLabel={statusLabelFor(row.status.state)}
-                  statusTextColor={row.status.state === 'ready' ? 'var(--sl-gold-text)' : C.secondary}
-                  dotFilled={row.status.state === 'ready'}
-                  statusNote={blocker || [`${row.songCount} song${row.songCount === 1 ? '' : 's'}`, row.status.proName || 'No PRO selected'].join(' · ')}
-                  deadlineLabel={row.deadline?.label}
-                  deadlineColor={row.deadline?.color}
-                />
+                <Fragment key={row.id}>
+                  {startsReady && (
+                    <div style={{ padding: '22px 4px 8px', borderBottom: `1px solid ${C.border}` }}>
+                      <h2 style={{ fontSize: 14.5, fontWeight: 400, color: C.text, margin: 0 }}>
+                        <b style={{ fontWeight: 700 }}>Ready to submit</b> <span style={{ color: C.secondary }}>· {readyRows.length} {readyRows.length === 1 ? 'show' : 'shows'}{readyTotal > 0 && <> · {formatEstimate(readyTotal)} {ESTIMATE_UNIT}</>}</span>
+                      </h2>
+                      {readyTotal > 0 && <p style={{ fontSize: 12.5, color: C.muted, margin: '2px 0 0' }}>{ESTIMATE_DISCLAIMER}</p>}
+                    </div>
+                  )}
+                  <SubmissionEntryRow
+                    variant="queue"
+                    onNavigate={() => router.push(row.action.href)}
+                    day={String(d.getDate())}
+                    month={d.toLocaleDateString('en-US', { month: 'short' })}
+                    task={step}
+                    venueName={row.venue_name}
+                    city={row.city}
+                    statusLabel={step}
+                    statusTextColor={row.status.state === 'ready' ? 'var(--sl-gold-text)' : C.secondary}
+                    dotFilled={row.status.state === 'ready'}
+                    statusNote={`${row.songCount} song${row.songCount === 1 ? '' : 's'}`}
+                    deadlineLabel={row.deadline?.label}
+                    deadlineColor={row.deadline?.color}
+                  />
+                </Fragment>
               )
             })}
           </div>
