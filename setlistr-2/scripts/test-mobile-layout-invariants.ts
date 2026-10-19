@@ -54,7 +54,7 @@ function read(rel: string): string {
 // ── Your Record: filter-chip trailing space, delete control unchanged ────
 {
   const src = read('app/app/history/page.tsx')
-  check('Your Record: status-tab row has trailing padding past the last chip', /overflowX:\s*'auto' as const,\s*paddingRight:\s*16/.test(src))
+  check('Your Record: status filters wrap as a group (no sideways-scrolling chip row)', /\.hx-status \{[^}]*flex-wrap: wrap/.test(src) && !/overflowX:\s*'auto' as const,\s*paddingRight:\s*16/.test(src))
   check('Your Record: delete control is visually quiet at rest (no border/background until armed)', src.includes("border: isPendingDel ? '1px solid color-mix(in srgb, var(--sl-danger) 35%, transparent)' : 'none'"))
 }
 
@@ -86,7 +86,7 @@ function read(rel: string): string {
   // One milestone component for the dashboard and the post-save celebration:
   // dots from milestoneFor(), the celebration's step only when the save added a counted show.
   const nextMilestone = read('components/record/NextMilestone.tsx'), recordFinish = read('components/record/RecordFinish.tsx'), reviewSrc = read('app/app/review/[id]/page.tsx')
-  check('Milestone row: one shared component (dots, milestoneFor) used by the dashboard and the celebration', nextMilestone.includes('milestoneFor(count)') && nextMilestone.includes('Each dot is one show') && !dashboard.includes('function MilestoneTicks') && recordFinish.includes('<NextMilestoneRow'))
+  check('Milestone row: one shared component (dots, milestoneFor) used by the dashboard and the celebration', nextMilestone.includes('milestoneFor(count)') && nextMilestone.includes('one dot per show') && !nextMilestone.includes('Each dot is one show') && !dashboard.includes('function MilestoneTicks') && recordFinish.includes('<NextMilestoneRow'))
   check('Celebration: count steps up only when this save put the show on the record (isCapturedShow before vs after)', reviewSrc.includes('const wasCounted = isCapturedShow(') && reviewSrc.includes('added: counted && !wasCounted') && recordFinish.includes('step = d.added'))
   check('Milestones are earned by the show (its place on the record in show-date order), not by a save: one source for the moment and the card', reviewSrc.includes('setHeldMilestone(milestoneHeldBy(data, performance.id))') && reviewSrc.includes('if (heldMilestone) moments.push') && reviewSrc.includes('...(heldMilestone ? [{') && !reviewSrc.includes('intelligence.milestone)'))
   const cardsSrc = read('components/share-cards/RecordCards.tsx'), exportSrc = read('lib/share-card-export.ts')
@@ -99,9 +99,9 @@ function read(rel: string): string {
   check('Root layout: pinch zoom is not capped', !/maximumScale\s*:/.test(read('app/layout.tsx')))
   check('Dashboard: record query selects only columns it uses (no captured_by_name/photo_url)', !/captured_by_name|photo_url/.test(dashboard))
   check('Dashboard: a failed load lands on the error state (try/catch around the load, fetch failures handled)', dashboard.includes('try { await loadInner() } catch') && dashboard.includes('setEstimatesUnavailable('))
-  check('Dashboard: says imported shows are listed in History but not counted', dashboard.includes('listed in History but not counted here'))
+  check('Dashboard: the counting rule (imported shows listed in History, not counted) is available behind a named, expandable control', dashboard.includes('imported from setlist.fm') && dashboard.includes('and not counted.') && dashboard.includes('aria-label="How the record is counted"') && dashboard.includes('aria-expanded={countInfoOpen}') && dashboard.includes('aria-controls="record-count-info"'))
   const history = read('app/app/history/page.tsx')
-  check('History: scope unchanged (no data_source filter on the query) but the imported split is stated', !/\.neq\('data_source'/.test(history) && history.includes('on your live record ·'))
+  check('History: scope unchanged (no data_source filter on the query) but the imported split is stated', !/\.neq\('data_source'/.test(history) && history.includes('on your live record') && history.includes('{importedCount} imported'))
   const ctx = read('app/api/team/context-data/route.ts')
   check('context-data: a failed performances read returns an error, not an empty list', ctx.includes("if (perfsError)") && ctx.includes('status: 500'))
 
@@ -146,26 +146,26 @@ function read(rel: string): string {
   check('Filing Queue: renders show entries via the shared SubmissionEntryRow', filePage.includes('<SubmissionEntryRow'))
   check('Your Record: renders show entries via the same shared SubmissionEntryRow', historyPage.includes('<SubmissionEntryRow'))
   check('Filing Queue: computes a deadline per row via the dedicated, untouched pro-rules deadline()', filePage.includes('filingDeadlineLabel('))
-  check('Filing Queue: only ever shows the single most important blocker, not the full list', filePage.includes('row.status.missing[0]'))
+  check('Filing Queue: only ever shows the single most important next step, not the full list', filePage.includes('showOnly[0]') && !filePage.includes('missing.join('))
   check('Filing Queue: a comfortably-open deadline is filtered out before it ever reaches a row', filePage.includes('deadlineNeedsAttention('))
   check('Your Record: passes the $ estimate through to the shared row', historyPage.includes('estimate={est?.expected}'))
   check('Your Record: dot fill is restored to the original condition (Marked Submitted only, not Ready to Claim)', historyPage.includes("dotFilled={displayStatus.color === C.green}"))
 
   for (const [label, src] of [['Filing Queue', filePage], ['Your Record', historyPage]] as const) {
     check(`${label}: responsive page container caps at a readable width, not a wide multi-column layout`, src.includes('className="subm-page"') && src.includes('<div className="subm-cq">') && src.includes('<SubmissionsDesktopStyles />') && !src.includes('@media (min-width: 768px)'))
-    check(`${label}: row list stays a single column at every width (no grid reflow)`, src.includes('className="subm-list"') && !src.includes('grid-template-columns'))
+    check(`${label}: row list stays a single column at every width (no grid reflow)`, src.includes('className="subm-list"') && !src.replace(/\.hx-tb \{[^}]*\}/g, '').includes('grid-template-columns'))
     check(`${label}: no fixed maxWidth left on the old phone-width column`, !/maxWidth:\s*(480|600),\s*(width:\s*'100%',\s*)?margin:\s*'0 auto'/.test(src))
   }
 
   const rowSrc = read('components/SubmissionEntryRow.tsx')
   check('SubmissionEntryRow: venue name is allowed to wrap, not truncated with ellipsis', !rowSrc.includes("textOverflow: 'ellipsis'") || !/venueName[\s\S]{0,200}textOverflow/.test(rowSrc))
   check('SubmissionEntryRow: flat list row (bottom divider), not a bordered card', rowSrc.includes('borderBottom:') && !rowSrc.includes('boxShadow:'))
-  check('SubmissionEntryRow: explicit queue/history variants; Filing Queue leads with the task, History with the venue', rowSrc.includes("variant: 'queue'") && rowSrc.includes("variant: 'history'") && filePage.includes('variant="queue"') && filePage.includes('task={row.action.label}') && historyPage.includes('variant="history"'))
+  check('SubmissionEntryRow: explicit queue/history variants; both lead with the venue, the queue states one next step', rowSrc.includes("variant: 'queue'") && rowSrc.includes("variant: 'history'") && filePage.includes('variant="queue"') && filePage.includes('task={step}') && historyPage.includes('variant="history"') && (rowSrc.match(/>\{venueName\}<\/span>/g) || []).length === 2)
   check('SubmissionEntryRow: the whole row is the one control — no nested buttons or links inside it', (() => { const row = rowSrc.slice(rowSrc.indexOf('export function SubmissionEntryRow('), rowSrc.indexOf('export function SubmissionRowsSkeleton(')); return (row.match(/<button/g) || []).length === 1 && !/<a[\s>]/.test(row) })())
   check('Filing Queue actions read "Review the setlist" / "Open the claim sheet" (destinations unchanged)', read('lib/filing-status.ts').includes("label: 'Review the setlist'") && read('lib/filing-status.ts').includes("label: 'Open the claim sheet'"))
-  check('Ready state reads "Ready to submit" on both screens (same filing.state === ready)', filePage.includes("state === 'ready' ? 'Ready to submit'") && historyPage.includes("label: 'Ready to submit'") && !historyPage.includes('Ready to Claim'))
+  check('Ready state reads "Ready to submit" on both screens (same filing.state === ready)', filePage.includes("if (status.state === 'ready') return 'Ready to submit'") && historyPage.includes("label: 'Ready to submit'") && !historyPage.includes('Ready to Claim'))
   check('Your Record: Marked Submitted keeps green text with the filled gold dot', historyPage.includes("label: 'Marked Submitted', color: C.green") && historyPage.includes('dotFilled={displayStatus.color === C.green}'))
-  check('SubmissionEntryRow: dot color is fixed gold, independent of the status text color prop', rowSrc.includes('C.gold') && !/dotFilled \? statusTextColor/.test(rowSrc))
+  check('SubmissionEntryRow: dot color is fixed gold, independent of the status text color prop', read('components/ui/StatusLabel.tsx').includes("border: '1.5px solid var(--sl-accent)'") && rowSrc.includes('<StatusLabel') && !/dotFilled \? statusTextColor/.test(rowSrc))
 }
 
 // ── This pass: scrollbar, header consistency, desktop width, contrast,
@@ -174,14 +174,14 @@ function read(rel: string): string {
   const filePage = read('app/app/file/page.tsx')
   const historyPage = read('app/app/history/page.tsx')
 
-  check('Your Record: status-tab scrollbar is hidden cosmetically (scroll behavior untouched)', historyPage.includes('subm-filter-scroll') && historyPage.includes('::-webkit-scrollbar { display: none; }') && historyPage.includes("overflowX: 'auto'"))
+  check('Your Record: status filters never scroll sideways (phone: behind Filters; wider: wrap as one group)', historyPage.includes('className="hx-status"') && !historyPage.includes('subm-filter-scroll subm-tb-tabs'))
   check('Your Record: scrollbar-hiding does not touch the global ::-webkit-scrollbar rule', !historyPage.includes('*::-webkit-scrollbar'))
 
-  check('Filing Queue header uses the same back-button style as Your Record (bordered pill + ChevronLeft)', filePage.includes('<ChevronLeft size={14} /> Back') && filePage.includes("border: `1px solid ${C.border}`, borderRadius: 8, padding: '7px 10px'"))
-  check('Filing Queue header H1 matches Your Record\'s size/weight/spacing rhythm', [filePage, historyPage].every(p => p.includes("fontSize: 28, fontWeight: 800, color: C.text, margin: 0, letterSpacing: '-0.02em', flex: '1 1 auto', minWidth: 0")))
-  check('Submissions headers wrap the count chip instead of overflowing at larger text', [filePage, historyPage].every(p => p.includes("flexWrap: 'wrap' as const, gap: 12, rowGap: 8, padding: '20px 0 24px'")))
+  check('Submissions screens (a navigation tab) carry no Back button on either view', !filePage.includes('ChevronLeft') && !historyPage.includes('ChevronLeft'))
+  check('Filing Queue header H1 matches Your Record\'s size/weight/spacing rhythm', [filePage, historyPage].every(p => p.includes("fontSize: 28, fontWeight: 800, color: C.text, margin: 0, letterSpacing: '-0.02em', padding: '20px 0")))
+  check('Submissions headers carry no duplicate count chip (the switcher shows the counts)', !filePage.includes('to file`') && !historyPage.includes('`${performances.length} shows`'))
   check('Submissions loading: skeleton rows, error with Try again, results keyed to the workspace (no stale rows)', [filePage, historyPage].every(p => p.includes('SubmissionRowsSkeleton') && p.includes('<LoadError ') && p.includes('onRetry={retry}') && p.includes('workspaceKey')) && !filePage.includes('SetlistrLoader') && !historyPage.includes('if (loading) return'))
-  check('Filing Queue header carries a count chip like Your Record does', filePage.includes('{rows.length} to file'))
+  check('Filing Queue count is carried by the switcher, as on Your Record', filePage.includes('filingQueueCount={navCounts?.filingQueueCount}') && historyPage.includes('fullHistoryCount={navCounts?.fullHistoryCount}'))
 
   for (const [label, src] of [['Filing Queue', filePage], ['Your Record', historyPage]] as const) {
     check(`${label}: desktop follows the dashboard's container tiers and margins, list bounded to 880px`, (() => { const r = read('components/SubmissionEntryRow.tsx'); return r.includes('@container subm (min-width: 600px)') && r.includes('max-width: 640px !important; padding: 0 32px 56px') && r.includes('@container subm (min-width: 900px)') && r.includes('max-width: 1120px !important; padding: 0 48px 64px') && r.includes('.subm-page > * { max-width: 880px; }') })())
@@ -189,7 +189,7 @@ function read(rel: string): string {
 
   check('Your Record: muted/secondary tokens match Filing Queue\'s (contrast + cross-page consistency)', historyPage.includes("secondary: 'var(--sl-text-2)', muted: 'var(--sl-text-3)'") && read('app/app/file/page.tsx').includes("secondary: 'var(--sl-text-2)', muted: 'var(--sl-text-3)'"))
 
-  check('Filing Queue: the redundant "setlist not yet reviewed" blocker line is suppressed (status label + action already say it)', filePage.includes("topReason !== 'setlist not yet reviewed'"))
+  check('Filing Queue: "setlist not yet reviewed" reads once, as the step "Review the setlist"', filePage.includes("showOnly[0] === 'setlist not yet reviewed'") && filePage.includes("return 'Review the setlist'"))
 
   check('Your Record: delete is behind Edit, offered only to write-capable accounts (not Viewers), and rendered beside the row, not inside it', historyPage.includes('const { canWrite } = useWorkspaceRole()') && historyPage.includes('{canWrite && performances.length > 0 && (') && historyPage.includes('{editing && canWrite && (') && historyPage.includes('handleDeleteTap(e, perf.id)'))
   check('Your Record: delete keeps its tap-to-arm confirmation and the undo banner', historyPage.includes("isPendingDel ? 'Delete?' : '✕'") && historyPage.includes('undoDelete') && historyPage.includes('/delete/undo'))
@@ -213,7 +213,7 @@ function read(rel: string): string {
   check('Career: shared frame and header; results keyed to the workspace; page and section retry', career.includes('<PageFrame>') && career.includes('<PageHeader title="Career" />') && career.includes('workspaceKey') && career.includes('onRetry={retryPage}') && career.includes('onRetry={retrySection}'))
   check('Career: standard estimate wording, no "documented", no "verified shows"', career.includes('{ESTIMATE_DISCLAIMER}') && career.includes('formatEstimate(estimatedLifetimeRoyalty)') && !/documented/.test(career) && !/verified shows/.test(career))
   check('Career: honest signature-song ties and the debut-date fix', career.includes('tiedTop.length > 1') && career.includes("'Most played live · tied'") && career.includes('showDate({ performance_date: d })'))
-  check('Career: data scopes unchanged (same status filter and selects)', (career.match(/CAREER_SHOW_STATUSES/g) || []).length === 3 && read('lib/performance-status.ts').includes("export const CAREER_SHOW_STATUSES = ['completed', 'complete', 'exported', 'review']") && career.includes("select('id, venue_name, venue_id, city, country, started_at, ended_at, set_duration_minutes, submission_status, shows(show_type), venues(capacity)')") && career.includes("select('title, artist, position, performance_id')"))
+  check('Career: data scopes unchanged (same status filter and selects)', (career.match(/CAREER_SHOW_STATUSES/g) || []).length === 3 && read('lib/performance-status.ts').includes("export const CAREER_SHOW_STATUSES = ['completed', 'complete', 'exported', 'review']") && career.includes("select('id, venue_name, venue_id, city, country, started_at, ended_at, set_duration_minutes, submission_status, status, data_source, shows(show_type), venues(capacity)')") && career.includes('isCapturedShow({ status: p.status ?? null') && career.includes("select('title, artist, position, performance_id')"))
   check('Career map: same Static Images style and tap-through; fitted to the pins; reserved space with a fallback', career.includes('mapbox/dark-v11/static/${markerOverlay}/auto/600x340@2x') && career.includes('attribution=false') && career.includes('© Mapbox © OpenStreetMap') && career.includes("router.push('/app/career-map')") && career.includes("aspectRatio: '600 / 340'") && career.includes('Map preview unavailable'))
   check('Career: venue rows are buttons (keyboard reachable), not clickable divs', career.includes("onClick={() => router.push(`/app/venue/${venue.id}`)} style={{ ...listRow"))
 }
