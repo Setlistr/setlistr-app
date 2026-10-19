@@ -28,6 +28,7 @@
 - **Manager save:** worked.
 - **iPhone share:** worked. This is the first real-device check of native sharing.
 - **Visuals:** confirmed good.
+- **Database confirmation** (read-only, after a save): the saved show is `complete`, which only the new app writes, and its kept songs and markers match (1 and 1, written by the trigger during the save).
 
 ## Rollback
 
