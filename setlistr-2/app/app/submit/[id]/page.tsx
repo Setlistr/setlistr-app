@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Check, ExternalLink, Copy, ChevronDown, ChevronUp, FileText, AlertTriangle, Clock } from 'lucide-react'
@@ -13,6 +13,11 @@ import { missingIdentityFields } from '@/lib/submission-identity'
 import { parseLocalDate } from '@/lib/date-format'
 import { showDay, isRealTimeZone } from '@/lib/show-date'
 import { LoadError } from '@/components/ui/LoadError'
+import {
+  claimInputsKey, legacyClaimInputsKey, preflightKey, legacyPreflightKey, progressKey, scrollKey,
+  markCopied, isCopied as hasCopyMark, songCopied, allSongsCopied as everySongCopied, ALL_SONGS_KEY, allTitles, parseProgress,
+  judgeWrite, judgeReadBack, type CopyMarks, type ReadBack,
+} from '@/lib/claim-progress'
 
 const CARD = {
   background: 'var(--sl-card-bg)',
@@ -78,6 +83,9 @@ function readLocal<T>(key: string): T | null {
 }
 function writeLocal(key: string, value: unknown) {
   try { window.localStorage.setItem(key, JSON.stringify(value)) } catch { /* storage unavailable */ }
+}
+function removeLocal(key: string) {
+  try { window.localStorage.removeItem(key) } catch { /* storage unavailable */ }
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -222,7 +230,9 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
   const [submitError, setSubmitError]     = useState<string | null>(null)
   const [loading, setLoading]             = useState(true)
   const [copied, setCopied]               = useState<string | null>(null)
-  const [copiedKeys, setCopiedKeys]       = useState<string[]>([])
+  // What was copied, per field, as a fingerprint of the copied value: a
+  // mark lasts only while the field still holds that value.
+  const [copyMarks, setCopyMarks]         = useState<CopyMarks>({})
   const [stepsOpen, setStepsOpen]         = useState(false)
   const [submitted, setSubmitted]         = useState(false)
   const [submittedAt, setSubmittedAt]     = useState<string | null>(null)
@@ -242,6 +252,18 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
   // The field whose clipboard write just failed; "Copied" only follows a
   // write the browser confirmed.
   const [copyFailed, setCopyFailed]       = useState<string | null>(null)
+  // The signed-in account this sheet was loaded for. Saved preparation is
+  // kept per account (lib/claim-progress.ts).
+  const [viewerId, setViewerId]           = useState<string | null>(null)
+  const viewerRef                         = useRef<string | null>(null)
+  // The storage key the restored show details belong to; edits are saved
+  // only there, never under an account or show loaded later.
+  const [inputsKey, setInputsKey]         = useState<string | null>(null)
+  // The tab-progress key whose copied marks and portal flag are restored.
+  const [progressFor, setProgressFor]     = useState<string | null>(null)
+  // A recording write whose outcome couldn't be confirmed either way.
+  const [submitUncertain, setSubmitUncertain] = useState(false)
+  const markInFlight                      = useRef(false)
 
   // Show details the PRO asks for
   const [promoter, setPromoter]       = useState('')
@@ -261,6 +283,8 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
       const { data: { user } } = await supabase.auth.getUser()
       if (cancelled) return
       if (!user) { router.push('/auth/login'); return }
+      viewerRef.current = user.id
+      setViewerId(user.id)
 
       const { data: perf, error: perfErr } = await supabase
         .from('performances_visible').select('*, shows(show_type, timezone), venues(capacity, city, country)')
@@ -368,32 +392,93 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
       const rule = getProRule(profileData?.pro_affiliation)
       if (rule) {
         setStepsDone(new Array(rule.steps.length).fill(false))
-        const pf = readLocal<string[]>(`setlistr:preflight:${ownerId}:${rule.code}`) || []
+        // Acknowledgements are this account's own notes. The released key
+        // (per artist only) is honoured for the artist's own account.
+        const pf = readLocal<string[]>(preflightKey(user.id, ownerId, rule.code))
+          ?? (user.id === ownerId ? readLocal<string[]>(legacyPreflightKey(ownerId, rule.code)) : null)
+          ?? []
         setPreflightDone(pf)
         const allDone = rule.preflight.every(p => pf.includes(p.id))
         setPreflightOpen(!allDone)
       }
 
       // Restore any show details typed on this device for this show
-      const saved = readLocal<ClaimInputs>(`setlistr:claim:${params.id}`)
+      // The released key had no account in it: move it under this one.
+      const ownKey = claimInputsKey(user.id, params.id)
+      let saved = readLocal<ClaimInputs>(ownKey)
+      if (!saved) {
+        const legacy = readLocal<ClaimInputs>(legacyClaimInputsKey(params.id))
+        if (legacy) { saved = legacy; writeLocal(ownKey, legacy); removeLocal(legacyClaimInputsKey(params.id)) }
+      }
       setPromoter(saved?.promoter || '')
       setTicketPrice(saved?.ticketPrice || '')
       setAttendance(saved?.attendance || '')
       setStartTime(saved?.startTime || defaultStartTime(perfRecord))
       setManualCity(saved?.city || '')
+      setInputsKey(ownKey)
       setInputsReady(true)
 
       setLoading(false)
     }
-    setLoading(true); setLoadFailed(false)
+    setLoading(true); setLoadFailed(false); setInputsReady(false); setInputsKey(null); setProgressFor(null)
     load().catch(e => { console.error('[SubmitPage] load failed:', e); fail() })
     return () => { cancelled = true }
   }, [params.id, reloadKey])
 
   useEffect(() => {
-    if (!inputsReady) return
-    writeLocal(`setlistr:claim:${params.id}`, { promoter, ticketPrice, attendance, startTime, city: manualCity })
-  }, [inputsReady, params.id, promoter, ticketPrice, attendance, startTime, manualCity])
+    if (!inputsReady || !inputsKey) return
+    writeLocal(inputsKey, { promoter, ticketPrice, attendance, startTime, city: manualCity })
+  }, [inputsReady, inputsKey, promoter, ticketPrice, attendance, startTime, manualCity])
+
+  // Signing in as someone else in another tab reloads this sheet for that
+  // account rather than leaving the previous account's sheet on screen.
+  useEffect(() => {
+    const supabase = createClient()
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      const next = session?.user?.id ?? null
+      if (viewerRef.current && next !== viewerRef.current) {
+        viewerRef.current = null
+        if (next) setReloadKey(k => k + 1)
+        else router.push('/auth/login')
+      }
+    })
+    return () => { subscription.unsubscribe() }
+  }, [])
+
+  // Copied marks and "portal opened" last for this tab, so the browser
+  // reloading it while you're in the portal loses nothing. Keyed by
+  // account, show and PRO.
+  const loadedProCode = getProRule(profile?.pro_affiliation)?.code ?? 'none'
+  const tabKey = !loading && viewerId ? progressKey(viewerId, params.id, loadedProCode) : null
+  useEffect(() => {
+    if (!tabKey) return
+    let raw: string | null = null
+    try { raw = window.sessionStorage.getItem(tabKey) } catch { /* storage unavailable */ }
+    const p = parseProgress(raw)
+    setCopyMarks(p.marks); setPortalOpened(p.portalOpened); setProgressFor(tabKey)
+  }, [tabKey])
+  useEffect(() => {
+    if (!tabKey || progressFor !== tabKey) return
+    try { window.sessionStorage.setItem(tabKey, JSON.stringify({ marks: copyMarks, portalOpened })) } catch { /* storage unavailable */ }
+  }, [tabKey, progressFor, copyMarks, portalOpened])
+
+  // Returning from the portal: if the browser reloaded the tab, go back to
+  // where you were on the sheet.
+  useEffect(() => {
+    if (loading || loadFailed || !viewerId) return
+    const key = scrollKey(viewerId, params.id)
+    try {
+      const y = Number(window.sessionStorage.getItem(key))
+      if (y > 0) requestAnimationFrame(() => window.scrollTo(0, y))
+    } catch { /* storage unavailable */ }
+    let t: ReturnType<typeof setTimeout> | null = null
+    const onScroll = () => {
+      if (t) return
+      t = setTimeout(() => { t = null; try { window.sessionStorage.setItem(key, String(Math.round(window.scrollY))) } catch { /* storage unavailable */ } }, 150)
+    }
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => { window.removeEventListener('scroll', onScroll); if (t) clearTimeout(t) }
+  }, [loading, loadFailed, viewerId, params.id])
 
   async function copyText(text: string, key: string) {
     let ok = false
@@ -412,7 +497,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
     }
     setCopyFailed(null)
     setCopied(key)
-    setCopiedKeys(prev => prev.includes(key) ? prev : [...prev, key])
+    setCopyMarks(prev => markCopied(prev, key, text))
     setTimeout(() => setCopied(null), 2000)
   }
 
@@ -420,7 +505,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
     if (!performance) return
     setPreflightDone(prev => {
       const next = prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
-      writeLocal(`setlistr:preflight:${performance.user_id}:${rule.code}`, next)
+      if (viewerId) writeLocal(preflightKey(viewerId, performance.user_id, rule.code), next)
       if (rule.preflight.every(p => next.includes(p.id))) setPreflightOpen(false)
       return next
     })
@@ -436,8 +521,38 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
   // a PRO actually received or accepted anything. This function only ever
   // flips a self-attested flag; the wording throughout this page reflects
   // that deliberately.
+  // The stored status, read back when a write's own answer can't be trusted.
+  async function readBackStatus(): Promise<ReadBack> {
+    try {
+      const { data, error } = await createClient()
+        .from('performances_visible').select('submission_status, submitted_at')
+        .eq('id', params.id).maybeSingle()
+      if (error || !data) return { ok: false }
+      return { ok: true, submissionStatus: data.submission_status ?? null, submittedAt: data.submitted_at ?? null }
+    } catch { return { ok: false } }
+  }
+
+  async function showRecorded(at: string) {
+    setSubmittedAt(at)
+    setFiledPulse(true)
+    await new Promise(r => setTimeout(r, 400))
+    setSubmitted(true)
+    // The confirmation starts at its top, not at the old scroll position.
+    window.scrollTo(0, 0)
+  }
+
+  const NOT_SAVED = 'This wasn’t recorded. Your claim sheet and details are still here. Try again.'
+  const UNCERTAIN = 'The connection dropped before Setlistr could confirm this was recorded. Your claim sheet and details are still here. Check again before trying a second time.'
+
+  // Records that the caller manually submitted this performance to their
+  // PRO — Setlistr never files with a PRO itself and has no way to verify
+  // a PRO actually received or accepted anything. This function only ever
+  // flips a self-attested flag; the wording throughout this page reflects
+  // that deliberately. The database is the record: the screen says
+  // "recorded" only when the stored status does.
   async function markSubmitted() {
-    if (markingDone || songsFailed) return
+    // One write at a time: a second tap while one is in flight does nothing.
+    if (markInFlight.current || songsFailed) return
     // Defense in depth — the CTAs below already don't render a working
     // control for a non-write-capable delegate, but this function must
     // never silently proceed to a false success even if reached some
@@ -446,30 +561,51 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
       setSubmitError(`You don't have permission to mark this as submitted. Send this claim to ${artistDisplayName || 'the artist'} instead.`)
       return
     }
+    markInFlight.current = true
     setMarkingDone(true)
-    setSubmitError(null)
-    const supabase = createClient()
+    setSubmitError(null); setSubmitUncertain(false)
     const now = new Date().toISOString()
     // RLS can return HTTP 200 with zero rows updated (a denied or
     // otherwise-unmatched write is not an error) — .select('id') is what
-    // makes that visible: without it, .update() returns no data at all,
-    // and a caller checking only { error } would call a zero-row update a
-    // success. Only exactly one updated row counts as success.
-    const { data, error } = await supabase.from('performances').update({
-      submission_status: 'submitted', submitted_at: now,
-    }).eq('id', params.id).select('id')
-    setMarkingDone(false)
-    if (error || !data || data.length !== 1) {
-      console.error('[SubmitPage] markSubmitted failed:', { error, rowsUpdated: data?.length ?? 0 })
-      setSubmitError('Couldn’t save that. Nothing here was lost — your claim sheet and details are still here. Try again.')
+    // makes that visible. Only a show not yet submitted is changed, so a
+    // repeat after a lost response matches nothing instead of moving
+    // submitted_at. Anything but exactly one row is checked against the
+    // stored status (lib/claim-progress.ts judgeReadBack).
+    let update = { error: true, rows: 0 }
+    try {
+      const { data, error } = await createClient().from('performances').update({
+        submission_status: 'submitted', submitted_at: now,
+      }).eq('id', params.id).or('submission_status.is.null,submission_status.neq.submitted').select('id')
+      update = { error: !!error, rows: data?.length ?? 0 }
+      if (error) console.error('[SubmitPage] markSubmitted write error:', error)
+    } catch (e) { console.error('[SubmitPage] markSubmitted request failed:', e) }
+
+    if (judgeWrite(update) === 'saved') {
+      markInFlight.current = false; setMarkingDone(false)
+      await showRecorded(now)
       return
     }
-    setSubmittedAt(now)
-    setFiledPulse(true)
-    await new Promise(r => setTimeout(r, 400))
-    setSubmitted(true)
-    // The confirmation starts at its top, not at the old scroll position.
-    window.scrollTo(0, 0)
+    const back = await readBackStatus()
+    const outcome = judgeReadBack(update, back)
+    markInFlight.current = false; setMarkingDone(false)
+    if (outcome === 'saved' || outcome === 'already') {
+      await showRecorded((back.ok && back.submittedAt) || now)
+      return
+    }
+    console.error('[SubmitPage] markSubmitted not confirmed:', { ...update, outcome })
+    if (outcome === 'uncertain') { setSubmitUncertain(true); setSubmitError(UNCERTAIN) }
+    else setSubmitError(NOT_SAVED)
+  }
+
+  // After an unconfirmed write: read the stored status again, write nothing.
+  async function checkRecordedAgain() {
+    if (markInFlight.current) return
+    markInFlight.current = true; setMarkingDone(true)
+    const back = await readBackStatus()
+    markInFlight.current = false; setMarkingDone(false)
+    if (back.ok && back.submissionStatus === 'submitted') { setSubmitError(null); setSubmitUncertain(false); await showRecorded(back.submittedAt || new Date().toISOString()); return }
+    if (back.ok) { setSubmitUncertain(false); setSubmitError('It isn’t recorded yet. Your claim sheet and details are still here. Try again.'); return }
+    setSubmitError(UNCERTAIN)
   }
 
   // Delegate handoff: copies a link back to this same claim sheet so the
@@ -570,11 +706,10 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
     }
   }
 
-  const allSongsCopied = songs.length > 0 && (
-    copiedKeys.includes('all-songs') || songs.every((_, i) => copiedKeys.includes(`song-${i}`))
-  )
+  const songTitles = songs.map(s => s.title)
+  const allSongsCopied = everySongCopied(copyMarks, songTitles)
   const sheetFields  = rule ? rule.fields : []
-  const sheetDone    = sheetFields.filter(f => f.key === 'songs' ? allSongsCopied : copiedKeys.includes(f.key)).length
+  const sheetDone    = sheetFields.filter(f => f.key === 'songs' ? allSongsCopied : hasCopyMark(copyMarks, f.key, fieldValue(f.key))).length
   const missingRequired = inputFields.filter(f => f.required && !fieldValue(f.key))
   const detailsReady = missingRequired.length === 0 && !cityMissing
   const missingCount = missingRequired.length + (cityMissing ? 1 : 0)
@@ -694,7 +829,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
           </div>
         </div>
         {songs.length > 0 && !songsFailed && (
-          <button onClick={() => copyText(songs.map(s => s.title).join('\n'), 'all-songs')}
+          <button onClick={() => copyText(allTitles(songTitles), ALL_SONGS_KEY)}
             style={{ display: 'flex', alignItems: 'center', gap: 7, background: copied === 'all-songs' ? C.goldDim : 'color-mix(in srgb, var(--sl-text) 3%, transparent)', border: `1px solid ${copied === 'all-songs' ? C.borderGold : C.border}`, borderRadius: 8, padding: '8px 12px', cursor: 'pointer', fontFamily: 'inherit' }}>
             {copyFailed === 'all-songs'
               ? <><AlertTriangle size={11} style={{ color: C.red }} /><span style={{ fontSize: 13, fontWeight: 700, color: C.red }}>Didn’t copy · try again</span></>
@@ -722,7 +857,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
           {songs.map((song, i) => {
             const key = `song-${i}`
             const isCopied = copied === key
-            const wasCopied = copiedKeys.includes(key) || copiedKeys.includes('all-songs')
+            const wasCopied = songCopied(copyMarks, songTitles, i)
             return (
               <button key={key} onClick={() => copyText(song.title, key)}
                 style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 18px', background: isCopied ? 'color-mix(in srgb, var(--sl-accent) 4%, transparent)' : 'transparent', border: 'none', borderTop: `1px solid ${C.border}`, cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', width: '100%' }}>
@@ -973,7 +1108,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
               if (f.key === 'songs') return songsBlock
               const value = fieldValue(f.key)
               const isCopied = copied === f.key
-              const wasCopied = copiedKeys.includes(f.key)
+              const wasCopied = hasCopyMark(copyMarks, f.key, value)
               return (
                 <button key={f.key} disabled={!value} onClick={() => value && copyText(value, f.key)}
                   style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 18px', width: '100%', background: isCopied ? 'color-mix(in srgb, var(--sl-accent) 4%, transparent)' : 'transparent', border: 'none', borderTop: `1px solid ${C.border}`, cursor: value ? 'pointer' : 'default', textAlign: 'left', fontFamily: 'inherit' }}>
@@ -1076,7 +1211,10 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
           {submitError && (
             <div style={{ background: C.redDim, border: '1px solid color-mix(in srgb, var(--sl-danger) 25%, transparent)', borderRadius: 12, padding: '12px 14px', display: 'flex', gap: 10 }}>
               <AlertTriangle size={16} style={{ color: C.red, flexShrink: 0, marginTop: 1 }} />
-              <p style={{ fontSize: 12, color: C.secondary, margin: 0, lineHeight: 1.5 }}>{submitError}</p>
+              <p style={{ fontSize: 12, color: C.secondary, margin: 0, lineHeight: 1.5 }}>
+                {submitError}
+                {submitUncertain && <> <button onClick={checkRecordedAgain} disabled={markingDone} style={{ background: 'none', border: 'none', padding: 0, color: C.gold, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, textDecoration: 'underline' }}>{markingDone ? 'Checking…' : 'Check again'}</button></>}
+              </p>
             </div>
           )}
 

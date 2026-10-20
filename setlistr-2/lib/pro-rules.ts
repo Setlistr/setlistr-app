@@ -78,6 +78,11 @@ export type ProRule = {
   homeTerritory: Territory
   dateFormat: 'MDY' | 'DMY' | 'ISO'
   selfServe: boolean
+  // The PRO says the songwriter enters the show themselves, so a team
+  // member's part is preparing the sheet and handing it over. Set only where
+  // the PRO's own guidance says so (the note or preflight detail it comes
+  // from is quoted beside it); everywhere else no restriction is implied.
+  writerSubmits: boolean
   fields: ClaimField[]      // in the order the portal asks for them
   preflight: PreflightItem[] // one-time account checks
   notes: string[]           // rules that affect what gets paid
@@ -243,7 +248,7 @@ export const PRO_RULES: Record<ProCode, ProRule> = {
     code: 'SOCAN', name: 'SOCAN', program: 'Set Lists & Performances',
     portalLabel: 'Open SOCAN Portal', portalUrl: 'https://memp.socan.com',
     supportUrl: 'https://www.socan.com/contact-us', phone: '1-800-557-6226',
-    homeTerritory: 'CA', dateFormat: 'ISO', selfServe: true,
+    homeTerritory: 'CA', dateFormat: 'ISO', selfServe: true, writerSubmits: false,
     fields: [F.title, F.songs, F.venue, F.city, F.date, F.promoter],
     preflight: [registeredWorks('SOCAN')],
     notes: [],
@@ -264,6 +269,8 @@ export const PRO_RULES: Record<ProCode, ProRule> = {
     portalLabel: 'Open ASCAP OnStage', portalUrl: 'https://www.ascap.com/members',
     supportUrl: 'https://www.ascap.com/help', phone: '1-800-952-7227',
     homeTerritory: 'US', dateFormat: 'MDY', selfServe: true,
+    // “All OnStage claims must be submitted by writers of the performed works.” (ascap.com/music-creators/ascap-onstage)
+    writerSubmits: true,
     fields: [F.title, F.songs, F.venue, F.city, F.date, F.ticket, F.promoter, F.attendance],
     preflight: [
       {
@@ -298,6 +305,8 @@ export const PRO_RULES: Record<ProCode, ProRule> = {
     portalLabel: 'Open BMI Live', portalUrl: 'https://www.bmi.com',
     supportUrl: 'https://www.bmi.com/contact', phone: '1-800-925-8451',
     homeTerritory: 'US', dateFormat: 'MDY', selfServe: true,
+    // “Only the performing songwriter can enter shows in BMI Live — not a publisher or manager.” (preflight below)
+    writerSubmits: true,
     fields: [F.venue, F.city, F.date, F.time, F.ticket, F.promoterOpt, F.songs],
     preflight: [
       {
@@ -331,7 +340,7 @@ export const PRO_RULES: Record<ProCode, ProRule> = {
     code: 'PRS', name: 'PRS for Music', program: 'PRS Live Music Reporting',
     portalLabel: 'Open PRS Portal', portalUrl: 'https://www.prsformusic.com/login',
     supportUrl: 'https://www.prsformusic.com/help', phone: '+44 (0)207 580 5544',
-    homeTerritory: 'GB', dateFormat: 'DMY', selfServe: true,
+    homeTerritory: 'GB', dateFormat: 'DMY', selfServe: true, writerSubmits: false,
     fields: [F.venue, F.city, F.date, F.ticket, F.promoter, F.songs],
     preflight: [registeredWorks('PRS')],
     notes: [],
@@ -351,7 +360,7 @@ export const PRO_RULES: Record<ProCode, ProRule> = {
     code: 'APRA', name: 'APRA AMCOS', program: 'APRA AMCOS Live Performance',
     portalLabel: 'Open APRA Portal', portalUrl: 'https://www.apraamcos.com.au/members',
     supportUrl: 'https://www.apraamcos.com.au/contact', phone: '+61 2 9935 7900',
-    homeTerritory: 'AU', dateFormat: 'DMY', selfServe: true,
+    homeTerritory: 'AU', dateFormat: 'DMY', selfServe: true, writerSubmits: false,
     fields: [F.venue, F.city, F.date, F.promoter, F.songs],
     preflight: [registeredWorks('APRA AMCOS')],
     notes: [],
@@ -369,7 +378,7 @@ export const PRO_RULES: Record<ProCode, ProRule> = {
     code: 'SESAC', name: 'SESAC', program: 'SESAC Affiliate Services',
     portalLabel: 'Open SESAC Portal', portalUrl: 'https://affiliates.sesac.com',
     supportUrl: 'https://www.sesac.com/contact',
-    homeTerritory: 'US', dateFormat: 'MDY', selfServe: true,
+    homeTerritory: 'US', dateFormat: 'MDY', selfServe: true, writerSubmits: false,
     fields: [F.title, F.venue, F.city, F.capacity, F.date, F.ticket, F.attendance, F.songs],
     preflight: [registeredWorks('SESAC')],
     notes: ['SESAC timelines vary — confirm with your SESAC rep.'],
@@ -388,7 +397,7 @@ export const PRO_RULES: Record<ProCode, ProRule> = {
     code: 'GMR', name: 'GMR', program: 'GMR — Rep Submission',
     portalLabel: 'Contact GMR Rep', portalUrl: 'https://globalmusicrights.com',
     supportUrl: 'https://globalmusicrights.com/contact',
-    homeTerritory: 'US', dateFormat: 'MDY', selfServe: false,
+    homeTerritory: 'US', dateFormat: 'MDY', selfServe: false, writerSubmits: false,
     fields: [F.venue, F.city, F.date, F.promoterOpt, F.attendance, F.songs],
     preflight: [],
     notes: ['GMR has no self-serve portal. Send this sheet to your rep.'],

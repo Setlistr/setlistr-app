@@ -15,9 +15,10 @@ export type FilingState = 'needs_review' | 'ready' | 'submitted'
 
 // Only the show-detail inputs a PRO can require beyond what's already on
 // the performance/profile record — the same fields app/app/submit/[id]/
-// page.tsx collects into ClaimInputs and persists to localStorage under
-// `setlistr:claim:${performanceId}`. The queue reads that same key (see
-// readClaimInputs in the page) rather than inventing new storage.
+// page.tsx collects into ClaimInputs and persists to localStorage, per
+// signed-in account (lib/claim-progress.ts claimInputsKey). The queue reads
+// that same key (lib/claim-inputs-storage.ts readClaimInputs) rather than
+// inventing new storage.
 export interface FilingClaimInputs {
   ticketPrice?: string | null
   promoter?: string | null

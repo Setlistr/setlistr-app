@@ -118,7 +118,11 @@ export default function FilingQueuePage() {
       let ctx: FilingProfileContext
       let perfs: any[]
       let songCountMap: Record<string, number> = {}
+      // Show details typed on the claim sheet are kept per signed-in account.
+      let viewerId: string | null = null
       if (actingAs) {
+        // The session is already local; no extra request for the account id.
+        viewerId = (await supabase.auth.getSession()).data.session?.user.id ?? null
         // One request returns the artist's PRO, shows and song counts.
         ctx = await loadFilingProfile(supabase, actingAs)
         perfs = ctx.delegatePerformances || []
@@ -128,6 +132,7 @@ export default function FilingQueuePage() {
         // song counts need the show ids, so they follow.
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) { router.push('/auth/login'); return }
+        viewerId = user.id
         const [profileCtx, perfRes] = await Promise.all([
           loadFilingProfile(supabase, null, user.id),
           supabase
@@ -167,7 +172,7 @@ export default function FilingQueuePage() {
           venue_capacity: p.venues?.capacity || p.venue_capacity || null,
         }
         const songCount = songCountMap[p.id] || 0
-        const claimInputs = readClaimInputs(p.id)
+        const claimInputs = viewerId ? readClaimInputs(viewerId, p.id) : {}
         const status = computeFilingStatus(perfFields, songCount, ctx.profile, ctx.isDelegate, claimInputs)
         const action = filingActionPath(p.id, p.status, songCount)
         const day = showDay(p, p.shows?.timezone) || parseLocalDate(p.started_at)

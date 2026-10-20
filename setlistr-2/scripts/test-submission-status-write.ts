@@ -3,7 +3,10 @@
 //   supabase.from('performances')
 //     .update({ submission_status: 'submitted', submitted_at })
 //     .eq('id', performanceId)
+//     .or('submission_status.is.null,submission_status.neq.submitted')
 //     .select('id')
+// and, when that isn't a clean one-row success, the read-back it is
+// judged against (lib/claim-progress.ts judgeReadBack).
 //
 // This does NOT test React rendering (no component-test framework is
 // configured in this repo) — it verifies the underlying DB-level fact the
@@ -20,6 +23,13 @@
 //   4. Revoked delegate (even though role='manager'): HTTP 200, zero rows.
 //   5. A genuine database error (malformed id — invalid uuid syntax):
 //      non-2xx status, distinct from the zero-row RLS-denial case.
+//   7. A repeat write (double tap, retry after a lost response) matches no
+//      row and leaves submitted_at as first recorded; the read-back calls
+//      it recorded, not failed.
+//   8. A write that commits but whose response is lost: the read-back
+//      finds it recorded.
+//   9. Viewer: the read-back shows it isn't recorded — "not saved", never
+//      a success and never "uncertain".
 //   6. missingIdentityFields (lib/submission-identity.ts) — imports and
 //      calls the ACTUAL production function, not a re-typed copy of its
 //      logic, against null/undefined/blank-string/whitespace/complete
@@ -43,6 +53,7 @@ import * as crypto from 'crypto'
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
 import { createBrowserClient } from '@supabase/ssr'
 import { missingIdentityFields } from '../lib/submission-identity'
+import { judgeWrite, judgeReadBack, type ReadBack } from '../lib/claim-progress'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
@@ -107,7 +118,8 @@ async function seedDelegation(ownerId: string, delegateId: string, role: string,
 
 // The exact PostgREST call markSubmitted() makes.
 async function attemptMarkSubmitted(token: string, performanceId: string) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/performances?id=eq.${performanceId}`, {
+  const filter = `id=eq.${performanceId}&or=(submission_status.is.null,submission_status.neq.submitted)`
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/performances?${filter}`, {
     method: 'PATCH',
     headers: {
       'Content-Type': 'application/json',
@@ -120,6 +132,17 @@ async function attemptMarkSubmitted(token: string, performanceId: string) {
   const json = await res.json().catch(() => null)
   const rowsUpdated = Array.isArray(json) ? json.length : 0
   return { status: res.status, rowsUpdated, json }
+}
+
+// The read-back markSubmitted() makes when the write's answer isn't clean.
+async function readBack(token: string, performanceId: string): Promise<ReadBack> {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/performances_visible?id=eq.${performanceId}&select=submission_status,submitted_at`, {
+    headers: { apikey: ANON_KEY, Authorization: `Bearer ${token}` },
+  })
+  if (!res.ok) return { ok: false }
+  const json = await res.json().catch(() => null)
+  if (!Array.isArray(json) || json.length !== 1) return { ok: false }
+  return { ok: true, submissionStatus: json[0].submission_status ?? null, submittedAt: json[0].submitted_at ?? null }
 }
 
 async function seedPerformance(ownerId: string, label: string) {
@@ -189,6 +212,58 @@ async function main() {
     })
     const json = await res.json().catch(() => null)
     check('5. malformed id: real error status (distinct from the zero-row RLS case)', res.status >= 400, JSON.stringify({ status: res.status, json }))
+  }
+
+  // ── 7. Repeat write: no row, first timestamp kept, judged recorded ──
+  {
+    const perf = await seedPerformance(owner.userId, 'repeat')
+    const first = await attemptMarkSubmitted(owner.token, perf.id)
+    const stored1 = (await service.from('performances').select('submitted_at').eq('id', perf.id).single()).data?.submitted_at
+    await new Promise(r => setTimeout(r, 20))
+    // Two taps at once, after the first already committed.
+    const [a, b] = await Promise.all([attemptMarkSubmitted(owner.token, perf.id), attemptMarkSubmitted(owner.token, perf.id)])
+    const stored2 = (await service.from('performances').select('submitted_at').eq('id', perf.id).single()).data?.submitted_at
+    check('7. first write: one row', first.rowsUpdated === 1, String(first.rowsUpdated))
+    check('7. repeat writes: zero rows each', a.status === 200 && b.status === 200 && a.rowsUpdated === 0 && b.rowsUpdated === 0, JSON.stringify([a.rowsUpdated, b.rowsUpdated]))
+    check('7. submitted_at unchanged by repeats', !!stored1 && stored1 === stored2, `${stored1} → ${stored2}`)
+    const back = await readBack(owner.token, perf.id)
+    check('7. repeat judged "already recorded", not a failure', judgeWrite({ error: false, rows: a.rowsUpdated }) === 'check' && judgeReadBack({ error: false, rows: a.rowsUpdated }, back) === 'already')
+    check('7. read-back carries the stored time for the confirmation', back.ok && back.submittedAt === stored1)
+    await service.from('performances').delete().eq('id', perf.id)
+  }
+
+  // ── 7b. Two first taps racing: exactly one row changes ──────────────
+  {
+    const perf = await seedPerformance(owner.userId, 'race')
+    const [a, b] = await Promise.all([attemptMarkSubmitted(owner.token, perf.id), attemptMarkSubmitted(owner.token, perf.id)])
+    check('7b. racing first writes: one row in total', a.rowsUpdated + b.rowsUpdated === 1, JSON.stringify([a.rowsUpdated, b.rowsUpdated]))
+    const back = await readBack(owner.token, perf.id)
+    const loser = a.rowsUpdated === 0 ? a : b
+    check('7b. the other write is judged already recorded', judgeReadBack({ error: false, rows: loser.rowsUpdated }, back) === 'already')
+    await service.from('performances').delete().eq('id', perf.id)
+  }
+
+  // ── 8. Committed, response lost ──────────────────────────────────────
+  {
+    const perf = await seedPerformance(owner.userId, 'lost')
+    await attemptMarkSubmitted(manager.token, perf.id) // response discarded, as if the connection dropped
+    const back = await readBack(manager.token, perf.id)
+    check('8. lost response: read-back by the manager succeeds', back.ok)
+    check('8. lost response: judged recorded', judgeReadBack({ error: true, rows: 0 }, back) === 'saved')
+    check('8. read-back failure is uncertain, never "not saved"', judgeReadBack({ error: true, rows: 0 }, { ok: false }) === 'uncertain')
+    await service.from('performances').delete().eq('id', perf.id)
+  }
+
+  // ── 9. Viewer: denied write, read-back says not recorded ─────────────
+  {
+    const perf = await seedPerformance(owner.userId, 'viewer-back')
+    const w = await attemptMarkSubmitted(viewer.token, perf.id)
+    const back = await readBack(viewer.token, perf.id)
+    check('9. viewer: can read the status back', back.ok, JSON.stringify(back))
+    check('9. viewer: judged not saved', judgeReadBack({ error: false, rows: w.rowsUpdated }, back) === 'not_saved')
+    const r = await readBack(revoked.token, perf.id)
+    check('9. revoked delegate: read-back fails closed (uncertain), never a success', judgeReadBack({ error: false, rows: 0 }, r) !== 'saved' && judgeReadBack({ error: false, rows: 0 }, r) !== 'already')
+    await service.from('performances').delete().eq('id', perf.id)
   }
 
   // ── 6. missingIdentityFields — the ACTUAL function from

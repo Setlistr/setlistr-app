@@ -178,7 +178,7 @@ export default function HistoryPage() {
         .filter((p: any) => isRealVenue(p.venue_name))
         .map((p: any) => {
           const songCount = countMap[p.id] || 0
-          const claimInputs = readClaimInputs(p.id)
+          const claimInputs = readClaimInputs(user.id, p.id)
           const filing = computeFilingStatus(
             {
               status: p.status,
