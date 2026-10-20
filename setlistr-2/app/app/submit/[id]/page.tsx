@@ -17,6 +17,8 @@ import { PageFrame } from '@/components/ui/PageFrame'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { StatusLabel } from '@/components/ui/StatusLabel'
 import { useActingAs } from '@/components/ActingAsProvider'
+import { isNativeApp } from '@/lib/appearance'
+import { chooseHandoffRoute, isShareCancel, claimSheetFile, canShareFile, downloadTextFile } from '@/lib/claim-sheet-handoff'
 import {
   claimInputsKey, legacyClaimInputsKey, preflightKey, legacyPreflightKey, progressKey, scrollKey,
   markCopied, isCopied as hasCopyMark, songCopied, allSongsCopied as everySongCopied, ALL_SONGS_KEY, allTitles, parseProgress,
@@ -119,14 +121,16 @@ function defaultStartTime(perf: Performance): string {
   return ''
 }
 
-function downloadSubmissionBrief({
+// The claim sheet as text, with its file name. Getting it off the page is
+// handOff's job (lib/claim-sheet-handoff.ts).
+function buildSubmissionBrief({
   performance, songs, profile, rule, deadline, suggestedTitle,
   effectiveCapacity, inputs,
 }: {
   performance: Performance; songs: Song[]; profile: Profile | null
   rule: ProRule | null; deadline: DeadlineResult | null
   suggestedTitle: string; effectiveCapacity: number | null; inputs: ClaimInputs
-}) {
+}): { text: string; filename: string } {
   const showDate = showDay(performance, performance.show_timezone) || parseLocalDate(performance.started_at)
   const showDateLong = showDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
   const resolvedCity = performance.city || performance.venue_city || inputs.city.trim() || ''
@@ -197,15 +201,9 @@ function downloadSubmissionBrief({
     `Questions? info@setlistr.ai`,
   ].filter((l): l is string => l !== null).join('\n')
 
-  const blob = new Blob([brief], { type: 'text/plain' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
   const safeVenue = performance.venue_name.replace(/[^a-z0-9]/gi, '-').toLowerCase()
   const safeDate = showDate.toISOString().slice(0, 10)
-  a.href = url
-  a.download = `setlistr-claim-${safeVenue}-${safeDate}.txt`
-  document.body.appendChild(a); a.click()
-  document.body.removeChild(a); URL.revokeObjectURL(url)
+  return { text: brief, filename: `setlistr-claim-${safeVenue}-${safeDate}.txt` }
 }
 
 export default function SubmitPage({ params }: { params: { id: string } }) {
@@ -249,6 +247,10 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
   // The field whose clipboard write just failed; "Copied" only follows a
   // write the browser confirmed.
   const [copyFailed, setCopyFailed]       = useState<string | null>(null)
+  // Getting the sheet file off the page: an explicit failure, or the sheet's
+  // text to copy when the installed app can't hand over a file.
+  const [sheetError, setSheetError]       = useState<string | null>(null)
+  const [sheetText, setSheetText]         = useState<string | null>(null)
   // The signed-in account this sheet was loaded for. Saved preparation is
   // kept per account (lib/claim-progress.ts).
   const [viewerId, setViewerId]           = useState<string | null>(null)
@@ -976,7 +978,58 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
   ) : null
 
   // ── Actions: who does what next ─────────────────────────────────────────────
-  const download = () => songs.length > 0 && downloadSubmissionBrief({ performance, songs, profile, rule, deadline, suggestedTitle, effectiveCapacity: effectiveCapacity ?? null, inputs })
+  // Never writes anything: the sheet is built from what's on screen.
+  async function download() {
+    if (songs.length === 0 || !performance) return
+    setSheetError(null)
+    let sheet: { text: string; filename: string }
+    try {
+      sheet = buildSubmissionBrief({ performance, songs, profile, rule, deadline, suggestedTitle, effectiveCapacity: effectiveCapacity ?? null, inputs })
+    } catch (e) {
+      console.error('[SubmitPage] claim sheet build failed:', e)
+      setSheetError('The claim sheet couldn’t be created. Try again.')
+      return
+    }
+    const file = claimSheetFile(sheet.text, sheet.filename)
+    const route = chooseHandoffRoute({ native: isNativeApp(window), canShareFile: canShareFile(navigator, file) })
+    if (route === 'download') {
+      try { downloadTextFile(sheet.text, sheet.filename) } catch (e) {
+        console.error('[SubmitPage] claim sheet download failed:', e)
+        setSheetError('The claim sheet couldn’t be saved from this browser.')
+        setSheetText(sheet.text)
+      }
+      return
+    }
+    if (route === 'share' && file) {
+      try { await navigator.share({ files: [file], title: sheet.filename }); setSheetText(null) } catch (e) {
+        if (isShareCancel(e)) return
+        console.error('[SubmitPage] claim sheet share failed:', e)
+        setSheetError('The claim sheet couldn’t be shared from the app. Copy it below instead.')
+        setSheetText(sheet.text)
+      }
+      return
+    }
+    setSheetError('This app can’t save files yet. Copy the claim sheet below and paste it into Notes or an email.')
+    setSheetText(sheet.text)
+  }
+  const sheetPanel = (sheetError || sheetText) ? (
+    <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {sheetError && <p role="alert" style={{ margin: 0, padding: '12px 14px', borderRadius: 12, fontSize: 14.5, color: C.text, lineHeight: 1.5, background: C.amberDim, border: '1px solid color-mix(in srgb, var(--sl-warn) 28%, transparent)' }}>{sheetError}</p>}
+      {sheetText && (
+        <>
+          <label htmlFor="sb-sheet-text" style={{ fontSize: 14, fontWeight: 600, color: C.text }}>Claim sheet text</label>
+          <textarea id="sb-sheet-text" readOnly value={sheetText} rows={10}
+            style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', borderRadius: 12, border: '1px solid var(--sl-input-line)', background: 'var(--sl-input-bg, var(--sl-bg))', color: C.text, fontFamily: MONO, fontSize: 13, lineHeight: 1.45, resize: 'vertical' }} />
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0 16px' }}>
+            <button className="sb-btn" onClick={() => copyText(sheetText, 'sheet-text')} style={textAction}>
+              {copyFailed === 'sheet-text' ? 'Didn’t copy · try again' : copied === 'sheet-text' ? <><Check size={15} strokeWidth={2.5} aria-hidden="true" />Copied</> : <><Copy size={15} aria-hidden="true" />Copy the sheet</>}
+            </button>
+            <button className="sb-btn" onClick={() => { setSheetText(null); setSheetError(null) }} style={{ ...textAction, color: C.secondary }}>Close</button>
+          </div>
+        </>
+      )}
+    </div>
+  ) : null
   const linkBtn = (prominent: boolean) => (
     <button className="sb-btn" onClick={handleSendToArtist} style={prominent ? primaryBtn : secondaryBtn}>
       {copyFailed === 'send-link' ? 'Didn’t copy · try again'
@@ -1167,6 +1220,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
               )}
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 14 }}>{actions}</div>
+              {sheetPanel}
             </section>
 
             {/* The claim sheet, in the portal's order */}
