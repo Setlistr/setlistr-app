@@ -11,7 +11,8 @@ import {
 import { isWriteCapableRole } from '@/lib/writeCapableRoles'
 import { missingIdentityFields } from '@/lib/submission-identity'
 import { parseLocalDate } from '@/lib/date-format'
-import { showDay } from '@/lib/show-date'
+import { showDay, isRealTimeZone } from '@/lib/show-date'
+import { LoadError } from '@/components/ui/LoadError'
 
 const CARD = {
   background: 'var(--sl-card-bg)',
@@ -92,10 +93,18 @@ function ConfDot({ c }: { c: Song['matchConfidence'] }) {
   return <div style={{ width: 7, height: 7, borderRadius: '50%', background: color, flexShrink: 0 }} />
 }
 
+// The capture's start, read in the show's own zone when the show has a real
+// one. Without one (unscheduled captures store no venue zone) it falls back
+// to this device's zone, and the field says so.
 function defaultStartTime(perf: Performance): string {
   if (perf.started_at) {
     const d = new Date(perf.started_at)
     if (!isNaN(d.getTime())) {
+      if (isRealTimeZone(perf.show_timezone)) {
+        const parts = new Intl.DateTimeFormat('en-GB', { timeZone: perf.show_timezone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(d)
+        const hh = parts.find(x => x.type === 'hour')?.value, mm = parts.find(x => x.type === 'minute')?.value
+        if (hh && mm) return `${hh}:${mm}`
+      }
       return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
     }
   }
@@ -225,6 +234,14 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
   const [preflightDone, setPreflightDone] = useState<string[]>([])
   const [preflightOpen, setPreflightOpen] = useState(true)
   const [inputsReady, setInputsReady]     = useState(false)
+  // A failed load is an error with Try again — never "Performance not
+  // found", a false "No PRO selected" or an empty setlist.
+  const [loadFailed, setLoadFailed]       = useState(false)
+  const [songsFailed, setSongsFailed]     = useState(false)
+  const [reloadKey, setReloadKey]         = useState(0)
+  // The field whose clipboard write just failed; "Copied" only follows a
+  // write the browser confirmed.
+  const [copyFailed, setCopyFailed]       = useState<string | null>(null)
 
   // Show details the PRO asks for
   const [promoter, setPromoter]       = useState('')
@@ -237,15 +254,20 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
 
   useEffect(() => {
     const supabase = createClient()
+    // A response for an earlier show or attempt is dropped, never applied.
+    let cancelled = false
+    const fail = () => { if (!cancelled) { setLoadFailed(true); setLoading(false) } }
     async function load() {
       const { data: { user } } = await supabase.auth.getUser()
+      if (cancelled) return
       if (!user) { router.push('/auth/login'); return }
 
-      const { data: perf } = await supabase
+      const { data: perf, error: perfErr } = await supabase
         .from('performances_visible').select('*, shows(show_type, timezone), venues(capacity, city, country)')
-        .eq('id', params.id).single()
-
-      if (!perf) { setLoading(false); return }
+        .eq('id', params.id).maybeSingle()
+      if (cancelled) return
+      if (perfErr) { fail(); return }
+      if (!perf) { setPerformance(null); setLoading(false); return }
 
       const ownerId = perf.user_id as string
       const delegateView = user.id !== ownerId
@@ -278,19 +300,19 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
       // boundary that keeps those off a delegate's screen.
       let profileData: Profile | null = null
       if (delegateView) {
+        // A failed read is a load error, not an artist without a PRO.
         try {
           const ctxRes = await fetch(`/api/team/context-data?artist_id=${ownerId}`)
           const ctx = await ctxRes.json()
-          if (!ctx.error) {
-            profileData = {
-              pro_affiliation: ctx.pro_affiliation || null,
-              artist_name:     ctx.artist_name || null,
-              legal_name:      null,
-              ipi_number:      null,
-              publisher_name:  null,
-            }
+          if (!ctxRes.ok || ctx.error) throw new Error(ctx.error || `context-data ${ctxRes.status}`)
+          profileData = {
+            pro_affiliation: ctx.pro_affiliation || null,
+            artist_name:     ctx.artist_name || null,
+            legal_name:      null,
+            ipi_number:      null,
+            publisher_name:  null,
           }
-        } catch (e) { console.error('[SubmitPage] context-data fetch failed:', e) }
+        } catch (e) { console.error('[SubmitPage] context-data fetch failed:', e); fail(); return }
 
         // Whether THIS delegate can actually write to performances —
         // artist_delegates_select's RLS lets a delegate read their own row
@@ -313,19 +335,27 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
           setCanWriteSubmission(false)
         }
       } else {
-        const { data } = await supabase
+        const { data, error: profileErr } = await supabase
           .from('profiles').select('pro_affiliation, legal_name, ipi_number, publisher_name, artist_name')
           .eq('id', ownerId).single()
+        if (profileErr) { console.error('[SubmitPage] profile load failed:', profileErr); fail(); return }
         profileData = data
       }
+      if (cancelled) return
       setProfile(profileData)
 
+      // The songs failing leaves the rest of the sheet usable; recording a
+      // submission waits until they load.
       let songData: any[] = []
+      let songsOk = true
       try {
         const songsRes = await fetch(`/api/performance-songs?performanceId=${params.id}`)
         const songsJson = await songsRes.json()
+        if (!songsRes.ok || songsJson.error) throw new Error(songsJson.error || `songs ${songsRes.status}`)
         songData = songsJson.songs || []
-      } catch (e) { console.error('[SubmitPage] songs fetch failed:', e) }
+      } catch (e) { console.error('[SubmitPage] songs fetch failed:', e); songsOk = false }
+      if (cancelled) return
+      setSongsFailed(!songsOk)
 
       const mapped: Song[] = songData.map(s => ({
         title: s.title, artist: s.artist || '',
@@ -355,20 +385,32 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
 
       setLoading(false)
     }
-    load()
-  }, [params.id])
+    setLoading(true); setLoadFailed(false)
+    load().catch(e => { console.error('[SubmitPage] load failed:', e); fail() })
+    return () => { cancelled = true }
+  }, [params.id, reloadKey])
 
   useEffect(() => {
     if (!inputsReady) return
     writeLocal(`setlistr:claim:${params.id}`, { promoter, ticketPrice, attendance, startTime, city: manualCity })
   }, [inputsReady, params.id, promoter, ticketPrice, attendance, startTime, manualCity])
 
-  function copyText(text: string, key: string) {
-    try { navigator.clipboard.writeText(text) } catch {
-      const el = document.createElement('textarea')
-      el.value = text; document.body.appendChild(el); el.select()
-      document.execCommand('copy'); document.body.removeChild(el)
+  async function copyText(text: string, key: string) {
+    let ok = false
+    try { await navigator.clipboard.writeText(text); ok = true } catch {
+      try {
+        const el = document.createElement('textarea')
+        el.value = text; el.setAttribute('readonly', ''); el.style.position = 'fixed'; el.style.opacity = '0'
+        document.body.appendChild(el); el.select()
+        ok = document.execCommand('copy'); document.body.removeChild(el)
+      } catch { ok = false }
     }
+    if (!ok) {
+      setCopied(null); setCopyFailed(key)
+      setTimeout(() => setCopyFailed(k => k === key ? null : k), 6000)
+      return
+    }
+    setCopyFailed(null)
     setCopied(key)
     setCopiedKeys(prev => prev.includes(key) ? prev : [...prev, key])
     setTimeout(() => setCopied(null), 2000)
@@ -395,7 +437,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
   // flips a self-attested flag; the wording throughout this page reflects
   // that deliberately.
   async function markSubmitted() {
-    if (markingDone) return
+    if (markingDone || songsFailed) return
     // Defense in depth — the CTAs below already don't render a working
     // control for a non-write-capable delegate, but this function must
     // never silently proceed to a false success even if reached some
@@ -426,6 +468,8 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
     setFiledPulse(true)
     await new Promise(r => setTimeout(r, 400))
     setSubmitted(true)
+    // The confirmation starts at its top, not at the old scroll position.
+    window.scrollTo(0, 0)
   }
 
   // Delegate handoff: copies a link back to this same claim sheet so the
@@ -453,6 +497,14 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
     <div style={{ minHeight: '100svh', background: C.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div style={{ width: 44, height: 44, borderRadius: '50%', border: `1.5px solid ${C.gold}`, animation: 'breathe 1.8s ease-in-out infinite' }} />
       <style>{`@keyframes breathe{0%,100%{transform:scale(1);opacity:.3}50%{transform:scale(1.2);opacity:.8}}`}</style>
+    </div>
+  )
+
+  if (loadFailed) return (
+    <div style={{ minHeight: '100svh', background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif' }}>
+      <div style={{ maxWidth: 480, margin: '0 auto', padding: '28px 16px' }}>
+        <LoadError message="The claim sheet didn’t load." onRetry={() => setReloadKey(k => k + 1)} />
+      </div>
     </div>
   )
 
@@ -641,17 +693,23 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
             {noneCount > 0 && <span style={{ fontSize: 10, color: C.muted }}>●&nbsp;{noneCount}</span>}
           </div>
         </div>
-        {songs.length > 0 && (
+        {songs.length > 0 && !songsFailed && (
           <button onClick={() => copyText(songs.map(s => s.title).join('\n'), 'all-songs')}
             style={{ display: 'flex', alignItems: 'center', gap: 7, background: copied === 'all-songs' ? C.goldDim : 'color-mix(in srgb, var(--sl-text) 3%, transparent)', border: `1px solid ${copied === 'all-songs' ? C.borderGold : C.border}`, borderRadius: 8, padding: '8px 12px', cursor: 'pointer', fontFamily: 'inherit' }}>
-            {copied === 'all-songs'
+            {copyFailed === 'all-songs'
+              ? <><AlertTriangle size={11} style={{ color: C.red }} /><span style={{ fontSize: 13, fontWeight: 700, color: C.red }}>Didn’t copy · try again</span></>
+              : copied === 'all-songs'
               ? <><Check size={11} strokeWidth={3} style={{ color: C.gold }} /><span style={{ fontSize: 13, fontWeight: 700, color: C.gold }}>All {songs.length} titles copied</span></>
               : <><Copy size={11} style={{ color: C.muted }} /><span style={{ fontSize: 13, fontWeight: 600, color: C.secondary }}>Copy all titles</span></>}
           </button>
         )}
       </div>
 
-      {songs.length === 0 ? (
+      {songsFailed ? (
+        <div style={{ padding: '4px 18px 16px' }}>
+          <LoadError compact message="The songs didn’t load. Recording a submission waits until they do." onRetry={() => setReloadKey(k => k + 1)} />
+        </div>
+      ) : songs.length === 0 ? (
         <div style={{ padding: '8px 18px 20px', textAlign: 'center' }}>
           <p style={{ fontSize: 13, color: C.muted, margin: '0 0 12px' }}>No songs saved yet — finish your setlist review first.</p>
           <button onClick={() => router.push(`/app/review/${params.id}`)}
@@ -679,7 +737,8 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
                   <ConfDot c={song.matchConfidence} />
-                  {isCopied ? <span style={{ fontSize: 11, color: C.gold, fontWeight: 700 }}>Copied</span>
+                  {copyFailed === key ? <span style={{ fontSize: 11, color: C.red, fontWeight: 700 }}>Didn’t copy</span>
+                    : isCopied ? <span style={{ fontSize: 11, color: C.gold, fontWeight: 700 }}>Copied</span>
                     : wasCopied ? <Check size={12} strokeWidth={3} style={{ color: C.green }} />
                     : <Copy size={12} style={{ color: C.muted }} />}
                 </div>
@@ -883,7 +942,9 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
                     <input type="number" inputMode="numeric" min="0" value={attendance}
                       onChange={e => setAttendance(e.target.value)} placeholder="e.g. 150" style={inputStyle(!!attendance)} />
                   )}
-                  {f.hint && <p style={{ fontSize: 10, color: C.muted, margin: '4px 0 0' }}>{f.hint}</p>}
+                  {f.key === 'start_time' && !isRealTimeZone(performance.show_timezone)
+                    ? <p style={{ fontSize: 10, color: C.muted, margin: '4px 0 0' }}>From your capture, in this device’s time zone. Check it against the venue’s local time.</p>
+                    : f.hint && <p style={{ fontSize: 10, color: C.muted, margin: '4px 0 0' }}>{f.hint}</p>}
                 </div>
               ))}
             </div>
@@ -903,6 +964,11 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
               </span>
             </div>
 
+            {copyFailed && (
+              <p role="alert" style={{ fontSize: 12, color: C.secondary, background: C.amberDim, border: '1px solid color-mix(in srgb, var(--sl-warn) 25%, transparent)', borderRadius: 10, padding: '10px 12px', margin: '0 18px 12px', lineHeight: 1.5 }}>
+                Couldn’t copy to the clipboard. Try again, or press and hold the text to select it.
+              </p>
+            )}
             {sheetFields.map(f => {
               if (f.key === 'songs') return songsBlock
               const value = fieldValue(f.key)
@@ -920,7 +986,9 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
                   <span style={{ flex: 1, minWidth: 0, fontSize: 14, fontFamily: MONO, color: !value ? C.muted : isCopied ? C.gold : C.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontStyle: value ? 'normal' : 'italic' }}>
                     {value || (f.required ? 'fill in above' : 'optional')}
                   </span>
-                  {value && (isCopied
+                  {value && (copyFailed === f.key
+                    ? <span style={{ fontSize: 11, color: C.red, fontWeight: 700, flexShrink: 0 }}>Didn’t copy</span>
+                    : isCopied
                     ? <span style={{ fontSize: 11, color: C.gold, fontWeight: 700, flexShrink: 0 }}>Copied</span>
                     : <Copy size={12} style={{ color: C.muted, flexShrink: 0 }} />)}
                 </button>
@@ -939,8 +1007,8 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
                   return (
                     <div key={k} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
                       <span style={{ fontSize: 12, color: C.muted }}>{label}</span>
-                      <button onClick={() => copyText(v, k)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: MONO, fontSize: 12, color: copied === k ? C.gold : C.secondary, padding: 0 }}>
-                        {copied === k ? 'copied ✓' : v}
+                      <button onClick={() => copyText(v, k)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: MONO, fontSize: 12, color: copyFailed === k ? C.red : copied === k ? C.gold : C.secondary, padding: 0 }}>
+                        {copyFailed === k ? 'didn’t copy' : copied === k ? 'copied ✓' : v}
                       </button>
                     </div>
                   )
@@ -1030,7 +1098,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
                     style={{ width: '100%', padding: '15px', background: 'transparent', border: `1px solid ${C.borderGold}`, borderRadius: 12, color: C.gold, fontSize: 14, fontWeight: 800, letterSpacing: '0.04em', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit' }}>
                     {copied === 'send-link' ? <><Check size={14} strokeWidth={2.5} />Link copied</> : `Send to ${artistDisplayName}`}
                   </button>
-                  <button onClick={handleArtistFiledIt} disabled={markingDone}
+                  <button onClick={handleArtistFiledIt} disabled={markingDone || songsFailed}
                     style={{ width: '100%', padding: '17px', background: filedPulse ? C.green : markingDone ? C.greenDim : C.green, border: 'none', borderRadius: 12, color: filedPulse ? 'var(--sl-on-accent)' : markingDone ? C.green : 'var(--sl-on-accent)', fontSize: 16, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' as const, cursor: markingDone ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit', animation: 'fadeUp 0.3s ease', transform: filedPulse ? 'scale(1.03)' : 'scale(1)', transition: 'all 0.3s ease' }}>
                     <Check size={15} strokeWidth={2.5} />
                     {markingDone ? 'Recording...' : 'Artist filed it'}
@@ -1062,7 +1130,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
             ) : (
               <>
                 <p style={{ fontSize: 11, color: C.muted, textAlign: 'center', margin: '0 0 2px' }}>Tap once you’ve submitted in {rule.program}. This records that you manually submitted — Setlistr doesn’t file with {proName} or verify receipt.</p>
-                <button onClick={markSubmitted} disabled={markingDone}
+                <button onClick={markSubmitted} disabled={markingDone || songsFailed}
                   style={{ width: '100%', padding: '17px', background: filedPulse ? C.green : markingDone ? C.greenDim : C.green, border: 'none', borderRadius: 12, color: filedPulse ? 'var(--sl-on-accent)' : markingDone ? C.green : 'var(--sl-on-accent)', fontSize: 16, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' as const, cursor: markingDone ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit', animation: 'fadeUp 0.3s ease', transform: filedPulse ? 'scale(1.03)' : 'scale(1)', transition: 'all 0.3s ease' }}>
                   <Check size={15} strokeWidth={2.5} />
                   {markingDone ? 'Recording...' : "I've Filed It"}
@@ -1077,7 +1145,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
 
           {!hasPRO && (isDelegate ? (
             canWriteSubmission ? (
-              <button onClick={markSubmitted} disabled={markingDone}
+              <button onClick={markSubmitted} disabled={markingDone || songsFailed}
                 style={{ width: '100%', padding: '14px', background: 'transparent', border: `1px solid ${C.border}`, borderRadius: 12, color: C.muted, fontSize: 15, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, fontFamily: 'inherit', opacity: markingDone ? 0.6 : 1 }}>
                 <Check size={14} strokeWidth={2.5} />{markingDone ? 'Recording...' : 'Mark as Submitted'}
               </button>
@@ -1088,7 +1156,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
               </button>
             )
           ) : (
-            <button onClick={markSubmitted} disabled={markingDone}
+            <button onClick={markSubmitted} disabled={markingDone || songsFailed}
               style={{ width: '100%', padding: '14px', background: 'transparent', border: `1px solid ${C.border}`, borderRadius: 12, color: C.muted, fontSize: 15, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, fontFamily: 'inherit', opacity: markingDone ? 0.6 : 1 }}>
               <Check size={14} strokeWidth={2.5} />{markingDone ? 'Recording...' : 'Mark as Submitted'}
             </button>
