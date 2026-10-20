@@ -6,7 +6,7 @@ Branch `refine/prepare-submit`, cut from the approved, unmerged candidate **`32c
 
 Proposal: revision 2 (claude.ai/artifact/6TTmuXhmhDaSHa5X1ULpFj), with the corrections given on 2026-10-20.
 
-**Status: production held.** No merge, production deployment, SQL, environment change or backfill. The Preview shares the production database, so review it read-only. Every write test ran on the disposable local stack.
+**Status: released 2026-10-20.** `main` was fast-forwarded (no force) from `1aee35b` to **`8f6c47e`** after the owner's approval. The approval covered both batches: `32cefdb` and the Prepare → Submit work. Release details are below. Neither SQL, the environment nor native code changed, and there was no backfill. Every write test ran on the disposable local stack.
 
 ## Commits
 
@@ -33,7 +33,9 @@ Proposal: revision 2 (claude.ai/artifact/6TTmuXhmhDaSHa5X1ULpFj), with the corre
   - "All OnStage claims must be submitted by writers of the performed works";
   - direct deposit is required.
   - `scripts/test-claim-progress.ts` asserts the table.
-- bmi.com refuses automated fetches (HTTP 403), so BMI's rule couldn't be re-read today. It stays as recorded in `lib/pro-rules.ts`, with its source link: final cutoff two quarters after the show's quarter, December cutoffs on Dec 21, and an earlier distribution cutoff. Worth one manual look at bmi.com/creators/bmi-live.
+- bmi.com refuses automated fetches (HTTP 403). Search excerpts of BMI's own pages were checked on 2026-10-20; this is not a direct read of the pages:
+  - They are **consistent** with `lib/pro-rules.ts`. Each quarter has an earlier deadline with a sooner payment, and a later one (for example 1Q26: June 30, then September 30). Entry is allowed up to two quarters back. Only the performing songwriter enters shows, not a manager or publisher, and direct deposit is required.
+  - **Conflict, unresolved:** BMI's pages disagree on the December 2027 cutoff. One says Dec 21, another Dec 31. The code uses Dec 21 for every December, which is never later than either. That is the conservative choice, **not a verified date**. No rule was changed. Someone should read bmi.com/creators/bmi-live by hand and confirm the date in a BMI Live account.
 
 **Details.**
 - When complete, details fold to their values (for example "Start time 9:00 PM · Ticket price 25 · Promoter …") with Edit.
@@ -158,10 +160,44 @@ A second tap while a write is in flight does nothing, and a repeat write can't m
    The installed app loads production, so it can't exercise this unmerged code. All of the above is Chromium simulation.
 2. **Details typed by a team member stay on their device.** The link doesn't carry them; the download does. Accepted for this batch: no shared storage, endpoints or credential sharing.
 3. **The route check is best effort.** Territory comes from free-text venue fields; when unsure, no warning is shown.
-4. **BMI's rule wasn't re-read today** (bmi.com blocks automated fetches). It is unchanged.
+4. **BMI's December cutoffs.** BMI's own pages give Dec 21 and Dec 31 for December 2027. Setlistr shows Dec 21, the conservative choice, not a verified date. Rules are unchanged; a manual check is still open.
 5. **Start time.** Unscheduled captures still default the start time in the device's zone, and say so. A venue zone at capture would need a capture or schema change.
 6. **Still open, untouched:**
    - historical backfill;
    - live-capture and upload catalogue repair;
+   - Notion webhook dedup;
+   - catalogue count integrity.
+
+## Release (2026-10-20)
+
+- **Approval:** the owner approved `refine/prepare-submit` at `8f6c47ebd415ab676a9d363294654b3c43bb2592`, including `32cefdb`, after reviewing the combined Preview (setlistr-d9devrv3h-jesse-slacks-projects.vercel.app). That approval is visual. It doesn't verify device behaviour.
+- **Before the push:**
+  - `origin/main` and the candidate were unchanged (`1aee35b`, `8f6c47e`);
+  - `main` was unprotected, with linear history;
+  - the owner confirmed no show was live.
+- **Merge:** a fast-forward push, `1aee35b..8f6c47e`, with no force. The production commit is exactly `8f6c47e`.
+- **Deployment:** the GitHub → Vercel production deployment created 14:27:57Z reported success (`setlistr-3l2a1wz93-jesse-slacks-projects.vercel.app`).
+- **Diff `1aee35b..8f6c47e`:** 19 files: app pages, components, `lib/`, docs and test scripts. No SQL or migrations, no native code or Capacitor config, no capture or recognition, no API routes, middleware, configuration, packages or environment files.
+
+### Rollback
+
+1. Promote the previous production deployment (built from `1aee35b`) in the Vercel dashboard.
+2. Then reconcile Git: revert `1aee35b..8f6c47e` on `main` through GitHub. No force-push.
+3. The catalogue SQL (migrations 0025–0027) stays in place; both builds use it.
+
+**Local-storage limitation.** The new build moves each show's typed details to a per-account key (`setlistr:claim:<account>:<show>`). The old build reads only `setlistr:claim:<show>`. After a rollback, details typed or moved under the new build won't appear in the old build on that browser. They are a convenience only; no record is affected.
+
+Old tabs left open on the previous build keep writing the old key. The new build reads its own key first, so a value an old tab writes after migration is used only where no per-account value exists.
+
+### After release: open
+
+1. **Device checks on iPhone Safari and the installed app:** pending. See "Real devices" above. Use real shows; never mark a show submitted or submit a claim to test.
+2. **BMI's December dates:** a manual check is pending (see Limits 4).
+3. **Unchanged and still open:**
+   - Manager-typed details are device-local;
+   - the route check is best effort;
+   - unscheduled captures default the start time in the device's zone;
+   - historical backfill;
+   - catalogue repair for live capture and uploads;
    - Notion webhook dedup;
    - catalogue count integrity.
