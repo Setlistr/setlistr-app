@@ -59,6 +59,7 @@ There are no new dependencies in this candidate. Export stays unavailable; the o
   - Results are cached for one hour per URL. That's short because Mapbox's terms limit storing temporary geocoding results.
 - **Drawing:** Setlistr's own Mapbox Static Images style (`dark-v11`), loaded by the browser with the public token, as Career does today. The server returns only each view's centre and zoom and the dot positions as percentages. Venue latitude and longitude never reach the client. The image is drawn without markers and the gold dots sit on top, so the page and the PDF share one framing.
 - **Attribution:** Mapbox's logo and attribution stay in the image, and the caption repeats “© Mapbox © OpenStreetMap”.
+- **Coverage is never shown as complete when it isn't.** Unmapped confirmed shows are counted by cause: no location on file; a city that can't be identified exactly; or the lookup unavailable (failed, refused, or over the bound).
 - **When there's no map:**
   - Fewer than 3 mapped places: the places are set in type.
   - No token, a failed lookup or a failed image: the caption says the map is unavailable, and the record is unaffected.
@@ -108,76 +109,133 @@ There are no new dependencies in this candidate. Export stays unavailable; the o
 7. There's no export control, and no print button.
 8. `tsc`, `next build` and the existing suites pass. Browser simulation is reported separately from real-iPhone checks, which are still pending.
 
-## 8. Proposal: record photo persistence (not authorised, no SQL)
+## 8. Record photo: proposal (SQL not authorised; tested only in a rolled-back transaction)
 
-- **Table** `public.proof_record_photos`:
-  - `artist_id` (primary key, references `profiles`);
-  - `mode` (`profile` | `record` | `none`);
-  - `object_path`;
-  - `focal_x` and `focal_y` (0–1);
-  - `width` and `height`;
-  - `updated_by` and `updated_at`.
-- **RLS:** select through `can_act_for(artist_id)`; writes only through the server route.
-- **Storage:** a **private** `proof-photos` bucket, at `<artist_id>/<uuid>.jpg`. No public URLs. Reads are server-authorised: the page gets a short-lived signed URL (5 minutes) after the access check, and the PDF route reads the object directly.
-- **Writes:** `POST`/`PATCH`/`DELETE /api/proof/photo` checks owner or `isWriteCapableRole`. The server then:
-  - accepts JPEG, PNG, HEIC or WebP up to 12 MB;
-  - converts and resizes to 2000 px on the long edge;
-  - strips EXIF data, including GPS;
-  - writes the object;
-  - updates the row.
+**Files.** `supabase/proposals/proof_record_photos.sql` (the migration) and `proof_record_photos.test.sql` (its test). They are kept outside `supabase/migrations` so nothing applies them by accident.
 
-  Uploading a new photo or choosing No photo deletes the previous object.
-- **Focal point:** chosen with a drag-to-position preview at 4:5. The same `object-position` is used on the page and in the PDF crop.
-- **Cleanup:**
-  - removal deletes the object;
-  - account deletion sweeps `proof-photos/<artist_id>` (added to `/api/account/delete`);
-  - a revoked team member has no access.
-- **Dependency:** image processing needs `sharp`, which Next already uses on Vercel.
+**Persistence: `public.proof_record_photos`, one row per artist.**
+- **Columns:** `mode` (`profile` | `record` | `none`); `object_path`; `focal_x` and `focal_y` (0–1; defaults 0.5 and 0.3); `width` and `height`; `updated_by` and `updated_at`.
+- **Constraints:**
+  - a record photo always has an object, and other modes never keep one;
+  - the object must be `<artist_id>/<uuid>.jpg`, so it can't point into another folder;
+  - the focal point must lie within the image.
+- **Deletion:** `ON DELETE CASCADE` from `profiles`.
+- **RLS:** select via `can_act_for(artist_id)`. There are no client write grants; writes go only through the server route.
 
-## 9. Proposal: PDF library (approval needed before adding)
+**Storage: private bucket `proof-photos`.**
+- `public = false`, processed JPEG only, 4 MB.
+- **No client policies at all:** artists, team members and anonymous users can neither read nor write objects directly.
+- **No signed or public URLs:** the page shows the image through `GET /api/proof/photo?artist_id=`, which checks access as the summary does and streams the bytes with `Cache-Control: private`. The PDF route reads the object with the service role after its own check. This works with the installed app's existing cookie session.
 
-**Recommendation: `@react-pdf/renderer` (v4, MIT).**
+**Upload validation (proposed `POST /api/proof/photo`).**
+- **Who:** the owner or a write-capable team member (`isWriteCapableRole`), checked on every request; revoked access is refused.
+- **Size:** at most 12 MB in.
+- **Type by magic bytes, not file name:** JPEG, PNG, WebP or HEIC/HEIF.
+- **Decoded with `sharp`,** which is already a dependency and already handles iPhone HEIC in `/api/parse-setlist`. Images must be 600–8000 px on the short and long edges.
+- **Processing:**
+  - rotated by the EXIF orientation, then **every metadata block dropped**, GPS included;
+  - resized to 2000 px on the long edge;
+  - written as a JPEG (quality 82) to `<artist_id>/<new uuid>.jpg`.
 
-- **Deployment:**
-  - It runs in a Node route handler on Vercel.
-  - It needs `experimental.serverComponentsExternalPackages: ['@react-pdf/renderer']` in `next.config`, a config change that needs approval.
-  - It works with React 18.
-- **Layout:** flexbox, text wrapping, a fixed header and footer on each page, `wrap`/`break` control, and page numbers. These cover long names, the register across pages, and small records with their shows on the cover.
-- **Fonts:** it embeds TrueType fonts. Bebas Neue, DM Sans and DM Mono are under the SIL Open Font License, which permits embedding. Their font files would ship with the route.
-- **Cost:** about 10–15 MB in `node_modules` (pdfkit, fontkit and yoga), used on the server only, so nothing reaches the client bundle.
-- **Alternatives:**
-  - `pdf-lib` (MIT) is smaller, but has no layout engine: wrapping and pagination would be hand-written, which is a larger risk.
-  - Headless Chromium is too heavy for serverless.
-- **Delivery:**
-  - The same summary loader, plus the Static Images map and the artist image fetched on the server.
-  - `GET /api/proof/pdf?artist_id=` checks access again and returns the PDF as an attachment, with `Cache-Control: private, no-store`.
-  - The client fetches it and hands it off as the claim sheet does: a download in browsers, the share sheet in the installed app, and a visible error otherwise.
-  - There's no public file and no credential in any URL.
+**Crop and focal point.** The client sends `focal_x` and `focal_y` from a drag-to-position preview at 4:5. The page uses `object-position: <x·100>% <y·100>%`, and the PDF crops the same rectangle on the server before embedding, so both show the same framing.
+
+**Cleanup.**
+- **Replacing or removing:** choosing a new photo, "Use profile image" or "No photo" deletes the previous object after the row update succeeds; a failed delete is logged and retried.
+- **Account deletion:** sweeps `proof-photos/<artist_id>/`, alongside the existing `avatars/<userId>` sweep in `/api/account/delete`.
+- **Orphans:** objects without a row are removed by a periodic check.
+
+**Tested (local security-test stack, inside `BEGIN … ROLLBACK`): 18/0.**
+- Constraints: missing object; object in a profile row; another folder; path traversal; focal point out of range; a valid row.
+- The bucket is private and accepts JPEG only.
+- **Reads:** artist, manager and viewer can read the row; revoked and unrelated users can't.
+- **No direct access:** artist and manager can't read the object; no client can write the row or upload; anonymous users get nothing.
+- Deleting the artist removes the row.
+- After the rollback the table and bucket are absent.
+
+## 9. PDF (approved 2026-10-21)
+
+**Library: `@react-pdf/renderer` 4.9.0 (MIT), exact version, installed.**
+- **Licences:** fonts are under the SIL Open Font License (`lib/proof/pdf/fonts/OFL-*.txt`). Bebas Neue, DM Sans (Regular, Medium, Bold, Italic) and DM Mono (Regular, Medium) are embedded.
+- **Next config** (`next.config.mjs`, the minimum):
+  - `serverComponentsExternalPackages: ['@react-pdf/renderer']`;
+  - `outputFileTracingIncludes` for the fonts.
+- **Verified against a real `next build` with a real `node_modules`:**
+  - the PDF route's trace includes `@react-pdf` (42 files), fontkit, pdfkit, yoga and all 10 font files, about 5.5 MB;
+  - no client bundle contains react-pdf, pdfkit, fontkit or yoga;
+  - `next start` serves the PDFs.
+- **Fonts per render:** react-pdf kept font state between documents in one server process, and a later document lost glyphs; this was reproduced, with Bebas's W missing. Every render now clears and re-registers the fonts, and renders run one at a time per process. Four simultaneous exports were checked.
+
+**Route: `GET /api/proof/pdf?artist_id=&tz=`.**
+- Built from the same `loadProofSummary` and `lib/proof/wording.ts` as the page.
+- **Access:** export needs the owner or a write-capable role, checked on every request. Viewers, revoked, pending and unrelated users get 403 with no file; signed-out users get 401.
+- **Response headers:** `Content-Type: application/pdf`; `Content-Disposition: attachment`; `Cache-Control: private, no-store, max-age=0`; `X-Content-Type-Options: nosniff`.
+- Nothing is stored or published.
+
+**Document.**
+- **Cover:** the cover always fits one page, by a height budget:
+  - name, period and photo, when one is embeddable;
+  - the dominant figure and supporting facts;
+  - the map with the coverage line and attribution, or the places set in type, with a line when the map failed;
+  - on small records, the shows themselves;
+  - the setlist sources and what isn't counted.
+- **Register:** the running header, title and column headings repeat on every page; rows never split; a year heading is never left alone at a page foot; every row carries its full date.
+- **Last page:** "How this record is made", the place coverage, the relation to the Dashboard, what's not included, and a statement that the document holds no legal names, identification numbers, contact details or location readings.
+- **Page numbers:** "N of M" on every page.
+
+**Images.**
+- The artist's own upload in Setlistr storage is embedded when it's JPEG or PNG. Any other format, a failure, or an external (Spotify) image is omitted, and the photo-free cover is used.
+- The map is the same Static Images view as the page, fetched on the server; on failure the places are set in type and the PDF says so.
+
+**Handoff, reusing the claim sheet's pattern.**
+- **Browser:** a download; the object URL is released after a minute.
+- **Installed app:** the share sheet with the PDF file. Dismissing it is silent.
+- **App with no file sharing, or a failed share:** an honest error ("Open setlistr.ai in Safari to download it"). There is no blob navigation and no HTTPS fallback, which would leave the app without a way back.
+- Errors are explicit for 401, 403, server failures and non-PDF answers.
 
 ## 10. Candidate verification (2026-10-21)
 
 **Environment:**
-- The disposable stack only (`127.0.0.1:54621`), with production's access rules applied locally from 0001, 0004, 0005 and 0006: owner-only `profiles` and recognition events, `product_events`, `chunk_index`, and the production songs view.
-- Seeded sample artists and roles. No real data was read or written.
+- **Database:** the disposable stack only (`127.0.0.1:54621`), with production's access rules applied locally from 0001, 0004, 0005 and 0006, and seeded sample artists and roles.
+- **Server:** a real production build (`next build` + `next start`).
+- **Data:** no production or Preview data was read or written by tests.
+- **Record-photo SQL:** tested on the local security-test stack inside a rolled-back transaction only.
 
 **Results:**
-- **Unit** (`scripts/test-proof-summary.ts`): 48/0.
-- **Route, against SQL ground truth:** 42/0.
-  - Access: owner; manager, tour manager and band member (export allowed); viewer (view only); revoked, pending and unrelated (403, no data); signed out (401).
-  - Revocation takes effect on the next request.
-  - The payload carries no private fields.
-  - Every figure equals the counting rules.
-- **Browser simulation** (Chromium, not a device): 59/0.
-  - Phone at 390 and 320px and desktop at 1280px, in both themes.
-  - Long name, broken image, zero record and small record.
-  - Map failure; loading, error and Try again; workspace switching with a late response dropped; revoked mid-session.
-- `tsc` and `next build` pass.
 
-**Behaviour observed:**
-- City lookups reject ambiguous names. For example, Kitchener exists in both Ontario and British Columbia with equal relevance, so it stays unmapped and is counted in the caption. Stored venue coordinates avoid this.
-- The existing login page logs a React hydration warning. It is unrelated to Proof and unchanged.
+| Suite | Result | Covers |
+|---|---|---|
+| Unit (`scripts/test-proof-summary.ts`) | 48/0 | The summary rules and map framing |
+| Summary route, against SQL ground truth | 42/0 | Every role, revocation, payload privacy, figures |
+| PDF files (route, real files rasterised and read back) | 32/0 | See below |
+| Export from the page | 14/0 | See below |
+| Page, browser simulation | 58/0 | Phone 390 and 320px and desktop in both themes; long name, broken image, zero and small records; map failure; loading, error and retry; workspace switching; revocation |
+| Record-photo migration (rolled back) | 18/0 | See §8 |
 
-**Pending:**
-- Real iPhone checks (Safari and the installed app).
-- The record photo and PDF, awaiting approval (§8, §9).
-- On Preview, whether server-side Mapbox lookups are accepted by the token's URL restrictions. If not, only shows with stored venue coordinates are mapped, and the caption counts the rest.
+PDF file checks covered:
+- **Access:** owner and delegated exports; Viewer, revoked, pending and unrelated users refused; signed-out users refused.
+- **Response:** private, non-cacheable headers.
+- **Agreement with the page:** cover figures, coverage, sources and the Dashboard relation.
+- **Pagination:** the cover fits one page; the running header and column headings repeat; every confirmed show appears exactly once.
+- **Content:** "phone near venue" only on qualifying shows; "N of M" page numbers; no sensitive fields.
+- **Record sizes:** small, zero, a long accented name, and 320 shows (14 pages, under 1 s; all 3,830 kept songs counted).
+- **Concurrency:** four simultaneous exports.
+
+Export checks covered:
+- browser download, by the owner and a manager;
+- no control for a Viewer;
+- simulated installed app: share sheet, dismissal, failure, and no file sharing (honest error); WebKit;
+- access revoked after the page loaded;
+- a server error, and a non-PDF answer.
+
+**Covers rendered locally from the real document code:** with and without photo; map drawn or failed; long accented name; the small record. Every cover fits one page.
+
+**Unit suites:** record-summary 31, filing-status 39, mobile-layout-invariants 147, date-format 16, show-date 13, appearance 75, submissions-nav-counts 22 and claim-sheet-handoff 12 all pass. `tsc` passes.
+
+**Map behaviour:**
+- **Coverage wording names its cause:** for example, "83 of 86 shows mapped · 2 with no location on file · 1 in a city that couldn’t be identified exactly". A refused or failed lookup reads "N not located: the place lookup was unavailable", and a map that can't be drawn is stated.
+- **Why one place wasn't mapped:** Kitchener exists in both Ontario and British Columbia with equal relevance, so it stays unmapped.
+- **Token and environment:** `NEXT_PUBLIC_MAPBOX_TOKEN` is fixed at build time, as Vercel builds do. Whether server-side lookups and the PDF's static map are accepted under the token's URL restrictions on Preview still needs checking there. If they aren't, the coverage line and the PDF say so; no credentials or restrictions were changed.
+
+**Not verified here:**
+- **Real iPhone checks:** Safari against the Preview, then the installed app after an approved release.
+- **The existing login page** logs a React hydration warning. It is unrelated to Proof and unchanged.
