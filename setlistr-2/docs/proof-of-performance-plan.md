@@ -153,3 +153,31 @@ There are no new dependencies in this candidate. Export stays unavailable; the o
   - `GET /api/proof/pdf?artist_id=` checks access again and returns the PDF as an attachment, with `Cache-Control: private, no-store`.
   - The client fetches it and hands it off as the claim sheet does: a download in browsers, the share sheet in the installed app, and a visible error otherwise.
   - There's no public file and no credential in any URL.
+
+## 10. Candidate verification (2026-10-21)
+
+**Environment:**
+- The disposable stack only (`127.0.0.1:54621`), with production's access rules applied locally from 0001, 0004, 0005 and 0006: owner-only `profiles` and recognition events, `product_events`, `chunk_index`, and the production songs view.
+- Seeded sample artists and roles. No real data was read or written.
+
+**Results:**
+- **Unit** (`scripts/test-proof-summary.ts`): 48/0.
+- **Route, against SQL ground truth:** 42/0.
+  - Access: owner; manager, tour manager and band member (export allowed); viewer (view only); revoked, pending and unrelated (403, no data); signed out (401).
+  - Revocation takes effect on the next request.
+  - The payload carries no private fields.
+  - Every figure equals the counting rules.
+- **Browser simulation** (Chromium, not a device): 59/0.
+  - Phone at 390 and 320px and desktop at 1280px, in both themes.
+  - Long name, broken image, zero record and small record.
+  - Map failure; loading, error and Try again; workspace switching with a late response dropped; revoked mid-session.
+- `tsc` and `next build` pass.
+
+**Behaviour observed:**
+- City lookups reject ambiguous names. For example, Kitchener exists in both Ontario and British Columbia with equal relevance, so it stays unmapped and is counted in the caption. Stored venue coordinates avoid this.
+- The existing login page logs a React hydration warning. It is unrelated to Proof and unchanged.
+
+**Pending:**
+- Real iPhone checks (Safari and the installed app).
+- The record photo and PDF, awaiting approval (§8, §9).
+- On Preview, whether server-side Mapbox lookups are accepted by the token's URL restrictions. If not, only shows with stored venue coordinates are mapped, and the caption counts the rest.
