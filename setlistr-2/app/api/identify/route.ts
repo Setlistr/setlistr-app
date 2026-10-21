@@ -4,6 +4,7 @@ import { createClient } from '@supabase/supabase-js'
 import { ACR_DAILY_CALL_LIMIT, ACR_LIMIT_MESSAGE } from '@/lib/acr-limits'
 import { normalizeSongKey } from '@/lib/reconciliation/normalize'
 import { isWriteCapableRole } from '@/lib/writeCapableRoles'
+import { writerCredit } from '@/lib/writer-credits'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -237,7 +238,7 @@ async function enrichFromMusicBrainz(title: string, artist: string, isrcFromACR:
             if (wr.ok) {
               const wd = await wr.json()
               const compRels = wd?.relations?.filter((x: any) => ['composer','writer','lyricist'].includes(x.type)) || []
-              if (compRels.length) result.composer = compRels.map((x: any) => x.artist?.name).filter(Boolean).join(', ')
+              if (compRels.length) result.composer = writerCredit(compRels)
             }
           }
         }
