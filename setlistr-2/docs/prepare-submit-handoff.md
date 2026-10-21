@@ -6,7 +6,7 @@ Branch `refine/prepare-submit`, cut from the approved, unmerged candidate **`32c
 
 Proposal: revision 2 (claude.ai/artifact/6TTmuXhmhDaSHa5X1ULpFj), with the corrections given on 2026-10-20.
 
-**Status: released 2026-10-20.** `main` was fast-forwarded (no force) from `1aee35b` to **`8f6c47e`** after the owner's approval. The approval covered both batches: `32cefdb` and the Prepare → Submit work. Release details are below. Neither SQL, the environment nor native code changed, and there was no backfill. Every write test ran on the disposable local stack.
+**Status: released 2026-10-20.** `main` was fast-forwarded (no force) from `1aee35b` to **`8f6c47e`** after the owner's approval. The approval covered both batches: `32cefdb` and the Prepare → Submit work. A narrow claim-sheet download fix followed as **`3e955c2`** (see "Claim-sheet download fix"). Release details are below. Neither SQL, the environment nor native code changed, and there was no backfill. Every write test ran on the disposable local stack.
 
 ## Commits
 
@@ -155,7 +155,7 @@ A second tap while a write is in flight does nothing, and a repeat write can't m
    - Where the portal opens.
    - Clipboard fidelity in the portal.
    - Returning after tab eviction.
-   - Downloads.
+   - Downloads: the installed-app claim-sheet action is confirmed working after `3e955c2` (see below). The other items remain pending.
 
    The installed app loads production, so it can't exercise this unmerged code. All of the above is Chromium simulation.
 2. **Details typed by a team member stay on their device.** The link doesn't carry them; the download does. Accepted for this batch: no shared storage, endpoints or credential sharing.
@@ -189,11 +189,44 @@ A second tap while a write is in flight does nothing, and a repeat write can't m
 
 Old tabs left open on the previous build keep writing the old key. The new build reads its own key first, so a value an old tab writes after migration is used only where no per-account value exists.
 
+## Claim-sheet download fix (2026-10-20)
+
+**Report.** After the `8f6c47e` release, tapping Download claim sheet in the installed app did nothing visible.
+
+**Cause, demonstrated.**
+- The download code was unchanged since `1aee35b`, apart from the show-date line, so the release didn't introduce it.
+- In Chromium and WebKit with iPhone emulation, the control fires, the sheet is generated and the download completes.
+- The installed app is a WKWebView run by Capacitor iOS 8.3.1, which has no download handling. A macOS WKWebView harness running Capacitor's navigation logic showed the result: the `blob:` download is treated as outside the app, handed to the system (which has no handler for `blob:`), and cancelled. The page hears nothing back.
+
+**Fix (`3e955c2`, `lib/claim-sheet-handoff.ts`).**
+- **Browsers:** the same download as before.
+- **Installed app:** the sheet goes to the iOS share sheet (Web Share API with a file). Where the web view doesn't offer it, or sharing fails, the page explains why and shows the sheet's text, read-only and selectable, with "Copy the sheet".
+- **Errors:** a sheet that can't be generated shows an explicit error. Dismissing the share sheet isn't an error.
+- **Unchanged:** sheet content (SOCAN, BMI and GMR sheets for Owner, Manager and Viewer were byte-identical before and after); Manager and Viewer sheets carry no legal name or IPI; no path writes submission status. No plugin, native or configuration change.
+
+**Verification before release** (disposable stack and local branch, never production data):
+- `tsc` and `next build` pass.
+- Handoff unit tests 12/0; simulated installed app 15/0.
+- Copy failing (clipboard and fallback copy both blocked), in Chromium and WebKit, Owner and Viewer: 50/0. The text stays, can be selected in full, and status is unchanged.
+- Main Submit browser checks 69/0.
+- iPhone Safari download confirmed by the owner on the fix Preview (setlistr-6hxksclgb-jesse-slacks-projects.vercel.app).
+
+**Release.**
+- On the owner's approval, `main` was fast-forwarded (no force) from `8f6c47e` to **`3e955c29fdb7f22556002b26e7ef16e2c443142e`**. Three files changed: the Submit page, `lib/claim-sheet-handoff.ts` and its test. No SQL, native, environment, package or capture changes.
+- The Vercel production deployment succeeded: setlistr-j602ieeiz-jesse-slacks-projects.vercel.app.
+
+**Device confirmation.** After closing and reopening the installed app, the owner confirmed the claim-sheet action works on `3e955c2`. The report doesn't say whether the share sheet or the text fallback appeared, so which path the app's web view takes is still unknown.
+
+**Rollback.** Promote the `8f6c47e` deployment in Vercel, then revert `3e955c2` on `main` through GitHub. No data or storage is involved.
+
 ### After release: open
 
-1. **Device checks on iPhone Safari and the installed app:** pending. See "Real devices" above. Use real shows; never mark a show submitted or submit a claim to test.
+1. **Device checks on iPhone Safari and the installed app:** the installed-app claim-sheet action is confirmed (above). Still pending: where the portal opens, clipboard fidelity in the portal, and returning after tab eviction. Use real shows; never mark a show submitted or submit a claim to test.
 2. **BMI's December dates:** a manual check is pending (see Limits 4).
-3. **Unchanged and still open:**
+3. **Claim-sheet content fixes.** These are separate from each other and from the download fix; neither is started.
+   - **Duplicated writer names.** The owner reported writer names appearing more than once in the claim sheet. Each song prints its own `Writer:` line from the song's composer field. Whether the duplication is within one song's field or comes from how the sheet is assembled hasn't been investigated.
+   - **"Deadline" in the exported sheet.** The sheet labels every date "Deadline:", whatever its basis. The page says "Due …" only for official deadlines (ASCAP, BMI), "Working window to …" for Setlistr's 12-month default (SOCAN, PRS, APRA) and "Reminder …" for SESAC and GMR. The export should follow the same basis.
+4. **Unchanged and still open:**
    - Manager-typed details are device-local;
    - the route check is best effort;
    - unscheduled captures default the start time in the device's zone;
