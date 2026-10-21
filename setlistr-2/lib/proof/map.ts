@@ -38,7 +38,8 @@ function latOf(y: number) { return Math.atan(Math.sinh(Math.PI * (1 - 2 * y))) *
 
 // Gentle size differences: base for one show, + step · √(n−1).
 export function dotSize(shows: number, spec: Pick<ViewSpec, 'base' | 'step'>): number {
-  return Math.round((spec.base + spec.step * Math.sqrt(Math.max(0, shows - 1))) * 10) / 10
+  // Growth stops at about 13 shows, so a few very busy cities stay restrained.
+  return Math.round((spec.base + spec.step * Math.min(3.5, Math.sqrt(Math.max(0, shows - 1)))) * 10) / 10
 }
 
 export function frameView(places: MapPlace[], spec: ViewSpec, maxZoom = 9): MapView | null {

@@ -7,42 +7,42 @@ import { useActingAs } from '@/components/ActingAsProvider'
 import { PageFrame } from '@/components/ui/PageFrame'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { LoadError } from '@/components/ui/LoadError'
-import { showDay } from '@/lib/show-date'
+import { isNativeApp } from '@/lib/appearance'
+import { chooseHandoffRoute, isShareCancel, canShareFile } from '@/lib/claim-sheet-handoff'
 import { staticMapUrl, type MapView } from '@/lib/proof/map'
 import type { ProofSummary } from '@/lib/proof/load'
-import type { DateFields, Method, ProofShow } from '@/lib/proof/summary'
+import type { ProofShow } from '@/lib/proof/summary'
+import {
+  METHOD, SOURCE_LINE, HOW_MADE, pl, proofDay, shortDate, periodText, importedYears as importedYearsText,
+  relationText, coverageText, unplacedText, factsText, evidenceRows,
+} from '@/lib/proof/wording'
 
 // Proof of Performance (docs/proof-of-performance-plan.md; approved
 // revision 3). Career is where an artist explores their history; this
 // packages it into a record someone else can understand quickly. Every
-// figure comes from /api/proof/summary, the same summary the export will
-// use. PDF export and the record photo are not built yet, so neither has a
-// control here.
+// figure comes from /api/proof/summary, and the PDF (/api/proof/pdf) is
+// built from the same summary and the same wording (lib/proof/wording.ts).
+// The record photo isn't built yet, so it has no control here.
 
 const MONO = '"DM Mono", monospace'
 const DISPLAY = 'var(--sl-font-display)'
 
-const METHOD: Record<Method, { label: string; short: string }> = {
-  live: { label: 'Recognised live', short: 'Live' },
-  recording: { label: 'From a recording', short: 'Recording' },
-  hand: { label: 'Entered by hand', short: 'By hand' },
-  unknown: { label: 'Method not recorded', short: 'Not recorded' },
-  none: { label: 'No songs on file', short: 'No songs' },
-}
-const SOURCE_LINE: [Method, string][] = [['live', 'recognised live'], ['recording', 'from recordings'], ['hand', 'entered by hand'], ['unknown', 'method not recorded'], ['none', 'with no songs on file']]
 const REGISTER_STEP = 25
 const PLACES_SHOWN = 8
 
-const pl = (n: number, one: string, many: string) => `${n.toLocaleString()} ${n === 1 ? one : many}`
-const day = (d: DateFields) => showDay(d, d.timezone)
-const monthYear = (d: Date) => d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+// The viewer's own zone: the page and the PDF read show days the same way.
+function viewerZone(): string | null {
+  try { return Intl.DateTimeFormat().resolvedOptions().timeZone || null } catch { return null }
+}
 
-function periodText(shows: ProofShow[]): string | null {
-  const days = shows.map(s => day(s.date)).filter((d): d is Date => !!d)
-  if (!days.length) return null
-  const first = new Date(Math.min(...days.map(d => d.getTime()))), last = new Date(Math.max(...days.map(d => d.getTime())))
-  const a = monthYear(first), b = monthYear(last)
-  return a === b ? a : `${a} – ${b}`
+// Browser download of the PDF. The object URL is kept briefly so the
+// browser has finished with it before it's released.
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url; a.download = filename
+  document.body.appendChild(a); a.click(); document.body.removeChild(a)
+  setTimeout(() => URL.revokeObjectURL(url), 60_000)
 }
 
 // The display name fits its column: Bebas is about 0.43em per character, so
@@ -59,6 +59,8 @@ export default function ProofPage() {
   const [imageFailed, setImageFailed] = useState(false)
   const [mapFailed, setMapFailed] = useState(false)
   const [shown, setShown] = useState(REGISTER_STEP)
+  const [exporting, setExporting] = useState(false)
+  const [exportError, setExportError] = useState<string | null>(null)
   const request = useRef(0)
 
   useEffect(() => {
@@ -73,7 +75,7 @@ export default function ProofPage() {
   useEffect(() => {
     if (!resolved || !artistId) return
     const mine = ++request.current
-    setState('loading'); setSummary(null); setImageFailed(false); setMapFailed(false); setShown(REGISTER_STEP)
+    setState('loading'); setSummary(null); setImageFailed(false); setMapFailed(false); setShown(REGISTER_STEP); setExportError(null)
     fetch(`/api/proof/summary?artist_id=${encodeURIComponent(artistId)}`, { cache: 'no-store' })
       .then(async res => {
         if (mine !== request.current) return
@@ -116,7 +118,9 @@ export default function ProofPage() {
   const s = summary
   const c = s.counts
   const photo = !!s.artist.imageUrl && !imageFailed
-  const period = periodText(s.shows)
+  const zone = viewerZone()
+  const day = (d: ProofShow['date']) => proofDay(d, zone)
+  const period = periodText(s.shows, zone)
   const nl = longestWord(s.artist.name) * 0.43
   const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || ''
   const showMap = s.map.mode === 'map' && !!token && !mapFailed && !!s.map.views.phone && !!s.map.views.wide
@@ -149,7 +153,7 @@ export default function ProofPage() {
         {mapImage(s.map.views.phone!, 'pf-map-phone')}
         {mapImage(s.map.views.wide!, 'pf-map-wide')}
         <figcaption className="pf-map-cap">
-          <span>{s.map.unmappedShows > 0 ? `${s.map.mappedShows.toLocaleString()} of ${c.confirmed.toLocaleString()} shows mapped · ${s.map.unmappedShows.toLocaleString()} without a usable location` : `All ${c.confirmed.toLocaleString()} shows mapped`}</span>
+          <span>{coverageText(s.map.mappedShows, c.confirmed, s.map.coverage)}</span>
           <span style={{ whiteSpace: 'nowrap' }}>© Mapbox © OpenStreetMap</span>
         </figcaption>
       </figure>
@@ -160,6 +164,7 @@ export default function ProofPage() {
       <div className="pf-places">
         {names.map(p => <div key={p.name} className="pf-pl"><b>{p.name}</b><span>{pl(p.shows, 'show', 'shows')}</span></div>)}
         {more > 0 && <p className="pf-cap">and {pl(more, 'more place', 'more places')}</p>}
+        {unplacedText(s.map.coverage) && <p className="pf-cap">{unplacedText(s.map.coverage)}</p>}
         {s.map.mode === 'map' && <p className="pf-cap">The map isn’t available right now.</p>}
       </div>
     )
@@ -167,9 +172,7 @@ export default function ProofPage() {
 
   const relation = c.confirmed > 0 ? (
     <p className="pf-rel">
-      <b>{pl(c.confirmed, 'confirmed show', 'confirmed shows')}.</b>{' '}
-      {c.awaiting > 0 ? `The live record on the Dashboard counts ${c.liveRecord.toLocaleString()}: these ${c.confirmed.toLocaleString()}, plus ${c.awaiting.toLocaleString()} awaiting confirmation.` : 'The live record on the Dashboard counts the same shows.'}
-      {c.legacyConfirmation > 0 && ` ${pl(c.legacyConfirmation, 'show was', 'shows were')} marked complete by an earlier version of Setlistr; their review wasn’t recorded.`}
+      <b>{pl(c.confirmed, 'confirmed show', 'confirmed shows')}.</b>{' '}{relationText(c)}
     </p>
   ) : null
 
@@ -180,44 +183,60 @@ export default function ProofPage() {
   const how = (
     <details className="pf-how">
       <summary>How this record is made</summary>
-      <dl>
-        <dt>Confirmed shows</dt><dd>Shows captured or uploaded in Setlistr whose setlist the artist or their team confirmed in review. It’s their confirmation, not an independent check.</dd>
-        <dt>Song performances</dt><dd>Songs kept in confirmed setlists, counted once per show. Songs removed in review aren’t counted.</dd>
-        <dt>How each setlist was recorded</dt><dd>Recognised live, or from a recording, when Setlistr holds evidence of how the show was captured. Entered by hand when every song was added by hand. Method not recorded when songs were recognised but how the show was captured wasn’t recorded. Recognition identifies the recording of a song, not who performed it.</dd>
-        <dt>Location</dt><dd>“Phone near the venue when capture began” appears only when the phone’s reading was within 500 m of the venue. Location is optional; a missing reading changes nothing.</dd>
-        <dt>Not counted</dt><dd>Shows awaiting confirmation and imported history are listed separately.</dd>
-      </dl>
+      <dl>{HOW_MADE.map(([t, d]) => <div key={t}><dt>{t}</dt><dd>{d}</dd></div>)}</dl>
     </details>
   )
 
-  const exportNote = s.access.canExport && c.confirmed > 0 ? <p className="pf-note">PDF export isn’t available yet.</p> : null
+  // Export: only for people who can edit this workspace (the server checks
+  // again on every request). Handed off as the claim sheet is: a download in
+  // the browser, the share sheet in the installed app, an honest error otherwise.
+  async function exportPdf() {
+    if (exporting || !s) return
+    setExporting(true); setExportError(null)
+    try {
+      const tz = zone ? `&tz=${encodeURIComponent(zone)}` : ''
+      const res = await fetch(`/api/proof/pdf?artist_id=${encodeURIComponent(s.artist.id)}${tz}`, { cache: 'no-store' })
+      if (res.status === 401) { setExportError('Your session has ended. Sign in again, then export.'); return }
+      if (res.status === 403) { setExportError('You don’t have permission to export this record.'); return }
+      if (!res.ok || !(res.headers.get('content-type') || '').includes('application/pdf')) throw new Error(`pdf ${res.status}`)
+      const blob = await res.blob()
+      if (blob.size === 0) throw new Error('empty pdf')
+      const name = /filename="([^"]+)"/.exec(res.headers.get('content-disposition') || '')?.[1] || 'proof-of-performance.pdf'
+      let file: File | null = null
+      try { file = new File([blob], name, { type: 'application/pdf' }) } catch { file = null }
+      const route = chooseHandoffRoute({ native: isNativeApp(window), canShareFile: canShareFile(navigator, file) })
+      if (route === 'download') { downloadBlob(blob, name); return }
+      if (route === 'share' && file) {
+        try { await navigator.share({ files: [file], title: name }) } catch (e) {
+          if (isShareCancel(e)) return
+          console.error('[Proof] share failed:', e)
+          setExportError('The PDF couldn’t be shared from the app. Open setlistr.ai in Safari to download it.')
+        }
+        return
+      }
+      setExportError('This app can’t save the PDF yet. Open setlistr.ai in Safari to download it.')
+    } catch (e) {
+      console.error('[Proof] export failed:', e)
+      setExportError('The PDF couldn’t be created. Try again.')
+    } finally { setExporting(false) }
+  }
+  const exportBlock = s.access.canExport && c.confirmed > 0 ? (
+    <>
+      <button type="button" className="pf-btn" onClick={exportPdf} disabled={exporting} aria-busy={exporting}>{exporting ? 'Preparing PDF…' : 'Export PDF'}</button>
+      {exportError && <p role="alert" className="pf-err">{exportError}</p>}
+    </>
+  ) : null
 
   // The register: newest first, grouped by year, each show's evidence a tap away.
   const visible = s.shows.slice(0, shown)
   const years: { y: string; shows: ProofShow[] }[] = []
   for (const sh of visible) {
-    const d = day(sh.date), y = d ? String(d.getFullYear()) : 'Date not recorded'
+    const d = day(sh.date), y = d ? String(d.y) : 'Date not recorded'
     if (!years.length || years[years.length - 1].y !== y) years.push({ y, shows: [] })
     years[years.length - 1].shows.push(sh)
   }
-  const evidence = (sh: ProofShow) => {
-    const added = sh.songs - sh.recognised
-    const rows: [string, string, string][] = []
-    if (sh.method === 'hand') rows.push(['Setlist', 'Entered by hand', `All ${pl(sh.songs, 'song', 'songs')} added by hand.`])
-    else if (sh.method === 'none') rows.push(['Setlist', 'No songs on file', 'This confirmed show has no songs saved.'])
-    else {
-      const counted = `${sh.recognised} of ${pl(sh.songs, 'song', 'songs')} recognised${added > 0 ? `; ${added} added by hand` : ''}.`
-      rows.push(['Setlist', sh.method === 'live' ? 'Recognised live in Setlistr' : sh.method === 'recording' ? 'Recognised from a recording' : 'Method not recorded',
-        sh.method === 'unknown' ? `${counted} How the show was captured wasn’t recorded.` : `${counted} Recognition identifies the recording of a song, not who performed it.`])
-    }
-    if (sh.nearVenue) rows.push(['Location', 'Phone near the venue when capture began', 'Within 500 m of the venue.'])
-    rows.push(sh.confirmation === 'review'
-      ? ['Confirmation', 'Confirmed in review', 'By the artist or their team.']
-      : ['Confirmation', 'Marked complete', 'By an earlier version of Setlistr; a review wasn’t recorded.'])
-    return rows
-  }
-  const facts = (sh: ProofShow) => [sh.method === 'live' || sh.method === 'recording' || sh.method === 'unknown' ? `${sh.recognised} of ${sh.songs} recognised` : '', sh.nearVenue ? 'phone near venue' : ''].filter(Boolean).join(' · ')
-  const shortDate = (d: DateFields) => { const x = day(d); return x ? x.toLocaleDateString('en-US', { month: 'short', day: '2-digit' }) : '—' }
+  const evidence = evidenceRows
+  const facts = factsText
 
   const register = c.confirmed > 0 ? (
     <section className="pf-reg" aria-labelledby="pf-reg-h">
@@ -228,7 +247,7 @@ export default function ProofPage() {
           {g.shows.map(sh => (
             <details key={sh.id} className="pf-show">
               <summary>
-                <span className="pf-dt">{shortDate(sh.date)}</span>
+                <span className="pf-dt">{shortDate(day(sh.date))}</span>
                 <span className="pf-vc"><span className="pf-vn">{sh.venue}</span><span className="pf-ct">{sh.city || 'No city on file'}</span></span>
                 <span className="pf-city-d">{sh.city || 'No city on file'}</span>
                 <span className="pf-songs-d">{sh.songs}</span>
@@ -253,7 +272,7 @@ export default function ProofPage() {
       <div className="pf-sub-h"><h2 id="pf-aw-h">Awaiting confirmation</h2><span>{pl(s.awaiting.length, 'show', 'shows')} · not counted</span></div>
       {s.awaiting.map(a => (
         <div key={a.id} className="pf-plain">
-          <span className="pf-dt">{shortDate(a.date)}</span>
+          <span className="pf-dt">{shortDate(day(a.date))}</span>
           <span className="pf-vc"><span className="pf-vn">{a.venue}</span><span className="pf-ct">{a.city || 'No city on file'}</span></span>
           <span className="pf-city-d">{a.city || 'No city on file'}</span>
           <span className="pf-songs-d" />
@@ -263,11 +282,7 @@ export default function ProofPage() {
     </section>
   ) : null
 
-  const importedYears = (() => {
-    const f = s.imported.first && day(s.imported.first), l = s.imported.last && day(s.imported.last)
-    if (!f || !l) return ''
-    return f.getFullYear() === l.getFullYear() ? ` from ${f.getFullYear()}` : ` from ${f.getFullYear()} to ${l.getFullYear()}`
-  })()
+  const importedYears = importedYearsText(s.imported.first, s.imported.last, zone)
   const imported = s.imported.count > 0 ? (
     <section className="pf-sub" aria-labelledby="pf-im-h">
       <div className="pf-sub-h"><h2 id="pf-im-h">Imported history</h2><span>{pl(s.imported.count, 'show', 'shows')} · not counted</span></div>
@@ -303,9 +318,9 @@ export default function ProofPage() {
         {empty}
         {geo}
         <div className="pf-after">
-          <div>{relation}</div>
-          <div>{sourceLine}{how}</div>
-          <div>{exportNote}</div>
+          <div className="pf-a-rel">{relation}</div>
+          <div className="pf-a-src">{sourceLine}{how}</div>
+          {exportBlock && <div className="pf-a-exp">{exportBlock}</div>}
         </div>
         {register}
         {awaiting}
@@ -338,13 +353,17 @@ export default function ProofPage() {
         .pf-empty { margin-top: 24px; padding: 18px 0; border-top: 1px solid var(--sl-line); border-bottom: 1px solid var(--sl-line); }
         .pf-empty-h { margin: 0; font-size: 17px; font-weight: 700; }
         .pf-empty p:not(.pf-empty-h) { margin: 4px 0 0; font-size: 14.5px; color: var(--sl-text-2); }
-        .pf-after { margin-top: 22px; }
+        .pf-after { margin-top: 22px; display: flex; flex-direction: column; }
+        .pf-a-rel { order: 1; } .pf-a-exp { order: 2; } .pf-a-src { order: 3; }
+        .pf-btn { width: 100%; min-height: 52px; margin-top: 16px; border: none; border-radius: 14px; background: var(--sl-accent); color: var(--sl-on-accent); font: 800 16px "DM Sans", system-ui, sans-serif; cursor: pointer; }
+        .pf-btn:disabled { opacity: 0.7; cursor: default; }
+        .pf-btn:focus-visible { outline: 2px solid var(--sl-accent); outline-offset: 2px; }
+        .pf-err { margin: 10px 0 0; padding: 10px 12px; border-radius: 10px; font-size: 14px; line-height: 1.45; color: var(--sl-text); background: color-mix(in srgb, var(--sl-warn) 8%, transparent); border: 1px solid color-mix(in srgb, var(--sl-warn) 28%, transparent); }
         .pf-rel { margin: 0; font-size: 14px; color: var(--sl-text-2); line-height: 1.5; }
         .pf-rel b { color: var(--sl-text); font-weight: 600; }
         .pf-src { margin: 12px 0 0; font-size: 12.5px; color: var(--sl-text-3); line-height: 1.55; }
         .pf-src b { font-family: ${MONO}; font-weight: 500; color: var(--sl-text-2); }
-        .pf-note { margin: 10px 0 0; font-size: 13px; color: var(--sl-text-3); }
-        .pf-how { margin-top: 2px; }
+                .pf-how { margin-top: 2px; }
         .pf-how > summary { list-style: none; cursor: pointer; display: inline-flex; align-items: center; min-height: 44px; font-size: 14px; font-weight: 700; color: var(--sl-gold-text); }
         .pf-how > summary::-webkit-details-marker { display: none; }
         .pf-how dl { margin: 0 0 6px; font-size: 13.5px; color: var(--sl-text-2); line-height: 1.5; max-width: 60ch; }
@@ -397,6 +416,8 @@ export default function ProofPage() {
           .pf-fig-d .pf-big-l { margin-top: 12px; }
           .pf-map { margin-top: 30px; }
           .pf-after { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr) 240px; gap: 40px; align-items: start; }
+          .pf-a-rel { grid-column: 1; } .pf-a-src { grid-column: 2; } .pf-a-exp { grid-column: 3; grid-row: 1; }
+          .pf-btn { margin-top: 0; }
           .pf-show > summary, .pf-plain { grid-template-columns: 86px minmax(0,1.4fr) minmax(0,1fr) 70px minmax(0,1.3fr); }
           .pf-ct, .pf-hw-p { display: none; }
           .pf-city-d, .pf-songs-d { display: block; font-size: 14px; color: var(--sl-text-2); overflow-wrap: anywhere; }

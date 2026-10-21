@@ -23,8 +23,13 @@ export type ProofSummary = Omit<ProofCore, 'places' | 'showsWithoutPlace'> & {
     mode: 'map' | 'type' | 'none'
     mappedShows: number
     unmappedShows: number
-    // Places a lookup couldn't confirm (or that hit the lookup bound).
-    notLocated: number
+    // Why confirmed shows aren't on the map, in shows (they add up to
+    // unmappedShows). Coverage is never presented as complete when it isn't.
+    coverage: {
+      noLocation: number     // no city and no venue coordinates on file
+      unresolved: number     // a city that can't be identified exactly (ambiguous, or no usable country)
+      lookupFailed: number   // the lookup failed, was refused, hit the bound, or couldn't run
+    }
     views: Partial<Record<ViewName, MapView>>
     // For the typeset fallback: every place of a small record, by shows.
     placeNames: { name: string; shows: number }[]
@@ -75,45 +80,51 @@ async function readForIds<T>(ids: string[], q: (group: string[], from: number, t
 // ── Place lookups: bounded, concurrent, cached briefly ─────────────────────
 export const GEOCODE_LIMIT = 150
 const GEOCODE_CONCURRENCY = 4
-const memo = new Map<string, { at: number; value: { lat: number; lng: number } | null }>()
+type Geo = { status: 'ok'; coords: { lat: number; lng: number } } | { status: 'unresolved' } | { status: 'failed' }
+// Answers (found, or not identifiable) are kept for an hour; failures aren't kept.
+const memo = new Map<string, { at: number; value: Geo }>()
 const MEMO_MS = 60 * 60 * 1000
 
-async function geocodeCity(city: string, iso: string, token: string, referer: string | null): Promise<{ lat: number; lng: number } | null> {
+async function geocodeCity(city: string, iso: string, token: string, referer: string | null): Promise<Geo> {
   const key = `${city.toLowerCase()}|${iso}`
   const hit = memo.get(key)
   if (hit && Date.now() - hit.at < MEMO_MS) return hit.value
   const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(city)}.json?types=place&country=${iso.toLowerCase()}&limit=2&access_token=${encodeURIComponent(token)}`
   try {
-    const res = await fetch(url, { headers: referer ? { Referer: referer } : {}, next: { revalidate: 3600 } } as RequestInit)
-    if (!res.ok) return null
+    const res = await fetch(url, { headers: referer ? { Referer: referer } : {}, next: { revalidate: 3600 }, signal: AbortSignal.timeout(8000) } as RequestInit)
+    if (!res.ok) { console.error('[proof] place lookup refused:', res.status); return { status: 'failed' } }
     const json = await res.json() as { features?: GeoFeature[] }
-    const value = acceptGeocode(city, iso, json.features || [])
+    const coords = acceptGeocode(city, iso, json.features || [])
+    const value: Geo = coords ? { status: 'ok', coords } : { status: 'unresolved' }
     memo.set(key, { at: Date.now(), value })
     return value
-  } catch { return null }
+  } catch (e) { console.error('[proof] place lookup failed:', (e as Error).message); return { status: 'failed' } }
 }
 
-async function locatePlaces(places: ProofCore['places'], token: string | null, referer: string | null): Promise<{ located: Map<string, { lat: number; lng: number }>; notLocated: number }> {
+async function locatePlaces(places: ProofCore['places'], token: string | null, referer: string | null): Promise<{ located: Map<string, { lat: number; lng: number }>; unresolved: Set<string>; failed: Set<string> }> {
   const located = new Map<string, { lat: number; lng: number }>()
+  const unresolved = new Set<string>(), failed = new Set<string>()
   const pending: { key: string; city: string; iso: string }[] = []
-  let notLocated = 0
   for (const p of places) {
     if (p.coords) { located.set(p.key, p.coords); continue }
     const city = cityName(p.name)
-    if (!city || !p.countryCode || !token) { notLocated++; continue }
+    if (!city || !p.countryCode) { unresolved.add(p.key); continue }
+    if (!token) { failed.add(p.key); continue }
     pending.push({ key: p.key, city, iso: p.countryCode })
   }
   const work = pending.slice(0, GEOCODE_LIMIT)
-  notLocated += pending.length - work.length
+  for (const p of pending.slice(GEOCODE_LIMIT)) failed.add(p.key)
   let next = 0
   await Promise.all(Array.from({ length: Math.min(GEOCODE_CONCURRENCY, work.length) }, async () => {
     while (next < work.length) {
       const item = work[next++]
-      const c = await geocodeCity(item.city, item.iso, token!, referer)
-      if (c) located.set(item.key, c); else notLocated++
+      const g = await geocodeCity(item.city, item.iso, token!, referer)
+      if (g.status === 'ok') located.set(item.key, g.coords)
+      else if (g.status === 'unresolved') unresolved.add(item.key)
+      else failed.add(item.key)
     }
   }))
-  return { located, notLocated }
+  return { located, unresolved, failed }
 }
 
 // ── The summary ─────────────────────────────────────────────────────────────
@@ -169,10 +180,14 @@ export async function loadProofSummary(opts: {
   // Map: confirmed places only.
   let mode: ProofSummary['map']['mode'] = core.counts.confirmed === 0 ? 'none' : 'type'
   const views: ProofSummary['map']['views'] = {}
-  let mappedShows = 0, notLocated = 0
+  let mappedShows = 0
+  const coverage = { noLocation: core.showsWithoutPlace, unresolved: 0, lookupFailed: 0 }
   if (core.counts.confirmed > 0) {
-    const { located, notLocated: nl } = await locatePlaces(core.places, opts.mapboxToken, opts.referer)
-    notLocated = nl
+    const { located, unresolved, failed } = await locatePlaces(core.places, opts.mapboxToken, opts.referer)
+    for (const p of core.places) {
+      if (unresolved.has(p.key)) coverage.unresolved += p.shows
+      else if (failed.has(p.key)) coverage.lookupFailed += p.shows
+    }
     const mapped = core.places.filter(p => located.has(p.key)).map(p => ({ name: p.name, shows: p.shows, ...located.get(p.key)! }))
     mappedShows = mapped.reduce((s, p) => s + p.shows, 0)
     if (mapped.length >= MIN_MAPPED_PLACES && opts.mapboxToken) {
@@ -196,7 +211,7 @@ export async function loadProofSummary(opts: {
     },
     access,
     map: {
-      mode, mappedShows, unmappedShows: core.counts.confirmed - mappedShows, notLocated, views,
+      mode, mappedShows, unmappedShows: core.counts.confirmed - mappedShows, coverage, views,
       placeNames: core.places.map(p => ({ name: p.name, shows: p.shows })),
     },
   }
