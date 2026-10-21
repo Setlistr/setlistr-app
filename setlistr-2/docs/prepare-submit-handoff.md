@@ -224,11 +224,16 @@ Old tabs left open on the previous build keep writing the old key. The new build
 1. **Device checks on iPhone Safari and the installed app:** the installed-app claim-sheet action is confirmed (above). Still pending: where the portal opens, clipboard fidelity in the portal, and returning after tab eviction. Use real shows; never mark a show submitted or submit a claim to test.
 2. **BMI's December dates:** a manual check is pending (see Limits 4).
 3. **Claim-sheet content fixes** (branch `fix/claim-sheet-content`, not released).
-   - **Duplicated writer names: fixed at the source (`438c085`).**
+   - **Duplicated writer names: fixed at the source (`438c085`, live capture in `c304cce`).**
      - **Cause:** MusicBrainz returns one relation per role. A songwriter credited as both composer and lyricist was joined twice: "Bohemian Rhapsody" came back as "Freddie Mercury, Freddie Mercury". This was reproduced through `/api/upload-reconcile` on the disposable stack.
      - **Fix:** `lib/writer-credits.ts` keeps one credit per MusicBrainz artist ID, in MusicBrainz's order. Different people who share a name keep a credit each. It is used in `enrich-song`, `upload-identify` and `upload-reconcile`.
-     - **Not changed:** `app/api/identify` (live capture) has the same one-line join. It is off limits without explicit approval, so it is not changed; live captures still store the repeat until it is.
-     - **Stored values are unchanged.** The sheet prints the writer exactly as stored, so a song saved with a repeated name still shows it. There was no backfill and no blind name deduplication.
+     - **Live capture (`app/api/identify`), on the owner's explicit approval:** only the writer-credit line changed, to the same shared function. Its MusicBrainz enrichment is now identical to `upload-identify`'s. Recognition, thresholds, matching, attribution, permissions and capture are unchanged.
+       - The released and edited enrichment functions were run side by side against real MusicBrainz: one credit per person, with the same ISRC and publisher.
+       - With controlled responses, two different people both named "John Smith" stay as two credits.
+       - The `identify` authorization suite passes, 128/0, with ACRCloud and MusicBrainz stubbed on the disposable stack. Its setup needed `artist_name` added in a scratch copy only; the repository test is unchanged.
+     - **Existing stored duplicates remain unchanged.** Writer credits are saved with each song when it's added. Songs saved before this fix keep their repeated names in the database and in every claim sheet, exactly as stored. The fix only affects songs enriched from now on.
+       - There is no backfill, and the exporter doesn't deduplicate by name: a name can't tell one person from two people with the same name.
+       - Correcting older songs would need a separate, approved re-enrichment by MusicBrainz artist ID.
    - **Export date labels: fixed (`b5437ed`).**
      - The sheet now uses the page's wording from `lib/deadline-wording.ts`: "Due" (ASCAP, BMI), "Working window: to …" (SOCAN, PRS, APRA) or "Reminder" (SESAC, GMR), followed by a "Basis:" line.
      - An early cutoff is listed only while it is open.
@@ -244,3 +249,20 @@ Old tabs left open on the previous build keep writing the old key. The new build
    - catalogue repair for live capture and uploads;
    - Notion webhook dedup;
    - catalogue count integrity.
+
+## Next workstreams (recorded 2026-10-21; nothing implemented)
+
+**Proof of Performance:** the next dedicated workstream. A proposal and prototype come before any implementation.
+
+**Schedule: scope.**
+- Schedule covers past, present and future shows, bulk ingestion, calendars and external intelligence, not only upcoming shows.
+- Each integration (Bandsintown, Ticketmaster, setlist.fm, calendars) is scoped on its own.
+- **No combined timeline yet.** First establish how imported, scheduled and captured records relate, so that one show can't appear twice. Imported setlist.fm shows, scheduled `shows` rows and captured performances are separate records today.
+
+**What exists today:**
+- `/app/schedule` lists future scheduled shows only: create, edit, cancel, start, time zones and duplicate warnings.
+- History holds past shows and separates setlist.fm imports.
+- Setup: `/app/show/new` (capture, setlist photo or file, quick add) and `/app/upload/new` (recording upload). `/app/new` and `/app/show/upload` have no links to them.
+- Onboarding imports setlist.fm history once.
+- The dashboard looks up Bandsintown events by artist name, with Ticketmaster as fallback, and doesn't save them.
+- There is no calendar sync and no bulk upload. `email-sync` and `transcript-sync` are internal Notion tools.
