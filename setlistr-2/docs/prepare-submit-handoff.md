@@ -223,9 +223,19 @@ Old tabs left open on the previous build keep writing the old key. The new build
 
 1. **Device checks on iPhone Safari and the installed app:** the installed-app claim-sheet action is confirmed (above). Still pending: where the portal opens, clipboard fidelity in the portal, and returning after tab eviction. Use real shows; never mark a show submitted or submit a claim to test.
 2. **BMI's December dates:** a manual check is pending (see Limits 4).
-3. **Claim-sheet content fixes.** These are separate from each other and from the download fix; neither is started.
-   - **Duplicated writer names.** The owner reported writer names appearing more than once in the claim sheet. Each song prints its own `Writer:` line from the song's composer field. Whether the duplication is within one song's field or comes from how the sheet is assembled hasn't been investigated.
-   - **"Deadline" in the exported sheet.** The sheet labels every date "Deadline:", whatever its basis. The page says "Due …" only for official deadlines (ASCAP, BMI), "Working window to …" for Setlistr's 12-month default (SOCAN, PRS, APRA) and "Reminder …" for SESAC and GMR. The export should follow the same basis.
+3. **Claim-sheet content fixes** (branch `fix/claim-sheet-content`, not released).
+   - **Duplicated writer names: fixed at the source (`438c085`).**
+     - **Cause:** MusicBrainz returns one relation per role. A songwriter credited as both composer and lyricist was joined twice: "Bohemian Rhapsody" came back as "Freddie Mercury, Freddie Mercury". This was reproduced through `/api/upload-reconcile` on the disposable stack.
+     - **Fix:** `lib/writer-credits.ts` keeps one credit per MusicBrainz artist ID, in MusicBrainz's order. Different people who share a name keep a credit each. It is used in `enrich-song`, `upload-identify` and `upload-reconcile`.
+     - **Not changed:** `app/api/identify` (live capture) has the same one-line join. It is off limits without explicit approval, so it is not changed; live captures still store the repeat until it is.
+     - **Stored values are unchanged.** The sheet prints the writer exactly as stored, so a song saved with a repeated name still shows it. There was no backfill and no blind name deduplication.
+   - **Export date labels: fixed (`b5437ed`).**
+     - The sheet now uses the page's wording from `lib/deadline-wording.ts`: "Due" (ASCAP, BMI), "Working window: to …" (SOCAN, PRS, APRA) or "Reminder" (SESAC, GMR), followed by a "Basis:" line.
+     - An early cutoff is listed only while it is open.
+     - Calculations are unchanged, and the page's own wording is unchanged: 5,817 show dates were compared against the released expression.
+   - **Seen while tracing, not changed:**
+     - MusicBrainz lookups in upload hit the 2.5-second time limit often, which leaves songs with no writer.
+     - `enrich-song` falls back to the recording's artist credits when it finds no writer relations, so a performer can appear as "Writer".
 4. **Unchanged and still open:**
    - Manager-typed details are device-local;
    - the route check is best effort;
