@@ -97,7 +97,7 @@ export function evidenceRows(sh: ProofShow): [string, string, string][] {
   const added = sh.songs - sh.recognised
   const rows: [string, string, string][] = []
   if (sh.method === 'hand') rows.push(['Setlist', 'Entered by hand', `All ${pl(sh.songs, 'song', 'songs')} added by hand.`])
-  else if (sh.method === 'none') rows.push(['Setlist', 'No songs on file', 'This confirmed show has no songs saved.'])
+  else if (sh.method === 'none') rows.push(['Setlist', 'No songs on file', 'No songs are recorded as played at this confirmed show.'])
   else if (sh.recognised === 0) rows.push(['Setlist', 'Method not recorded', `${pl(sh.songs, 'song', 'songs')}, with no record of how they were entered.`])
   else {
     const counted = `${sh.recognised} of ${pl(sh.songs, 'song', 'songs')} recognised${added > 0 ? `; ${added} not recognised` : ''}.`
@@ -114,7 +114,7 @@ export function evidenceRows(sh: ProofShow): [string, string, string][] {
 // "How this record is made", for the page disclosure and the PDF's last page.
 export const HOW_MADE: [string, string][] = [
   ['Confirmed shows', 'Shows captured or uploaded in Setlistr whose setlist the artist or their team confirmed in review. It’s their confirmation, not an independent check.'],
-  ['Song performances', 'Songs kept in confirmed setlists, counted once per show. Songs removed in review aren’t counted.'],
+  ['Song performances', 'Songs kept in confirmed setlists, counted once per show. Songs removed in review, and planned songs not marked played, aren’t counted.'],
   ['How each setlist was recorded', 'Recognised live, or from a recording, when Setlistr holds evidence of how the show was captured. Entered by hand only when every song is recorded as added by the artist or their team. Method not recorded when Setlistr holds no evidence either way: songs recognised without a record of how the show was captured, or songs with no record of how they were entered. Recognition identifies the recording of a song, not who performed it.'],
   ['Location', '“Phone near the venue when capture began” appears only when the phone’s reading was within 500 m of the venue. Location is optional; a missing reading changes nothing.'],
   ['Not counted', 'Shows awaiting confirmation and imported history are listed separately.'],

@@ -41,7 +41,12 @@ There are no new dependencies in this candidate. Export stays unavailable; the o
 - `fingerprint`, `humming`, `recognized`, `combined`;
 - `detected` (live capture's source in March 2026) and `music` (early recognition).
 
-*Manual songs* are sources that positively record entry by the artist or team: `manual`, `planned` (the artist's own pre-entered setlist) and `cloned` (copied from a previous show). Every other value is no evidence either way: null, `unidentified`, `transcript` and anything unknown.
+*Kept songs* are the visible rows (`performance_songs_visible`, which already leaves out songs removed in review), excluding source `planned`.
+- Live capture saves planned songs that were never detected as `planned`. Review leaves them that way unless the artist marks them played (stored as `manual` with `was_planned`) or removes them.
+- An unresolved `planned` row is on the plan only, not a song performed. It counts towards no total, no recognition denominator and no provenance.
+- A confirmed show whose only songs are unresolved planned ones is still a confirmed show. It shows 0 songs and "No songs on file", never "entered by hand".
+
+*Manual songs* have source `manual`, the only source that positively records entry by the artist or team. It includes planned songs the artist marked played. Every other value is no evidence either way: null, `unidentified`, `transcript`, `cloned` (in the type list only; no version ever wrote it, so its meaning is unknown) and anything unknown.
 
 The method:
 - **No songs on file:** no kept songs.
@@ -52,7 +57,7 @@ The method:
 
 Missing recognition logs never imply live, and missing manual evidence never implies "entered by hand".
 
-*Correction, 2026-10-22.* Until `c52d678`, "entered by hand" meant only that no song had a current recognition source. Older shows whose songs carry `detected` or `music`, or no source, were therefore shown as "entered by hand". They now read as recognised (then live, recording or not recorded, by capture evidence) or as method not recorded.
+*Correction, 2026-10-22.* Until `c52d678`, "entered by hand" meant only that no song had a current recognition source. Older shows whose songs carry `detected` or `music`, or no source, were therefore shown as "entered by hand". They now read as recognised (then live, recording or not recorded, by capture evidence) or as method not recorded. A follow-up in the same candidate excluded unresolved planned songs from every count. They had been counted as songs since the summary layer (`5b8a3bb`), and briefly in `991a034` as evidence of entry by hand. `cloned` no longer counts as manual evidence.
 
 **Location:** “Phone near the venue when capture began” appears only when `location_verified = true`, meaning the stored reading was within 500 m. Otherwise nothing is shown.
 

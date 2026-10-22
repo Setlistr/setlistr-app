@@ -27,7 +27,7 @@ check('live evidence only → live', setlistMethod({ songs: 5, recognised: 3, up
 check('no evidence → method not recorded (never live)', setlistMethod({ songs: 5, recognised: 3, uploadEvidence: false, liveEvidence: false }) === 'unknown')
 check('conflicting evidence → method not recorded', setlistMethod({ songs: 5, recognised: 3, uploadEvidence: true, liveEvidence: true }) === 'unknown')
 check('recognised sources, including historical names (detected, music)', ['fingerprint', 'humming', 'recognized', 'combined', 'detected', 'music'].every(isRecognisedSource) && !['manual', 'planned', 'unidentified', 'cloned', 'transcript', null].some(isRecognisedSource))
-check('manual evidence: manual, planned, cloned only', ['manual', 'planned', 'cloned'].every(isManualSource) && !['unidentified', 'transcript', 'auto', 'upload', null, undefined, ''].some(isManualSource))
+check('manual evidence: manual only (planned is unplayed; cloned is unknown)', isManualSource('manual') && !['planned', 'cloned', 'unidentified', 'transcript', 'auto', 'upload', null, undefined, ''].some(isManualSource))
 
 console.log('— confirmation')
 check("'complete' → confirmed in review", confirmationKind('complete') === 'review')
@@ -51,16 +51,23 @@ const perfs: PerfRow[] = [
   P('n', { performance_date: '2026-01-10' }),
   P('o', { performance_date: '2026-01-08' }),   // historical 'detected' songs, no capture evidence
   P('q', { performance_date: '2026-01-06' }),   // songs with null / unidentified sources
+  P('r', { performance_date: '2026-01-05' }),   // only unplayed planned songs
+  P('s', { performance_date: '2026-01-04' }),   // planned songs marked played, plus unplayed planned
+  P('t', { performance_date: '2026-01-03' }),   // mixed: recognised + manual + unplayed planned, live flow
+  P('u', { performance_date: '2026-01-02' }),   // copied ('cloned') songs only
+  P('w', { performance_date: '2026-01-01' }),   // cloned alongside manual
 ]
 const legacy: SongRow[] = [...Array.from({ length: 6 }, () => ({ performance_id: 'o', source: 'detected' })), { performance_id: 'q', source: null }, { performance_id: 'q', source: 'unidentified' }, { performance_id: 'q', source: 'manual' }]
-const songRows = [...legacy, ...songs('a', 12, 2), ...songs('b', 0, 8), ...songs('c', 9, 1), ...songs('d', 5, 0), ...songs('e', 3, 0), ...songs('l', 4, 0), ...songs('m', 6, 1), ...songs('n', 7, 0), ...songs('j', 0, 10)]
-const core = buildProofCore(perfs, songRows, [{ performance_id: 'c', flow_source: 'upload' }, { performance_id: 'd', flow_source: 'live' }], [{ performance_id: 'n', chunk_index: null }])
+const S = (id: string, source: string | null, n: number): SongRow[] => Array.from({ length: n }, () => ({ performance_id: id, source }))
+const planned = [...S('r', 'planned', 3), ...S('s', 'manual', 4), ...S('s', 'planned', 2), ...S('t', 'fingerprint', 3), ...S('t', 'manual', 2), ...S('t', 'planned', 2), ...S('u', 'cloned', 2), ...S('w', 'cloned', 1), ...S('w', 'manual', 3)]
+const songRows = [...legacy, ...planned, ...songs('a', 12, 2), ...songs('b', 0, 8), ...songs('c', 9, 1), ...songs('d', 5, 0), ...songs('e', 3, 0), ...songs('l', 4, 0), ...songs('m', 6, 1), ...songs('n', 7, 0), ...songs('j', 0, 10)]
+const core = buildProofCore(perfs, songRows, [{ performance_id: 'c', flow_source: 'upload' }, { performance_id: 'd', flow_source: 'live' }, { performance_id: 't', flow_source: 'live' }], [{ performance_id: 'n', chunk_index: null }])
 const live = perfs.filter(p => isCapturedShow(p)).length
-check('live record equals the Dashboard rule (isCapturedShow)', core.counts.liveRecord === live && live === 11, core.counts)
-check('confirmed = live record ∧ complete stage', core.counts.confirmed === 9, core.counts)
+check('live record equals the Dashboard rule (isCapturedShow)', core.counts.liveRecord === live && live === 16, core.counts)
+check('confirmed = live record ∧ complete stage', core.counts.confirmed === 14, core.counts)
 check('awaiting = live record − confirmed', core.counts.awaiting === 2 && core.counts.confirmed + core.counts.awaiting === core.counts.liveRecord)
 check('imported counted separately, with first and last', core.imported.count === 2 && core.imported.first?.performance_date === '2019-02-02' && core.imported.last?.performance_date === '2021-09-09')
-check('song performances = kept songs on confirmed shows only', core.counts.songPerformances === 14 + 8 + 10 + 5 + 4 + 7 + 7 + 6 + 3, core.counts.songPerformances)
+check('song performances = kept songs on confirmed shows only', core.counts.songPerformances === 14 + 8 + 10 + 5 + 4 + 7 + 7 + 6 + 3 + 0 + 4 + 5 + 2 + 4, core.counts.songPerformances)
 const by = Object.fromEntries(core.shows.map(s => [s.id, s]))
 check('a: live (capture location), near venue, 12 of 14', by.a.method === 'live' && by.a.nearVenue && by.a.recognised === 12 && by.a.songs === 14)
 check('b: entered by hand', by.b.method === 'hand')
@@ -71,14 +78,19 @@ check('m: recording path → recording; location_verified false → not near ven
 check('n: recognition event without chunk_index alone stays method not recorded', by.n.method === 'unknown')
 check('o: historical “detected” songs count as recognised; no capture evidence → method not recorded', by.o.recognised === 6 && by.o.method === 'unknown')
 check('q: null/unidentified sources alongside manual → method not recorded, never entered by hand', by.q.method === 'unknown' && by.q.recognised === 0)
+check('r: only unplayed planned songs → 0 songs, no songs on file (not entered by hand), confirmed show still counted', by.r.songs === 0 && by.r.method === 'none')
+check('s: planned songs marked played count (stored manual); unplayed planned excluded → 4 songs, entered by hand', by.s.songs === 4 && by.s.method === 'hand')
+check('t: mixed setlist → unplayed planned out of total and denominator: 3 of 5 recognised, live', by.t.songs === 5 && by.t.recognised === 3 && by.t.method === 'live')
+check('u: copied songs only → method not recorded, never entered by hand', by.u.songs === 2 && by.u.method === 'unknown')
+check('w: copied + manual → method not recorded', by.w.songs === 4 && by.w.method === 'unknown')
 check('method counts sum to confirmed', Object.values(core.methods).reduce((a, b) => a + b, 0) === core.counts.confirmed, core.methods)
 check('legacy confirmation counted for the note', core.counts.legacyConfirmation === 1)
-check('register newest first', core.shows[0].id === 'b' && core.shows[core.shows.length - 1].id === 'q', core.shows.map(s => s.id))
+check('register newest first', core.shows[0].id === 'b' && core.shows[core.shows.length - 1].id === 'w', core.shows.map(s => s.id))
 check('London UK and London ON are different cities', core.counts.cities === 4, core.counts.cities)
 check('Canada and CA are one country', core.counts.countries === 2, core.counts.countries)
 check('a show with no city and no coordinates has no place', core.showsWithoutPlace === 1)
 const toronto = core.places.find(p => p.key === placeKey('Toronto', 'CA'))
-check('places group by city; stored venue coordinates kept', !!toronto && toronto.shows === 5 && !!toronto.coords, toronto)
+check('places group by city; stored venue coordinates kept', !!toronto && toronto.shows === 10 && !!toronto.coords, toronto)
 
 console.log('— countries')
 check('codes and names', countryCode('ca') === 'CA' && countryCode('United States') === 'US' && countryCode('UK') === 'GB' && countryCode('England') === 'GB' && countryCode('México') === 'MX')

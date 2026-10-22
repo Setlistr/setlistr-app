@@ -54,11 +54,17 @@ export type ProofShow = {
 // the names earlier versions wrote: live capture saved 'detected' (March
 // 2026) and early recognition 'music' (app/api/identify history).
 export const RECOGNISED_SOURCES = new Set(['fingerprint', 'humming', 'recognized', 'combined', 'detected', 'music'])
-// Sources that positively record entry by the artist or their team: added by
-// hand, kept from the artist's own planned setlist, or copied from a previous
-// show. Anything else — null, 'unidentified', 'transcript', unknown values —
-// is no evidence either way.
-export const MANUAL_SOURCES = new Set(['manual', 'planned', 'cloned'])
+// The one source that positively records entry by the artist or their team.
+// It includes planned songs the artist marked played (review stores them as
+// 'manual' with was_planned). Anything else — null, 'unidentified',
+// 'transcript', 'cloned' (never written by any version; meaning unknown),
+// unknown values — is no evidence either way.
+export const MANUAL_SOURCES = new Set(['manual'])
+// A planned song never marked played: on the plan only. Live capture saves
+// unplayed planned songs this way and review leaves them unless the artist
+// marks them played (→ 'manual') or removes them, so they aren't songs
+// performed and are left out of every count and of provenance.
+export const UNPLAYED_SOURCE = 'planned'
 
 export function isRecognisedSource(source: string | null | undefined): boolean {
   return !!source && RECOGNISED_SOURCES.has(source)
@@ -162,6 +168,7 @@ export function buildProofCore(perfs: PerfRow[], songs: SongRow[], flows: FlowRo
 
   const songCount = new Map<string, number>(), recCount = new Map<string, number>(), manCount = new Map<string, number>()
   for (const s of songs) {
+    if (s.source === UNPLAYED_SOURCE) continue
     songCount.set(s.performance_id, (songCount.get(s.performance_id) || 0) + 1)
     if (isRecognisedSource(s.source)) recCount.set(s.performance_id, (recCount.get(s.performance_id) || 0) + 1)
     else if (isManualSource(s.source)) manCount.set(s.performance_id, (manCount.get(s.performance_id) || 0) + 1)

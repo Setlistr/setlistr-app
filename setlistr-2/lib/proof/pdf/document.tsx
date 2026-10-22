@@ -276,7 +276,7 @@ function ProofDocument({ summary: s, zone, preparedAt, photo, map, mapStatus }: 
           ))}
           <View style={st.keyGrid} wrap={false}>
             <Text style={st.keyItem}><Text style={{ fontWeight: 700, color: INK }}>Recognised live / From a recording</Text>: Setlistr holds evidence of how the show was captured. Recognition identifies recordings of songs, not performers.</Text>
-            <Text style={st.keyItem}><Text style={{ fontWeight: 700, color: INK }}>Method not recorded</Text>: songs were recognised, but how the show was captured wasn’t recorded.</Text>
+            <Text style={st.keyItem}><Text style={{ fontWeight: 700, color: INK }}>Method not recorded</Text>: no record of how the show was captured, or of how its songs were entered.</Text>
             <Text style={st.keyItem}><Text style={{ fontWeight: 700, color: INK }}>Phone near venue</Text>: within 500 m of the venue when capture began. Blank: no qualifying reading.</Text>
             <Text style={st.keyItem}><Text style={{ fontWeight: 700, color: INK }}>Songs</Text>: songs kept in the confirmed setlist. {confirmedNote}</Text>
           </View>
