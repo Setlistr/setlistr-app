@@ -47,10 +47,13 @@
 
 ## After release
 
-- **Installed-app check by the owner** (the app loads production):
-  1. open Proof and export the PDF;
-  2. save it to Files and open it;
-  3. export again, dismiss the share sheet, and confirm no error appears.
+- **Production confirmed live (2026-10-22).**
+  - The production deployment for `a10b545` succeeded.
+  - Signed out, `/api/proof/summary` and `/api/proof/pdf` return 401 on setlistr.ai; before the merge they returned 404.
+  - `main` had no later commits.
+- **Owner's installed-app confirmation (2026-10-22):** "The installed-app Proof export works."
+  - This is recorded exactly as stated.
+  - It doesn't establish a separate test of dismissing the share sheet, of Save to Files specifically, or of the fallback paths ("can't save", share failure). Those remain covered only by the Chromium and WebKit simulations.
 - **Known limitations:**
   - iPhone HEIC profile images aren't included in the PDF; the app says so after export.
   - Shows whose city lacks a state, or whose country is missing or conflicting, stay unmapped and are counted in the coverage line.
