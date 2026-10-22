@@ -198,7 +198,13 @@ export default function ProofPage() {
       const res = await fetch(`/api/proof/pdf?artist_id=${encodeURIComponent(s.artist.id)}${tz}`, { cache: 'no-store' })
       if (res.status === 401) { setExportError('Your session has ended. Sign in again, then export.'); return }
       if (res.status === 403) { setExportError('You don’t have permission to export this record.'); return }
-      if (!res.ok || !(res.headers.get('content-type') || '').includes('application/pdf')) throw new Error(`pdf ${res.status}`)
+      if (!res.ok || !(res.headers.get('content-type') || '').includes('application/pdf')) {
+        // A failed export carries a short stage reference (no data) to quote.
+        let reference = ''
+        try { const j = await res.json(); if (typeof j?.reference === 'string') reference = j.reference.replace(/[^A-Za-z0-9_-]/g, '').slice(0, 60) } catch { /* not JSON */ }
+        setExportError(`The PDF couldn’t be created. Try again.${reference ? ` Reference: ${reference}` : ''}`)
+        return
+      }
       const blob = await res.blob()
       if (blob.size === 0) throw new Error('empty pdf')
       const name = /filename="([^"]+)"/.exec(res.headers.get('content-disposition') || '')?.[1] || 'proof-of-performance.pdf'

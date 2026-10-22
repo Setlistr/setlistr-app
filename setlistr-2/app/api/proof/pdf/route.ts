@@ -31,19 +31,26 @@ export async function GET(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: noStore })
 
   const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || null
+  // The stage a failure happened in, reported as a short reference (never
+  // artist data, tokens or document contents) so a deployed failure can be
+  // traced: summary → images → render → respond.
+  let stage = 'summary'
   const referer = req.headers.get('origin') || (req.headers.get('host') ? `https://${req.headers.get('host')}/` : null)
   try {
     const summary = await loadProofSummary({ service: createClient(url, key), callerId: user.id, artistId, mapboxToken: token, referer, supabaseUrl: url })
     if (!summary.access.canExport) return NextResponse.json({ error: 'Export needs permission to edit this workspace' }, { status: 403, headers: noStore })
 
+    stage = 'images'
     const [photo, map] = await Promise.all([
       fetchArtistImage(summary.artist.imageUrl, summary.artist.imageExportable),
       summary.map.mode === 'map' ? fetchCoverMap(summary.map.views.cover, token, referer) : Promise.resolve({ image: null, status: 'none' as const }),
     ])
     if (map.status === 'failed') console.error('[proof/pdf] map image unavailable')
     const preparedAt = new Date()
+    stage = 'render'
     const pdf = await renderProofPdf({ summary, zone, preparedAt, photo: photo.image, map: map.image, mapStatus: map.status })
 
+    stage = 'respond'
     const slug = summary.artist.name.normalize('NFKD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60) || 'artist'
     const day = new Intl.DateTimeFormat('en-CA', { timeZone: zone || undefined, year: 'numeric', month: '2-digit', day: '2-digit' }).format(preparedAt)
     return new NextResponse(new Uint8Array(pdf), {
@@ -58,7 +65,11 @@ export async function GET(req: NextRequest) {
     })
   } catch (e) {
     if (e instanceof ProofError) return NextResponse.json({ error: e.message }, { status: e.status, headers: noStore })
-    console.error('[proof/pdf] failed:', e)
-    return NextResponse.json({ error: 'The PDF could not be created' }, { status: 500, headers: noStore })
+    const err = e as { name?: string; code?: string; message?: string }
+    const reference = `${stage}-${err?.code || err?.name || 'Error'}`.replace(/[^A-Za-z0-9_-]/g, '').slice(0, 60)
+    // Message only, with identifiers removed; never the summary or the document.
+    const detail = String(err?.message || '').replace(/[0-9a-f]{8}-[0-9a-f-]{27}/gi, '<id>').replace(/\S+@\S+/g, '<email>').slice(0, 300)
+    console.error(`[proof/pdf] failed at ${stage} (${reference}): ${detail}`)
+    return NextResponse.json({ error: 'The PDF could not be created', reference }, { status: 500, headers: noStore })
   }
 }
