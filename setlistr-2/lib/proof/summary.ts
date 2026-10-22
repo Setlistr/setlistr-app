@@ -237,9 +237,18 @@ export function buildProofCore(perfs: PerfRow[], songs: SongRow[], flows: FlowRo
 // the artist's own upload in the avatars bucket. Externally hosted images
 // (the Spotify import) are left out until their terms are confirmed.
 export function imageExportable(url: string | null | undefined, supabaseUrl: string | null | undefined, artistId: string): boolean {
-  if (!url || !supabaseUrl) return false
+  return imageEligibility(url, supabaseUrl, artistId) === 'eligible'
+}
+
+// Why an artist image may or may not go into the export, for the document's
+// own note and the route's diagnostics (never the URL itself).
+export type ImageEligibility = 'eligible' | 'no-image' | 'external' | 'other-location'
+export function imageEligibility(url: string | null | undefined, supabaseUrl: string | null | undefined, artistId: string): ImageEligibility {
+  if (!url) return 'no-image'
+  if (!supabaseUrl) return 'external'
   try {
     const u = new URL(url), s = new URL(supabaseUrl)
-    return u.origin === s.origin && u.pathname.startsWith(`/storage/v1/object/public/avatars/${artistId}/`)
-  } catch { return false }
+    if (u.origin !== s.origin) return 'external'
+    return u.pathname.startsWith(`/storage/v1/object/public/avatars/${artistId}/`) ? 'eligible' : 'other-location'
+  } catch { return 'external' }
 }

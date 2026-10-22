@@ -243,7 +243,40 @@ Missing recognition logs never imply live, and missing manual evidence never imp
 
 **Installed app.** Unverified until an approved release; the installed app loads production. The share sheet and the "can't save" path are simulated in Chromium and WebKit only.
 
-## 11. Candidate verification (2026-10-21)
+## 11. PDF finishing pass (2026-10-22)
+
+From review of the real four-page export. The page's design is unchanged.
+
+- **Branding:** the header uses the approved logo asset (`public/logo-dark-tight.png`, the dark-on-light version), embedded as is at 13 pt high with its 3444:652 proportions. It's traced with the PDF route.
+- **Photo:**
+  - The external-image rule is unchanged: only the artist's own upload under `avatars/<artist id>/` is embedded.
+  - The export reports why an image is or isn't on the cover: `X-Proof-Photo` is `ok`, `no-image`, `external`, `other-location`, `unsupported-format` or `retrieval-failed`. The server log names the same reason, never the URL.
+  - When the profile has an image that the PDF leaves out, "This document" on the last page says why in plain words.
+- **Cover:**
+  - Name capped at 64 pt beside a photo or 68 pt without; figure 76 pt (was 110); map band 524×184 (was 210).
+  - Beside a drawn map, up to four rows of most-performed places use the remaining room. Spare space is shared between the sections instead of collecting above the footer.
+  - The scope statement is one sentence with the snapshot date. The setlist-method breakdown and "not included" counts moved to the last page.
+  - Map coverage and attribution are unchanged.
+- **Register:**
+  - Song counts are right-aligned with a 14 pt gutter before the setlist column.
+  - Every column has a right gutter, so long venues wrap within their own column.
+  - Shared column widths for the repeated heading and every row, on every page.
+  - The term key, which duplicated the last page and could spill onto a page of its own, is replaced by a pointer to the last page.
+- **Methodology:**
+  - One "Not included in this document" section; nothing says "listed separately".
+  - No Dashboard reconciliation (that stays in the app).
+  - "Confirmation" appears only when some shows lack a recorded review.
+  - "This document" states the snapshot date.
+- **Not changed:** counting rules, permissions, provenance, and capture and save behaviour.
+
+**Verified:**
+- the packaged build under Node 20 (route 42/0, PDF 36/0, export 25/0, repeat 21/0, browser 58/0, provenance 23/0);
+- every page of a 53-show representative export inspected;
+- photo, long accented name, no-photo and small-record covers rendered from the real document.
+
+**Data concerns:** a separate read-only proposal, `docs/proof-data-audit-proposal.md`.
+
+## 12. Candidate verification (2026-10-21)
 
 **Environment:**
 - **Database:** the disposable stack only (`127.0.0.1:54621`), with production's access rules applied locally from 0001, 0004, 0005 and 0006, and seeded sample artists and roles.

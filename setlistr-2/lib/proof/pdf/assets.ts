@@ -5,7 +5,7 @@
 import { staticMapUrl, type MapView } from '../map'
 
 export type PdfImage = { data: Buffer; format: 'jpg' | 'png' }
-export type Fetched = { image: PdfImage | null; status: 'ok' | 'none' | 'failed' }
+export type Fetched = { image: PdfImage | null; status: 'ok' | 'none' | 'failed'; unsupported?: boolean }
 
 const MAX_BYTES = 10 * 1024 * 1024
 
@@ -16,7 +16,7 @@ async function fetchImage(url: string, headers: Record<string, string> = {}): Pr
     const type = (res.headers.get('content-type') || '').toLowerCase()
     const format = type.includes('png') ? 'png' : type.includes('jpeg') || type.includes('jpg') ? 'jpg' : null
     // Other formats (WebP, HEIC) can't be embedded: treated as no photo.
-    if (!format) return { image: null, status: 'none' }
+    if (!format) return { image: null, status: 'none', unsupported: true }
     const buf = Buffer.from(await res.arrayBuffer())
     if (buf.length === 0 || buf.length > MAX_BYTES) return { image: null, status: 'failed' }
     return { image: { data: buf, format }, status: 'ok' }

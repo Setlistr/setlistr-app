@@ -5,10 +5,10 @@ const nextConfig = {
     // server only and is loaded from node_modules at runtime, not bundled.
     serverComponentsExternalPackages: ['@react-pdf/renderer'],
     // Files the PDF route reads that tracing can't see: the embedded fonts
-    // (SIL Open Font License), and pdfkit's built-in font data, which it
+    // (SIL Open Font License), the Setlistr logo, and pdfkit's built-in font data, which it
     // loads with a computed require when every document starts (without it
     // the deployed export fails: "Cannot find module …/standard-fonts/Helvetica.cjs").
-    outputFileTracingIncludes: { '/api/proof/pdf': ['./lib/proof/pdf/fonts/**', './node_modules/pdfkit/js/standard-fonts/**'] },
+    outputFileTracingIncludes: { '/api/proof/pdf': ['./lib/proof/pdf/fonts/**', './public/logo-dark-tight.png', './node_modules/pdfkit/js/standard-fonts/**'] },
   },
 }
 

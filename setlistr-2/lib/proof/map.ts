@@ -17,11 +17,12 @@ export type MapView = { lng: number; lat: number; zoom: number; w: number; h: nu
 export type ViewSpec = { w: number; h: number; pad: number; base: number; step: number }
 
 // Logical sizes (images are requested @2x). Aspect ratios match the approved
-// revision 3 compositions: phone 332×176, desktop 888×300, cover 524×210.
+// revision 3 compositions: phone 332×176, desktop 888×300; the PDF cover
+// band is 524×184 (shortened in the PDF finishing pass).
 export const VIEWS = {
   phone: { w: 400, h: 212, pad: 20, base: 6, step: 1.6 },
   wide: { w: 1000, h: 338, pad: 36, base: 7, step: 1.9 },
-  cover: { w: 524, h: 210, pad: 22, base: 6, step: 1.6 },
+  cover: { w: 524, h: 184, pad: 22, base: 6, step: 1.6 },
 } satisfies Record<string, ViewSpec>
 export type ViewName = keyof typeof VIEWS
 
