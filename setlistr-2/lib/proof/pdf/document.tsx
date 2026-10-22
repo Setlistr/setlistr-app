@@ -9,6 +9,7 @@ import { Document, Page, View, Text, Image, Font, StyleSheet, renderToBuffer } f
 import type { ProofSummary } from '../load'
 import type { ProofShow } from '../summary'
 import type { PdfImage } from './assets'
+import { VIEWS } from '../map'
 import {
   METHOD, SOURCE_LINE, HOW_MADE, pl, proofDay, shortDate, periodText, importedYears,
   coverageText, unplacedText, factsText, type Day,
@@ -68,8 +69,6 @@ const st = StyleSheet.create({
   cap: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 5, fontSize: 7.6, color: INK3 },
   place: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', paddingVertical: 5, borderBottomWidth: 0.6, borderBottomColor: FAINT },
   placeName: { fontFamily: 'Bebas Neue', fontSize: 24, lineHeight: 0.95, color: INK },
-  top: { width: '33.33%', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', paddingVertical: 4, paddingRight: 14, borderBottomWidth: 0.6, borderBottomColor: FAINT },
-  topName: { fontFamily: 'DM Sans', fontWeight: 500, fontSize: 9.4, color: INK, maxWidth: '78%' },
   mono: { fontFamily: 'DM Mono', fontSize: 9, color: INK3 },
   scope: { fontSize: 8.6, color: INK2, lineHeight: 1.5, paddingTop: 8, borderTopWidth: 0.6, borderTopColor: RULE },
   regTitle: { fontFamily: 'Bebas Neue', fontSize: 30, lineHeight: 0.95, marginTop: 16, color: INK },
@@ -113,7 +112,27 @@ function nameLines(name: string, width: number, size: number) {
 // The cover always fits one page. Heights in points; content area 792 − 38 − 48.
 const COVER_H = 706, PHOTO_W = 168, PHOTO_H = 210
 const FIG_H = 22 + 14 + 61 + 4, SRC_H = 50, HEAD_H = 14 + 30
-const PLACE_ROW = 24 * 0.95 + 10.6, SHOW_ROW = 18, NOTE = 13, TOP_ROW = 19.5, TOP_HEAD = 18 + 10
+const PLACE_ROW = 24 * 0.95 + 10.6, SHOW_ROW = 18, NOTE = 13
+const MAP_BLOCK = (h: number) => 20 + h + 16
+
+// The cover's identity block and map band, decided before the map image is
+// fetched (app/api/proof/pdf asks which view to request): the tallest map
+// band the page has room for beside this name and photo.
+export function coverPlan(s: ProofSummary, hasPhoto: boolean) {
+  const nameW = hasPhoto ? CONTENT_W - PHOTO_W - 26 : CONTENT_W
+  const period = s.shows.length > 0
+  const idLimit = hasPhoto ? PHOTO_H : 170
+  let size = nameSize(s.artist.name, nameW, hasPhoto ? 64 : 68, 30)
+  // Accented capitals (Î, É…) rise above the cap height: such names get room between lines.
+  const nameLH = /[\u00C0-\u024F]/.test(s.artist.name) ? 1.02 : 0.86
+  const idHeight = (sz: number) => 12 + 8 + nameLines(s.artist.name, nameW, sz) * sz * nameLH + (period ? 22 : 0)
+  while (size > 30 && idHeight(size) > idLimit) size -= 2
+  const idH = Math.max(hasPhoto ? PHOTO_H : 0, idHeight(size))
+  const room = COVER_H - HEAD_H - idH - FIG_H - SRC_H - 10
+  const bands: ('coverXL' | 'coverTall' | 'cover')[] = ['coverXL', 'coverTall']
+  const view: 'coverXL' | 'coverTall' | 'cover' = bands.find(v => s.map.views[v] && room >= MAP_BLOCK(VIEWS[v].h)) ?? 'cover'
+  return { nameW, size, nameLH, idH, room, view }
+}
 
 function Header({ right }: { right: string }) {
   return <View style={st.head} fixed><Image src={LOGO} style={{ height: 13, width: 13 * LOGO_RATIO }} /><Text style={st.headR}>{right}</Text></View>
@@ -134,56 +153,35 @@ export type ProofPdfInput = {
   photo: PdfImage | null
   map: PdfImage | null
   mapStatus: 'ok' | 'none' | 'failed'
-  // Why the cover has or lacks the artist image (app/api/proof/pdf).
-  photoOutcome?: PhotoOutcome
 }
+// Why the cover has or lacks the artist image: reported by the route to the
+// app (X-Proof-Photo), never printed in the document.
 export type PhotoOutcome = 'ok' | 'no-image' | 'external' | 'other-location' | 'unsupported-format' | 'retrieval-failed'
 
-// Said in the document when the record has an image in Setlistr that this
-// PDF leaves out, so the reader isn't left guessing.
-const PHOTO_NOTE: Partial<Record<PhotoOutcome, string>> = {
-  external: 'The artist image shown in Setlistr isn’t included: it’s hosted outside Setlistr (for example, imported from Spotify), and this document uses only images uploaded to Setlistr.',
-  'other-location': 'The artist image shown in Setlistr isn’t included: it isn’t stored with this artist’s own uploads in Setlistr.',
-  'unsupported-format': 'The artist image shown in Setlistr isn’t included: its file format can’t be placed in a PDF. A JPEG or PNG uploaded in Settings will appear here.',
-  'retrieval-failed': 'The artist image shown in Setlistr couldn’t be retrieved when this document was made.',
-}
-
-function ProofDocument({ summary: s, zone, preparedAt, photo, map, mapStatus, photoOutcome }: ProofPdfInput) {
+function ProofDocument({ summary: s, zone, preparedAt, photo, map, mapStatus }: ProofPdfInput) {
   const c = s.counts
   const prepared = new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: zone || undefined }).format(preparedAt)
   const period = periodText(s.shows, zone)
   const day = (d: ProofShow['date']): Day | null => proofDay(d, zone)
-  const nameW = photo ? CONTENT_W - PHOTO_W - 26 : CONTENT_W
-  // The name shrinks until the identity block fits beside the photo (or,
-  // without one, within the photo's height plus a little).
-  const idLimit = photo ? PHOTO_H : 170
-  let size = nameSize(s.artist.name, nameW, photo ? 64 : 68, 30)
-  // Accented capitals (Î, É…) rise above the cap height: such names get room between lines.
-  const nameLH = /[\u00C0-\u024F]/.test(s.artist.name) ? 1.02 : 0.86
-  const idHeight = (sz: number) => 12 + 8 + nameLines(s.artist.name, nameW, sz) * sz * nameLH + (period ? 22 : 0)
-  while (size > 30 && idHeight(size) > idLimit) size -= 2
-  const idH = Math.max(photo ? PHOTO_H : 0, idHeight(size))
-  const view = s.map.views.cover
+  const plan = coverPlan(s, !!photo)
+  const { size, nameLH, idH } = plan
+  const view = s.map.views[plan.view] ?? s.map.views.cover
   const showMap = s.map.mode === 'map' && !!view && !!map
   // What's left for places and, on small records, the shows themselves.
-  let room = COVER_H - HEAD_H - idH - FIG_H - SRC_H - 10
-  const MAP_H = view ? 20 + CONTENT_W * view.h / view.w + 16 : 0
+  let room = plan.room
+  const MAP_H = view ? MAP_BLOCK(CONTENT_W * view.h / view.w) : 0
   if (showMap) room -= MAP_H
   const placeNotes = (s.map.placeNames.length > 0 ? 1 : 0) + (unplacedText(s.map.coverage) ? 1 : 0) + (s.map.mode === 'map' && mapStatus === 'failed' ? 1 : 0)
   const placeRows = showMap ? 0 : Math.max(1, Math.min(s.map.placeNames.length, Math.floor((room - 20 - placeNotes * NOTE) / PLACE_ROW)))
   if (!showMap) room -= 20 + placeRows * PLACE_ROW + placeNotes * NOTE
   const smallRows = c.confirmed > 0 && c.confirmed <= 8 ? Math.floor((room - 20 - 18) / SHOW_ROW) : 0
   const small = smallRows >= c.confirmed
-  // Otherwise, beside a drawn map, the most performed places use the room
-  // left (up to four rows of three); what still remains is shared evenly
-  // between the cover's sections (the gaps below), never left in one block.
-  const topRows = showMap && !small ? Math.max(0, Math.min(4, Math.ceil(s.map.placeNames.length / 3), Math.floor((room - TOP_HEAD) / TOP_ROW))) : 0
-  const topPlaces = s.map.placeNames.slice(0, topRows * 3)
+  // Any room left is shared between the cover's sections (the flexible gaps
+  // below), never collected in one block.
   const sources = SOURCE_LINE.filter(([m]) => s.methods[m] > 0).map(([m, l]) => `${s.methods[m].toLocaleString('en-US')} ${l}`).join(' · ')
   const confirmedNote = c.legacyConfirmation > 0
     ? `Each show was confirmed in review by the artist or their team, except ${pl(c.legacyConfirmation, 'show', 'shows')} marked complete by an earlier version of Setlistr.`
     : 'Each show was confirmed in review by the artist or their team.'
-  const photoNote = photoOutcome ? PHOTO_NOTE[photoOutcome] : undefined
 
   // Register rows, grouped by year (newest first, as on the page).
   const groups: { y: string; shows: ProofShow[] }[] = []
@@ -244,17 +242,7 @@ function ProofDocument({ summary: s, zone, preparedAt, photo, map, mapStatus, ph
                 <View style={st.cap}><Text style={{ maxWidth: CONTENT_W - 130 }}>{coverageText(s.map.mappedShows, c.confirmed, s.map.coverage)}</Text><Text>© Mapbox © OpenStreetMap</Text></View>
               </View>
             ) : places}
-            {topPlaces.length > 0 && <View style={{ flexGrow: 1, maxHeight: 60 }} />}
-            {topPlaces.length > 0 && (
-              <View style={{ marginTop: 18 }}>
-                <Text style={[st.ov, { marginBottom: 4 }]}>MOST PERFORMED PLACES</Text>
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-                  {topPlaces.map(p => (
-                    <View key={p.name} style={st.top}><Text style={st.topName}>{p.name}</Text><Text style={st.mono}>{p.shows}</Text></View>
-                  ))}
-                </View>
-              </View>
-            )}
+            {showMap && !small && <View style={{ flexGrow: 1, maxHeight: 60 }} />}
             {(small || !showMap) && <View style={{ flexGrow: 1, maxHeight: 60 }} />}
             {small && (
               <View style={{ marginTop: 20 }}>
@@ -348,7 +336,7 @@ function ProofDocument({ summary: s, zone, preparedAt, photo, map, mapStatus, ph
         )}
         <View wrap={false}>
           <Text style={st.dt}>This document</Text>
-          <Text style={st.dd}>A snapshot of the record on {prepared}, prepared with Setlistr. Shows confirmed after that date aren’t included. It contains no legal names, identification numbers, contact details or location readings.{photoNote ? ` ${photoNote}` : ''}</Text>
+          <Text style={st.dd}>A snapshot of the record on {prepared}, prepared with Setlistr. Shows confirmed after that date aren’t included. It contains no legal names, identification numbers, contact details or location readings.</Text>
         </View>
         <Footer prepared={prepared} />
       </Page>

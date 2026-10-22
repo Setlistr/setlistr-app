@@ -245,36 +245,43 @@ Missing recognition logs never imply live, and missing manual evidence never imp
 
 ## 11. PDF finishing pass (2026-10-22)
 
-From review of the real four-page export. The page's design is unchanged.
+From review of the real export. The page's design is unchanged.
 
-- **Branding:** the header uses the approved logo asset (`public/logo-dark-tight.png`, the dark-on-light version), embedded as is at 13 pt high with its 3444:652 proportions. It's traced with the PDF route.
+- **Branding:** the header uses the approved logo asset (`public/logo-dark-tight.png`, dark on light), embedded as is at 13 pt with its 3444:652 proportions. It's traced with the PDF route.
 - **Photo:**
   - The external-image rule is unchanged: only the artist's own upload under `avatars/<artist id>/` is embedded.
-  - The export reports why an image is or isn't on the cover: `X-Proof-Photo` is `ok`, `no-image`, `external`, `other-location`, `unsupported-format` or `retrieval-failed`. The server log names the same reason, never the URL.
-  - When the profile has an image that the PDF leaves out, "This document" on the last page says why in plain words.
+  - Eligible uploads in WebP, AVIF, GIF or TIFF are converted to JPEG with the server's existing `sharp` (0.33.5) before embedding. The prebuilt `sharp` reads HEIF only as AVIF, so iPhone HEIC can't be decoded; it's reported as unsupported, not guessed at.
+  - The document never explains a missing photo. The route reports `X-Proof-Photo` (`ok`, `no-image`, `external`, `other-location`, `unsupported-format`, `retrieval-failed`). The page shows a one-line note under Export: before export for an external or misplaced image, after export for an unsupported format or failed retrieval.
 - **Cover:**
-  - Name capped at 64 pt beside a photo or 68 pt without; figure 76 pt (was 110); map band 524×184 (was 210).
-  - Beside a drawn map, up to four rows of most-performed places use the remaining room. Spare space is shared between the sections instead of collecting above the footer.
-  - The scope statement is one sentence with the snapshot date. The setlist-method breakdown and "not included" counts moved to the last page.
-  - Map coverage and attribution are unchanged.
+  - The approved composition: portrait and name, the figure, the map.
+  - Name capped at 64 pt beside a photo or 68 pt without; figure 76 pt.
+  - The map band is the tallest of three (524 × 300, 252 or 184) that fits beside this name and photo. The route asks the same plan which band to fetch.
+  - No filler list. Map coverage and attribution are unchanged, and the scope statement is one sentence with the snapshot date.
 - **Register:**
-  - Song counts are right-aligned with a 14 pt gutter before the setlist column.
-  - Every column has a right gutter, so long venues wrap within their own column.
-  - Shared column widths for the repeated heading and every row, on every page.
-  - The term key, which duplicated the last page and could spill onto a page of its own, is replaced by a pointer to the last page.
+  - Right-aligned song counts with a gutter before the setlist column.
+  - Long venues wrap within their own column.
+  - Shared column widths on every page.
+  - A pointer to the last page instead of a duplicate term key.
 - **Methodology:**
-  - One "Not included in this document" section; nothing says "listed separately".
-  - No Dashboard reconciliation (that stays in the app).
+  - One "Not included in this document" section; no Dashboard reconciliation; the snapshot date.
   - "Confirmation" appears only when some shows lack a recorded review.
-  - "This document" states the snapshot date.
-- **Not changed:** counting rules, permissions, provenance, and capture and save behaviour.
 
-**Verified:**
-- the packaged build under Node 20 (route 42/0, PDF 36/0, export 25/0, repeat 21/0, browser 58/0, provenance 23/0);
-- every page of a 53-show representative export inspected;
-- photo, long accented name, no-photo and small-record covers rendered from the real document.
+### Location matching (lib/proof/place.ts)
 
-**Data concerns:** a separate read-only proposal, `docs/proof-data-audit-proposal.md`.
+- **Explicit context is kept.** "Austin, TX" and "London, Ontario" carry their state or province into the lookup. A state or province in the country field ("Texas", "ON") is read as one.
+- **Ambiguous codes are never taken as a country on their own.** A two-letter value that is also a US state or Canadian province code (TN, CA, IN, DE, ME…) keeps both readings. Each reading is looked up, and only one reading that identifies the city settles it: "Nashville, TN" → Tennessee; "Toronto, CA" → Canada; "Los Angeles, CA" → California. If both readings identify a place, it stays unresolved. If a lookup fails, it's reported as "lookup failed".
+- **No ranking guesses.** A lookup is accepted only when exactly one city-level result has the name, the country and (when known) the state or province. "Austin" alone (Texas and Minnesota) stays unresolved; "Austin, TX" is placed.
+- **Conflicts stay unresolved:** "Toronto, ON" with United States; "Austin, TX" with Canada.
+- **Established variants, deliberately few:** NYC and New York City → New York, NY; Québec City → Québec, QC; Washington DC. "St."/"Saint" are one word. Saint John (NB) and St. John's (NL) stay distinct.
+- **Stored data is never overridden.** Stored venue coordinates are used as they are. For a place with stored coordinates whose country field has two readings, the lookup runs only to settle which country is meant.
+- **Counts follow the same evidence.** Countries count only settled readings. Same-named cities count separately only when their states, provinces or countries are known to differ. The page and the PDF read the same summary.
+- **Scope:** Proof only. Career and capture keep their own handling.
+- **Verified:**
+  - unit tests 83/0, with mocked lookups covering ambiguity, conflicts, missing context, failure and stored coordinates;
+  - 38 representative US, Canadian and other places against live lookups, with the token kept in the local process;
+  - a refused lookup (401) reports as "lookup failed".
+
+**Verified overall:** the packaged build under Node 20 (route 42/0, PDF 36/0, export 25/0, repeat 21/0, browser 58/0, provenance 23/0). Every page of a 53-show representative export was inspected, plus photo (converted WebP), long-name, no-photo and small-record covers. Data concerns remain a separate read-only proposal (`docs/proof-data-audit-proposal.md`).
 
 ## 12. Candidate verification (2026-10-21)
 

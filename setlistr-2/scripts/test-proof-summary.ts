@@ -1,7 +1,10 @@
 // DB-free tests for lib/proof/summary.ts and lib/proof/map.ts. Run:
 //   npx ts-node --transpile-only -P scripts/tsconfig.json scripts/test-proof-summary.ts
 import { buildProofCore, setlistMethod, confirmationKind, countryCode, placeKey, imageExportable, isRecognisedSource, isManualSource, type PerfRow, type SongRow } from '../lib/proof/summary'
-import { frameView, acceptGeocode, dotSize, VIEWS, staticMapUrl } from '../lib/proof/map'
+import { frameView, dotSize, VIEWS, staticMapUrl } from '../lib/proof/map'
+import { placeContext, acceptPlace, cityKey, countryReadings, type GeoFeature } from '../lib/proof/place'
+import { geographyCounts } from '../lib/proof/summary'
+import { locatePlaces } from '../lib/proof/load'
 import { isCapturedShow } from '../lib/performance-status'
 
 let pass = 0, fail = 0
@@ -93,19 +96,36 @@ const toronto = core.places.find(p => p.key === placeKey('Toronto', 'CA'))
 check('places group by city; stored venue coordinates kept', !!toronto && toronto.shows === 10 && !!toronto.coords, toronto)
 
 console.log('— countries')
-check('codes and names', countryCode('ca') === 'CA' && countryCode('United States') === 'US' && countryCode('UK') === 'GB' && countryCode('England') === 'GB' && countryCode('México') === 'MX')
-check('unknown country is not guessed', countryCode('Atlantis') === null && countryCode('') === null && countryCode(null) === null)
+check('names read as countries', countryCode('Canada') === 'CA' && countryCode('United States') === 'US' && countryCode('UK') === 'GB' && countryCode('England') === 'GB' && countryCode('México') === 'MX' && countryCode('FR') === 'FR' && countryCode('DE') === null /* Delaware */)
+check('unknown country is not guessed', countryCode('Atlantis') === null && countryCode('') === null && countryCode(null) === null && countryCode('XQ') === null)
+check('TN is never Tunisia on its own: both readings kept', countryCode('TN') === null && JSON.stringify(countryReadings('TN').map(r => r.country + (r.region ? '-' + r.region.code : ''))) === '["TN","US-TN"]')
+check('CA is Canada or California until evidence settles it', countryCode('CA') === null && countryReadings('CA').length === 2)
+check('a state or province in the country field is a subdivision, not a country', JSON.stringify(countryReadings('Texas')) === JSON.stringify([{ country: 'US', region: { country: 'US', code: 'TX', name: 'Texas' } }]) && countryReadings('ON')[0].region?.code === 'ON')
 
-console.log('— geocode acceptance (unambiguous only)')
-const f = (text: string, cc: string, rel = 1, type = 'place') => ({ text, place_type: [type], relevance: rel, center: [-79.38, 43.65] as [number, number], context: [{ id: 'country.1', short_code: cc }] })
-check('city in the requested country → accepted', !!acceptGeocode('Toronto', 'CA', [f('Toronto', 'ca')]))
-check('wrong country → rejected', acceptGeocode('London', 'CA', [f('London', 'gb')]) === null)
-check('different name → rejected', acceptGeocode('Kitchener', 'CA', [f('Waterloo', 'ca')]) === null)
-check('two equally good places of the same name → rejected', acceptGeocode('Springfield', 'US', [f('Springfield', 'us', 1), f('Springfield', 'us', 0.99)]) === null)
-check('low relevance → rejected', acceptGeocode('Toronto', 'CA', [f('Toronto', 'ca', 0.6)]) === null)
-check('not a city-level place → rejected', acceptGeocode('Ontario', 'CA', [f('Ontario', 'ca', 1, 'region')]) === null)
-check('accents and case ignored in the name check', !!acceptGeocode('montreal', 'CA', [f('Montréal', 'ca')]))
+console.log('— place context')
+const rd = (c: ReturnType<typeof placeContext>) => c.readings.map(r => r.country + (r.region ? '-' + r.region.code : '')).join(',')
+check('Austin, TX with US → Texas', rd(placeContext('Austin, TX', 'US')) === 'US-TX')
+check('Austin, TX with no country → Texas (explicit state)', rd(placeContext('Austin, TX', null)) === 'US-TX')
+check('Toronto, ON with CA → Ontario (province settles CA)', rd(placeContext('Toronto, ON', 'CA')) === 'CA-ON')
+check('Toronto, ON with United States → conflict, unresolved', placeContext('Toronto, ON', 'United States').conflict && rd(placeContext('Toronto, ON', 'United States')) === '')
+check('Austin, TX with Canada → conflict', placeContext('Austin, TX', 'Canada').conflict)
+check('Nashville with TN → Tunisia or Tennessee, to be settled by lookup', rd(placeContext('Nashville', 'TN')) === 'TN,US-TN')
+check('Ottawa with no country → insufficient (no conflict, nothing to look up)', rd(placeContext('Ottawa', null)) === '' && !placeContext('Ottawa', null).conflict)
+check('NYC → New York, NY', placeContext('NYC', 'US').query === 'New York' && rd(placeContext('NYC', 'US')) === 'US-NY')
+check('Québec City with CA → Québec, QC', placeContext('Québec City', 'CA').query === 'Québec' && rd(placeContext('Québec City', 'CA')) === 'CA-QC')
+check('New York City with Canada → conflict', placeContext('New York City', 'Canada').conflict)
+check('Saint/St. are one name; Saint John and St. John’s are not', cityKey('Saint Louis') === cityKey('St. Louis') && cityKey('Saint John') !== cityKey('St. John’s'))
 
+console.log('— lookup acceptance (never the top result on rank alone)')
+const F = (text: string, cc: string, region: string, lng = -97.7, lat = 30.3): GeoFeature => ({ text, place_type: ['place'], relevance: 1, center: [lng, lat], context: [{ id: 'region.1', short_code: `${cc}-${region}` }, { id: 'country.1', short_code: cc.toLowerCase() }] })
+const austinUS = placeContext('Austin', 'US'), austinTX = placeContext('Austin, TX', 'US')
+check('Austin (US) with Austin TX and Austin MN → ambiguous, unresolved', acceptPlace(austinUS, austinUS.readings[0], [F('Austin', 'US', 'TX'), F('Austin', 'US', 'MN')]) === null)
+check('Austin, TX → the Texas result, wherever it ranks', !!acceptPlace(austinTX, austinTX.readings[0], [F('Austin', 'US', 'MN', -92.9, 43.6), F('Austin', 'US', 'TX')]) && acceptPlace(austinTX, austinTX.readings[0], [F('Austin', 'US', 'MN', -92.9, 43.6), F('Austin', 'US', 'TX')])!.lng === -97.7)
+check('a single place of the name in the country → accepted', !!acceptPlace(placeContext('Halifax', 'Canada'), placeContext('Halifax', 'Canada').readings[0], [F('Halifax', 'CA', 'NS')]))
+check('state given but no result in that state → unresolved', acceptPlace(austinTX, austinTX.readings[0], [F('Austin', 'US', 'MN')]) === null)
+check('different name (Saint John vs St. John’s) → unresolved', acceptPlace(placeContext('Saint John', 'Canada'), placeContext('Saint John', 'Canada').readings[0], [F('St. John’s', 'CA', 'NL')]) === null)
+check('St. Louis written “Saint Louis” → accepted', !!acceptPlace(placeContext('Saint Louis', 'US'), placeContext('Saint Louis', 'US').readings[0], [F('St. Louis', 'US', 'MO')]))
+check('result in another country → unresolved', acceptPlace(placeContext('London', 'Canada'), placeContext('London', 'Canada').readings[0], [F('London', 'GB', 'ENG')]) === null)
 console.log('— map framing')
 const places = [{ name: 'Vancouver', shows: 7, lat: 49.28, lng: -123.12 }, { name: 'Toronto', shows: 16, lat: 43.65, lng: -79.38 }, { name: 'Berlin', shows: 1, lat: 52.52, lng: 13.40 }]
 for (const name of ['phone', 'wide', 'cover'] as const) {
@@ -120,11 +140,47 @@ check('smaller dots drawn last', v.dots[v.dots.length - 1].shows === 1)
 check('single place is framed without error', !!frameView([places[0]], VIEWS.phone))
 check('static URL has no marker overlay and keeps logo/attribution defaults', /\/static\/-?[\d.]+,-?[\d.]+,[\d.]+,0\/1000x338@2x\?access_token=/.test(staticMapUrl(v, 'tok')) && !/attribution=false|logo=false/.test(staticMapUrl(v, 'tok')))
 
+console.log('— combining readings (lib/proof/load.ts locatePlaces)')
+;(async () => {
+  type Pl = Parameters<typeof locatePlaces>[0][number]
+  const pl = (key: string, city: string, country: string | null, coords: { lat: number; lng: number } | null = null): Pl => ({ key, name: city, ctx: placeContext(city, country), shows: 1, coords })
+  const geo = (map: Record<string, 'ok' | 'unresolved' | 'failed'>) => async (p: Pl, r: { country: string; region: { code: string } | null }) => {
+    const st = map[`${p.key}:${r.country}${r.region ? '-' + r.region.code : ''}`] ?? 'unresolved'
+    return st === 'ok' ? { status: 'ok' as const, coords: { lat: 1, lng: 2 } } : { status: st } as { status: 'unresolved' | 'failed' }
+  }
+  const run = (places: Pl[], m: Record<string, 'ok' | 'unresolved' | 'failed'>, token: string | null = 'tok') => locatePlaces(places, token, null, geo(m) as any)
+  let r = await run([pl('n', 'Nashville', 'TN')], { 'n:US-TN': 'ok' })
+  check('TN: only Tennessee identifies Nashville → located, settled US', r.located.has('n') && r.settled.get('n')?.country === 'US')
+  r = await run([pl('n', 'Nashville', 'TN')], { 'n:US-TN': 'ok', 'n:TN': 'ok' })
+  check('both readings identify a place → unresolved (no guess)', r.unresolved.has('n') && !r.located.has('n'))
+  r = await run([pl('n', 'Nashville', 'TN')], { 'n:US-TN': 'ok', 'n:TN': 'failed' })
+  check('one reading found, the other failed → lookup failed (not a guess)', r.failed.has('n') && !r.located.has('n'))
+  r = await run([pl('t', 'Toronto', 'CA', { lat: 43.6, lng: -79.4 })], { 't:CA': 'ok' })
+  check('stored coordinates kept; ambiguous CA settled to Canada by lookup', r.located.get('t')?.lat === 43.6 && r.settled.get('t')?.country === 'CA')
+  r = await run([pl('a', 'Austin', 'US')], { 'a:US': 'failed' })
+  check('lookup failure reported as failed, not unresolved', r.failed.has('a'))
+  r = await run([pl('a', 'Austin', 'US')], {}, null)
+  check('no token → failed', r.failed.has('a'))
+  r = await run([pl('o', 'Ottawa', null), pl('x', 'Toronto, ON', 'United States')], {})
+  check('missing or conflicting context → unresolved without a lookup', r.unresolved.has('o') && r.unresolved.has('x'))
+
+  console.log('— geographic counts')
+  const g = (city: string, country: string | null, settled: string | null = null) => {
+    const ctx = placeContext(city, country)
+    return { ctx, settled: settled ? ctx.readings.find(x => `${x.country}${x.region ? '-' + x.region.code : ''}` === settled) ?? null : null }
+  }
+  check('Portland, OR and Portland, ME → 2 cities, 1 country', JSON.stringify(geographyCounts([g('Portland, OR', 'US'), g('Portland, ME', 'US')])) === '{"cities":2,"countries":1}')
+  check('Austin, TX and Austin (US) → 1 city', geographyCounts([g('Austin, TX', 'US'), g('Austin', 'US')]).cities === 1)
+  check('unsettled TN not counted as a country; settled one is', geographyCounts([g('Nashville', 'TN')]).countries === 0 && geographyCounts([g('Nashville', 'TN', 'US-TN')]).countries === 1)
+  check('London (UK) and London, ON → 2 cities, 2 countries', JSON.stringify(geographyCounts([g('London', 'UK'), g('London, ON', 'Canada')])) === '{"cities":2,"countries":2}')
+  console.log(`\n${pass} passed, ${fail} failed`)
+  process.exit(fail ? 1 : 0)
+})()
+
 console.log('— export image')
 const supa = 'https://abc.supabase.co'
 check('artist upload in avatars bucket → may be embedded', imageExportable(`${supa}/storage/v1/object/public/avatars/artist-1/avatar.jpg`, supa, 'artist-1'))
 check('another account’s folder → not embedded', !imageExportable(`${supa}/storage/v1/object/public/avatars/other/avatar.jpg`, supa, 'artist-1'))
 check('external image (Spotify) → not embedded', !imageExportable('https://i.scdn.co/image/abc', supa, 'artist-1'))
 
-console.log(`\n${pass} passed, ${fail} failed`)
-process.exit(fail ? 1 : 0)
+

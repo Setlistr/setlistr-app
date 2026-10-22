@@ -7,15 +7,16 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { isWriteCapableRole } from '../writeCapableRoles'
 import {
-  buildProofCore, cityName, imageExportable,
-  type PerfRow, type SongRow, type FlowRow, type DetectionRow, type ProofCore,
+  buildProofCore, geographyCounts, imageEligibility,
+  type PerfRow, type SongRow, type FlowRow, type DetectionRow, type ProofCore, type ImageEligibility,
 } from './summary'
-import { frameView, acceptGeocode, VIEWS, MIN_MAPPED_PLACES, type MapView, type ViewName, type GeoFeature } from './map'
+import { frameView, VIEWS, MIN_MAPPED_PLACES, type MapView, type ViewName } from './map'
+import { acceptPlace, lookupQuery, type CountryReading, type GeoFeature } from './place'
 
 export type ProofAccess = { role: 'owner' | string; canExport: boolean }
 
 export type ProofSummary = Omit<ProofCore, 'places' | 'showsWithoutPlace'> & {
-  artist: { id: string; name: string; imageUrl: string | null; imageExportable: boolean }
+  artist: { id: string; name: string; imageUrl: string | null; imageExportable: boolean; imageEligibility: ImageEligibility }
   access: ProofAccess
   map: {
     // 'map': draw views; 'type': too few mapped places, set them in type;
@@ -84,47 +85,63 @@ type Geo = { status: 'ok'; coords: { lat: number; lng: number } } | { status: 'u
 // Answers (found, or not identifiable) are kept for an hour; failures aren't kept.
 const memo = new Map<string, { at: number; value: Geo }>()
 const MEMO_MS = 60 * 60 * 1000
+type Place = ProofCore['places'][number]
 
-async function geocodeCity(city: string, iso: string, token: string, referer: string | null): Promise<Geo> {
-  const key = `${city.toLowerCase()}|${iso}`
+async function lookup(place: Place, reading: CountryReading, token: string, referer: string | null): Promise<Geo> {
+  const q = lookupQuery(place.ctx, reading)
+  const key = `${q.text.toLowerCase()}|${q.country}|${place.ctx.query?.toLowerCase()}`
   const hit = memo.get(key)
   if (hit && Date.now() - hit.at < MEMO_MS) return hit.value
-  const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(city)}.json?types=place&country=${iso.toLowerCase()}&limit=2&access_token=${encodeURIComponent(token)}`
+  const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(q.text)}.json?types=place&country=${q.country.toLowerCase()}&limit=5&access_token=${encodeURIComponent(token)}`
   try {
     const res = await fetch(url, { headers: referer ? { Referer: referer } : {}, next: { revalidate: 3600 }, signal: AbortSignal.timeout(8000) } as RequestInit)
     if (!res.ok) { console.error('[proof] place lookup refused:', res.status); return { status: 'failed' } }
     const json = await res.json() as { features?: GeoFeature[] }
-    const coords = acceptGeocode(city, iso, json.features || [])
+    const coords = acceptPlace(place.ctx, reading, json.features || [])
     const value: Geo = coords ? { status: 'ok', coords } : { status: 'unresolved' }
     memo.set(key, { at: Date.now(), value })
     return value
   } catch (e) { console.error('[proof] place lookup failed:', (e as Error).message); return { status: 'failed' } }
 }
 
-async function locatePlaces(places: ProofCore['places'], token: string | null, referer: string | null): Promise<{ located: Map<string, { lat: number; lng: number }>; unresolved: Set<string>; failed: Set<string> }> {
-  const located = new Map<string, { lat: number; lng: number }>()
+// Each place's readings are looked up; a place is located only when exactly
+// one reading identifies it, and that reading then settles its country.
+// A failed lookup that could have changed the answer reports "lookup failed".
+export async function locatePlaces(places: Place[], token: string | null, referer: string | null, lookupFn = lookup): Promise<{ located: Map<string, { lat: number; lng: number }>; settled: Map<string, CountryReading>; unresolved: Set<string>; failed: Set<string> }> {
+  const located = new Map<string, { lat: number; lng: number }>(), settled = new Map<string, CountryReading>()
   const unresolved = new Set<string>(), failed = new Set<string>()
-  const pending: { key: string; city: string; iso: string }[] = []
+  const pending: Place[] = []
+  let budget = GEOCODE_LIMIT
   for (const p of places) {
-    if (p.coords) { located.set(p.key, p.coords); continue }
-    const city = cityName(p.name)
-    if (!city || !p.countryCode) { unresolved.add(p.key); continue }
-    if (!token) { failed.add(p.key); continue }
-    pending.push({ key: p.key, city, iso: p.countryCode })
+    if (p.coords) {
+      // Stored coordinates are used as they are. When the country field has
+      // two readings (CA: Canada or California), the lookup still runs, only
+      // to settle which country the record means.
+      located.set(p.key, p.coords)
+      if (p.ctx.readings.length > 1 && token && budget >= p.ctx.readings.length) { budget -= p.ctx.readings.length; pending.push(p) }
+      continue
+    }
+    if (!p.ctx.name || p.ctx.readings.length === 0) { unresolved.add(p.key); continue }
+    if (!token || budget < p.ctx.readings.length) { failed.add(p.key); continue }
+    budget -= p.ctx.readings.length
+    pending.push(p)
   }
-  const work = pending.slice(0, GEOCODE_LIMIT)
-  for (const p of pending.slice(GEOCODE_LIMIT)) failed.add(p.key)
   let next = 0
-  await Promise.all(Array.from({ length: Math.min(GEOCODE_CONCURRENCY, work.length) }, async () => {
-    while (next < work.length) {
-      const item = work[next++]
-      const g = await geocodeCity(item.city, item.iso, token!, referer)
-      if (g.status === 'ok') located.set(item.key, g.coords)
-      else if (g.status === 'unresolved') unresolved.add(item.key)
-      else failed.add(item.key)
+  await Promise.all(Array.from({ length: Math.min(GEOCODE_CONCURRENCY, pending.length) }, async () => {
+    while (next < pending.length) {
+      const p = pending[next++]
+      const results: Geo[] = []
+      for (const r of p.ctx.readings) results.push(await lookupFn(p, r, token!, referer))
+      const ok = results.map((g, i) => ({ g, r: p.ctx.readings[i] })).filter(x => x.g.status === 'ok')
+      const anyFailed = results.some(g => g.status === 'failed')
+      if (p.coords) { if (ok.length === 1 && !anyFailed) settled.set(p.key, ok[0].r); continue }
+      if (ok.length === 1 && !anyFailed) { located.set(p.key, (ok[0].g as { coords: { lat: number; lng: number } }).coords); settled.set(p.key, ok[0].r) }
+      else if (ok.length > 1) unresolved.add(p.key)
+      else if (anyFailed) failed.add(p.key)
+      else unresolved.add(p.key)
     }
   }))
-  return { located, unresolved, failed }
+  return { located, settled, unresolved, failed }
 }
 
 // ── The summary ─────────────────────────────────────────────────────────────
@@ -183,7 +200,12 @@ export async function loadProofSummary(opts: {
   let mappedShows = 0
   const coverage = { noLocation: core.showsWithoutPlace, unresolved: 0, lookupFailed: 0 }
   if (core.counts.confirmed > 0) {
-    const { located, unresolved, failed } = await locatePlaces(core.places, opts.mapboxToken, opts.referer)
+    const { located, settled, unresolved, failed } = await locatePlaces(core.places, opts.mapboxToken, opts.referer)
+    // Cities and countries recounted with the readings lookups settled, so
+    // the figures and the map rest on the same evidence.
+    const geo = geographyCounts(core.places.map(p => ({ ctx: p.ctx, settled: settled.get(p.key) ?? null })))
+    core.counts.cities = geo.cities
+    core.counts.countries = geo.countries
     for (const p of core.places) {
       if (unresolved.has(p.key)) coverage.unresolved += p.shows
       else if (failed.has(p.key)) coverage.lookupFailed += p.shows
@@ -207,7 +229,8 @@ export async function loadProofSummary(opts: {
       id: artistId,
       name: profile?.artist_name || profile?.full_name || 'Artist',
       imageUrl,
-      imageExportable: imageExportable(imageUrl, opts.supabaseUrl, artistId),
+      imageExportable: imageEligibility(imageUrl, opts.supabaseUrl, artistId) === 'eligible',
+      imageEligibility: imageEligibility(imageUrl, opts.supabaseUrl, artistId),
     },
     access,
     map: {

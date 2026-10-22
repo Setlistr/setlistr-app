@@ -11,6 +11,7 @@
 
 import { isCapturedShow, isCompleteStage, isRealVenue } from '../performance-status'
 import { showDay } from '../show-date'
+import { placeContext, contextKey, cityKey, normaliseText, type PlaceContext, type CountryReading } from './place'
 
 export type DateFields = { performance_date: string | null; started_at: string | null; created_at: string | null; timezone: string | null }
 
@@ -90,30 +91,9 @@ export function confirmationKind(status: string | null): Confirmation {
   return status === 'complete' ? 'review' : 'legacy'
 }
 
-// ── Places ──────────────────────────────────────────────────────────────────
+// ── Places (lib/proof/place.ts) ─────────────────────────────────────────────
 
-const COUNTRY: Record<string, string> = {
-  canada: 'CA', 'united states': 'US', 'united states of america': 'US', usa: 'US', 'u.s.': 'US', 'u.s.a.': 'US', america: 'US',
-  'united kingdom': 'GB', uk: 'GB', 'u.k.': 'GB', 'great britain': 'GB', britain: 'GB', england: 'GB', scotland: 'GB', wales: 'GB', 'northern ireland': 'GB',
-  ireland: 'IE', australia: 'AU', 'new zealand': 'NZ', germany: 'DE', deutschland: 'DE', france: 'FR', netherlands: 'NL', 'the netherlands': 'NL', holland: 'NL',
-  belgium: 'BE', spain: 'ES', españa: 'ES', italy: 'IT', italia: 'IT', portugal: 'PT', sweden: 'SE', norway: 'NO', denmark: 'DK', finland: 'FI', iceland: 'IS',
-  switzerland: 'CH', austria: 'AT', poland: 'PL', czechia: 'CZ', 'czech republic': 'CZ', hungary: 'HU', greece: 'GR', mexico: 'MX', méxico: 'MX', brazil: 'BR',
-  argentina: 'AR', chile: 'CL', colombia: 'CO', japan: 'JP', 'south korea': 'KR', korea: 'KR', china: 'CN', india: 'IN', 'south africa': 'ZA', singapore: 'SG',
-}
-
-export function normaliseText(s: string): string {
-  return s.normalize('NFKD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
-}
-
-// An ISO 3166 alpha-2 code when the free-text country can be read as one;
-// null when it can't (then a city lookup would be ambiguous).
-export function countryCode(country: string | null | undefined): string | null {
-  if (!country) return null
-  const t = country.trim()
-  if (/^[A-Za-z]{2}$/.test(t)) return t.toUpperCase() === 'UK' ? 'GB' : t.toUpperCase()
-  const k = t.toLowerCase().replace(/\s+/g, ' ')
-  return COUNTRY[k] ?? COUNTRY[normaliseText(t)] ?? null
-}
+export { normaliseText, countryCode } from './place'
 
 // The city part of a free-text city field ("Toronto, ON" → "Toronto").
 export function cityName(city: string | null | undefined): string | null {
@@ -123,9 +103,35 @@ export function cityName(city: string | null | undefined): string | null {
 }
 
 export function placeKey(city: string | null, country: string | null): string | null {
-  const c = cityName(city)
-  if (!c) return null
-  return `${normaliseText(c)}|${countryCode(country) ?? normaliseText(country || '')}`
+  return contextKey(placeContext(city, country))
+}
+
+// Distinct cities and countries, from settled readings only (a place's own
+// context, or the reading a lookup settled). A country that can't be settled
+// isn't counted. Same-named cities count separately only when their states,
+// provinces or countries are known to differ; a place missing that detail
+// isn't counted as another city beside a settled one of the same name.
+export function geographyCounts(places: { ctx: PlaceContext; settled?: CountryReading | null }[]): { cities: number; countries: number } {
+  const countries = new Set<string>()
+  const byName = new Map<string, { known: CountryReading[]; unknown: number }>()
+  for (const p of places) {
+    if (!p.ctx.name) continue
+    const r = p.settled ?? (p.ctx.readings.length === 1 ? p.ctx.readings[0] : null)
+    if (r) countries.add(r.country)
+    const k = cityKey(p.ctx.query || p.ctx.name)
+    const g = byName.get(k) ?? { known: [], unknown: 0 }
+    if (r) g.known.push(r); else g.unknown++
+    byName.set(k, g)
+  }
+  let cities = 0
+  byName.forEach(g => {
+    if (!g.known.length) { cities += 1; return }
+    const regioned = new Set(g.known.filter(r => r.region).map(r => `${r.country}-${r.region!.code}`))
+    const countriesWithRegion = new Set(g.known.filter(r => r.region).map(r => r.country))
+    const bare = new Set(g.known.filter(r => !r.region && !countriesWithRegion.has(r.country)).map(r => r.country))
+    cities += regioned.size + bare.size
+  })
+  return { cities, countries: countries.size }
 }
 
 // ── Summary ─────────────────────────────────────────────────────────────────
@@ -148,7 +154,7 @@ export type ProofCore = {
   awaiting: { id: string; date: DateFields; venue: string; city: string | null }[]
   imported: { count: number; first: DateFields | null; last: DateFields | null }
   // Places of confirmed shows, for the map and the places set in type.
-  places: { key: string; name: string; countryCode: string | null; shows: number; coords: { lat: number; lng: number } | null }[]
+  places: { key: string; name: string; ctx: PlaceContext; shows: number; coords: { lat: number; lng: number } | null }[]
   // Confirmed shows with no city on file and no stored venue coordinates.
   showsWithoutPlace: number
 }
@@ -194,21 +200,21 @@ export function buildProofCore(perfs: PerfRow[], songs: SongRow[], flows: FlowRo
     }
   }).sort((a, b) => dayValue(b.date) - dayValue(a.date))
 
-  const cityKeys = new Set<string>(), countryKeys = new Set<string>()
   const placeMap = new Map<string, ProofCore['places'][number]>()
   let showsWithoutPlace = 0
   for (const p of confirmed) {
-    const key = placeKey(p.city, p.country)
-    if (key) cityKeys.add(key)
-    if (p.country?.trim()) countryKeys.add(countryCode(p.country) ?? normaliseText(p.country))
+    const ctx = placeContext(p.city, p.country)
+    const key = contextKey(ctx)
     const coords = p.venue_lat !== null && p.venue_lng !== null && Number.isFinite(p.venue_lat) && Number.isFinite(p.venue_lng) && !(p.venue_lat === 0 && p.venue_lng === 0)
       ? { lat: p.venue_lat, lng: p.venue_lng } : null
     const k = key ?? (coords ? `@${coords.lat.toFixed(3)},${coords.lng.toFixed(3)}` : null)
     if (!k) { showsWithoutPlace++; continue }
     const cur = placeMap.get(k)
     if (cur) { cur.shows++; if (!cur.coords && coords) cur.coords = coords }
-    else placeMap.set(k, { key: k, name: cityName(p.city) || (p.venue_name || '').trim(), countryCode: countryCode(p.country), shows: 1, coords })
+    else placeMap.set(k, { key: k, name: cityName(p.city) || (p.venue_name || '').trim(), ctx, shows: 1, coords })
   }
+  // Before lookups; lib/proof/load.ts recounts with the readings lookups settle.
+  const geo = geographyCounts(Array.from(placeMap.values()))
 
   const firstLast = (rows: PerfRow[]) => {
     if (!rows.length) return { first: null, last: null }
@@ -219,7 +225,7 @@ export function buildProofCore(perfs: PerfRow[], songs: SongRow[], flows: FlowRo
   return {
     counts: {
       liveRecord: live.length, confirmed: confirmed.length, awaiting: awaiting.length, imported: imported.length,
-      cities: cityKeys.size, countries: countryKeys.size,
+      cities: geo.cities, countries: geo.countries,
       songPerformances: shows.reduce((s, x) => s + x.songs, 0),
       legacyConfirmation: shows.filter(s => s.confirmation === 'legacy').length,
     },

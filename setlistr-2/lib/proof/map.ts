@@ -5,8 +5,6 @@
 // markers and Setlistr's gold dots sit on top, so the page and the export
 // share one framing and venue coordinates never leave the server.
 
-import { normaliseText } from './summary'
-
 // Mapbox styles render 512px tiles: the world is 512 · 2^zoom pixels wide.
 const TILE = 512
 const MAX_LAT = 85.0511
@@ -17,12 +15,15 @@ export type MapView = { lng: number; lat: number; zoom: number; w: number; h: nu
 export type ViewSpec = { w: number; h: number; pad: number; base: number; step: number }
 
 // Logical sizes (images are requested @2x). Aspect ratios match the approved
-// revision 3 compositions: phone 332×176, desktop 888×300; the PDF cover
-// band is 524×184 (shortened in the PDF finishing pass).
+// revision 3 compositions: phone 332×176, desktop 888×300. The PDF cover uses
+// the tallest band the page has room for (lib/proof/pdf/document.tsx).
+// City lookups and their acceptance rule live in lib/proof/place.ts.
 export const VIEWS = {
   phone: { w: 400, h: 212, pad: 20, base: 6, step: 1.6 },
   wide: { w: 1000, h: 338, pad: 36, base: 7, step: 1.9 },
   cover: { w: 524, h: 184, pad: 22, base: 6, step: 1.6 },
+  coverTall: { w: 524, h: 252, pad: 24, base: 6, step: 1.6 },
+  coverXL: { w: 524, h: 300, pad: 26, base: 6, step: 1.6 },
 } satisfies Record<string, ViewSpec>
 export type ViewName = keyof typeof VIEWS
 
@@ -70,23 +71,4 @@ export function frameView(places: MapPlace[], spec: ViewSpec, maxZoom = 9): MapV
 // The token is the public browser token, as Career's map already uses.
 export function staticMapUrl(v: Pick<MapView, 'lng' | 'lat' | 'zoom' | 'w' | 'h'>, token: string): string {
   return `https://api.mapbox.com/styles/v1/mapbox/dark-v11/static/${v.lng},${v.lat},${v.zoom},0/${v.w}x${v.h}@2x?access_token=${encodeURIComponent(token)}`
-}
-
-// A Mapbox geocoding answer for "city, country" is used only when it is
-// unambiguous: a city-level place, in the requested country, named as the
-// city, and the best match by a clear margin.
-export type GeoFeature = { text?: string; place_type?: string[]; relevance?: number; center?: [number, number]; context?: { id?: string; short_code?: string }[]; properties?: { short_code?: string } }
-
-export function acceptGeocode(city: string, iso: string, features: GeoFeature[]): { lat: number; lng: number } | null {
-  const top = features[0]
-  if (!top || !top.center || !top.place_type?.includes('place')) return null
-  if ((top.relevance ?? 0) < 0.9) return null
-  const second = features[1]
-  if (second && second.place_type?.includes('place') && (second.relevance ?? 0) >= (top.relevance ?? 0) - 0.05 && normaliseText(second.text || '') === normaliseText(top.text || '')) return null
-  if (normaliseText(top.text || '') !== normaliseText(city)) return null
-  const country = top.context?.find(c => c.id?.startsWith('country'))?.short_code
-  if (!country || country.toUpperCase() !== iso.toUpperCase()) return null
-  const [lng, lat] = top.center
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null
-  return { lat, lng }
 }

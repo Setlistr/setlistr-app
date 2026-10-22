@@ -25,6 +25,16 @@ import {
 // The record photo isn't built yet, so it has no control here.
 
 const MONO = '"DM Mono", monospace'
+
+// Why the profile image shown here won't be on the PDF's cover. Said beside
+// the export action, never in the document. Before export from the summary;
+// after it from the route's X-Proof-Photo report.
+const PHOTO_NOTE: Record<string, string> = {
+  external: 'The PDF won’t include the profile image: it’s hosted outside Setlistr. Upload a photo in Settings to include it.',
+  'other-location': 'The PDF won’t include the profile image: it isn’t stored with this artist’s uploads. Upload a photo in Settings to include it.',
+  'unsupported-format': 'The PDF was made without the profile image: its format can’t be converted (for example iPhone HEIC). Upload a JPEG or PNG in Settings to include it.',
+  'retrieval-failed': 'The PDF was made without the profile image: it couldn’t be retrieved. Try exporting again.',
+}
 const DISPLAY = 'var(--sl-font-display)'
 
 const REGISTER_STEP = 25
@@ -61,6 +71,7 @@ export default function ProofPage() {
   const [shown, setShown] = useState(REGISTER_STEP)
   const [exporting, setExporting] = useState(false)
   const [exportError, setExportError] = useState<string | null>(null)
+  const [photoReport, setPhotoReport] = useState<string | null>(null)
   const request = useRef(0)
 
   useEffect(() => {
@@ -75,7 +86,7 @@ export default function ProofPage() {
   useEffect(() => {
     if (!resolved || !artistId) return
     const mine = ++request.current
-    setState('loading'); setSummary(null); setImageFailed(false); setMapFailed(false); setShown(REGISTER_STEP); setExportError(null)
+    setState('loading'); setSummary(null); setImageFailed(false); setMapFailed(false); setShown(REGISTER_STEP); setExportError(null); setPhotoReport(null)
     fetch(`/api/proof/summary?artist_id=${encodeURIComponent(artistId)}`, { cache: 'no-store' })
       .then(async res => {
         if (mine !== request.current) return
@@ -207,6 +218,7 @@ export default function ProofPage() {
       }
       const blob = await res.blob()
       if (blob.size === 0) throw new Error('empty pdf')
+      setPhotoReport(res.headers.get('x-proof-photo'))
       const name = /filename="([^"]+)"/.exec(res.headers.get('content-disposition') || '')?.[1] || 'proof-of-performance.pdf'
       let file: File | null = null
       try { file = new File([blob], name, { type: 'application/pdf' }) } catch { file = null }
@@ -226,10 +238,13 @@ export default function ProofPage() {
       setExportError('The PDF couldn’t be created. Try again.')
     } finally { setExporting(false) }
   }
+  const photoNote = photo && photoReport && PHOTO_NOTE[photoReport] && ['unsupported-format', 'retrieval-failed'].includes(photoReport) ? PHOTO_NOTE[photoReport]
+    : photo && PHOTO_NOTE[s.artist.imageEligibility] ? PHOTO_NOTE[s.artist.imageEligibility] : null
   const exportBlock = s.access.canExport && c.confirmed > 0 ? (
     <>
       <button type="button" className="pf-btn" onClick={exportPdf} disabled={exporting} aria-busy={exporting}>{exporting ? 'Preparing PDF…' : 'Export PDF'}</button>
       {exportError && <p role="alert" className="pf-err">{exportError}</p>}
+      {photoNote && <p className="pf-note">{photoNote}</p>}
     </>
   ) : null
 
@@ -365,6 +380,7 @@ export default function ProofPage() {
         .pf-btn:disabled { opacity: 0.7; cursor: default; }
         .pf-btn:focus-visible { outline: 2px solid var(--sl-accent); outline-offset: 2px; }
         .pf-err { margin: 10px 0 0; padding: 10px 12px; border-radius: 10px; font-size: 14px; line-height: 1.45; color: var(--sl-text); background: color-mix(in srgb, var(--sl-warn) 8%, transparent); border: 1px solid color-mix(in srgb, var(--sl-warn) 28%, transparent); }
+        .pf-note { margin: 10px 0 0; font-size: 12.5px; line-height: 1.45; color: var(--sl-text-3); }
         .pf-rel { margin: 0; font-size: 14px; color: var(--sl-text-2); line-height: 1.5; }
         .pf-rel b { color: var(--sl-text); font-weight: 600; }
         .pf-src { margin: 12px 0 0; font-size: 12.5px; color: var(--sl-text-3); line-height: 1.55; }

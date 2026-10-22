@@ -4,7 +4,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { loadProofSummary, ProofError } from '@/lib/proof/load'
 import { isRealTimeZone } from '@/lib/show-date'
 import { fetchArtistImage, fetchCoverMap } from '@/lib/proof/pdf/assets'
-import { renderProofPdf, type PhotoOutcome } from '@/lib/proof/pdf/document'
+import { renderProofPdf, coverPlan, type PhotoOutcome } from '@/lib/proof/pdf/document'
 import { imageEligibility } from '@/lib/proof/summary'
 
 export const dynamic = 'force-dynamic'
@@ -42,10 +42,10 @@ export async function GET(req: NextRequest) {
     if (!summary.access.canExport) return NextResponse.json({ error: 'Export needs permission to edit this workspace' }, { status: 403, headers: noStore })
 
     stage = 'images'
-    const [photo, map] = await Promise.all([
-      fetchArtistImage(summary.artist.imageUrl, summary.artist.imageExportable),
-      summary.map.mode === 'map' ? fetchCoverMap(summary.map.views.cover, token, referer) : Promise.resolve({ image: null, status: 'none' as const }),
-    ])
+    // The photo first: whether the cover has one decides which map band fits.
+    const photo = await fetchArtistImage(summary.artist.imageUrl, summary.artist.imageExportable)
+    const band = coverPlan(summary, !!photo.image).view
+    const map = summary.map.mode === 'map' ? await fetchCoverMap(summary.map.views[band] ?? summary.map.views.cover, token, referer) : { image: null, status: 'none' as const }
     if (map.status === 'failed') console.error('[proof/pdf] map image unavailable')
     // Why the cover has or lacks the artist image (never the URL).
     const eligibility = imageEligibility(summary.artist.imageUrl, url, artistId)
@@ -54,7 +54,7 @@ export async function GET(req: NextRequest) {
     if (photoOutcome !== 'ok' && photoOutcome !== 'no-image') console.error(`[proof/pdf] artist image not included: ${photoOutcome}`)
     const preparedAt = new Date()
     stage = 'render'
-    const pdf = await renderProofPdf({ summary, zone, preparedAt, photo: photo.image, photoOutcome, map: map.image, mapStatus: map.status })
+    const pdf = await renderProofPdf({ summary, zone, preparedAt, photo: photo.image, map: map.image, mapStatus: map.status })
 
     stage = 'respond'
     const slug = summary.artist.name.normalize('NFKD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60) || 'artist'
