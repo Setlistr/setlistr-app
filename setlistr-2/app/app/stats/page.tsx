@@ -630,14 +630,14 @@ export default function StatsPage() {
                   </div>
                 )}
 
-                {/* Performance Proof File */}
+                {/* Proof of Performance */}
                 <button className="cr-proof" onClick={() => router.push('/app/proof')}
                   style={{ width: '100%', minHeight: 64, padding: '14px 18px', background: CARD.background, border: '1px solid color-mix(in srgb, var(--sl-text) 6%, transparent)', borderRadius: 16, boxShadow: CARD.boxShadow, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <span style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                     <Shield size={18} style={{ color: C.gold, flexShrink: 0 }} />
                     <span style={{ textAlign: 'left' }}>
-                      <span style={{ display: 'block', fontSize: 15.5, fontWeight: 700, color: C.text, marginBottom: 2 }}>Performance Proof File</span>
-                      <span style={{ display: 'block', fontSize: 13, color: C.muted }}>Your verified career record.</span>
+                      <span style={{ display: 'block', fontSize: 15.5, fontWeight: 700, color: C.text, marginBottom: 2 }}>Proof of Performance</span>
+                      <span style={{ display: 'block', fontSize: 13, color: C.muted }}>Your live performance record.</span>
                     </span>
                   </span>
                   <span style={{ fontSize: 18, color: C.muted }}>→</span>

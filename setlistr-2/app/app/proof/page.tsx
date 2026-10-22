@@ -1,294 +1,456 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useActingAs } from '@/components/ActingAsProvider'
-import { BELOW_APP_HEADER_STICKY_TOP } from '@/components/layout/appHeaderInsets'
+import { PageFrame } from '@/components/ui/PageFrame'
+import { Skeleton } from '@/components/ui/Skeleton'
+import { LoadError } from '@/components/ui/LoadError'
+import { isNativeApp } from '@/lib/appearance'
+import { chooseHandoffRoute, isShareCancel, canShareFile } from '@/lib/claim-sheet-handoff'
+import { staticMapUrl, type MapView } from '@/lib/proof/map'
+import type { ProofSummary } from '@/lib/proof/load'
+import type { ProofShow } from '@/lib/proof/summary'
+import {
+  METHOD, SOURCE_LINE, HOW_MADE, pl, proofDay, shortDate, periodText, importedYears as importedYearsText,
+  relationText, coverageText, unplacedText, factsText, evidenceRows,
+} from '@/lib/proof/wording'
 
-const C = {
-  bg: 'var(--sl-bg)', card: 'var(--sl-surface)',
-  border: 'color-mix(in srgb, var(--sl-text) 7%, transparent)', borderGold: 'color-mix(in srgb, var(--sl-accent) 30%, transparent)',
-  text: 'var(--sl-text)', secondary: 'var(--sl-text-2)', muted: 'var(--sl-text-3)',
-  gold: 'var(--sl-accent)', goldDim: 'color-mix(in srgb, var(--sl-accent) 10%, transparent)', green: 'var(--sl-ok)',
+// Proof of Performance (docs/proof-of-performance-plan.md; approved
+// revision 3). Career is where an artist explores their history; this
+// packages it into a record someone else can understand quickly. Every
+// figure comes from /api/proof/summary, and the PDF (/api/proof/pdf) is
+// built from the same summary and the same wording (lib/proof/wording.ts).
+// The record photo isn't built yet, so it has no control here.
+
+const MONO = '"DM Mono", monospace'
+
+// Why the profile image shown here won't be on the PDF's cover. Said beside
+// the export action, never in the document. Before export from the summary;
+// after it from the route's X-Proof-Photo report.
+const PHOTO_NOTE: Record<string, string> = {
+  external: 'The PDF won’t include the profile image: it’s hosted outside Setlistr. Upload a photo in Settings to include it.',
+  'other-location': 'The PDF won’t include the profile image: it isn’t stored with this artist’s uploads. Upload a photo in Settings to include it.',
+  'unsupported-format': 'The PDF was made without the profile image: its format can’t be converted (for example iPhone HEIC). Upload a JPEG or PNG in Settings to include it.',
+  'retrieval-failed': 'The PDF was made without the profile image: it couldn’t be retrieved. Try exporting again.',
+}
+const DISPLAY = 'var(--sl-font-display)'
+
+const REGISTER_STEP = 25
+const PLACES_SHOWN = 8
+
+// The viewer's own zone: the page and the PDF read show days the same way.
+function viewerZone(): string | null {
+  try { return Intl.DateTimeFormat().resolvedOptions().timeZone || null } catch { return null }
 }
 
-const BASE_ROYALTY = 1.20
-
-type Performance = {
-  id: string; venue_name: string; city: string; country: string
-  started_at: string; set_duration_minutes: number; status: string
-  submission_status: string | null
-}
-type UserSong = {
-  song_title: string; confirmed_count: number; last_confirmed_at: string | null
-  isrc: string | null; composer: string | null; publisher: string | null
-}
-type PerfSong = { performance_id: string; title: string }
-
-function formatDate(d: string) {
-  return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+// Browser download of the PDF. The object URL is kept briefly so the
+// browser has finished with it before it's released.
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url; a.download = filename
+  document.body.appendChild(a); a.click(); document.body.removeChild(a)
+  setTimeout(() => URL.revokeObjectURL(url), 60_000)
 }
 
-function formatDateLong(d: string) {
-  return new Date(d).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
-}
+// The display name fits its column: Bebas is about 0.43em per character, so
+// the longest word sets the size (never below a readable floor).
+function longestWord(name: string) { return Math.max(5, ...name.split(/\s+/).map(w => w.length)) }
 
 export default function ProofPage() {
   const router = useRouter()
   const { actingAsArtistId, resolved } = useActingAs()
-  const [loading, setLoading]         = useState(true)
-  const [artistName, setArtistName]   = useState('')
-  const [proName, setProName]         = useState('')
-  const [performances, setPerformances] = useState<Performance[]>([])
-  const [userSongs, setUserSongs]     = useState<UserSong[]>([])
-  const [perfSongs, setPerfSongs]     = useState<PerfSong[]>([])
-  const [generatedAt]                 = useState(new Date())
+  const [userId, setUserId] = useState<string | null>(null)
+  const [summary, setSummary] = useState<ProofSummary | null>(null)
+  const [state, setState] = useState<'loading' | 'ready' | 'error' | 'denied'>('loading')
+  const [reloadKey, setReloadKey] = useState(0)
+  const [imageFailed, setImageFailed] = useState(false)
+  const [mapFailed, setMapFailed] = useState(false)
+  const [shown, setShown] = useState(REGISTER_STEP)
+  const [exporting, setExporting] = useState(false)
+  const [exportError, setExportError] = useState<string | null>(null)
+  const [photoReport, setPhotoReport] = useState<string | null>(null)
+  const request = useRef(0)
 
   useEffect(() => {
     if (!resolved) return
-    const supabase = createClient()
-    async function load() {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { router.replace('/login'); return }
-      const targetUserId = actingAsArtistId || user.id
+    createClient().auth.getUser().then(({ data: { user } }) => {
+      if (!user) { router.replace('/auth/login'); return }
+      setUserId(user.id)
+    })
+  }, [resolved, router])
 
-      const [{ data: profile }, { data: perfs }, { data: uSongs }] = await Promise.all([
-        supabase.from('profiles').select('artist_name, full_name, pro_affiliation').eq('id', targetUserId).single(),
-        supabase.from('performances_visible')
-          .select('id, venue_name, city, country, started_at, set_duration_minutes, status, submission_status')
-          .eq('user_id', targetUserId)
-          .in('status', ['completed', 'complete', 'exported', 'review'])
-          .order('started_at', { ascending: false }),
-        supabase.from('user_songs')
-          .select('song_title, confirmed_count, last_confirmed_at, isrc, composer, publisher')
-          .eq('user_id', targetUserId)
-          .gt('confirmed_count', 0)
-          .order('confirmed_count', { ascending: false }),
-      ])
+  const artistId = actingAsArtistId || userId
+  useEffect(() => {
+    if (!resolved || !artistId) return
+    const mine = ++request.current
+    setState('loading'); setSummary(null); setImageFailed(false); setMapFailed(false); setShown(REGISTER_STEP); setExportError(null); setPhotoReport(null)
+    fetch(`/api/proof/summary?artist_id=${encodeURIComponent(artistId)}`, { cache: 'no-store' })
+      .then(async res => {
+        if (mine !== request.current) return
+        if (res.status === 403 || res.status === 401) { setState('denied'); return }
+        if (!res.ok) throw new Error(`summary ${res.status}`)
+        const data = await res.json() as ProofSummary
+        if (mine !== request.current) return
+        setSummary(data); setState('ready')
+      })
+      .catch(e => { if (mine === request.current) { console.error('[Proof] load failed:', e); setState('error') } })
+  }, [resolved, artistId, reloadKey])
 
-      setArtistName(profile?.artist_name || profile?.full_name || 'Artist')
-      setProName(profile?.pro_affiliation || '')
+  const back = <Link href="/app/stats" style={{ display: 'inline-flex', alignItems: 'center', minHeight: 44, fontSize: 14, color: 'var(--sl-text-2)', textDecoration: 'none' }}>← Career</Link>
 
-      const perfList = perfs || []
-      setPerformances(perfList)
-      setUserSongs(uSongs || [])
+  if (state === 'loading' || !summary) {
+    return (
+      <PageFrame>
+        <div aria-busy={state === 'loading'} style={{ paddingTop: 8 }}>
+          {back}
+          {state === 'error' ? (
+            <div style={{ marginTop: 12 }}><LoadError message="The record didn’t load." onRetry={() => setReloadKey(k => k + 1)} /></div>
+          ) : state === 'denied' ? (
+            <div role="alert" style={{ marginTop: 16 }}>
+              <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--sl-text)', margin: 0 }}>This record isn’t available</h1>
+              <p style={{ fontSize: 15, color: 'var(--sl-text-2)', margin: '6px 0 0' }}>You don’t have access to this workspace’s record.</p>
+            </div>
+          ) : (
+            <>
+              <span role="status" style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>Loading the record</span>
+              <div style={{ display: 'flex', gap: 16, alignItems: 'flex-end', marginTop: 12 }}><Skeleton w={118} h={148} r={4} /><div style={{ flex: 1 }}><Skeleton w="60%" h={14} /><Skeleton w="90%" h={46} mt={10} /><Skeleton w="70%" h={14} mt={10} /></div></div>
+              <Skeleton w="70%" h={110} mt={22} />
+              <Skeleton h={176} mt={20} r={6} />
+            </>
+          )}
+        </div>
+      </PageFrame>
+    )
+  }
 
-      if (perfList.length > 0) {
-        const { data: pSongs } = await supabase
-          .from('performance_songs_visible')
-          .select('performance_id, title')
-          .in('performance_id', perfList.map(p => p.id))
-        setPerfSongs(pSongs || [])
-      }
+  const s = summary
+  const c = s.counts
+  const photo = !!s.artist.imageUrl && !imageFailed
+  const zone = viewerZone()
+  const day = (d: ProofShow['date']) => proofDay(d, zone)
+  const period = periodText(s.shows, zone)
+  const nl = longestWord(s.artist.name) * 0.43
+  const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || ''
+  const showMap = s.map.mode === 'map' && !!token && !mapFailed && !!s.map.views.phone && !!s.map.views.wide
 
-      setLoading(false)
-    }
-    load()
-  }, [resolved, actingAsArtistId])
-
-  // ── Derived stats ─────────────────────────────────────────────────────────
-  const totalShows     = performances.length
-  const submittedShows = performances.filter(p => p.submission_status === 'submitted').length
-  const totalCities    = new Set(performances.map(p => p.city).filter(Boolean)).size
-  const totalMinutes   = performances.reduce((s, p) => s + (p.set_duration_minutes || 0), 0)
-  const totalHours     = Math.round(totalMinutes / 60 * 10) / 10
-
-  const songCountMap: Record<string, number> = {}
-  perfSongs.forEach(s => { songCountMap[s.performance_id] = (songCountMap[s.performance_id] || 0) + 1 })
-  const totalSongsLogged = perfSongs.length
-
-  const totalConfirmedPerfs = userSongs.reduce((s, u) => s + u.confirmed_count, 0)
-  const estimatedRoyalties  = Math.round(totalConfirmedPerfs * BASE_ROYALTY)
-
-  // Top songs from user_songs (most reliable count)
-  const topSongs = userSongs.slice(0, 10)
-
-  // Top venues
-  const venueCounts: Record<string, { name: string; city: string; count: number }> = {}
-  performances.forEach(p => {
-    if (!p.venue_name) return
-    const key = p.venue_name.toLowerCase()
-    if (!venueCounts[key]) venueCounts[key] = { name: p.venue_name, city: p.city, count: 0 }
-    venueCounts[key].count++
-  })
-  const topVenues = Object.values(venueCounts).sort((a, b) => b.count - a.count).slice(0, 8)
-
-  // Metadata completeness
-  const withISRC      = userSongs.filter(s => s.isrc).length
-  const withComposer  = userSongs.filter(s => s.composer).length
-  const withPublisher = userSongs.filter(s => s.publisher).length
-  const metaScore     = userSongs.length > 0
-    ? Math.round(((withISRC + withComposer + withPublisher) / (userSongs.length * 3)) * 100)
-    : 0
-
-  // Recent shows (last 20)
-  const recentShows = performances.slice(0, 20)
-
-  if (loading) return (
-    <div style={{ minHeight: '100svh', background: C.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: '"DM Sans", system-ui, sans-serif' }}>
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
-        <div style={{ width: 44, height: 44, borderRadius: '50%', border: `1.5px solid ${C.gold}`, animation: 'breathe 1.8s ease-in-out infinite' }} />
-        <span style={{ color: C.muted, fontSize: 11, letterSpacing: '0.15em', textTransform: 'uppercase' }}>Building your record...</span>
-      </div>
-      <style>{`@keyframes breathe{0%,100%{transform:scale(1);opacity:.3}50%{transform:scale(1.2);opacity:.8}}`}</style>
+  const supp = (
+    <div className="pf-supp">
+      {pl(c.cities, 'city', 'cities')} · {pl(c.countries, 'country', 'countries')}<br />{pl(c.songPerformances, 'song performance', 'song performances')}
+    </div>
+  )
+  const figure = (cls: string) => (
+    <div className={cls}>
+      <div className="pf-big">{c.confirmed.toLocaleString()}</div>
+      <div><div className="pf-big-l">{c.confirmed === 1 ? 'confirmed show' : 'confirmed shows'}</div>{supp}</div>
     </div>
   )
 
-  return (
-    <div style={{ minHeight: '100svh', background: 'var(--sl-bg)', fontFamily: '"DM Sans", system-ui, sans-serif', paddingBottom: 80 }}>
-
-      {/* NAV */}
-      {/* Rendered inside AppShell. Inset 0 (Safari): sticks at 0 over the app
-          header, as it always has. Any top inset (native app): sticks exactly
-          at AppShell's header bottom edge, which is itself below the safe
-          area — so this bar and its Back button/title are always inside the
-          safe area, whatever the inset, with no gap between the two bars. */}
-      <div style={{ position: 'sticky', top: BELOW_APP_HEADER_STICKY_TOP, zIndex: 50, background: 'color-mix(in srgb, var(--sl-bg) 95%, transparent)', backdropFilter: 'blur(12px)', borderBottom: '1px solid color-mix(in srgb, var(--sl-text) 4%, transparent)', padding: '12px 24px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <button onClick={() => router.back()} style={{ background: 'none', border: 'none', color: 'var(--sl-text-3)', fontSize: 14, cursor: 'pointer', fontFamily: 'inherit', padding: '4px 0' }}>← Back</button>
-        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--sl-accent)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Performance Record</span>
-        <button onClick={() => window.print()} style={{ background: 'var(--sl-accent)', border: 'none', borderRadius: 8, color: 'var(--sl-on-accent)', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', padding: '6px 14px', letterSpacing: '0.04em' }}>Export PDF</button>
-      </div>
-
-      <div style={{ maxWidth: 480, margin: '0 auto', padding: '0 24px' }}>
-
-        {/* HERO — artist identity */}
-        <div style={{ paddingTop: 56, paddingBottom: 48, borderBottom: '1px solid color-mix(in srgb, var(--sl-text) 5%, transparent)' }}>
-          <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', color: 'var(--sl-accent)', margin: '0 0 16px', textTransform: 'uppercase' }}>Verified by Setlistr</p>
-          <h1 style={{ fontSize: 48, fontWeight: 800, color: 'var(--sl-text)', margin: '0 0 8px', letterSpacing: '-0.03em', lineHeight: 1 }}>{artistName}</h1>
-          {proName && <p style={{ fontSize: 15, color: 'var(--sl-text-3)', margin: '0 0 24px' }}>{proName}</p>}
-          <div style={{ display: 'flex', gap: 32, marginTop: 24 }}>
-            <div>
-              <p style={{ fontSize: 42, fontWeight: 800, color: 'var(--sl-text)', margin: 0, fontFamily: '"DM Mono", monospace', letterSpacing: '-0.03em', lineHeight: 1 }}>{totalShows}</p>
-              <p style={{ fontSize: 13, color: 'var(--sl-text-3)', margin: '6px 0 0' }}>verified shows</p>
-            </div>
-            <div>
-              <p style={{ fontSize: 42, fontWeight: 800, color: 'var(--sl-text)', margin: 0, fontFamily: '"DM Mono", monospace', letterSpacing: '-0.03em', lineHeight: 1 }}>{totalSongsLogged}</p>
-              <p style={{ fontSize: 13, color: 'var(--sl-text-3)', margin: '6px 0 0' }}>songs performed</p>
-            </div>
-            <div>
-              <p style={{ fontSize: 42, fontWeight: 800, color: 'var(--sl-text)', margin: 0, fontFamily: '"DM Mono", monospace', letterSpacing: '-0.03em', lineHeight: 1 }}>{totalCities}</p>
-              <p style={{ fontSize: 13, color: 'var(--sl-text-3)', margin: '6px 0 0' }}>cities</p>
-            </div>
-          </div>
-        </div>
-
-        {/* CAREER VALUE */}
-        {estimatedRoyalties > 0 && (
-          <div style={{ paddingTop: 40, paddingBottom: 40, borderBottom: '1px solid color-mix(in srgb, var(--sl-text) 5%, transparent)' }}>
-            <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', color: 'var(--sl-text-3)', margin: '0 0 12px', textTransform: 'uppercase' }}>Estimated career value</p>
-            <p style={{ fontSize: 36, fontWeight: 800, color: 'var(--sl-accent)', margin: '0 0 6px', fontFamily: '"DM Mono", monospace', letterSpacing: '-0.02em' }}>~${estimatedRoyalties.toLocaleString()}</p>
-            <p style={{ fontSize: 14, color: 'var(--sl-text-3)', margin: 0 }}>across {totalShows} verified live performances</p>
-            <p style={{ fontSize: 11, color: 'var(--sl-text-3)', margin: '6px 0 0' }}>Estimate only, not guaranteed — actual payouts vary by PRO.</p>
-            {submittedShows > 0 && (
-              <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ flex: 1, height: 2, background: 'color-mix(in srgb, var(--sl-text) 6%, transparent)', borderRadius: 1 }}>
-                  <div style={{ height: '100%', borderRadius: 1, background: 'var(--sl-ok)', width: `${Math.min(100, Math.round((submittedShows / totalShows) * 100))}%` }} />
-                </div>
-                <p style={{ fontSize: 13, color: 'var(--sl-ok)', margin: 0, flexShrink: 0 }}>{submittedShows} filed</p>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* TOP SONGS */}
-        {topSongs.length > 0 && (
-          <div style={{ paddingTop: 40, paddingBottom: 40, borderBottom: '1px solid color-mix(in srgb, var(--sl-text) 5%, transparent)' }}>
-            <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', color: 'var(--sl-text-3)', margin: '0 0 24px', textTransform: 'uppercase' }}>Most performed</p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-              {topSongs.map((song, i) => (
-                <div key={song.song_title} style={{ display: 'flex', alignItems: 'baseline', gap: 16, padding: '12px 0', borderBottom: i < topSongs.length - 1 ? '1px solid color-mix(in srgb, var(--sl-text) 4%, transparent)' : 'none' }}>
-                  <span style={{ fontSize: 12, color: 'var(--sl-accent)', fontFamily: '"DM Mono", monospace', minWidth: 20, flexShrink: 0 }}>{i + 1}</span>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ fontSize: 16, fontWeight: 600, color: 'var(--sl-text)', margin: '0 0 3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{song.song_title}</p>
-                    {song.isrc && <p style={{ fontSize: 12, color: 'var(--sl-text-3)', margin: 0, fontFamily: '"DM Mono", monospace' }}>{song.isrc}</p>}
-                  </div>
-                  <span style={{ fontSize: 13, color: 'var(--sl-text-3)', fontFamily: '"DM Mono", monospace', flexShrink: 0 }}>{song.confirmed_count}×</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* TOP VENUES */}
-        {topVenues.length > 0 && (
-          <div style={{ paddingTop: 40, paddingBottom: 40, borderBottom: '1px solid color-mix(in srgb, var(--sl-text) 5%, transparent)' }}>
-            <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', color: 'var(--sl-text-3)', margin: '0 0 24px', textTransform: 'uppercase' }}>Venues</p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-              {topVenues.map((venue, i) => (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', borderBottom: i < topVenues.length - 1 ? '1px solid color-mix(in srgb, var(--sl-text) 4%, transparent)' : 'none' }}>
-                  <div>
-                    <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--sl-text)', margin: '0 0 3px' }}>{venue.name}</p>
-                    <p style={{ fontSize: 13, color: 'var(--sl-text-3)', margin: 0 }}>{venue.city}</p>
-                  </div>
-                  <span style={{ fontSize: 13, color: 'var(--sl-text-3)', fontFamily: '"DM Mono", monospace' }}>{venue.count} show{venue.count !== 1 ? 's' : ''}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* SHOW LOG */}
-        <div style={{ paddingTop: 40, paddingBottom: 40, borderBottom: '1px solid color-mix(in srgb, var(--sl-text) 5%, transparent)' }}>
-          <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', color: 'var(--sl-text-3)', margin: '0 0 24px', textTransform: 'uppercase' }}>Show history</p>
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            {recentShows.map((show, i) => {
-              const d = new Date(show.started_at)
-              const songCount = songCountMap[show.id] || 0
-              return (
-                <div key={show.id} style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '11px 0', borderBottom: i < recentShows.length - 1 ? '1px solid color-mix(in srgb, var(--sl-text) 4%, transparent)' : 'none' }}>
-                  <div style={{ minWidth: 48, flexShrink: 0 }}>
-                    <p style={{ fontSize: 15, fontWeight: 700, color: 'var(--sl-text)', margin: 0, fontFamily: '"DM Mono", monospace' }}>{d.getDate()}</p>
-                    <p style={{ fontSize: 10, color: 'var(--sl-text-3)', margin: 0, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' })}</p>
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--sl-text)', margin: '0 0 2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{show.venue_name}</p>
-                    <p style={{ fontSize: 12, color: 'var(--sl-text-3)', margin: 0 }}>{show.city}</p>
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3, flexShrink: 0 }}>
-                    <span style={{ fontSize: 13, color: 'var(--sl-text-3)', fontFamily: '"DM Mono", monospace' }}>{songCount} songs</span>
-                    {show.submission_status === 'submitted' && <span style={{ fontSize: 10, color: 'var(--sl-ok)', fontWeight: 600, letterSpacing: '0.06em' }}>FILED</span>}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-
-        {/* METADATA HEALTH */}
-        {userSongs.length > 0 && (
-          <div style={{ paddingTop: 40, paddingBottom: 40, borderBottom: '1px solid color-mix(in srgb, var(--sl-text) 5%, transparent)' }}>
-            <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', color: 'var(--sl-text-3)', margin: '0 0 6px', textTransform: 'uppercase' }}>Catalog health</p>
-            <p style={{ fontSize: 13, color: 'var(--sl-text-3)', margin: '0 0 20px' }}>{userSongs.length} songs in catalog</p>
-            <div style={{ display: 'flex', gap: 0 }}>
-              {[
-                { label: 'Have ISRC', value: withISRC },
-                { label: 'Composer',  value: withComposer },
-                { label: 'Publisher', value: withPublisher },
-              ].map((item, i) => (
-                <div key={i} style={{ flex: 1, paddingRight: i < 2 ? 24 : 0, borderRight: i < 2 ? '1px solid color-mix(in srgb, var(--sl-text) 5%, transparent)' : 'none', paddingLeft: i > 0 ? 24 : 0 }}>
-                  <p style={{ fontSize: 28, fontWeight: 800, color: 'var(--sl-text)', margin: '0 0 4px', fontFamily: '"DM Mono", monospace' }}>{item.value}</p>
-                  <p style={{ fontSize: 12, color: 'var(--sl-text-3)', margin: 0 }}>{item.label}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* FOOTER */}
-        <div style={{ paddingTop: 40, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div>
-            <p style={{ fontSize: 14, fontWeight: 800, color: 'var(--sl-accent)', margin: '0 0 4px', letterSpacing: '0.1em' }}>SETLISTR</p>
-            <p style={{ fontSize: 12, color: 'var(--sl-text-3)', margin: 0 }}>Verified live performance record</p>
-          </div>
-          <p style={{ fontSize: 12, color: 'var(--sl-text-3)', fontFamily: '"DM Mono", monospace' }}>{new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
-        </div>
-
-      </div>
-
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500;700&display=swap');
-        * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
-      `}</style>
+  const mapImage = (v: MapView, cls: string) => (
+    <div className={cls} style={{ position: 'relative', aspectRatio: `${v.w} / ${v.h}`, borderRadius: 6, overflow: 'hidden', background: '#0a0908' /* map imagery: dark in both appearances */ }}>
+      <img src={staticMapUrl(v, token)} alt={`Map of the places where ${s.artist.name}’s confirmed shows took place`} loading="lazy" onError={() => setMapFailed(true)}
+        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', display: 'block' }} />
+      {v.dots.map((d, i) => (
+        <span key={i} aria-hidden="true" style={{ position: 'absolute', left: `${d.x}%`, top: `${d.y}%`, width: `${(d.d / v.w) * 100}%`, aspectRatio: '1', transform: 'translate(-50%, -50%)', borderRadius: '50%', background: '#c9a84c', boxShadow: '0 0 0 1.5px #0a0908' /* map imagery: Setlistr gold on the dark map */ }} />
+      ))}
     </div>
+  )
+  let geo: React.ReactNode = null
+  if (showMap) {
+    geo = (
+      <figure className="pf-map">
+        {mapImage(s.map.views.phone!, 'pf-map-phone')}
+        {mapImage(s.map.views.wide!, 'pf-map-wide')}
+        <figcaption className="pf-map-cap">
+          <span>{coverageText(s.map.mappedShows, c.confirmed, s.map.coverage)}</span>
+          <span style={{ whiteSpace: 'nowrap' }}>© Mapbox © OpenStreetMap</span>
+        </figcaption>
+      </figure>
+    )
+  } else if (s.map.placeNames.length > 0) {
+    const names = s.map.placeNames.slice(0, PLACES_SHOWN), more = s.map.placeNames.length - names.length
+    geo = (
+      <div className="pf-places">
+        {names.map(p => <div key={p.name} className="pf-pl"><b>{p.name}</b><span>{pl(p.shows, 'show', 'shows')}</span></div>)}
+        {more > 0 && <p className="pf-cap">and {pl(more, 'more place', 'more places')}</p>}
+        {unplacedText(s.map.coverage) && <p className="pf-cap">{unplacedText(s.map.coverage)}</p>}
+        {s.map.mode === 'map' && <p className="pf-cap">The map isn’t available right now.</p>}
+      </div>
+    )
+  }
+
+  const relation = c.confirmed > 0 ? (
+    <p className="pf-rel">
+      <b>{pl(c.confirmed, 'confirmed show', 'confirmed shows')}.</b>{' '}{relationText(c)}
+    </p>
+  ) : null
+
+  const sourceLine = c.confirmed > 0 ? (
+    <p className="pf-src">Setlists: {SOURCE_LINE.filter(([m]) => s.methods[m] > 0).map(([m, l], i) => <span key={m}>{i > 0 && ' · '}<b>{s.methods[m].toLocaleString()}</b> {l}</span>)}</p>
+  ) : null
+
+  const how = (
+    <details className="pf-how">
+      <summary>How this record is made</summary>
+      <dl>{HOW_MADE.map(([t, d]) => <div key={t}><dt>{t}</dt><dd>{d}</dd></div>)}</dl>
+    </details>
+  )
+
+  // Export: only for people who can edit this workspace (the server checks
+  // again on every request). Handed off as the claim sheet is: a download in
+  // the browser, the share sheet in the installed app, an honest error otherwise.
+  async function exportPdf() {
+    if (exporting || !s) return
+    setExporting(true); setExportError(null)
+    try {
+      const tz = zone ? `&tz=${encodeURIComponent(zone)}` : ''
+      const res = await fetch(`/api/proof/pdf?artist_id=${encodeURIComponent(s.artist.id)}${tz}`, { cache: 'no-store' })
+      if (res.status === 401) { setExportError('Your session has ended. Sign in again, then export.'); return }
+      if (res.status === 403) { setExportError('You don’t have permission to export this record.'); return }
+      if (!res.ok || !(res.headers.get('content-type') || '').includes('application/pdf')) {
+        // A failed export carries a short stage reference (no data) to quote.
+        let reference = ''
+        try { const j = await res.json(); if (typeof j?.reference === 'string') reference = j.reference.replace(/[^A-Za-z0-9_-]/g, '').slice(0, 60) } catch { /* not JSON */ }
+        setExportError(`The PDF couldn’t be created. Try again.${reference ? ` Reference: ${reference}` : ''}`)
+        return
+      }
+      const blob = await res.blob()
+      if (blob.size === 0) throw new Error('empty pdf')
+      setPhotoReport(res.headers.get('x-proof-photo'))
+      const name = /filename="([^"]+)"/.exec(res.headers.get('content-disposition') || '')?.[1] || 'proof-of-performance.pdf'
+      let file: File | null = null
+      try { file = new File([blob], name, { type: 'application/pdf' }) } catch { file = null }
+      const route = chooseHandoffRoute({ native: isNativeApp(window), canShareFile: canShareFile(navigator, file) })
+      if (route === 'download') { downloadBlob(blob, name); return }
+      if (route === 'share' && file) {
+        try { await navigator.share({ files: [file], title: name }) } catch (e) {
+          if (isShareCancel(e)) return
+          console.error('[Proof] share failed:', e)
+          setExportError('The PDF couldn’t be shared from the app. Open setlistr.ai in Safari to download it.')
+        }
+        return
+      }
+      setExportError('This app can’t save the PDF yet. Open setlistr.ai in Safari to download it.')
+    } catch (e) {
+      console.error('[Proof] export failed:', e)
+      setExportError('The PDF couldn’t be created. Try again.')
+    } finally { setExporting(false) }
+  }
+  const photoNote = photo && photoReport && PHOTO_NOTE[photoReport] && ['unsupported-format', 'retrieval-failed'].includes(photoReport) ? PHOTO_NOTE[photoReport]
+    : photo && PHOTO_NOTE[s.artist.imageEligibility] ? PHOTO_NOTE[s.artist.imageEligibility] : null
+  const exportBlock = s.access.canExport && c.confirmed > 0 ? (
+    <>
+      <button type="button" className="pf-btn" onClick={exportPdf} disabled={exporting} aria-busy={exporting}>{exporting ? 'Preparing PDF…' : 'Export PDF'}</button>
+      {exportError && <p role="alert" className="pf-err">{exportError}</p>}
+      {photoNote && <p className="pf-note">{photoNote}</p>}
+    </>
+  ) : null
+
+  // The register: newest first, grouped by year, each show's evidence a tap away.
+  const visible = s.shows.slice(0, shown)
+  const years: { y: string; shows: ProofShow[] }[] = []
+  for (const sh of visible) {
+    const d = day(sh.date), y = d ? String(d.y) : 'Date not recorded'
+    if (!years.length || years[years.length - 1].y !== y) years.push({ y, shows: [] })
+    years[years.length - 1].shows.push(sh)
+  }
+  const evidence = evidenceRows
+  const facts = factsText
+
+  const register = c.confirmed > 0 ? (
+    <section className="pf-reg" aria-labelledby="pf-reg-h">
+      <div className="pf-reg-h"><h2 id="pf-reg-h">Performance register</h2><span>{pl(c.confirmed, 'show', 'shows')} · newest first</span></div>
+      {years.map(g => (
+        <div key={g.y}>
+          <div className="pf-yr">{g.y}</div>
+          {g.shows.map(sh => (
+            <details key={sh.id} className="pf-show">
+              <summary>
+                <span className="pf-dt">{shortDate(day(sh.date))}</span>
+                <span className="pf-vc"><span className="pf-vn">{sh.venue}</span><span className="pf-ct">{sh.city || 'No city on file'}</span></span>
+                <span className="pf-city-d">{sh.city || 'No city on file'}</span>
+                <span className="pf-songs-d">{sh.songs}</span>
+                <span className={`pf-hw${sh.method === 'unknown' ? ' pf-unk' : ''}`}>
+                  <span className="pf-hw-p">{METHOD[sh.method].short}</span><span className="pf-hw-d">{METHOD[sh.method].label}</span>
+                  <small className="pf-hw-p">{pl(sh.songs, 'song', 'songs')}</small>{facts(sh) && <small className="pf-hw-d">{facts(sh)}</small>}
+                </span>
+              </summary>
+              <dl className="pf-ev">{evidence(sh).map(([t, v, n]) => <div key={t}><dt>{t}</dt><dd>{v}<small>{n}</small></dd></div>)}</dl>
+            </details>
+          ))}
+        </div>
+      ))}
+      {s.shows.length > shown && (
+        <button type="button" className="pf-more" onClick={() => setShown(n => n + REGISTER_STEP * 4)}>Show {Math.min(REGISTER_STEP * 4, s.shows.length - shown)} more of {s.shows.length.toLocaleString()}</button>
+      )}
+    </section>
+  ) : null
+
+  const awaiting = s.awaiting.length > 0 ? (
+    <section className="pf-sub" aria-labelledby="pf-aw-h">
+      <div className="pf-sub-h"><h2 id="pf-aw-h">Awaiting confirmation</h2><span>{pl(s.awaiting.length, 'show', 'shows')} · not counted</span></div>
+      {s.awaiting.map(a => (
+        <div key={a.id} className="pf-plain">
+          <span className="pf-dt">{shortDate(day(a.date))}</span>
+          <span className="pf-vc"><span className="pf-vn">{a.venue}</span><span className="pf-ct">{a.city || 'No city on file'}</span></span>
+          <span className="pf-city-d">{a.city || 'No city on file'}</span>
+          <span className="pf-songs-d" />
+          {s.access.canExport ? <Link href={`/app/review/${a.id}`} className="pf-lnk">Review</Link> : <span className="pf-st">In review</span>}
+        </div>
+      ))}
+    </section>
+  ) : null
+
+  const importedYears = importedYearsText(s.imported.first, s.imported.last, zone)
+  const imported = s.imported.count > 0 ? (
+    <section className="pf-sub" aria-labelledby="pf-im-h">
+      <div className="pf-sub-h"><h2 id="pf-im-h">Imported history</h2><span>{pl(s.imported.count, 'show', 'shows')} · not counted</span></div>
+      <p className="pf-imp">{pl(s.imported.count, 'show', 'shows')}{importedYears}, imported from setlist.fm. Listed for reference; they weren’t recorded or confirmed in Setlistr. <Link href="/app/history" className="pf-lnk">View in History</Link></p>
+    </section>
+  ) : null
+
+  const empty = c.confirmed === 0 ? (
+    <div className="pf-empty">
+      <p className="pf-empty-h">No confirmed shows yet</p>
+      <p>{s.awaiting.length > 0 ? 'Finish reviewing a show’s setlist and it appears here.' : 'Shows you capture or upload in Setlistr appear here once their setlist is confirmed in review.'}</p>
+    </div>
+  ) : null
+
+  return (
+    <PageFrame>
+      <div className="pf" style={{ paddingTop: 8 }}>
+        {back}
+        <div className={`pf-id${photo ? '' : ' pf-nophoto'}`} style={{ ['--nl' as string]: nl }}>
+          {photo && (
+            <div className="pf-ph">
+              <img src={s.artist.imageUrl!} alt={`${s.artist.name}`} onError={() => setImageFailed(true)} />
+            </div>
+          )}
+          <div className="pf-who">
+            <div className="pf-ov">Proof of Performance</div>
+            <h1 className="pf-name">{s.artist.name}</h1>
+            {period && <p className="pf-period"><span className="pf-d-only">Live performance record · </span>{period}</p>}
+          </div>
+          {c.confirmed > 0 && figure('pf-fig pf-fig-d')}
+        </div>
+        {c.confirmed > 0 && figure('pf-fig pf-fig-p')}
+        {empty}
+        {geo}
+        <div className="pf-after">
+          <div className="pf-a-rel">{relation}</div>
+          <div className="pf-a-src">{sourceLine}{how}</div>
+          {exportBlock && <div className="pf-a-exp">{exportBlock}</div>}
+        </div>
+        {register}
+        {awaiting}
+        {imported}
+      </div>
+      <style>{`
+        .pf { font-family: "DM Sans", system-ui, sans-serif; color: var(--sl-text); }
+        .pf-id { display: grid; grid-template-columns: 118px minmax(0,1fr); gap: 16px; align-items: end; margin-top: 8px; }
+        .pf-id.pf-nophoto { grid-template-columns: minmax(0,1fr); }
+        .pf-ph { width: 118px; aspect-ratio: 4 / 5; border-radius: 4px; overflow: hidden; background: var(--sl-surface); }
+        .pf-ph img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 30%; display: block; }
+        .pf-ov { font-size: 13px; font-weight: 600; color: var(--sl-gold-text); margin-bottom: 6px; }
+        .pf-name { font-family: ${DISPLAY}; font-weight: 400; line-height: 0.86; letter-spacing: 0.012em; margin: 0 0 0 -2px; color: var(--sl-text); overflow-wrap: anywhere; text-wrap: balance;
+          font-size: max(30px, min(54px, calc((min(100cqi, 480px) - 174px) / var(--nl)))); }
+        .pf-nophoto .pf-name { font-size: max(34px, min(76px, calc((min(100cqi, 480px) - 40px) / var(--nl)))); }
+        .pf-period { margin: 8px 0 0; font-size: 14.5px; color: var(--sl-text-2); }
+        .pf-d-only, .pf-fig-d, .pf-map-wide, .pf-city-d, .pf-songs-d, .pf-hw-d { display: none; }
+        .pf-fig { display: grid; grid-template-columns: auto minmax(0,1fr); gap: 16px; align-items: end; margin-top: 20px; }
+        .pf-big { font-family: ${DISPLAY}; font-weight: 400; font-size: 136px; line-height: 0.76; margin-left: -4px; font-variant-numeric: tabular-nums; color: var(--sl-text); }
+        .pf-big-l { font-size: 16px; font-weight: 700; color: var(--sl-text); line-height: 1.25; }
+        .pf-fig.pf-fig-d { display: none; }
+        .pf-supp { margin-top: 4px; font-size: 13.5px; color: var(--sl-text-2); line-height: 1.45; }
+        .pf-map { margin: 20px 0 0; }
+        .pf-map-cap { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 2px 12px; margin-top: 7px; font-size: 12px; color: var(--sl-text-3); }
+        .pf-places { margin-top: 20px; border-top: 1px solid var(--sl-line); }
+        .pf-pl { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--sl-line); }
+        .pf-pl b { font-family: ${DISPLAY}; font-weight: 400; font-size: 34px; line-height: 0.95; letter-spacing: 0.01em; color: var(--sl-text); overflow-wrap: anywhere; }
+        .pf-pl span { font-family: ${MONO}; font-size: 12.5px; color: var(--sl-text-3); white-space: nowrap; }
+        .pf-cap { margin: 8px 0 0; font-size: 12px; color: var(--sl-text-3); }
+        .pf-empty { margin-top: 24px; padding: 18px 0; border-top: 1px solid var(--sl-line); border-bottom: 1px solid var(--sl-line); }
+        .pf-empty-h { margin: 0; font-size: 17px; font-weight: 700; }
+        .pf-empty p:not(.pf-empty-h) { margin: 4px 0 0; font-size: 14.5px; color: var(--sl-text-2); }
+        .pf-after { margin-top: 22px; display: flex; flex-direction: column; }
+        .pf-a-rel { order: 1; } .pf-a-exp { order: 2; } .pf-a-src { order: 3; }
+        .pf-btn { width: 100%; min-height: 52px; margin-top: 16px; border: none; border-radius: 14px; background: var(--sl-accent); color: var(--sl-on-accent); font: 800 16px "DM Sans", system-ui, sans-serif; cursor: pointer; }
+        .pf-btn:disabled { opacity: 0.7; cursor: default; }
+        .pf-btn:focus-visible { outline: 2px solid var(--sl-accent); outline-offset: 2px; }
+        .pf-err { margin: 10px 0 0; padding: 10px 12px; border-radius: 10px; font-size: 14px; line-height: 1.45; color: var(--sl-text); background: color-mix(in srgb, var(--sl-warn) 8%, transparent); border: 1px solid color-mix(in srgb, var(--sl-warn) 28%, transparent); }
+        .pf-note { margin: 10px 0 0; font-size: 12.5px; line-height: 1.45; color: var(--sl-text-3); }
+        .pf-rel { margin: 0; font-size: 14px; color: var(--sl-text-2); line-height: 1.5; }
+        .pf-rel b { color: var(--sl-text); font-weight: 600; }
+        .pf-src { margin: 12px 0 0; font-size: 12.5px; color: var(--sl-text-3); line-height: 1.55; }
+        .pf-src b { font-family: ${MONO}; font-weight: 500; color: var(--sl-text-2); }
+                .pf-how { margin-top: 2px; }
+        .pf-how > summary { list-style: none; cursor: pointer; display: inline-flex; align-items: center; min-height: 44px; font-size: 14px; font-weight: 700; color: var(--sl-gold-text); }
+        .pf-how > summary::-webkit-details-marker { display: none; }
+        .pf-how dl { margin: 0 0 6px; font-size: 13.5px; color: var(--sl-text-2); line-height: 1.5; max-width: 60ch; }
+        .pf-how dt { font-weight: 700; color: var(--sl-text); margin-top: 10px; }
+        .pf-how dd { margin: 2px 0 0; }
+        .pf-reg { margin-top: 34px; }
+        .pf-reg-h, .pf-sub-h { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding-bottom: 10px; }
+        .pf-reg-h { border-bottom: 1px solid var(--sl-text); }
+        .pf-sub-h { border-bottom: 1px solid var(--sl-line); margin-top: 30px; padding-bottom: 8px; }
+        .pf-reg-h h2 { margin: 0; font-size: 17px; font-weight: 700; }
+        .pf-sub-h h2 { margin: 0; font-size: 15px; font-weight: 700; }
+        .pf-reg-h span, .pf-sub-h span { font-size: 13px; color: var(--sl-text-3); white-space: nowrap; }
+        .pf-yr { font-family: ${DISPLAY}; font-size: 28px; line-height: 1; color: var(--sl-text-3); margin: 20px 0 2px; letter-spacing: 0.02em; }
+        .pf-show { border-bottom: 1px solid var(--sl-line); }
+        .pf-show > summary { list-style: none; cursor: pointer; display: grid; grid-template-columns: 54px minmax(0,1fr) auto; column-gap: 12px; align-items: baseline; padding: 12px 0; min-height: 44px; }
+        .pf-show > summary::-webkit-details-marker { display: none; }
+        .pf-show[open] .pf-vn { color: var(--sl-gold-text); }
+        .pf-dt { font-family: ${MONO}; font-size: 13px; color: var(--sl-text-2); white-space: nowrap; }
+        .pf-vc { min-width: 0; }
+        .pf-vn { display: block; font-size: 15.5px; font-weight: 600; color: var(--sl-text); line-height: 1.3; overflow-wrap: anywhere; }
+        .pf-ct { display: block; font-size: 13px; color: var(--sl-text-3); margin-top: 1px; overflow-wrap: anywhere; }
+        .pf-hw { font-size: 12.5px; color: var(--sl-text-2); text-align: right; white-space: nowrap; }
+        .pf-hw small { display: block; font-family: ${MONO}; font-size: 12px; color: var(--sl-text-3); margin-top: 1px; }
+        .pf-hw small.pf-hw-d { display: none; }
+        .pf-unk { color: var(--sl-text-3); font-style: italic; }
+        .pf-ev { margin: 0 0 14px 66px; display: grid; gap: 9px; }
+        .pf-ev dt { font-size: 11px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--sl-text-3); }
+        .pf-ev dd { margin: 1px 0 0; font-size: 13.5px; color: var(--sl-text); line-height: 1.45; }
+        .pf-ev dd small { display: block; font-size: 12px; color: var(--sl-text-3); }
+        .pf-more { margin-top: 6px; min-height: 44px; padding: 0; background: none; border: none; color: var(--sl-gold-text); font: 700 14px "DM Sans", system-ui, sans-serif; cursor: pointer; }
+        .pf-plain { display: grid; grid-template-columns: 54px minmax(0,1fr) auto; column-gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--sl-line); align-items: baseline; }
+        .pf-plain .pf-vn { font-weight: 500; color: var(--sl-text-2); }
+        .pf-st { font-size: 12.5px; color: var(--sl-warn); font-weight: 600; }
+        .pf-lnk { color: var(--sl-gold-text); font-weight: 700; font-size: 14px; text-decoration: none; display: inline-flex; align-items: center; min-height: 44px; }
+        .pf-imp { margin: 0; padding: 12px 0; font-size: 13.5px; color: var(--sl-text-2); line-height: 1.5; border-bottom: 1px solid var(--sl-line); }
+        .pf-imp .pf-lnk { min-height: 0; }
+        .pf-how > summary:focus-visible, .pf-show > summary:focus-visible, .pf-more:focus-visible, .pf-lnk:focus-visible { outline: 2px solid var(--sl-accent); outline-offset: 2px; border-radius: 4px; }
+        @container sl-frame (min-width: 900px) {
+          .pf-id { grid-template-columns: 268px minmax(0,1fr) auto; gap: 36px; margin-top: 12px; }
+          .pf-id.pf-nophoto { grid-template-columns: minmax(0,1fr) auto; }
+          .pf-ph { width: 268px; }
+          .pf-name { font-size: max(48px, min(112px, calc((min(100cqi, 1120px) - 640px) / var(--nl)))); }
+          .pf-nophoto .pf-name { font-size: max(56px, min(132px, calc((min(100cqi, 1120px) - 380px) / var(--nl)))); }
+          .pf-period { font-size: 16px; margin-top: 12px; }
+          .pf-d-only, .pf-map-wide { display: inline; }
+          .pf-map-wide { display: block; }
+          .pf-map-phone, .pf-fig.pf-fig-p { display: none; }
+          .pf-fig.pf-fig-d { display: block; margin: 0; padding-bottom: 2px; }
+          .pf-fig-d .pf-big { font-size: 210px; }
+          .pf-fig-d .pf-big-l { margin-top: 12px; }
+          .pf-map { margin-top: 30px; }
+          .pf-after { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr) 240px; gap: 40px; align-items: start; }
+          .pf-a-rel { grid-column: 1; } .pf-a-src { grid-column: 2; } .pf-a-exp { grid-column: 3; grid-row: 1; }
+          .pf-btn { margin-top: 0; }
+          .pf-show > summary, .pf-plain { grid-template-columns: 86px minmax(0,1.4fr) minmax(0,1fr) 70px minmax(0,1.3fr); }
+          .pf-ct, .pf-hw-p { display: none; }
+          .pf-city-d, .pf-songs-d { display: block; font-size: 14px; color: var(--sl-text-2); overflow-wrap: anywhere; }
+          .pf-songs-d { font-family: ${MONO}; font-size: 13px; }
+          .pf-hw { text-align: left; white-space: normal; font-size: 13.5px; }
+          .pf-hw-d { display: block; }
+          .pf-hw small.pf-hw-d { display: block; }
+          .pf-hw small.pf-hw-p { display: none; }
+          .pf-ev { margin-left: 98px; grid-template-columns: repeat(3, minmax(0,1fr)); column-gap: 28px; }
+        }
+      `}</style>
+    </PageFrame>
   )
 }
