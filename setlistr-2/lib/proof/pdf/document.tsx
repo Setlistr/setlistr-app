@@ -257,7 +257,7 @@ function ProofDocument({ summary: s, zone, preparedAt, photo, map, mapStatus }: 
               </View>
             )}
             <View style={{ flexGrow: 1 }} />
-            <Text style={st.scope}>Shows performed live and confirmed in review in Setlistr, as of {prepared}. The register follows; how this record is made, and what it leaves out, is on the last page.</Text>
+            <Text style={st.scope}>Performance records confirmed in review by the artist or their team in Setlistr, as of {prepared}. The register follows; how this record is made, and what it leaves out, is on the last page.</Text>
           </>
         ) : (
           <View style={{ marginTop: 28, paddingVertical: 16, borderTopWidth: 1, borderTopColor: INK, borderBottomWidth: 0.6, borderBottomColor: RULE }}>
