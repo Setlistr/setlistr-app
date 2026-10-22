@@ -35,12 +35,24 @@ There are no new dependencies in this candidate. Export stays unavailable; the o
 - So `complete` means **Confirmed in review** (by the artist or their team; who and when aren't recorded).
 - Any `completed` or `exported` row still counts under the unchanged rule, but reads **Marked complete; review not recorded**.
 
-**How each setlist was recorded.** Recognised songs have a kept song source of `fingerprint`, `humming`, `recognized` or `combined`.
+**How each setlist was recorded.** This is derived from positive evidence only; no stored data is changed.
+
+*Recognised songs* are kept songs whose source means audio recognition:
+- `fingerprint`, `humming`, `recognized`, `combined`;
+- `detected` (live capture's source in March 2026) and `music` (early recognition).
+
+*Manual songs* are sources that positively record entry by the artist or team: `manual`, `planned` (the artist's own pre-entered setlist) and `cloned` (copied from a previous show). Every other value is no evidence either way: null, `unidentified`, `transcript` and anything unknown.
+
+The method:
 - **No songs on file:** no kept songs.
-- **Entered by hand:** no recognised songs.
-- **From a recording:** positive upload evidence. That is the canonical `show_created` event with `flow_source = 'upload'`, a recognition event with a `chunk_index`, or a stored `recording_path`.
-- **Recognised live:** positive live evidence. That is `show_created` with `flow_source = 'live'`, or a capture-start location reading (only live capture writes `latitude`).
-- **Method not recorded:** both kinds of evidence, or neither. A recognition event without a `chunk_index` is ambiguous, because uploads before `chunk_index` existed look the same. It never implies live.
+- **Entered by hand:** no recognised songs, and **every** kept song is manual.
+- **From a recording:** recognised songs, plus positive upload evidence. That is the canonical `show_created` event with `flow_source = 'upload'`, a recognition event with a `chunk_index`, or a stored `recording_path`.
+- **Recognised live:** recognised songs, plus positive live evidence. That is `show_created` with `flow_source = 'live'`, or a capture-start location reading.
+- **Method not recorded:** everything else. That covers recognised songs with both kinds of evidence or neither, and songs with no record of how they were entered.
+
+Missing recognition logs never imply live, and missing manual evidence never implies "entered by hand".
+
+*Correction, 2026-10-22.* Until `c52d678`, "entered by hand" meant only that no song had a current recognition source. Older shows whose songs carry `detected` or `music`, or no source, were therefore shown as "entered by hand". They now read as recognised (then live, recording or not recorded, by capture evidence) or as method not recorded.
 
 **Location:** “Phone near the venue when capture began” appears only when `location_verified = true`, meaning the stored reading was within 500 m. Otherwise nothing is shown.
 
@@ -192,7 +204,41 @@ There are no new dependencies in this candidate. Export stays unavailable; the o
 - **App with no file sharing, or a failed share:** an honest error ("Open setlistr.ai in Safari to download it"). There is no blob navigation and no HTTPS fallback, which would leave the app without a way back.
 - Errors are explicit for 401, 403, server failures and non-PDF answers.
 
-## 10. Candidate verification (2026-10-21)
+## 10. Deployed export failure (Preview `c52d678`) and fix
+
+**Report.** On the `c52d678` Preview, desktop Chrome showed "The PDF couldn’t be created. Try again."
+
+**Evidence available.**
+- The deployment's runtime logs couldn't be read from here. The stored Vercel CLI login had expired, and the API answered 403. Refreshing it would change credentials, so it wasn't refreshed.
+- The Preview is behind Vercel Authentication, so it can't be probed without signing in.
+
+**Reproduced locally.**
+- **The test:** a standalone production build traced from the repository root, as a Root Directory project is packaged, run under Node 20 from the packaged files only.
+- **The failing stage:** rendering, as the PDF engine starts.
+- **The error:** `Cannot find module …/node_modules/pdfkit/js/standard-fonts/Helvetica.cjs`.
+- **Cause:** pdfkit initialises its built-in Helvetica for every document. It loads that font's data with a computed `require` (`#standard-fonts/*`), which Next's file tracing can't follow, so the data isn't shipped with the function.
+- **Why earlier local checks missed it:** they ran against a full `node_modules`. They couldn't establish that the Vercel export works.
+
+**Fix (narrow).**
+- `next.config.mjs`: `outputFileTracingIncludes` for `/api/proof/pdf` adds `./node_modules/pdfkit/js/standard-fonts/**` (184 KB).
+- **Rebuilt simulation:** exports succeed with no server errors, under Node 20 and the packaged files only. The JPEG and PNG decoders were also confirmed from the packaged modules.
+- **Also confirmed:** Node 20 and Node 22 runs of the normal production build export correctly, so the runtime version wasn't the cause.
+
+**Stage references.** If an export still fails, the response carries a short stage reference (`summary` | `images` | `render` | `respond`, plus the error class or code, e.g. `render-MODULE_NOT_FOUND`). The page shows it after "Try again", and the server log records it with a message from which identifiers are removed. It contains no artist data, tokens or document contents.
+
+**Font fix, documented.**
+- **Symptom:** react-pdf keeps loaded fonts between documents in one server process. A later document then lost glyphs from its embedded subset; Bebas's W disappeared after another artist's export.
+- **Why not `Font.reset()`:** it doesn't reload, because it clears the data but keeps the cached load promise.
+- **Fix:** every render runs `Font.clear()`, re-registers the default Helvetica family and Setlistr's fonts, and renders one document at a time per process (`renderQueue`).
+- **Verified:** 30 exports for 5 different artists (alone, in sequence, reversed, 5 at once, 10 at once). For each artist, every run produced identical extracted text and pixel-identical pages, with no other artist's content.
+
+**Recovery.** After a server failure, a dropped connection, a dismissed or failed share, or "this app can't save the PDF", the page stays usable: disclosures still work and the button is enabled again. A second attempt succeeds or shows the same honest message. A second tap while a PDF is being prepared starts nothing.
+
+**Map lookups.** Failures are counted as "the place lookup was unavailable" from the actual response. The server log records the HTTP status only. No cause, including token URL restrictions, is assumed without that response. Credentials and restrictions were never changed.
+
+**Installed app.** Unverified until an approved release; the installed app loads production. The share sheet and the "can't save" path are simulated in Chromium and WebKit only.
+
+## 11. Candidate verification (2026-10-21)
 
 **Environment:**
 - **Database:** the disposable stack only (`127.0.0.1:54621`), with production's access rules applied locally from 0001, 0004, 0005 and 0006, and seeded sample artists and roles.

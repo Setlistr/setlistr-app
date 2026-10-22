@@ -50,18 +50,29 @@ export type ProofShow = {
   confirmation: Confirmation
 }
 
-// Song sources that mean the song was matched by audio recognition.
-export const RECOGNISED_SOURCES = new Set(['fingerprint', 'humming', 'recognized', 'combined'])
+// Song sources that mean the song was matched by audio recognition, including
+// the names earlier versions wrote: live capture saved 'detected' (March
+// 2026) and early recognition 'music' (app/api/identify history).
+export const RECOGNISED_SOURCES = new Set(['fingerprint', 'humming', 'recognized', 'combined', 'detected', 'music'])
+// Sources that positively record entry by the artist or their team: added by
+// hand, kept from the artist's own planned setlist, or copied from a previous
+// show. Anything else — null, 'unidentified', 'transcript', unknown values —
+// is no evidence either way.
+export const MANUAL_SOURCES = new Set(['manual', 'planned', 'cloned'])
 
 export function isRecognisedSource(source: string | null | undefined): boolean {
   return !!source && RECOGNISED_SOURCES.has(source)
 }
+export function isManualSource(source: string | null | undefined): boolean {
+  return !!source && MANUAL_SOURCES.has(source)
+}
 
-// How the setlist got into Setlistr, from positive evidence only. A missing
-// or ambiguous signal is 'unknown', never 'live'.
-export function setlistMethod(e: { songs: number; recognised: number; uploadEvidence: boolean; liveEvidence: boolean }): Method {
+// How the setlist got into Setlistr, from positive evidence only. Missing or
+// ambiguous evidence is 'unknown' (method not recorded): never 'live', and
+// never 'hand' unless every kept song is recorded as entered by hand.
+export function setlistMethod(e: { songs: number; recognised: number; manual?: number; uploadEvidence: boolean; liveEvidence: boolean }): Method {
   if (e.songs === 0) return 'none'
-  if (e.recognised === 0) return 'hand'
+  if (e.recognised === 0) return (e.manual ?? 0) === e.songs ? 'hand' : 'unknown'
   if (e.uploadEvidence && !e.liveEvidence) return 'recording'
   if (e.liveEvidence && !e.uploadEvidence) return 'live'
   return 'unknown'
@@ -149,10 +160,11 @@ export function buildProofCore(perfs: PerfRow[], songs: SongRow[], flows: FlowRo
   const awaiting = live.filter(p => !isCompleteStage(p))
   const imported = perfs.filter(p => p.data_source === 'setlistfm_imported' && isRealVenue(p.venue_name))
 
-  const songCount = new Map<string, number>(), recCount = new Map<string, number>()
+  const songCount = new Map<string, number>(), recCount = new Map<string, number>(), manCount = new Map<string, number>()
   for (const s of songs) {
     songCount.set(s.performance_id, (songCount.get(s.performance_id) || 0) + 1)
     if (isRecognisedSource(s.source)) recCount.set(s.performance_id, (recCount.get(s.performance_id) || 0) + 1)
+    else if (isManualSource(s.source)) manCount.set(s.performance_id, (manCount.get(s.performance_id) || 0) + 1)
   }
   const flowOf = new Map<string, string | null>()
   for (const f of flows) if (!flowOf.has(f.performance_id)) flowOf.set(f.performance_id, f.flow_source)
@@ -164,7 +176,7 @@ export function buildProofCore(perfs: PerfRow[], songs: SongRow[], flows: FlowRo
     const n = songCount.get(p.id) || 0, r = recCount.get(p.id) || 0
     const flow = flowOf.get(p.id)
     const method = setlistMethod({
-      songs: n, recognised: r,
+      songs: n, recognised: r, manual: manCount.get(p.id) || 0,
       uploadEvidence: flow === 'upload' || chunked.has(p.id) || p.has_recording_path,
       liveEvidence: flow === 'live' || p.has_capture_location,
     })

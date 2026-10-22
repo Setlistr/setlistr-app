@@ -90,7 +90,7 @@ export function unplacedText(cov: Coverage): string | null {
 }
 
 export function factsText(sh: ProofShow): string {
-  return [sh.method === 'live' || sh.method === 'recording' || sh.method === 'unknown' ? `${sh.recognised} of ${sh.songs} recognised` : '', sh.nearVenue ? 'phone near venue' : ''].filter(Boolean).join(' · ')
+  return [sh.recognised > 0 ? `${sh.recognised} of ${sh.songs} recognised` : '', sh.nearVenue ? 'phone near venue' : ''].filter(Boolean).join(' · ')
 }
 
 export function evidenceRows(sh: ProofShow): [string, string, string][] {
@@ -98,8 +98,9 @@ export function evidenceRows(sh: ProofShow): [string, string, string][] {
   const rows: [string, string, string][] = []
   if (sh.method === 'hand') rows.push(['Setlist', 'Entered by hand', `All ${pl(sh.songs, 'song', 'songs')} added by hand.`])
   else if (sh.method === 'none') rows.push(['Setlist', 'No songs on file', 'This confirmed show has no songs saved.'])
+  else if (sh.recognised === 0) rows.push(['Setlist', 'Method not recorded', `${pl(sh.songs, 'song', 'songs')}, with no record of how they were entered.`])
   else {
-    const counted = `${sh.recognised} of ${pl(sh.songs, 'song', 'songs')} recognised${added > 0 ? `; ${added} added by hand` : ''}.`
+    const counted = `${sh.recognised} of ${pl(sh.songs, 'song', 'songs')} recognised${added > 0 ? `; ${added} not recognised` : ''}.`
     rows.push(['Setlist', sh.method === 'live' ? 'Recognised live in Setlistr' : sh.method === 'recording' ? 'Recognised from a recording' : 'Method not recorded',
       sh.method === 'unknown' ? `${counted} How the show was captured wasn’t recorded.` : `${counted} Recognition identifies the recording of a song, not who performed it.`])
   }
@@ -114,7 +115,7 @@ export function evidenceRows(sh: ProofShow): [string, string, string][] {
 export const HOW_MADE: [string, string][] = [
   ['Confirmed shows', 'Shows captured or uploaded in Setlistr whose setlist the artist or their team confirmed in review. It’s their confirmation, not an independent check.'],
   ['Song performances', 'Songs kept in confirmed setlists, counted once per show. Songs removed in review aren’t counted.'],
-  ['How each setlist was recorded', 'Recognised live, or from a recording, when Setlistr holds evidence of how the show was captured. Entered by hand when every song was added by hand. Method not recorded when songs were recognised but how the show was captured wasn’t recorded. Recognition identifies the recording of a song, not who performed it.'],
+  ['How each setlist was recorded', 'Recognised live, or from a recording, when Setlistr holds evidence of how the show was captured. Entered by hand only when every song is recorded as added by the artist or their team. Method not recorded when Setlistr holds no evidence either way: songs recognised without a record of how the show was captured, or songs with no record of how they were entered. Recognition identifies the recording of a song, not who performed it.'],
   ['Location', '“Phone near the venue when capture began” appears only when the phone’s reading was within 500 m of the venue. Location is optional; a missing reading changes nothing.'],
   ['Not counted', 'Shows awaiting confirmation and imported history are listed separately.'],
 ]
