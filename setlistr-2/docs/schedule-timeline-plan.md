@@ -61,7 +61,7 @@ Viewers see everything except Add, Start and the show menus. The server enforces
   - imports have no workflow state.
 - **Source line:**
   - "Imported from setlist.fm";
-  - "Scheduled" means scheduling provenance, from the show record, not from knowing who did it. That is: its status is scheduled or cancelled, the scheduling actor is stored, or the record was created more than a minute before it started. Only Start from Schedule does that; New show creates and starts a show in one step.
+  - "Scheduled" means scheduling provenance, from explicit stored evidence only: the scheduling actor stored by the scheduling route, or a status only the scheduling flow writes (scheduled, cancelled). It's never inferred from timing, so a show created long before its capture without that evidence doesn't read "Scheduled". Without evidence, the source line omits it.
   - the capture method by Proof's evidence rules ("recognised live", "from a recording", "entered by hand", "method not recorded"). It's never assumed; a legacy capture without evidence reads "Method not recorded".
 - **"Added by":** personal attribution, kept separate from provenance.
   - In Earlier, it's shown only when a teammate's name is stored, and otherwise omitted.
@@ -88,8 +88,8 @@ Viewers see everything except Add, Start and the show menus. The server enforces
 
 ## Verification (disposable database, production build)
 
-- **Unit tests:** 46/0.
-- **End-to-end:** 48/0 (`sched-e2e.js`).
+- **Unit tests:** 47/0.
+- **End-to-end:** 49/0 (`sched-e2e.js`).
   - **Access:** owner, manager and Viewer get 200; revoked, pending and unrelated users get 403; signed out gets 401; a tampered cursor gets 400.
   - **History:** 50 entries over two pages with no gaps or repeats, including 40 records on one date.
   - **Grouping and states:** a linked scheduled show, two captures on one show, "No capture linked", cancelled and imported.
@@ -97,7 +97,7 @@ Viewers see everything except Add, Start and the show menus. The server enforces
     - a capture with a known zone paired with a same-night date-only upload;
     - a capture with no recorded zone and a same-night upload left unpaired, with their stored dates a day apart;
     - same-named venues in Chicago and Sydney not paired.
-  - **Provenance:** a scheduled show with no stored actor still reads "Scheduled", with no "Added by".
+  - **Provenance:** a delayed start with no stored scheduling evidence doesn't read "Scheduled"; stored evidence does.
   - **Order and loading:** the active capture leads; history never delays the next show; a history failure stays local.
   - **Actions:**
     - Viewers get no actions, and the live band is status only, with no link to capture anywhere on the page;
