@@ -12,6 +12,10 @@
 //   leaves the pair possible, never certain.
 // - The two-hour window only narrows the search. Records farther apart
 //   aren't flagged, and that is not a finding that they are separate.
+// - Stored dates are compared as stored. The previous or next date is
+//   considered only when both records have a real start time AND a reliable
+//   time zone, so a midnight crossing can actually be established. Missing
+//   time-zone data never widens matching to another date.
 
 import { cityKey, normaliseText, placeContext } from '../proof/place'
 
@@ -23,13 +27,13 @@ export type IdentityRecord = {
   country: string | null
   localDate: string | null        // YYYY-MM-DD in the record's own zone, or as stored
   instant: number | null          // epoch ms when a real start time is known
-  // The stored value has a time but no time zone is recorded, so its local
-  // date may be a day either side of the date shown.
+  // The stored value has a time but no time zone is recorded: its date is
+  // kept as stored, and it is never compared with another date.
   dateUncertain?: boolean
 }
 
 export type VenueRelation = 'same-venue' | 'same-name-place' | 'same-name-no-place' | 'different'
-export type TimeRelation = 'times-close' | 'time-unknown' | 'across-midnight' | 'zone-unknown'
+export type TimeRelation = 'times-close' | 'time-unknown' | 'across-midnight'
 export type Candidate = { a: string; b: string; venue: Exclude<VenueRelation, 'different'>; time: TimeRelation }
 
 export const CANDIDATE_WINDOW_MS = 2 * 60 * 60 * 1000
@@ -71,11 +75,9 @@ export function timeRelation(a: IdentityRecord, b: IdentityRecord): TimeRelation
   const close = both && Math.abs(a.instant! - b.instant!) <= CANDIDATE_WINDOW_MS
   if (days === 0) return both ? (close ? 'times-close' : null) : 'time-unknown'
   // A show that crosses midnight: only with two real times close together.
-  if (days === 1 && close) return 'across-midnight'
-  // No recorded time zone: the date may be a day off, so the next or previous
-  // date is compared too, only when a start time is missing on one side
-  // (two real times are compared as instants above).
-  if (days === 1 && !both && (a.dateUncertain || b.dateUncertain)) return 'zone-unknown'
+  // A show that crosses midnight: two real times close together, each read
+  // in a known time zone.
+  if (days === 1 && close && !a.dateUncertain && !b.dateUncertain) return 'across-midnight'
   return null
 }
 

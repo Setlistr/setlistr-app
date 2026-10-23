@@ -98,21 +98,26 @@ export function ScheduleTimeline({ artistId, artistName, canManage }: { artistId
   const when = (s: ScheduledShow) => { const { dateStr, timeStr } = utcToZonedParts(new Date(s.scheduled_at), s.timezone); return { day: dayLabel(dateStr, s.timezone), time: `${timeLabel(timeStr)} ${zoneAbbreviation(s.scheduled_at, s.timezone)}`.trim() } }
   const addedByOf = (s: ScheduledShow) => s.scheduled_by && s.scheduled_by !== s.created_by ? (s.scheduled_by_name || 'a teammate') : null
 
-  // ── Capture in progress: the Dashboard's band, same destination ──
+  // ── Capture in progress: the Dashboard's band and rule. It links to live
+  // capture only for people who can capture (the same check as Start). The
+  // capture page has no read-only mode, so a Viewer sees the same band as
+  // plain status, with no link and no capture controls. ──
   const activeBand = active && (() => {
     const interrupted = minutesSince(active.started_at) > 5
-    return (
+    const body = <>
+      <span className="tl-mic" aria-hidden="true"><Mic size={16} strokeWidth={2.4} /></span>
+      <span className="tl-grow">
+        <span className="tl-act-st" style={{ color: interrupted ? 'var(--sl-live)' : 'var(--sl-ok)' }}>{interrupted ? 'Capture may have been interrupted' : 'Show in progress'}</span>
+        <span className="tl-act-v">{active.venue || 'Untitled show'}</span>
+        <span className="tl-sub">{canManage ? (interrupted ? 'Tap to resume capture' : 'Tap to continue capture') : 'Being captured by the artist or their team'}</span>
+      </span>
+      <span className="tl-mono tl-el">{elapsed(active.started_at)}</span>
+    </>
+    return canManage ? (
       <Link href={`/app/live/${active.id}`} className="tl-active" aria-label={`${interrupted ? 'Resume capture' : 'Continue capture'} at ${active.venue || 'this show'}`}>
-        <span className="tl-mic" aria-hidden="true"><Mic size={16} strokeWidth={2.4} /></span>
-        <span className="tl-grow">
-          <span className="tl-act-st" style={{ color: interrupted ? 'var(--sl-live)' : 'var(--sl-ok)' }}>{interrupted ? 'Capture may have been interrupted' : 'Show in progress'}</span>
-          <span className="tl-act-v">{active.venue || 'Untitled show'}</span>
-          <span className="tl-sub">{interrupted ? 'Tap to resume capture' : 'Tap to continue capture'}</span>
-        </span>
-        <span className="tl-mono tl-el">{elapsed(active.started_at)}</span>
-        <ChevronRight size={18} aria-hidden="true" style={{ color: 'var(--sl-text-3)', flexShrink: 0 }} />
+        {body}<ChevronRight size={18} aria-hidden="true" style={{ color: 'var(--sl-text-3)', flexShrink: 0 }} />
       </Link>
-    )
+    ) : <div className="tl-active" role="status">{body}</div>
   })()
 
   // ── Next show ──

@@ -40,7 +40,7 @@ async function readForIds<T>(ids: string[], q: (g: string[]) => PromiseLike<{ da
 
 type PerfFull = PerfRow & { latitude: number | null; recording_path: string | null }
 const PERF_COLS = 'id, show_id, status, submission_status, data_source, venue_id, venue_name, city, country, performance_date, started_at, created_at, venue_latitude, venue_longitude, latitude, recording_path'
-const SHOW_COLS = 'id, status, scheduled_at, timezone, venue_id, name, show_type, created_by, scheduled_by, scheduled_by_name, started_at, updated_at, venues(name, city, country, latitude, longitude)'
+const SHOW_COLS = 'id, status, scheduled_at, timezone, venue_id, name, show_type, created_by, scheduled_by, scheduled_by_name, started_at, updated_at, created_at, venues(name, city, country, latitude, longitude)'
 
 // How each capture's setlist was recorded, by Proof's evidence rules
 // (lib/proof/summary setlistMethod): never assumed.

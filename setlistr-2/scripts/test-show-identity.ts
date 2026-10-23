@@ -1,7 +1,7 @@
 // DB-free tests for lib/shows/identity.ts and lib/shows/timeline.ts. Run:
 //   npx ts-node --transpile-only -P scripts/tsconfig.json scripts/test-show-identity.ts
 import { findCandidates, venueRelation, type IdentityRecord } from '../lib/shows/identity'
-import { buildEntries, pageOf, decodeCursor, entryState, sourceLine, addedBy, captureDate, captureInstant, candidatesFor, type ShowRow, type PerfRow } from '../lib/shows/timeline'
+import { buildEntries, pageOf, decodeCursor, entryState, sourceLine, addedBy, scheduledAhead, captureDate, captureInstant, candidatesFor, type ShowRow, type PerfRow } from '../lib/shows/timeline'
 
 let pass = 0, fail = 0
 function check(name: string, ok: boolean, got?: unknown) { if (ok) { pass++; console.log(`  ok   ${name}`) } else { fail++; console.log(`  FAIL ${name}`, got === undefined ? '' : JSON.stringify(got)) } }
@@ -23,11 +23,13 @@ console.log('— dates and times')
 check('same date, times 38 minutes apart → times close', pairs([R('a', { instant: T('2026-10-16T01:02:00Z') }), R('b', { instant: T('2026-10-16T01:40:00Z') })])[0] === 'a-b:same-name-place/times-close')
 check('same date, one time unknown → time unknown', pairs([R('a', { instant: T('2026-10-16T01:02:00Z') }), R('b')])[0] === 'a-b:same-name-place/time-unknown')
 check('same date, times 3 hours apart → not flagged (heuristic only)', pairs([R('a', { instant: T('2026-10-15T18:00:00Z') }), R('b', { instant: T('2026-10-15T21:00:00Z') })]).length === 0)
-check('across midnight with close times → candidate', pairs([R('a', { localDate: '2026-10-15', instant: T('2026-10-16T03:40:00Z') }), R('b', { localDate: '2026-10-16', instant: T('2026-10-16T04:10:00Z') })])[0] === 'a-b:same-name-place/across-midnight')
+check('known-zone midnight crossing (close real times, zones known) → candidate', pairs([R('a', { localDate: '2026-10-15', instant: T('2026-10-16T03:40:00Z') }), R('b', { localDate: '2026-10-16', instant: T('2026-10-16T04:10:00Z') })])[0] === 'a-b:same-name-place/across-midnight')
 check('adjacent dates without times → never paired', pairs([R('a', { localDate: '2026-10-15' }), R('b', { localDate: '2026-10-16' })]).length === 0)
 check('two dates apart → never paired', pairs([R('a', { localDate: '2026-10-13' }), R('b')]).length === 0)
-check('no recorded zone: a timestamped capture pairs with a date-only upload the day before', pairs([R('a', { localDate: '2026-10-16', instant: T('2026-10-16T01:02:00Z'), dateUncertain: true }), R('b', { localDate: '2026-10-15' })])[0] === 'a-b:same-name-place/zone-unknown')
-check('no recorded zone, but both times known → compared as instants (3 h apart: not flagged)', pairs([R('a', { localDate: '2026-10-16', instant: T('2026-10-16T01:00:00Z'), dateUncertain: true }), R('b', { localDate: '2026-10-15', instant: T('2026-10-15T22:00:00Z') })]).length === 0)
+check('no recorded zone: a timestamped capture is NOT paired with a date-only upload on the previous date', pairs([R('a', { localDate: '2026-10-16', instant: T('2026-10-16T01:02:00Z'), dateUncertain: true }), R('b', { localDate: '2026-10-15' })]).length === 0)
+check('no recorded zone: not paired across dates even with close real times', pairs([R('a', { localDate: '2026-10-16', instant: T('2026-10-16T01:02:00Z'), dateUncertain: true }), R('b', { localDate: '2026-10-15', instant: T('2026-10-16T01:30:00Z') })]).length === 0)
+check('no recorded zone: still compared on its stored date', pairs([R('a', { localDate: '2026-10-16', instant: T('2026-10-16T01:02:00Z'), dateUncertain: true }), R('b', { localDate: '2026-10-16' })])[0] === 'a-b:same-name-place/time-unknown')
+check('date-only imports on adjacent dates → never paired', pairs([R('a', { localDate: '2026-10-15', instant: null }), R('b', { localDate: '2026-10-16', instant: null })]).length === 0)
 check('a record with no date → never paired', pairs([R('a', { localDate: null }), R('b')]).length === 0)
 check('same city, different venue, same date → separate', pairs([R('a', { venueName: 'Metro' }), R('b', { venueName: 'Empty Bottle' })]).length === 0)
 check('overlapping times at different venues → separate', pairs([R('a', { venueName: 'Main Stage', instant: T('2026-10-16T01:00:00Z') }), R('b', { venueName: 'Tent Stage', instant: T('2026-10-16T01:00:00Z') })]).length === 0)
@@ -74,7 +76,9 @@ check('submitted → "Marked submitted"', entryState(by['p:up'])?.label === 'Mar
 check('imported has no workflow state; provenance in the source line', entryState(by['p:imp']) === null && sourceLine(by['p:imp'], {}) === 'Imported from setlist.fm')
 check('drafts are not records', !by['p:draft'])
 check('method only from evidence: unknown method reads "Method not recorded", never "Captured live"', sourceLine(by['p:cap'], {}) === 'Method not recorded' && sourceLine(by['p:cap'], { cap: 'live' }) === 'Recognised live')
-check('"Scheduled" only when scheduled_by is stored', sourceLine(by['s:linked'], { p1: 'live' }) === 'Scheduled · recognised live' && !/Scheduled/.test(sourceLine(by['s:two'], {})))
+check('"Scheduled" from the record, not from knowing who: stored actor, or created well before it started', sourceLine(by['s:linked'], { p1: 'live' }) === 'Scheduled · recognised live' && !/Scheduled/.test(sourceLine(by['s:two'], {})))
+check('scheduled ahead with no actor stored → still "Scheduled"; created and started together (New show) → not', scheduledAhead(S('x', { scheduled_by: null, created_at: '2026-10-01T12:00:00Z', started_at: '2026-10-19T00:07:00Z' })) && !scheduledAhead(S('y', { scheduled_by: null, created_at: '2026-10-19T00:07:00Z', started_at: '2026-10-19T00:07:01Z' })))
+check('a past scheduled show reads "Scheduled in Setlistr" whether or not the person is known', sourceLine(by['s:pastsched'], {}) === 'Scheduled in Setlistr' && addedBy(by['s:pastsched']) === null)
 check('"Added by" only for a stored teammate attribution', addedBy(by['s:linked']) === 'Jordan' && addedBy(by['s:two']) === null)
 const cs = candidatesFor(entries).map(c => `${c.a}|${c.b}`)
 check('capture + upload at the same venue on the same date → one possible-duplicate pair', cs.includes('p:cap|p:up'), cs)

@@ -22,7 +22,7 @@ import type { Method } from '../proof/summary'
 export type ShowRow = {
   id: string; status: string; scheduled_at: string | null; timezone: string | null; venue_id: string | null
   name: string | null; show_type: string | null; created_by: string; scheduled_by: string | null; scheduled_by_name: string | null
-  started_at: string | null; updated_at: string
+  started_at: string | null; updated_at: string; created_at?: string | null
   venues: { name: string | null; city: string | null; country: string | null; latitude: number | null; longitude: number | null } | null
 }
 export type PerfRow = {
@@ -185,12 +185,23 @@ const METHOD_TEXT: Record<Method, string> = {
 }
 export function methodText(m: Method | undefined): string { return m ? METHOD_TEXT[m] : METHOD_TEXT.unknown }
 
+// Was the show scheduled ahead in Setlistr? From the record itself, not from
+// knowing who did it: it is (or was cancelled while) scheduled, the scheduling
+// actor is stored, or it was created over a minute before it started (only
+// Start from Schedule does that; New show creates and starts in one step).
+export function scheduledAhead(s: ShowRow | null): boolean {
+  if (!s) return false
+  if (s.status === 'scheduled' || s.status === 'cancelled' || s.scheduled_by) return true
+  const c = s.created_at ? Date.parse(s.created_at) : NaN, st = s.started_at ? Date.parse(s.started_at) : NaN
+  return Number.isFinite(c) && Number.isFinite(st) && st - c > 60_000
+}
+
 // One quiet line: where the record came from and, for captures, how its
 // setlist was recorded (Proof's evidence; never assumed).
 export function sourceLine(e: Entry, methods: Record<string, Method>): string {
   if (e.kind === 'import') return 'Imported from setlist.fm'
-  const scheduled = !!e.show?.scheduled_by
-  if (e.kind === 'no-capture' || e.kind === 'cancelled') return scheduled ? 'Scheduled in Setlistr' : 'Show created in Setlistr'
+  const scheduled = scheduledAhead(e.show)
+  if (e.kind === 'no-capture' || e.kind === 'cancelled') return 'Scheduled in Setlistr'
   const done = e.perfs.filter(p => p.status !== 'live' && p.status !== 'pending')
   const ms = Array.from(new Set(done.map(p => methodText(methods[p.id]))))
   const how = e.perfs.length > 1 ? `${e.perfs.length} captures` : ms.length ? ms[0] : 'capture in progress'
@@ -230,6 +241,5 @@ export const VENUE_REASON: Record<Candidate['venue'], string> = {
 export const TIME_REASON: Record<Candidate['time'], string> = {
   'times-close': 'start times within two hours',
   'time-unknown': 'the same date, and at least one has no start time',
-  'across-midnight': 'start times within two hours across midnight',
-  'zone-unknown': 'one record has no recorded time zone, so its date may be a day off, and at least one has no start time',
+  'across-midnight': 'start times within two hours across midnight, each in a known time zone',
 }
