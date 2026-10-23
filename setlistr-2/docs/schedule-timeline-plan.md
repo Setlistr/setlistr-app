@@ -16,7 +16,9 @@
 ## Composition
 
 1. **Header:** "Schedule", the artist, and "+ Add a show" for the owner and write-capable roles.
-2. **A capture in progress, when there is one:** the Dashboard's band and rule (live or pending, started within 6 hours), linking to the same live page.
+2. **A capture in progress, when there is one:** the Dashboard's band and rule (live or pending, started within 6 hours).
+   - It links to live capture only for people who can capture, the same check as Start.
+   - The capture page has no read-only mode, so a Viewer sees the band as plain status ("Being captured by the artist or their team"), with no link and no capture controls. Permissions aren't broadened.
 3. **The next show:** today's or the next upcoming one, judged on each show's own clock (`isUpcomingInZone`, as the Dashboard's Next Show does).
    - Its button reads "Start early" or "Start Capture", with the same confirmation, route and navigation as before.
    - Edit and Cancel are in the same menu.
@@ -36,8 +38,8 @@ Viewers see everything except Add, Start and the show menus. The server enforces
   - **And one of these timing conditions:**
     - same local date, with start times within two hours;
     - same date, with at least one start time unknown;
-    - start times within two hours across midnight;
-    - one record without a recorded time zone (its date may be a day off) on an adjacent date, with a start time missing on one side.
+    - start times within two hours across midnight, both records having a real start time and a reliable time zone.
+- **Adjacent dates are compared only for a midnight crossing** established by two real start times, each read in a known time zone. Missing time-zone data never widens matching to the previous or next date. Records without a recorded zone are compared on their stored date only.
 - **The two-hour window narrows the search only.** Records farther apart aren't flagged, and that isn't a finding that they're separate.
 - **The wording is neutral:** "Possible duplicate", with the specific reason and the limit shown when the row is opened. Both records stay listed.
 
@@ -59,10 +61,12 @@ Viewers see everything except Add, Start and the show menus. The server enforces
   - imports have no workflow state.
 - **Source line:**
   - "Imported from setlist.fm";
-  - "Scheduled", only when `scheduled_by` is stored;
+  - "Scheduled" means scheduling provenance, from the show record, not from knowing who did it. That is: its status is scheduled or cancelled, the scheduling actor is stored, or the record was created more than a minute before it started. Only Start from Schedule does that; New show creates and starts a show in one step.
   - the capture method by Proof's evidence rules ("recognised live", "from a recording", "entered by hand", "method not recorded"). It's never assumed; a legacy capture without evidence reads "Method not recorded".
-- **"Added by":** only for a stored teammate attribution, as Schedule already did.
-- **Cancelled shows still ahead** are left out, as Schedule always did. A cancelled show appears in history once its date passes.
+- **"Added by":** personal attribution, kept separate from provenance.
+  - In Earlier, it's shown only when a teammate's name is stored, and otherwise omitted.
+  - Upcoming rows keep Schedule's existing wording, including "Added by a teammate" when another person scheduled the show but no name is stored.
+- **Cancelled shows still ahead** are left out, as Schedule always did. A cancelled show appears in history once its date passes. This limited visibility is recorded as a later UX decision, unchanged in this slice.
 
 ## Files
 
@@ -84,17 +88,30 @@ Viewers see everything except Add, Start and the show menus. The server enforces
 
 ## Verification (disposable database, production build)
 
-- **Unit tests:** 42/0.
-- **End-to-end:** 45/0 (`sched-e2e.js`).
+- **Unit tests:** 46/0.
+- **End-to-end:** 48/0 (`sched-e2e.js`).
   - **Access:** owner, manager and Viewer get 200; revoked, pending and unrelated users get 403; signed out gets 401; a tampered cursor gets 400.
   - **History:** 50 entries over two pages with no gaps or repeats, including 40 records on one date.
   - **Grouping and states:** a linked scheduled show, two captures on one show, "No capture linked", cancelled and imported.
-  - **Possible duplicates:** a capture with no recorded zone paired with a date-only upload; same-named venues in Chicago and Sydney not paired.
+  - **Possible duplicates and dates:**
+    - a capture with a known zone paired with a same-night date-only upload;
+    - a capture with no recorded zone and a same-night upload left unpaired, with their stored dates a day apart;
+    - same-named venues in Chicago and Sydney not paired.
+  - **Provenance:** a scheduled show with no stored actor still reads "Scheduled", with no "Added by".
   - **Order and loading:** the active capture leads; history never delays the next show; a history failure stays local.
-  - **Actions:** Viewers get no actions; Add opens the existing form; Cancel and "Start early" work as before.
+  - **Actions:**
+    - Viewers get no actions, and the live band is status only, with no link to capture anywhere on the page;
+    - a manager's band links to capture;
+    - Add opens the existing form;
+    - Cancel and "Start early" work as before.
   - **Workspace switching:** a late response is dropped.
   - **Regressions:** Manager Schedule and the Dashboard's Next Show are unchanged.
   - **Layout:** 320, 390 and 1280 px in dark and light, with no sideways scroll.
+
+## Recorded for later, not changed here
+
+- **Dashboard live band for Viewers.** The Dashboard's existing band links every role, Viewers included, to `/app/live/[id]`. That page has no read-only mode. Schedule doesn't repeat this. The Dashboard and capture page are unchanged in this slice; this needs its own reviewed fix.
+- **Future cancelled shows** aren't shown anywhere until their date passes. That's a UX decision for later.
 
 ## Open data-model questions
 
