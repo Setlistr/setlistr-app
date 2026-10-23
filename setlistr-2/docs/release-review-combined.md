@@ -1,6 +1,16 @@
 # Combined release review: Schedule, Dashboard Viewer link, claim-sheet content
 
-**Status:** prepared for release review only. This is not production approval. Production is `a10b545`.
+**Status: RELEASED (2026-10-23).**
+- The owner explicitly approved candidate `bc33f1306d9d0479bf2847d0b07b95157013b9b8`, with no show being captured, and accepted the documented limitations.
+- **Pre-merge checks:**
+  - remote `main` was `a10b5456e3f54df01345a3b1acd91ae5e7797468`;
+  - the head was exactly `bc33f13`;
+  - the app code was identical to the reviewed Preview `7ba1ae5`.
+- **Merged:** PR #3, as merge commit `3ce48335d65fa75ca2792498cb47d060b6f65dbb` (parents `a10b545` and `bc33f13`; tree identical to `bc33f13`). The merge was guarded with `--match-head-commit`. GitHub → Vercel triggers the production deployment.
+- **Production deployment:** not yet created at the single status lookup after merge. It's to be confirmed with one lookup when the owner reports it Ready, followed by the read-only smoke checks below.
+- **Follow-up kept separate:** the direct-URL Viewer capture-controls issue, with the untested `capture_sessions` path and unconfirmed production policy parity.
+
+Earlier status: prepared for release review only; production was `a10b545`.
 
 The branch `release/combined-review` comes from `main` `a10b545`, with one `--no-ff` merge per candidate. The original branches are preserved and unchanged.
 
@@ -55,7 +65,20 @@ There's no SQL, migration, environment or dependency change. Capture, recognitio
    - `/app/schedule` redirects to sign-in.
 4. Owner device check, read-only: Schedule opens on the next show; Earlier loads; the Dashboard band behaves as expected for the owner's role.
 
+## Post-release smoke checks (read-only)
+
+**Signed out, on setlistr.ai, GET only:**
+- `/api/shows/timeline` (history and active), `/api/shows/schedule`, `/api/proof/summary` and `/api/proof/pdf` return 401;
+- `/app/schedule`, `/app/proof`, `/app/dashboard` and `/app/submit/<id>` redirect to sign-in.
+
+**Owner on a device, read-only:**
+- Schedule opens on the next show; Earlier loads.
+- Proof loads, and its PDF exports.
+- A submitted show's claim sheet downloads or shares with the right date wording.
+
+Don't create, start, cancel, edit or submit a show.
+
 ## Rollback
 
-- **Code:** `git revert -m 1 <merge-sha>`, then push to `main`. GitHub → Vercel redeploys `a10b545`'s code. To restore immediately, the owner can promote the previous production deployment in the Vercel dashboard.
+- **Code:** `git revert -m 1 3ce48335d65fa75ca2792498cb47d060b6f65dbb`, then push to `main`. GitHub → Vercel redeploys `a10b545`'s code. To restore immediately, the owner can promote the previous production deployment in the Vercel dashboard.
 - **Data:** nothing to undo. This release changes no schema, no environment and no stored data. Scheduling writes made by users after release (Add, Edit, Cancel, Start) use the routes and database functions already in production.
