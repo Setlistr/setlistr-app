@@ -7,7 +7,13 @@
   - the head was exactly `bc33f13`;
   - the app code was identical to the reviewed Preview `7ba1ae5`.
 - **Merged:** PR #3, as merge commit `3ce48335d65fa75ca2792498cb47d060b6f65dbb` (parents `a10b545` and `bc33f13`; tree identical to `bc33f13`). The merge was guarded with `--match-head-commit`. GitHub → Vercel triggers the production deployment.
-- **Production deployment:** not yet created at the single status lookup after merge. It's to be confirmed with one lookup when the owner reports it Ready, followed by the read-only smoke checks below.
+- **Production deployment: live.**
+  - One status lookup confirmed Production for commit `3ce4833`: success, at `setlistr-53p5i1izc-jesse-slacks-projects.vercel.app`, created 2026-10-23 16:53 UTC.
+  - `main` had no later commits.
+- **Signed-out smoke checks (GET only, run once):**
+  - `/api/shows/timeline` (history and active), `/api/shows/schedule`, `/api/proof/summary` and `/api/proof/pdf` returned 401 JSON. The Schedule timeline route is new, so its 401 instead of 404 shows the new code is serving.
+  - `/app/schedule`, `/app/proof`, `/app/dashboard` and `/app/submit/<id>` redirected to sign-in.
+- **Not verified in production:** signed-in checks (the owner's installed-app check below), and the Dashboard Viewer fix. A missing live band while nobody is capturing doesn't test the Viewer permission; that behaviour rests on the local role tests (Dashboard band 9/0).
 - **Follow-up kept separate:** the direct-URL Viewer capture-controls issue, with the untested `capture_sessions` path and unconfirmed production policy parity.
 
 Earlier status: prepared for release review only; production was `a10b545`.
