@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { writerCredit } from '@/lib/writer-credits'
 
 // ── MusicBrainz song enrichment ───────────────────────────────────────────────
 // Called when user manually adds a song — async background lookup
@@ -53,12 +54,12 @@ async function searchMusicBrainz(title: string, artist: string) {
     ?.filter(Boolean) || []
 
   const relationComposers = recording.relations
-    ?.filter((r: any) => ['composer', 'lyricist', 'writer', 'co-composer'].includes(r.type))
-    ?.map((r: any) => r.artist?.name)
-    ?.filter(Boolean) || []
+    ?.filter((r: any) => ['composer', 'lyricist', 'writer', 'co-composer'].includes(r.type)) || []
 
-  const composer = relationComposers.length > 0
-    ? relationComposers.join(', ')
+  // One credit per person, whatever roles they hold (lib/writer-credits.ts).
+  const relationCredit = writerCredit(relationComposers)
+  const composer = relationCredit
+    ? relationCredit
     : artistCredits.join(', ')  // fall back to artist credits
 
   // Extract canonical artist
