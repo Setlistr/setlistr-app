@@ -14,6 +14,21 @@ No two candidates touch the same file. Each file in the combination is identical
 
 There's no SQL, migration, environment or dependency change. Capture, recognition, upload and the save handlers are unchanged, apart from the writer-credit assembly approved earlier.
 
+## Verification (disposable database, production build of this branch)
+
+- **Type-check and production build:** clean.
+- **Unit tests:** writer credits 9/0, deadline wording 20/0, Proof summary 83/0, Schedule identity 47/0.
+- **Schedule end-to-end:** 49/0. It includes the Manager Schedule page and the Dashboard's Next Show through the refactored `UpcomingShows`, Start and Cancel, and the Viewer rules.
+- **Dashboard live band by role:** 9/0. Viewers see plain status with no capture link; owners and managers open live capture; `/api/identify` refuses a Viewer.
+- **Viewer write attempts against the capture page's tables:** all tested writes were refused or changed nothing. `capture_sessions` remains untested because it isn't in the disposable schema. Parity between the disposable database's security rules and production's is unconfirmed.
+- **Proof route regression:** 42/0. The Proof files are identical to `main`.
+- **Claim-sheet smoke check:** 21 exports, 7 PROs × owner, manager and Viewer, with multi-writer credits; 105/0.
+  - The date labels are the page's own: Working window (SOCAN, PRS, APRA), Due (BMI, ASCAP), Reminder (GMR, SESAC). No "Deadline:" label appears.
+  - Multi-writer lines are intact. A stored duplicate prints as stored, as decided earlier: the exporter doesn't deduplicate names.
+  - Manager and Viewer exports carry no legal name or IPI; owner exports do.
+  - Every export is identical to the one reviewed for the claim-sheet candidate.
+- **Claim-sheet handoff:** browser download works in Chromium and WebKit (iPhone). Simulated installed-app checks pass 15/0: share sheet, dismissal, the text fallback and Copy, failure messages, and no legal name or IPI in the Viewer's fallback. Submission status never changed.
+
 ## What this release doesn't do
 
 - **The Schedule timeline** improves navigation and surfaces possible duplicates. It doesn't repair historical records, prevent duplicate ingestion, or change Dashboard, Career, History or Proof counts.
@@ -22,7 +37,7 @@ There's no SQL, migration, environment or dependency change. Capture, recognitio
 ## Known limitations, documented separately
 
 1. **Direct-URL capture page for Viewers.** `/app/live/[id]` has no read-only mode. A Viewer who opens a capture URL directly still sees capture controls.
-   - **Disposable-database checks with a real Viewer session:** every capture-page write was refused or matched nothing (performances, performance_songs insert and delete, shows, user_songs insert and update, user_song_performances, setlists, setlist_items), and `/api/identify` returned 403 with no writes.
+   - **Disposable-database checks with a real Viewer session:** all tested writes were refused or changed nothing (performances, performance_songs insert and delete, shows, user_songs insert and update, user_song_performances, setlists, setlist_items), and `/api/identify` returned 403 with no writes. That isn't proof the page is safe for Viewers; see the next bullet.
    - **Untested:** `capture_sessions` doesn't exist in the disposable schema, so that write path is untested. The disposable database's security rules aren't confirmed identical to production's.
    - **Not fixed here.** A read-only capture view, or a server-side check on that page, needs its own reviewed change.
 2. **Future cancelled shows** aren't shown in Schedule until their date passes, as before. That's a later UX decision.
