@@ -541,7 +541,9 @@ export default function DashboardPage() {
 
   function navigateToPerformance(p: Performance) {
     if (p.data_source === 'setlistfm_imported') return
-    if (p.status === 'live' || p.status === 'pending') router.push(`/app/live/${p.id}`)
+    // Live capture only for people who can capture (canCapture, below): the
+    // capture page has no read-only mode.
+    if (p.status === 'live' || p.status === 'pending') { if (canCapture) router.push(`/app/live/${p.id}`); return }
     else if (p.submission_status === 'submitted') router.push(`/app/submit/${p.id}`)
     else router.push(`/app/review/${p.id}`)
   }
@@ -575,10 +577,12 @@ export default function DashboardPage() {
 
   // ── "What's happening now" rows: compact, above the record, never
   //    instead of it. Same destinations and actions as before. ──
+  // A link to live capture only for people who can capture; a Viewer (or
+  // anyone whose role isn't known yet) sees the same status, with no link.
   const liveBand = livePerf && (() => {
     const mightBeInterrupted = minutesSince(livePerf.started_at || livePerf.created_at) > 5
-    return (
-      <button onClick={() => navigateToPerformance(livePerf)} aria-label={`${mightBeInterrupted ? 'Resume capture' : 'Continue capture'} at ${livePerf.venue_name || 'this show'}`} style={bandButton}>
+    const body = (
+      <>
         <span aria-hidden="true" style={{ width: 40, height: 40, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'radial-gradient(circle at 40% 35%, #dcc06a, #c9a84c 55%, #8a6520)', color: '#0a0908' }}>
           <Mic size={16} strokeWidth={2.4} />
         </span>
@@ -587,11 +591,17 @@ export default function DashboardPage() {
             ? <StatusLine color="var(--sl-live)">Capture may have been interrupted</StatusLine>
             : <StatusLine color="var(--sl-ok)">Show in progress</StatusLine>}
           <span style={bandTitle}>{livePerf.venue_name || 'Untitled show'}</span>
-          <span style={bandSub}>{mightBeInterrupted ? 'Tap to resume capture' : 'Tap to continue capture'}</span>
+          <span style={bandSub}>{canCapture ? (mightBeInterrupted ? 'Tap to resume capture' : 'Tap to continue capture') : 'Being captured by the artist or their team'}</span>
         </span>
         <span style={{ fontFamily: '"DM Mono", monospace', fontSize: 18, color: 'var(--sl-text-2)', fontVariantNumeric: 'tabular-nums' }}>{formatElapsed(livePerf.started_at || livePerf.created_at)}</span>
-        {chevron}
+      </>
+    )
+    return canCapture ? (
+      <button onClick={() => navigateToPerformance(livePerf)} aria-label={`${mightBeInterrupted ? 'Resume capture' : 'Continue capture'} at ${livePerf.venue_name || 'this show'}`} style={bandButton}>
+        {body}{chevron}
       </button>
+    ) : (
+      <div role="status" style={{ ...bandButton, cursor: 'default' }}>{body}</div>
     )
   })()
 
