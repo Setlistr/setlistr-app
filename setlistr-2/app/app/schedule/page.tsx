@@ -4,17 +4,14 @@ import { useRouter } from 'next/navigation'
 import { ChevronLeft } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useActingAs } from '@/components/ActingAsProvider'
-import { UpcomingShows } from '@/components/scheduling/UpcomingShows'
+import { ScheduleTimeline } from '@/components/scheduling/ScheduleTimeline'
 import { useWorkspaceRole } from '@/components/layout/WorkspaceRole'
+import { PageFrame } from '@/components/ui/PageFrame'
 
-const C = {
-  bg: 'var(--sl-bg)', text: 'var(--sl-text)', secondary: 'var(--sl-text-2)', muted: 'var(--sl-text-3)',
-}
-
-// The full scheduling experience — create/edit/cancel/start. The
-// dashboard only ever shows a compact Next Show summary that links here;
-// this page is the one place the complete agenda and form live, reused
-// as-is by UpcomingShows (no second, competing form).
+// Schedule: what's next, how to start it, and what already happened
+// (components/scheduling/ScheduleTimeline.tsx). Scheduling, Start and
+// Edit/Cancel are the existing ones, shared with the Manager pages through
+// components/scheduling/UpcomingShows.tsx.
 export default function SchedulePage() {
   const router = useRouter()
   const { actingAs, resolved } = useActingAs()
@@ -39,24 +36,21 @@ export default function SchedulePage() {
   }, [resolved, actingAs, router])
 
   if (!resolved || !userId) {
-    return <div style={{ minHeight: 'var(--sl-page-min-height, 100svh)', background: C.bg }} />
+    return <div style={{ minHeight: 'var(--sl-page-min-height, 100svh)', background: 'var(--sl-bg)' }} />
   }
 
   const artistId = actingAs?.artist_id || userId
   const displayName = actingAs?.artist_name || artistName
 
   return (
-    <div style={{ minHeight: 'var(--sl-page-min-height, 100svh)', background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif' }}>
-      <div style={{ maxWidth: 560, margin: '0 auto', padding: '20px 20px 60px' }}>
-        <button onClick={() => router.push('/app/dashboard')} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: C.secondary, fontSize: 13, fontWeight: 700, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', padding: 0, marginBottom: 18 }}>
+    <PageFrame>
+      <div style={{ paddingTop: 8 }}>
+        <button onClick={() => router.push('/app/dashboard')} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--sl-text-2)', fontSize: 13, fontWeight: 700, background: 'none', border: 'none', cursor: 'pointer', fontFamily: '"DM Sans", system-ui, sans-serif', padding: 0, minHeight: 44, marginBottom: 6 }}>
           <ChevronLeft size={14} /> Dashboard
         </button>
-
-        <h1 style={{ fontSize: 26, fontWeight: 800, color: C.text, margin: '0 0 4px', letterSpacing: '-0.02em' }}>Schedule</h1>
-        {displayName && <p style={{ fontSize: 14, color: C.secondary, margin: '0 0 24px' }}>{displayName}</p>}
-
-        <UpcomingShows artistId={artistId} artistName={displayName} canManage={canWrite} />
+        {/* Keyed by workspace: switching artists starts every load afresh. */}
+        <ScheduleTimeline key={artistId} artistId={artistId} artistName={displayName} canManage={canWrite} />
       </div>
-    </div>
+    </PageFrame>
   )
 }

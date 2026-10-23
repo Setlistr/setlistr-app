@@ -19,6 +19,7 @@ import { StatusLabel } from '@/components/ui/StatusLabel'
 import { useActingAs } from '@/components/ActingAsProvider'
 import { isNativeApp } from '@/lib/appearance'
 import { chooseHandoffRoute, isShareCancel, claimSheetFile, canShareFile, downloadTextFile } from '@/lib/claim-sheet-handoff'
+import { deadlineLine as deadlineWording, deadlineQualifier as deadlineBasis, deadlineExplanation, claimSheetDeadlineLines } from '@/lib/deadline-wording'
 import {
   claimInputsKey, legacyClaimInputsKey, preflightKey, legacyPreflightKey, progressKey, scrollKey,
   markCopied, isCopied as hasCopyMark, songCopied, allSongsCopied as everySongCopied, ALL_SONGS_KEY, allTitles, parseProgress,
@@ -150,12 +151,15 @@ function buildSubmissionBrief({
     ? ['RULES THAT AFFECT PAYMENT', line('─', 30), ...rule.notes.map(n => `  • ${n}`), '']
     : []
 
-  const deadlineLine = deadline
-    ? `Deadline:      ${deadline.date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })} (${deadline.rule})`
-    : null
-  const earlyLine = deadline?.earlyCutoff
-    ? `Early cutoff:  ${deadline.earlyCutoff.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })} (${deadline.earlyCutoffNote || 'earlier distribution'})`
-    : null
+  // The same wording and basis as the page's deadline (lib/deadline-wording.ts).
+  const proName = rule?.name || profile?.pro_affiliation || 'your PRO'
+  const deadlineLines = deadline ? claimSheetDeadlineLines(deadline, {
+    proName,
+    confirmWith: rule?.selfServe ? proName : 'the rep',
+    passed: daysUntil(deadline.date) < 0,
+    earlyStillOpen: !!(deadline.earlyCutoff && daysUntil(deadline.earlyCutoff) > 0),
+    fmt: d => d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+  }) : []
 
   const brief = [
     `SETLISTR CLAIM SHEET`,
@@ -182,8 +186,7 @@ function buildSubmissionBrief({
     profile?.publisher_name ? `Publisher:     ${profile.publisher_name}` : null,
     `Setlist Title: ${suggestedTitle}`,
     rule ? `Portal:        ${rule.portalUrl}` : null,
-    earlyLine,
-    deadlineLine,
+    ...deadlineLines,
     rule?.supportUrl ? `Support:       ${rule.supportUrl}` : null,
     rule?.phone ? `Phone:         ${rule.phone}` : null,
     '',
@@ -796,18 +799,11 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
   // Deadline wording follows its basis: only an official PRO deadline reads
   // "Due". Urgency and the basis's uncertainty stay on the line; the rule
   // itself is one tap away.
-  const daysText = daysLeft !== null && daysLeft >= 0 ? `${daysLeft} ${daysLeft === 1 ? 'day' : 'days'} left` : null
-  const deadlineLine = deadline && daysLeft !== null ? (
-    urgency === 'expired' ? `${deadline.confidence === 'official' ? 'Deadline passed' : deadline.confidence === 'unverified' ? 'Working window passed' : 'Reminder date passed'} ${fmt(deadline.date)}`
-    : deadline.confidence === 'official' ? `Due ${fmt(deadline.date)} · ${daysText}`
-    : deadline.confidence === 'unverified' ? `Working window to ${fmt(deadline.date)}${urgency !== 'open' ? ` · ${daysText}` : ''}`
-    : `Reminder ${fmt(deadline.date)}${urgency !== 'open' ? ` · ${daysText}` : ''}`
-  ) : null
+  // The exported sheet uses the same wording (lib/deadline-wording.ts).
+  const deadlineLine = deadline && daysLeft !== null && urgency ? deadlineWording(deadline, daysLeft, urgency, fmt) : null
   // The disclosure's own label carries the basis, so the uncertainty stays
   // visible while the rule behind it folds away.
-  const deadlineQualifier = deadline?.confidence === 'unverified' ? 'Setlistr default, not a published deadline'
-    : deadline?.confidence === 'reminder' ? 'No published deadline'
-    : `From ${proName}’s published rule`
+  const deadlineQualifier = deadlineBasis(deadline?.confidence ?? 'official', proName)
 
   const inputStyle = (filled: boolean): React.CSSProperties => ({
     width: '100%', minHeight: 48, background: 'var(--sl-input-bg, var(--sl-bg))', border: `1px solid ${filled ? 'var(--sl-input-line-active)' : 'var(--sl-input-line)'}`,
@@ -1143,9 +1139,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
             <p style={{ fontSize: 14, color: C.secondary, margin: '0 0 4px', lineHeight: 1.5, maxWidth: 640 }}>
               {deadline.confidence === 'official'
                 ? <>{deadline.rule}{deadline.sourceUrl && <> (<a href={deadline.sourceUrl} target="_blank" rel="noreferrer" style={{ color: C.secondary }}>{deadline.sourceUrl.replace(/^https?:\/\/(www\.)?/, '')}</a>)</>}.</>
-                : deadline.confidence === 'unverified'
-                ? <>Setlistr uses 12 months from the show as a working window. {proName} hasn’t published a deadline Setlistr has confirmed, so check it in the portal.</>
-                : <>{proName} doesn’t publish a deadline. This is a Setlistr reminder at six months; confirm timing with {selfServe ? proName : 'the rep'}.</>}
+                : deadlineExplanation(deadline.confidence, proName, selfServe ? proName : 'the rep')}
               {earlyStillOpen && deadline.earlyCutoff && <> Submit by {fmt(deadline.earlyCutoff)} for an earlier distribution; the final date stays open after that.</>}
               {urgency === 'expired' && rule?.supportUrl && <> <a href={rule.supportUrl} target="_blank" rel="noreferrer" style={{ color: C.secondary }}>Ask {proName} support</a> if this looks wrong.</>}
             </p>

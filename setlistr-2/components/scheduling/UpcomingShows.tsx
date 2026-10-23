@@ -13,7 +13,7 @@ const C = {
   gold: 'var(--sl-accent)', goldDim: 'color-mix(in srgb, var(--sl-accent) 10%, transparent)', green: 'var(--sl-ok)', red: 'var(--sl-danger)', redDim: 'color-mix(in srgb, var(--sl-danger) 8%, transparent)',
 }
 
-type ScheduledShow = {
+export type ScheduledShow = {
   id: string; name: string | null; show_type: string; scheduled_at: string; timezone: string
   status: string; created_by: string; updated_at: string; venue_id: string | null
   scheduled_by: string | null; scheduled_by_name: string | null
@@ -23,11 +23,11 @@ type Venue = { id: string; name: string; city: string | null; country: string | 
 
 // dateStr is venue-local, so "today" is judged on the venue's own clock
 // (not the viewer's device), and a date outside this year shows its year.
-function dayLabel(dateStr: string, zone: string): string {
+export function dayLabel(dateStr: string, zone: string): string {
   return relativeDayLabel(dateStr, zonedToday(new Date(), zone))
 }
 
-function timeLabel(timeStr: string): string {
+export function timeLabel(timeStr: string): string {
   const [h, m] = timeStr.split(':').map(Number)
   const period = h >= 12 ? 'PM' : 'AM'
   const h12 = h % 12 === 0 ? 12 : h % 12
@@ -38,7 +38,7 @@ function timeLabel(timeStr: string): string {
 // "MST") — computed from the actual UTC instant, not the zone's current
 // offset "right now", so a show scheduled across a DST boundary still
 // shows the correct one.
-function zoneAbbreviation(utcIso: string, zone: string): string {
+export function zoneAbbreviation(utcIso: string, zone: string): string {
   try {
     const parts = new Intl.DateTimeFormat('en-US', { timeZone: zone, timeZoneName: 'short' }).formatToParts(new Date(utcIso))
     return parts.find(p => p.type === 'timeZoneName')?.value || ''
@@ -105,27 +105,14 @@ export function NextShowSummary({ artistId }: { artistId: string }) {
   )
 }
 
-export function UpcomingShows({ artistId, artistName, canManage, onBeforeStart }: { artistId: string; artistName?: string | null; canManage: boolean; onBeforeStart?: () => void }) {
+// Start and Cancel for a scheduled show, shared by UpcomingShows and the
+// Schedule timeline (components/scheduling/ScheduleTimeline.tsx). Moved here
+// unchanged: the same confirmations, routes, errors and navigation.
+export function useShowActions({ artistName, onBeforeStart, onChanged }: { artistName?: string | null; onBeforeStart?: () => void; onChanged: () => void }) {
   const router = useRouter()
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(false)
-  const [shows, setShows] = useState<ScheduledShow[]>([])
-  const [formOpen, setFormOpen] = useState(false)
-  const [editing, setEditing] = useState<ScheduledShow | null>(null)
   const [starting, setStarting] = useState<string | null>(null)
   const [startError, setStartError] = useState('')
-
-  const load = useCallback(async () => {
-    setLoading(true); setError(false)
-    try {
-      const res = await fetch(`/api/shows/schedule?artist_id=${artistId}`)
-      if (!res.ok) throw new Error('failed')
-      const data = await res.json()
-      setShows(data.shows || [])
-    } catch { setError(true) } finally { setLoading(false) }
-  }, [artistId])
-
-  useEffect(() => { load() }, [load])
+  const load = onChanged
 
   async function handleCancel(show: ScheduledShow) {
     if (!confirm('Cancel this scheduled show? It will be removed from the upcoming list.')) return
@@ -163,6 +150,29 @@ export function UpcomingShows({ artistId, artistName, canManage, onBeforeStart }
       setStartError('Network error — try again.'); setStarting(null)
     }
   }
+
+  return { starting, startError, confirmAndStart, handleCancel }
+}
+
+export function UpcomingShows({ artistId, artistName, canManage, onBeforeStart }: { artistId: string; artistName?: string | null; canManage: boolean; onBeforeStart?: () => void }) {
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(false)
+  const [shows, setShows] = useState<ScheduledShow[]>([])
+  const [formOpen, setFormOpen] = useState(false)
+  const [editing, setEditing] = useState<ScheduledShow | null>(null)
+
+  const load = useCallback(async () => {
+    setLoading(true); setError(false)
+    try {
+      const res = await fetch(`/api/shows/schedule?artist_id=${artistId}`)
+      if (!res.ok) throw new Error('failed')
+      const data = await res.json()
+      setShows(data.shows || [])
+    } catch { setError(true) } finally { setLoading(false) }
+  }, [artistId])
+
+  useEffect(() => { load() }, [load])
+  const { starting, startError, confirmAndStart, handleCancel } = useShowActions({ artistName, onBeforeStart, onChanged: load })
 
   if (loading) {
     return (
@@ -280,7 +290,7 @@ export function UpcomingShows({ artistId, artistName, canManage, onBeforeStart }
   )
 }
 
-function ScheduleForm({ artistId, existing, onClose, onSaved }: {
+export function ScheduleForm({ artistId, existing, onClose, onSaved }: {
   artistId: string; existing: ScheduledShow | null; onClose: () => void; onSaved: () => void
 }) {
   const deviceTz = Intl.DateTimeFormat().resolvedOptions().timeZone
@@ -473,7 +483,7 @@ function ScheduleForm({ artistId, existing, onClose, onSaved }: {
 // with no explanation of what it does or why it's red. Edit stays
 // secondary (plain text label, no emphasis); Cancel is clearly labeled
 // and still requires the existing confirm() before anything happens.
-function ShowActionsMenu({ show, onEdit, onCancel }: { show: ScheduledShow; onEdit: () => void; onCancel: () => void }) {
+export function ShowActionsMenu({ show, onEdit, onCancel }: { show: ScheduledShow; onEdit: () => void; onCancel: () => void }) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 

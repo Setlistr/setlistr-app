@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { writerCredit } from '@/lib/writer-credits'
 import crypto from 'crypto'
 import { createClient } from '@supabase/supabase-js'
 import { ACR_DAILY_CALL_LIMIT, ACR_LIMIT_MESSAGE } from '@/lib/acr-limits'
@@ -270,7 +271,7 @@ async function enrichFromMusicBrainz(title: string, artist: string, isrcFromACR:
             if (wr.ok) {
               const wd = await wr.json()
               const compRels = wd?.relations?.filter((x: any) => ['composer','writer','lyricist'].includes(x.type)) || []
-              if (compRels.length) result.composer = compRels.map((x: any) => x.artist?.name).filter(Boolean).join(', ')
+              if (compRels.length) result.composer = writerCredit(compRels)
             }
           }
         }

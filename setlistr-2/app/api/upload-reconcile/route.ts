@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { writerCredit } from '@/lib/writer-credits'
 import { createClient } from '@supabase/supabase-js'
 import { normalizeSongKey, cleanTitle } from '@/lib/reconciliation/normalize'
 
@@ -259,7 +260,7 @@ async function enrichFromMusicBrainz(title: string, artist: string, isrcFromACR:
             if (wr.ok) {
               const wd = await wr.json()
               const compRels = wd?.relations?.filter((x: any) => ['composer','writer','lyricist'].includes(x.type)) || []
-              if (compRels.length) result.composer = compRels.map((x: any) => x.artist?.name).filter(Boolean).join(', ')
+              if (compRels.length) result.composer = writerCredit(compRels)
             }
           }
         }
