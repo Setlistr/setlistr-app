@@ -13,7 +13,8 @@
 - **Signed-out smoke checks (GET only, run once):**
   - `/api/shows/timeline` (history and active), `/api/shows/schedule`, `/api/proof/summary` and `/api/proof/pdf` returned 401 JSON. The Schedule timeline route is new, so its 401 instead of 404 shows the new code is serving.
   - `/app/schedule`, `/app/proof`, `/app/dashboard` and `/app/submit/<id>` redirected to sign-in.
-- **Not verified in production:** signed-in checks (the owner's installed-app check below), and the Dashboard Viewer fix. A missing live band while nobody is capturing doesn't test the Viewer permission; that behaviour rests on the local role tests (Dashboard band 9/0).
+- **Owner installed-app check (2026-10-24, read-only): confirmed by the owner.** Schedule, the Proof PDF export, the claim-sheet export and Dashboard loading all work and look right. No show was created, started, cancelled, edited or submitted.
+- **Not verified in production:** the Dashboard Viewer fix. The owner's check was made as the owner with nobody capturing, so no live band appeared; that doesn't test what a Viewer sees during an active capture. That behaviour rests on the local role tests (Dashboard band 9/0).
 - **Follow-up kept separate:** the direct-URL Viewer capture-controls issue, with the untested `capture_sessions` path and unconfirmed production policy parity.
 
 Earlier status: prepared for release review only; production was `a10b545`.
@@ -59,7 +60,7 @@ There's no SQL, migration, environment or dependency change. Capture, recognitio
 2. **Future cancelled shows** aren't shown in Schedule until their date passes, as before. That's a later UX decision.
 3. **Possible-duplicate matching** compares venue names exactly after normalisation, so a differently written name won't match. Records without a recorded time zone are compared on their stored date only.
 4. **The `performance_date` column type in production is unverified.** The timeline keeps stored values. The read-only query is in `docs/schedule-timeline-plan.md`. The historical data audit stays a separate proposal.
-5. **Installed app:** after release, the installed app loads production. Schedule and the Dashboard band should be checked on a device, read-only. Starting a show is a real write.
+5. **Installed app:** after release, the installed app loads production. Schedule and the Dashboard band should be checked on a device, read-only. Starting a show is a real write. *(Done 2026-10-24: Schedule, Proof PDF, claim-sheet export and Dashboard confirmed by the owner; Viewer behaviour during a capture not tested in production.)*
 
 ## Release (after explicit approval)
 
