@@ -208,7 +208,8 @@ BEGIN
   FOR v_skip IN SELECT * FROM jsonb_array_elements(coalesce(p_batch->'skipped_rows', '[]'::jsonb)) LOOP
     IF jsonb_typeof(v_skip->'row') <> 'number' OR (v_skip->>'reason') NOT IN (
       'no_date', 'skipped_by_you', 'possible_duplicate_skipped', 'unresolved_date_order', 'unresolved_year', 'unresolved_dates',
-      'unresolved_venue', 'unresolved_time_zone', 'unresolved_time', 'unresolved_duplicate', 'not_a_date') OR (SELECT count(*) FROM jsonb_object_keys(v_skip)) <> 2 THEN
+      'unresolved_venue', 'unresolved_time_zone', 'unresolved_time', 'unresolved_duplicate', 'not_a_date',
+      'already_imported', 'unconfirmed_date_number') OR (SELECT count(*) FROM jsonb_object_keys(v_skip)) <> 2 THEN
       RAISE EXCEPTION 'BAD_SKIPPED_ROWS' USING ERRCODE = '22023';
     END IF;
   END LOOP;

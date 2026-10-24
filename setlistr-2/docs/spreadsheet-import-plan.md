@@ -1,13 +1,91 @@
 # Spreadsheet import for Schedule: approval package
 
-**Status: proposal, awaiting one approval.** No app code, no production read or write, no dependency in the app, no merge and no deployment. Production is `3ce4833`.
+**Status: implemented locally and tested on the disposable stack; not released.**
+- **Feature branch:** `feature/spreadsheet-import` (`2fd90a8`, local), built on the UI-defect candidate `5104622`.
+- **Not done:** no production read or write, no SQL applied to production, no merge and no deployment. Production is `3ce4833`.
+- The design was approved on 2026-10-24, with the corrections listed under "Implementation" below.
 
 - **Review artifact:** https://claude.ai/artifact/W2rvPMGeQ3csXGfzDiAPhW (revision 3). It has screenshots of every state, captured from the built prototype, and the same decisions as this document.
 - **Branches:**
   - `docs/spreadsheet-import-plan`: this document and `supabase/proposals/0028_*`;
   - `fix/schedule-phone-dates-touch-targets` (`5104622`, local, not pushed): the separate UI-defect candidate.
 
-## What one approval covers
+## Implementation (local, disposable stack)
+
+**Usability and correctness corrections, as built:**
+1. **Time-zone bulk action.**
+   - After choosing a zone on one row, a list shows every other row that still needs a zone, each with its venue, city, state or province and country.
+   - Only rows in the same city, state and country are ticked for you. Brooklyn isn't ticked from New York, Portland OR doesn't tick Portland ME, and rows with no city are never ticked.
+   - Nothing is applied until "Use it for N rows" is pressed. Unticked rows stay unresolved.
+   - The row stays open, marked Ready, until you move on, so the list stays in view.
+   - Tested with a 12-row multi-zone US/Canada tour (unit) and in the end-to-end run.
+2. **Shorter review.**
+   - "N ready · N need attention · N skipped" sits at the top, with "Review next issue".
+   - Upcoming bookings, Past listings and Skipped are collapsed, showing their counts.
+   - The Continue bar (button only) sticks above the phone tab bar and its capture disc. It's a deliberate exception to "pages add no safe-area padding": its bottom offset includes the home-indicator inset.
+   - "Continuing imports only the ready rows (N shows). The N rows that need attention are left out and listed in the result" sits at the top.
+3. **Shorter confirmation.**
+   - It leads with "Import into <artist>'s Schedule?" and three numbers: future bookings, past listings and rows left out. The rows and reasons sit behind "Show rows and reasons".
+   - One line reconciles rows and shows ("14 shows from 13 ready rows (row 8 becomes 2 dates)").
+   - Attribution and storage are one quiet line at the end. There are no implementation explanations.
+   - Date-only bookings: "N has no start time yet; add one before starting capture". They can't be started from Schedule until a time is added: the next-show card offers "Add a start time" (the existing edit form) instead of Start. The Start helper refuses them as well.
+4. **Date corrections.**
+   - **Missing year:** last, this and next year, plus "Another year" (any year from 1950 to five years ahead).
+   - **Skipped DST time:** asks "What time did the show start?" with a time field. "Suggestion, if the sheet used the old clock: 3:30 AM" only fills the field; check before using it.
+   - **Festival range:** "Choose the dates to add". Past dates are added as unconfirmed listings.
+5. **Result and recovery.**
+   - Each import has its own result page (`/app/schedule/import/[id]`), reachable from the after-import line on Schedule, from "Recent imports" on Import shows, and from any imported show's details ("View import").
+   - It shows what was added, the rows left out with reasons, each show and whether it has been used since, and Undo with a preview of what would be kept.
+   - **Importing the same file again** is a new import: rows that exactly match a show from an earlier import (same date, venue, city and start time) are left out as "Already imported", unless you choose "Import as another record". A **retry of one batch** (double tap, lost reply) sends the same batch id and returns the first result.
+   - Partial Undo is unchanged and tested.
+6. **Polish.**
+   - The "Planned for Schedule later" roadmap line is removed from Schedule; the roadmap stays in the plans only.
+   - Rows and shows are counted separately everywhere: summary, Continue, confirmation and result.
+
+**Schema change since the package:** two reason codes added to `import_shows`, `already_imported` and `unconfirmed_date_number` (an Excel day number left unconfirmed). They were re-validated: SQL suite 65/65.
+
+**Tests (all on the disposable stack, production build of `2fd90a8`):**
+- **Unit, `scripts/test-show-import.ts`: 72/0.** It covers:
+  - headers and columns;
+  - Excel cells;
+  - date orders;
+  - years, ranges and serials;
+  - times and the two-times case;
+  - zones;
+  - DST;
+  - the multi-zone tour;
+  - duplicates and re-imports;
+  - rows versus shows.
+- **Existing suites, unchanged:**
+  - show identity 47/0, next scheduled show 16/0, schedule time 13/0;
+  - mobile layout invariants 147/0;
+  - timezone labels 9/0, show date 13/0, Proof summary 83/0, date format 16/0.
+- **Import end-to-end: 76/0.** A real `.xlsx` (two sheets, title rows, a date cell, a day number) and real CSVs, through the browser:
+  - **Access:** owner and manager allowed; Viewer, revoked, pending and unrelated users refused (routes and page); signed out 401.
+  - **Review:** every correction above.
+  - **Confirm:** a double tap creates one batch.
+  - **Stored values:** checked row by row.
+  - **Nothing else written:** no performances, catalogue rows or setlists.
+  - **Schedule and timeline:** wording, and the date-only booking.
+  - **Result:** reopened from Recent imports.
+  - **API:** a retry returns the first result; the same id with different rows is refused; a show added since review that matches → 409; a change since review that doesn't match → imports; a skipped time → 422.
+  - **Re-importing the file:** rows marked "Already imported".
+  - **Partial Undo** (one edited, one started): 12 removed, 2 kept, the capture still linked. A Viewer can't undo.
+  - **Untouched Undo.**
+  - **Ambiguous dates:** blocks the import.
+  - **Layouts:** 320, 390 and 1280px in Dark and Light, with no sideways scroll, no control under 44px and no page errors.
+- **Schedule end-to-end on the same build: 49/0.**
+
+**Found and fixed by these tests:**
+- A crash when two existing records paired with each other.
+- A settled row jumping into a collapsed group and taking the bulk zone choice with it.
+
+**Known gaps (not in this change):**
+- Submit still has its own copy of the control styles (`components/ui/controls.ts` is the shared copy).
+- The Manager pages' older `UpcomingShows` card buttons are under 44px.
+- Editing a date-only booking through "+ Add a show"'s form requires a time: that is how a start time is added.
+
+## What one approval covers (as packaged before implementation)
 
 1. **Design.** The flow and states shown in the artifact, inside the released Schedule.
 2. **Schema.** `supabase/proposals/0028_show_imports.sql`, exactly as validated on the disposable stack, together with its down migration.
@@ -265,12 +343,14 @@ Everything else is the app's own code in a scratch build:
 
 **Not touched:** capture, recognition, upload, the save handlers, `app/api/identify`, and every counting surface.
 
-## 10. Release order
+## 10. Release order (corrected: integrated testing before production SQL)
 
-1. UI-defect candidate (`5104622`): review, then merge on approval.
-2. Production preflight (read-only), with the results compared against section 7.
-3. Production 0028 (additive, inert until the app uses it), on its own approval.
-4. App implementation, tested on the disposable stack (unit, end-to-end, counts before and after), then a release candidate for approval.
+1. **Done, locally:** the UI-defect candidate `5104622`, and the implementation `2fd90a8` on top of it.
+2. **Done, on the disposable stack:** 0028, the integrated app tests and the Schedule regression (all results above).
+3. **Next, with approval:** review `feature/spreadsheet-import`, then push it for a Vercel Preview. Preview reads production data, so no writes there. It shows the UI only: imports can't work until 0028 exists in production.
+4. **Read-only production preflight** (`0028_show_imports.preflight.sql`), compared with the disposable stack's results.
+5. **Production 0028, on its own go-ahead.** It's additive and inert until the app uses it; the down migration has been verified.
+6. **Release the UI-defect candidate, then the import feature, each on its own go-ahead,** with one deployment check and a read-only device check.
 
 ## Remaining questions
 
