@@ -501,15 +501,15 @@ export function ShowActionsMenu({ show, onEdit, onCancel }: { show: ScheduledSho
       <button
         onClick={() => setOpen(v => !v)}
         aria-haspopup="menu" aria-expanded={open} aria-label={`Actions for ${show.venues?.name || 'this show'}`}
-        style={{ padding: 7, background: 'color-mix(in srgb, var(--sl-text) 4%, transparent)', border: `1px solid ${C.border}`, borderRadius: 8, color: C.secondary, cursor: 'pointer' }}>
+        style={{ minWidth: 44, minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 7, background: 'color-mix(in srgb, var(--sl-text) 4%, transparent)', border: `1px solid ${C.border}`, borderRadius: 8, color: C.secondary, cursor: 'pointer' }}>
         <MoreVertical size={15} />
       </button>
       {open && (
         <div role="menu" style={{ position: 'absolute', top: 'calc(100% + 6px)', right: 0, width: 180, background: C.card2, border: `1px solid ${C.border}`, borderRadius: 10, overflow: 'hidden', zIndex: 30, boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }}>
-          <button role="menuitem" onClick={() => { onEdit(); setOpen(false) }} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: 'none', border: 'none', borderBottom: `1px solid ${C.border}`, color: C.text, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' as const }}>
+          <button role="menuitem" onClick={() => { onEdit(); setOpen(false) }} style={{ width: '100%', minHeight: 44, display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: 'none', border: 'none', borderBottom: `1px solid ${C.border}`, color: C.text, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' as const }}>
             <Pencil size={13} style={{ color: C.secondary }} /> Edit show
           </button>
-          <button role="menuitem" onClick={() => { onCancel(); setOpen(false) }} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: 'none', border: 'none', color: C.red, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' as const }}>
+          <button role="menuitem" onClick={() => { onCancel(); setOpen(false) }} style={{ width: '100%', minHeight: 44, display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: 'none', border: 'none', color: C.red, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' as const }}>
             <X size={13} /> Cancel show
           </button>
         </div>
@@ -534,7 +534,7 @@ function TimezoneCombobox({ value, onChange }: { value: string; onChange: (tz: s
         onChange={e => setQuery(e.target.value)}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
         placeholder="Search city or region…"
-        style={{ width: '100%', background: 'var(--sl-input-bg)', border: `1px solid var(--sl-input-line)`, borderRadius: 10, padding: '11px 12px', color: C.text, fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' as const }}
+        style={{ width: '100%', minHeight: 44, background: 'var(--sl-input-bg)', border: `1px solid var(--sl-input-line)`, borderRadius: 10, padding: '11px 12px', color: C.text, fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' as const }}
       />
       {open && (
         <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: C.card2, border: `1px solid ${C.border}`, borderRadius: 10, marginTop: 4, zIndex: 20, maxHeight: 220, overflowY: 'auto' as const }}>

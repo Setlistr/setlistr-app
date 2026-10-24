@@ -263,7 +263,7 @@ export function ScheduleTimeline({ artistId, artistName, canManage }: { artistId
         .tl-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; margin-bottom: 18px; }
         .tl-head h1 { font-size: 26px; font-weight: 800; color: var(--sl-text); margin: 0; letter-spacing: -0.02em; }
         .tl-head p { font-size: 14px; color: var(--sl-text-2); margin: 2px 0 0; }
-        .tl-lnk { display: inline-flex; align-items: center; gap: 6px; font: 700 13px "DM Sans", system-ui, sans-serif; color: var(--sl-gold-text); background: none; border: 0; cursor: pointer; padding: 6px 0; min-height: 36px; text-decoration: none; }
+        .tl-lnk { display: inline-flex; align-items: center; gap: 6px; font: 700 13px "DM Sans", system-ui, sans-serif; color: var(--sl-gold-text); background: none; border: 0; cursor: pointer; padding: 6px 0; min-height: 44px; text-decoration: none; }
         .tl-mono { font-family: "DM Mono", monospace; font-variant-numeric: tabular-nums; }
         .tl-grow { flex: 1; min-width: 0; }
         .tl-sub { display: block; font-size: 12.5px; color: var(--sl-text-3); margin-top: 1px; overflow-wrap: anywhere; }
@@ -293,7 +293,7 @@ export function ScheduleTimeline({ artistId, artistName, canManage }: { artistId
         .tl-row-btn { width: 100%; text-align: left; background: none; border: 0; color: inherit; font: inherit; cursor: pointer; display: grid; grid-template-columns: 70px minmax(0,1fr) auto; column-gap: 12px; align-items: baseline; padding: 12px 2px; min-height: 52px; }
         .tl-row-btn.tl-static { cursor: default; align-items: center; }
         .tl-row-btn:not(.tl-static):hover { background: var(--sl-hover); }
-        .tl-date { font-size: 12.5px; color: var(--sl-text-2); white-space: nowrap; }
+        .tl-date { font-size: 12.5px; color: var(--sl-text-2); white-space: normal; line-height: 1.35; }
         .tl-static .tl-date { white-space: normal; line-height: 1.35; }
         .tl-main { min-width: 0; }
         .tl-v { display: block; font-size: 15px; font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; }
@@ -327,6 +327,7 @@ export function ScheduleTimeline({ artistId, artistName, canManage }: { artistId
           .tl-next-acts { min-width: 260px; }
           .tl-venue { font-size: 30px; }
           .tl-row-btn { grid-template-columns: 110px minmax(0,1.4fr) minmax(0,1fr) 170px; }
+          .tl-date { white-space: nowrap; }
           .tl-ph { display: none; }
           .tl-dk { display: block; font-size: 14px; color: var(--sl-text-2); overflow-wrap: anywhere; }
           .tl-detail { padding-left: 122px; }

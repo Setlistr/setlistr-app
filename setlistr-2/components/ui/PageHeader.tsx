@@ -12,7 +12,7 @@ export function PageHeader({ title, backHref, meta }: { title: string; backHref?
     <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 12, rowGap: 8, padding: '20px 0 16px' }}>
       {backHref && (
         <button onClick={() => router.push(backHref)}
-          style={{ minHeight: 36, background: 'var(--sl-surface)', border: '1px solid color-mix(in srgb, var(--sl-text) 7%, transparent)', borderRadius: 8, padding: '0 10px', color: 'var(--sl-text-2)', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 4, fontSize: 14 }}>
+          style={{ minHeight: 44, background: 'var(--sl-surface)', border: '1px solid color-mix(in srgb, var(--sl-text) 7%, transparent)', borderRadius: 8, padding: '0 10px', color: 'var(--sl-text-2)', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 4, fontSize: 14 }}>
           <ChevronLeft size={14} /> Back
         </button>
       )}
