@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { ChevronLeft } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useActingAs } from '@/components/ActingAsProvider'
@@ -14,6 +14,8 @@ import { PageFrame } from '@/components/ui/PageFrame'
 // components/scheduling/UpcomingShows.tsx.
 export default function SchedulePage() {
   const router = useRouter()
+  // After an import: its batch id, for the one-line result on Schedule.
+  const importId = useSearchParams().get('import')
   const { actingAs, resolved } = useActingAs()
   // Add/edit/cancel/start are write actions: offered in your own workspace
   // and to write-capable team roles, never to a Viewer (who previously saw
@@ -49,7 +51,7 @@ export default function SchedulePage() {
           <ChevronLeft size={14} /> Dashboard
         </button>
         {/* Keyed by workspace: switching artists starts every load afresh. */}
-        <ScheduleTimeline key={artistId} artistId={artistId} artistName={displayName} canManage={canWrite} />
+        <ScheduleTimeline key={artistId} artistId={artistId} artistName={displayName} canManage={canWrite} importId={importId && /^[0-9a-f-]{36}$/i.test(importId) ? importId : null} />
       </div>
     </PageFrame>
   )

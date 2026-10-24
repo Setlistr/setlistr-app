@@ -14,7 +14,7 @@
 //   state.
 
 import tzLookup from 'tz-lookup'
-import { utcToZonedParts, isUpcomingInZone } from '../scheduleTime'
+import { utcToZonedParts, isUpcomingInZone, zonedToday } from '../scheduleTime'
 import { isRealTimeZone } from '../show-date'
 import { findCandidates, type Candidate, type IdentityRecord } from './identity'
 import type { Method } from '../proof/summary'
@@ -24,6 +24,11 @@ export type ShowRow = {
   name: string | null; show_type: string | null; created_by: string; scheduled_by: string | null; scheduled_by_name: string | null
   started_at: string | null; updated_at: string
   venues: { name: string | null; city: string | null; country: string | null; latitude: number | null; longitude: number | null } | null
+  // Spreadsheet import (0028): the booked calendar date and wall-clock time,
+  // and where the row came from. Absent on shows created before it.
+  local_date?: string | null; local_time?: string | null
+  import_batch_id?: string | null; source_row?: number | null
+  show_import_batches?: { file_name: string; created_at: string } | null
 }
 export type PerfRow = {
   id: string; show_id: string | null; status: string | null; submission_status: string | null; data_source: string | null
@@ -100,16 +105,19 @@ export function buildEntries(shows: ShowRow[], perfsIn: PerfRow[], now = new Dat
     const { zone, from } = recordZone(s, linked[0] || null)
     // Still ahead: a scheduled show is in Upcoming; a cancelled one is left
     // out, as Schedule has always done. Both appear here once their date passes.
-    if (!linked.length && (s.status === 'scheduled' || s.status === 'cancelled') && s.scheduled_at && isRealTimeZone(s.timezone) && isUpcomingInZone(s.scheduled_at, s.timezone!, now)) continue
+    const ahead = s.scheduled_at ? isUpcomingInZone(s.scheduled_at, s.timezone!, now) : !!s.local_date && s.local_date >= zonedToday(now, s.timezone!)
+    if (!linked.length && (s.status === 'scheduled' || s.status === 'cancelled') && (s.scheduled_at || s.local_date) && isRealTimeZone(s.timezone) && ahead) continue
     const scheduledInstant = s.scheduled_at ? Date.parse(s.scheduled_at) : null
-    const scheduledDate = s.scheduled_at && zone ? utcToZonedParts(new Date(s.scheduled_at), zone).dateStr : s.scheduled_at ? s.scheduled_at.slice(0, 10) : null
+    // A booked local date (spreadsheet import) is the show's date as written.
+    const scheduledDate = s.local_date ? s.local_date : s.scheduled_at && zone ? utcToZonedParts(new Date(s.scheduled_at), zone).dateStr : s.scheduled_at ? s.scheduled_at.slice(0, 10) : null
     const first = linked[0]
     const instant = first ? (linked.map(captureInstant).find(x => x !== null) ?? null) : scheduledInstant
     const localDate = first ? (captureDate(first, zone) ?? scheduledDate) : scheduledDate
     const v = s.venues
     out.push({
+      // A listing (an imported past row) is never a performed show.
       key: `s:${s.id}`, kind: linked.length ? 'show' : s.status === 'cancelled' ? 'cancelled' : 'no-capture', show: s, perfs: linked,
-      localDate, instant, zone, zoneFrom: from, dateUncertain: first ? dateIsUncertain(first, zone) : !zone && !!s.scheduled_at,
+      localDate, instant, zone, zoneFrom: from, dateUncertain: first ? dateIsUncertain(first, zone) : !s.local_date && !zone && !!s.scheduled_at,
       venueId: s.venue_id ?? first?.venue_id ?? null, venue: (v?.name || first?.venue_name || '').trim() || 'Venue not recorded',
       city: v?.city ?? first?.city ?? null, country: v?.country ?? first?.country ?? null,
     })
@@ -199,6 +207,7 @@ export function scheduledAhead(s: ShowRow | null): boolean {
 // setlist was recorded (Proof's evidence; never assumed).
 export function sourceLine(e: Entry, methods: Record<string, Method>): string {
   if (e.kind === 'import') return 'Imported from setlist.fm'
+  if (e.show?.import_batch_id && (e.kind === 'no-capture' || e.kind === 'cancelled')) return 'Imported from a spreadsheet'
   const scheduled = scheduledAhead(e.show)
   if (e.kind === 'no-capture' || e.kind === 'cancelled') return scheduled ? 'Scheduled in Setlistr' : 'Show created in Setlistr'
   const done = e.perfs.filter(p => p.status !== 'live' && p.status !== 'pending')
@@ -241,4 +250,13 @@ export const TIME_REASON: Record<Candidate['time'], string> = {
   'times-close': 'start times within two hours',
   'time-unknown': 'the same date, and at least one has no start time',
   'across-midnight': 'start times within two hours across midnight, each in a known time zone',
+}
+
+// A time kept as written in an imported sheet when its zone wasn't known:
+// shown as written, never converted.
+export function asWrittenTime(e: Entry): string | null {
+  const t = e.show?.local_time
+  if (!t || e.instant !== null) return null
+  const [h, m] = t.split(':').map(Number)
+  return `${h % 12 === 0 ? 12 : h % 12}:${String(m).padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`
 }

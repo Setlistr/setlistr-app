@@ -2,8 +2,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { AlertCircle, ChevronRight, Mic, RefreshCw } from 'lucide-react'
-import { utcToZonedParts, isUpcomingInZone } from '@/lib/scheduleTime'
-import { ScheduleForm, ShowActionsMenu, useShowActions, dayLabel, timeLabel, zoneAbbreviation, type ScheduledShow } from './UpcomingShows'
+import { isShowUpcoming, compareScheduled, showLocalDate, zonedToday } from '@/lib/scheduleTime'
+import { ScheduleForm, ShowActionsMenu, useShowActions, showWhen, type ScheduledShow } from './UpcomingShows'
+import { TIMELINE_CSS } from './timelineStyles'
+import { ImportNotice } from './import/ImportNotice'
 
 // The Schedule timeline (docs/schedule-timeline-plan.md; approved prototype).
 // What's next, how to start it, and what already happened, newest first.
@@ -22,6 +24,7 @@ type Item = {
   state: State; source: string; time: string | null; zoneNote: string | null; addedBy: string | null; show: ScheduledShow | null
   captures: { id: string; state: State; method: string | null; time: string | null; link: string | null }[]
   partners: Partner[]
+  importedFrom?: { batchId: string; file: string; row: number | null } | null
 }
 type Active = { id: string; venue: string | null; started_at: string } | null
 
@@ -38,7 +41,7 @@ const TONE: Record<string, string> = { ok: 'var(--sl-ok)', review: 'var(--sl-gol
 function minutesSince(d: string) { return Math.floor((Date.now() - new Date(d).getTime()) / 60000) }
 function elapsed(d: string) { const m = Math.max(0, minutesSince(d)); return `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}` }
 
-export function ScheduleTimeline({ artistId, artistName, canManage }: { artistId: string; artistName?: string | null; canManage: boolean }) {
+export function ScheduleTimeline({ artistId, artistName, canManage, importId }: { artistId: string; artistName?: string | null; canManage: boolean; importId?: string | null }) {
   // Upcoming (existing route and actions)
   const [up, setUp] = useState<{ status: 'loading' | 'ready' | 'error'; shows: ScheduledShow[] }>({ status: 'loading', shows: [] })
   const [formOpen, setFormOpen] = useState(false)
@@ -89,13 +92,12 @@ export function ScheduleTimeline({ artistId, artistName, canManage }: { artistId
   const refreshAll = useCallback(() => { loadUpcoming(); loadHistory(null) }, [loadUpcoming, loadHistory])
   const { starting, startError, confirmAndStart, handleCancel } = useShowActions({ artistName, onChanged: refreshAll })
 
-  const upcoming = up.shows
-    .filter(s => isUpcomingInZone(s.scheduled_at, s.timezone))
-    .sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime())
+  // Timed shows and date-only bookings (spreadsheet import), each on its own clock.
+  const upcoming = up.shows.filter(s => isShowUpcoming(s)).sort(compareScheduled)
   const next = upcoming[0] || null
   const later = upcoming.slice(1)
 
-  const when = (s: ScheduledShow) => { const { dateStr, timeStr } = utcToZonedParts(new Date(s.scheduled_at), s.timezone); return { day: dayLabel(dateStr, s.timezone), time: `${timeLabel(timeStr)} ${zoneAbbreviation(s.scheduled_at, s.timezone)}`.trim() } }
+  const when = (s: ScheduledShow) => { const w = showWhen(s); return { day: w.day, time: w.time || 'Time not set' } }
   const addedByOf = (s: ScheduledShow) => s.scheduled_by && s.scheduled_by !== s.created_by ? (s.scheduled_by_name || 'a teammate') : null
 
   // ── Capture in progress: the Dashboard's band and rule. It links to live
@@ -128,20 +130,27 @@ export function ScheduleTimeline({ artistId, artistName, canManage }: { artistId
   )
   else if (!next) nextBlock = <div className="tl-empty">No shows scheduled yet.{canManage ? ' Add a show to plan ahead.' : ''}</div>
   else {
-    const w = when(next), isFuture = new Date(next.scheduled_at).getTime() > Date.now(), by = addedByOf(next)
+    const w = when(next), by = addedByOf(next)
+    const isFuture = next.scheduled_at ? new Date(next.scheduled_at).getTime() > Date.now() : (showLocalDate(next) || '') > zonedToday(new Date(), next.timezone)
     nextBlock = (
       <section className="tl-next" aria-label="Next show">
         <div className="tl-grow">
           <div className="tl-when">{w.day} <span className="tl-mono">· {w.time}</span></div>
           <h2 className="tl-venue">{next.venues?.name || 'Venue TBD'}</h2>
           {next.venues?.city && <div className="tl-meta">{next.venues.city}{next.venues.country ? `, ${next.venues.country}` : ''}</div>}
+          {next.import_batch_id && <div className="tl-meta tl-quiet">Imported from {next.show_import_batches?.file_name || 'a spreadsheet'}</div>}
           {by && <div className="tl-meta tl-quiet">Added by {by}</div>}
         </div>
         {canManage && (
           <div className="tl-next-acts">
-            <button type="button" className="tl-primary" onClick={() => confirmAndStart(next)} disabled={starting === next.id} aria-busy={starting === next.id}>
-              {starting === next.id ? 'Starting…' : isFuture ? 'Start early' : 'Start Capture'}
-            </button>
+            {next.scheduled_at ? (
+              <button type="button" className="tl-primary" onClick={() => confirmAndStart(next)} disabled={starting === next.id} aria-busy={starting === next.id}>
+                {starting === next.id ? 'Starting…' : isFuture ? 'Start early' : 'Start Capture'}
+              </button>
+            ) : (
+              // A date-only booking needs a start time before capture can start.
+              <button type="button" className="tl-primary tl-secondary" onClick={() => { setEditing(next); setFormOpen(true) }}>Add a start time</button>
+            )}
             <ShowActionsMenu show={next} onEdit={() => { setEditing(next); setFormOpen(true) }} onCancel={() => handleCancel(next)} />
           </div>
         )}
@@ -186,10 +195,12 @@ export function ScheduleTimeline({ artistId, artistName, canManage }: { artistId
                 ))}
               </dl>
             )}
-            {it.kind === 'no-capture' && <p className="tl-why">Scheduled in Setlistr. No capture is linked to it. A show captured from New show instead of Start isn&apos;t linked automatically.</p>}
+            {it.kind === 'no-capture' && (it.importedFrom
+              ? <p className="tl-why">Imported from {it.importedFrom.file}{it.importedFrom.row ? `, row ${it.importedFrom.row}` : ''}. No capture is linked to it, and a date in a spreadsheet doesn&apos;t show the show was performed. <Link className="tl-lnk tl-inline" href={`/app/schedule/import/${it.importedFrom.batchId}`}>View import</Link></p>
+              : <p className="tl-why">Scheduled in Setlistr. No capture is linked to it. A show captured from New show instead of Start isn&apos;t linked automatically.</p>)}
             {it.kind === 'cancelled' && <p className="tl-why">This scheduled show was cancelled.</p>}
             {it.addedBy && <p className="tl-why">Added by {it.addedBy}</p>}
-            {it.zoneNote && <p className="tl-why">{it.zoneNote}: the date is shown as stored and the time is left out.</p>}
+            {it.zoneNote && <p className="tl-why">{it.zoneNote}: {it.importedFrom ? 'the date and time are shown as written in the sheet.' : 'the date is shown as stored and the time is left out.'}</p>}
             {it.partners.map(p => (
               <div key={p.key} className="tl-pair">
                 <p className="tl-why"><strong>Possible duplicate:</strong> {shortDate(p.localDate)} · {p.venue}{p.city ? `, ${p.city}` : ''} · {[p.source, p.state?.label, p.time].filter(Boolean).join(' · ')}</p>
@@ -211,8 +222,14 @@ export function ScheduleTimeline({ artistId, artistName, canManage }: { artistId
     <div className="tl">
       <div className="tl-head">
         <div><h1>Schedule</h1>{artistName && <p>{artistName}</p>}</div>
-        {canManage && <button type="button" className="tl-lnk" onClick={() => { setEditing(null); setFormOpen(true) }}>+ Add a show</button>}
+        {canManage && (
+          <div className="tl-head-acts">
+            <Link className="tl-lnk" href="/app/schedule/import">Import shows</Link>
+            <button type="button" className="tl-lnk" onClick={() => { setEditing(null); setFormOpen(true) }}>+ Add a show</button>
+          </div>
+        )}
       </div>
+      {importId && <ImportNotice key={importId} importId={importId} />}
       {activeBand}
       {startError && <div className="tl-start-err" role="alert"><AlertCircle size={14} style={{ flexShrink: 0 }} /> {startError}</div>}
       {nextBlock}
@@ -254,85 +271,17 @@ export function ScheduleTimeline({ artistId, artistName, canManage }: { artistId
         )}
       </section>
 
-      <p className="tl-roadmap"><b>Planned for Schedule later:</b> importing past shows in bulk, calendar sync, and tour dates from listings. They aren&apos;t available yet.</p>
-
       {formOpen && <ScheduleForm artistId={artistId} existing={editing} onClose={() => setFormOpen(false)} onSaved={() => { setFormOpen(false); refreshAll() }} />}
 
-      <style>{`
-        .tl { font-family: "DM Sans", system-ui, sans-serif; color: var(--sl-text); display: grid; gap: 0; }
-        .tl-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; margin-bottom: 18px; }
-        .tl-head h1 { font-size: 26px; font-weight: 800; color: var(--sl-text); margin: 0; letter-spacing: -0.02em; }
-        .tl-head p { font-size: 14px; color: var(--sl-text-2); margin: 2px 0 0; }
-        .tl-lnk { display: inline-flex; align-items: center; gap: 6px; font: 700 13px "DM Sans", system-ui, sans-serif; color: var(--sl-gold-text); background: none; border: 0; cursor: pointer; padding: 6px 0; min-height: 44px; text-decoration: none; }
-        .tl-mono { font-family: "DM Mono", monospace; font-variant-numeric: tabular-nums; }
-        .tl-grow { flex: 1; min-width: 0; }
-        .tl-sub { display: block; font-size: 12.5px; color: var(--sl-text-3); margin-top: 1px; overflow-wrap: anywhere; }
-        .tl-quiet { color: var(--sl-text-3); }
-        .tl-active { display: flex; align-items: center; gap: 12px; padding: 14px 16px; margin-bottom: 14px; border-radius: 16px; background: var(--sl-surface); border: 1px solid var(--sl-line); color: var(--sl-text); text-decoration: none; min-height: 64px; }
-        .tl-mic { width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; background: var(--sl-accent); color: var(--sl-on-accent); }
-        .tl-act-st { display: block; font-size: 12px; font-weight: 700; }
-        .tl-act-v { display: block; font-size: 16px; font-weight: 700; overflow-wrap: anywhere; }
-        .tl-el { font-size: 18px; color: var(--sl-text-2); }
-        .tl-start-err { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; padding: 10px 14px; border-radius: 10px; font-size: 13px; color: var(--sl-danger); background: color-mix(in srgb, var(--sl-danger) 8%, transparent); border: 1px solid color-mix(in srgb, var(--sl-danger) 25%, transparent); }
-        .tl-next { display: grid; gap: 14px; padding: 18px; border-radius: 18px; border: 1px solid color-mix(in srgb, var(--sl-accent) 30%, transparent); background: linear-gradient(165deg, var(--sl-surface-2), var(--sl-surface)); }
-        .tl-next.tl-skel { min-height: 150px; background: var(--sl-skeleton); border-color: transparent; }
-        .tl-when { font-size: 13px; font-weight: 800; color: var(--sl-gold-text); letter-spacing: 0.02em; }
-        .tl-when .tl-mono { color: var(--sl-text-2); font-weight: 500; }
-        .tl-venue { font-size: 24px; font-weight: 800; letter-spacing: -0.015em; line-height: 1.15; margin: 4px 0 2px; overflow-wrap: anywhere; }
-        .tl-meta { font-size: 13px; color: var(--sl-text-2); margin-top: 2px; }
-        .tl-next-acts { display: flex; gap: 8px; align-items: center; }
-        .tl-primary { flex: 1; min-height: 48px; padding: 0 18px; border-radius: 12px; border: 0; background: var(--sl-accent); color: var(--sl-on-accent); font: 800 15px "DM Sans", system-ui, sans-serif; cursor: pointer; }
-        .tl-primary:disabled { opacity: 0.7; cursor: default; }
-        .tl-err { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 14px 16px; border-radius: 14px; background: var(--sl-surface); border: 1px solid var(--sl-line); font-size: 13px; color: var(--sl-text-2); }
-        .tl-empty { padding: 20px; border-radius: 14px; background: var(--sl-surface); border: 1px solid var(--sl-line); text-align: center; font-size: 13.5px; color: var(--sl-text-3); }
-        .tl-sec { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin: 28px 0 8px; }
-        .tl-sec h3 { margin: 0; font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--sl-text-3); }
-        .tl-sec span { font-size: 12.5px; color: var(--sl-text-3); }
-        .tl-rows { border-top: 1px solid var(--sl-line); }
-        .tl-row { border-bottom: 1px solid var(--sl-line); }
-        .tl-row-btn { width: 100%; text-align: left; background: none; border: 0; color: inherit; font: inherit; cursor: pointer; display: grid; grid-template-columns: 70px minmax(0,1fr) auto; column-gap: 12px; align-items: baseline; padding: 12px 2px; min-height: 52px; }
-        .tl-row-btn.tl-static { cursor: default; align-items: center; }
-        .tl-row-btn:not(.tl-static):hover { background: var(--sl-hover); }
-        .tl-date { font-size: 12.5px; color: var(--sl-text-2); white-space: normal; line-height: 1.35; }
-        .tl-static .tl-date { white-space: normal; line-height: 1.35; }
-        .tl-main { min-width: 0; }
-        .tl-v { display: block; font-size: 15px; font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; }
-        .tl-right { display: grid; gap: 2px; justify-items: end; text-align: right; }
-        .tl-up-r { grid-auto-flow: column; align-items: center; gap: 10px; }
-        .tl-state { font-size: 12px; font-weight: 700; white-space: nowrap; }
-        .tl-time { font-size: 12.5px; color: var(--sl-text-2); white-space: nowrap; }
-        .tl-flag { display: inline-flex; align-items: center; gap: 6px; margin-top: 5px; font-size: 12px; font-weight: 700; color: var(--sl-warn); }
-        .tl-flag::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--sl-warn); }
-        .tl-month { font-family: var(--sl-font-display); font-size: 22px; letter-spacing: 0.03em; color: var(--sl-text-3); margin: 18px 0 2px; }
-        .tl-rows > .tl-month:first-child { margin-top: 10px; }
-        .tl-detail { padding: 0 2px 16px 84px; display: grid; gap: 8px; font-size: 13.5px; color: var(--sl-text-2); }
-        .tl-dl { margin: 0; display: grid; gap: 8px; }
-        .tl-dl dt { font-size: 11px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--sl-text-3); }
-        .tl-dl dd { margin: 1px 0 0; color: var(--sl-text); }
-        .tl-dl .tl-lnk { min-height: 0; padding: 0; }
-        .tl-why { margin: 0; font-size: 13px; line-height: 1.45; color: var(--sl-text-2); }
-        .tl-why strong { color: var(--sl-text); }
-        .tl-pair { display: grid; gap: 4px; padding: 10px 12px; border-radius: 10px; background: var(--sl-surface); border: 1px solid var(--sl-line); }
-        .tl-row-acts { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-        .tl-skel-row { height: 52px; border-bottom: 1px solid var(--sl-line); background: linear-gradient(90deg, transparent 84px, var(--sl-skeleton) 84px, var(--sl-skeleton) 60%, transparent 60%) no-repeat center / 100% 12px; }
-        .tl-more { font: 700 14px "DM Sans", system-ui, sans-serif; color: var(--sl-gold-text); background: none; border: 0; padding: 12px 0; min-height: 44px; cursor: pointer; justify-self: start; }
-        .tl-note { margin: 6px 0 0; font-size: 13px; color: var(--sl-text-3); }
-        .tl-roadmap { margin: 30px 0 0; padding-top: 14px; border-top: 1px solid var(--sl-line); font-size: 12.5px; color: var(--sl-text-3); }
-        .tl-roadmap b { color: var(--sl-text-2); }
-        .tl-dk { display: none; }
-        .tl-lnk:focus-visible, .tl-primary:focus-visible, .tl-row-btn:focus-visible, .tl-more:focus-visible, .tl-active:focus-visible { outline: 2px solid var(--sl-accent); outline-offset: 2px; border-radius: 6px; }
-        @media (prefers-reduced-motion: reduce) { .tl * { transition: none !important; } }
-        @container sl-frame (min-width: 900px) {
-          .tl-next { grid-template-columns: minmax(0,1fr) auto; align-items: end; padding: 22px 24px; }
-          .tl-next-acts { min-width: 260px; }
-          .tl-venue { font-size: 30px; }
-          .tl-row-btn { grid-template-columns: 110px minmax(0,1.4fr) minmax(0,1fr) 170px; }
-          .tl-date { white-space: nowrap; }
-          .tl-ph { display: none; }
-          .tl-dk { display: block; font-size: 14px; color: var(--sl-text-2); overflow-wrap: anywhere; }
-          .tl-detail { padding-left: 122px; }
-        }
-      `}</style>
+      <style>{TIMELINE_CSS + IMPORT_ENTRY_CSS}</style>
     </div>
   )
 }
+
+// The header's two text actions, and the date-only booking's secondary
+// action in the next-show card.
+const IMPORT_ENTRY_CSS = `
+  .tl-head-acts { display: flex; column-gap: 18px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+  .tl-secondary { background: transparent; border: 1px solid color-mix(in srgb, var(--sl-accent) 45%, transparent); color: var(--sl-gold-text); font-weight: 700; }
+  .tl-why .tl-inline { min-height: 0; padding: 0; display: inline; }
+`

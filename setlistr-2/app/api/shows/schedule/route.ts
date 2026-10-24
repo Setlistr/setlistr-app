@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
 
   const { data, error } = await supabase
     .from('shows')
-    .select('id, name, show_type, scheduled_at, timezone, status, created_by, updated_at, venue_id, scheduled_by, scheduled_by_name, venues(name, city, country)')
+    .select('id, name, show_type, scheduled_at, timezone, status, created_by, updated_at, venue_id, scheduled_by, scheduled_by_name, local_date, local_time, import_batch_id, source_row, venues(name, city, country), show_import_batches(file_name)')
     .eq('created_by', artistId)
     .eq('status', 'scheduled')
     .order('scheduled_at', { ascending: true })
