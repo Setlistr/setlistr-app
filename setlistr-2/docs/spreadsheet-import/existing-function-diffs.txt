@@ -1,0 +1,86 @@
+--- before_enforce_schedule_start_guard.sql	2026-10-24 08:49:07
++++ after_enforce_schedule_start_guard.sql	2026-10-24 08:49:56
+@@ -19,8 +19,16 @@
+     OR NEW.timezone IS DISTINCT FROM OLD.timezone
+     OR NEW.name IS DISTINCT FROM OLD.name
+     OR NEW.show_type IS DISTINCT FROM OLD.show_type
++    OR NEW.local_date IS DISTINCT FROM OLD.local_date      -- 0028
++    OR NEW.local_time IS DISTINCT FROM OLD.local_time      -- 0028
+   );
+ 
++  -- 0028: an imported past listing never changes status, and nothing
++  -- becomes a listing except through import_shows().
++  IF (OLD.status = 'listed' OR NEW.status = 'listed') AND NEW.status IS DISTINCT FROM OLD.status THEN
++    RAISE EXCEPTION 'LISTED_STATUS_LOCKED' USING ERRCODE = '42501';
++  END IF;
++
+   IF OLD.status = 'scheduled' AND NEW.status = 'live' THEN
+     IF current_setting('app.allow_schedule_start', true) IS DISTINCT FROM 'true' THEN
+       RAISE EXCEPTION 'SCHEDULE_TRANSITION_NOT_ALLOWED' USING ERRCODE = '42501';
+@@ -48,4 +56,3 @@
+   RETURN NEW;
+ END;
+ $function$
+-
+--- before_reject_scheduled_show_delete.sql	2026-10-24 08:49:07
++++ after_reject_scheduled_show_delete.sql	2026-10-24 08:49:56
+@@ -4,10 +4,11 @@
+  SET search_path TO ''
+ AS $function$
+ BEGIN
+-  IF OLD.status = 'scheduled' THEN
++  -- 0028: listings are protected like scheduled shows; only
++  -- undo_show_import() may delete either, for untouched imported rows.
++  IF OLD.status IN ('scheduled', 'listed') AND current_setting('app.allow_import_undo', true) IS DISTINCT FROM 'true' THEN
+     RAISE EXCEPTION 'USE_CANCEL_NOT_DELETE' USING ERRCODE = '42501';
+   END IF;
+   RETURN OLD;
+ END;
+ $function$
+-
+--- before_reject_performance_insert_for_scheduled_show.sql	2026-10-24 08:49:08
++++ after_reject_performance_insert_for_scheduled_show.sql	2026-10-24 08:49:56
+@@ -8,6 +8,10 @@
+ BEGIN
+   IF NEW.show_id IS NOT NULL THEN
+     SELECT status INTO v_show_status FROM public.shows WHERE id = NEW.show_id;
++    -- 0028: a listing is never captured or linked.
++    IF v_show_status = 'listed' THEN
++      RAISE EXCEPTION 'PERFORMANCE_FOR_LISTED_SHOW' USING ERRCODE = '42501';
++    END IF;
+     IF v_show_status = 'scheduled' AND current_setting('app.allow_schedule_start', true) IS DISTINCT FROM 'true' THEN
+       RAISE EXCEPTION 'PERFORMANCE_INSERT_BYPASSES_SCHEDULE_START' USING ERRCODE = '42501';
+     END IF;
+@@ -15,4 +19,3 @@
+   RETURN NEW;
+ END;
+ $function$
+-
+--- before_start_scheduled_show.sql	2026-10-24 08:49:08
++++ after_start_scheduled_show.sql	2026-10-24 08:49:56
+@@ -65,7 +65,7 @@
+       -- Scheduled calendar date, in the show's own stored timezone --
+       -- deliberately independent of started_at below (see the app-layer
+       -- note on preserving scheduled-vs-actual timing).
+-      COALESCE((v_show.scheduled_at AT TIME ZONE v_show.timezone)::date, CURRENT_DATE),
++      COALESCE(v_show.local_date, (v_show.scheduled_at AT TIME ZONE v_show.timezone)::date, CURRENT_DATE),  -- 0028: local_date first
+       COALESCE(v_venue.name, 'Unknown Venue'), v_show.venue_id, v_venue.city, v_venue.country,
+       'live', now(), v_actor,
+       CASE WHEN v_actor = v_show.created_by THEN NULL ELSE v_actor END,
+@@ -89,6 +89,11 @@
+     RAISE EXCEPTION 'ALREADY_STARTED_BY_OTHER' USING ERRCODE = '40001';
+   END IF;
+ 
++  -- 0028: listings can't be started.
++  IF v_show.status = 'listed' THEN
++    RAISE EXCEPTION 'SHOW_NOT_STARTABLE' USING ERRCODE = 'P0001';
++  END IF;
++
+   IF v_show.status = 'completed' THEN
+     RAISE EXCEPTION 'SHOW_ALREADY_COMPLETED' USING ERRCODE = 'P0001';
+   END IF;
+@@ -96,4 +101,3 @@
+   RAISE EXCEPTION 'SHOW_CANCELLED' USING ERRCODE = 'P0001';
+ END;
+ $function$
+-

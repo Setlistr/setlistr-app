@@ -1,234 +1,278 @@
-# Spreadsheet import for Schedule (proposal)
+# Spreadsheet import for Schedule: approval package
 
-**Status: proposal, awaiting approval.** Nothing is implemented. No SQL has run and nothing is deployed. Production is `3ce4833`.
+**Status: proposal, awaiting one approval.** No app code, no production read or write, no dependency in the app, no merge and no deployment. Production is `3ce4833`.
 
-- Prototype: https://claude.ai/artifact/W2rvPMGeQ3csXGfzDiAPhW (revision 2, example data). It shows live frames of the built app: the released Schedule beside the proposed entry and review, at phone and desktop widths, in Dark and Light.
-- Schema proposal: `supabase/proposals/show_imports.sql` (not a migration, not applied).
+- **Review artifact:** https://claude.ai/artifact/W2rvPMGeQ3csXGfzDiAPhW (revision 3). It has screenshots of every state, captured from the built prototype, and the same decisions as this document.
+- **Branches:**
+  - `docs/spreadsheet-import-plan`: this document and `supabase/proposals/0028_*`;
+  - `fix/schedule-phone-dates-touch-targets` (`5104622`, local, not pushed): the separate UI-defect candidate.
 
-## What it does, and doesn't
+## What one approval covers
 
-- **It does:** let the artist, or a teammate who can edit, add many past and upcoming shows from an ordinary spreadsheet.
-  - It reads any layout with one show per row, a date and a venue.
-  - The person checks how each column and the dates were read.
-  - They settle missing details and decide on possible duplicates.
-  - They confirm the import explicitly. Nothing is saved before that.
-- **It doesn't:**
-  - create performances, setlists or songs;
-  - mark anything as performed;
-  - change Proof, Career, History, Dashboard counts, royalty estimates or submissions;
-  - merge, link, hide or edit existing records;
-  - repair historical data.
+1. **Design.** The flow and states shown in the artifact, inside the released Schedule.
+2. **Schema.** `supabase/proposals/0028_show_imports.sql`, exactly as validated on the disposable stack, together with its down migration.
+   - First, the read-only preflight (`0028_show_imports.preflight.sql`) runs on production. Applying to production then needs its own go-ahead, once the preflight matches.
+3. **Dependencies.** `papaparse@5.7.0` and `read-excel-file@9.3.12`, loaded only on the import page.
+4. **Implementation.** The app changes listed below. They're built and tested on the disposable stack, then come back as a release candidate.
 
-**A past date doesn't establish that a show happened.** Past rows become *listed* shows, which appear in Earlier as "No capture linked". Upcoming rows become ordinary scheduled shows.
+The UI-defect fix is a **separate small candidate**. Import builds on it, so it's released first.
 
-## Flow (as in the prototype, revision 2)
+## Flow
 
-The prototype is built from the app's own code in a scratch copy (see "Prototype build" below). It sits inside the released AppShell and Schedule, with the artist workspace in the header throughout.
+- **Entry.** "Import shows" sits beside "+ Add a show" in Schedule's header.
+  - It's shown to the owner and write-capable roles. Viewers don't see it.
+  - At `/app/schedule/import`, a Viewer gets "Only <artist> and teammates who can edit can import shows". The server refuses them too.
+- **Choose a spreadsheet.**
+  - Accepted: `.xlsx`, `.csv`, `.tsv`. Legacy `.xls` gets "Save it as .xlsx and try again".
+  - The file is read in the browser: 5 MB, 500 rows, one sheet.
+- **Review what Setlistr understood.**
+  - **One line** gives the row count, the title rows left out and the date order with an example. "Date order", "Another file" and "Columns" are text actions on it.
+  - **Column mapping** opens only on request, or by itself when no date or venue column is found.
+  - **Sections**, in order:
+    1. Needs a decision;
+    2. Waiting for the date order;
+    3. Upcoming bookings;
+    4. Past listings, by month;
+    5. Skipped.
+  - **Rows** are the timeline's own rows. A row opens to show the decision, then what the sheet said, what it was read as, its zone and where the zone came from, and what it becomes.
+- **Confirm.** One breakdown, then "Import N shows".
+- **After.** Schedule shows one line, with "Import details" and "Undo import".
 
-1. **Entry:** "Import shows" is a text action beside "+ Add a show" in Schedule's header, for the owner and write-capable roles.
-   - Both actions get a 44px hit area; the released "+ Add a show" is 36px.
-   - Viewers don't see it. At the page's address they get "Only <artist> and teammates who can edit can import shows", and the routes refuse them.
-   - The roadmap line drops "importing past shows in bulk".
-2. **Choose a file** (`/app/schedule/import`):
-   - One sentence, then the primary "Choose a spreadsheet" button.
-   - Accepted: `.xlsx`, `.csv`, `.tsv`. Google Sheets and Numbers files are downloaded as one of those first.
-   - Limits: 5 MB, 500 data rows, one sheet per import.
-   - Parsing happens in the browser. The file isn't uploaded or stored. Only the confirmed rows' mapped fields are sent.
-3. **Review what Setlistr understood:**
-   - **One line of what was read:** the row count, the title rows left out, and the date order, with an example ("Dates are day first, so 03/04/2025 is Apr 3, 2025"). "Date order", "Another file" and "Columns" are text actions on that line.
-   - **Column mapping** opens only on request, or by itself when no date or venue column is found. Each column shows its heading, example values and a field select. "Don't import" columns are never sent or stored.
-   - **Date order:** when the column settles it (a part over 12, or a four-digit year), it's applied and stated. When nothing settles it, "First, how are dates written?" comes before everything else, with no default. The rows wait under "Waiting for the date order".
-   - **Rows** use Schedule's own row styles. They appear in this order:
-     1. Needs a decision (first);
-     2. Upcoming;
-     3. Earlier, by month with the timeline's month headings, marked "No capture linked";
-     4. Not imported.
-     - Each row is one button. Its right column shows the one open question ("Which year?", "Time zone needed", "Venue needed"), or the timeline's "Possible duplicate" flag, or "No capture linked".
-     - Opening a row shows the decision, then what the sheet said (row number and cells), what it was read as, its zone and where the zone came from, what it becomes, and "Leave this row out".
-     - A settled row moves to its section.
-   - **Continuing:** "Continue with N shows" stays disabled until nothing needs a decision. "Leave them out" excludes the open rows in one step.
-4. **Confirm:**
-   - **The question:** "Import N shows?"
-   - **One list:**
-     - Upcoming, with what can be done to them;
-     - Earlier, saying they aren't counted as performed and that Proof, Career, royalty estimates and submissions don't change;
-     - Not imported;
-     - Added by;
-     - Kept with each show: the file name and row, the columns not saved, and the new venues.
-   - **Actions:** "Import N shows", and "Back to review".
-5. **After:**
-   - Schedule shows one line, "N shows imported from <file>. Earlier ones are marked "No capture linked"", with "Undo import".
-   - The new shows appear in Upcoming and Earlier through the existing routes.
-   - An imported Earlier row says where it came from when opened.
-   - Undo removes the batch's shows that are still untouched: not edited, not started, no capture linked. Every other row is kept and listed.
+## 1. Dates and times
 
-## Row rules
-
-| Situation | Treatment |
+| Case | Treatment |
 |---|---|
-| No date, or "TBC" / "TBA" | Won't import. Add it later by hand. |
-| A date that's invalid in the chosen order | Needs a detail: change the order or skip. |
-| No year ("12 Apr") | Needs a detail: choose the year (choices are shown with their weekday). Never guessed. |
-| A range ("18-20/07/2025") | Needs a detail: pick the day, or skip. One show per row. |
+| A time, zone unknown | **The time is kept as written and never converted.** The row asks for the zone. A past row can instead keep the time as written with "time zone not recorded": `local_time` is stored, with no instant. An upcoming row must have a zone, because Schedule decides "today" and Start's date on the show's clock. |
+| Zones, in order | A time-zone column (named IANA zones only; "EST" and fixed offsets are refused); then a venue already in the artist's records; then a country with one zone; then the person. "Also use this zone for …" names each affected row and city, and is never automatic. |
+| Date only | `local_time` stays null and `scheduled_at` stays null: midnight is never assumed. Schedule shows "Time not set". It sorts after timed shows that day. |
+| Repeated time (clocks go back) | Asked: "1:30 AM EDT (first, before clocks go back)" or "1:30 AM EST (second)". Either instant is stored; both read back as the booked wall time. |
+| Skipped time (clocks go forward) | Asked: use the next valid time ("Use 3:30 AM"), enter another time, or leave the row out. The database refuses any instant that doesn't read back as the booked time. |
+| Festival range ("18-20/07/2025") | Asked: choose the days actually performed, one or more, or leave the row out. Each chosen day is its own show. One show per day is never created automatically. |
+| Missing year | Asked, with the weekday shown. Never guessed. |
+| Ambiguous date order | Asked once for the file, before anything else, with no default. It's settled automatically only when a part over 12 or a four-digit year proves it. |
 | Two-digit year | Read as 20YY, with a note on the row. |
-| Excel date cell | Read from the cell's calendar date (UTC parts of the serial). Handles the 1900 and 1904 date systems. Never shifted by the device's zone. |
-| No venue, or "TBA" | Needs a detail: type a venue, or skip. Start already requires a venue. |
-| Upcoming, no zone | Needs a detail: choose a zone. Schedule decides "today" and Start's date on the show's own clock. |
-| Past, a time, no zone | Needs a detail: choose a zone, or keep the date only. A time is never stored without a zone. |
-| Past, date only, no zone | Ready. The date is kept as written and marked "Time zone not recorded", as the timeline does now. |
-| A time that's missing or skipped by DST in its zone | Needs a detail: pick one of the two times, or change it. Uses `zonedLocalTimeToUtc` (as Add a show does). This case isn't in the prototype. |
-| Several times ("Doors 7 / Show 8") | Needs a detail: pick the start time. |
-| Possible duplicate | Needs a decision: "Skip this row" or "Import as a separate show". No default. Never merged or linked. |
+| Excel cells | **Date cells** are read from their UTC calendar parts. `read-excel-file` returns UTC midnight whatever the device zone; checked with the device set to Los Angeles and Tokyo. **Time-formatted cells** are read as the time only. **A bare number in the date column** (an unformatted serial such as 45731) is shown as "45731 looks like Mar 15, 2025" and must be confirmed. |
+| No date / "TBC" | Skipped (`no_date`). |
 
-**Zones, in order:**
-1. a Time zone column, if it holds real IANA names (abbreviations like "EST" are refused and shown);
-2. the zone at the coordinates of a venue already in this artist's records;
-3. the country, only when it has a single zone;
-4. otherwise the person chooses.
+## 2. Review and reconciliation
 
-"Also use it for the other rows in <country>" is unchecked by default, because many countries have more than one zone. Choosing a zone is never inferred from a city name.
+- **Blocking rules:**
+  - **File-level questions block the import:** the date order when it can't be proved, and a missing date or venue column. They affect every row.
+  - **Row questions don't block.** Year, dates, venue, zone, time and duplicate decisions are per row. An unsettled row isn't imported.
+  - **The settled rows can be imported on their own.** The page says so: "Settle them now, or continue: they aren't imported and the import result lists them". The confirm screen repeats it as "Unresolved, not imported", with each row and reason.
+  - To add those rows later, import the sheet again. Rows already imported then show as possible duplicates of the earlier import.
+- **Possible duplicates:** the released matcher (`lib/shows/identity`), unchanged. It compares against the artist's history, their upcoming shows, and the sheet's earlier rows. There are exactly two choices, each stating its consequence:
+  - **Skip this row:** "<existing> stays exactly as it is. Row N isn't imported, and the import result lists it as a skipped duplicate."
+  - **Import as another record:** "Setlistr adds a second show. Both appear in Schedule or Earlier, each marked Possible duplicate. Nothing is merged and <existing> doesn't change."
+  - **No merging, linking or editing of existing records.** The database can't attach a capture to a listing either.
+- **Final breakdown on Confirm:**
+  - **Upcoming bookings**, split into timed and date-only;
+  - **Past listings**, split into timed, time as written without a zone, and date only, with the not-performed sentence;
+  - **Skipped**, each row with its reason;
+  - **Unresolved, not imported**, each row with its reason;
+  - **Added by**;
+  - **Kept with each show.**
+- **The import result** (`show_import_batches`) keeps:
+  - the file name and SHA-256, the sheet name and date order;
+  - the counts, who imported it, and when;
+  - every skipped or unresolved row as `{row, reason}`, from a fixed list of 11 reason codes.
+  - **It stores no cell values, unmapped columns or file.** Each imported show keeps its `source_row`.
 
-**Upcoming or earlier:**
-- With a zone, a row is upcoming when its local date is on or after today in that zone, the same rule as `isUpcomingInZone`.
-- With no zone, a row is earlier only if its date has ended everywhere. Otherwise it needs a zone.
+## 3. Safe import and Undo
 
-## Possible duplicates (released identity rules, unchanged)
+- **Double taps:** the button disables on the first tap.
+- **Retries and lost responses:** the batch id is created once per review and reused by every retry. `import_shows` returns the first result ("already_imported") when the same person sends the same request again. A different request with the same id is refused.
+- **Concurrent imports:** a per-workspace advisory lock serialises imports. The review's records fingerprint (count and latest change of the artist's shows and performances) is checked again under the lock. Any change since the review, such as another import, a teammate's "Add a show" or a capture, returns `IMPORT_STALE`. The page then goes back to review and says what changed.
+  - **Residual:** a teammate's "Add a show" committed in the instant between the check and the commit isn't caught. The two records then both show as Possible duplicate on Schedule; nothing is lost or merged.
+- **Rechecked at commit:**
+  - write permission (`can_write_for`; Viewer, revoked, pending and unrelated users are refused);
+  - zones;
+  - instants against the booked times;
+  - venue ownership;
+  - whether each row is still upcoming or past ("a date passed overnight" returns `ROW_CHANGED_SINCE_REVIEW`).
+- **Undo** removes only untouched rows. It keeps, with a reason:
+  - **capture linked** (any performance points at it);
+  - **setlist attached**;
+  - **started or completed**;
+  - **cancelled**;
+  - **edited** (any update at all; imported rows stamp `clock_timestamp()` on update, so even an edit in the same transaction counts).
+  - **Foreign keys aren't relied on.** Deleting a show would unlink its captures (`ON DELETE SET NULL`) and delete its setlists (`CASCADE`), so Undo checks both explicitly.
+  - Undo is idempotent, and is refused to Viewers.
+  - **The result is shown** either as "Import undone. N shows removed; nothing else changed", or as "N removed. M kept because they've been used since the import", with each kept show and its reason. The artifact shows both.
 
-- **One matcher:** rows become `IdentityRecord`s (`r:<row>`) and go through `findCandidates` in `lib/shows/identity.ts` unchanged, together with:
-  - the artist's history entries (`buildEntries`);
-  - the artist's upcoming scheduled shows (Earlier excludes these, so they're added separately).
-- **The rules carry over:**
-  - same venue id or normalised name in a compatible place;
-  - same local date with start times within two hours, or with a start time unknown;
-  - a midnight crossing only with two real times in known zones.
-  - Pairs are judged one at a time, never transitively.
-- **Within the file:** a later row that pairs with an earlier one asks for the decision; the earlier row shows a note.
-- **Earlier exact re-imports:** a row that pairs with a show from a previous spreadsheet import reads "From your import of <file> on <date>", on top of the usual reason.
-- **Wording:** neutral, with the specific reason (the timeline's `VENUE_REASON` / `TIME_REASON`). Both records stay listed. A differently written venue name won't match, as now; that's a stated limit.
+## 4. Schema: `0028_show_imports.sql`
 
-## Ownership, provenance and time
+**Why `local_date` and `local_time` are needed:**
+- `scheduled_at` is an instant. It can't hold a date-only booking without inventing a time, and it can't hold a time whose zone is unknown.
+- `performances.performance_date` belongs to captures, which a listing never has.
 
-- **Ownership:** `shows.created_by` is the workspace artist. The RPC checks `can_write_for(artist)`. The owner lock and the write rules are unchanged.
-- **Who added it:** `scheduled_by` / `scheduled_by_name` record the person importing, so the existing "Added by" wording works. They stay immutable.
-- **Provenance:** `shows.import_batch_id` and `shows.source_row`. The batch records:
-  - the file name, the sheet, and the file's SHA-256 (not its contents);
-  - the column mapping (headings only), the date order;
-  - the counts, who imported it, and when.
-- **Source line:** "Imported from a spreadsheet" (plus "added by …" for a teammate). It's checked before the "Scheduled" provenance, so an imported show never reads "Scheduled in Setlistr".
-- **Time:**
-  - `local_date` holds the calendar date as written.
-  - `scheduled_at` is the UTC instant only when a real time and zone exist, and is null otherwise.
-  - `timezone` is a real IANA zone when known. Otherwise it's `'UTC'`, the existing "not recorded" convention that `isRealTimeZone` already treats as unknown, with no new meaning.
-  - The viewer's zone is never used.
+**Which field is authoritative, and how they stay consistent:**
+- `local_date` and `local_time` are what was booked, and are authoritative for imported shows.
+- `scheduled_at` exists exactly when a time and a real zone do, and must read back as `local_date + local_time` in `timezone`. A trigger enforces it, and handles both the repeated and the skipped hour.
+- **When an existing path changes only the instant** (Schedule's edit RPC), the trigger carries `local_date` and `local_time` along. That's tested.
+- Shows created before 0028 have `local_date` null and are unchanged.
 
-## Schema requirements (`supabase/proposals/show_imports.sql`)
+**Contents:**
+- **Additive:**
+  - the `show_import_batches` table (readable through `can_act_for`, with no client writes);
+  - four nullable columns on shows;
+  - four CHECK constraints;
+  - a unique index on (batch, row, date);
+  - two new triggers (provenance, and local-field consistency);
+  - four new functions (`import_shows`, `undo_show_import`, `show_records_fingerprint`, `is_real_time_zone`).
+- **Changes to existing functions:** 19 lines added and 2 changed, each marked `0028`. The full diffs are in `docs/spreadsheet-import/existing-function-diffs.txt`.
 
-1. **New table `show_import_batches`.**
-   - Read: `can_act_for(artist_id)`.
-   - No direct insert, update or delete; writes go only through the two functions.
-2. **New columns on `shows`** (additive, nullable): `import_batch_id`, `source_row`, `local_date`.
-   - Checks:
-     - `import_batch_id` and `source_row` are set together;
-     - a scheduled or listed row has `scheduled_at` or `local_date`.
-3. **The status `listed`.** It's for imported past rows: they never appear in Upcoming or the Dashboard, and can't be started.
-   - `/api/shows/schedule` already filters `status = 'scheduled'`, so the Dashboard's "past shows still marked scheduled" count isn't inflated.
-   - The guard trigger allows schedule-field edits on `listed` rows, as on `scheduled`, and adds `local_date` to the locked fields.
-   - `start_scheduled_show` refuses `listed` explicitly ("SHOW_NOT_STARTABLE"). It uses `local_date` for the performance date when `scheduled_at` is null, instead of falling back to `CURRENT_DATE`.
-4. **`import_shows(p_batch jsonb, p_rows jsonb)`**, security definer, all or nothing.
-   - **Guards:** authenticated; `can_write_for`; at most 500 rows; the batch id is client-generated, so a retry by the same person returns the existing result.
-   - **Validation, per row:** a real date; a real zone where required; status is `scheduled` only for rows on or after today in their zone, otherwise `listed`.
-   - **Venues:** a row either uses a venue id already referenced by this artist's records, or gets a new venue inserted.
-5. **`undo_show_import(p_batch uuid)`.**
-   - It deletes only untouched rows: status as inserted, `updated_at = created_at`, and no `performances.show_id` pointing at them.
-   - It uses a transaction-local flag that the scheduled-delete trigger honours, and marks the batch undone.
-   - It returns the rows it kept.
+| Function | Change |
+|---|---|
+| `enforce_schedule_start_guard` | `local_date`/`local_time` join the locked schedule fields; a status change into or out of `listed` is refused. (+7) |
+| `reject_scheduled_show_delete` | Covers `listed` as well; honours the transaction-local flag set only inside `undo_show_import`. (+3 −1) |
+| `reject_performance_insert_for_scheduled_show` | A performance can never point at a listing. (+4) |
+| `start_scheduled_show` | The performance date is `local_date` first, then the scheduled instant's date, then today; a listing raises `SHOW_NOT_STARTABLE`. (+5 −1) |
 
-**Read-only production checks before the migration** (approval needed to run them; the queries are in the proposal file):
-- `shows` columns and defaults: whether `created_at` exists, and the type of `timezone`;
-- any status check constraint;
-- the triggers on `shows`;
-- the `venues` policies;
-- the `performance_date` type, the open question from the timeline plan.
+`patch_scheduled_show_with_venue` is **unchanged**: it already refuses anything not `scheduled`.
 
-## App changes after approval
+### Where `listed` is excluded (tested on the disposable stack)
+
+| Surface | How a listing is excluded | Test |
+|---|---|---|
+| Upcoming, Dashboard Next show, "past shows still marked scheduled" | `/api/shows/schedule` reads `status = 'scheduled'` only | upcoming has only future rows |
+| Start | `start_scheduled_show` raises `SHOW_NOT_STARTABLE`; the guard refuses → live | both |
+| Edit / Cancel / Delete | patch RPC refuses non-scheduled; guard refuses any status change; delete trigger refuses | 5 cases |
+| Capture, recording upload, setlist link | no performance can reference a listing (insert guard); `performances.show_id` can't be changed later (0013) | refused |
+| Live-record counts, Dashboard, Career, History, Stats, Publisher | all count `performances` / `performances_visible`; import never writes performances | performances, visible, user_songs, user_song_performances and setlists unchanged |
+| Proof (page and PDF) | reads performances only (`lib/proof/load.ts`) | as above |
+| Submissions queue and nav counts | `performances_visible` only | as above |
+| Catalogue (`record_performance_catalog`) and Notion (`notion_show_count`) | both trigger on `performances` only; no trigger on shows calls out (preflight 4 and 11) | no performance created |
+| Schedule timeline (Earlier) | shown as "No capture linked", source "Imported from a spreadsheet" | app change below |
+
+### Every consumer of `shows` (inventory)
+
+- **Insert (unaffected; they never set import fields, and the insert guard refuses them if they try):**
+  - `app/app/show/new` (2), `app/app/new` (2), `app/app/show/upload`;
+  - `app/api/upload-performance` (insert and update);
+  - `app/api/shows/schedule` POST.
+- **Status updates on a show reached through its performance** (a listing never has one): `app/app/live/[id]` (→ completed), `app/app/review/[id]` (→ completed), `app/api/admin/delete-show`.
+- **Schedule routes:**
+  - `GET /api/shows/schedule` (status = scheduled);
+  - `PATCH …/[id]` (patch RPC);
+  - `POST …/[id]/cancel` (a listing is refused by the guard);
+  - `POST …/[id]/start` (RPC);
+  - `GET /api/shows/timeline` (all shows; maps `listed` and `local_date`, app change).
+- **Embedded reads through performances** (a listing can't appear): History, Review, Submit, Stats, the Publisher dashboard, `lib/proof/load.ts`.
+- **Components:** `ScheduleTimeline`, `UpcomingShows` (Manager pages, the Dashboard's `NextShowSummary`, `pickNextScheduled`).
+- **Database:**
+  - `start_scheduled_show`, `patch_scheduled_show_with_venue`;
+  - the guard, delete and performance-insert triggers;
+  - `shows_lock_owner`, `shows_bump_updated_at`;
+  - policies `shows_read/insert/write/delete` (0016);
+  - `setlists` and `show_artists` policies.
+
+### Disposable-stack validation
+
+- **Suite:** `supabase/proposals/0028_show_imports.test.py` passes **65/65**; the output is in `0028_show_imports.test-output.txt`. It covers:
+  - permissions for 8 roles;
+  - stored values;
+  - idempotency, conflicts and staleness;
+  - the zone rules;
+  - repeated and skipped times;
+  - 13 listing exclusions;
+  - Start and edit;
+  - Undo, untouched and partly used;
+  - 7 existing behaviours unchanged;
+  - two real concurrent sessions: two imports, where the second gets `IMPORT_STALE`, and a double tap during a slow commit, where only one import happens.
+- **Round trip:**
+  - up, tests, down;
+  - `pg_dump -s` identical to before, apart from pg_dump's random `\restrict` token;
+  - up again from the final file, tests 65/65, down again, identical again.
+  - The disposable stack is left as it was.
+- **Found and fixed by the suite:** an edit in the import's own transaction left `updated_at = created_at`, so Undo could have removed an edited row. Imported rows now stamp `clock_timestamp()` on any update.
+
+## 5. Existing UI defects (separate candidate `5104622`, local)
+
+- **Earlier dates on phones:** past-year dates overflowed the 70px column and overlapped the venue. The date now wraps on phones and stays on one line at 900px and wider. Measured overlaps: 4 → 0 at 390px.
+- **44px controls:**
+  - the timeline's text actions ("+ Add a show", Retry), from 36px;
+  - the show actions menu button, from 31px, and its items;
+  - `PageHeader`'s Back, from 36px;
+  - the time-zone picker's input, from about 43px.
+- **What this enables:** the import page uses the shared `PageHeader` Back. There's no alternative Back link any more.
+- **Checked:**
+  - `tsc` clean;
+  - production build;
+  - **Schedule end-to-end 49/0** on the disposable stack, including the Manager Schedule and the Dashboard's Next show.
+- **Not included:** the Manager pages' older `UpcomingShows` card buttons ("Start early" and "+ Add a show" there are under 44px). They're outside Schedule and listed for later.
+
+## 6. Dependencies (not installed in the app; checked in an isolated scratch folder)
+
+| Package | Version | Licence | Purpose | Bundle |
+|---|---|---|---|---|
+| `papaparse` | 5.7.0 (published 2026-08-24) | MIT, no dependencies | CSV and TSV parsing (quoted commas, line endings, encodings) | 19.5 KB min, **7.3 KB gzip** |
+| `read-excel-file` | 9.3.12 (published 2026-10-07) | MIT; dependencies `fflate`, `saxen`, `worker-f`, `unzipper-esm` (all MIT; `unzipper-esm` pulls ISC/MIT Node-only modules not in the browser build) | `.xlsx` cells, typed (Date and Number) | browser entry 54.7 KB min, **17.2 KB gzip** |
+
+- **Placement:** both load with `import()` inside the import page only. Nothing is added to the shared bundle or any other route.
+- **Advisories:** `npm audit` found none.
+- **Not chosen:** the `xlsx` npm package (0.18.5 has known advisories; fixed builds are published outside npm) and `exceljs` (larger).
+
+## 7. Read-only preflight (`0028_show_imports.preflight.sql`, not run on production)
+
+Twelve SELECTs in a `READ ONLY` transaction. Each says what it settles and what the disposable stack returned:
+1. shows columns: `created_at`, `timezone` default;
+2. constraints: no status CHECK;
+3. statuses in use;
+4. triggers on shows: none call out;
+5. foreign keys to shows: Undo's checks;
+6. md5 of the four replaced functions and the patch RPC: diffs made from production's bodies;
+7. `can_write_for` and `can_act_for`;
+8. no name collisions;
+9. PostgreSQL features;
+10. policies;
+11. performances triggers: catalogue and Notion effects;
+12. the type of `performance_date`.
+
+The migration itself also stops if 2, 5 or 8 differ.
+
+## 8. Simulated in the prototype
+
+Only these are simulated:
+- **Choosing a file:** it opens one of two example sheets.
+- **Reading the sheet:** the rules are real code; the cell values are fixed examples.
+- **Import:** the four outcomes are chosen from a dashed "Prototype" box: normal, response lost then retried, a teammate adds a matching show first, edit access removed first.
+- **Undo:** "Nothing used" or "One edited, one started", chosen from a dashed "Prototype" box.
+- **Data:** example data stands in for the database, and Start, Add, Edit and Cancel are refused.
+
+Everything else is the app's own code in a scratch build:
+- AppShell, workspace and role context, appearance;
+- `PageFrame`, `PageHeader`, `Skeleton`;
+- the timeline rows, `TimezoneCombobox`;
+- the matcher, `lib/scheduleTime`;
+- Submit's controls.
+
+## 9. App changes after approval
 
 | File | Change |
 |---|---|
-| `lib/shows/import/parse.ts` (new, pure) | Sheet → rows: header detection, column guesses, readers for dates (numeric with order, ISO, Excel serial, month names, ranges, missing year, weekday prefixes) and times. |
-| `lib/shows/import/review.ts` (new, pure) | Row issues, zone resolution, upcoming or earlier, identity records, and candidates via `findCandidates`. |
-| `app/api/shows/import/check/route.ts` (new) | POST, read-only, write roles only. Returns the existing records that pair with the given rows, and venue matches, as summaries. It doesn't log row contents. |
-| `app/api/shows/import/route.ts` (new) | POST commit. Recomputes candidates on fresh data; a pair the person didn't review returns 409 with those rows. Converts times with `zonedLocalTimeToUtc`, then calls `import_shows` with the cookie client. |
-| `app/api/shows/import/[id]/route.ts` (new) | DELETE, calls `undo_show_import`. |
-| `app/app/schedule/import/page.tsx`, `components/scheduling/import/*` (new) | The four steps, with inline styles. |
-| `components/scheduling/ScheduleTimeline.tsx` | The import entry for `canManage`, the after-import banner, and New markers. |
-| `lib/shows/timeline.ts` | `listed` maps to the no-capture kind; `local_date` is used when `scheduled_at` is null; the source line checks import first. |
-| `lib/scheduleTime.ts`, `UpcomingShows.tsx`, the schedule edit route | Upcoming shows with a date but no time: "Time not set", sorted by date, edited as date-only. Only for rows that have `local_date`. |
+| `lib/shows/import/read.ts` (new, pure) | Sheet → rows with `papaparse` / `read-excel-file`; header detection; column guesses; date and time readers (the rules above). |
+| `lib/shows/import/review.ts` (new, pure) | Issues, zones, DST, upcoming or past, matcher candidates, breakdown, reason codes (as `importModel.ts` in the prototype). |
+| `app/api/shows/import/route.ts` (new) | POST. Reads the fingerprint and records, recomputes candidates (409 with the rows if a new one appeared), converts times with `zonedLocalTimeToUtc`, calls `import_shows` with the cookie client, retries once on `IMPORT_STALE`, and logs no row contents. |
+| `app/api/shows/import/[id]/route.ts` (new) | DELETE → `undo_show_import`. |
+| `app/app/schedule/import/page.tsx`, `components/scheduling/import/*` (new) | The screens in the artifact. |
+| `components/scheduling/timelineStyles.ts`, `components/ui/controls.ts` (new) | Schedule's row CSS and Submit's control styles, moved verbatim and shared. Schedule and Submit adopt them with no visual change. |
+| `components/scheduling/ScheduleTimeline.tsx` | The Import entry, the after-import line, date-only bookings, imported-row wording, and the roadmap line. |
+| `components/scheduling/UpcomingShows.tsx` | Date-only bookings in cards, `NextShowSummary`, Start confirmation and the edit form ("No time yet" is kept unless a time is entered). `TimezoneCombobox` is exported. |
+| `lib/scheduleTime.ts` | `pickNextScheduled` / upcoming helpers accept `local_date` when `scheduled_at` is null. |
+| `lib/shows/timeline.ts`, `app/api/shows/timeline/route.ts` | `listed` → no-capture; `local_date`/`local_time`; source "Imported from a spreadsheet" ahead of "Scheduled". |
+| `app/api/shows/schedule/route.ts` | GET also selects `local_date`, `local_time`, `import_batch_id`. |
 
-| `components/scheduling/timelineStyles.ts` (new) | The timeline's `<style>` moved out verbatim, so the import rows use the same styles. `ScheduleTimeline` imports it, with no visual change. |
-| `components/ui/controls.ts` (new) | Submit's released button, field and disclosure styles (`primaryBtn`, `secondaryBtn`, `textAction`, `inputStyle`, `labelStyle`, `sb-more`), moved verbatim so the import page doesn't copy them. Submit adopts it in the same change, with no visual change. |
-| `components/scheduling/UpcomingShows.tsx` | Exports the existing `TimezoneCombobox`, with no other change. |
+**Not touched:** capture, recognition, upload, the save handlers, `app/api/identify`, and every counting surface.
 
-**Not touched:** capture, recognition, upload and the save handlers; `app/api/identify`; Proof, Career, History and Dashboard counting; the setlist.fm import.
+## 10. Release order
 
-**A new dependency needs approval.**
-- Recommended: `papaparse` for CSV/TSV and `read-excel-file` for `.xlsx`, both loaded only on the import page.
-- Not recommended: the `xlsx` npm package (0.18.5), which has known advisories; the fixed builds are published only outside npm.
-- Legacy `.xls` would be refused with "Save it as .xlsx and try again".
+1. UI-defect candidate (`5104622`): review, then merge on approval.
+2. Production preflight (read-only), with the results compared against section 7.
+3. Production 0028 (additive, inert until the app uses it), on its own approval.
+4. App implementation, tested on the disposable stack (unit, end-to-end, counts before and after), then a release candidate for approval.
 
-## Prototype build (scratch copy, not the repo)
+## Remaining questions
 
-- **Where:** `scratchpad/proto-app`, a copy of the repo with the app routes removed. It's built with `next build` as a static export.
-- **Unchanged from the release:**
-  - AppShell, ActingAsProvider, WorkspaceRole, AccountMenu and AppearanceSync;
-  - PageFrame, PageHeader and Skeleton;
-  - `ScheduleTimeline` and `app/app/schedule/page.tsx` (in the "released" frame);
-  - UpcomingShows;
-  - `lib/scheduleTime`, `lib/timezoneLabels` and `lib/shows/identity`.
-- **Mocked by webpack alias:** only `lib/supabase/client` (reads return example rows, every write is refused), `next/navigation` and `next/link` (move between prototype screens). `fetch` for `/api/team/managed-artists`, `/api/shows/schedule` and `/api/shows/timeline` returns example data in the released response shapes.
-- **New in the proposal:**
-  - the timeline's import entry, after-import line and roadmap wording;
-  - the import page;
-  - its pure reading module, which is simulated (two example sheets);
-  - about 10 lines of page CSS (`.tl-head-acts`, the 44px header actions).
-  - Everything else reuses the released styles listed above.
-- **Checked locally with Playwright** (390px and 1280px, Dark and Light, Owner, Manager and Viewer):
-  - no console errors;
-  - no sideways scroll;
-  - every new control is at least 44px.
-  - The released controls that are smaller are listed below.
-
-**Found in the released app while building this (not changed here):**
-- **Earlier on phones:** past-year dates ("Aug 22, 2025") overflow the 70px date column and overlap the venue name. The import rows wrap their dates instead. The released timeline needs its own fix.
-- **Under 44px:** "+ Add a show" (36px), the show actions menu button (31px), PageHeader's Back (36px) and `TimezoneCombobox`'s input (about 43px). The import page uses its own 44px "‹ Schedule" link instead of PageHeader's Back.
-
-## Verification plan (disposable database only)
-
-Preview uses production data, so there are no write tests there.
-
-- **Unit tests:**
-  - **Dates:** day, month and year order; invalid under one order; two-digit years; ranges; no year; Excel serials, including 60 (1900-02-29) and the 1904 system; month names; "TBC".
-  - **Times:** 12 and 24 hours, "20h", "8.30pm", multiple times, DST gaps and overlaps.
-  - **Zones and grouping:** zone order; upcoming or earlier around midnight in different zones.
-  - **Matching:** candidates against history, against upcoming shows, and within the file.
-- **End-to-end:**
-  - **Access:** owner and manager can import; a Viewer, a revoked or pending delegate, and an unrelated user get 403 from the routes and the RPC; signed out gets 401.
-  - **Commit:** a retry with the same batch id doesn't create twice; a duplicate added by a teammate between review and commit returns 409.
-  - **Undo:** keeps rows that were edited or started.
-  - **Labels:** "Imported from a spreadsheet", "No capture linked", "Added by".
-  - **Counts:** Proof, Career, History and Dashboard are identical before and after an import of past shows.
-  - **Dashboard:** the past-scheduled count is unchanged.
-  - **Start:** a scheduled imported show starts with its `local_date`; a listed one is refused.
-  - **Layout:** 320, 390 and 1280 px, dark and light.
-
-## Order of work
-
-1. Approval of this plan, the prototype and the dependency.
-2. The read-only production checks, with approval.
-3. Migration on the disposable database, then the pure modules and tests, the routes, and the page.
-4. Release review. The production migration and the merge each need explicit approval. The migration is additive and inert, and goes first.
-
-## Open questions
-
-1. Should rows the person skipped be recorded in the batch (row numbers only), so a re-import can say "skipped last time"? The proposal records counts only.
-2. Should multi-day festival ranges become one show per day in a later slice?
-3. Linking an imported row to an existing capture ("same show") needs the saved identity decisions noted in the timeline plan. It's out of scope here.
+1. Should the import result be viewable later (an "Imports" list), or only in the after-import line? The proposal keeps it in the database and shows it once.
+2. "Time zone not recorded" past listings could later get a zone from the Schedule row menu. That's not in this slice.
