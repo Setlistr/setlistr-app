@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
   const supabase = await createServerSupabaseClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: noStore })
-  if (importPreviewMode()) return NextResponse.json({ imports: [], preview: true }, { headers: noStore })
+  if (importPreviewMode(req.headers.get('host'))) return NextResponse.json({ imports: [], preview: true }, { headers: noStore })
   const { data, error } = await supabase.from('show_import_batches')
     .select('id, file_name, created_at, imported_count, skipped_rows, status, imported_by_name')
     .eq('artist_id', artistId).order('created_at', { ascending: false }).limit(10)
@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
 // now. A retry with the same batch id returns the first result.
 export async function POST(req: NextRequest) {
   // Preview deployments use production data: importing is refused there first.
-  if (importPreviewMode()) return NextResponse.json({ error: 'disabled', message: PREVIEW_DISABLED_MESSAGE }, { status: 403, headers: noStore })
+  if (importPreviewMode(req.headers.get('host'))) return NextResponse.json({ error: 'disabled', message: PREVIEW_DISABLED_MESSAGE }, { status: 403, headers: noStore })
   const supabase = await createServerSupabaseClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: noStore })

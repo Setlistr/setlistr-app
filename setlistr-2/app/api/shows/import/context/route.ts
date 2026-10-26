@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
   const auth = await createServerSupabaseClient()
   const { data: { user } } = await auth.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: noStore })
-  if (importPreviewMode()) {
+  if (importPreviewMode(req.headers.get('host'))) {
     // Preview: no import schema is assumed and nothing real is read beyond
     // the access check (write roles only, as below); the review runs on
     // labelled sample records and the commit is refused.

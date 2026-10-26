@@ -11,8 +11,8 @@ const noStore = { 'Cache-Control': 'private, no-store, max-age=0' }
 // (used since: capture linked, setlist attached, started, cancelled or
 // edited — the same rules as undo_show_import). Readable by anyone who can
 // see the artist's shows (the batch read goes through RLS first).
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
-  if (importPreviewMode()) return NextResponse.json({ error: 'Not available on Preview' }, { status: 404, headers: noStore })
+export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+  if (importPreviewMode(req.headers.get('host'))) return NextResponse.json({ error: 'Not available on Preview' }, { status: 404, headers: noStore })
   if (!/^[0-9a-f-]{36}$/i.test(params.id)) return NextResponse.json({ error: 'Not found' }, { status: 404, headers: noStore })
   const supabase = await createServerSupabaseClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -44,9 +44,9 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 
 // DELETE /api/shows/import/[id] — Undo: removes only the shows from this
 // import that haven't been used since; keeps the rest and says why.
-export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
   // Preview deployments use production data: Undo is refused there first.
-  if (importPreviewMode()) return NextResponse.json({ error: PREVIEW_DISABLED_MESSAGE }, { status: 403, headers: noStore })
+  if (importPreviewMode(req.headers.get('host'))) return NextResponse.json({ error: PREVIEW_DISABLED_MESSAGE }, { status: 403, headers: noStore })
   const supabase = await createServerSupabaseClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: noStore })
