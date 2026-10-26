@@ -135,7 +135,8 @@ case('a listing cannot be inserted directly', as_user(A) + f"INSERT INTO shows (
 case('provenance cannot be changed', sql + f"UPDATE shows SET source_row = 99 WHERE id = {S};", expect_ok=False, err='IMPORT_PROVENANCE_IMMUTABLE')
 
 # ── Start and edit of imported upcoming shows ──
-case('start uses local_date for a date-only show', sql + f"SELECT performance_id FROM public.start_scheduled_show({D}) \\g /dev/null\nRESET ROLE;\nSELECT performance_date::date FROM performances WHERE show_id = {D};", check=lambda s: lines(s)[-1] == '2027-11-21')
+case('a date-only booking can’t be started until it has a start time', sql + f"SELECT * FROM public.start_scheduled_show({D});", expect_ok=False, err='SHOW_NEEDS_START_TIME')
+case('after a start time is added (edit), start uses the booked date', sql + f"SELECT public.patch_scheduled_show_with_venue({D}, (SELECT updated_at FROM shows WHERE id = {D}), NULL, NULL, NULL, NULL, '{{\"scheduled_at\": \"2027-11-22T02:00:00Z\", \"timezone\": \"America/Chicago\"}}'::jsonb) \\g /dev/null\nSELECT performance_id FROM public.start_scheduled_show({D}) \\g /dev/null\nRESET ROLE;\nSELECT (SELECT local_date || ' ' || local_time FROM shows WHERE id = {D}) || '|' || performance_date::date FROM performances WHERE show_id = {D};", check=lambda s: lines(s)[-1] == '2027-11-21 20:00:00|2027-11-21')
 case('start uses the booked date for a timed show', sql + f"SELECT performance_id FROM public.start_scheduled_show({S}) \\g /dev/null\nRESET ROLE;\nSELECT performance_date::date FROM performances WHERE show_id = {S};", check=lambda s: lines(s)[-1] == '2027-10-31')
 case('editing the time through the patch RPC moves local fields with it', sql + f"SELECT public.patch_scheduled_show_with_venue({S}, (SELECT updated_at FROM shows WHERE id = {S}), NULL, NULL, NULL, NULL, '{{\"scheduled_at\": \"2027-10-31T20:15:00Z\", \"timezone\": \"Europe/London\"}}'::jsonb) \\g /dev/null\nRESET ROLE;\nSELECT local_date || ' ' || local_time FROM shows WHERE id = {S};",
      check=lambda s: lines(s)[-1] == '2027-10-31 20:15:00')
@@ -146,6 +147,7 @@ case('undo removes an untouched import', sql + f"SELECT (public.undo_show_import
 case('undo twice returns the first result', sql + f"SELECT 1 FROM public.undo_show_import('{b['id']}') \\g /dev/null\nSELECT (public.undo_show_import('{b['id']}'))->>'result';", check=lambda s: lines(s)[-1] == 'already_undone')
 partly = (sql
   + f"SELECT public.patch_scheduled_show_with_venue({S}, (SELECT updated_at FROM shows WHERE id = {S}), NULL, NULL, NULL, NULL, '{{\"name\": \"Renamed\"}}'::jsonb) \\g /dev/null\n"
+  + f"SELECT public.patch_scheduled_show_with_venue({D}, (SELECT updated_at FROM shows WHERE id = {D}), NULL, NULL, NULL, NULL, '{{\"scheduled_at\": \"2027-11-22T02:00:00Z\", \"timezone\": \"America/Chicago\"}}'::jsonb) \\g /dev/null\n"
   + f"SELECT performance_id FROM public.start_scheduled_show({D}) \\g /dev/null\n"
   + f"RESET ROLE;\nINSERT INTO artists (user_id) VALUES ('16525cd0-a878-4450-bc79-2061bc247895') RETURNING id \\gset art_\nINSERT INTO setlists (show_id, artist_id) SELECT id, :'art_id' FROM shows WHERE import_batch_id = '{b['id']}' AND source_row = 4;\n" + as_user(A)
   + f"SELECT jsonb_pretty(public.undo_show_import('{b['id']}'));\nRESET ROLE;\n"
@@ -154,6 +156,19 @@ partly = (sql
 case('undo keeps edited, started and setlist rows and says why', partly,
      check=lambda s: '"status": "partly_undone"' in s and '"reason": "edited"' in s and '"reason": "capture_linked"' in s and '"reason": "setlist_attached"' in s and 'left:4,13,16' in s and 'perf_link:1' in s)
 case('viewer cannot undo', sql + "RESET ROLE;\n" + as_user(V) + f"SELECT public.undo_show_import('{b['id']}');", expect_ok=False, err='NOT_AUTHORIZED')
+
+# ── Production parity (preflight 2026-10-26) ──
+case('status check allows listed (production shows_status_check extended)', "SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conrelid = 'public.shows'::regclass AND conname = 'shows_status_check';",
+     check=lambda s: 'listed' in s and 'scheduled' in s and 'cancelled' in s)
+case('status check still refuses an unknown status', reg_sql := (as_user(A) + f"INSERT INTO shows (created_by, status, venue_id, scheduled_at, timezone) VALUES ('{A}', 'bogus', (SELECT id FROM venues LIMIT 1), '2027-01-01T20:00Z', 'Europe/London');"), expect_ok=False, err='shows_status_check')
+sql, b = imp(A)
+L5 = f"(SELECT id FROM shows WHERE import_batch_id = '{b['id']}' AND source_row = 5)"
+case('Undo keeps a show referenced by any other table (catalogue-driven check)', sql + f"RESET ROLE;\nCREATE TABLE public.zz_ref_probe (show_id uuid REFERENCES public.shows(id) ON DELETE CASCADE);\nINSERT INTO public.zz_ref_probe SELECT {L5};\n" + as_user(A) + f"SELECT (public.undo_show_import('{b['id']}'))->'kept';",
+     check=lambda s: '"reason": "linked_record"' in s and '"source_row": 5' in s)
+case('Undo preview (show_import_usage) matches Undo', sql + f"RESET ROLE;\nCREATE TABLE public.zz_ref_probe (show_id uuid REFERENCES public.shows(id) ON DELETE SET NULL);\nINSERT INTO public.zz_ref_probe SELECT {L5};\n" + as_user(A) + f"SELECT string_agg(coalesce(reason,'-'), ',' ORDER BY reason) FROM public.show_import_usage('{b['id']}');\nSELECT string_agg(k->>'reason', ',' ORDER BY k->>'reason') FROM jsonb_array_elements((public.undo_show_import('{b['id']}'))->'kept') k;",
+     check=lambda s: lines(s)[-2].replace('-,', '').replace(',-', '').strip('-') == lines(s)[-1])
+case('Undo preview: Viewer may read it', sql + "RESET ROLE;\n" + as_user(V) + f"SELECT count(*) FROM public.show_import_usage('{b['id']}');", check=lambda s: lines(s)[-1] == '7')
+case('Undo preview: unrelated user refused', sql + "RESET ROLE;\n" + as_user(U) + f"SELECT count(*) FROM public.show_import_usage('{b['id']}');", expect_ok=False, err='NOT_AUTHORIZED')
 
 # ── Existing behaviour unchanged ──
 reg = as_user(A) + f"INSERT INTO shows (created_by, status, venue_id, scheduled_at, timezone, scheduled_by) VALUES ('{A}', 'scheduled', (SELECT id FROM venues WHERE name IS NOT NULL LIMIT 1), '2027-03-01T01:00:00Z', 'America/Toronto', '{A}') RETURNING id \\gset\n"

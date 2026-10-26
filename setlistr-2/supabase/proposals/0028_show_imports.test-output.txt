@@ -1,0 +1,74 @@
+PASS owner can import
+PASS manager can import
+PASS viewer is refused at commit
+PASS revoked manager is refused at commit
+PASS pending manager is refused at commit
+PASS unrelated user is refused at commit
+PASS anon cannot call import_shows
+PASS viewer cannot read the fingerprint
+PASS batches are not writable directly
+PASS values stored as booked
+PASS batch keeps skipped rows, counts and who imported
+PASS scheduled_by is the importer
+PASS skipped rows cannot carry cell values
+PASS skipped reasons are a fixed list
+PASS retry with the same batch returns the first result
+PASS same batch id with a different request is refused
+PASS same batch id from another person is refused
+PASS a change since review is refused (stale)
+PASS a row whose date passed since review is refused
+PASS upcoming row without a zone is refused
+PASS row dated today with no zone needs one
+PASS zone EST is refused
+PASS zone UTC is refused
+PASS zone Etc/GMT+5 is refused
+PASS zone Mars/Olympus is refused
+PASS time + zone without the instant is refused
+PASS an instant that is not the booked time is refused
+PASS repeated 1:30 AM accepts the first instant
+PASS repeated 1:30 AM accepts the second instant
+PASS skipped 2:30 AM refuses 2026-03-08T07:30:00Z
+PASS skipped 2:30 AM refuses 2026-03-08T06:30:00Z
+PASS a venue from outside the artist records is refused
+PASS the same new venue is created once per import
+PASS no performances, catalogue rows or setlists are created
+PASS upcoming list (status=scheduled) has only the future rows
+PASS a listing cannot be started
+PASS a listing cannot become scheduled
+PASS a listing cannot become live
+PASS a listing cannot become completed
+PASS a listing cannot become cancelled
+PASS a scheduled show cannot become a listing
+PASS a listing’s date cannot be edited
+PASS a listing cannot be deleted directly
+PASS a capture cannot be attached to a listing
+PASS the patch RPC refuses a listing
+PASS import fields cannot be inserted directly
+PASS a listing cannot be inserted directly
+PASS provenance cannot be changed
+PASS a date-only booking can’t be started until it has a start time
+PASS after a start time is added (edit), start uses the booked date
+PASS start uses the booked date for a timed show
+PASS editing the time through the patch RPC moves local fields with it
+PASS undo removes an untouched import
+PASS undo twice returns the first result
+PASS undo keeps edited, started and setlist rows and says why
+PASS viewer cannot undo
+PASS status check allows listed (production shows_status_check extended)
+PASS status check still refuses an unknown status
+PASS Undo keeps a show referenced by any other table (catalogue-driven check)
+PASS Undo preview (show_import_usage) matches Undo
+PASS Undo preview: Viewer may read it
+PASS Undo preview: unrelated user refused
+PASS existing: Add a show insert still works
+PASS existing: start keeps the scheduled date
+PASS existing: a scheduled show still cannot be deleted
+PASS existing: cancel still works
+PASS existing: patch RPC still edits a normal show
+PASS existing: raw performance insert for a scheduled show still refused
+PASS existing: completed shows untouched
+PASS concurrent imports: first wins, second is sent back as stale
+PASS double tap during a slow commit: one import, second returns it
+PASS cleanup: no imported rows left
+
+72/72 passed

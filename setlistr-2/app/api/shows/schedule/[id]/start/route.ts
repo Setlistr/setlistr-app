@@ -21,6 +21,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     if (code.includes('ALREADY_STARTED_BY_OTHER')) return NextResponse.json({ error: 'This show was just started by someone else.' }, { status: 409 })
     if (code.includes('SHOW_ALREADY_COMPLETED')) return NextResponse.json({ error: 'This show has already finished.' }, { status: 409 })
     if (code.includes('SHOW_CANCELLED')) return NextResponse.json({ error: 'This show was cancelled.' }, { status: 409 })
+    if (code.includes('SHOW_NEEDS_START_TIME')) return NextResponse.json({ error: 'Add a start time before starting capture: choose Edit show in the show’s menu.' }, { status: 409 })
+    if (code.includes('SHOW_NOT_STARTABLE')) return NextResponse.json({ error: 'This is an imported past listing; it can’t be started.' }, { status: 409 })
     return NextResponse.json({ error: 'Could not start this show.' }, { status: 500 })
   }
 

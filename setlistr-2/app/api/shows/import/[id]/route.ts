@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { importPreviewMode, PREVIEW_DISABLED_MESSAGE } from '@/lib/shows/import/mode'
 
 export const dynamic = 'force-dynamic'
 const noStore = { 'Cache-Control': 'private, no-store, max-age=0' }
@@ -11,6 +12,7 @@ const noStore = { 'Cache-Control': 'private, no-store, max-age=0' }
 // edited — the same rules as undo_show_import). Readable by anyone who can
 // see the artist's shows (the batch read goes through RLS first).
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+  if (importPreviewMode()) return NextResponse.json({ error: 'Not available on Preview' }, { status: 404, headers: noStore })
   if (!/^[0-9a-f-]{36}$/i.test(params.id)) return NextResponse.json({ error: 'Not found' }, { status: 404, headers: noStore })
   const supabase = await createServerSupabaseClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -26,14 +28,12 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     .select('id, status, source_row, local_date, local_time, scheduled_at, timezone, created_at, updated_at, venues(name, city)')
     .eq('import_batch_id', params.id).order('source_row').order('local_date')
   if (error) return NextResponse.json({ error: 'Could not load' }, { status: 500, headers: noStore })
-  const ids = (shows || []).map(s => s.id)
-  const [perfs, sets] = ids.length ? await Promise.all([
-    service.from('performances').select('show_id').in('show_id', ids),
-    service.from('setlists').select('show_id').in('show_id', ids),
-  ]) : [{ data: [] }, { data: [] }] as any
-  const withPerf = new Set((perfs.data || []).map((p: any) => p.show_id)), withSet = new Set((sets.data || []).map((p: any) => p.show_id))
-  const used = (s: any) => withPerf.has(s.id) ? 'capture_linked' : withSet.has(s.id) ? 'setlist_attached' : ['live', 'completed'].includes(s.status) ? 'started'
-    : s.status === 'cancelled' ? 'cancelled' : s.updated_at !== s.created_at ? 'edited' : null
+  // Why Undo would keep each show: the database's own rule (show_import_usage),
+  // so this preview always matches what Undo does.
+  const { data: usage, error: usageError } = await supabase.rpc('show_import_usage', { p_batch_id: params.id })
+  if (usageError) return NextResponse.json({ error: 'Could not load' }, { status: 500, headers: noStore })
+  const reasonOf = new Map(((usage || []) as { show_id: string; reason: string | null }[]).map(u => [u.show_id, u.reason]))
+  const used = (s: any) => reasonOf.get(s.id) ?? null
   return NextResponse.json({
     id: batch.id, artistId: batch.artist_id, file: batch.file_name, sheet: batch.sheet_name, at: batch.created_at, by: batch.imported_by_name,
     rowCount: batch.row_count, status: batch.status, undo: batch.undo_result, undoneAt: batch.undone_at,
@@ -45,6 +45,8 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 // DELETE /api/shows/import/[id] — Undo: removes only the shows from this
 // import that haven't been used since; keeps the rest and says why.
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
+  // Preview deployments use production data: Undo is refused there first.
+  if (importPreviewMode()) return NextResponse.json({ error: PREVIEW_DISABLED_MESSAGE }, { status: 403, headers: noStore })
   const supabase = await createServerSupabaseClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: noStore })

@@ -49,7 +49,7 @@ export function ImportFlow({ artistId, artistName, isOwner, actorName }: { artis
   // person moves on, so follow-ups like the bulk time-zone choice stay in view.
   const [pinned, setPinned] = useState<number | null>(null)
   const [show, setShow] = useState({ columns: false, order: false, up: false, past: false, out: false, leftOut: false })
-  const [ctx, setCtx] = useState<{ status: 'loading' | 'ready' | 'error'; fingerprint: string; context: ImportContext | null }>({ status: 'loading', fingerprint: '', context: null })
+  const [ctx, setCtx] = useState<{ status: 'loading' | 'ready' | 'error'; fingerprint: string; context: ImportContext | null; preview?: boolean }>({ status: 'loading', fingerprint: '', context: null })
   const [recent, setRecent] = useState<Recent[] | null>(null)
   const [batchId, setBatchId] = useState(newId)
   const [commit, setCommit] = useState<{ state: 'idle' | 'importing' | 'error'; message?: string; retry?: boolean }>({ state: 'idle' })
@@ -63,7 +63,7 @@ export function ImportFlow({ artistId, artistName, isOwner, actorName }: { artis
       const res = await fetch(`/api/shows/import/context?artist_id=${artistId}`, { cache: 'no-store' })
       if (!res.ok) throw new Error(String(res.status))
       const d = await res.json()
-      setCtx({ status: 'ready', fingerprint: d.fingerprint, context: d.context })
+      setCtx({ status: 'ready', fingerprint: d.fingerprint, context: d.context, preview: d.mode === 'preview' })
     } catch { setCtx({ status: 'error', fingerprint: '', context: null }) }
   }, [artistId])
   useEffect(() => { loadContext() }, [loadContext])
@@ -111,6 +111,8 @@ export function ImportFlow({ artistId, artistName, isOwner, actorName }: { artis
   const ordered = file && needsOrder(file, map)
 
   const styles = <style>{TIMELINE_CSS + CONTROL_CSS + FLOW_CSS}</style>
+  // Preview deployments: the server refuses importing; say so on every step.
+  const previewNote = ctx.preview ? <div className="tl-err" role="note" style={{ marginBottom: 14 }}><span><b style={{ color: 'var(--sl-text)' }}>Preview.</b> Files are checked against sample records, not {artistName}’s shows, and importing is turned off. Nothing is saved.</span></div> : null
   const head = (title: string, sub?: React.ReactNode) => (
     <>
       <PageHeader title={title} backHref="/app/schedule" />
@@ -122,6 +124,7 @@ export function ImportFlow({ artistId, artistName, isOwner, actorName }: { artis
   if (phase === 'choose' || phase === 'reading' || phase === 'sheet') return (
     <div className="tl" style={{ maxWidth: 600 }}>
       {head('Import shows')}
+      {previewNote}
       {phase === 'sheet' && raw ? (
         <section aria-labelledby="im-sheet-h">
           <p style={{ fontSize: 15.5, color: C.text, margin: '0 0 12px' }} id="im-sheet-h">{raw.name} has {raw.sheets.length} sheets. Which one lists your shows?</p>
@@ -146,7 +149,7 @@ export function ImportFlow({ artistId, artistName, isOwner, actorName }: { artis
       )}
       <section aria-labelledby="im-recent-h" style={{ marginTop: 8 }}>
         <div className="tl-sec"><h3 id="im-recent-h">Recent imports</h3><span>{recent?.length || ''}</span></div>
-        {recent === null ? <Skeleton h={52} /> : recent.length === 0 ? <p className="tl-note">Imports you make for {artistName} appear here, with what was left out and Undo.</p> : (
+        {ctx.preview ? <p className="tl-note">Not available on Preview.</p> : recent === null ? <Skeleton h={52} /> : recent.length === 0 ? <p className="tl-note">Imports you make for {artistName} appear here, with what was left out and Undo.</p> : (
           <div className="tl-rows">{recent.map(r => (
             <div key={r.id} className="tl-row"><Link href={`/app/schedule/import/${r.id}`} className="tl-row-btn im-link">
               <span className="tl-date tl-mono">{shortDate(r.at.slice(0, 10))}</span>
@@ -221,6 +224,7 @@ export function ImportFlow({ artistId, artistName, isOwner, actorName }: { artis
       <div className="tl" style={{ maxWidth: 600 }}>
         <PageHeader title={`Import into ${artistName}’s Schedule?`} backHref="/app/schedule" />
         <p style={{ fontSize: 14, color: C.secondary, margin: '-8px 0 16px', fontFamily: MONO }}>{file.name}</p>
+        {previewNote}
         <div className="im-stats">
           {stat(b.future, b.future === 1 ? 'future booking' : 'future bookings', <>Added to Upcoming.{b.futureDateOnly ? ` ${pl(b.futureDateOnly, 'has', 'have')} no start time yet; add one before starting capture.` : ''}</>)}
           {stat(b.past, b.past === 1 ? 'past listing' : 'past listings', 'Added to Earlier as “No capture linked”. Not counted as performed.')}
@@ -230,8 +234,8 @@ export function ImportFlow({ artistId, artistName, isOwner, actorName }: { artis
         <p className="tl-note" style={{ marginTop: 14 }}>{pl(b.shows.length, 'show', 'shows')} from {pl(b.ready.length, 'ready row', 'ready rows')}{multi.length ? ` (${multi.join('; ')})` : ''}.</p>
         {commit.state === 'error' && <div className="tl-start-err" role="alert" style={{ marginTop: 14 }}>{commit.message}</div>}
         <div style={{ display: 'grid', gap: 4, marginTop: 18 }}>
-          <button type="button" className="sb-btn" style={{ ...primaryBtn, opacity: commit.state === 'importing' ? 0.6 : 1 }} disabled={commit.state === 'importing' || !b.shows.length} aria-busy={commit.state === 'importing'} onClick={go}>
-            {commit.state === 'importing' ? 'Importing…' : commit.retry ? 'Try again' : `Import ${pl(b.shows.length, 'show', 'shows')}`}
+          <button type="button" className="sb-btn" style={{ ...primaryBtn, opacity: commit.state === 'importing' || ctx.preview ? 0.55 : 1 }} disabled={commit.state === 'importing' || !b.shows.length || !!ctx.preview} aria-busy={commit.state === 'importing'} onClick={go}>
+            {ctx.preview ? 'Importing is off on Preview' : commit.state === 'importing' ? 'Importing…' : commit.retry ? 'Try again' : `Import ${pl(b.shows.length, 'show', 'shows')}`}
           </button>
           <button type="button" className="sb-btn" style={{ ...textAction, justifySelf: 'center' }} disabled={commit.state === 'importing'} onClick={() => { setCommit({ state: 'idle' }); setPhase('review') }}>Back to review</button>
         </div>
@@ -353,6 +357,7 @@ export function ImportFlow({ artistId, artistName, isOwner, actorName }: { artis
   return (
     <div className="tl">
       {head('Import shows', <span style={{ fontFamily: MONO, fontSize: 13 }}>{file.name}</span>)}
+      {previewNote}
       {changedNote && <div className="tl-err" role="status" style={{ marginBottom: 14 }}><span>{changedNote}</span></div>}
 
       <div className="im-summary">

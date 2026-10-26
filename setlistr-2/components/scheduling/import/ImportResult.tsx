@@ -20,7 +20,7 @@ type Result = {
   leftOut: { row: number; reason: Reason }[]
   shows: { id: string; row: number; date: string; time: string | null; status: string; venue: string; city: string; used: string | null }[]
 }
-const USED: Record<string, string> = { capture_linked: 'capture linked', setlist_attached: 'setlist attached', started: 'started', cancelled: 'cancelled', edited: 'edited since the import' }
+const USED: Record<string, string> = { linked_record: 'linked to another record', capture_linked: 'capture linked', setlist_attached: 'setlist attached', started: 'started', cancelled: 'cancelled', edited: 'edited since the import' }
 const pl = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
 
 export function ImportResult({ id, artistName, canWrite }: { id: string; artistName: string; canWrite: boolean }) {

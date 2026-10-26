@@ -16,6 +16,8 @@ FROM information_schema.columns WHERE table_schema = 'public' AND table_name = '
 
 -- 2. shows constraints. Settles: whether a status CHECK exists that would
 --    reject 'listed' (0028 stops if it finds one).
+--    Production (2026-10-26): shows_status_check (scheduled, live, completed,
+--    cancelled) and shows_show_type_check; 0028 extends the status check.
 --    Disposable: shows_pkey, three foreign keys, no CHECK constraint.
 SELECT conname, contype, pg_get_constraintdef(oid) FROM pg_constraint WHERE conrelid = 'public.shows'::regclass ORDER BY conname;
 
@@ -33,6 +35,10 @@ SELECT tgname, pg_get_triggerdef(oid) FROM pg_trigger WHERE tgrelid = 'public.sh
 
 -- 5. Tables referencing shows. Settles: what Undo must check before
 --    deleting (a delete would unlink or cascade). 0028 stops if this differs.
+--    Production (2026-10-26): performances, capture_sessions, audio_captures
+--    (SET NULL); setlists, show_artists, pro_reports (CASCADE). Undo checks
+--    every referencing table from the catalogue; 0028 stops only on a
+--    multi-column reference.
 --    Disposable: performances.show_id ON DELETE SET NULL; setlists.show_id
 --    ON DELETE CASCADE.
 SELECT conrelid::regclass AS referencing_table, conname, pg_get_constraintdef(oid)

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { zonedLocalTimeToUtc } from '@/lib/scheduleTime'
+import { isMissingImportSchema } from '@/lib/shows/importSchema'
 
 // Every write here goes through the authenticated (cookie-based, RLS-
 // enforcing) client, never a service-role client — authorization
@@ -20,12 +21,10 @@ export async function GET(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { data, error } = await supabase
-    .from('shows')
-    .select('id, name, show_type, scheduled_at, timezone, status, created_by, updated_at, venue_id, scheduled_by, scheduled_by_name, local_date, local_time, import_batch_id, source_row, venues(name, city, country), show_import_batches(file_name)')
-    .eq('created_by', artistId)
-    .eq('status', 'scheduled')
-    .order('scheduled_at', { ascending: true })
+  const base = 'id, name, show_type, scheduled_at, timezone, status, created_by, updated_at, venue_id, scheduled_by, scheduled_by_name, venues(name, city, country)'
+  const read = (cols: string) => supabase.from('shows').select(cols).eq('created_by', artistId).eq('status', 'scheduled').order('scheduled_at', { ascending: true })
+  let { data, error } = await read(`${base}, local_date, local_time, import_batch_id, source_row, show_import_batches(file_name)`)
+  if (isMissingImportSchema(error)) ({ data, error } = await read(base))
 
   if (error) return NextResponse.json({ error: 'Could not load scheduled shows' }, { status: 500 })
   return NextResponse.json({ shows: data || [] })
