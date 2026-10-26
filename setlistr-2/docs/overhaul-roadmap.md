@@ -35,7 +35,9 @@ Nothing at present. The Schedule phone fix and spreadsheet import moved to secti
 
 ## 3. Proposals awaiting decision
 
-- **Team invitation and admission (P1 + R2):** [team-invite-admission-proposal](team-invite-admission-proposal.md). Scoped admission through an accepted invite, with inbox proof. Awaiting the owner's decision; no implementation, SQL or environment change.
+- **Team invitation and admission (P1 + R2):** product direction **approved** 2026-10-26: [team-invite-admission-proposal](team-invite-admission-proposal.md).
+  - **Validated** on the disposable stack, with an implementation-ready scope: [team-invite-admission-validation](team-invite-admission-validation.md).
+  - **Awaiting:** approval to implement, and confirmation of the production email settings. No SQL needed.
 - **Proof record photo:** [proof-record-photo-proposal](proof-record-photo-proposal.md). SQL not authorised.
 - **Proof data audit** (read-only queries, not run): [proof-data-audit-proposal](proof-data-audit-proposal.md).
 - **Unverified (working notes only; confirm before acting):**

@@ -1,5 +1,12 @@
 # Team invitation and admission: proposal
 
+> **Update 2026-10-26:** the owner approved the product direction (14-day expiry; resending invalidates the old link; no general beta admission). The technical validation in [team-invite-admission-validation](team-invite-admission-validation.md) **supersedes** this document where they differ:
+> - every acceptance needs a fresh code, with no exemptions;
+> - the server verifies the code itself;
+> - team admission also requires that the account has no artist identity of its own;
+> - `team/request` requires full admission;
+> - the false "already accepted" response is fixed.
+
 *Prepared 2026-10-26 from `main` at `577dd3d`, which is in production.* Nothing here is approved for building. **Findings** describe what the code does today. **Proposal** sections are for the owner to decide.
 
 This slice combines two items:
@@ -150,11 +157,11 @@ All tested on the disposable stack, using its local mail catcher. None run on Pr
 
 The live page asks the screen to stay awake (Wake Lock), and the iOS app declares background audio mode. **Nobody has observed whether capture continues while the phone is locked or the app is in the background.** That's recorded as unverified, not as a defect.
 
-**Proposed real-device check, about 10 minutes.** It needs your go-ahead, since it writes one test show to production:
+**Proposed real-device check, about 10 minutes. Not authorised yet.** It writes a test show to production. Deleting that show afterwards **does not undo its side effects**: completion records songs to the catalogue, and performance updates fire the Notion webhook. So the test must use a dedicated test account whose catalogue and Notion entries don't matter, and must not be completed through Review.
 1. **Where:** the installed iPhone app, signed in to your own account or a dedicated test account. It must not be during or near any artist's show, and must not be in any artist's workspace.
 2. Start a capture from New show, named **"Locked-phone test"**. Play recorded music from another device.
 3. After about two minutes with the app open (expect detections), lock the phone for three minutes, with the music still playing.
 4. Unlock. Note whether the timer kept running, whether songs were detected during the lock, and any message on screen.
 5. Repeat with the app in the background (switch to another app) instead of locked.
-6. End the show. Remove the test show through History's existing edit and delete, so the record stays clean.
+6. End the show, but **don't** complete it through Review. Leave it, or delete it, in the test account only, knowing that any webhook already fired stays fired.
 7. Record the results in this document: verified, partly verified, or not supported. Make no change to capture code; any fix would be a separate proposal.
