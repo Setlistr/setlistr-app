@@ -452,17 +452,24 @@ Everything else is the app's own code in a scratch build:
   - a raw performance insert for a scheduled show is still refused;
   - completed shows are untouched.
 
-**Not exercised end-to-end with 0028:**
-- capture started from New show;
-- recording upload;
-- live → completed;
-- review completion.
+**Capture, upload, live and review with 0028 (closed 2026-10-26):** the deployed app (`3ce4833`), on the disposable stack, with local stubs for ACRCloud, MusicBrainz, Mapbox and Spotify (`docs/spreadsheet-import/fetch-stub.cjs`, preloaded into the server; no app code changed). The harness is `docs/spreadsheet-import/compat-flows.js`.
+1. **New show → start capture (UI):** show and performance created, linked, both `live`; no import fields set.
+2. **Recording upload → saved performance:** the upload page's own route sequence (create → stubbed recognition of 6 chunks → reconcile → save details). Performance `review`; show `completed` and linked; the reconciled songs saved.
+3. **Live capture → End Show (UI, fake microphone):** performance `review` with `ended_at`; show `completed`; manually added songs kept.
+4. **Review → Save & Complete (UI), for both the live and the uploaded show:** performance `complete`, show `completed`, songs unchanged.
+   - **Catalogue:** `record_performance_catalog` records each song once. Uploads are recorded during reconciliation, and completion adds none again.
 
-These paths don't set import fields or schedule fields, so the new triggers have nothing to do for them; that is by design, not tested. Those flows are the post-apply read-only checks to watch.
+All four pass: 9/9 with final 0028 and 9/9 without it. Matched runs (a fresh server and stub for each) show **no difference** between the baseline and final 0028 in:
+- statuses, links and songs;
+- catalogue rows;
+- Notion-trigger requests: one per completing status update, in both runs;
+- calls to the outside-service stubs.
+
+The summaries are in `docs/spreadsheet-import/compat-summary-*.json`.
 
 **Order (each step on its own approval):**
 1. **SQL:**
-   - Immediately before applying, run one read-only check: no scheduled show has a null `scheduled_at`, and the preflight function hashes still match.
+   - Immediately before applying, run one read-only check: no scheduled show has a null `scheduled_at` (`select count(*) from public.shows where status = 'scheduled' and scheduled_at is null` must be 0), and the preflight function hashes still match.
    - Then apply 0028 (SHA-256 `b21d2ec4…07faed`).
 2. **Verification, read-only:**
    - the function hashes;
