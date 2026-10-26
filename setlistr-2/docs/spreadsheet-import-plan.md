@@ -10,6 +10,23 @@
   - `docs/spreadsheet-import-plan`: this document and `supabase/proposals/0028_*`;
   - `fix/schedule-phone-dates-touch-targets` (`5104622`, local, not pushed): the separate UI-defect candidate.
 
+## Production SQL: 0028 applied (2026-10-26 17:57 UTC)
+
+**Applied:** 0028 committed in production project `lelimetbogycrdnfxjok`, on owner approval. Exact file, SHA-256 `b21d2ec4…07faed`; applied atomically as `postgres`.
+- **Pre-checks, all passed:**
+  - the file hash;
+  - zero scheduled shows without `scheduled_at`;
+  - the seven function hashes;
+  - no 0028 objects present.
+- **Read-only verification, all passed:**
+  - all 15 related functions identical to the tested ones;
+  - the schema, constraints, triggers, status check and permissions as tested;
+  - no imported or listed rows;
+  - show counts unchanged;
+  - the deployed app's Schedule queries return 200; signed-out smoke as expected.
+- **Recorded:** `supabase/migrations/0028_show_imports.sql` and `0028_show_imports.APPLIED.md` on `feature/spreadsheet-import` (local commit). Do not run it again.
+- **Still on hold:** production app code stays at `3ce4833`. The UI fix and the import feature are held for separate approval.
+
 ## Release candidate (2026-10-26)
 
 - **Candidate:** `feature/spreadsheet-import` at `f63229db29b9e5ba4c385aea040459f4637c5346`, pushed and not merged.
