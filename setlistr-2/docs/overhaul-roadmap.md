@@ -3,13 +3,13 @@
 **This is the canonical index of the overhaul.** It links the detailed plans and handoffs rather than repeating them; when they disagree, the linked document and the repository win. It was created on 2026-10-26, after one search of `docs/` and the release-handoff branches found no existing roadmap. (`skills/SETLISTR-SKILLS-ROADMAP.md` is about Claude skills, not the product.)
 
 **Status words:**
-- **Shipped:** on `main` and deployed to production.
+- **Shipped:** on `main` and deployed to production. *Device verification pending* means the owner's installed-app check hasn't been recorded yet.
 - **Implemented, awaiting release:** built and tested on the disposable stack, not merged.
 - **Proposal:** written, not approved for building.
 - **Research:** not committed to.
 - **Unverified:** recorded in working notes but not confirmed in the repository, so neither approved nor known to be missing.
 
-Production is `3ce4833` (2026-10-23). Nothing here authorises implementation, production SQL, merges, deployments or outreach.
+Production is `577dd3d` (2026-10-26). Nothing here authorises implementation, production SQL, merges, deployments or outreach.
 
 ## 1. Shipped
 
@@ -23,15 +23,15 @@ Production is `3ce4833` (2026-10-23). Nothing here authorises implementation, pr
 | Prepare → Submit | Per-PRO preparation, claim sheet, recording a submission, deadline wording; claim-sheet download in the installed app | [prepare-submit-handoff](prepare-submit-handoff.md) |
 | Proof of Performance | Record page and PDF export | [proof-of-performance-plan](proof-of-performance-plan.md) |
 | Schedule | Timeline (next show, upcoming, Earlier with possible duplicates); the Dashboard's Viewer live-band fix; claim-sheet content | [schedule-timeline-plan](schedule-timeline-plan.md), [release-review-combined](release-review-combined.md) |
+| Schedule phone fix | Past-year dates wrap on phones; 44px controls (`5104622`). **Shipped 2026-10-26 in `577dd3d`; device verification pending** | `docs/spreadsheet-import-plan.md` (branch `docs/spreadsheet-import-plan`) |
+| Spreadsheet import | CSV/XLSX import with review, atomic import and Undo; date-only and imported shows on Schedule and History. Migration 0028 applied 2026-10-26 17:57 UTC (SHA-256 `b21d2ec4…07faed`; do not run again). **Shipped 2026-10-26 in `577dd3d` (PR #4); device verification pending; the first real import is still to come** | `docs/spreadsheet-import-plan.md` (release record and rollback, branch `docs/spreadsheet-import-plan`) |
 | Team and delegation | Invites, roles (manager, tour manager, band member, viewer), workspace switching, viewer write containment | [team-invite-identity](team-invite-identity.md), [delegation-audit](delegation-audit.md) |
 
 None of these is to be rebuilt. Changes to them go through their own plans.
 
 ## 2. Implemented, awaiting release
 
-- **Schedule UI fix:** `fix/schedule-phone-dates-touch-targets` `5104622`. Phone dates in Earlier no longer overlap, and controls are 44px. Schedule end-to-end 49/0. Not released.
-- **Spreadsheet import:** `feature/spreadsheet-import` `f63229d`, with migration 0028 (SHA-256 `b21d2ec4…07faed`). **It's the immediate release candidate.** Production SQL, merge and deployment are held until approved, and its exact-SHA and SQL-approval requirements are unchanged.
-  - Plan, tests, preflight and the rollout order: `docs/spreadsheet-import-plan.md` on branch `docs/spreadsheet-import-plan`.
+Nothing at present. The Schedule phone fix and spreadsheet import moved to section 1 on 2026-10-26.
 
 ## 3. Proposals awaiting decision
 
@@ -72,12 +72,12 @@ Each track keeps its own record; these are pointers, not new commitments.
 - **Missed capture:** recovered by recording upload, setlist photo or manual entry.
 - **Unlinked routes:** `/app/new` and `/app/show/upload` have no links to them; cleanup is still open.
 
-**Next planning step: a short assessment of the existing team journey.** No implementation; a new crew role is **not** a commitment. The assessment answers:
+**Next planning step: a short assessment of the existing team journey.** Prepared 2026-10-26: [team-journey-assessment](team-journey-assessment.md). No implementation; a new crew role is **not** a commitment. The assessment answers:
 1. **Who does what, today:** who prepares a show, who captures, who reviews, and who records a submission.
 2. **Permissions** each action currently requires.
    - From code (to confirm in the assessment): owner, manager, tour manager and band member can all capture, review and record a submission; Viewer is read-only; only the owner and managers invite.
 3. **What "Mark as submitted" records, versus filing with a PRO:**
-   - Setlistr records `submission_status = 'submitted'` and `submitted_at` on the show. A delegate confirms that the artist submitted it.
+   - Setlistr records `submission_status = 'submitted'` and `submitted_at` on the performance (the capture record), not on the show. It doesn't record who marked it. A delegate confirms that the artist submitted it.
    - Setlistr can't see the artist's PRO account, so it never confirms that the PRO received or accepted anything.
    - Filing happens in the PRO's own portal, under that PRO's rules.
 4. **The smallest change to support crew-assisted capture safely:**
@@ -118,8 +118,8 @@ A manager (Matt Woodson) plans to bring an artist onto Setlistr ahead of touring
 
 ## 9. Sequence
 
-1. **Spreadsheet import release:** SQL approval → read-only verification → the UI fix → the import feature. Each on its own approval (`docs/spreadsheet-import-plan.md` §10).
-2. **Team journey assessment** (section 5): a written assessment only.
+1. **Spreadsheet import release:** done 2026-10-26. 0028 applied, then one app release (`577dd3d`) that included the UI fix. Still to come: the installed-app check, then the first real import with a file the owner chooses.
+2. **Team journey assessment** (section 5): written, [team-journey-assessment](team-journey-assessment.md). Awaiting the owner's review.
 3. **Discovery A–C** (section 6), informed by the assessment. A proposal follows only if a clear smallest change emerges.
 4. **The pilot** (section 7), when the owner decides.
 
