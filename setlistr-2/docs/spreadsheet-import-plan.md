@@ -81,7 +81,7 @@
 - **Revoked teammate:** a teammate whose access is revoked after the import can neither Undo nor import. Permission is checked when the function runs.
 
 **Rollback with imported records present.**
-- **App only (recommended):** revert the merge. 0028 stays and does nothing for the old app. Imported rows and their provenance are preserved, but the old UI misplaces and mislabels them as described above until the feature is restored.
+- **App only (recommended):** revert the merge. 0028 stays, with its changes to the start, guard and constraint rules (section 10), which the old app passes (tested). Imported rows and their provenance are preserved, but the old UI misplaces and mislabels them as described above until the feature is restored.
 - **Schema removal:** the down migration refuses while any imported row exists (tested; atomic, no change). To remove the schema:
   1. Undo each import, which removes untouched rows.
   2. Decide each kept row (used since import) explicitly. A date-only booking needs a time or a cancellation; a listing needs deleting or keeping the schema.
@@ -422,14 +422,61 @@ Everything else is the app's own code in a scratch build:
 
 **Not touched:** capture, recognition, upload, the save handlers, `app/api/identify`, and every counting surface.
 
-## 10. Release order (corrected: integrated testing before production SQL)
+## 10. Release order and what 0028 changes immediately
 
-1. **Done:**
-   - the UI-defect candidate `5104622` and the implementation, pushed as `feature/spreadsheet-import` `f63229d` (Preview: UI review only, writes off);
-   - 0028 and the integrated app tests on the disposable stack;
-   - the read-only production preflight; 0028 has been updated for its findings and re-tested.
-2. **Next, on approval:** apply the final 0028 (`202b7bab…`) to production. It's additive and inert until the import feature is released.
-3. **Then:** release the UI-defect candidate, then the import feature, each on its own go-ahead, with one deployment check and a read-only device check.
+**0028 is not inert.** Applying it changes existing functions, guards and constraints at once, for the app that is deployed now:
+- **`start_scheduled_show`:**
+  - It refuses a scheduled show with no start time (`SHOW_NEEDS_START_TIME`).
+  - It takes the performance date from `local_date` first. Shows created before 0028 have no `local_date`, so for them the date is the same as before.
+- **`enforce_schedule_start_guard`:** it locks `local_date`/`local_time` along with the other schedule fields, and refuses any status change into or out of `listed`.
+- **`reject_scheduled_show_delete`:** it also protects listings, and honours the Undo-only flag.
+- **`reject_performance_insert_for_scheduled_show`:** it refuses any performance for a listing.
+- **The status check:** `shows_status_check` gains `listed`.
+- **New constraints, checked against every existing row when applied:**
+  - `shows_planned_has_date`: a scheduled or listed show needs `scheduled_at` or `local_date`.
+  - `shows_listed_is_imported`, `shows_local_time_needs_date` and `shows_import_source_pair`.
+  - **If any existing scheduled show lacks `scheduled_at`, the migration fails as a whole and changes nothing.**
+- **New triggers on every insert and update of `shows`:**
+  - **Import fields:** an insert that sets them is refused unless it comes from `import_shows`. Their provenance can't change.
+  - **Local-field consistency:** it does nothing when `local_date` is null, which is every existing row.
+- **New functions callable by signed-in users:** `import_shows`, `undo_show_import`, `show_records_fingerprint` and `show_import_usage`. Each checks permission itself.
+
+**Tested compatibility (disposable stack, production-like status check, final 0028):**
+- **The deployed app (`3ce4833`) with 0028 applied:** Schedule end-to-end 49/0. That covers add, edit, cancel, Start, the Manager Schedule and the Dashboard's Next Show.
+- **SQL suite, existing behaviour unchanged:**
+  - a plain "Add a show" insert;
+  - start keeps the scheduled date;
+  - scheduled shows can't be deleted;
+  - cancel works;
+  - the patch RPC edits;
+  - a raw performance insert for a scheduled show is still refused;
+  - completed shows are untouched.
+
+**Not exercised end-to-end with 0028:**
+- capture started from New show;
+- recording upload;
+- live → completed;
+- review completion.
+
+These paths don't set import fields or schedule fields, so the new triggers have nothing to do for them; that is by design, not tested. Those flows are the post-apply read-only checks to watch.
+
+**Order (each step on its own approval):**
+1. **SQL:**
+   - Immediately before applying, run one read-only check: no scheduled show has a null `scheduled_at`, and the preflight function hashes still match.
+   - Then apply 0028 (SHA-256 `b21d2ec4…07faed`).
+2. **Verification, read-only:**
+   - the function hashes;
+   - `shows_status_check` includes `listed`;
+   - Schedule and the Dashboard load in the deployed app;
+   - no `listed` rows yet;
+   - one signed-out smoke pass.
+3. **App:** release the UI fix (`5104622`), then the import feature (`f63229d` or its merge commit), each with one deployment check and a read-only device check.
+
+**Rollback limitations:**
+- **SQL rollback (0028's down migration):**
+  - With no imported rows: it restores the schema, functions and four-value status check exactly (tested).
+  - With imported rows: it's refused. Undo each import and decide each kept row first.
+- **App-only rollback:** keeps all data, but the old UI misplaces and mislabels imported rows (see Compatibility).
 
 ## Remaining questions
 
