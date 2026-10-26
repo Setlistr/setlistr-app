@@ -10,6 +10,30 @@
   - `docs/spreadsheet-import-plan`: this document and `supabase/proposals/0028_*`;
   - `fix/schedule-phone-dates-touch-targets` (`5104622`, local, not pushed): the separate UI-defect candidate.
 
+## Released to production (2026-10-26)
+
+**Released:** PR #4, merged with a merge commit as `577dd3dfb35cc26064121666a7a026804e155cb4`.
+- **Parents:** `3ce4833` (the previous production) and `5fc97e816bd158014ac5ab45071e5be9167f3eb3` (the approved candidate). Both were rechecked before merging.
+- **Deployment:** Vercel production succeeded. The deployment is https://setlistr-e1t7o4eja-jesse-slacks-projects.vercel.app.
+- **Includes:** the Schedule phone fix `5104622` and spreadsheet import. 0028 was already applied and was not run again; no SQL or environment changes came with the release.
+- **Signed-out smoke checks (read-only):**
+  - `/` and `/auth/login` return 200;
+  - `/app/schedule`, `/app/schedule/import`, `/app/dashboard` and `/app/history` redirect (307) to sign-in;
+  - the import routes, `/api/shows/schedule` and `/api/shows/timeline` return 401.
+- **No production test imports.** The first import will be a real file the owner chooses.
+
+**Rollback (app):** revert the merge through a PR, so GitHub → Vercel deploys `3ce4833`'s code:
+
+    git checkout -b revert/spreadsheet-import origin/main
+    git revert -m 1 577dd3dfb35cc26064121666a7a026804e155cb4
+    git push -u origin revert/spreadsheet-import   # then open a PR and merge it
+
+Alternatively, promote the previous production deployment in Vercel.
+- Reverting the app **keeps imported data**, but the old UI puts it in the wrong place and labels it wrongly: date-only shows read "Date not recorded" or "Scheduled in Setlistr", and the Dashboard counts them as past.
+- The schema rollback (`0028_show_imports.down.sql`) is refused while imported rows exist.
+
+**Undo** removes only untouched shows from a batch. It keeps any show that has been edited, started or cancelled since the import, or that other records reference (a performance, capture, setlist, artist link or PRO report).
+
 ## Production SQL: 0028 applied (2026-10-26 17:57 UTC)
 
 **Applied:** 0028 committed in production project `lelimetbogycrdnfxjok`, on owner approval. Exact file, SHA-256 `b21d2ec4…07faed`; applied atomically as `postgres`.
