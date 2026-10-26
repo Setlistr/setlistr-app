@@ -10,6 +10,26 @@
   - `docs/spreadsheet-import-plan`: this document and `supabase/proposals/0028_*`;
   - `fix/schedule-phone-dates-touch-targets` (`5104622`, local, not pushed): the separate UI-defect candidate.
 
+## Release candidate (2026-10-26)
+
+- **Candidate:** `feature/spreadsheet-import` at `f63229db29b9e5ba4c385aea040459f4637c5346`, pushed and not merged.
+- **Migration:** `supabase/proposals/0028_show_imports.sql`, identical in the candidate.
+  - md5 `202b7bab110565987a9fc07fa32bddcf`
+  - SHA-256 `b21d2ec42f787f54ee3bbb90fd11ad091b508f48ca40f9810536cf481407faed`
+  - Down migration SHA-256 `245368565e728b13748919ae41eae438dd25708ce7c6a14b80fa9c6e31a0ad65`
+- **Preview:** https://setlistr-5rm08avhe-jesse-slacks-projects.vercel.app (deployment success, 2026-10-26 13:47 UTC). It sits behind Vercel sign-in. Import and Undo are refused there by host. Existing Schedule actions on Preview write to production and are off limits.
+- **Checks on exactly this app and SQL** (production build of `git archive f63229d`; disposable stack with the final 0028 and production's four-value status check):
+  - SQL suite 72/72; races 8/8; Undo helper 8/8.
+  - Import end-to-end 76/0; date-only → add a start time → start capture 8/0; Schedule 49/0.
+  - Preview mode without 0028 17/0, and Schedule without 0028 49/0.
+  - The deployed app (`3ce4833`) with 0028 applied: Schedule 49/0.
+- **The Undo reference helper (`import_show_use_reason`):**
+  - **Every schema:** it reads every foreign key that references `public.shows`, in any schema, from `pg_constraint`. Tested with a table in another schema.
+  - **Quoting:** the table name comes from `regclass` output, which Postgres quotes and schema-qualifies. The column goes through `format('%I')`, and the show id is a bound parameter. Tested with a schema, table and column whose names contain spaces, quotes and semicolons.
+  - **Who can call it:** `anon` and `authenticated` can't execute it; only Undo and the preview (both owned by `postgres`) call it.
+  - **The preview (`show_import_usage`):** it returns only show ids and reason codes, never table names. It refuses anyone who can't see the artist's shows, and gives the same answer for an unknown batch, so it leaks nothing about other batches.
+- **Access revocation:** `undo_show_import` (like `import_show_use_reason`) checks `can_write_for` with the caller's identity each time it runs. That reads the delegation as committed at that moment, so a teammate whose access was revoked before they press Undo is refused and nothing is removed (tested). A revocation committed while an Undo is already running takes effect from the next call, the same as every other write.
+
 ## Preview and production preflight (2026-10-26)
 
 **Preview.**
@@ -47,7 +67,11 @@
 
 **Compatibility.**
 - **The deployed app (`3ce4833`) with 0028 applied:** Schedule end-to-end passes 49/0. It reads no new column and writes no import field.
-- **The deployed app with imported records present** (app-only rollback, or old tabs after release): no errors. Listings and date-only bookings appear under "Date not recorded" as "Scheduled in Setlistr". The date-only booking isn't treated as upcoming. The Dashboard counts it in "N past shows still marked scheduled".
+- **The deployed app with imported records present** (app-only rollback, or old tabs after release): no errors, and no data is lost. **Behaviour is not unchanged, though.** The old UI misplaces and mislabels imported rows:
+  - Listings and date-only bookings appear under "Date not recorded", with "No date", labelled "Scheduled in Setlistr" instead of "Imported from a spreadsheet".
+  - Date-only bookings disappear from Upcoming, and the Dashboard counts them as "past shows still marked scheduled".
+  - A time kept as written isn't shown.
+  - The old edit form can't prefill a date-only booking's date.
 - **Old tabs:** they can't start a date-only booking (the database refuses). Their edit form would prefill such a booking with no usable date; the owner must type the date and time. Reloading fixes all of this.
 - **The new app before 0028** (Preview, or a mistaken order): Schedule works through the read fallback; import refuses.
 
@@ -57,7 +81,7 @@
 - **Revoked teammate:** a teammate whose access is revoked after the import can neither Undo nor import. Permission is checked when the function runs.
 
 **Rollback with imported records present.**
-- **App only (recommended):** revert the merge. 0028 stays; it's additive and inert for the old app. Imported rows remain and are shown as above. Nothing is lost.
+- **App only (recommended):** revert the merge. 0028 stays and does nothing for the old app. Imported rows and their provenance are preserved, but the old UI misplaces and mislabels them as described above until the feature is restored.
 - **Schema removal:** the down migration refuses while any imported row exists (tested; atomic, no change). To remove the schema:
   1. Undo each import, which removes untouched rows.
   2. Decide each kept row (used since import) explicitly. A date-only booking needs a time or a cancellation; a listing needs deleting or keeping the schema.

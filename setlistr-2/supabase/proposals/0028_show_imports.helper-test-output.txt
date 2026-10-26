@@ -1,0 +1,10 @@
+PASS anon and authenticated cannot execute the reference helper
+PASS a signed-in user calling the helper directly is refused
+PASS the preview refuses an unrelated user
+PASS the preview gives the same answer for an unknown batch (no existence leak)
+PASS the preview returns only show ids and reason codes
+PASS Undo finds a reference from a table outside public, with quoted names, and keeps the show
+PASS the preview reports the same reference
+PASS revoked between import and Undo: Undo refused, nothing removed
+
+8/8 passed
