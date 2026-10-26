@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { MapPin, Calendar, X, Pencil, Play, RefreshCw, AlertCircle, MoreVertical, ChevronRight } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-import { zonedLocalTimeToUtc, utcToZonedParts, pickNextScheduled, relativeDayLabel, zonedToday } from '@/lib/scheduleTime'
+import { zonedLocalTimeToUtc, utcToZonedParts, pickNextScheduled, relativeDayLabel, zonedToday, compareScheduled } from '@/lib/scheduleTime'
 import { getTimezoneOptions, labelForZone } from '@/lib/timezoneLabels'
 import tzLookup from 'tz-lookup'
 
@@ -14,11 +14,23 @@ const C = {
 }
 
 export type ScheduledShow = {
-  id: string; name: string | null; show_type: string; scheduled_at: string; timezone: string
+  // scheduled_at is null for a date-only booking from a spreadsheet import
+  // (local_date, no start time yet); midnight is never assumed.
+  id: string; name: string | null; show_type: string; scheduled_at: string | null; timezone: string
   status: string; created_by: string; updated_at: string; venue_id: string | null
   scheduled_by: string | null; scheduled_by_name: string | null
   venues: { name: string; city: string | null; country: string | null } | null
+  local_date?: string | null; local_time?: string | null
+  import_batch_id?: string | null; source_row?: number | null; show_import_batches?: { file_name: string } | null
 }
+
+// A show's own date and start time ("Time not set" for a date-only booking).
+export function showWhen(show: ScheduledShow): { day: string; time: string | null } {
+  if (!show.scheduled_at) return { day: dayLabel(show.local_date || '', show.timezone), time: null }
+  const { dateStr, timeStr } = utcToZonedParts(new Date(show.scheduled_at), show.timezone)
+  return { day: dayLabel(dateStr, show.timezone), time: `${timeLabel(timeStr)} ${zoneAbbreviation(show.scheduled_at, show.timezone)}`.trim() }
+}
+export const NEEDS_TIME_TO_START = 'Add a start time before starting capture: choose Edit show in the show’s menu.'
 type Venue = { id: string; name: string; city: string | null; country: string | null; latitude?: number | null; longitude?: number | null }
 
 // dateStr is venue-local, so "today" is judged on the venue's own clock
@@ -78,9 +90,9 @@ export function NextShowSummary({ artistId }: { artistId: string }) {
     title = 'Schedule didn\u2019t load'
     detail = 'Open Schedule to see upcoming shows'
   } else if (next) {
-    const { dateStr, timeStr } = utcToZonedParts(new Date(next.scheduled_at), next.timezone)
+    const w = showWhen(next)
     title = next.venues?.name || 'Venue TBD'
-    detail = <>{dayLabel(dateStr, next.timezone)} · {timeLabel(timeStr)} {zoneAbbreviation(next.scheduled_at, next.timezone)}{next.venues?.city ? ` · ${next.venues.city}` : ''}</>
+    detail = <>{w.day} · {w.time || 'Time not set'}{next.venues?.city ? ` · ${next.venues.city}` : ''}</>
   } else {
     title = 'Nothing scheduled'
     detail = 'Plan the next show in Schedule'
@@ -125,6 +137,8 @@ export function useShowActions({ artistName, onBeforeStart, onChanged }: { artis
   }
 
   function confirmAndStart(show: ScheduledShow) {
+    // A date-only booking has no start time to start against yet.
+    if (!show.scheduled_at) { setStartError(NEEDS_TIME_TO_START); return }
     const { dateStr, timeStr } = utcToZonedParts(new Date(show.scheduled_at), show.timezone)
     const who = artistName ? `${artistName} — ` : ''
     const venue = show.venues?.name || 'this venue'
@@ -167,7 +181,7 @@ export function UpcomingShows({ artistId, artistName, canManage, onBeforeStart }
       const res = await fetch(`/api/shows/schedule?artist_id=${artistId}`)
       if (!res.ok) throw new Error('failed')
       const data = await res.json()
-      setShows(data.shows || [])
+      setShows((data.shows || []).slice().sort(compareScheduled))
     } catch { setError(true) } finally { setLoading(false) }
   }, [artistId])
 
@@ -220,7 +234,7 @@ export function UpcomingShows({ artistId, artistName, canManage, onBeforeStart }
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {shows.map((show, i) => {
-            const { dateStr, timeStr } = utcToZonedParts(new Date(show.scheduled_at), show.timezone)
+            const w = showWhen(show)
             const isNext = i === 0
             const scheduledByOther = show.scheduled_by && show.scheduled_by !== show.created_by
             return (
@@ -232,9 +246,9 @@ export function UpcomingShows({ artistId, artistName, canManage, onBeforeStart }
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 4 }}>
-                      <span style={{ fontSize: isNext ? 13 : 12, fontWeight: 800, color: C.gold, letterSpacing: '0.02em' }}>{dayLabel(dateStr, show.timezone)}</span>
+                      <span style={{ fontSize: isNext ? 13 : 12, fontWeight: 800, color: C.gold, letterSpacing: '0.02em' }}>{w.day}</span>
                       <span style={{ fontSize: isNext ? 13 : 12, color: C.secondary, fontFamily: '"DM Mono", monospace' }}>
-                        {timeLabel(timeStr)} <span style={{ color: C.secondary }}>{zoneAbbreviation(show.scheduled_at, show.timezone)}</span>
+                        {w.time || 'Time not set'}
                       </span>
                     </div>
                     <p style={{ fontSize: isNext ? 18 : 15, fontWeight: 800, color: C.text, margin: '0 0 2px', letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -252,7 +266,7 @@ export function UpcomingShows({ artistId, artistName, canManage, onBeforeStart }
                     )}
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                    {isNext && canManage && (() => {
+                    {isNext && canManage && show.scheduled_at && (() => {
                       const isFuture = new Date(show.scheduled_at).getTime() > Date.now()
                       return (
                         <button onClick={() => confirmAndStart(show)} disabled={starting === show.id} style={{
@@ -302,10 +316,12 @@ export function ScheduleForm({ artistId, existing, onClose, onSaved }: {
   const [showDropdown, setShowDropdown] = useState(false)
   const [localDate, setLocalDate] = useState(() => {
     if (!existing) return ''
+    if (!existing.scheduled_at) return existing.local_date || ''      // date-only booking
     return utcToZonedParts(new Date(existing.scheduled_at), existing.timezone).dateStr
   })
   const [localTime, setLocalTime] = useState(() => {
     if (!existing) return ''
+    if (!existing.scheduled_at) return ''                             // asked for here
     return utcToZonedParts(new Date(existing.scheduled_at), existing.timezone).timeStr
   })
   const localDateTime = localDate && localTime ? `${localDate}T${localTime}` : ''
@@ -501,15 +517,15 @@ export function ShowActionsMenu({ show, onEdit, onCancel }: { show: ScheduledSho
       <button
         onClick={() => setOpen(v => !v)}
         aria-haspopup="menu" aria-expanded={open} aria-label={`Actions for ${show.venues?.name || 'this show'}`}
-        style={{ padding: 7, background: 'color-mix(in srgb, var(--sl-text) 4%, transparent)', border: `1px solid ${C.border}`, borderRadius: 8, color: C.secondary, cursor: 'pointer' }}>
+        style={{ minWidth: 44, minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 7, background: 'color-mix(in srgb, var(--sl-text) 4%, transparent)', border: `1px solid ${C.border}`, borderRadius: 8, color: C.secondary, cursor: 'pointer' }}>
         <MoreVertical size={15} />
       </button>
       {open && (
         <div role="menu" style={{ position: 'absolute', top: 'calc(100% + 6px)', right: 0, width: 180, background: C.card2, border: `1px solid ${C.border}`, borderRadius: 10, overflow: 'hidden', zIndex: 30, boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }}>
-          <button role="menuitem" onClick={() => { onEdit(); setOpen(false) }} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: 'none', border: 'none', borderBottom: `1px solid ${C.border}`, color: C.text, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' as const }}>
+          <button role="menuitem" onClick={() => { onEdit(); setOpen(false) }} style={{ width: '100%', minHeight: 44, display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: 'none', border: 'none', borderBottom: `1px solid ${C.border}`, color: C.text, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' as const }}>
             <Pencil size={13} style={{ color: C.secondary }} /> Edit show
           </button>
-          <button role="menuitem" onClick={() => { onCancel(); setOpen(false) }} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: 'none', border: 'none', color: C.red, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' as const }}>
+          <button role="menuitem" onClick={() => { onCancel(); setOpen(false) }} style={{ width: '100%', minHeight: 44, display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: 'none', border: 'none', color: C.red, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' as const }}>
             <X size={13} /> Cancel show
           </button>
         </div>
@@ -518,7 +534,7 @@ export function ShowActionsMenu({ show, onEdit, onCancel }: { show: ScheduledSho
   )
 }
 
-function TimezoneCombobox({ value, onChange }: { value: string; onChange: (tz: string) => void }) {
+export function TimezoneCombobox({ value, onChange }: { value: string; onChange: (tz: string) => void }) {
   const [query, setQuery] = useState('')
   const [open, setOpen] = useState(false)
   const options = getTimezoneOptions()
@@ -534,7 +550,7 @@ function TimezoneCombobox({ value, onChange }: { value: string; onChange: (tz: s
         onChange={e => setQuery(e.target.value)}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
         placeholder="Search city or region…"
-        style={{ width: '100%', background: 'var(--sl-input-bg)', border: `1px solid var(--sl-input-line)`, borderRadius: 10, padding: '11px 12px', color: C.text, fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' as const }}
+        style={{ width: '100%', minHeight: 44, background: 'var(--sl-input-bg)', border: `1px solid var(--sl-input-line)`, borderRadius: 10, padding: '11px 12px', color: C.text, fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' as const }}
       />
       {open && (
         <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: C.card2, border: `1px solid ${C.border}`, borderRadius: 10, marginTop: 4, zIndex: 20, maxHeight: 220, overflowY: 'auto' as const }}>

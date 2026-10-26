@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { authoriseProof, ProofError } from '@/lib/proof/load'
+import { isMissingImportSchema } from '@/lib/shows/importSchema'
 import { setlistMethod, isRecognisedSource, isManualSource, UNPLAYED_SOURCE, type Method } from '@/lib/proof/summary'
 import {
-  buildEntries, candidatesFor, pageOf, captureInstant, decodeCursor, entryState, sourceLine, addedBy, timeText, captureState, captureLink, methodText,
+  buildEntries, candidatesFor, pageOf, captureInstant, decodeCursor, entryState, sourceLine, addedBy, timeText, captureState, captureLink, methodText, asWrittenTime,
   LIVE_WINDOW_MIN, VENUE_REASON, TIME_REASON, type Entry, type PerfRow, type ShowRow,
 } from '@/lib/shows/timeline'
 
@@ -40,7 +41,8 @@ async function readForIds<T>(ids: string[], q: (g: string[]) => PromiseLike<{ da
 
 type PerfFull = PerfRow & { latitude: number | null; recording_path: string | null }
 const PERF_COLS = 'id, show_id, status, submission_status, data_source, venue_id, venue_name, city, country, performance_date, started_at, created_at, venue_latitude, venue_longitude, latitude, recording_path'
-const SHOW_COLS = 'id, status, scheduled_at, timezone, venue_id, name, show_type, created_by, scheduled_by, scheduled_by_name, started_at, updated_at, venues(name, city, country, latitude, longitude)'
+const SHOW_BASE = 'id, status, scheduled_at, timezone, venue_id, name, show_type, created_by, scheduled_by, scheduled_by_name, started_at, updated_at, venues(name, city, country, latitude, longitude)'
+const SHOW_COLS = `${SHOW_BASE}, local_date, local_time, import_batch_id, source_row, show_import_batches(file_name, created_at)`
 
 // How each capture's setlist was recorded, by Proof's evidence rules
 // (lib/proof/summary setlistMethod): never assumed.
@@ -75,7 +77,7 @@ async function methodsFor(service: SupabaseClient, perfs: PerfFull[]): Promise<R
 
 // Said when a record's time can't be read in any zone it belongs to.
 function zoneNote(e: Entry): string | null {
-  return !e.zone && (e.instant !== null || e.dateUncertain) ? 'Time zone not recorded' : null
+  return !e.zone && (e.instant !== null || e.dateUncertain || !!asWrittenTime(e)) ? 'Time zone not recorded' : null
 }
 
 export async function GET(req: NextRequest) {
@@ -107,7 +109,14 @@ export async function GET(req: NextRequest) {
     const cursor = decodeCursor(cursorParam)
     if (cursorParam && !cursor) return NextResponse.json({ error: 'Invalid cursor' }, { status: 400, headers: noStore })
 
-    const shows = await readAll<ShowRow>((f, t) => service.from('shows').select(SHOW_COLS).eq('created_by', artistId).order('id').range(f, t) as any)
+    // Without the import columns (0028 not applied), read the columns every schema has.
+    let shows: ShowRow[]
+    try { shows = await readAll<ShowRow>((f, t) => service.from('shows').select(SHOW_COLS).eq('created_by', artistId).order('id').range(f, t) as any) }
+    catch (e) {
+      const probe = await service.from('shows').select(SHOW_COLS).limit(1)
+      if (!isMissingImportSchema(probe.error)) throw e
+      shows = await readAll<ShowRow>((f, t) => service.from('shows').select(SHOW_BASE).eq('created_by', artistId).order('id').range(f, t) as any)
+    }
     const perfs = await readAll<PerfFull>((f, t) => service.from('performances').select(PERF_COLS).eq('user_id', artistId).is('deleted_at', null).order('id').range(f, t) as any)
     const entries = buildEntries(shows, perfs)
     const { page, next } = pageOf(entries, cursor, limit)
@@ -122,13 +131,14 @@ export async function GET(req: NextRequest) {
     const needMethods = [...page, ...Array.from(partnerKeys).map(k => byKey.get(k)!).filter(Boolean)].flatMap(e => e.perfs) as PerfFull[]
     const methods = await methodsFor(service, needMethods)
 
-    const summary = (e: Entry) => ({ key: e.key, localDate: e.localDate, venue: e.venue, city: e.city, state: entryState(e), source: sourceLine(e, methods), time: timeText(e.instant, e.zone) })
+    const summary = (e: Entry) => ({ key: e.key, localDate: e.localDate, venue: e.venue, city: e.city, state: entryState(e), source: sourceLine(e, methods), time: timeText(e.instant, e.zone) ?? asWrittenTime(e) })
     const items = page.map(e => ({
       ...summary(e),
       kind: e.kind,
       country: e.country,
       zoneNote: zoneNote(e),
       addedBy: addedBy(e),
+      importedFrom: e.show?.import_batch_id ? { batchId: e.show.import_batch_id, file: e.show.show_import_batches?.file_name || 'a spreadsheet', row: e.show.source_row } : null,
       show: e.show && (e.kind === 'no-capture') && e.show.status === 'scheduled' ? {
         id: e.show.id, name: e.show.name, show_type: e.show.show_type, scheduled_at: e.show.scheduled_at, timezone: e.show.timezone, status: e.show.status,
         created_by: e.show.created_by, updated_at: e.show.updated_at, venue_id: e.show.venue_id, scheduled_by: e.show.scheduled_by, scheduled_by_name: e.show.scheduled_by_name,

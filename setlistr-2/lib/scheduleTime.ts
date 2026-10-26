@@ -117,9 +117,27 @@ export function isUpcomingInZone(scheduledAtIso: string, zone: string, now: Date
   return utcToZonedParts(new Date(scheduledAtIso), z).dateStr >= zonedToday(now, z)
 }
 
-export function pickNextScheduled<T extends { scheduled_at: string; timezone: string }>(shows: T[], now: Date = new Date()): { next: T | null; pastCount: number } {
-  const upcoming = shows.filter(s => isUpcomingInZone(s.scheduled_at, s.timezone, now))
-    .sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime())
+// A scheduled show is either timed (scheduled_at, an instant) or a
+// date-only booking from a spreadsheet import (local_date, no instant —
+// midnight is never assumed). Its own calendar date either way.
+export type SchedulableShow = { scheduled_at: string | null; timezone: string; local_date?: string | null }
+export function showLocalDate(s: SchedulableShow): string | null {
+  if (s.scheduled_at) return utcToZonedParts(new Date(s.scheduled_at), safeZone(s.timezone)).dateStr
+  return s.local_date || null
+}
+export function isShowUpcoming(s: SchedulableShow, now: Date = new Date()): boolean {
+  const d = showLocalDate(s)
+  return !!d && d >= zonedToday(now, s.timezone)
+}
+// By date, then start time; a date-only booking after timed shows that day.
+export function compareScheduled(a: SchedulableShow, b: SchedulableShow): number {
+  const da = showLocalDate(a) || '', db = showLocalDate(b) || ''
+  if (da !== db) return da < db ? -1 : 1
+  return (a.scheduled_at ? Date.parse(a.scheduled_at) : Infinity) - (b.scheduled_at ? Date.parse(b.scheduled_at) : Infinity)
+}
+
+export function pickNextScheduled<T extends SchedulableShow>(shows: T[], now: Date = new Date()): { next: T | null; pastCount: number } {
+  const upcoming = shows.filter(s => isShowUpcoming(s, now)).sort(compareScheduled)
   return { next: upcoming[0] || null, pastCount: shows.length - upcoming.length }
 }
 
