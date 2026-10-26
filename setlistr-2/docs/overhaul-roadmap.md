@@ -35,6 +35,7 @@ Nothing at present. The Schedule phone fix and spreadsheet import moved to secti
 
 ## 3. Proposals awaiting decision
 
+- **Team invitation and admission (P1 + R2):** [team-invite-admission-proposal](team-invite-admission-proposal.md). Scoped admission through an accepted invite, with inbox proof. Awaiting the owner's decision; no implementation, SQL or environment change.
 - **Proof record photo:** [proof-record-photo-proposal](proof-record-photo-proposal.md). SQL not authorised.
 - **Proof data audit** (read-only queries, not run): [proof-data-audit-proposal](proof-data-audit-proposal.md).
 - **Unverified (working notes only; confirm before acting):**
@@ -120,6 +121,12 @@ A manager (Matt Woodson) plans to bring an artist onto Setlistr ahead of touring
 
 1. **Spreadsheet import release:** done 2026-10-26. 0028 applied, then one app release (`577dd3d`) that included the UI fix. Still to come: the installed-app check, then the first real import with a file the owner chooses.
 2. **Team journey assessment** (section 5): written, [team-journey-assessment](team-journey-assessment.md). Awaiting the owner's review.
+   - **Next slice proposed:** team invitation and admission, [team-invite-admission-proposal](team-invite-admission-proposal.md).
+   - **Kept separate:**
+     - P2 attribution: no migration authorised;
+     - P3 recording a submission versus filing with a PRO;
+     - P4 reminder groundwork: no channel chosen.
+   - **Locked-phone capture:** unverified, not broken; a real-device check is proposed.
 3. **Discovery A–C** (section 6), informed by the assessment. A proposal follows only if a clear smallest change emerges.
 4. **The pilot** (section 7), when the owner decides.
 
