@@ -196,10 +196,19 @@ $function$
 
 ;
 
+-- Restore production's four-value status check if 0028 extended it.
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'public.shows'::regclass AND conname = 'shows_status_check' AND pg_get_constraintdef(oid) LIKE '%listed%') THEN
+    ALTER TABLE public.shows DROP CONSTRAINT shows_status_check;
+    ALTER TABLE public.shows ADD CONSTRAINT shows_status_check CHECK (status = ANY (ARRAY['scheduled'::text, 'live'::text, 'completed'::text, 'cancelled'::text]));
+  END IF;
+END $$;
 DROP TRIGGER shows_import_provenance ON public.shows;
 DROP TRIGGER shows_local_fields_consistent ON public.shows;
 DROP FUNCTION public.import_shows(jsonb, jsonb, text);
 DROP FUNCTION public.undo_show_import(uuid);
+DROP FUNCTION public.show_import_usage(uuid);
+DROP FUNCTION public.import_show_use_reason(uuid);
 DROP FUNCTION public.show_records_fingerprint(uuid);
 DROP FUNCTION public.is_real_time_zone(text);
 DROP FUNCTION public.shows_import_provenance();

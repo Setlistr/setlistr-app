@@ -1,0 +1,10 @@
+PASS start commits first, Undo waits and keeps the show (capture_linked)
+PASS Undo commits first, then start finds nothing to act on (no orphan, nothing recreated)
+PASS edit commits first, Undo waits and keeps the show (edited)
+PASS Undo commits first, then edit finds nothing to act on (no orphan, nothing recreated)
+PASS cancel commits first, Undo waits and keeps the show (cancelled)
+PASS Undo commits first, then cancel finds nothing to act on (no orphan, nothing recreated)
+PASS a teammate revoked after the import can’t Undo it
+PASS …or import
+
+8/8 passed

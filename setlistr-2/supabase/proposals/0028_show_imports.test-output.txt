@@ -46,13 +46,20 @@ PASS the patch RPC refuses a listing
 PASS import fields cannot be inserted directly
 PASS a listing cannot be inserted directly
 PASS provenance cannot be changed
-PASS start uses local_date for a date-only show
+PASS a date-only booking can’t be started until it has a start time
+PASS after a start time is added (edit), start uses the booked date
 PASS start uses the booked date for a timed show
 PASS editing the time through the patch RPC moves local fields with it
 PASS undo removes an untouched import
 PASS undo twice returns the first result
 PASS undo keeps edited, started and setlist rows and says why
 PASS viewer cannot undo
+PASS status check allows listed (production shows_status_check extended)
+PASS status check still refuses an unknown status
+PASS Undo keeps a show referenced by any other table (catalogue-driven check)
+PASS Undo preview (show_import_usage) matches Undo
+PASS Undo preview: Viewer may read it
+PASS Undo preview: unrelated user refused
 PASS existing: Add a show insert still works
 PASS existing: start keeps the scheduled date
 PASS existing: a scheduled show still cannot be deleted
@@ -64,4 +71,4 @@ PASS concurrent imports: first wins, second is sent back as stale
 PASS double tap during a slow commit: one import, second returns it
 PASS cleanup: no imported rows left
 
-65/65 passed
+72/72 passed

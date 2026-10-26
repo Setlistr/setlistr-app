@@ -14,8 +14,12 @@ BEGIN;
 --    written and tested against (docs/spreadsheet-import-plan.md, preflight).
 DO $$
 BEGIN
-  IF EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'public.shows'::regclass AND contype = 'c' AND pg_get_constraintdef(oid) ILIKE '%status%') THEN
-    RAISE EXCEPTION '0028: shows has a status CHECK constraint; it must be extended to allow listed first';
+  -- Production constrains status to the four scheduling values
+  -- (shows_status_check, preflight 2); 0028 extends exactly that check with
+  -- 'listed' below. Any other status check is a difference to review first.
+  IF EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'public.shows'::regclass AND contype = 'c' AND pg_get_constraintdef(oid) ILIKE '%status%'
+             AND (conname <> 'shows_status_check' OR pg_get_constraintdef(oid) <> 'CHECK ((status = ANY (ARRAY[''scheduled''::text, ''live''::text, ''completed''::text, ''cancelled''::text])))')) THEN
+    RAISE EXCEPTION '0028: shows has a status CHECK constraint other than the reviewed four-value shows_status_check';
   END IF;
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'shows' AND column_name = 'created_at') THEN
     RAISE EXCEPTION '0028: shows.created_at is required (Undo compares it with updated_at)';
@@ -23,10 +27,19 @@ BEGIN
   IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'shows' AND column_name IN ('local_date', 'local_time', 'import_batch_id', 'source_row')) THEN
     RAISE EXCEPTION '0028: shows already has an import column';
   END IF;
-  IF (SELECT count(*) FROM pg_constraint WHERE confrelid = 'public.shows'::regclass AND contype = 'f') <> 2
-     OR NOT EXISTS (SELECT 1 FROM pg_constraint WHERE confrelid = 'public.shows'::regclass AND conrelid = 'public.performances'::regclass)
-     OR NOT EXISTS (SELECT 1 FROM pg_constraint WHERE confrelid = 'public.shows'::regclass AND conrelid = 'public.setlists'::regclass) THEN
-    RAISE EXCEPTION '0028: tables referencing shows differ from performances + setlists; undo_show_import must check every one';
+  -- undo_show_import checks every table that references shows, read from
+  -- the catalogue when it runs; it handles single-column references only.
+  IF EXISTS (SELECT 1 FROM pg_constraint WHERE confrelid = 'public.shows'::regclass AND contype = 'f' AND array_length(conkey, 1) <> 1) THEN
+    RAISE EXCEPTION '0028: a multi-column reference to shows exists; undo_show_import must be extended for it';
+  END IF;
+END $$;
+
+-- ── 0b. Allow 'listed' where status is constrained (production) ──────────
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'public.shows'::regclass AND conname = 'shows_status_check') THEN
+    ALTER TABLE public.shows DROP CONSTRAINT shows_status_check;
+    ALTER TABLE public.shows ADD CONSTRAINT shows_status_check CHECK (status = ANY (ARRAY['scheduled'::text, 'live'::text, 'completed'::text, 'cancelled'::text, 'listed'::text]));
   END IF;
 END $$;
 
@@ -282,13 +295,59 @@ BEGIN
 END;
 $$;
 
+-- ── 6a. Why an imported show must be kept (shared by Undo and its preview) ──
+-- NULL when untouched. Called on a row the caller has locked (Undo), so a
+-- concurrent start, edit or cancel is seen once it commits.
+CREATE OR REPLACE FUNCTION public.import_show_use_reason(p_show_id uuid)
+RETURNS text LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = '' AS $$
+DECLARE
+  v_s public.shows%ROWTYPE;
+  v_ref record;
+  v_found boolean;
+BEGIN
+  SELECT * INTO v_s FROM public.shows WHERE id = p_show_id;
+  IF NOT FOUND THEN RETURN 'missing'; END IF;
+  FOR v_ref IN
+    SELECT c.conrelid::regclass::text AS tbl, a.attname AS col
+    FROM pg_catalog.pg_constraint c JOIN pg_catalog.pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = c.conkey[1]
+    WHERE c.confrelid = 'public.shows'::regclass AND c.contype = 'f'
+    ORDER BY (c.conrelid = 'public.performances'::regclass) DESC, 1
+  LOOP
+    EXECUTE format('SELECT EXISTS (SELECT 1 FROM %s WHERE %I = $1)', v_ref.tbl, v_ref.col) INTO v_found USING p_show_id;
+    IF v_found THEN
+      RETURN CASE WHEN v_ref.tbl IN ('public.performances', 'public.capture_sessions', 'public.audio_captures') THEN 'capture_linked'
+                  WHEN v_ref.tbl = 'public.setlists' THEN 'setlist_attached' ELSE 'linked_record' END;
+    END IF;
+  END LOOP;
+  RETURN CASE
+    WHEN v_s.status IN ('live', 'completed') THEN 'started'
+    WHEN v_s.status = 'cancelled' THEN 'cancelled'
+    WHEN v_s.updated_at IS DISTINCT FROM v_s.created_at THEN 'edited'
+    ELSE NULL END;
+END;
+$$;
+
+-- Read-only preview for an import's result page: each show and why Undo
+-- would keep it. Anyone who can see the artist's shows may read it.
+CREATE OR REPLACE FUNCTION public.show_import_usage(p_batch_id uuid)
+RETURNS TABLE(show_id uuid, reason text) LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = '' AS $$
+DECLARE v_artist uuid;
+BEGIN
+  SELECT artist_id INTO v_artist FROM public.show_import_batches WHERE id = p_batch_id;
+  IF v_artist IS NULL OR auth.uid() IS NULL OR public.can_act_for(v_artist) IS NOT TRUE THEN RAISE EXCEPTION 'NOT_AUTHORIZED' USING ERRCODE = '42501'; END IF;
+  RETURN QUERY SELECT s.id, public.import_show_use_reason(s.id) FROM public.shows s WHERE s.import_batch_id = p_batch_id;
+END;
+$$;
+
 -- ── 6. undo_show_import: removes only untouched rows ─────────────────────
--- Kept, with the reason: a linked capture, an attached setlist, started or
--- completed, cancelled, or edited in any way since the import (updated_at
--- moves on every update). Deleting a show would otherwise unlink captures
--- (ON DELETE SET NULL) and delete setlists (CASCADE), so both are checked
--- explicitly, never left to the foreign keys. Repeat calls return the first
--- result.
+-- Kept, with the reason: referenced by any other record (a capture,
+-- capture session or audio capture; a setlist; show artists; a PRO report;
+-- or any table that references shows, read from the catalogue each time),
+-- started or completed, cancelled, or edited in any way since the import
+-- (updated_at moves on every update). Deleting a show would otherwise unlink
+-- (ON DELETE SET NULL) or delete (CASCADE) those records, so every reference
+-- is checked explicitly, never left to the foreign keys. Repeat calls return
+-- the first result.
 CREATE OR REPLACE FUNCTION public.undo_show_import(p_batch_id uuid)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 DECLARE
@@ -310,13 +369,7 @@ BEGIN
 
   PERFORM set_config('app.allow_import_undo', 'true', true);
   FOR v_s IN SELECT * FROM public.shows WHERE import_batch_id = p_batch_id ORDER BY source_row, local_date FOR UPDATE LOOP
-    v_reason := CASE
-      WHEN EXISTS (SELECT 1 FROM public.performances WHERE show_id = v_s.id) THEN 'capture_linked'
-      WHEN EXISTS (SELECT 1 FROM public.setlists WHERE show_id = v_s.id) THEN 'setlist_attached'
-      WHEN v_s.status IN ('live', 'completed') THEN 'started'
-      WHEN v_s.status = 'cancelled' THEN 'cancelled'
-      WHEN v_s.updated_at IS DISTINCT FROM v_s.created_at THEN 'edited'
-      ELSE NULL END;
+    v_reason := public.import_show_use_reason(v_s.id);
     IF v_reason IS NULL THEN
       DELETE FROM public.shows WHERE id = v_s.id;
       v_removed := v_removed || jsonb_build_object('source_row', v_s.source_row, 'local_date', v_s.local_date);
@@ -341,6 +394,9 @@ GRANT EXECUTE ON FUNCTION public.import_shows(jsonb, jsonb, text) TO authenticat
 GRANT EXECUTE ON FUNCTION public.undo_show_import(uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.show_records_fingerprint(uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.is_real_time_zone(text) TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.import_show_use_reason(uuid) FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.show_import_usage(uuid) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.show_import_usage(uuid) TO authenticated;
 REVOKE EXECUTE ON FUNCTION public.shows_import_provenance() FROM PUBLIC, anon, authenticated;
 REVOKE EXECUTE ON FUNCTION public.shows_local_fields_consistent() FROM PUBLIC, anon, authenticated;
 
@@ -478,6 +534,11 @@ BEGIN
   IF v_show.status = 'scheduled' THEN
     IF v_show.venue_id IS NULL THEN
       RAISE EXCEPTION 'SHOW_MISSING_VENUE' USING ERRCODE = 'P0001';
+    END IF;
+    -- 0028: a date-only booking (imported, no start time yet) needs a time
+    -- before capture can start; Schedule offers "Add a start time" instead.
+    IF v_show.scheduled_at IS NULL THEN
+      RAISE EXCEPTION 'SHOW_NEEDS_START_TIME' USING ERRCODE = 'P0001';
     END IF;
     SELECT * INTO v_venue FROM public.venues WHERE id = v_show.venue_id;
 

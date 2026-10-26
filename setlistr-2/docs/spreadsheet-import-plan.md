@@ -10,6 +10,61 @@
   - `docs/spreadsheet-import-plan`: this document and `supabase/proposals/0028_*`;
   - `fix/schedule-phone-dates-touch-targets` (`5104622`, local, not pushed): the separate UI-defect candidate.
 
+## Preview and production preflight (2026-10-26)
+
+**Preview.**
+- **Branch:** `feature/spreadsheet-import` at `f63229db29b9e5ba4c385aea040459f4637c5346` is pushed. Not merged; production is still `3ce4833`.
+- **Writes are off on Preview, on the server, failing closed.**
+  - Import and Undo writes are allowed only on `setlistr.ai`, `www.setlistr.ai` or a local host.
+  - Any `*.vercel.app` host, and `VERCEL_ENV=preview`, gets 403 before any authentication or database call.
+  - This doesn't rely on 0028 being absent.
+- **What Preview shows:** the import review checks real files against labelled sample records ("Sample record ·"). A notice on every step says importing is off; Import is disabled; Recent imports and results aren't available.
+- **Schedule reads on Preview:** they fall back to the pre-0028 columns. Writes never fall back.
+- **Off limits on Preview:** existing Schedule actions write to production. That means "+ Add a show", Edit, Cancel, Start / Start early and "Add a start time", plus every other app write (capture, review, submit, team). Run no write tests there.
+
+**Read-only production preflight.**
+- **Method:** the Supabase Management API query endpoint with `read_only: true`, which runs as the pre-existing `supabase_read_only_user`. Every query ran with `transaction_read_only = on`.
+- **No side effects found:** no role was created or refreshed, and no password was used.
+- **Target:** project `lelimetbogycrdnfxjok` ("Setlistr's Project", matching the app's Supabase URL).
+- **Material findings, and the SQL changes made for them:**
+  1. **Production constrains `shows.status`** (`shows_status_check`: scheduled, live, completed, cancelled; the disposable stack didn't). 0028 now extends exactly that check with `listed`, and stops on any other status check. The down migration restores the four-value check.
+  2. **Six tables reference `shows` in production**, not two: `capture_sessions` and `audio_captures` (SET NULL), and `show_artists` and `pro_reports` (CASCADE), alongside performances and setlists. Undo now checks every referencing table read from the catalogue each time. The rule lives in one function (`import_show_use_reason`), used by Undo and by the read-only result-page preview (`show_import_usage`), so the two can't disagree. A show referenced anywhere is kept ("linked to another record"). 0028 stops only on a multi-column reference.
+  3. **`performances.performance_date` is `date` in production** (it's `timestamptz` locally). Start's use of `local_date` is compatible.
+  4. **No other differences:**
+     - the four replaced functions and the patch RPC match the tested bodies exactly (md5);
+     - `can_write_for` and `can_act_for` match;
+     - no name collisions; triggers as expected, none calling out;
+     - no `listed` status in use;
+     - PostgreSQL 17.6, with every feature 0028 uses.
+- **Also added after review:** `start_scheduled_show` refuses a date-only booking with `SHOW_NEEDS_START_TIME`, so a start time is always required, including from old tabs and direct calls.
+
+**Final 0028:** md5 `202b7bab110565987a9fc07fa32bddcf`. All the results below are for this file, on a disposable stack made production-like (the same four-value status check added first):
+- SQL suite 72/72; races 8/8;
+- round trip exact (down restores the production-like schema; up again);
+- down refuses with imported rows present and changes nothing;
+- import end-to-end 76/0; date-only → add a start time → start capture 8/0; Schedule end-to-end 49/0;
+- Preview mode without 0028 17/0, and Schedule end-to-end without 0028 49/0 (feature build).
+
+**Compatibility.**
+- **The deployed app (`3ce4833`) with 0028 applied:** Schedule end-to-end passes 49/0. It reads no new column and writes no import field.
+- **The deployed app with imported records present** (app-only rollback, or old tabs after release): no errors. Listings and date-only bookings appear under "Date not recorded" as "Scheduled in Setlistr". The date-only booking isn't treated as upcoming. The Dashboard counts it in "N past shows still marked scheduled".
+- **Old tabs:** they can't start a date-only booking (the database refuses). Their edit form would prefill such a booking with no usable date; the owner must type the date and time. Reloading fixes all of this.
+- **The new app before 0028** (Preview, or a mistaken order): Schedule works through the read fallback; import refuses.
+
+**Permission and races (two real sessions each):**
+- **Start, edit or cancel commits first:** Undo waits on the row lock and then keeps the show (capture linked / edited / cancelled).
+- **Undo commits first:** start, edit or cancel finds no show. No orphan capture and nothing recreated.
+- **Revoked teammate:** a teammate whose access is revoked after the import can neither Undo nor import. Permission is checked when the function runs.
+
+**Rollback with imported records present.**
+- **App only (recommended):** revert the merge. 0028 stays; it's additive and inert for the old app. Imported rows remain and are shown as above. Nothing is lost.
+- **Schema removal:** the down migration refuses while any imported row exists (tested; atomic, no change). To remove the schema:
+  1. Undo each import, which removes untouched rows.
+  2. Decide each kept row (used since import) explicitly. A date-only booking needs a time or a cancellation; a listing needs deleting or keeping the schema.
+  3. Run down.
+
+  No script deletes used rows automatically.
+
 ## Implementation (local, disposable stack)
 
 **Usability and correctness corrections, as built:**
@@ -345,12 +400,12 @@ Everything else is the app's own code in a scratch build:
 
 ## 10. Release order (corrected: integrated testing before production SQL)
 
-1. **Done, locally:** the UI-defect candidate `5104622`, and the implementation `2fd90a8` on top of it.
-2. **Done, on the disposable stack:** 0028, the integrated app tests and the Schedule regression (all results above).
-3. **Next, with approval:** review `feature/spreadsheet-import`, then push it for a Vercel Preview. Preview reads production data, so no writes there. It shows the UI only: imports can't work until 0028 exists in production.
-4. **Read-only production preflight** (`0028_show_imports.preflight.sql`), compared with the disposable stack's results.
-5. **Production 0028, on its own go-ahead.** It's additive and inert until the app uses it; the down migration has been verified.
-6. **Release the UI-defect candidate, then the import feature, each on its own go-ahead,** with one deployment check and a read-only device check.
+1. **Done:**
+   - the UI-defect candidate `5104622` and the implementation, pushed as `feature/spreadsheet-import` `f63229d` (Preview: UI review only, writes off);
+   - 0028 and the integrated app tests on the disposable stack;
+   - the read-only production preflight; 0028 has been updated for its findings and re-tested.
+2. **Next, on approval:** apply the final 0028 (`202b7bab…`) to production. It's additive and inert until the import feature is released.
+3. **Then:** release the UI-defect candidate, then the import feature, each on its own go-ahead, with one deployment check and a read-only device check.
 
 ## Remaining questions
 
