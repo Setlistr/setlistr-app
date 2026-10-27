@@ -27,6 +27,10 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 const APP_URL = process.env.TEST_APP_URL || 'http://127.0.0.1:3000'
+// Local mail catcher's Mailpit API (`supabase start` default). Acceptance
+// needs a fresh 6-digit code from the recipient's inbox, which Supabase Auth
+// must send with a code-only magic-link template ({{ .Token }}).
+const MAIL_API = process.env.TEST_MAIL_API || 'http://127.0.0.1:54324/api/v1'
 
 function isLocalhost(url: string) {
   try {
@@ -37,7 +41,7 @@ function isLocalhost(url: string) {
   }
 }
 
-if (!isLocalhost(SUPABASE_URL) || !isLocalhost(APP_URL)) {
+if (!isLocalhost(SUPABASE_URL) || !isLocalhost(APP_URL) || !isLocalhost(MAIL_API)) {
   console.error(`REFUSING TO RUN: this harness only targets localhost.`)
   console.error(`  NEXT_PUBLIC_SUPABASE_URL=${SUPABASE_URL || '(unset)'}`)
   console.error(`  APP_URL=${APP_URL}`)
@@ -91,9 +95,9 @@ async function createPersona(label: string, emailOverride?: string): Promise<Per
   }, { onConflict: 'id' })
   if (profErr) throw new Error(`profile insert failed for ${label}: ${profErr.message}`)
 
-  // Admitted (beta_invites row): POST /api/team/accept enforces Setlistr
-  // admission, so every persona here is admitted — this suite tests WHO may
-  // invite/accept/revoke, not admission (see test-team-lifecycle.ts for that).
+  // Admitted (beta_invites row): this suite tests WHO may invite/accept/
+  // revoke, not admission (see test-team-lifecycle.ts for that). Owners need
+  // full admission to invite into their own workspace.
   const { error: betaErr } = await service.from('beta_invites').insert({ email, invited_role: 'artist', added_by: 'test-invite-http-integration' })
   if (betaErr) throw new Error(`beta_invites insert failed for ${label}: ${betaErr.message}`)
   createdBetaEmails.push(email)
@@ -143,14 +147,46 @@ async function callInvite(caller: Persona, body: Record<string, unknown>) {
   return { status: res.status, json }
 }
 
-async function callAccept(caller: Persona, token: string) {
-  const res = await fetch(`${APP_URL}/api/team/accept`, {
+async function postJson(caller: Persona, path: string, body: unknown) {
+  const res = await fetch(`${APP_URL}${path}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...(caller.cookieHeader() ? { Cookie: caller.cookieHeader() } : {}) },
-    body: JSON.stringify({ token }),
+    body: JSON.stringify(body),
   })
   const json = await res.json().catch(() => ({}))
   return { status: res.status, json }
+}
+
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
+async function latestCode(email: string, since: number): Promise<string | null> {
+  for (let i = 0; i < 30; i++) {
+    const res = await fetch(`${MAIL_API}/search?query=${encodeURIComponent(`to:${email}`)}`)
+    const json = await res.json() as { messages?: { ID: string; Created: string }[] }
+    const fresh = (json.messages || []).filter(m => new Date(m.Created).getTime() >= since)
+    if (fresh.length) {
+      const msg = await (await fetch(`${MAIL_API}/message/${fresh[0].ID}`)).json() as { Text?: string }
+      const m = (msg.Text || '').match(/\b(\d{6})\b/)
+      if (m) return m[1]
+    }
+    await sleep(300)
+  }
+  return null
+}
+
+// Acceptance as the accept screen does it: a code to the caller's own inbox,
+// then accept with it. Refusals before the code step come back exactly as
+// the accept route reports them. Codes are never printed.
+async function callAccept(caller: Persona, token: string) {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const since = Date.now() - 1000
+    const sent = await postJson(caller, '/api/team/accept/code', { token })
+    if (sent.status === 429 && sent.json.code === 'too_soon') { await sleep(61_000); continue }
+    if (sent.status !== 200 || !sent.json.sent) return postJson(caller, '/api/team/accept', { token })
+    const code = await latestCode(caller.email, since)
+    if (!code) throw new Error(`no code email for ${caller.label}`)
+    return postJson(caller, '/api/team/accept', { token, code })
+  }
+  throw new Error(`code throttle did not clear for ${caller.label}`)
 }
 
 async function callRevoke(caller: Persona, rowId: string, artistId: string) {
@@ -374,16 +410,13 @@ async function main() {
     check('row completely unchanged after denied accept', rowsEqual(before, after), `before=${JSON.stringify(before)} after=${JSON.stringify(after)}`)
 
     // placeholderToken (from section 16) was already accepted by the
-    // rightful recipient. The route short-circuits an already-accepted
-    // token to an idempotent { success: true, already_accepted: true }
-    // before checking caller identity — by design, since there's nothing
-    // left to authorize. The security property that actually matters here
-    // is that this idempotent path can't be used to rebind: the row must
-    // still belong to whoever legitimately accepted it, never to whoever
-    // replays the token afterward.
+    // rightful recipient. Identity is checked before "already accepted":
+    // only the bound account is told it's accepted; anyone else replaying
+    // the token is told it was sent to a different account (this used to
+    // report a false success). Either way the row must not change.
     const beforeReplay = await getRowById(placeholderRowId)
     const wrongAccept2 = await callAccept(wrongRecipient, placeholderToken)
-    check('replaying an already-accepted token is a no-op (idempotent, not an error)', wrongAccept2.status === 200 && wrongAccept2.json.already_accepted === true, JSON.stringify(wrongAccept2.json))
+    check('replaying someone else\'s accepted token -> 403 different account (never "accepted")', wrongAccept2.status === 403 && !wrongAccept2.json.already_accepted, JSON.stringify(wrongAccept2.json))
     const afterReplay = await getRowById(placeholderRowId)
     check('row completely unchanged after replaying an already-accepted token', rowsEqual(beforeReplay, afterReplay), `before=${JSON.stringify(beforeReplay)} after=${JSON.stringify(afterReplay)}`)
   }

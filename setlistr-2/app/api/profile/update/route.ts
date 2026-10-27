@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { handleProfileUpdate, type ProfileUpdateSupabaseClient } from '@/lib/profileUpdateHandler'
+import { checkBetaAdmission } from '@/lib/betaAdmission'
 
 // ─── Session-bound profile writes ──────────────────────────────────────────
 // Hotfix for a proven cross-account corruption class: a Settings/Onboarding
@@ -48,6 +49,24 @@ export async function POST(req: NextRequest) {
   }
 
   const supabase = await createServerSupabaseClient()
+
+  // Setting up an artist identity (a non-empty artist_name) requires full
+  // Setlistr admission, checked explicitly and live: an artist name is not
+  // authorization by itself, and a workspace-only team member must not be
+  // able to create an artist workspace of their own. Clearing the field, and
+  // every other field, is unaffected; existing identities are never erased.
+  const fields = (body as { fields?: Record<string, unknown> } | null)?.fields
+  if (fields && typeof fields === 'object' && typeof fields.artist_name === 'string' && fields.artist_name.trim()) {
+    const { data: { user } } = await supabase.auth.getUser()
+    const admission = user ? await checkBetaAdmission(supabase, user.email) : 'not_admitted'
+    if (admission === 'error') {
+      return NextResponse.json({ error: 'Could not verify your Setlistr access right now — try again.' }, { status: 503 })
+    }
+    if (admission !== 'admitted') {
+      return NextResponse.json({ error: 'Setlistr approval is required to set up an artist profile.', code: 'admission_required' }, { status: 403 })
+    }
+  }
+
   // The real Supabase client's generic surface is far wider (and its
   // types far deeper) than the narrow shape handleProfileUpdate actually
   // calls — checking structural assignability against it directly blows

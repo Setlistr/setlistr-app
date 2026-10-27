@@ -4,6 +4,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { escapeHtml } from '@/lib/escapeHtml'
 import { getBaseUrl } from '@/lib/baseUrl'
 import { reopenRevokedDelegation } from '@/lib/reopenRevokedDelegation'
+import { checkBetaAdmission } from '@/lib/betaAdmission'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -85,6 +86,18 @@ export async function POST(req: NextRequest) {
     const authSupabase = await createServerSupabaseClient()
     const { data: { user } } = await authSupabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+    // Asking to manage another artist requires full Setlistr admission,
+    // checked live — a workspace-only team member (admitted only to the
+    // workspace they were invited into) can't use requests to reach other
+    // artists. Same rule and session client as middleware; fails closed.
+    const admission = await checkBetaAdmission(authSupabase, user.email)
+    if (admission === 'error') {
+      return NextResponse.json({ error: 'Could not verify your Setlistr access right now — try again.' }, { status: 503 })
+    }
+    if (admission !== 'admitted') {
+      return NextResponse.json({ error: 'Setlistr approval is required to request access to an artist.', code: 'admission_required' }, { status: 403 })
+    }
 
     const { artist_email } = await req.json()
     const email = typeof artist_email === 'string' ? artist_email.trim().toLowerCase() : ''
