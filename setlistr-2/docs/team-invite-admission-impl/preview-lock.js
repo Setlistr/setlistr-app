@@ -27,7 +27,7 @@ const MP = 'http://127.0.0.1:54625/api/v1'
   const z = await login(email, PW); const tok = SQL(`select invite_token from artist_delegates where invited_email = '${email}'`)
   await z.pg.goto(`${BASE}/app/accept-invite?token=${tok}`)
   const code = await z.post('/api/team/accept/code', { token: tok })
-  const acc = await z.post('/api/team/accept', { token: tok, code: '123456' })
+  const acc = await z.post('/api/team/accept', { token: tok, code: '12345678' })
   const out = {
     'new invite': `${inv.s} ${inv.j.code}`, 'resend existing': `${res.s} ${res.j.code}`, 'send code': `${code.s} ${code.j.code}`, 'accept with code': `${acc.s} ${acc.j.code}`,
     'emails sent': (await mails()) - m0, 'existing invite unchanged (token, invited_at, pending)': SQL(`select invite_token || invited_at from artist_delegates where invited_email = '${email}' and accepted_at is null`) === before,

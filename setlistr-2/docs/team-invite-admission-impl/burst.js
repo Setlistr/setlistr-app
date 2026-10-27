@@ -19,7 +19,7 @@ const admin = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_RO
   await admin.auth.admin.createUser({ email, password: PW, email_confirm: true })
   const z = await login(email, PW); const tok = SQL(`select invite_token from artist_delegates where invited_email = '${email}'`)
   await z.pg.goto(`${BASE}/app/accept-invite?token=${tok}`)
-  const res = await Promise.all(Array.from({ length: Number(N) }, () => z.ctx.request.post(BASE + '/api/team/accept', { data: { token: tok, code: '000001' }, failOnStatusCode: false }).then(r => r.json())))
+  const res = await Promise.all(Array.from({ length: Number(N) }, () => z.ctx.request.post(BASE + '/api/team/accept', { data: { token: tok, code: '00000001' }, failOnStatusCode: false }).then(r => r.json())))
   const g = {}; for (const r of res) g[r.error] = (g[r.error] || 0) + 1
   console.log(JSON.stringify(g, null, 1))
   await b.close()

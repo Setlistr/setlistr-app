@@ -1,0 +1,6 @@
+{
+ "1. one account, 11 sequential wrong codes": "bad_code,bad_code,bad_code,bad_code,bad_code,bad_code,bad_code,bad_code,bad_code,bad_code,too_many_attempts",
+ "3. legitimate correct code right after (shared bucket empty)": "429 too_many_attempts \"Too many attempts. Wait a few minutes and try again.\"",
+ "4. same code retried": "200 accepted after 12s",
+ "   accepted in DB": "t"
+}

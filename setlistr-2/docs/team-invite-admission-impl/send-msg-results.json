@@ -1,0 +1,5 @@
+{
+ "first send": "200 sent",
+ "same person again within 60 s": "429 too_soon: \"Wait a minute before asking for another code.\"",
+ "another person, right after the shared allowance is used up": "429 send_limited: \"We can’t send more codes right now. Try again in a few minutes.\""
+}

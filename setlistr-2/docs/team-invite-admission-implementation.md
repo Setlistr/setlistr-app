@@ -11,14 +11,14 @@ Branch `feature/team-invite-admission`, from production `577dd3d`. Implements th
 
 | Area | Change |
 |---|---|
-| `POST /api/team/accept/code` (new) | Emails a 6-digit code to the signed-in account's **own** address. It sends only when that address is the invite's address and the invite is pending, unexpired and addressed to this account. `shouldCreateUser: false`. |
+| `POST /api/team/accept/code` (new) | Emails a one-time code to the signed-in account's **own** address. Production issues **8 digits** (`INVITE_CODE_LENGTH` in `lib/teamInviteExpiry.ts`, which must match Supabase's Email OTP length). It sends only when that address is the invite's address and the invite is pending, unexpired and addressed to this account. `shouldCreateUser: false`. |
 | `POST /api/team/accept` | Order of checks: (1) identity; (2) accepted by this caller → success with no code; (3) expired; (4) the code is verified by Supabase Auth for the session email and must return the caller's own account; (5) one guarded write. **The beta-approval precondition is removed.** |
 | `GET /api/team/accept` | Adds `expired`, `email_mismatch`, and the masked address (recipient only). |
 | `POST /api/team/invite` | Resending rotates the token and sets `invited_at = now()` (the old link stops working). Inviting into **one's own** workspace now also needs full admission. |
 | `POST /api/team/request` | Requires full admission. |
 | `POST /api/profile/update` | Setting a non-empty `artist_name` requires full admission. Other fields, and clearing it, are unchanged. |
 | `middleware.ts`, `lib/teamAdmission.ts` | Any signed-in user may open `/app/accept-invite`. An accepted, unrevoked membership gives a **live, uncached, fail-closed** workspace-only state with a page allowlist. Anything else goes to `/app/manager`; `/beta` and `/` go to the app. An older pending-invite cookie still resumes the accept page once. |
-| Accept screen | One "Confirm it's you" step: Send code → code field → Accept. Code errors appear inline. Separate screens for "Invitation expired" and "Different email address". |
+| Accept screen | One "Confirm it's you" step ("We'll email an 8-digit code to j•••@domain"): Send code → 8-digit field → Accept. Code errors appear inline. Separate screens for "Invitation expired" and "Different email address". |
 | Team page | A pending invite older than 14 days reads **Expired**; Resend reloads the list, so Copy Link gives the new link. |
 | Preview lock | On Preview deployments, which run against production data, invite/resend, code emails and acceptance writes all return 403 `preview_disabled`. It fails closed by host, like spreadsheet import. |
 | `scripts/test-team-lifecycle.ts`, `scripts/test-invite-http-integration.ts` | Updated to the inbox-code flow, reading codes from the local mail catcher. |
@@ -48,42 +48,107 @@ Branch `feature/team-invite-admission`, from production `577dd3d`. Implements th
    - Existing artist names are never cleared.
    - Independently authorized access is untouched: assigned roles, a team-only manager inviting into the managed artist's workspace, and existing members' accepted memberships whatever their age.
 
-## Test results (disposable stack, production code plus this branch)
+## Test results (disposable stack, production code plus this branch, **8-digit codes as in production**)
+
+The disposable auth server was reconfigured to production's code length (`GOTRUE_MAILER_OTP_LENGTH=8`) and 3600 s expiry.
 
 | Suite | Result |
 |---|---|
-| `invite-accept.js`: inbox code, sessions, repeat acceptance, allowlist, full-admission actions, no exemptions, identity before "accepted", expiry and resend, races, attempt bounds, revocation, screens, logs | **65/65** |
-| `burst.js`: 15 concurrent wrong codes on a fresh account | **10 checked, 5 refused** by the app's limit |
+| `invite-accept.js`: inbox code (including a 6-digit code refused before an attempt is counted), sessions, repeat acceptance, allowlist, full-admission actions, no exemptions, identity before "accepted", expiry and resend, races, attempt bounds, revocation, screens, logs | **66/66** |
+| `race-timing.js`: resend, revoke and expiry each committed while an accept waited on the row lock | refused (410 superseded / 404 / 410 expired); nothing accepted |
+| `burst.js`: 15 concurrent wrong codes on fresh accounts (several runs) | 4–10 checked, never more than 10 |
 | `preview-lock.js`: the same build with the Preview lock on | invite, resend, code and accept all 403; **0 emails**; no row changed |
-| `scripts/test-team-lifecycle.ts`, updated | **127 passed, 0 failed** |
-| `scripts/test-invite-http-integration.ts`, updated | **47 passed, 0 failed** (one expectation changed: a replayed accepted token now gets 403, not a false "accepted") |
+| `scripts/test-team-lifecycle.ts` | **127 passed, 0 failed** |
+| `scripts/test-invite-http-integration.ts` | **47 passed, 0 failed** |
 | `scripts/test-team-route-revocation-parity.ts` | **61 passed, 0 failed** |
 | `npx tsc --noEmit` | passes |
 
-In the full `invite-accept.js` run, 3 of the burst's refusals came from Supabase Auth's own **per-IP verification limit** (disposable config: 30). Every check comes from the app server's IP, which is why production's limit matters (see below).
+**Correction to the earlier record:** some refusals in the concurrent burst were attributed to Supabase's per-IP verification limit. That was wrong: the disposable auth server had no per-IP limiting then, and every refusal came from the app's own limit. Under a simultaneous burst, insert-then-count can refuse **more** than strictly necessary, never fewer: at most 10 are checked. Sequentially the bound is exact; the 11th is refused.
 
-Screens (390 px):
+**Test-environment notes:**
+- **Mac sleep and Docker clock drift:** the Mac's idle sleep paused the Docker VM (a 341 s gap was measured) and left its clock about 29 s behind the host. Mail is therefore matched by message ID, not timestamp, and runs use `caffeinate`.
+- **Race-test lock:** it's held over a direct database connection instead of `docker exec`, which could stall.
+
+Screens (390 px, 8 digits):
 - `1-accept-before-code.jpg`
 - `2-code-sent.jpg`
-- `3-wrong-code.jpg` (shows a deliberately wrong code)
+- `3-wrong-code.jpg` (a deliberately wrong code)
 - `4-accepted.jpg`
 - `5-expired.jpg`
 - `6-team-expired.jpg`
+- `7-proposed-template.jpg` (the proposed email; the code is masked)
 
-## Email-configuration dependency (release blocker until confirmed)
+## Production email configuration (read-only, 2026-10-27)
 
-Acceptance now depends on Supabase Auth's **Magic Link** email reaching the invitee **as a code**. **Nothing was inspected or changed in production.** Reading the production auth/SMTP configuration needs the Management API's auth-config endpoint, which also returns credentials, and no existing approval covers it. **Unknown, to confirm read-only in the Supabase dashboard:**
+Read with one `GET /v1/projects/{ref}/config/auth`, authorized by the owner. It doesn't change settings, send email or touch database roles. Only the non-secret settings below were extracted; the response was neither printed nor stored.
 
-1. **Magic Link template:** does it contain `{{ .Token }}`, and is it code-only? Supabase's default has only a link, and **with the default nobody could accept an invitation.** If it needs changing, that's a template change needing approval.
-2. **SMTP:** custom SMTP on or off; host and sender (not credentials). The built-in sender is for testing only and may not reach real invitees.
-3. **Rate limits:**
-   - emails per hour;
-   - OTP sends;
-   - **token verifications per IP.** All code checks come from Vercel's server IPs.
-4. **Email provider:** OTP expiry (600 s recommended) and length (6; the app expects 6 digits). "Confirm email" is off and should stay off.
-5. **SPF and DKIM** for the sender domain, if custom SMTP is used.
+| Setting | Production | Consequence |
+|---|---|---|
+| Magic Link template | Subject "Your Magic Link", **link only, no `{{ .Token }}`** | **Release blocker.** Needs the code-only template below (approval required). |
+| Email OTP length | **8** | The candidate uses 8 (`INVITE_CODE_LENGTH`) |
+| Email OTP expiry | 3600 s | Works. The same setting governs recovery links, so leave it alone. |
+| SMTP | Custom: `smtp.resend.com:465`, `noreply@setlistr.ai` ("Setlistr"); credentials set | Resend production sender. Public DNS: Resend DKIM (`resend._domainkey`), SPF on `send.setlistr.ai`, DMARC `p=none`. |
+| Send-email hook | off | Mail goes via SMTP |
+| Limits | emails 30/hour (project-wide); OTP requests 30; verifications 30; resend gap 60 s | see "Shared limits" |
+| Confirm email | off (auto-confirm) | unchanged |
+| Captcha | off | if turned on later, server-side code sends would need a captcha token |
 
-If Supabase delivery is insufficient, the alternative (still unapproved, not built) is `generateLink` plus Resend, as described in the validation doc §4.
+**Current users of the Magic Link template:**
+- **Nothing in the app sends it.** On `main` there's no `signInWithOtp` or `generateLink`.
+- Password reset uses the Recovery template. Signup sends nothing (auto-confirm), and nothing sends email-change or invite emails.
+- `/auth/confirm` still accepts `type=magiclink` links; with a code-only template that branch is simply unused.
+- **Only other possible sender:** a manual "Send magic link" from the Supabase dashboard. That would deliver a code with nowhere to enter it.
+- Past sends weren't checked, because that needs a database query, which was ruled out.
+
+## Shared limits (disposable stack set to production's values, plus per-IP limiting)
+
+Supabase limits per IP only when a rate-limit header is configured. Hosted Supabase does key on the caller's address. The disposable stack was set up the same way (`GOTRUE_RATE_LIMIT_HEADER=X-Forwarded-For`); the app server reaches it from one address, as Vercel does.
+
+| Test | Result |
+|---|---|
+| 35 direct verifications from one address | 30 checked, then 429. A forged forwarding header did not get a fresh allowance. About 1 more allowed per 10 s (a token bucket: burst 30, refilling over 5 minutes). |
+| One account, 11 wrong codes in a row, through the app | 10 checked, the 11th refused by the app (exact) |
+| Two accounts use 20 checks, then a third account uses 10, then a real recipient submits a correct code | 429, "Too many attempts. Wait a few minutes." **The code stays valid:** the same code was accepted 12 s later. |
+| Code sends past the shared per-IP allowance (`over_request_rate_limit`) | the app now says "We can't send more codes right now. Try again in a few minutes." The 60-second per-address throttle still says "Wait a minute". |
+
+**Not established, so not assumed sufficient:**
+- **Vercel's outbound addresses:** whether all of the app's server calls share one address, or many, and whether that varies by region or invocation. One shared address is the worst case tested above.
+- **Exact production behaviour:** which header hosted Supabase keys on, and the exact refill behaviour, weren't observed in production. They were inferred from the same Supabase Auth release on the disposable stack.
+- **Abuse of the shared verification allowance:** three or more accounts entering wrong codes (each capped at 10 per hour by the app) can use up the server's 30 checks. That delays every acceptance by a few minutes and grants nothing. At current invite volume this is low risk, but it isn't prevented.
+- **Shared email budget:** the 30 emails per hour is project-wide and shared with password-reset emails. Code sends are capped at 5 per account per hour, so a handful of accounts could use the hour's budget and delay password resets.
+
+## Proposed Magic Link template (not applied; needs approval)
+
+**Subject:** `Your Setlistr code`
+
+**Body:** `magic-link-template.html` in this folder:
+- code-only, with `{{ .Token }}` and **no link** of any kind;
+- the invite email's styling and logo image.
+
+On the disposable stack, Supabase Auth delivered it with an 8-digit code, no `<a>`/`href`, and no confirmation URL.
+
+**Change, once approved:** Supabase dashboard → Authentication → Email Templates → **Magic Link**. Paste the subject and body, and change nothing else. Then do a read-only check that the template contains `{{ .Token }}` and has no link.
+
+**Rollback:** paste back the current template. It's link-only, subject "Your Magic Link" (105 characters); copy it from the dashboard before changing it.
+
+## One controlled delivery test (plan; not done)
+
+**Preconditions:**
+- The template change above is approved and applied.
+- Nobody is capturing.
+- The address is one the owner controls and that already has a Setlistr account (`shouldCreateUser: false` never creates one).
+
+**Steps:**
+1. **Send one code.** Make one `signInWithOtp({ email, options: { shouldCreateUser: false } })` call with the production URL and anon key, from a local one-off script. It sends exactly one email, logs no code, and touches no invitation.
+2. **Owner checks the inbox:**
+   - it arrives within about a minute, not in spam;
+   - from "Setlistr <noreply@setlistr.ai>", subject "Your Setlistr code";
+   - one 8-digit code and no link;
+   - Gmail → Show original → SPF, DKIM and DMARC all **PASS**.
+3. **Don't enter the code anywhere.** It expires unused after 1 hour. Entering it would sign that address in.
+4. **Record the result.** If it fails, revert the template; no other setting is involved.
+
+**Cost:** one email out of the project's 30 per hour; one OTP request from one IP. **What it doesn't test:** acceptance itself, which needs the invitation feature released. That remains the post-release check.
 
 ## Preview review
 

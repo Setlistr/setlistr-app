@@ -12,10 +12,16 @@ if (!/^http:\/\/127\.0\.0\.1:54621/.test(env.NEXT_PUBLIC_SUPABASE_URL)) { consol
 const PSQL = 'docker exec -i supabase_db_setlistr-catalog-disposable psql -U postgres -At -v ON_ERROR_STOP=1'
 const SQL = q => execSync(PSQL, { input: q }).toString().trim()
 const MP = 'http://127.0.0.1:54625/api/v1'
+// Every mail-catcher request is bounded, so a stalled response can't hang the run.
+const mpGet = async u => { try { return await (await fetch(u, { signal: AbortSignal.timeout(5000) })).json() } catch { return {} } }
 const admin = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } })
 const sleep = ms => new Promise(r => setTimeout(r, ms))
 const rows = []; const row = (sec, test, got, expect, ok) => { rows.push({ sec, test, got: String(got), expect: String(expect), ok: !!ok }); console.log(ok ? '  ok  ' : '  FAIL', test, '→', got) }
 const secrets = new Set() // every token and code used, to check the server log never contains them
+// Local Docker sometimes stalls for tens of seconds (seen with docker exec and docker info), so a
+// navigation that times out is retried once and counted; one that stalls twice still fails the run.
+let navRetries = 0
+async function nav(pg, url, opts) { try { return await pg.goto(url, opts) } catch (e) { if (!/Timeout/.test(e.message)) throw e; navRetries++; return await pg.goto(url, opts) } }
 const T0 = Date.now().toString(36), PW = 'Pw-inv-Aa1x9-cand'
 const LENA = SQL(`select id from auth.users where email = 'pp-imp@example.test'`)
 const OTHER = SQL(`select id from profiles where artist_name = 'Harbour Front'`)
@@ -29,35 +35,41 @@ async function account(label, { admitted = false } = {}) {
 }
 async function session(b, email, pw = PW, viewport) {
   const ctx = await b.newContext(viewport ? { viewport, deviceScaleFactor: 2 } : {}); const pg = await ctx.newPage()
-  await pg.goto(BASE + '/auth/login'); await pg.fill('#auth-email', email); await pg.fill('#auth-password', pw); await pg.press('#auth-password', 'Enter')
+  await nav(pg, BASE + '/auth/login'); await pg.fill('#auth-email', email); await pg.fill('#auth-password', pw); await pg.press('#auth-password', 'Enter')
   await pg.waitForURL(u => !u.pathname.startsWith('/auth'), { timeout: 60000 })
   const api = async (method, p, data) => { const r = await ctx.request.fetch(BASE + p, { method, data, failOnStatusCode: false }); let j = null; try { j = await r.json() } catch {} return { s: r.status(), j } }
-  return { ctx, pg, api, page: async p => { await pg.goto(BASE + p); await pg.waitForTimeout(700); return new URL(pg.url()).pathname } }
+  return { ctx, pg, api, page: async p => { await nav(pg, BASE + p, { waitUntil: 'domcontentloaded' }); await pg.waitForTimeout(1200); return new URL(pg.url()).pathname } }
 }
 // A second, independent "device": its own password sign-in, never touching the browser.
 async function device(email) { const sb = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_ANON_KEY, { auth: { persistSession: false, autoRefreshToken: false } }); const { data, error } = await sb.auth.signInWithPassword({ email, password: PW }); if (error) throw error; return { sb, refresh: data.session.refresh_token } }
-async function mailCode(to, after) {
-  for (let i = 0; i < 30; i++) {
-    const m = await (await fetch(`${MP}/search?query=to:${encodeURIComponent(to)}`)).json()
-    const fresh = (m.messages || []).filter(x => new Date(x.Created).getTime() >= after)
-    if (fresh.length) { const full = await (await fetch(`${MP}/message/${fresh[0].ID}`)).json(); const c = ((full.Text || '').match(/\b(\d{6})\b/) || [])[1]; if (c) secrets.add(c); return { code: c, count: fresh.length } }
+// New mail is found by ID, not by timestamp: the Docker VM's clock can drift from the host's.
+async function mailIds(to) { return new Set(((await mpGet(`${MP}/messages?limit=200`)).messages || []).filter(x => x.To?.some(t => t.Address.toLowerCase() === to.toLowerCase())).map(x => x.ID)) }
+async function mailCode(to, seen) {
+  for (let i = 0; i < 60; i++) {
+    const m = await mpGet(`${MP}/messages?limit=200`)
+    const fresh = (m.messages || []).filter(x => !(seen || new Set()).has(x.ID) && x.To?.some(t => t.Address.toLowerCase() === to.toLowerCase()))
+    if (fresh.length) { const full = await mpGet(`${MP}/message/${fresh[0].ID}`); const c = ((full.Text || '').match(/\b(\d{8})\b/) || [])[1]; if (c) secrets.add(c); return { code: c, count: fresh.length } }
     await sleep(300)
   }
   return { code: null, count: 0 }
 }
-const mailCount = async to => ((await (await fetch(`${MP}/search?query=to:${encodeURIComponent(to)}`)).json()).messages || []).length
+const mailCount = async to => ((await mpGet(`${MP}/search?query=to:${encodeURIComponent(to)}`)).messages || []).length
 const tokFor = e => { const t = SQL(`select invite_token from artist_delegates where invited_email = '${e}' and artist_id = '${LENA}'`); if (t) secrets.add(t); return t }
 const rowFor = e => SQL(`select coalesce(delegate_id::text,'null') || '|' || (accepted_at is not null) || '|' || (revoked_at is not null) from artist_delegates where invited_email = '${e}' and artist_id = '${LENA}'`)
 const sessionsOf = id => Number(SQL(`select count(*) from auth.sessions where user_id = '${id}'`))
-const wrongCode = c => String((Number(c) + 1) % 1000000).padStart(6, '0')
+const wrongCode = c => String((Number(c) + 1) % 100000000).padStart(8, '0')
 // Opens the accept page first, as the real flow does (the /app layout also ensures the profile row,
 // which the disposable stack's auth schema has no signup trigger for).
-async function codeFor(s, who, token) { await s.page(`/app/accept-invite?token=${token}`); const t = Date.now() - 1000; const r = await s.api('POST', '/api/team/accept/code', { token }); const m = await mailCode(who.email, t); return { r, code: m.code } }
+async function codeFor(s, who, token) { await s.page(`/app/accept-invite?token=${token}`); const seen = await mailIds(who.email); const r = await s.api('POST', '/api/team/accept/code', { token }); const m = await mailCode(who.email, seen); return { r, code: m.code } }
 // Holds a row lock while changing the row, so an accept already past its read
 // blocks on the guarded UPDATE and must re-evaluate it after this commits.
-function lockedChange(setClause, id, holdSec = 3) {
-  const p = spawn('sh', ['-c', `${PSQL}`]); p.stdin.end(`begin; update artist_delegates set ${setClause} where id = '${id}'; select pg_sleep(${holdSec}); commit;`)
-  return new Promise(r => p.on('close', r))
+// Direct connection to the disposable database (not docker exec, which can stall under load).
+const { Client: PgClient } = require('/private/tmp/claude-501/-Users-jesseslack/5f62ecc6-cca6-4bad-a244-5d37e786fd65/scratchpad/pgmod/node_modules/pg')
+async function lockedChange(setClause, id, holdSec = 3) {
+  const c = new PgClient({ connectionString: 'postgresql://postgres:postgres@127.0.0.1:54622/postgres' }); await c.connect()
+  await c.query('begin'); await c.query(`update artist_delegates set ${setClause} where id = $1`, [id])
+  // Wrapped, so awaiting lockedChange waits only until the lock is held, not for its release.
+  return { done: (async () => { await sleep(holdSec * 1000); await c.query('commit'); await c.end() })() }
 }
 
 ;(async () => {
@@ -79,6 +91,9 @@ function lockedChange(setClause, id, holdSec = 3) {
   row(1, 'GET shows masked address to the recipient', `${g.s} ${g.j?.recipient_email}`, 'r•••@example.test', g.j?.recipient_email === 'r•••@example.test' && g.j?.is_intended_recipient)
   const noCode = await r.api('POST', '/api/team/accept', { token: TOK })
   row(1, 'accept without a code', `${noCode.s} ${noCode.j?.code}; row ${rowFor(rEmail)}`, '400 code_required; still pending', noCode.s === 400 && noCode.j?.code === 'code_required' && rowFor(rEmail) === 'null|false|false')
+  const six = await r.api('POST', '/api/team/accept', { token: TOK, code: '123456' })
+  const sixAttempts = SQL(`select count(*) from product_events where user_id = '${R.id}' and event_name = 'team_invite_code_checked'`)
+  row(1, 'a 6-digit code (production issues 8)', `${six.s} ${six.j?.code}; attempts counted=${sixAttempts}`, '400 code_required; 0 counted', six.s === 400 && six.j?.code === 'code_required' && sixAttempts === '0')
   const devB = await device(R.email)
   const sessBefore = sessionsOf(R.id)
   const c1 = await codeFor(r, R, TOK)
@@ -168,7 +183,7 @@ function lockedChange(setClause, id, holdSec = 3) {
   row(6, 'GET 15-day-old invite', `${eg.s} expired=${eg.j?.expired}`, 'expired=true', eg.j?.expired === true)
   const ec = await e.api('POST', '/api/team/accept/code', { token: ET })
   row(6, 'code for expired invite', `${ec.s} ${ec.j?.code}; emails=${await mailCount(E.email)}`, '410 expired; none sent', ec.s === 410 && (await mailCount(E.email)) === 0)
-  const ea = await e.api('POST', '/api/team/accept', { token: ET, code: '123456' })
+  const ea = await e.api('POST', '/api/team/accept', { token: ET, code: '12345678' })
   row(6, 'accept expired', `${ea.s} ${ea.j?.error}`, '410 "…expired. Ask … to send it again."', ea.s === 410 && /expired\. Ask .* to send it again\./.test(ea.j?.error || ''))
   const dl = await owner.api('GET', `/api/team/delegates?artist_id=${LENA}`)
   row(6, 'owner Team data still lists it (UI marks Expired)', (dl.j?.outgoing || []).some(o => o.email === E.email), true, (dl.j?.outgoing || []).some(o => o.email === E.email))
@@ -194,7 +209,7 @@ function lockedChange(setClause, id, holdSec = 3) {
   ]) {
     const X = await account('race' + label.split(' ')[0]); await invite(X.email); const XT = tokFor(X.email); const xs = await session(b, X.email)
     const cx = await codeFor(xs, X, XT); const id = SQL(`select id from artist_delegates where invited_email = '${X.email}'`)
-    const lock = lockedChange(setClause, id, 5); await sleep(1500)
+    const lock = (await lockedChange(setClause, id, 2)).done; await sleep(300)
     const res = await xs.api('POST', '/api/team/accept', { token: XT, code: cx.code }); await lock
     row(7, `${label} commits while accept is in flight`, `${res.s} ${res.j?.code || res.j?.error || ''}; accepted=${SQL(`select accepted_at is not null from artist_delegates where id = '${id}'`)}`, 'refused; not accepted', want(res) && SQL(`select accepted_at is not null from artist_delegates where id = '${id}'`) === 'f')
   }
@@ -207,7 +222,7 @@ function lockedChange(setClause, id, holdSec = 3) {
   const Z = await account('bound'); await invite(Z.email); const ZT = tokFor(Z.email); const zs = await session(b, Z.email)
   const sends = []; for (let i = 0; i < 6; i++) sends.push(await zs.api('POST', '/api/team/accept/code', { token: ZT }))
   row(8, '6 code requests in a row', sends.map(s => `${s.s}${s.j?.code ? ':' + s.j.code : ''}`).join(', '), '200, then too_soon ×4, then too_many_codes', sends[0].s === 200 && sends.slice(1, 5).every(s => s.j?.code === 'too_soon') && sends[5].j?.code === 'too_many_codes')
-  const zc = (await mailCode(Z.email, 0)).code
+  const zc = (await mailCode(Z.email, null)).code
   const burst = await Promise.all(Array.from({ length: 15 }, () => zs.api('POST', '/api/team/accept', { token: ZT, code: wrongCode(zc) })))
   const n400 = burst.filter(x => x.j?.code === 'bad_code').length, n429 = burst.filter(x => x.j?.code === 'too_many_attempts').length
   row(8, '15 concurrent wrong codes', `${n400} checked, ${n429} refused`, 'at most 10 checked', n400 <= 10 && n400 + n429 === 15)
@@ -227,7 +242,7 @@ function lockedChange(setClause, id, holdSec = 3) {
   console.log('— 10. Screens')
   const U = await account('screen'); await invite(U.email, 'manager'); const UT = tokFor(U.email); const us = await session(b, U.email, PW, { width: 390, height: 844 })
   await us.page(`/app/accept-invite?token=${UT}`); await us.pg.waitForSelector('text=Confirm it’s you'); await us.pg.screenshot({ path: `${SHOTS}/1-accept-before-code.png`, fullPage: true })
-  const t1 = Date.now() - 1000; await us.pg.click('button:has-text("Send code")'); await us.pg.waitForSelector('input[autocomplete="one-time-code"]'); const uc = (await mailCode(U.email, t1)).code
+  const seen1 = await mailIds(U.email); await us.pg.click('button:has-text("Send code")'); await us.pg.waitForSelector('input[autocomplete="one-time-code"]'); const uc = (await mailCode(U.email, seen1)).code
   await us.pg.screenshot({ path: `${SHOTS}/2-code-sent.png`, fullPage: true })
   await us.pg.fill('input[autocomplete="one-time-code"]', wrongCode(uc)); await us.pg.click('button:has-text("Accept")'); await us.pg.waitForSelector('text=That code didn’t work'); await us.pg.screenshot({ path: `${SHOTS}/3-wrong-code.png`, fullPage: true })
   await us.pg.fill('input[autocomplete="one-time-code"]', uc); await us.pg.click('button:has-text("Accept")'); await us.pg.waitForSelector('text=You\'re in'); await us.pg.screenshot({ path: `${SHOTS}/4-accepted.png`, fullPage: true })
@@ -245,6 +260,6 @@ function lockedChange(setClause, id, holdSec = 3) {
   row(11, `server log contains none of the ${secrets.size} tokens/codes used`, `${leaked.length} found`, 0, leaked.length === 0)
 
   fs.writeFileSync(path.join(path.dirname(process.argv[1]), 'invite-accept-results.json'), JSON.stringify(rows, null, 1))
-  console.log(`\n${rows.filter(x => x.ok).length}/${rows.length} passed`)
+  console.log(`\n${rows.filter(x => x.ok).length}/${rows.length} passed (navigation retries after a local stall: ${navRetries})`)
   await b.close()
 })().catch(e => { console.error('ERROR', e.message); process.exit(1) })

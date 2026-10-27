@@ -22,6 +22,13 @@
  },
  {
   "sec": 1,
+  "test": "a 6-digit code (production issues 8)",
+  "got": "400 code_required; attempts counted=0",
+  "expect": "400 code_required; 0 counted",
+  "ok": true
+ },
+ {
+  "sec": 1,
   "test": "send code",
   "got": "200 sent=true to r•••@example.test; email arrived=true",
   "expect": "200, masked, arrives",
