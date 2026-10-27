@@ -57,6 +57,7 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js'
 import { createBrowserClient } from '@supabase/ssr'
 import { checkBetaAdmission } from '../lib/betaAdmission'
 import { ADMIN_EMAILS } from '../lib/admin-config'
+import { INVITE_CODE_LENGTH } from '../lib/teamInviteExpiry'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
@@ -165,16 +166,23 @@ const invite = (caller: Persona, artistId: string, email: string, role: string) 
   callApi(caller, 'POST', '/api/team/invite', { artist_id: artistId, delegate_email: email, role })
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
 
-// The newest 6-digit code emailed to `email` since `since` (ms), from the
-// local mail catcher. Never printed.
-async function latestCode(email: string, since: number): Promise<string | null> {
-  for (let i = 0; i < 30; i++) {
-    const res = await fetch(`${MAIL_API}/search?query=${encodeURIComponent(`to:${email}`)}`)
-    const json = await res.json() as { messages?: { ID: string; Created: string }[] }
-    const fresh = (json.messages || []).filter(m => new Date(m.Created).getTime() >= since)
+// IDs of messages already delivered to `email`, so a new code can be told
+// apart by ID rather than by timestamp (a container's clock can drift from
+// the host's).
+async function mailIds(email: string): Promise<Set<string>> {
+  const json = await (await fetch(`${MAIL_API}/messages?limit=200`)).json() as { messages?: { ID: string; To?: { Address: string }[] }[] }
+  return new Set((json.messages || []).filter(m => (m.To || []).some(t => t.Address.toLowerCase() === email.toLowerCase())).map(m => m.ID))
+}
+
+// The code in the first message to `email` that isn't in `seen`, from the
+// local mail catcher's message list. Never printed.
+async function latestCode(email: string, seen: Set<string>): Promise<string | null> {
+  for (let i = 0; i < 60; i++) {
+    const json = await (await fetch(`${MAIL_API}/messages?limit=200`)).json() as { messages?: { ID: string; To?: { Address: string }[] }[] }
+    const fresh = (json.messages || []).filter(m => !seen.has(m.ID) && (m.To || []).some(t => t.Address.toLowerCase() === email.toLowerCase()))
     if (fresh.length) {
       const msg = await (await fetch(`${MAIL_API}/message/${fresh[0].ID}`)).json() as { Text?: string }
-      const m = (msg.Text || '').match(/\b(\d{6})\b/)
+      const m = (msg.Text || '').match(new RegExp(`\\b(\\d{${INVITE_CODE_LENGTH}})\\b`))
       if (m) return m[1]
     }
     await sleep(300)
@@ -191,12 +199,12 @@ const acceptWithoutCode = (caller: Persona, token: string | null) =>
 // the accept route reports it. Waits out Supabase Auth's 60-second
 // per-address throttle when a persona accepts twice in quick succession.
 async function accept(caller: Persona, token: string | null) {
-  for (let attempt = 0; attempt < 2; attempt++) {
-    const since = Date.now() - 1000
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const seen = await mailIds(caller.email)
     const sent = await callApi(caller, 'POST', '/api/team/accept/code', { token })
-    if (sent.status === 429 && sent.json.code === 'too_soon') { await sleep(61_000); continue }
+    if (sent.status === 429 && sent.json.code === 'too_soon') { await sleep(65_000); continue }
     if (sent.status !== 200 || !sent.json.sent) return acceptWithoutCode(caller, token)
-    const code = await latestCode(caller.email, since)
+    const code = await latestCode(caller.email, seen)
     if (!code) throw new Error(`no code email for ${caller.label} — is the code-only magic-link template configured?`)
     return callApi(caller, 'POST', '/api/team/accept', { token, code })
   }
@@ -402,7 +410,7 @@ async function main() {
   const before = await inviteRow(artist.userId, newcomerEmail)
   r = await acceptWithoutCode(newcomer, newcomerToken)
   check('token holder without a code: accept -> 400 code_required', r.status === 400 && r.json.code === 'code_required', `${r.status} ${JSON.stringify(r.json)}`)
-  r = await callApi(newcomer, 'POST', '/api/team/accept', { token: newcomerToken, code: '000000' })
+  r = await callApi(newcomer, 'POST', '/api/team/accept', { token: newcomerToken, code: '0'.repeat(INVITE_CODE_LENGTH) })
   check('token holder with a wrong code: accept -> 400 bad_code', r.status === 400 && r.json.code === 'bad_code', `${r.status} ${JSON.stringify(r.json)}`)
   const after = await inviteRow(artist.userId, newcomerEmail)
   check('refused accepts left the invite unbound and unaccepted', !!after && after.delegate_id === null && !after.accepted_at && JSON.stringify(before) === JSON.stringify(after))
@@ -488,7 +496,7 @@ async function main() {
     check(`${tag}: accept with a guessed token -> rejected`, r.status === 404 || r.status === 403, String(r.status))
     // The inbox code is what stops a squatter who obtained the link: a code
     // can be requested, but it goes to the invited inbox, not to them.
-    r = await callApi(squatter, 'POST', '/api/team/accept', { token: victimToken, code: '123456' })
+    r = await callApi(squatter, 'POST', '/api/team/accept', { token: victimToken, code: '1'.repeat(INVITE_CODE_LENGTH) })
     check(`${tag}: holding a leaked token, a guessed code -> 400 bad_code`, r.status === 400 && r.json.code === 'bad_code', `${r.status} ${JSON.stringify(r.json)}`)
     const victimAfter = await inviteRow(artist.userId, victimEmail)
     check(`${tag}: invite still unbound, unaccepted, unchanged`, !!victimAfter && victimAfter.delegate_id === null && !victimAfter.accepted_at && JSON.stringify(victimBefore) === JSON.stringify(victimAfter))

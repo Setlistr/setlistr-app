@@ -144,10 +144,19 @@ export async function reserveCodeAttempt(
 // ── Send ────────────────────────────────────────────────────────────────────
 // shouldCreateUser: false — never creates an account. The address is the
 // caller's own session email (an existing account by definition).
-export async function sendInviteCode(email: string): Promise<'sent' | 'too_soon' | 'failed'> {
+// A 429 is either the per-address 60-second throttle ("…only request this
+// after N seconds") or a shared limit: Supabase's per-IP request limit (all
+// sends come from the app server) or the project-wide emails-per-hour limit,
+// which password-reset emails also count against. Only the first is "wait a
+// minute"; the shared ones are reported as such.
+export async function sendInviteCode(email: string): Promise<'sent' | 'too_soon' | 'busy' | 'failed'> {
   const { error } = await sessionlessAuthClient().auth.signInWithOtp({ email, options: { shouldCreateUser: false } })
   if (!error) return 'sent'
-  if (error.status === 429) return 'too_soon'
+  if (error.status === 429) {
+    if (/after \d+ seconds?/i.test(error.message || '')) return 'too_soon'
+    console.error('[team-invite-code] send refused by a shared Supabase limit:', error.code)
+    return 'busy'
+  }
   console.error('[team-invite-code] send failed:', error.status, error.code)
   return 'failed'
 }

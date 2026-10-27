@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
-import { inviteExpiryCutoff, maskEmail } from '@/lib/teamInviteExpiry'
+import { INVITE_CODE_LENGTH, inviteExpiryCutoff, maskEmail } from '@/lib/teamInviteExpiry'
 import {
   INVITE_COLS, INVITE_PREVIEW_MESSAGE, classifyInvite, invitePreviewLocked, isManagerRequest, isPlaceholder, isIntendedRecipient, reserveCodeAttempt, serviceClient, verifyInviteCode,
   type InviteRow,
@@ -11,7 +11,7 @@ const supabase = serviceClient()
 // Owners and managers may invite someone into that artist's workspace
 // without separate Setlistr (beta) approval; acceptance never grants general
 // beta admission (docs/team-invite-admission-validation.md). What replaces
-// the old approval precondition is inbox proof: a fresh 6-digit code sent
+// the old approval precondition is inbox proof: a fresh one-time code sent
 // to the signed-in account's own address (POST /api/team/accept/code) and
 // verified here, on the server, before the membership is written.
 
@@ -113,8 +113,8 @@ export async function POST(req: NextRequest) {
     if (invitePreviewLocked(req.headers.get('host'))) return NextResponse.json({ error: INVITE_PREVIEW_MESSAGE, code: 'preview_disabled' }, { status: 403 })
 
     // ── Inbox proof ──
-    if (!/^\d{6}$/.test(code)) {
-      return NextResponse.json({ error: 'Enter the 6-digit code from your email.', code: 'code_required' }, { status: 400 })
+    if (!new RegExp(`^\\d{${INVITE_CODE_LENGTH}}$`).test(code)) {
+      return NextResponse.json({ error: `Enter the ${INVITE_CODE_LENGTH}-digit code from your email.`, code: 'code_required' }, { status: 400 })
     }
     const reserved = await reserveCodeAttempt(supabase, user.id, 'check')
     if (reserved === 'error') return NextResponse.json({ error: 'Could not check your code right now. Try again.' }, { status: 503 })

@@ -22,13 +22,14 @@ dotenv.config({ path: '.env.local' })
 import * as crypto from 'crypto'
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
 import { createBrowserClient } from '@supabase/ssr'
+import { INVITE_CODE_LENGTH } from '../lib/teamInviteExpiry'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 const APP_URL = process.env.TEST_APP_URL || 'http://127.0.0.1:3000'
 // Local mail catcher's Mailpit API (`supabase start` default). Acceptance
-// needs a fresh 6-digit code from the recipient's inbox, which Supabase Auth
+// needs a fresh one-time code (INVITE_CODE_LENGTH digits) from the recipient's inbox, which Supabase Auth
 // must send with a code-only magic-link template ({{ .Token }}).
 const MAIL_API = process.env.TEST_MAIL_API || 'http://127.0.0.1:54324/api/v1'
 
@@ -158,14 +159,23 @@ async function postJson(caller: Persona, path: string, body: unknown) {
 }
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
-async function latestCode(email: string, since: number): Promise<string | null> {
-  for (let i = 0; i < 30; i++) {
-    const res = await fetch(`${MAIL_API}/search?query=${encodeURIComponent(`to:${email}`)}`)
-    const json = await res.json() as { messages?: { ID: string; Created: string }[] }
-    const fresh = (json.messages || []).filter(m => new Date(m.Created).getTime() >= since)
+// IDs of messages already delivered to `email`, so a new code can be told
+// apart by ID rather than by timestamp (a container's clock can drift from
+// the host's).
+async function mailIds(email: string): Promise<Set<string>> {
+  const json = await (await fetch(`${MAIL_API}/messages?limit=200`)).json() as { messages?: { ID: string; To?: { Address: string }[] }[] }
+  return new Set((json.messages || []).filter(m => (m.To || []).some(t => t.Address.toLowerCase() === email.toLowerCase())).map(m => m.ID))
+}
+
+// The code in the first message to `email` that isn't in `seen`, from the
+// local mail catcher's message list. Never printed.
+async function latestCode(email: string, seen: Set<string>): Promise<string | null> {
+  for (let i = 0; i < 60; i++) {
+    const json = await (await fetch(`${MAIL_API}/messages?limit=200`)).json() as { messages?: { ID: string; To?: { Address: string }[] }[] }
+    const fresh = (json.messages || []).filter(m => !seen.has(m.ID) && (m.To || []).some(t => t.Address.toLowerCase() === email.toLowerCase()))
     if (fresh.length) {
       const msg = await (await fetch(`${MAIL_API}/message/${fresh[0].ID}`)).json() as { Text?: string }
-      const m = (msg.Text || '').match(/\b(\d{6})\b/)
+      const m = (msg.Text || '').match(new RegExp(`\\b(\\d{${INVITE_CODE_LENGTH}})\\b`))
       if (m) return m[1]
     }
     await sleep(300)
@@ -177,12 +187,12 @@ async function latestCode(email: string, since: number): Promise<string | null> 
 // then accept with it. Refusals before the code step come back exactly as
 // the accept route reports them. Codes are never printed.
 async function callAccept(caller: Persona, token: string) {
-  for (let attempt = 0; attempt < 2; attempt++) {
-    const since = Date.now() - 1000
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const seen = await mailIds(caller.email)
     const sent = await postJson(caller, '/api/team/accept/code', { token })
-    if (sent.status === 429 && sent.json.code === 'too_soon') { await sleep(61_000); continue }
+    if (sent.status === 429 && sent.json.code === 'too_soon') { await sleep(65_000); continue }
     if (sent.status !== 200 || !sent.json.sent) return postJson(caller, '/api/team/accept', { token })
-    const code = await latestCode(caller.email, since)
+    const code = await latestCode(caller.email, seen)
     if (!code) throw new Error(`no code email for ${caller.label}`)
     return postJson(caller, '/api/team/accept', { token, code })
   }

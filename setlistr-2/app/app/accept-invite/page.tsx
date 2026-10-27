@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useActingAs } from '@/components/ActingAsProvider'
 import { Check, Users } from 'lucide-react'
 import { roleInfoFor } from '@/lib/teamRoleInfo'
+import { INVITE_CODE_LENGTH } from '@/lib/teamInviteExpiry'
 
 // What the recipient is actually told before accepting must match what the
 // role actually grants in code — shared with the sender's own pre-send
@@ -46,7 +47,7 @@ export default function AcceptInvitePage() {
   const [accepted, setAccepted]     = useState(false)
   const [wrongAccount, setWrongAccount]   = useState(false)
   const [errorTitle, setErrorTitle] = useState('Invalid Invite')
-  // Inbox proof: a fresh 6-digit code, emailed to the signed-in address and
+  // Inbox proof: a fresh INVITE_CODE_LENGTH-digit code, emailed to the signed-in address and
   // checked by the server when accepting.
   const [codeSent, setCodeSent]     = useState(false)
   const [sendingCode, setSendingCode] = useState(false)
@@ -309,14 +310,14 @@ export default function AcceptInvitePage() {
           <p style={{ fontSize: 13, fontWeight: 700, color: C.text, margin: '0 0 4px' }}>Confirm it’s you</p>
           <p style={{ fontSize: 13, color: C.secondary, margin: 0, lineHeight: 1.5 }}>
             {codeSent
-              ? <>We emailed a 6-digit code to {invite?.recipient_email}.</>
-              : <>We’ll email a 6-digit code to {invite?.recipient_email}.</>}
+              ? <>We emailed an {INVITE_CODE_LENGTH}-digit code to {invite?.recipient_email}.</>
+              : <>We’ll email an {INVITE_CODE_LENGTH}-digit code to {invite?.recipient_email}.</>}
           </p>
           {codeSent && (
             <>
-              <input value={code} onChange={e => { setCode(e.target.value.replace(/\D/g, '').slice(0, 6)); setCodeError('') }}
-                onKeyDown={e => e.key === 'Enter' && code.length === 6 && !accepting && acceptInvite()}
-                inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]*" maxLength={6} aria-label="6-digit code" placeholder="000000"
+              <input value={code} onChange={e => { setCode(e.target.value.replace(/\D/g, '').slice(0, INVITE_CODE_LENGTH)); setCodeError('') }}
+                onKeyDown={e => e.key === 'Enter' && code.length === INVITE_CODE_LENGTH && !accepting && acceptInvite()}
+                inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]*" maxLength={INVITE_CODE_LENGTH} aria-label={`${INVITE_CODE_LENGTH}-digit code`} placeholder={"0".repeat(INVITE_CODE_LENGTH)}
                 style={{ width: '100%', boxSizing: 'border-box', marginTop: 12, background: 'var(--sl-input-bg)', border: '1px solid var(--sl-input-line)', borderRadius: 10, padding: '12px 14px', color: C.text, fontSize: 20, letterSpacing: '0.3em', textAlign: 'center' as const, fontFamily: '"DM Mono", ui-monospace, monospace', outline: 'none' }} />
               <button onClick={sendCode} disabled={sendingCode}
                 style={{ background: 'none', border: 'none', color: C.muted, fontSize: 12, cursor: sendingCode ? 'default' : 'pointer', fontFamily: 'inherit', padding: '10px 0 0' }}>
@@ -334,8 +335,8 @@ export default function AcceptInvitePage() {
             {sendingCode ? 'Sending…' : 'Send code'}
           </button>
         ) : (
-          <button onClick={acceptInvite} disabled={accepting || code.length !== 6}
-            style={{ width: '100%', padding: '15px', background: C.gold, border: 'none', borderRadius: 12, color: 'var(--sl-on-accent)', fontSize: 14, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' as const, cursor: accepting || code.length !== 6 ? 'default' : 'pointer', fontFamily: 'inherit', opacity: accepting || code.length !== 6 ? 0.5 : 1, marginBottom: 10 }}>
+          <button onClick={acceptInvite} disabled={accepting || code.length !== INVITE_CODE_LENGTH}
+            style={{ width: '100%', padding: '15px', background: C.gold, border: 'none', borderRadius: 12, color: 'var(--sl-on-accent)', fontSize: 14, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' as const, cursor: accepting || code.length !== INVITE_CODE_LENGTH ? 'default' : 'pointer', fontFamily: 'inherit', opacity: accepting || code.length !== INVITE_CODE_LENGTH ? 0.5 : 1, marginBottom: 10 }}>
             {accepting ? 'Accepting...' : invite?.role === 'viewer' ? `Accept — View ${invite?.artist_name}` : `Accept — Manage ${invite?.artist_name}`}
           </button>
         )}

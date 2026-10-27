@@ -5,7 +5,7 @@ import { INVITE_COLS, INVITE_PREVIEW_MESSAGE, classifyInvite, invitePreviewLocke
 
 const supabase = serviceClient()
 
-// POST { token } — email a 6-digit code to the signed-in account's own
+// POST { token } — email a one-time code (INVITE_CODE_LENGTH digits) to the signed-in account's own
 // address, so POST /api/team/accept can verify inbox ownership. Sent only
 // when the session is this pending, unexpired invite's recipient AND the
 // session's email is the address the invite was sent to. Never creates an
@@ -43,6 +43,7 @@ export async function POST(req: NextRequest) {
 
     const sent = await sendInviteCode(user.email)
     if (sent === 'too_soon') return NextResponse.json({ error: 'Wait a minute before asking for another code.', code: 'too_soon' }, { status: 429 })
+    if (sent === 'busy') return NextResponse.json({ error: 'We can’t send more codes right now. Try again in a few minutes.', code: 'send_limited' }, { status: 429 })
     if (sent === 'failed') return NextResponse.json({ error: 'We couldn’t send a code right now. Try again.' }, { status: 502 })
 
     return NextResponse.json({ sent: true, email: maskEmail(user.email) })

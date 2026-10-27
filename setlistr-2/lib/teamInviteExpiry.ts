@@ -25,6 +25,12 @@ export function isInviteExpired(invitedAt: string | null | undefined, now: numbe
   return t <= now - INVITE_TTL_MS
 }
 
+// Length of the email code Supabase Auth issues (Authentication → Providers →
+// Email → "Email OTP Length"). Production is 8 (read 2026-10-27). This must
+// match that setting: the accept screen and POST /api/team/accept accept
+// exactly this many digits.
+export const INVITE_CODE_LENGTH = 8
+
 // "jesse@example.com" → "j•••@example.com". Shown only to the invite's own
 // recipient, so they can recognise which inbox the code went to.
 export function maskEmail(email: string | null | undefined): string {
