@@ -1,0 +1,15 @@
+{
+ "http://127.0.0.1:3323": {
+  "signed out": "200, provider calls +1",
+  "signed in, not admin": "200, provider calls +1",
+  "admin (the R&D Log page’s user)": "200, provider calls +1",
+  "admin page loads": "/app/admin/rd-log"
+ },
+ "http://127.0.0.1:3322": {
+  "signed out": "401, provider calls +0",
+  "signed in, not admin": "403, provider calls +0",
+  "admin (the R&D Log page’s user)": "200, provider calls +1",
+  "admin page loads": "/app/admin/rd-log"
+ },
+ "temporary accounts deleted": 2
+}
