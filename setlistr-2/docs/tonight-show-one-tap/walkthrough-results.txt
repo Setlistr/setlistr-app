@@ -1,0 +1,12 @@
+one show, Dashboard: 2 taps to recording
+one show, gold button: 3 taps to recording
+A different show: existing choice (Start Live Capture / Upload a Recording) shown unchanged
+two shows, Dashboard: 3 taps (row, choose, OK); never auto-chosen
+date-only: Start offered = 0; Add a start time = 1
+in progress: Tonight Start rows on Dashboard = 0
+teammate first: URL stays on /app/dashboard; in-progress row shown = true
+
+
+cancelled: Start buttons left = 0
+viewer: gold button = 0; Start rows = 0
+nothing scheduled: gold button opens today's unchanged first screen

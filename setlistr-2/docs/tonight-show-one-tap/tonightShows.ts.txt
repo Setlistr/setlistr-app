@@ -1,0 +1,49 @@
+// PROPOSED (prototype only; not in the repository). "Tonight's show, one
+// tap": which still-scheduled shows can be started from the Dashboard row
+// and the gold capture button. Pure, so it can be unit-tested.
+//
+// Input: /api/shows/schedule's list for one artist — status 'scheduled'
+// only (cancelled, completed, live and imported past listings are never
+// returned) and already filtered by row-level security (revoked access
+// returns nothing).
+//
+// Every date is the show's own stored evidence, in the show's own time
+// zone: scheduled_at (an instant) with timezone, or local_date for a
+// date-only booking. The viewer's device date is never used as a stand-in.
+import { showLocalDate, zonedToday, compareScheduled, relativeDayLabel, utcToZonedParts, type SchedulableShow } from './scheduleTime'
+
+export const CARRY_OVER_MS = 6 * 60 * 60 * 1000   // the Dashboard's existing live window (LIVE_WINDOW_MIN = 360)
+export const LOOK_AHEAD_MS = 12 * 60 * 60 * 1000  // a 12:30 AM set is "tonight" from the afternoon before
+
+export type TonightKind = 'startable' | 'needs_time'
+export type TonightShow<T> = { show: T; kind: TonightKind; dayLabel: string; time: string | null }
+
+// A timed show is eligible when it is on its own local "today", or its
+// start time was up to 6 hours ago (a late show still running after local
+// midnight), or it starts within the next 12 hours (a set just after
+// midnight). A date-only booking is eligible on its own local date and can
+// only offer "Add a start time" — never a start, never a second show.
+export function tonightShows<T extends SchedulableShow>(shows: T[], now: Date = new Date()): TonightShow<T>[] {
+  const out: TonightShow<T>[] = []
+  for (const s of [...shows].sort(compareScheduled)) {
+    const local = showLocalDate(s)
+    if (!local) continue
+    const today = zonedToday(now, s.timezone)
+    if (s.scheduled_at) {
+      const t = Date.parse(s.scheduled_at)
+      if (Number.isNaN(t)) continue
+      const sinceStart = now.getTime() - t
+      const eligible = local === today || (sinceStart >= 0 && sinceStart <= CARRY_OVER_MS) || (sinceStart < 0 && -sinceStart <= LOOK_AHEAD_MS)
+      if (!eligible) continue
+      const { timeStr } = utcToZonedParts(new Date(t), safeZone(s.timezone))
+      out.push({ show: s, kind: 'startable', dayLabel: relativeDayLabel(local, today), time: timeStr })
+    } else if (local === today) {
+      out.push({ show: s, kind: 'needs_time', dayLabel: 'Today', time: null })
+    }
+  }
+  return out
+}
+
+function safeZone(zone: string): string {
+  try { new Intl.DateTimeFormat('en-US', { timeZone: zone }); return zone } catch { return 'UTC' }
+}

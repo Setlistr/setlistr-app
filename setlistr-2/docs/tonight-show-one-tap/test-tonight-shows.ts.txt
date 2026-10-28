@@ -1,0 +1,29 @@
+// Proposed unit tests for lib/tonightShows.ts (prototype). Run with ts-node --transpile-only.
+import { tonightShows } from '../lib/tonightShows'
+let pass = 0, fail = 0
+const check = (n: string, c: boolean, d?: unknown) => { if (c) { pass++; console.log('  ok  ', n) } else { fail++; console.log('  FAIL', n, d ?? '') } }
+const s = (id: string, scheduled_at: string | null, timezone: string, local_date: string | null = null) => ({ id, scheduled_at, timezone, local_date })
+const ids = (r: { show: { id: string } }[]) => r.map(x => x.show.id).join(',')
+const CHI = 'America/Chicago'
+
+// 18:40 CDT on 2026-10-28 = 23:40Z
+const evening = new Date('2026-10-28T23:40:00Z')
+check('one show tonight (8 PM CDT) is startable, labelled Today 20:00', (() => { const r = tonightShows([s('a', '2026-10-29T01:00:00Z', CHI)], evening); return r.length === 1 && r[0].kind === 'startable' && r[0].dayLabel === 'Today' && r[0].time === '20:00' })())
+check('two shows tonight, ordered by start time, neither chosen silently', ids(tonightShows([s('late', '2026-10-29T03:30:00Z', CHI), s('early', '2026-10-29T00:00:00Z', CHI)], evening)) === 'early,late')
+check('tomorrow 8 PM is not tonight', tonightShows([s('t', '2026-10-30T01:00:00Z', CHI)], evening).length === 0)
+check('a set at 12:30 AM local tomorrow counts tonight (within 12 h)', (() => { const r = tonightShows([s('n', '2026-10-29T05:30:00Z', CHI)], evening); return r.length === 1 && r[0].dayLabel === 'Tomorrow' && r[0].time === '00:30' })())
+// 00:15 CDT 2026-10-29 = 05:15Z; show was 23:30 CDT on the 28th = 04:30Z
+const afterMidnight = new Date('2026-10-29T05:15:00Z')
+check('11:30 PM show is still startable at 12:15 AM (carry-over)', (() => { const r = tonightShows([s('m', '2026-10-29T04:30:00Z', CHI)], afterMidnight); return r.length === 1 && r[0].dayLabel === 'Yesterday' })())
+check('a show that started 7 h ago on a previous day is not offered', tonightShows([s('old', '2026-10-28T22:00:00Z', CHI)], afterMidnight).length === 0)
+// Viewer device in Sydney, show in Chicago: judged by the show's zone, not the device
+check('show zone decides "today", not the device', tonightShows([s('z', '2026-10-29T01:00:00Z', CHI)], evening).length === 1)
+check('date-only booking today offers Add a start time, not Start', (() => { const r = tonightShows([s('d', null, CHI, '2026-10-28')], evening); return r.length === 1 && r[0].kind === 'needs_time' })())
+check('date-only booking tomorrow is not offered', tonightShows([s('d2', null, CHI, '2026-10-29')], evening).length === 0)
+check('date-only after timed shows the same day', ids(tonightShows([s('d', null, CHI, '2026-10-28'), s('a', '2026-10-29T01:00:00Z', CHI)], evening)) === 'a,d')
+// DST: 2026-11-01 01:30 CDT/CST is ambiguous locally; the stored instant decides
+const dstNow = new Date('2026-11-01T05:00:00Z') // 00:00 CDT
+check('DST fall-back night: stored instant still decides', tonightShows([s('dst', '2026-11-01T07:30:00Z', CHI)], dstNow).length === 1)
+check('invalid time zone falls back to UTC without throwing', Array.isArray(tonightShows([s('bad', '2026-10-29T01:00:00Z', 'Not/AZone')], evening)))
+check('a show in another zone reads its own local time (New York 8 PM EDT)', (() => { const r = tonightShows([s('ny', '2026-10-29T00:00:00Z', 'America/New_York')], evening); return r[0]?.time === '20:00' })())
+console.log(`\n${pass} passed, ${fail} failed`); if (fail) process.exit(1)

@@ -118,18 +118,39 @@ A manager (Matt Woodson) plans to bring an artist onto Setlistr ahead of touring
 - **Integrations:** Master Tour, Daysheets, Atom and calendars. Establish integration access and user value before promising any build. Bandsintown and Ticketmaster are used read-only on the Dashboard today.
 - **Audience intelligence:** crowd reaction is distinct from attendance, ticket sales and demographics. **Loudness alone is never presented as validated engagement.**
 
-## 9. Sequence
+## 9. Sequence: Now / Next / Later (updated 2026-10-28)
 
-1. **Spreadsheet import release:** done 2026-10-26. 0028 applied, then one app release (`577dd3d`) that included the UI fix. Still to come: the installed-app check, then the first real import with a file the owner chooses.
-2. **Team journey assessment** (section 5): written, [team-journey-assessment](team-journey-assessment.md). Awaiting the owner's review.
-   - **Team invitation and admission:** shipped `039871e` and **complete** (2026-10-28).
-   - **Next:** the show-setup and onboarding assessment, [show-setup-onboarding-assessment](show-setup-onboarding-assessment.md).
-   - **Kept separate:**
-     - P2 attribution: no migration authorised;
-     - P3 recording a submission versus filing with a PRO;
-     - P4 reminder groundwork: no channel chosen.
-   - **Locked-phone capture:** unverified, not broken; a real-device check is proposed.
-3. **Discovery A–C** (section 6), informed by the assessment. A proposal follows only if a clear smallest change emerges.
-4. **The pilot** (section 7), when the owner decides.
+Reconciled with the proposed product evolution strategy in [product-strategy-reconciliation](product-strategy-reconciliation.md). The strategy's 30/60/90-day plan is **provisional and capacity-dependent**: at most one or two experiments at a time.
 
-Existing reliability, permission, historical-data and native tracks (section 4) continue alongside, each on its own record.
+**Done:**
+- spreadsheet import (`577dd3d`);
+- team journey assessment;
+- team invitation and admission (`039871e`, complete);
+- the R&D Log admin check (`a40fc56`);
+- the show-setup assessment ([show-setup-onboarding-assessment](show-setup-onboarding-assessment.md)).
+
+**Now: "Tonight's show, one tap"** (proposal; prototype ready, awaiting approval to implement). [tonight-show-one-tap-plan](tonight-show-one-tap-plan.md); prototype https://claude.ai/artifact/Ea9tFbasQMdb96xaTvSsur.
+- The Dashboard's Tonight row and the gold capture button lead with tonight's booked show, using the existing linked Start.
+- "A different show" keeps today's manual path.
+- No schema, migration, API or permission change.
+- **Matt Woodson's feedback:** the manager prepares once, the crew starts it in two or three taps, and coverage becomes trustworthy.
+
+**Next: one validated team value experiment.** "Booked, no capture yet" follow-up on the existing Manager Overview: one list, not new cards.
+- **Depends on Now:** captures must link to bookings first.
+- **Measured by:** the linked-capture rate within 48 hours and recovery time.
+- **Stops** if unused after four tour weeks.
+
+**Later: externally sourced evidence and selective integrations.** Desk-scoped first; nothing built.
+- **Discovery benchmark:** 10 of the owner's own shows, by hand.
+- **Fan contribution:** intake and quarantine design only.
+- **Instagram/YouTube:** scope and app-review desk study.
+- **Audience reaction and attendance:** research only.
+
+**Kept visible alongside (section 4), unchanged:**
+- capture reliability (locked phone and background in the installed app: unverified; Viewer direct-URL live page);
+- catalogue count integrity;
+- the historical `review` audit (read-only, not run);
+- permissions (P2 attribution, no migration authorised; P3);
+- native limitations.
+
+**Not bundled with Now:** the onboarding destination change, reminders (P4), new roles, manager dashboard additions.
