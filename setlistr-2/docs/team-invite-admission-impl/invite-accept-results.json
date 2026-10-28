@@ -1,0 +1,464 @@
+[
+ {
+  "sec": 1,
+  "test": "unadmitted recipient opens the accept page",
+  "got": "/app/accept-invite",
+  "expect": "/app/accept-invite (not /beta)",
+  "ok": true
+ },
+ {
+  "sec": 1,
+  "test": "GET shows masked address to the recipient",
+  "got": "200 r•••@example.test",
+  "expect": "r•••@example.test",
+  "ok": true
+ },
+ {
+  "sec": 1,
+  "test": "accept without a code",
+  "got": "400 code_required; row null|false|false",
+  "expect": "400 code_required; still pending",
+  "ok": true
+ },
+ {
+  "sec": 1,
+  "test": "a 6-digit code (production issues 8)",
+  "got": "400 code_required; attempts counted=0",
+  "expect": "400 code_required; 0 counted",
+  "ok": true
+ },
+ {
+  "sec": 1,
+  "test": "send code",
+  "got": "200 sent=true to r•••@example.test; email arrived=true",
+  "expect": "200, masked, arrives",
+  "ok": true
+ },
+ {
+  "sec": 1,
+  "test": "second code within 60 s",
+  "got": "429 too_soon",
+  "expect": "429 too_soon (Supabase Auth throttle)",
+  "ok": true
+ },
+ {
+  "sec": 1,
+  "test": "wrong code",
+  "got": "400 bad_code; row null|false|false",
+  "expect": "400 bad_code; still pending",
+  "ok": true
+ },
+ {
+  "sec": 1,
+  "test": "correct code",
+  "got": "200 {\"success\":true}; bound to recipient=true",
+  "expect": "200; accepted, bound",
+  "ok": true
+ },
+ {
+  "sec": 1,
+  "test": "code route after acceptance",
+  "got": "200 {\"already_accepted\":true}",
+  "expect": "already_accepted, nothing sent",
+  "ok": true
+ },
+ {
+  "sec": "1b",
+  "test": "auth sessions for the recipient, before → after acceptance",
+  "got": "2 → 2",
+  "expect": "unchanged (verification session revoked)",
+  "ok": true
+ },
+ {
+  "sec": "1b",
+  "test": "caller’s browser session still signed in (API)",
+  "got": "200",
+  "expect": "200",
+  "ok": true
+ },
+ {
+  "sec": "1b",
+  "test": "other device still signed in (getUser + refresh)",
+  "got": "true / true",
+  "expect": "true / true",
+  "ok": true
+ },
+ {
+  "sec": "1b",
+  "test": "password sign-in still works",
+  "got": "true",
+  "expect": "true",
+  "ok": true
+ },
+ {
+  "sec": "1c",
+  "test": "repeat accept, no code",
+  "got": "200 {\"success\":true,\"already_accepted\":true}",
+  "expect": "200 already_accepted",
+  "ok": true
+ },
+ {
+  "sec": "1c",
+  "test": "reopening the link shows the workspace, no code step",
+  "got": "/app/accept-invite \"You're in\"",
+  "expect": "You’re in",
+  "ok": true
+ },
+ {
+  "sec": 2,
+  "test": "team-only GET /app/dashboard",
+  "got": "/app/dashboard",
+  "expect": "/app/manager or /app/dashboard",
+  "ok": true
+ },
+ {
+  "sec": 2,
+  "test": "team-only GET /app/manager",
+  "got": "/app/manager",
+  "expect": "/app/manager",
+  "ok": true
+ },
+ {
+  "sec": 2,
+  "test": "team-only GET /app/team",
+  "got": "/app/team",
+  "expect": "/app/team",
+  "ok": true
+ },
+ {
+  "sec": 2,
+  "test": "team-only GET /app/schedule",
+  "got": "/app/schedule",
+  "expect": "/app/schedule",
+  "ok": true
+ },
+ {
+  "sec": 2,
+  "test": "team-only GET /app/settings",
+  "got": "/app/settings",
+  "expect": "/app/settings",
+  "ok": true
+ },
+ {
+  "sec": 2,
+  "test": "team-only GET /app/artist/a74a39fa-78a1-4d1d-aa5f-a6691319ea21",
+  "got": "/app/artist/a74a39fa-78a1-4d1d-aa5f-a6691319ea21",
+  "expect": "/app/artist/a74a39fa-78a1-4d1d-aa5f-a6691319ea21",
+  "ok": true
+ },
+ {
+  "sec": 2,
+  "test": "team-only GET /app/onboarding",
+  "got": "/app/manager",
+  "expect": "/app/manager",
+  "ok": true
+ },
+ {
+  "sec": 2,
+  "test": "team-only GET /app/admin",
+  "got": "/app/manager",
+  "expect": "/app/manager",
+  "ok": true
+ },
+ {
+  "sec": 2,
+  "test": "team-only GET /app/new",
+  "got": "/app/manager",
+  "expect": "/app/manager",
+  "ok": true
+ },
+ {
+  "sec": 2,
+  "test": "team-only GET /beta",
+  "got": "/app/dashboard",
+  "expect": "/app/manager or /app/dashboard",
+  "ok": true
+ },
+ {
+  "sec": 2,
+  "test": "team-only GET /",
+  "got": "/app/dashboard",
+  "expect": "/app/manager or /app/dashboard",
+  "ok": true
+ },
+ {
+  "sec": 2,
+  "test": "assigned role kept: timeline Lena",
+  "got": "200",
+  "expect": "200",
+  "ok": true
+ },
+ {
+  "sec": 2,
+  "test": "assigned role kept: upload for Lena (tour manager)",
+  "got": "200",
+  "expect": "200",
+  "ok": true
+ },
+ {
+  "sec": 2,
+  "test": "unrelated workspace: timeline Harbour Front",
+  "got": "403",
+  "expect": "403",
+  "ok": true
+ },
+ {
+  "sec": 3,
+  "test": "team-only: request to manage another artist",
+  "got": "403 admission_required",
+  "expect": "403 admission_required",
+  "ok": true
+ },
+ {
+  "sec": 3,
+  "test": "team-only: artist setup through the API",
+  "got": "403 admission_required",
+  "expect": "403 admission_required",
+  "ok": true
+ },
+ {
+  "sec": 3,
+  "test": "team-only: other profile fields still save",
+  "got": "200",
+  "expect": "200",
+  "ok": true
+ },
+ {
+  "sec": 3,
+  "test": "team-only with a self-set artist name: invite into own workspace",
+  "got": "403 admission_required",
+  "expect": "403 admission_required",
+  "ok": true
+ },
+ {
+  "sec": 3,
+  "test": "…artist name kept, not erased",
+  "got": "Direct REST Name",
+  "expect": "Direct REST Name",
+  "ok": true
+ },
+ {
+  "sec": 3,
+  "test": "…artist name grants no pages: /app/onboarding",
+  "got": "/app/manager",
+  "expect": "not onboarding",
+  "ok": true
+ },
+ {
+  "sec": 3,
+  "test": "fully admitted artist: request still works",
+  "got": "200 pending",
+  "expect": "200",
+  "ok": true
+ },
+ {
+  "sec": 3,
+  "test": "team-only manager invites into the managed artist’s workspace",
+  "got": "200 true",
+  "expect": "200",
+  "ok": true
+ },
+ {
+  "sec": 4,
+  "test": "already beta-admitted existing account, no code",
+  "got": "400 code_required",
+  "expect": "400 code_required",
+  "ok": true
+ },
+ {
+  "sec": 5,
+  "test": "POST accept",
+  "got": "403 This invite was sent to a different account.",
+  "expect": "403 different account (not already_accepted)",
+  "ok": true
+ },
+ {
+  "sec": 5,
+  "test": "request a code for someone else’s pending invite",
+  "got": "403; emails to caller=0",
+  "expect": "403; none sent",
+  "ok": true
+ },
+ {
+  "sec": 5,
+  "test": "bound recipient whose session email ≠ invited address",
+  "got": "403 email_mismatch",
+  "expect": "403 email_mismatch",
+  "ok": true
+ },
+ {
+  "sec": 6,
+  "test": "GET 15-day-old invite",
+  "got": "200 expired=true",
+  "expect": "expired=true",
+  "ok": true
+ },
+ {
+  "sec": 6,
+  "test": "code for expired invite",
+  "got": "410 expired; emails=0",
+  "expect": "410 expired; none sent",
+  "ok": true
+ },
+ {
+  "sec": 6,
+  "test": "accept expired",
+  "got": "410 This invitation has expired. Ask Lena Marsh to send it again.",
+  "expect": "410 \"…expired. Ask … to send it again.\"",
+  "ok": true
+ },
+ {
+  "sec": 6,
+  "test": "owner Team data still lists it (UI marks Expired)",
+  "got": "true",
+  "expect": "true",
+  "ok": true
+ },
+ {
+  "sec": 6,
+  "test": "resend rotates token and refreshes invited_at",
+  "got": "new token=true; fresh=t; url uses new=true",
+  "expect": "true; t; true",
+  "ok": true
+ },
+ {
+  "sec": 6,
+  "test": "old link after resend: GET",
+  "got": "404",
+  "expect": "404",
+  "ok": true
+ },
+ {
+  "sec": 6,
+  "test": "old link after resend: send code",
+  "got": "404",
+  "expect": "404",
+  "ok": true
+ },
+ {
+  "sec": 6,
+  "test": "new link accepts with a code",
+  "got": "200 true",
+  "expect": "200",
+  "ok": true
+ },
+ {
+  "sec": 6,
+  "test": "accepted membership whose invite is 30 days old",
+  "got": "200",
+  "expect": "200",
+  "ok": true
+ },
+ {
+  "sec": 6,
+  "test": "…and repeat accept still harmless",
+  "got": "200 true",
+  "expect": "200 already_accepted",
+  "ok": true
+ },
+ {
+  "sec": 6,
+  "test": "resend to an accepted member",
+  "got": "409; token unchanged=true",
+  "expect": "409; unchanged",
+  "ok": true
+ },
+ {
+  "sec": 7,
+  "test": "resend (token rotated) commits while accept is in flight",
+  "got": "410 superseded; accepted=f",
+  "expect": "refused; not accepted",
+  "ok": true
+ },
+ {
+  "sec": 7,
+  "test": "revoke commits while accept is in flight",
+  "got": "404 This invite is no longer valid.; accepted=f",
+  "expect": "refused; not accepted",
+  "ok": true
+ },
+ {
+  "sec": 7,
+  "test": "expiry (invited_at pushed back) commits while accept is in flight",
+  "got": "410 expired; accepted=f",
+  "expect": "refused; not accepted",
+  "ok": true
+ },
+ {
+  "sec": 7,
+  "test": "3 concurrent accepts with one code",
+  "got": "200,200,200; 1 row, accepted=true",
+  "expect": "all 200; one row",
+  "ok": true
+ },
+ {
+  "sec": 8,
+  "test": "6 code requests in a row",
+  "got": "200, 429:too_soon, 429:too_soon, 429:too_soon, 429:too_soon, 429:too_many_codes",
+  "expect": "200, then too_soon ×4, then too_many_codes",
+  "ok": true
+ },
+ {
+  "sec": 8,
+  "test": "15 concurrent wrong codes",
+  "got": "8 checked, 7 refused",
+  "expect": "at most 10 checked",
+  "ok": true
+ },
+ {
+  "sec": 8,
+  "test": "correct code after the limit",
+  "got": "429 too_many_attempts; accepted=false",
+  "expect": "429; not accepted",
+  "ok": true
+ },
+ {
+  "sec": 9,
+  "test": "owner removes the recipient",
+  "got": "200",
+  "expect": "200",
+  "ok": true
+ },
+ {
+  "sec": 9,
+  "test": "next API request (same session)",
+  "got": "403",
+  "expect": "403",
+  "ok": true
+ },
+ {
+  "sec": 9,
+  "test": "next page load",
+  "got": "/beta",
+  "expect": "/beta",
+  "ok": true
+ },
+ {
+  "sec": 9,
+  "test": "repeat accept after removal",
+  "got": "404 This invite is no longer valid.",
+  "expect": "404 no longer valid",
+  "ok": true
+ },
+ {
+  "sec": 10,
+  "test": "UI: send code → wrong code → right code → You’re in",
+  "got": "done",
+  "expect": "done",
+  "ok": true
+ },
+ {
+  "sec": 10,
+  "test": "Team page marks the 15-day-old invite Expired",
+  "got": "true",
+  "expect": "true",
+  "ok": true
+ },
+ {
+  "sec": 11,
+  "test": "server log contains none of the 21 tokens/codes used",
+  "got": "0 found",
+  "expect": "0",
+  "ok": true
+ }
+]

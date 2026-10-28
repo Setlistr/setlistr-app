@@ -1,17 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
-import { checkBetaAdmission } from '@/lib/betaAdmission'
+import { INVITE_CODE_LENGTH, inviteExpiryCutoff, maskEmail } from '@/lib/teamInviteExpiry'
+import {
+  INVITE_COLS, INVITE_PREVIEW_MESSAGE, classifyInvite, invitePreviewLocked, isManagerRequest, isPlaceholder, isIntendedRecipient, reserveCodeAttempt, serviceClient, verifyInviteCode,
+  type InviteRow,
+} from '@/lib/teamInviteAcceptance'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+const supabase = serviceClient()
+
+// Owners and managers may invite someone into that artist's workspace
+// without separate Setlistr (beta) approval; acceptance never grants general
+// beta admission (docs/team-invite-admission-validation.md). What replaces
+// the old approval precondition is inbox proof: a fresh one-time code sent
+// to the signed-in account's own address (POST /api/team/accept/code) and
+// verified here, on the server, before the membership is written.
+
+async function artistNameFor(artistId: string): Promise<{ name: string; email: string }> {
+  const { data } = await supabase.from('profiles').select('artist_name, full_name, email').eq('id', artistId).maybeSingle()
+  return { name: data?.artist_name || data?.full_name || 'An artist', email: data?.email || '' }
+}
+
+const expiredMessage = (artist: string) => `This invitation has expired. Ask ${artist} to send it again.`
 
 // GET — look up invite by token, return context for the accept screen.
-// Returns is_intended_recipient (computed server-side against the caller's
-// own session) instead of the raw delegate_id — the client no longer needs
-// to see the delegate_id itself to know whether it matches them.
+// is_intended_recipient is computed server-side against the caller's own
+// session; the masked recipient address is returned only to that recipient.
 export async function GET(req: NextRequest) {
   const token = req.nextUrl.searchParams.get('token')
   if (!token) return NextResponse.json({ error: 'token required' }, { status: 400 })
@@ -21,85 +34,53 @@ export async function GET(req: NextRequest) {
 
   const { data: invite } = await supabase
     .from('artist_delegates')
-    .select('id, artist_id, delegate_id, role, accepted_at, revoked_at, invited_by, invited_email')
+    .select(INVITE_COLS)
     .eq('invite_token', token)
-    .maybeSingle()
+    .maybeSingle<InviteRow>()
 
   if (!invite) return NextResponse.json({ error: 'Invite not found or already used.' }, { status: 404 })
 
-  // This route is the ARTIST-initiated invite flow only (the delegate
-  // accepts). A manager-initiated REQUEST (invited_by === delegate_id,
-  // see migration 0023) must never be acceptable here — that would let
-  // the requesting manager grant themselves access by hitting this
-  // endpoint with their own row's token, bypassing the artist's approval
-  // in app/api/team/respond entirely.
-  //
-  // invited_by === delegate_id is NOT on its own sufficient to detect
-  // that: a placeholder row (invited email with no account yet) has
-  // invited_by = artist_id, and under either placeholder convention
-  // (legacy delegate_id = artist_id, or post-migration-0024
-  // delegate_id = null is never equal to anything, including
-  // artist_id) that same comparison can coincide with artist_id too —
-  // confirmed live: this exact bare comparison was 404ing EVERY
-  // artist-sent invite to an unregistered email, unconditionally,
-  // before this fix. invited_by can never legitimately equal artist_id
-  // for a real manager-request row (request/route.ts blocks a manager
-  // from requesting access to their own account), so excluding that
-  // case is what actually distinguishes a manager-request from a
-  // placeholder invite. Treated identically to "not found" rather than
-  // a distinct message, since a caller with a valid token doesn't need
-  // to be told which kind of row it is.
-  const isManagerRequest = invite.invited_by === invite.delegate_id && invite.invited_by !== invite.artist_id
-  if (isManagerRequest) {
-    return NextResponse.json({ error: 'Invite not found or already used.' }, { status: 404 })
-  }
+  // A manager-initiated REQUEST is never acceptable here (see POST); treated
+  // identically to "not found". Revoked or declined → no longer valid; a
+  // re-invite after removal always issues a fresh token, so this only ever
+  // denies a genuinely still-revoked row.
+  if (isManagerRequest(invite)) return NextResponse.json({ error: 'Invite not found or already used.' }, { status: 404 })
+  if (invite.revoked_at || invite.declined_at) return NextResponse.json({ error: 'This invite is no longer valid.' }, { status: 404 })
 
-  // Matches can_act_for()'s own revoked_at check (supabase/migrations/
-  // 0015_delegation_revocation_enforcement.sql). DELETE /api/team/delegates
-  // now sets revoked_at (soft-revoke) rather than hard-deleting the row —
-  // this is the live, reachable path that check denies, not just defense
-  // in depth for a hypothetical future writer. A re-invite after removal
-  // (app/api/team/invite's reopen path) always clears revoked_at back to
-  // null along with issuing a fresh invite_token, so this only ever denies
-  // a genuinely still-revoked row, never a reopened one.
-  if (invite.revoked_at) return NextResponse.json({ error: 'This invite is no longer valid.' }, { status: 404 })
-
-  // Get artist profile
-  const { data: artist } = await supabase
-    .from('profiles')
-    .select('artist_name, full_name, email')
-    .eq('id', invite.artist_id)
-    .single()
-
-  // A placeholder row has no real delegate bound yet — recognized under
-  // EITHER convention during the rollout: the legacy placeholder
-  // (delegate_id === artist_id, written before migration 0024) or the
-  // new one (delegate_id === null, written after). The session's own
-  // email, matched case-insensitively against invited_email, is what
-  // identifies the intended recipient in both cases.
-  const isPlaceholder = invite.delegate_id === null || invite.delegate_id === invite.artist_id
-  const emailMatches = !!user?.email && !!invite.invited_email &&
-    invite.invited_email.toLowerCase() === user.email.toLowerCase()
+  const state = user ? classifyInvite(invite, user) : null
+  const artist = await artistNameFor(invite.artist_id)
+  const isRecipient = !!user && (state === 'accepted_self' || (!invite.accepted_at && isIntendedRecipient(invite, user)))
 
   return NextResponse.json({
     id: invite.id,
     artist_id: invite.artist_id,
-    is_intended_recipient: !!user && (invite.delegate_id === user.id || (isPlaceholder && emailMatches)),
+    is_intended_recipient: isRecipient,
     role: invite.role,
-    artist_name: artist?.artist_name || artist?.full_name || 'An artist',
-    artist_email: artist?.email || '',
-    already_accepted: !!invite.accepted_at,
+    artist_name: artist.name,
+    artist_email: artist.email,
+    already_accepted: state === 'accepted_self',
+    expired: isRecipient && state === 'expired',
+    email_mismatch: isRecipient && state === 'email_mismatch',
+    recipient_email: isRecipient && state === 'pending' ? maskEmail(user!.email) : null,
   })
 }
 
-// POST — accept the invite, write accepted_at. Caller identity is derived
-// from the verified session, never trusted from the request body.
+// POST { token, code } — accept the invite. Caller identity is derived from
+// the verified session, never trusted from the request body.
+//   1. Identity first: only the bound recipient is ever told "accepted".
+//   2. Already accepted by this caller and not revoked → success, no code.
+//   3. Expired → refused.
+//   4. The code is verified by Supabase Auth for the session's own email;
+//      the account it returns must be the caller.
+//   5. One guarded write re-checks token, recipient, pending state,
+//      revocation and expiry, so a resend, revoke or expiry racing this
+//      request can't be accepted through a superseded link.
 export async function POST(req: NextRequest) {
   try {
-    const { token } = await req.json()
-    if (!token) {
-      return NextResponse.json({ error: 'token required' }, { status: 400 })
-    }
+    const body = await req.json().catch(() => ({}))
+    const token = typeof body?.token === 'string' ? body.token : ''
+    const code = typeof body?.code === 'string' ? body.code.trim() : ''
+    if (!token) return NextResponse.json({ error: 'token required' }, { status: 400 })
 
     const authSupabase = await createServerSupabaseClient()
     const { data: { user } } = await authSupabase.auth.getUser()
@@ -107,199 +88,122 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'You must be logged in to accept an invite.' }, { status: 401 })
     }
 
-    // Setlistr approval gates ACCEPTANCE itself, not just workspace pages —
-    // what /beta tells an invited user ("approval is required before you
-    // can accept it") and what middleware already enforces for the accept
-    // PAGE. Enforced here too because middleware never runs on API routes,
-    // so a token holder could otherwise accept by calling this directly.
-    // Same rule as middleware (admins, or a beta_invites row), always a
-    // live lookup, checked before the token is even looked up, and fails
-    // closed on a lookup error. Read through the CALLER'S session client
-    // (authSupabase), exactly as middleware does — never the service-role
-    // client — so beta_invites RLS (users_read_own_invite: email =
-    // auth.jwt()->>'email') applies identically. With the service role, a
-    // session whose current user.email differed from its token's email
-    // claim (e.g. right after an email change, until refresh) could be
-    // admitted here while middleware denied it.
-    const admission = await checkBetaAdmission(authSupabase, user.email)
-    if (admission === 'error') {
-      return NextResponse.json({ error: 'Could not verify your Setlistr access right now — try again.' }, { status: 503 })
-    }
-    if (admission !== 'admitted') {
-      return NextResponse.json({ error: 'Setlistr approval is required before you can accept this invite.', code: 'admission_required' }, { status: 403 })
-    }
-
-    // Look up the invite
     const { data: invite } = await supabase
       .from('artist_delegates')
-      .select('id, artist_id, delegate_id, accepted_at, declined_at, revoked_at, invited_by, invited_email')
+      .select(INVITE_COLS)
       .eq('invite_token', token)
-      .maybeSingle()
-
+      .maybeSingle<InviteRow>()
     if (!invite) return NextResponse.json({ error: 'Invite not found.' }, { status: 404 })
 
-    // Same direction guard as GET above: a manager-initiated request can
-    // never be self-accepted through this route. Checked here too, not
-    // just in GET, since GET is only ever a read used to render the
-    // accept screen — this POST is the actual write path and must not
-    // rely on the client having honored what GET displayed. See GET's
-    // own comment for why invited_by !== artist_id is required, not
-    // just invited_by === delegate_id — without it, this was 404ing
-    // every placeholder invite too.
-    const isManagerRequest = invite.invited_by === invite.delegate_id && invite.invited_by !== invite.artist_id
-    if (isManagerRequest) {
-      return NextResponse.json({ error: 'Invite not found.' }, { status: 404 })
+    const state = classifyInvite(invite, user)
+    if (state === 'not_found') return NextResponse.json({ error: 'Invite not found.' }, { status: 404 })
+    if (state === 'no_longer_valid') return NextResponse.json({ error: 'This invite is no longer valid.' }, { status: 404 })
+    if (state === 'wrong_account') return NextResponse.json({ error: 'This invite was sent to a different account.' }, { status: 403 })
+    // Repeat acceptance by the bound, still-authorized recipient: harmless,
+    // returns the existing membership, needs no new code, grants nothing new.
+    if (state === 'accepted_self') return NextResponse.json({ success: true, already_accepted: true })
+    if (state === 'expired') {
+      const artist = await artistNameFor(invite.artist_id)
+      return NextResponse.json({ error: expiredMessage(artist.name), code: 'expired' }, { status: 410 })
+    }
+    if (state === 'email_mismatch') {
+      return NextResponse.json({ error: 'This invite was sent to a different email address than the one you’re signed in with.', code: 'email_mismatch' }, { status: 403 })
     }
 
-    // See the matching check in GET above — revoked_at is the live path
-    // DELETE /api/team/delegates (soft-revoke) and a re-invite's reopen
-    // both write to; declined_at can never actually be set on a row
-    // reachable via THIS direction (respond/route.ts's own direction
-    // guard only ever sets it on manager-request rows, already excluded
-    // above) — checked anyway as the same defense-in-depth discipline,
-    // and because the atomic guards below rely on it being false, not
-    // merely assumed to be.
-    if (invite.revoked_at || invite.declined_at) return NextResponse.json({ error: 'This invite is no longer valid.' }, { status: 404 })
-    if (invite.accepted_at) return NextResponse.json({ success: true, already_accepted: true })
+    if (invitePreviewLocked(req.headers.get('host'))) return NextResponse.json({ error: INVITE_PREVIEW_MESSAGE, code: 'preview_disabled' }, { status: 403 })
 
-    // An artist is the owner of their own account and must never hold a
-    // delegate row for themselves — checked before anything below, since
-    // a placeholder row's delegate_id may equal artist_id (legacy
-    // convention) and would otherwise satisfy the "already bound" case
-    // for the artist's own session.
-    if (user.id === invite.artist_id) {
-      return NextResponse.json({ error: 'This invite was sent to a different account.' }, { status: 403 })
+    // ── Inbox proof ──
+    if (!new RegExp(`^\\d{${INVITE_CODE_LENGTH}}$`).test(code)) {
+      return NextResponse.json({ error: `Enter the ${INVITE_CODE_LENGTH}-digit code from your email.`, code: 'code_required' }, { status: 400 })
     }
-
-    if (invite.delegate_id === user.id) {
-      // Already bound to this account — accept as today, but atomically
-      // guarded on the same terminal-state columns as the placeholder
-      // rebind below, for the same reason: a concurrent duplicate
-      // request (e.g. a double-click) must resolve idempotently, never
-      // as a second write or a confusing error.
-      const { data: updated, error } = await supabase
+    const reserved = await reserveCodeAttempt(supabase, user.id, 'check')
+    if (reserved === 'error') return NextResponse.json({ error: 'Could not check your code right now. Try again.' }, { status: 503 })
+    if (reserved === 'limited') {
+      return NextResponse.json({ error: 'Too many attempts. Wait an hour, then send a new code.', code: 'too_many_attempts' }, { status: 429 })
+    }
+    const verified = await verifyInviteCode(supabase, user.email!, code, user.id)
+    if (verified === 'rate_limited') {
+      return NextResponse.json({ error: 'Too many attempts. Wait a few minutes and try again.', code: 'too_many_attempts' }, { status: 429 })
+    }
+    if (verified !== 'verified') {
+      // A concurrent duplicate (a double tap) may have used this same code
+      // and accepted already: for the same bound, unrevoked account that is
+      // idempotent success, not a code error.
+      const { data: current } = await supabase
         .from('artist_delegates')
-        .update({ accepted_at: new Date().toISOString() })
+        .select('delegate_id, accepted_at, revoked_at')
         .eq('id', invite.id)
-        .is('accepted_at', null)
-        .is('declined_at', null)
-        .is('revoked_at', null)
-        .select('id')
         .maybeSingle()
-
-      if (error) {
-        console.error('Accept invite error:', error)
-        return NextResponse.json({ error: 'Failed to accept invite.' }, { status: 500 })
+      if (current?.accepted_at && !current.revoked_at && current.delegate_id === user.id) {
+        return NextResponse.json({ success: true, already_accepted: true })
       }
+      return NextResponse.json({ error: 'That code didn’t work. Check it or send a new one.', code: 'bad_code' }, { status: 400 })
+    }
 
-      if (!updated) {
-        // Guard matched zero rows — a concurrent request already
-        // resolved this exact row between our SELECT and this UPDATE.
-        // Re-read its actual current state rather than guessing.
-        const { data: current } = await supabase
-          .from('artist_delegates')
-          .select('accepted_at, declined_at, revoked_at')
-          .eq('id', invite.id)
-          .maybeSingle()
-        if (current?.accepted_at) {
-          // A concurrent duplicate (same account) already completed
-          // this exact acceptance — idempotent success, not an error.
-          return NextResponse.json({ success: true })
-        }
+    // ── Guarded acceptance write ──
+    // Every condition is re-checked inside the single UPDATE: the same row
+    // AND the same token (a resend rotates it), still pending, not declined
+    // or revoked, sent within the last 14 days, and addressed to this caller
+    // (bound to them, or a placeholder for their address — rebound here).
+    const now = new Date().toISOString()
+    let write = supabase
+      .from('artist_delegates')
+      .update(isPlaceholder(invite) ? { delegate_id: user.id, accepted_at: now } : { accepted_at: now })
+      .eq('id', invite.id)
+      .eq('invite_token', token)
+      .is('accepted_at', null)
+      .is('declined_at', null)
+      .is('revoked_at', null)
+      .gt('invited_at', inviteExpiryCutoff())
+      .eq('invited_email', invite.invited_email!)
+    write = isPlaceholder(invite)
+      ? (invite.delegate_id === null ? write.is('delegate_id', null) : write.eq('delegate_id', invite.artist_id))
+      : write.eq('delegate_id', user.id)
+
+    const { data: updated, error } = await write.select('id, delegate_id').maybeSingle()
+
+    if (error) {
+      if (error.code === '23505') {
+        // This account already occupies (artist_id, delegate_id) elsewhere —
+        // an existing connection or an opposing pending request. No
+        // duplicate, no overwrite.
+        return NextResponse.json({ error: 'You already have a connection with this account on this workspace.' }, { status: 409 })
+      }
+      console.error('Accept invite error:', error.code)
+      return NextResponse.json({ error: 'Failed to accept invite.' }, { status: 500 })
+    }
+
+    if (!updated) {
+      // The guard matched nothing — something changed since the read above.
+      // Re-read the row's current state rather than guessing.
+      const { data: current } = await supabase
+        .from('artist_delegates')
+        .select('delegate_id, accepted_at, declined_at, revoked_at, invited_at, invite_token')
+        .eq('id', invite.id)
+        .maybeSingle()
+      if (!current || current.declined_at || current.revoked_at) {
         return NextResponse.json({ error: 'This invite is no longer valid.' }, { status: 404 })
       }
-
-      return NextResponse.json({ success: true })
+      if (current.accepted_at) {
+        // A concurrent duplicate by this same account already accepted:
+        // idempotent success. Anyone else: different account.
+        return current.delegate_id === user.id
+          ? NextResponse.json({ success: true })
+          : NextResponse.json({ error: 'This invite was sent to a different account.' }, { status: 403 })
+      }
+      if (current.invite_token !== token) {
+        return NextResponse.json({ error: 'This invitation was sent again with a new link. Open the newest invite email.', code: 'superseded' }, { status: 410 })
+      }
+      const artist = await artistNameFor(invite.artist_id)
+      return NextResponse.json({ error: expiredMessage(artist.name), code: 'expired' }, { status: 410 })
     }
 
-    // Unbound placeholder row (invited email had no Setlistr account at
-    // invite time) — a valid token alone is never sufficient to bind it;
-    // the session's email must match invited_email case-insensitively.
-    // Legacy placeholder rows with a null invited_email fall through to the
-    // 403 below rather than being treated as a match. Recognized under
-    // EITHER placeholder convention during the rollout (see GET above).
-    const isPlaceholder = invite.delegate_id === null || invite.delegate_id === invite.artist_id
-    const emailMatches = !!invite.invited_email && !!user.email &&
-      invite.invited_email.toLowerCase() === user.email.toLowerCase()
-
-    if (isPlaceholder && emailMatches) {
-      // Rebind and accept in one guarded, atomic update. The delegate_id
-      // guard matches whichever convention THIS row currently uses —
-      // legacy rows still hold artist_id until a later, separately
-      // approved backfill; rows created after migration 0024 hold null
-      // from the moment they're inserted. Using the wrong guard would
-      // just match zero rows and fall into the recovery branch below,
-      // never misbind the wrong account. accepted_at/declined_at/
-      // revoked_at are ALL required null in the same atomic guard, not
-      // just delegate_id — a concurrent accept, decline, or revoke
-      // between our SELECT above and this UPDATE must never be silently
-      // overwritten by this write.
-      const base = supabase
-        .from('artist_delegates')
-        .update({ delegate_id: user.id, accepted_at: new Date().toISOString() })
-        .eq('id', invite.id)
-        .is('accepted_at', null)
-        .is('declined_at', null)
-        .is('revoked_at', null)
-
-      const guarded = invite.delegate_id === null
-        ? base.is('delegate_id', null)
-        : base.eq('delegate_id', invite.artist_id)
-
-      const { data: rebound, error } = await guarded.select('id, delegate_id').maybeSingle()
-
-      if (error) {
-        if (error.code === '23505') {
-          // The real account this row is rebinding to already occupies
-          // this exact (artist_id, delegate_id) pair elsewhere — an
-          // existing accepted connection, or a separate opposing
-          // pending request. Fails safely: no duplicate, no overwrite,
-          // caught by the unchanged UNIQUE(artist_id, delegate_id)
-          // constraint, exactly as it always has.
-          return NextResponse.json({ error: 'You already have a connection with this account on this workspace.' }, { status: 409 })
-        }
-        console.error('Accept invite error:', error)
-        return NextResponse.json({ error: 'Failed to accept invite.' }, { status: 500 })
-      }
-
-      if (!rebound) {
-        // Guard matched zero rows — something about this row changed
-        // between our SELECT and this UPDATE. Re-read its actual
-        // current state rather than guessing which guard failed.
-        const { data: current } = await supabase
-          .from('artist_delegates')
-          .select('delegate_id, accepted_at, declined_at, revoked_at')
-          .eq('id', invite.id)
-          .maybeSingle()
-
-        if (current?.delegate_id === user.id && current.accepted_at) {
-          // A concurrent duplicate request (same account racing itself)
-          // already completed this exact rebind-and-accept — idempotent
-          // success, never a second write.
-          return NextResponse.json({ success: true })
-        }
-        if (!current || current.declined_at || current.revoked_at) {
-          // Explicitly declined/revoked (a concurrent remove via
-          // DELETE /api/team/delegates sets revoked_at), or the row is
-          // gone outright — either way "no longer valid" is the accurate
-          // message, not "different account," which would wrongly imply
-          // the invite still exists.
-          return NextResponse.json({ error: 'This invite is no longer valid.' }, { status: 404 })
-        }
-        // Rebound to a different account by a concurrent request.
-        return NextResponse.json({ error: 'This invite was sent to a different account.' }, { status: 403 })
-      }
-
-      if (rebound.delegate_id !== user.id) {
-        return NextResponse.json({ error: 'This invite was sent to a different account.' }, { status: 403 })
-      }
-
-      return NextResponse.json({ success: true })
+    if (updated.delegate_id !== user.id) {
+      return NextResponse.json({ error: 'This invite was sent to a different account.' }, { status: 403 })
     }
-
-    return NextResponse.json({ error: 'This invite was sent to a different account.' }, { status: 403 })
+    return NextResponse.json({ success: true })
   } catch (err) {
-    console.error('Accept invite route error:', err)
+    console.error('Accept invite route error:', (err as Error)?.message)
     return NextResponse.json({ error: 'Something went wrong.' }, { status: 500 })
   }
 }

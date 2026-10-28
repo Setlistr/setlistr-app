@@ -13,23 +13,28 @@
 //      token dead; access only after re-accepting; active member -> 409
 //   F. invite to an email with no account: placeholder delegate_id = null
 //      (migration 0024)
-//   G. intended recipient not yet approved: presented link -> /beta with the
-//      invite saved; a token holder without admission cannot accept via the
-//      API; after approval, same-device resume works, other-device recovery
-//      requires reopening the inbox link; then acceptance succeeds
-//   H. squatter (signed up with the invited address, never had the token):
-//      no page discloses the token or invite details, and accept fails —
-//      approved and unapproved; a cookie naming someone else's or a
-//      non-pending invite discloses nothing
+//   G. intended recipient without Setlistr approval: opens the invite link
+//      directly (no /beta detour), accepts only with a fresh inbox code, and
+//      gets workspace-only access — never general admission; a cookie saved
+//      before this change still resumes the accept page
+//   H. squatter (signed up with the invited address): no page discloses the
+//      token or invite details; without the token accept fails; WITH a
+//      leaked token the code still goes to the real inbox, so a guess fails
 //   I. declined, revoked (old link), and manager self-request rows denied
 //   J. admission rule: admin exception, fail closed on lookup error
-//   K. admission parity with middleware when user.email differs from the
-//      access token's email claim (beta_invites RLS active, as production)
+//   K. full-admission parity (team/request) with middleware when user.email
+//      differs from the access token's email claim (beta_invites RLS active,
+//      as production); acceptance itself proves the CURRENT address's inbox
 //
-// Requires scripts/local-fixture-setup.sql applied (beta_invites RLS).
+// Requires scripts/local-fixture-setup.sql applied (beta_invites RLS), and
+// Supabase Auth sending the magic-link email as a code-only template
+// containing {{ .Token }} to a local mail catcher whose Mailpit API is at
+// TEST_MAIL_API (default http://127.0.0.1:54324/api/v1, `supabase start`).
+// Every positive acceptance reads its code from there, as a person would
+// from their inbox. Codes, like tokens, are never printed.
 //
-// Security model under test: token possession (R1), NOT inbox ownership —
-// see docs/team-invite-identity.md.
+// Security model under test: token possession plus inbox ownership, proved
+// by a fresh code at acceptance — see docs/team-invite-admission-validation.md.
 //
 // HARD LOCALHOST GUARD: refuses to run unless both the Supabase URL and
 // the app URL under test resolve to 127.0.0.1/localhost. No override.
@@ -52,11 +57,13 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js'
 import { createBrowserClient } from '@supabase/ssr'
 import { checkBetaAdmission } from '../lib/betaAdmission'
 import { ADMIN_EMAILS } from '../lib/admin-config'
+import { INVITE_CODE_LENGTH } from '../lib/teamInviteExpiry'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 const APP_URL = process.env.TEST_APP_URL || 'http://127.0.0.1:3000'
+const MAIL_API = process.env.TEST_MAIL_API || 'http://127.0.0.1:54324/api/v1'
 
 function isLocalhost(url: string) {
   try {
@@ -66,7 +73,7 @@ function isLocalhost(url: string) {
     return false
   }
 }
-if (!isLocalhost(SUPABASE_URL) || !isLocalhost(APP_URL)) {
+if (!isLocalhost(SUPABASE_URL) || !isLocalhost(APP_URL) || !isLocalhost(MAIL_API)) {
   console.error('REFUSING TO RUN: this harness only targets localhost.')
   console.error(`  NEXT_PUBLIC_SUPABASE_URL=${SUPABASE_URL || '(unset)'}`)
   console.error(`  APP_URL=${APP_URL}`)
@@ -105,9 +112,9 @@ interface Persona {
   cookieHeader: () => string // for real HTTP requests against the dev server
 }
 
-// admitted (default true): a beta_invites row, i.e. Setlistr-approved. POST
-// /api/team/accept enforces admission server-side, so unadmitted personas
-// are only used where admission itself is under test.
+// admitted (default true): a beta_invites row, i.e. Setlistr-approved.
+// Acceptance no longer requires it; unadmitted personas are used where
+// workspace-only admission is under test.
 async function createPersona(label: string, opts: { artistName?: string; admitted?: boolean; email?: string } = {}): Promise<Persona> {
   const { artistName, admitted = true } = opts
   const email = (opts.email ?? `teamlife-${RUN}-${label}@example.test`).toLowerCase()
@@ -157,8 +164,52 @@ async function callApi(caller: Persona, method: string, path: string, body?: unk
 }
 const invite = (caller: Persona, artistId: string, email: string, role: string) =>
   callApi(caller, 'POST', '/api/team/invite', { artist_id: artistId, delegate_email: email, role })
-const accept = (caller: Persona, token: string | null) =>
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
+
+// IDs of messages already delivered to `email`, so a new code can be told
+// apart by ID rather than by timestamp (a container's clock can drift from
+// the host's).
+async function mailIds(email: string): Promise<Set<string>> {
+  const json = await (await fetch(`${MAIL_API}/messages?limit=200`)).json() as { messages?: { ID: string; To?: { Address: string }[] }[] }
+  return new Set((json.messages || []).filter(m => (m.To || []).some(t => t.Address.toLowerCase() === email.toLowerCase())).map(m => m.ID))
+}
+
+// The code in the first message to `email` that isn't in `seen`, from the
+// local mail catcher's message list. Never printed.
+async function latestCode(email: string, seen: Set<string>): Promise<string | null> {
+  for (let i = 0; i < 60; i++) {
+    const json = await (await fetch(`${MAIL_API}/messages?limit=200`)).json() as { messages?: { ID: string; To?: { Address: string }[] }[] }
+    const fresh = (json.messages || []).filter(m => !seen.has(m.ID) && (m.To || []).some(t => t.Address.toLowerCase() === email.toLowerCase()))
+    if (fresh.length) {
+      const msg = await (await fetch(`${MAIL_API}/message/${fresh[0].ID}`)).json() as { Text?: string }
+      const m = (msg.Text || '').match(new RegExp(`\\b(\\d{${INVITE_CODE_LENGTH}})\\b`))
+      if (m) return m[1]
+    }
+    await sleep(300)
+  }
+  return null
+}
+
+const acceptWithoutCode = (caller: Persona, token: string | null) =>
   callApi(caller, 'POST', '/api/team/accept', { token })
+
+// Acceptance as the accept screen does it: ask for a code to the caller's
+// own inbox, read it, submit it. Anything refused before the code step
+// (wrong account, revoked, expired, unknown token) is returned exactly as
+// the accept route reports it. Waits out Supabase Auth's 60-second
+// per-address throttle when a persona accepts twice in quick succession.
+async function accept(caller: Persona, token: string | null) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const seen = await mailIds(caller.email)
+    const sent = await callApi(caller, 'POST', '/api/team/accept/code', { token })
+    if (sent.status === 429 && sent.json.code === 'too_soon') { await sleep(65_000); continue }
+    if (sent.status !== 200 || !sent.json.sent) return acceptWithoutCode(caller, token)
+    const code = await latestCode(caller.email, seen)
+    if (!code) throw new Error(`no code email for ${caller.label} — is the code-only magic-link template configured?`)
+    return callApi(caller, 'POST', '/api/team/accept', { token, code })
+  }
+  throw new Error(`code throttle did not clear for ${caller.label}`)
+}
 const remove = (caller: Persona, rowId: string, artistId: string) =>
   callApi(caller, 'DELETE', '/api/team/delegates', { delegate_id: rowId, artist_id: artistId })
 
@@ -336,7 +387,7 @@ async function main() {
   if (phErr) throw new Error(`placeholder lookup failed: ${phErr.message}`)
   check('placeholder: delegate_id null, unaccepted', !!placeholder && placeholder.delegate_id === null && !placeholder.accepted_at)
 
-  console.log('\nG. Intended recipient, not yet approved: token holder flow through approval')
+  console.log('\nG. Intended recipient without Setlistr approval: inbox code, workspace-only access')
   // Placeholder invite (no account at invite time), then the recipient signs
   // up with that address — the realistic new-recipient shape.
   const newcomerEmail = `teamlife-${RUN}-newcomer@example.test`
@@ -351,42 +402,40 @@ async function main() {
   const newcomer = await createPersona('newcomer', { email: newcomerEmail, admitted: false })
 
   let nav = await navigate(`/app/accept-invite?token=${newcomerToken}`, newcomer.cookieHeader())
-  check('unadmitted: presented invite link redirects to /beta', nav.status >= 300 && nav.status < 400 && nav.path === '/beta', `${nav.status} ${nav.path}`)
-  check('unadmitted: pending-invite cookie saved from the PRESENTED token', nav.pendingCookie === newcomerToken, nav.pendingCookie ? 'present-mismatch' : 'absent')
-  const pendingCookie = `${PENDING_INVITE_COOKIE}=${nav.pendingCookie}`
-
-  let page = await pageHtml('/beta', `${newcomer.cookieHeader()}; ${pendingCookie}`)
-  check('unadmitted: /beta renders (no redirect, no loop)', page.status === 200, String(page.status))
-  check('unadmitted + valid cookie: /beta shows the validated invitation details', page.body.includes(ARTIST_NAME))
-  page = await pageHtml('/beta', newcomer.cookieHeader())
-  check('unadmitted, no cookie: /beta shows NO invitation details', !page.body.includes(ARTIST_NAME))
+  check('unadmitted: the invite link opens the accept page (no /beta detour)', nav.status === 200, `${nav.status} ${nav.path}`)
+  check('unadmitted: no pending-invite cookie needed or set', !nav.pendingCookie, 'present')
+  nav = await navigate('/app/dashboard', newcomer.cookieHeader())
+  check('unadmitted, not yet accepted: other pages still -> /beta', nav.path === '/beta', `${nav.status} ${nav.path}`)
 
   const before = await inviteRow(artist.userId, newcomerEmail)
-  r = await accept(newcomer, newcomerToken)
-  check('token holder WITHOUT admission: direct API accept -> 403', r.status === 403 && r.json.code === 'admission_required', `${r.status} ${JSON.stringify(r.json)}`)
+  r = await acceptWithoutCode(newcomer, newcomerToken)
+  check('token holder without a code: accept -> 400 code_required', r.status === 400 && r.json.code === 'code_required', `${r.status} ${JSON.stringify(r.json)}`)
+  r = await callApi(newcomer, 'POST', '/api/team/accept', { token: newcomerToken, code: '0'.repeat(INVITE_CODE_LENGTH) })
+  check('token holder with a wrong code: accept -> 400 bad_code', r.status === 400 && r.json.code === 'bad_code', `${r.status} ${JSON.stringify(r.json)}`)
   const after = await inviteRow(artist.userId, newcomerEmail)
-  check('denied accept left the invite unbound and unaccepted', !!after && after.delegate_id === null && !after.accepted_at && JSON.stringify(before) === JSON.stringify(after))
+  check('refused accepts left the invite unbound and unaccepted', !!after && after.delegate_id === null && !after.accepted_at && JSON.stringify(before) === JSON.stringify(after))
 
-  await admit(newcomer.email)
-
-  nav = await navigate('/beta', `${newcomer.cookieHeader()}; ${pendingCookie}`)
-  check('approved, same device (cookie): /beta resumes accept-invite', nav.path === '/app/accept-invite', `${nav.status} ${nav.path}`)
-  check('approved, same device: resumes the SAME presented token', nav.token === newcomerToken, nav.token ? 'present-mismatch' : 'absent')
-
-  nav = await navigate(`/app/accept-invite?token=${newcomerToken}`, newcomer.cookieHeader())
-  check('approved: reopened inbox link reaches accept-invite (no redirect)', nav.status === 200, `${nav.status} ${nav.path}`)
   r = await callApi(newcomer, 'GET', `/api/team/accept?token=${newcomerToken}`)
-  check('approved: accept preview marks them the intended recipient', r.json.is_intended_recipient === true)
+  check('accept preview marks them the intended recipient', r.json.is_intended_recipient === true)
   r = await accept(newcomer, newcomerToken)
-  check('approved intended recipient: accept -> 200', r.status === 200, JSON.stringify(r.json))
+  check('intended recipient with the inbox code: accept -> 200', r.status === 200, JSON.stringify(r.json))
   const bound = await inviteRow(artist.userId, newcomerEmail)
   check('invite bound to the recipient and accepted', bound?.delegate_id === newcomer.userId && !!bound.accepted_at)
+  r = await acceptWithoutCode(newcomer, newcomerToken)
+  check('repeat accept by the same recipient: 200 already_accepted, no code', r.status === 200 && r.json.already_accepted === true, JSON.stringify(r.json))
 
-  console.log('\nG3. Reopened invite (UUID-shaped token, lib/reopenRevokedDelegation.ts) also saves and resolves')
+  nav = await navigate('/app/dashboard', newcomer.cookieHeader())
+  check('workspace-only: Dashboard allowed', nav.status === 200, `${nav.status} ${nav.path}`)
+  nav = await navigate('/app/onboarding', newcomer.cookieHeader())
+  check('workspace-only: artist onboarding -> /app/manager', nav.path === '/app/manager', `${nav.status} ${nav.path}`)
+  check('workspace-only: no beta_invites row was created', !(await service.from('beta_invites').select('id').eq('email', newcomerEmail).maybeSingle()).data)
+  r = await callApi(newcomer, 'POST', '/api/team/request', { artist_email: outsider.email })
+  check('workspace-only: request to manage another artist -> 403', r.status === 403 && r.json.code === 'admission_required', `${r.status} ${JSON.stringify(r.json)}`)
+
+  console.log('\nG3. Reopened invite (UUID-shaped token, lib/reopenRevokedDelegation.ts); a cookie saved before this change')
   {
     // Production holds BOTH token shapes: fresh invites are 32-hex (G above),
-    // re-invites after removal are UUIDs. The presented-token cookie and
-    // its /beta lookup must accept both.
+    // re-invites after removal are UUIDs.
     const reinvitee = await createPersona('reinvitee', { admitted: false })
     r = await invite(artist, artist.userId, reinvitee.email, 'tour_manager')
     const firstRow = await delegation(artist.userId, reinvitee.userId)
@@ -395,10 +444,12 @@ async function main() {
     const reopenedToken = tokenFrom(r.json)
     check('precondition: reopened token is UUID-shaped', !!reopenedToken && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(reopenedToken))
     nav = await navigate(`/app/accept-invite?token=${reopenedToken}`, reinvitee.cookieHeader())
-    check('reopened (UUID) token: unapproved -> /beta', nav.path === '/beta', `${nav.status} ${nav.path}`)
-    check('reopened (UUID) token: pending-invite cookie saved from the PRESENTED token', nav.pendingCookie === reopenedToken, nav.pendingCookie ? 'present-mismatch' : 'absent')
-    page = await pageHtml('/beta', `${reinvitee.cookieHeader()}; ${PENDING_INVITE_COOKIE}=${nav.pendingCookie}`)
-    check('reopened (UUID) token: /beta shows the validated invitation details', page.body.includes(ARTIST_NAME))
+    check('reopened (UUID) token: unapproved recipient reaches the accept page', nav.status === 200, `${nav.status} ${nav.path}`)
+    // A pending-invite cookie saved by the previous release still resumes.
+    nav = await navigate('/beta', `${reinvitee.cookieHeader()}; ${PENDING_INVITE_COOKIE}=${reopenedToken}`)
+    check('legacy cookie: /beta resumes the accept page with the SAME token', nav.path === '/app/accept-invite' && nav.token === reopenedToken, `${nav.status} ${nav.path}`)
+    r = await accept(reinvitee, reopenedToken)
+    check('reopened (UUID) token: accept with code -> 200', r.status === 200, JSON.stringify(r.json))
   }
 
   console.log('\nG2. Cross-device recovery requires reopening the inbox-delivered link')
@@ -435,7 +486,7 @@ async function main() {
       checkNoDisclosure(`${tag}: ${path}`, await navigate(path, squatter.cookieHeader()))
     }
     if (!admitted) {
-      page = await pageHtml('/beta', squatter.cookieHeader())
+      const page = await pageHtml('/beta', squatter.cookieHeader())
       check(`${tag}: /beta discloses no invitation details`, !page.body.includes(ARTIST_NAME))
       check(`${tag}: /beta discloses no token`, !!victimToken && !page.body.includes(victimToken))
     }
@@ -443,33 +494,33 @@ async function main() {
     check(`${tag}: accept without a token -> 400`, r.status === 400, String(r.status))
     r = await accept(squatter, crypto.randomUUID())
     check(`${tag}: accept with a guessed token -> rejected`, r.status === 404 || r.status === 403, String(r.status))
+    // The inbox code is what stops a squatter who obtained the link: a code
+    // can be requested, but it goes to the invited inbox, not to them.
+    r = await callApi(squatter, 'POST', '/api/team/accept', { token: victimToken, code: '1'.repeat(INVITE_CODE_LENGTH) })
+    check(`${tag}: holding a leaked token, a guessed code -> 400 bad_code`, r.status === 400 && r.json.code === 'bad_code', `${r.status} ${JSON.stringify(r.json)}`)
     const victimAfter = await inviteRow(artist.userId, victimEmail)
     check(`${tag}: invite still unbound, unaccepted, unchanged`, !!victimAfter && victimAfter.delegate_id === null && !victimAfter.accepted_at && JSON.stringify(victimBefore) === JSON.stringify(victimAfter))
   }
 
   // A cookie is navigation context, not authorization: one naming someone
-  // else's invite, or a no-longer-pending invite, discloses nothing.
+  // else's invite only resumes the accept page, which then refuses.
   const otherEmail = `teamlife-${RUN}-other@example.test`
   r = await invite(artist, artist.userId, otherEmail, 'viewer')
   const otherToken = tokenFrom(r.json)
   const cookieProbe = await createPersona('cookieprobe', { admitted: false })
-  page = await pageHtml('/beta', `${cookieProbe.cookieHeader()}; ${PENDING_INVITE_COOKIE}=${otherToken}`)
-  check('cookie naming ANOTHER recipient\'s invite: /beta shows no details', !page.body.includes(ARTIST_NAME))
-  // Intended, unapproved recipient whose invite is then revoked: details
-  // shown while pending (positive control), gone once revoked — even with
-  // the same cookie still present.
+  r = await callApi(cookieProbe, 'GET', `/api/team/accept?token=${otherToken}`)
+  check('cookie/token naming ANOTHER recipient\'s invite: not the intended recipient', r.json.is_intended_recipient === false && !r.json.recipient_email, JSON.stringify({ intended: r.json.is_intended_recipient }))
+  r = await callApi(cookieProbe, 'POST', '/api/team/accept/code', { token: otherToken })
+  check('…and no code is sent for it -> 403', r.status === 403, String(r.status))
+  // Intended recipient whose pending invite is revoked: refused afterwards.
   const revokedRecipient = await createPersona('revokedrecipient', { admitted: false })
   r = await invite(artist, artist.userId, revokedRecipient.email, 'viewer')
   const revokedToken = tokenFrom(r.json)
-  nav = await navigate(`/app/accept-invite?token=${revokedToken}`, revokedRecipient.cookieHeader())
-  const revokedCookie = `${PENDING_INVITE_COOKIE}=${nav.pendingCookie}`
-  page = await pageHtml('/beta', `${revokedRecipient.cookieHeader()}; ${revokedCookie}`)
-  check('pending invite + own cookie: /beta shows details (control)', page.body.includes(ARTIST_NAME))
   const revokedRow = await delegation(artist.userId, revokedRecipient.userId)
   r = await remove(artist, revokedRow!.id, artist.userId)
   check('owner revokes the pending invite -> 200', r.status === 200, String(r.status))
-  page = await pageHtml('/beta', `${revokedRecipient.cookieHeader()}; ${revokedCookie}`)
-  check('same cookie after revocation: /beta shows NO details', !page.body.includes(ARTIST_NAME))
+  r = await callApi(revokedRecipient, 'POST', '/api/team/accept/code', { token: revokedToken })
+  check('revoked invite: no code sent -> 404', r.status === 404, String(r.status))
   await admit(revokedRecipient.email)
   r = await accept(revokedRecipient, revokedToken)
   check('revoked invite, approved holder of its token: accept -> 404', r.status === 404, String(r.status))
@@ -528,18 +579,15 @@ async function main() {
       return { p, oldEmail, newEmail }
     }
 
+    // Full admission (team/request) must be no broader than middleware's.
     // K1: admitted ONLY under the new user.email. Middleware (session
     // client + RLS on the token's OLD email claim) denies; the API must too.
     const k1 = await diverge('mover')
     await admit(k1.newEmail)
-    r = await invite(artist, artist.userId, k1.newEmail, 'viewer')
-    const k1Token = tokenFrom(r.json)
-    const k1Before = await inviteRow(artist.userId, k1.newEmail)
     nav = await navigate('/app/dashboard', k1.p.cookieHeader())
     check('K1 middleware: denies (redirects to /beta)', nav.path === '/beta', `${nav.status} ${nav.path}`)
-    r = await accept(k1.p, k1Token)
+    r = await callApi(k1.p, 'POST', '/api/team/request', { artist_email: outsider.email })
     check('K1 API: denies too -> 403 admission_required (no broader than middleware)', r.status === 403 && r.json.code === 'admission_required', `${r.status} ${JSON.stringify(r.json)}`)
-    check('K1 API: invite unchanged', JSON.stringify(k1Before) === JSON.stringify(await inviteRow(artist.userId, k1.newEmail)))
 
     // K2: admitted ONLY under the token's OLD email claim. Middleware's
     // eq(user.email = new) + RLS(old) finds nothing -> denies; the API too.
@@ -547,18 +595,26 @@ async function main() {
     await admit(k2.oldEmail)
     nav = await navigate('/app/dashboard', k2.p.cookieHeader())
     check('K2 middleware: denies (redirects to /beta)', nav.path === '/beta', `${nav.status} ${nav.path}`)
-    r = await accept(k2.p, crypto.randomUUID())
+    r = await callApi(k2.p, 'POST', '/api/team/request', { artist_email: outsider.email })
     check('K2 API: denies -> 403 admission_required', r.status === 403 && r.json.code === 'admission_required', `${r.status} ${JSON.stringify(r.json)}`)
 
     // K3: once the session refreshes (token claim = new user.email), the
-    // legitimately admitted recipient is admitted by both and can accept.
+    // legitimately admitted account is admitted by both.
     const { error: refreshErr } = await k1.p.client.auth.refreshSession()
     if (refreshErr) throw new Error(`refresh failed: ${refreshErr.message}`)
     check('K3 precondition: refreshed token claim is the NEW address', (await claimOf(k1.p)) === k1.newEmail)
     nav = await navigate('/app/dashboard', k1.p.cookieHeader())
     check('K3 middleware: admits (no /beta redirect)', nav.path !== '/beta', `${nav.status} ${nav.path}`)
-    r = await accept(k1.p, k1Token)
-    check('K3 API: admits and accepts -> 200', r.status === 200, `${r.status} ${JSON.stringify(r.json)}`)
+    r = await callApi(k1.p, 'POST', '/api/team/request', { artist_email: outsider.email })
+    check('K3 API: admits -> 200', r.status === 200, `${r.status} ${JSON.stringify(r.json)}`)
+
+    // K4: an invite to the account's CURRENT address is accepted with a code
+    // from that address's inbox; the old address proves nothing.
+    r = await invite(artist, artist.userId, k2.newEmail, 'viewer')
+    const k4Token = tokenFrom(r.json)
+    // The code goes to the session's current address, so that's the inbox to read.
+    r = await accept({ ...k2.p, email: k2.newEmail }, k4Token)
+    check('K4: invite to the current address, code from its inbox -> 200', r.status === 200, `${r.status} ${JSON.stringify(r.json)}`)
   }
 
   console.log('\nJ. Admission rule (lib/betaAdmission.ts) — admin exception and fail-closed')

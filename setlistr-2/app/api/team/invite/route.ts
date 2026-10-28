@@ -6,6 +6,9 @@ import { getBaseUrl } from '@/lib/baseUrl'
 import { roleInfoFor } from '@/lib/teamRoleInfo'
 import { reopenRevokedDelegation } from '@/lib/reopenRevokedDelegation'
 import { escapeHtml } from '@/lib/escapeHtml'
+import { checkBetaAdmission } from '@/lib/betaAdmission'
+import { randomBytes } from 'crypto'
+import { invitePreviewLocked, INVITE_PREVIEW_MESSAGE } from '@/lib/teamInviteAcceptance'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -14,6 +17,46 @@ const supabase = createClient(
 
 const BASE_URL = getBaseUrl()
 const RESEND_API_KEY = process.env.RESEND_API_KEY
+
+// Resending a pending invitation invalidates its previous link and restarts
+// its 14-day expiry: one guarded UPDATE on the still-pending row, matched on
+// the token we read, sets a fresh token (the column default's 32-hex shape)
+// and invited_at = now. If the guard matches nothing, the row changed
+// underneath us — re-read it: a concurrent resend that already rotated it
+// is reused (no second email), anything else is reported.
+type RotateResult =
+  | { outcome: 'rotated'; token: string }
+  | { outcome: 'reused_concurrent'; token: string }
+  | { outcome: 'accepted' }
+  | { outcome: 'gone' }
+  | { outcome: 'error' }
+
+async function rotatePendingInvite(id: string, currentToken: string): Promise<RotateResult> {
+  const token = randomBytes(16).toString('hex')
+  const { data, error } = await supabase
+    .from('artist_delegates')
+    .update({ invite_token: token, invited_at: new Date().toISOString() })
+    .eq('id', id)
+    .eq('invite_token', currentToken)
+    .is('accepted_at', null)
+    .is('declined_at', null)
+    .is('revoked_at', null)
+    .select('id')
+    .maybeSingle()
+  if (error) {
+    console.error('Invite rotate error:', error.code)
+    return { outcome: 'error' }
+  }
+  if (data) return { outcome: 'rotated', token }
+  const { data: current } = await supabase
+    .from('artist_delegates')
+    .select('invite_token, accepted_at, declined_at, revoked_at')
+    .eq('id', id)
+    .maybeSingle()
+  if (!current || current.declined_at || current.revoked_at) return { outcome: 'gone' }
+  if (current.accepted_at) return { outcome: 'accepted' }
+  return { outcome: 'reused_concurrent', token: current.invite_token }
+}
 
 // Returns whether the email actually went out — never just whether a
 // key is configured. Every caller below reports THIS value as
@@ -124,6 +167,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid role' }, { status: 400 })
     }
 
+    // Preview runs against production data: never email a real person,
+    // rotate a real invitation's link or create one from there.
+    if (invitePreviewLocked(req.headers.get('host'))) {
+      return NextResponse.json({ error: INVITE_PREVIEW_MESSAGE, code: 'preview_disabled' }, { status: 403 })
+    }
+
     // Caller must be authenticated before artist_id is trusted for anything.
     const authSupabase = await createServerSupabaseClient()
     const { data: { user } } = await authSupabase.auth.getUser()
@@ -156,9 +205,22 @@ export async function POST(req: NextRequest) {
     // requires an accepted, non-revoked MANAGER delegation scoped to this
     // exact artist_id, which can only exist for a real artist to begin
     // with (created via this same owner path, now itself gated).
+    //
+    // An artist identity alone is not authorization: inviting a team into
+    // one's OWN workspace also requires full Setlistr admission, checked
+    // explicitly and live. Otherwise a workspace-only team member (admitted
+    // only to someone else's workspace) could give themselves an artist name
+    // and admit further people through their own invitations.
     if (user.id === artist_id) {
       if (!artist.artist_name?.trim()) {
         return NextResponse.json({ error: 'Set up your artist profile before inviting a team.' }, { status: 403 })
+      }
+      const admission = await checkBetaAdmission(authSupabase, user.email)
+      if (admission === 'error') {
+        return NextResponse.json({ error: 'Could not verify your Setlistr access right now — try again.' }, { status: 503 })
+      }
+      if (admission !== 'admitted') {
+        return NextResponse.json({ error: 'Setlistr approval is required to invite a team to your own workspace.', code: 'admission_required' }, { status: 403 })
       }
     } else {
       const { data: delegation } = await supabase
@@ -205,10 +267,16 @@ export async function POST(req: NextRequest) {
       }
 
       // Still-pending, never resolved either way — resend the SAME row
-      // and token.
+      // with a fresh token and expiry; the previous link stops working.
       if (existing && !existing.accepted_at && !existing.declined_at && !existing.revoked_at) {
-        const inviteUrl = `${BASE_URL}/app/accept-invite?token=${existing.invite_token}`
-        const emailSent = await sendInviteEmail({ to: delegate_email, artistName: artistDisplayName, inviteUrl, delegateFound: true, role: existing.role })
+        const rotated = await rotatePendingInvite(existing.id, existing.invite_token)
+        if (rotated.outcome === 'error') return NextResponse.json({ error: 'Something went wrong' }, { status: 500 })
+        if (rotated.outcome === 'accepted') return NextResponse.json({ error: 'This person already has access to your account' }, { status: 409 })
+        if (rotated.outcome === 'gone') return NextResponse.json({ error: 'This invitation was just cancelled. Refresh and try again.' }, { status: 409 })
+        const inviteUrl = `${BASE_URL}/app/accept-invite?token=${rotated.token}`
+        const emailSent = rotated.outcome === 'rotated'
+          ? await sendInviteEmail({ to: delegate_email, artistName: artistDisplayName, inviteUrl, delegateFound: true, role: existing.role })
+          : false
         return NextResponse.json({
           success: true,
           email_sent: emailSent,
@@ -295,8 +363,15 @@ export async function POST(req: NextRequest) {
       }
 
       if (existingByEmail) {
-        const inviteUrl = `${BASE_URL}/app/accept-invite?token=${existingByEmail.invite_token}`
-        const emailSent = await sendInviteEmail({ to: delegate_email, artistName: artistDisplayName, inviteUrl, delegateFound: false, role: existingByEmail.role })
+        // Same rotation as the bound branch above.
+        const rotated = await rotatePendingInvite(existingByEmail.id, existingByEmail.invite_token)
+        if (rotated.outcome === 'error') return NextResponse.json({ error: 'Something went wrong' }, { status: 500 })
+        if (rotated.outcome === 'accepted') return NextResponse.json({ error: 'This person already has access to your account' }, { status: 409 })
+        if (rotated.outcome === 'gone') return NextResponse.json({ error: 'This invitation was just cancelled. Refresh and try again.' }, { status: 409 })
+        const inviteUrl = `${BASE_URL}/app/accept-invite?token=${rotated.token}`
+        const emailSent = rotated.outcome === 'rotated'
+          ? await sendInviteEmail({ to: delegate_email, artistName: artistDisplayName, inviteUrl, delegateFound: false, role: existingByEmail.role })
+          : false
         return NextResponse.json({
           success: true,
           email_sent: emailSent,

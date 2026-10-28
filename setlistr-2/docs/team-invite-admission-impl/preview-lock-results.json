@@ -1,0 +1,9 @@
+{
+ "new invite": "403 preview_disabled",
+ "resend existing": "403 preview_disabled",
+ "send code": "403 preview_disabled",
+ "accept with code": "403 preview_disabled",
+ "emails sent": 0,
+ "existing invite unchanged (token, invited_at, pending)": true,
+ "no new invite row": true
+}

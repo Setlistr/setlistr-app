@@ -8,6 +8,7 @@ import { Users, Check, X, Copy, Send, AlertCircle } from 'lucide-react'
 import { ASSIGNABLE_INVITE_ROLES, type AssignableInviteRole } from '@/lib/inviteAuthorization'
 import { roleInfoFor } from '@/lib/teamRoleInfo'
 import { capabilitiesFor, type TeamView } from '@/lib/teamViewCapabilities'
+import { isInviteExpired } from '@/lib/teamInviteExpiry'
 
 const CARD = {
   background: 'var(--sl-card-bg)',
@@ -259,6 +260,9 @@ export default function TeamPage() {
       if (!res.ok || json.error) { setResendError(prev => ({ ...prev, [o.id]: json.error || 'Could not resend — try again.' })); return }
       setResendDone(o.id)
       setTimeout(() => setResendDone(null), 2500)
+      // A resend issues a new link and restarts the 14-day expiry; reload so
+      // Copy Link and the Expired label reflect it.
+      loadTeam()
     } catch {
       setResendError(prev => ({ ...prev, [o.id]: 'Network error — try again.' }))
     } finally {
@@ -479,7 +483,10 @@ export default function TeamPage() {
                           native-tooltip backup for anyone who still wants it
                           on one line via their own browser zoom/width. */}
                       <p title={o.email || 'Unknown'} style={{ fontSize: 13, fontWeight: 600, color: C.text, margin: 0, wordBreak: 'break-all' }}>{o.email || 'Unknown'}</p>
-                      <p style={{ fontSize: 11, color: C.muted, margin: '1px 0 0' }}>{roleInfoFor(o.role).label} · Invited {timeAgo(o.invited_at)}</p>
+                      <p style={{ fontSize: 11, color: C.muted, margin: '1px 0 0' }}>
+                        {roleInfoFor(o.role).label} · Invited {timeAgo(o.invited_at)}
+                        {isInviteExpired(o.invited_at) && <> · <span style={{ color: 'var(--sl-warn)', fontWeight: 700 }}>Expired</span></>}
+                      </p>
                       {resendError[o.id] && <p style={{ fontSize: 11, color: C.red, margin: '3px 0 0' }}>{resendError[o.id]}</p>}
                       {removeError[o.id] && <p style={{ fontSize: 11, color: C.red, margin: '3px 0 0' }}>{removeError[o.id]}</p>}
                     </div>

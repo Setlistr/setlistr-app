@@ -3,6 +3,7 @@ import { createServerClient } from '@supabase/ssr'
 import { ADMIN_EMAILS } from '@/lib/admin-config'
 import { sanitizeNextPath } from '@/lib/nextPathGuard'
 import { PENDING_INVITE_COOKIE, isInviteTokenFormat } from '@/lib/pendingInvite'
+import { isTeamAllowedPath, TEAM_HOME } from '@/lib/teamAdmission'
 
 // ── Hardcoded admin safety net ────────────────────────────────────────────────
 // Admins always have access regardless of DB state — protects against being
@@ -121,41 +122,18 @@ function withInviteCookie(response: NextResponse, inviteToken: string | null): N
 
 // ── Pending team-invite cookie ────────────────────────────────────────────
 // Not to be confused with INVITE_COOKIE above (the beta-gate cache) — this
-// holds a Setlistr team-invite token (artist_delegates.invite_token) for a
-// user who followed a real invite link but isn't beta-admitted yet. Without
-// this, hitting /app/accept-invite while un-admitted falls straight into
-// the generic /beta redirect below and the token is gone for good — a dead
-// end for a legitimate invite, not a security boundary being enforced (beta
-// admission itself is never bypassed; only WHERE to resume afterward is
-// preserved). Only ever set FROM /app/accept-invite, from the token the user
-// actually presented in that URL, and only ever consumed to redirect back
-// TO it — navigation context, never authorization (/api/team/accept
-// re-validates everything). Never derived from an email lookup: a session
-// email is self-asserted (signup doesn't verify inbox ownership), so
-// email-matched token disclosure let anyone claim an invite to an address
-// with no account yet. Name shared via lib/pendingInvite.ts.
-const PENDING_INVITE_TTL_SECONDS = 60 * 60 * 24 * 30 // 30 days — generous; this only ever gates where a now-admitted user lands next, not access itself
-// Shape check shared with /beta's lookup (lib/pendingInvite.ts): accepts
-// both token shapes production issues (32-hex default, UUID on reopen). It
-// was UUID-only here, which silently skipped saving the cookie for every
-// fresh production invite — hidden until R1 removed the email fallback.
+// holds a Setlistr team-invite token (artist_delegates.invite_token) that a
+// browser presented at /app/accept-invite. It used to be saved when an
+// un-admitted user was sent to /beta from there. Signed-in users now reach
+// /app/accept-invite directly (inbox-code acceptance replaced the approval
+// precondition), so nothing sets it any more; cookies already saved are
+// still honoured — only to redirect back TO the accept page, never as
+// authorization (/api/team/accept re-validates everything) — and cleared
+// once that page is reached. Name shared via lib/pendingInvite.ts.
 
 function getPendingInviteToken(request: NextRequest): string | null {
   const raw = request.cookies.get(PENDING_INVITE_COOKIE)?.value
   return isInviteTokenFormat(raw) ? raw : null
-}
-
-function withPendingInviteCookie(response: NextResponse, token: string | null): NextResponse {
-  if (isInviteTokenFormat(token)) {
-    response.cookies.set(PENDING_INVITE_COOKIE, token, {
-      httpOnly: true,
-      secure: true,
-      sameSite: 'lax',
-      maxAge: PENDING_INVITE_TTL_SECONDS,
-      path: '/',
-    })
-  }
-  return response
 }
 
 function clearPendingInviteCookie(response: NextResponse): NextResponse {
@@ -259,9 +237,31 @@ export async function middleware(request: NextRequest) {
     }
   }
 
+  // ── Workspace-only (team) admission ──────────────────────────────────────
+  // An account without Setlistr admission that holds an accepted, unrevoked
+  // membership on another artist's workspace may use the workspace pages
+  // (lib/teamAdmission.ts), and nothing else. Looked up live on every request
+  // through the caller's own session (artist_delegates_select RLS) — never
+  // cached, so revocation applies on the next page load; any lookup error
+  // counts as no membership (fail closed, back to /beta). An artist identity
+  // (profiles.artist_name) plays no part in this decision.
+  let isTeamMember = false
+  if (user && !isAdmin && !isInvited && (isRootRoute || isAppRoute || isBetaPage) && request.nextUrl.pathname !== '/app/accept-invite') {
+    const { data: memberships, error: membershipError } = await supabase
+      .from('artist_delegates')
+      .select('id')
+      .eq('delegate_id', user.id)
+      .neq('artist_id', user.id)
+      .not('accepted_at', 'is', null)
+      .is('revoked_at', null)
+      .is('declined_at', null)
+      .limit(1)
+    isTeamMember = !membershipError && !!memberships && memberships.length > 0
+  }
+
   // ── Root route: if logged in with access, skip marketing and go straight to app
   if (isRootRoute && user) {
-    if (isAdmin || isInvited) {
+    if (isAdmin || isInvited || isTeamMember) {
       const pending = getPendingInviteToken(request)
       const dest = pending ? `/app/accept-invite?token=${pending}` : '/app/dashboard'
       const res = NextResponse.redirect(new URL(dest, request.url))
@@ -313,14 +313,21 @@ export async function middleware(request: NextRequest) {
       }
       return withInviteCookie(supabaseResponse, inviteToken)
     }
-    const betaRedirect = NextResponse.redirect(new URL('/beta', request.url))
-    // Only a token the user actually presented in the URL (only meaningful
-    // on /app/accept-invite itself) is saved — never one looked up by the
-    // session's email. A recipient on another device reopens the
-    // inbox-delivered link (invite or approval email) instead.
-    const urlToken = request.nextUrl.pathname === '/app/accept-invite' ? request.nextUrl.searchParams.get('token') : null
-    const withBeta = urlToken ? withPendingInviteCookie(betaRedirect, urlToken) : betaRedirect
-    return withInviteCookie(withBeta, inviteToken)
+    // Not admitted. Any signed-in account may open the accept page: it and
+    // /api/team/accept enforce the recipient, expiry and a fresh inbox code,
+    // and accepting grants only that workspace.
+    if (request.nextUrl.pathname === '/app/accept-invite') {
+      return getPendingInviteToken(request) ? clearPendingInviteCookie(supabaseResponse) : supabaseResponse
+    }
+    const pending = getPendingInviteToken(request)
+    if (pending) {
+      return clearPendingInviteCookie(NextResponse.redirect(new URL(`/app/accept-invite?token=${pending}`, request.url)))
+    }
+    if (isTeamMember) {
+      if (isTeamAllowedPath(request.nextUrl.pathname)) return supabaseResponse
+      return NextResponse.redirect(new URL(TEAM_HOME, request.url))
+    }
+    return withInviteCookie(NextResponse.redirect(new URL('/beta', request.url)), inviteToken)
   }
 
   // Logged in and has access — skip beta page, resuming a pending team
@@ -340,6 +347,13 @@ export async function middleware(request: NextRequest) {
       const res = NextResponse.redirect(new URL(dest, request.url))
       return withInviteCookie(pending ? clearPendingInviteCookie(res) : res, inviteToken)
     }
+    // Not admitted, but holding an invite link this browser presented
+    // earlier — back to the accept page, which no longer needs approval.
+    const pending = getPendingInviteToken(request)
+    if (pending) {
+      return clearPendingInviteCookie(NextResponse.redirect(new URL(`/app/accept-invite?token=${pending}`, request.url)))
+    }
+    if (isTeamMember) return NextResponse.redirect(new URL('/app/dashboard', request.url))
     // Not admitted, landed on /beta directly (bookmark, refresh, or
     // arrived here with no cookie at all) — rendered as-is. Deliberately
     // NEVER self-redirects /beta to itself to attach a cookie: a

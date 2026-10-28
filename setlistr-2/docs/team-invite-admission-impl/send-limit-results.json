@@ -1,0 +1,7 @@
+{
+ "same address twice": "429 over_email_send_rate_limit",
+ "33 more distinct addresses (send # in order)": {
+  "sent": "28 (#2–#29)",
+  "429 over_request_rate_limit": "5 (#30–#34)"
+ }
+}
