@@ -62,7 +62,7 @@ export function useTonightShows(artistId: string | null, enabled: boolean) {
 
   const deviceZone = useMemo(() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || null } catch { return null } }, [])
   const items = useMemo(() => tonightShows(shows, now, deviceZone), [shows, now, deviceZone])
-  return { items, active, refresh: load }
+  return { items, shows, active, refresh: load }
 }
 
 // ── Shared look (the Dashboard's existing band values) ─────────────────────
@@ -139,8 +139,12 @@ export function TonightBand({ items, onStart, onChoose, onAddTime }: {
         <span style={{ flex: 1, minWidth: 0 }}>
           <StatusLine color="var(--sl-ok)">{scheduledLine(items[0])}</StatusLine>
           <span style={title}>{items.length} shows · choose one to start</span>
-          <span style={{ ...sub, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            {items.map(i => `${venueOf(i)} ${i.timeText || '(time not set)'}`).join(' · ')}
+          {/* Wraps onto at most two lines, then an ellipsis. Long names
+              break inside the row, never past it. */}
+          <span style={{ ...sub, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', overflowWrap: 'anywhere' } as React.CSSProperties}>
+            {items.map((i, k) => (
+              <span key={i.show.id}>{k > 0 ? ' · ' : ''}{venueOf(i)} {i.timeText || '(time not set)'}</span>
+            ))}
           </span>
         </span>
         {chevron}

@@ -68,7 +68,10 @@ export function zoneAbbreviation(utcIso: string, zone: string): string {
 // cancelled) — the API returns those too, oldest first — and says how many
 // there are rather than presenting one as upcoming. Colours are --sl-*
 // tokens (app/globals.css).
-export function NextShowSummary({ artistId }: { artistId: string }) {
+// skipIds: bookings already featured above (the Dashboard's Tonight row), so
+// the same booking is never repeated here; the next distinct one is shown.
+export function NextShowSummary({ artistId, skipIds = [] }: { artistId: string; skipIds?: string[] }) {
+  const skipKey = skipIds.join(',')
   const [state, setState] = useState<{ status: 'loading' | 'ready' | 'error'; next: ScheduledShow | null; pastCount: number }>({ status: 'loading', next: null, pastCount: 0 })
 
   useEffect(() => {
@@ -76,10 +79,13 @@ export function NextShowSummary({ artistId }: { artistId: string }) {
     setState({ status: 'loading', next: null, pastCount: 0 })
     fetch(`/api/shows/schedule?artist_id=${artistId}`)
       .then(res => { if (!res.ok) throw new Error(String(res.status)); return res.json() })
-      .then(data => { if (!cancelled) setState({ status: 'ready', ...pickNextScheduled<ScheduledShow>(data.shows || []) }) })
+      .then(data => {
+        const skip = new Set(skipKey ? skipKey.split(',') : [])
+        if (!cancelled) setState({ status: 'ready', ...pickNextScheduled<ScheduledShow>((data.shows || []).filter((s: ScheduledShow) => !skip.has(s.id))) })
+      })
       .catch(() => { if (!cancelled) setState({ status: 'error', next: null, pastCount: 0 }) })
     return () => { cancelled = true }
-  }, [artistId])
+  }, [artistId, skipKey])
 
   const row: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 12, minHeight: 56, padding: '12px 0', borderBottom: '1px solid var(--sl-line)', textDecoration: 'none', color: 'var(--sl-text)' }
 

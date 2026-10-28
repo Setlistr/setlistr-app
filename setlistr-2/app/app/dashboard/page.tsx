@@ -8,6 +8,7 @@ import { useActingAs } from '@/components/ActingAsProvider'
 import { openAccountMenu } from '@/components/layout/AccountMenu'
 import { useWorkspaceRole } from '@/components/layout/WorkspaceRole'
 import { NextShowSummary, useShowActions } from '@/components/scheduling/UpcomingShows'
+import { pickNextScheduled } from '@/lib/scheduleTime'
 import { TonightBand, useTonightShows, capturerText } from '@/components/scheduling/TonightShows'
 import { isCapturedShow, isRealVenue } from '@/lib/performance-status'
 import { summarizeRecord, showDate, lastShowLabel } from '@/lib/record-summary'
@@ -660,7 +661,9 @@ export default function DashboardPage() {
 
   const hasBand = !showLoading && (!!(liveBand || reviewBand || todayBand || startMessage))
   const bands = hasBand && (
-    <div style={{ display: 'grid', gap: 8, paddingTop: 8 }}>{liveBand}{reviewBand}{todayBand}{startMessage}</div>
+    // minmax(0, 1fr): a row's long text truncates or wraps inside the column instead
+    // of widening it past a narrow screen (320 px at larger text sizes).
+    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 8, paddingTop: 8 }}>{liveBand}{reviewBand}{todayBand}{startMessage}</div>
   )
 
   // The one sentence under the number.
@@ -813,15 +816,23 @@ export default function DashboardPage() {
     )
   }
 
+  // A booking already featured in the Tonight row isn't repeated under
+  // Coming up: the next distinct booking is shown there instead, or, when
+  // there is none, that item is left out (the same "next" rule as Schedule).
+  const featuredIds = scheduledBand ? tonight.items.map(i => i.show.id) : []
+  const comingUpRedundant = featuredIds.length > 0 && !pickNextScheduled(tonight.shows.filter(s => !featuredIds.includes(s.id))).next
+
   const more = !showLoading && !loadFailed && (
     <>
       {/* ── Coming up: the next scheduled show, plus external listings ── */}
-      {userId && (
+      {userId && (!comingUpRedundant || upcomingShows.length > 0) && (
         <>
           <h2 style={sectionHeading}>Coming up</h2>
-          <div style={{ marginTop: 8 }}>
-            <NextShowSummary artistId={actingAs?.artist_id || userId} />
-          </div>
+          {!comingUpRedundant && (
+            <div style={{ marginTop: 8 }}>
+              <NextShowSummary artistId={actingAs?.artist_id || userId} skipIds={featuredIds} />
+            </div>
+          )}
         </>
       )}
       {upcomingShows.length > 0 && (
