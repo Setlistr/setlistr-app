@@ -150,6 +150,38 @@ On the disposable stack, Supabase Auth delivered it with an 8-digit code, no `<a
 
 **Cost:** one email out of the project's 30 per hour; one OTP request from one IP. **What it doesn't test:** acceptance itself, which needs the invitation feature released. That remains the post-release check.
 
+## Production template change and delivery test (2026-10-28)
+
+- **Template change, approved by the owner:** the Magic Link subject became `Your Setlistr code` and the body became `magic-link-template.html` exactly, with the trailing newline removed. Nothing else was changed.
+  - The previous subject ("Your Magic Link") and its 105-character link-only body were saved first, outside the repository with owner-only permissions, for an exact rollback. Reverting means writing back exactly those two fields.
+  - Read back after the change: the subject and body are exact, `{{ .Token }}` is present, and there are no link markers.
+- **One test code** was sent at 14:05:31 UTC to the owner's existing account (`create_user: false`); the code wasn't printed or logged.
+  - **Passed (owner):** delivery to the inbox, plus sender, subject, logo, an 8-digit code and a code-only layout.
+  - **Not verified:** the SPF/DKIM/DMARC headers, and actual invitation acceptance, which needs the release.
+- **Unexplained configuration difference, investigated within bounds:**
+  - **What happened:** a hash of every auth setting except the two template fields differed between the read just before the write and the one after.
+  - **Where it isn't:**
+    - every value recorded on 2026-10-27 is unchanged: SMTP, code length and expiry, all rate limits, the hooks, notification flags, captcha, auto-confirm, site URL and redirect list;
+    - the other five templates still have the same subject and size;
+    - SMTP credentials are still set.
+  - **Not a recurring effect:** two plain reads are identical, and re-writing the same two fields changes nothing, so it was a one-time difference caused by the first write.
+  - **Why it can't be named:** the 191 remaining fields were never recorded, deliberately, because the full response contains credentials.
+  - **Their current state looks like the platform defaults, with nothing unexpected on:**
+    - providers: email only;
+    - phone, anonymous sign-in, SAML, OAuth server, passkeys and all hooks: off;
+    - MFA: TOTP enrol/verify on (a Supabase default);
+    - refresh-token rotation: on;
+    - minimum password length: 6.
+  - **Conclusion:** most likely the platform filling in or rewriting a field on its first save. Unconfirmed, but no change to sign-in, email or security behaviour was found.
+  - **Next time:** store per-field hashes, not values, before a write, so any difference can be named without keeping secrets.
+
+## Release candidate
+
+- **Candidate commit:** a merge of `main` `a40fc56` (the released R&D Log admin check) into this branch.
+- **The R&D route is identical to `main`.**
+- **Invitation code is identical to the tested `b5606c7`**, so the disposable test results above stand.
+- **Needs no SQL or environment change.** The production template change above is already in place.
+
 ## Preview review
 
 - Pushing this branch builds a Vercel Preview against **production data**.
