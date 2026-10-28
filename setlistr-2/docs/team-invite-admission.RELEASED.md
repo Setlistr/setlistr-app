@@ -1,5 +1,9 @@
 # Release record: team invitations and admission (PR #6)
 
+This file: `setlistr-2/docs/team-invite-admission.RELEASED.md`, on branch `docs/overhaul-roadmap`.
+
+Production stays at `039871eef497280ca880e04b48b0182ac21d5963`.
+
 - **Released:** 2026-10-28, approved by the owner.
 - **Preconditions, checked immediately before the merge:**
   - `main` was `a40fc56c33204267449a321c8d2245346130ccd1`.
@@ -42,3 +46,13 @@ A rollback keeps:
 - the `product_events` attempt rows, which are harmless.
 
 The code-only template can stay, or be restored exactly from the secure backup on separate approval. Reverting also keeps the R&D Log fix, because it's in `a40fc56`, which the revert doesn't touch.
+
+## Manual acceptance check (owner; pending the owner naming a second address)
+
+1. The owner invites a second address they own as **Viewer**.
+2. They open the link in a private browser and sign up or sign in as that address, **without requesting beta access**.
+3. They request the emailed 8-digit code and enter it.
+4. They confirm they reach the right artist workspace with **no editing controls**.
+5. The owner removes the membership; the next workspace request is refused.
+
+Wrong-code, race and API boundary cases were covered on the disposable stack and aren't repeated. If the real flow fails, capture the exact error message, screen and time, and investigate that failure.
