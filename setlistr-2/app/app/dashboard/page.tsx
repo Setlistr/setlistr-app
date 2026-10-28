@@ -7,7 +7,8 @@ import { ChevronRight, Mic, Info } from 'lucide-react'
 import { useActingAs } from '@/components/ActingAsProvider'
 import { openAccountMenu } from '@/components/layout/AccountMenu'
 import { useWorkspaceRole } from '@/components/layout/WorkspaceRole'
-import { NextShowSummary } from '@/components/scheduling/UpcomingShows'
+import { NextShowSummary, useShowActions } from '@/components/scheduling/UpcomingShows'
+import { TonightBand, useTonightShows, capturerText } from '@/components/scheduling/TonightShows'
 import { isCapturedShow, isRealVenue } from '@/lib/performance-status'
 import { summarizeRecord, showDate, lastShowLabel } from '@/lib/record-summary'
 import { showDay } from '@/lib/show-date'
@@ -570,6 +571,14 @@ export default function DashboardPage() {
   // the empty state's capture hint) follow the app frame's role answer —
   // never offered to a Viewer, nor before a team role is known.
   const { canWrite: canCapture } = useWorkspaceRole()
+
+  // Tonight's scheduled show(s) and whose capture is in progress, for the
+  // selected workspace (docs/tonight-show-one-tap-plan.md). Starts go
+  // through Schedule's own linked Start and confirmation.
+  const workspaceId = resolved ? (actingAs?.artist_id || userId) : null
+  const workspaceName = actingAs ? actingAs.artist_name : ownArtistName
+  const tonight = useTonightShows(workspaceId, !!workspaceId)
+  const tonightActions = useShowActions({ artistName: workspaceName, onChanged: tonight.refresh, entry: 'dashboard', artistId: workspaceId, onRefused: tonight.refresh })
   const overline      = actingAs ? `${possessive(actingAs.artist_name)} live record` : 'Your live record'
   const loadFailed    = (contextLoadError && !!actingAs) || (ownLoadError && !actingAs)
   const showLoading   = loading || dataFor !== (actingAs ? actingAs.artist_id : 'own')
@@ -577,10 +586,14 @@ export default function DashboardPage() {
 
   // ── "What's happening now" rows: compact, above the record, never
   //    instead of it. Same destinations and actions as before. ──
-  // A link to live capture only for people who can capture; a Viewer (or
-  // anyone whose role isn't known yet) sees the same status, with no link.
+  // A link back into live capture only for the person whose capture it is
+  // (their own start, from /api/shows/timeline's active section). A
+  // teammate's capture, a Viewer, or an unknown owner sees the same status
+  // with no link, so a second device is never invited to start listening.
   const liveBand = livePerf && (() => {
-    const mightBeInterrupted = minutesSince(livePerf.started_at || livePerf.created_at) > 5
+    const owner = tonight.active && tonight.active.id === livePerf.id ? tonight.active : null
+    const mine = canCapture && !!owner?.own
+    const mightBeInterrupted = minutesSince(livePerf.started_at || livePerf.created_at) > 5 && mine
     const body = (
       <>
         <span aria-hidden="true" style={{ width: 40, height: 40, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'radial-gradient(circle at 40% 35%, #dcc06a, #c9a84c 55%, #8a6520)', color: '#0a0908' }}>
@@ -591,12 +604,12 @@ export default function DashboardPage() {
             ? <StatusLine color="var(--sl-live)">Capture may have been interrupted</StatusLine>
             : <StatusLine color="var(--sl-ok)">Show in progress</StatusLine>}
           <span style={bandTitle}>{livePerf.venue_name || 'Untitled show'}</span>
-          <span style={bandSub}>{canCapture ? (mightBeInterrupted ? 'Tap to resume capture' : 'Tap to continue capture') : 'Being captured by the artist or their team'}</span>
+          <span style={bandSub}>{mine ? (mightBeInterrupted ? 'Tap to resume capture' : 'Tap to continue capture') : owner ? capturerText(owner, workspaceName) : 'Being captured by the artist or their team'}</span>
         </span>
         <span style={{ fontFamily: '"DM Mono", monospace', fontSize: 18, color: 'var(--sl-text-2)', fontVariantNumeric: 'tabular-nums' }}>{formatElapsed(livePerf.started_at || livePerf.created_at)}</span>
       </>
     )
-    return canCapture ? (
+    return mine ? (
       <button onClick={() => navigateToPerformance(livePerf)} aria-label={`${mightBeInterrupted ? 'Resume capture' : 'Continue capture'} at ${livePerf.venue_name || 'this show'}`} style={bandButton}>
         {body}{chevron}
       </button>
@@ -622,7 +635,19 @@ export default function DashboardPage() {
     </button>
   )
 
-  const todayBand = todayShow && !livePerf && canCapture && (
+  // Tonight: a show booked in Setlistr comes first and starts linked to its
+  // booking; a Bandsintown/Ticketmaster listing is offered only when no
+  // booked show is eligible (unchanged behaviour).
+  const scheduledBand = !livePerf && canCapture && tonight.items.length > 0 && (
+    <TonightBand items={tonight.items}
+      onStart={i => tonightActions.confirmAndStart(i.show)}
+      onChoose={() => router.push('/app/show/new')}
+      onAddTime={() => router.push('/app/schedule')} />
+  )
+  const startMessage = tonightActions.startError && (
+    <p role="alert" style={{ fontSize: 13, color: 'var(--sl-danger)', margin: '2px 4px 0', lineHeight: 1.4 }}>{tonightActions.startError}</p>
+  )
+  const todayBand = scheduledBand || (todayShow && !livePerf && canCapture && (
     <button onClick={() => startShowFromBIT(todayShow)} aria-label={`Start capture at ${todayShow.venueName}`} style={bandButton}>
       <span style={{ flex: 1, minWidth: 0 }}>
         <StatusLine color="var(--sl-ok)">{actingAs ? `${actingAs.artist_name} plays tonight` : 'Tonight'}</StatusLine>
@@ -631,11 +656,11 @@ export default function DashboardPage() {
       </span>
       {chevron}
     </button>
-  )
+  ))
 
-  const hasBand = !showLoading && (!!(liveBand || reviewBand || todayBand))
+  const hasBand = !showLoading && (!!(liveBand || reviewBand || todayBand || startMessage))
   const bands = hasBand && (
-    <div style={{ display: 'grid', gap: 8, paddingTop: 8 }}>{liveBand}{reviewBand}{todayBand}</div>
+    <div style={{ display: 'grid', gap: 8, paddingTop: 8 }}>{liveBand}{reviewBand}{todayBand}{startMessage}</div>
   )
 
   // The one sentence under the number.

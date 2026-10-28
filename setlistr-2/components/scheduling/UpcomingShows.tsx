@@ -6,6 +6,9 @@ import { createClient } from '@/lib/supabase/client'
 import { zonedLocalTimeToUtc, utcToZonedParts, pickNextScheduled, relativeDayLabel, zonedToday, compareScheduled } from '@/lib/scheduleTime'
 import { getTimezoneOptions, labelForZone } from '@/lib/timezoneLabels'
 import tzLookup from 'tz-lookup'
+import { confirmWhenText } from '@/lib/tonightShows'
+import { logProductEvent, type ScheduledStartEntry, type ScheduledStartOutcome } from '@/lib/telemetry'
+import { previewWritesLocked } from '@/lib/previewWrites'
 
 const C = {
   bg: 'var(--sl-bg)', card: 'var(--sl-surface)', card2: 'var(--sl-surface-2)', border: 'color-mix(in srgb, var(--sl-text) 8%, transparent)', borderGold: 'color-mix(in srgb, var(--sl-accent) 30%, transparent)',
@@ -117,10 +120,21 @@ export function NextShowSummary({ artistId }: { artistId: string }) {
   )
 }
 
-// Start and Cancel for a scheduled show, shared by UpcomingShows and the
-// Schedule timeline (components/scheduling/ScheduleTimeline.tsx). Moved here
-// unchanged: the same confirmations, routes, errors and navigation.
-export function useShowActions({ artistName, onBeforeStart, onChanged }: { artistName?: string | null; onBeforeStart?: () => void; onChanged: () => void }) {
+// Start and Cancel for a scheduled show, shared by Schedule (UpcomingShows,
+// ScheduleTimeline), the Dashboard's Tonight row and the gold capture
+// button's first screen (components/scheduling/TonightShows.tsx). One
+// confirmation, one route, one set of messages.
+//
+// entry/artistId (optional): record which entry started a booked show and
+// the outcome as a scheduled_start product event (existing telemetry;
+// best-effort, never awaited, never blocks Start; skipped on Preview).
+// onRefused (optional): called when the server refuses a start (someone
+// else started it, it was cancelled, access ended…) so the caller can
+// refresh. The message stays in startError until the next attempt.
+export function useShowActions({ artistName, onBeforeStart, onChanged, entry, artistId, onRefused }: {
+  artistName?: string | null; onBeforeStart?: () => void; onChanged: () => void
+  entry?: ScheduledStartEntry; artistId?: string | null; onRefused?: () => void
+}) {
   const router = useRouter()
   const [starting, setStarting] = useState<string | null>(null)
   const [startError, setStartError] = useState('')
@@ -136,18 +150,36 @@ export function useShowActions({ artistName, onBeforeStart, onChanged }: { artis
     else { const j = await res.json().catch(() => ({})); alert(j.error || 'Could not cancel — reload and try again.') }
   }
 
+  function track(outcome: ScheduledStartOutcome, show: ScheduledShow, performanceId: string | null) {
+    if (!entry || !artistId) return
+    if (typeof window !== 'undefined' && previewWritesLocked(window.location.host)) return
+    void (async () => {
+      try {
+        const supabase = createClient()
+        const { data: { user } } = await supabase.auth.getUser()
+        await logProductEvent(supabase, {
+          event_name: 'scheduled_start', user_id: artistId, performance_id: performanceId, show_id: show.id,
+          actor_type: user && user.id === artistId ? 'owner' : 'delegate', action_type: `${entry}.${outcome}`,
+          occurred_at: new Date().toISOString(),
+        })
+      } catch { /* telemetry never affects Start */ }
+    })()
+  }
+
   function confirmAndStart(show: ScheduledShow) {
     // A date-only booking has no start time to start against yet.
     if (!show.scheduled_at) { setStartError(NEEDS_TIME_TO_START); return }
-    const { dateStr, timeStr } = utcToZonedParts(new Date(show.scheduled_at), show.timezone)
     const who = artistName ? `${artistName} — ` : ''
     const venue = show.venues?.name || 'this venue'
-    const when = `${dayLabel(dateStr, show.timezone)}, ${timeLabel(timeStr)} ${zoneAbbreviation(show.scheduled_at, show.timezone)}`.trim()
+    // The show's own local date and time, with its zone:
+    // "Wed, Oct 28 (today), 8:00 PM CDT".
+    const when = confirmWhenText(show.scheduled_at, show.timezone)
     // Only ever call it "early" when it actually is — a show whose
     // scheduled time has already arrived or passed is just being started,
     // not started ahead of schedule.
     const isFuture = new Date(show.scheduled_at).getTime() > Date.now()
     const note = isFuture ? 'This starts the show early, ahead of its scheduled time.' : 'This starts the show now.'
+    // Cancelling the confirmation does nothing at all: no request, no record.
     const ok = confirm(`Start capture now for ${who}${venue}, scheduled for ${when}?\n\n${note}`)
     if (ok) handleStart(show)
   }
@@ -156,12 +188,20 @@ export function useShowActions({ artistName, onBeforeStart, onChanged }: { artis
     setStarting(show.id); setStartError('')
     try {
       const res = await fetch(`/api/shows/schedule/${show.id}/start`, { method: 'POST' })
-      const json = await res.json()
-      if (!res.ok) { setStartError(json.error || 'Could not start this show.'); setStarting(null); return }
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setStartError(json.error || 'Could not start this show.'); setStarting(null)
+        // A refusal (4xx) means the show changed or access did: refresh so
+        // nothing stale stays startable. Server errors keep the list as is.
+        if (res.status >= 400 && res.status < 500) { track('refused', show, null); onRefused?.() } else track('failed', show, null)
+        return
+      }
+      track(json.already_started ? 'rejoined' : 'started', show, json.performance_id || null)
       onBeforeStart?.()
       router.push(`/app/live/${json.performance_id}?autostart=1`)
     } catch {
       setStartError('Network error — try again.'); setStarting(null)
+      track('failed', show, null)
     }
   }
 

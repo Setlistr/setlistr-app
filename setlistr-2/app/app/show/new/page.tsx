@@ -4,6 +4,9 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { buzzLong } from '@/lib/haptics'
 import { useActingAs } from '@/components/ActingAsProvider'
+import { useWorkspaceRole } from '@/components/layout/WorkspaceRole'
+import { useShowActions } from '@/components/scheduling/UpcomingShows'
+import { TonightLead, useTonightShows } from '@/components/scheduling/TonightShows'
 import { toCoords } from '@/lib/geolocation'
 import { logProductEvent, actorTypeFor, awaitWithTimeout } from '@/lib/telemetry'
 import { Calendar, ArrowRight, ArrowLeft, RefreshCw, Check, MapPin, Search, X, Plus, ChevronDown, ChevronUp, Camera, Upload, ListMusic } from 'lucide-react'
@@ -209,6 +212,25 @@ export default function NewShowPage() {
   const { actingAs: providerActingAs, actingAsArtistId, resolved } = useActingAs()
 
   const [artistName, setArtistName]     = useState('')
+  // ── Tonight's scheduled show (docs/tonight-show-one-tap-plan.md) ──
+  // The first screen leads with the selected workspace's booked show(s), or
+  // the capture already in progress. "A different show" opens today's
+  // unchanged choice. Not shown when the link carries an explicit intent
+  // (a listing's venue, or upload mode).
+  const { canWrite: canCapture } = useWorkspaceRole()
+  const [selfId, setSelfId] = useState<string | null>(null)
+  const [ownName, setOwnName] = useState<string | null>(null)
+  // The selected workspace's artist, named in the lead and the confirmation:
+  // the managed artist's name from the workspace selection (a team member
+  // can't read that artist's profile), or the viewer's own name.
+  const workspaceName = actingAsArtistId ? (providerActingAs?.artist_name || null) : ownName
+  const [different, setDifferent] = useState(false)
+  const explicitIntent = !!searchParams.get('venue') || searchParams.get('mode') === 'upload'
+  const workspaceId = resolved ? (actingAsArtistId || selfId) : null
+  const tonight = useTonightShows(workspaceId, !!workspaceId && canCapture && !explicitIntent)
+  const tonightActions = useShowActions({ artistName: workspaceName, onChanged: tonight.refresh, entry: 'capture_button', artistId: workspaceId, onRefused: tonight.refresh })
+  const hasTonight = tonight.items.length > 0 || !!tonight.active
+  const showTonightLead = !different && canCapture && !explicitIntent && (hasTonight || !!tonightActions.startError)
   const [showType, setShowType]         = useState<'single' | 'writers_round'>('single')
   const [showSchedule, setShowSchedule] = useState(false)
   const [scheduledAt, setScheduledAt]   = useState(new Date().toISOString().slice(0, 16))
@@ -292,9 +314,11 @@ export default function NewShowPage() {
     const supabase = createClient()
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return
+      setSelfId(user.id)
       supabase.from('profiles').select('artist_name, full_name').eq('id', actingAsArtistId || user.id).single()
         .then(({ data }) => {
           const n = data?.artist_name || data?.full_name || ''
+          if (!actingAsArtistId) setOwnName(n || null)
           if (n) setArtistName(prev => prev === '' ? n : prev)
         })
     })
@@ -736,8 +760,18 @@ export default function NewShowPage() {
             Shown before any form fields, so both paths are equally
             visible — neither is a secondary link buried under the other.
         ══════════════════════════════════════════ */}
-        {step === 1 && captureChoice === null && (
+        {step === 1 && captureChoice === null && showTonightLead && (
+          <TonightLead items={tonight.items} artistName={workspaceName} startingId={tonightActions.starting} error={tonightActions.startError}
+            active={tonight.active} onStart={i => tonightActions.confirmAndStart(i.show)} onAddTime={() => router.push('/app/schedule')}
+            onRejoin={() => tonight.active && router.push(`/app/live/${tonight.active.id}`)} onDifferent={() => setDifferent(true)} />
+        )}
+        {step === 1 && captureChoice === null && !showTonightLead && (
           <div key="capture-choice" style={{ animation: 'fadeUp 0.3s ease' }}>
+            {different && hasTonight && (
+              <button onClick={() => setDifferent(false)} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', padding: '10px 0', marginBottom: 4, minHeight: 44 }}>
+                ← Back to tonight’s scheduled show
+              </button>
+            )}
             <h1 style={{ fontSize: 30, fontWeight: 800, color: C.text, margin: '0 0 8px', letterSpacing: '-0.025em' }}>Where tonight?</h1>
             <p style={{ fontSize: 14, color: C.secondary, margin: '0 0 24px' }}>Playing now, or already played?</p>
 
