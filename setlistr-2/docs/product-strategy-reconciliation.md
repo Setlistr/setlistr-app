@@ -17,8 +17,8 @@
 | **Onboarding funnel instrumentation** (invited → … → repeat) | `product_events`: `show_created`, `capture_started`/`ended`, `review_opened`/`action`/`completed`, `export_generated` [repo]. Invite timestamps on `artist_delegates`; `performances.started_by` marks a Schedule start; `captured_by` marks a delegate capture [repo]. | No event for invitation, onboarding steps, app return visits or which entry started a capture. Nothing records who reviewed or submitted (P2; migration not authorised). | **Modify** (a small, named set; see section 6) | Without attribution (P2) some "who" questions stay unanswerable. Telemetry must never block a user action (existing rule). |
 | **Diagnose non-adoption through interviews** | Matt Woodson's feedback (2026-10-26) [prod-reported]; pilot is proposal-only | No interviews held; no usage evidence read | **New, owner-led** | Outreach needs the owner's instruction. Read-only usage queries need separate approval. |
 | **First-run onboarding, empty states, walkthrough** | Three-step onboarding (names/PRO → setlist.fm history → Spotify catalogue) ending on New show [repo]; Dashboard empty state "Your record starts with your first show…" [repo] | Onboarding ends on "Where tonight?" even on a night off (minor). No walkthrough. | **Defer** (onboarding-destination change explicitly not bundled now) | Low risk, low pilot value. |
-| **Artist Home** (count, cities, venues, song frequency, repertoire, last show, upcoming, outstanding reviews) | **Dashboard:** live-record count, cities, years, next milestone, live/review/tonight rows, Coming up, filing and royalty estimates [repo]. **Career:** map, last show, most-played songs, shows per month, song debuts, top venues [repo]. **Proof** record [prod-reported]. | Nearly all of it exists across Dashboard and Career. Real gaps: completeness labelling where history is imported, and **reaching the artist after a show** (no notification channel; P4). | **Reuse. No competing destination.** Any change lands on Dashboard or Career. | A parallel "Home" would duplicate statistics and split attention. |
-| **Manager Tour Pulse** (roster shows, coverage, reporting status, upcoming, exceptions, next actions) | Manager Overview: Roster, Recorded, Awaiting review, Not submitted (by range), recent activity [repo]; roster list; per-artist pages; Schedule across artists (`UpcomingShows` per artist); Analytics [repo]. Schedule timeline per artist: "No capture linked", possible duplicates [repo]. | **No booked-versus-captured view.** Coverage is visible only per artist, inside Schedule's Earlier list, and is understated whenever a show was captured via New show (unlinked; see section 2). | **Modify existing Overview** with one decision (section 3), after the Now slice | Coverage is only trustworthy once captures link to bookings, so the Now slice comes first. |
+| **Artist Home** (count, cities, venues, song frequency, repertoire, last show, upcoming, outstanding reviews) | **Dashboard:** live-record count, cities, years, next milestone, live/review/tonight rows, Coming up, filing and royalty estimates [repo]. **Career:** map, last show, most-played songs, shows per month, song debuts, top venues [repo]. **Proof** record [prod-reported]. | The screens largely exist across Dashboard and Career. **Whether they motivate artists to keep capturing is unvalidated** (an open question, section 3). Possible gaps: completeness labelling where history is imported, and reaching the artist after a show (no notification channel; P4). | **Reuse. No competing destination.** Any change lands on Dashboard or Career. | A parallel "Home" would duplicate statistics and split attention. |
+| **Manager Tour Pulse** (roster shows, coverage, reporting status, upcoming, exceptions, next actions) | Manager Overview: Roster, Recorded, Awaiting review, Not submitted (by range), recent activity [repo]; roster list; per-artist pages; Schedule across artists (`UpcomingShows` per artist); Analytics [repo]. Schedule timeline per artist: "No capture linked", possible duplicates [repo]. | **No roster-level "No linked capture" view.** Linkage is visible only per artist, in Schedule's Earlier list. Captures made through New show aren't linked, so a missing link is **not** a missed capture (see section 2). | **Modify existing Overview** with one decision (section 3), after the Now slice | Links become dependable only for bookings started through a linked entry. Historical unlinked captures remain, so no coverage percentage is claimed. |
 | **Reuse spreadsheet/tour ingestion for history** | Spreadsheet import (shipped `577dd3d`): future rows become **bookings** (`status 'scheduled'`, timed or date-only); past rows become **listings** (`status 'listed'`, never startable, never counted as performed); captures are **performances** [repo]. setlist.fm history is a performance with `data_source 'setlistfm_imported'` labelled "Imported" [repo]. | The first real import with an owner file is still to come [prod-reported]. | **Reuse unchanged.** Bookings, listings and captured/reviewed performances stay distinct. | Never present listings or setlist.fm imports as performed or confirmed. |
 | **Read-only architecture audit** | Audits exist: RLS coverage, API auth, invite route, delegation [repo docs] | No single current inventory of the show lifecycle and imports | **Defer** (bounded, on request) | Not a full security audit now. |
 | **Map logical entities before migrations** (canonical event, evidence source/item, song observation, verification decision, external connection, fan contribution, derived insight) | Show identity is `shows` (scheduled/live/completed/cancelled/listed) ↔ `performances` (`show_id`), with duplicate candidates in `lib/shows/timeline` [repo]. Evidence of method: Proof's `setlistMethod` (recognised / manual / upload / live) [repo]. Song observations: `detection_events`, `recognition_*` [repo]. | No evidence staging, external connection or fan contribution tables, and none needed for Now or Next. | **Keep the current model. No canonical-event schema.** Map entities to existing tables only when an approved experiment needs it. | A new schema would duplicate show identity and reconciliation, with real migration risk. |
@@ -35,7 +35,7 @@
 
 1. **One canonical record is already the design; no new schema.** Each show is one `shows` row, and captures link to it. The real problem is that **the most-used capture entry doesn't link**: the gold button and the Bandsintown Tonight row create a new show [repo]. **Decision:** fix the entry point (Now), not the data model.
 2. **"Artist Home" and "Tour Pulse" names.** Use them as goals, not new destinations. Artist value lives in Dashboard and Career; manager decisions start in the Manager Overview.
-3. **Coverage needs linking first.** A manager coverage view built today would show missed captures that weren't missed. So the order is **Now** (link captures to bookings), then **Next** (coverage decision).
+3. **Linking first, and no coverage claims.** A missing link isn't a missed capture: New show captures and all historical captures are unlinked. So the order is **Now** (link captures started from bookings), then **Next** (a "No linked capture" follow-up that prompts a check). Neither presents a coverage percentage.
 4. **Confirmation ≠ verification ≠ reporting readiness.** Today the product records team confirmation (review) and a self-reported submission. Any external evidence stays quarantined in a future design and never edits reviewed records.
 5. **Interviews and pilots need the owner.** The strategy's interviews and pilots are owner decisions; nothing here contacts anyone.
 
@@ -46,29 +46,31 @@ Plan: [tonight-show-one-tap-plan](tonight-show-one-tap-plan.md). Prototype (real
 
 **Matt Woodson's feedback, attached:** the manager prepares once, by scheduling or import. The crew uses that preparation with minimal effort: two taps from the Dashboard, three from the gold button. Capture coverage becomes trustworthy because every capture started this way is linked to its booking. No schema, migration, API or permission change.
 
-### Next: one value experiment, the manager's "Booked but not captured" follow-up
+### Next: one value experiment, the manager's "No linked capture" follow-up
 - **Who:** the manager (Matt) or tour manager, the morning after shows.
-- **Decision/action:** for each past booked show without a linked capture, recover it the same week: upload the recording, add the photographed setlist, enter it by hand, or confirm it didn't happen (cancel the booking). The longer it waits, the less likely the recording or setlist survives.
-- **Shortfall today:** the Overview counts recorded, awaiting-review and not-submitted shows, but **nothing lists bookings that have no capture across the roster**. That fact exists only per artist, deep in Schedule's Earlier list, and is overstated whenever a capture was made through New show.
+- **Decision/action:** for each past booking with **no linked capture**, check what happened and resolve it the same week:
+  - link or recover the capture (upload the recording, add the photographed setlist, enter it by hand);
+  - or confirm the booking didn't happen, and cancel it.
+- **Shortfall today:** the Overview counts recorded, awaiting-review and not-submitted shows. Nothing lists bookings without a linked capture across the roster; that's visible only per artist, in Schedule's Earlier list.
+- **What a "No linked capture" item means:** only that no capture is linked to the booking. It is **not** a confirmed missed capture.
+  - Captures made through New show (or "A different show"), and all captures before the Now slice, aren't linked. They may exist as separate shows; Schedule flags some as possible duplicates.
+  - Date-only bookings and many records lack time zones.
+  - Listings (`listed`) are not performances.
+  - So the list is a prompt to check, **never a coverage percentage or a count of missed shows.**
 - **Data:**
-  - **Reliable:** bookings (`shows`: scheduled, cancelled or started, with zone-local dates) [repo]; linked captures (`show_id`, `started_by`) [repo]; the timeline's "No capture linked" and its duplicate candidates [repo].
-  - **Incomplete:**
-    - captures made before the Now slice, or through "A different show", are unlinked (shown as "possible duplicate", not as missed);
-    - date-only bookings;
-    - listings (`listed`) are not performances and are excluded;
-    - many records lack a time zone [repo, data limits].
-- **Shape:** one short list on the existing Manager Overview ("Booked, no capture yet"), reusing the timeline route's per-artist data. **Not** another stat card, and no duplicate counts.
+  - **Reliable:** bookings (`shows`: scheduled, cancelled or started, with zone-local dates) [repo]; links (`show_id`, `started_by`) [repo]; the timeline's "No capture linked" and its duplicate candidates [repo].
+  - **Incomplete:** the historical unlinked captures above.
+- **Shape:** one short list on the existing Manager Overview, reusing the timeline route's per-artist data. **Not** another stat card, and no percentage. Any historical item with a possible-duplicate capture is shown as "possibly captured, not linked", not as missing.
 - **Measurement:**
-  - share of past booked shows with a linked capture within 48 hours (before and after);
-  - median time from show to recovery;
-  - share of listed items acted on within 7 days;
-  - whether the manager returns to it weekly (owner-observed in the pilot).
-  - **Stop** if after four tour weeks it hasn't changed recovery or the manager doesn't use it.
+  - the share of items the manager resolves (links, recovers or confirms not played) within 7 days;
+  - median time to resolution;
+  - from bookings made after the Now slice: the share started through a linked entry (`scheduled_start` events and `started_by`), which is an adoption measure, not coverage;
+  - whether the manager returns to the list weekly (owner-observed in the pilot).
+  - **Stop** if after four tour weeks it doesn't change resolution or goes unused.
 
-**Why not more post-show artist UI now:**
-- **What artists already get:** the post-save celebration and record finish; share cards (Night, Milestone, Song debut, Royalty moment); Career (map, debuts, most played, top venues, shows per month); Proof (record and PDF).
-- **The gap is reach, not content:** nothing reaches the artist after a show unless they open the app (P4: reminders need a channel decision).
-- **Coverage first:** the artist's value grows automatically once captures are consistent, which Now and Next serve.
+**Artist post-show motivation stays open.** Having the celebration, share cards, Career and Proof doesn't show they give artists enough reason to keep capturing.
+- **To validate before any new artist UI** (with the owner's approval for any contact or data read): do artists open their record after shows, share, or export? Those signals are partly un-instrumented today (share and Proof views).
+- **Possible gap:** reach (nothing contacts the artist after a show; P4). That's a hypothesis, not a finding.
 
 ### Later: externally sourced evidence and selective integrations
 These are desk-scoped first (section 4); none is built.

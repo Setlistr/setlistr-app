@@ -129,15 +129,16 @@ Reconciled with the proposed product evolution strategy in [product-strategy-rec
 - the R&D Log admin check (`a40fc56`);
 - the show-setup assessment ([show-setup-onboarding-assessment](show-setup-onboarding-assessment.md)).
 
-**Now: "Tonight's show, one tap"** (proposal; prototype ready, awaiting approval to implement). [tonight-show-one-tap-plan](tonight-show-one-tap-plan.md); prototype https://claude.ai/artifact/Ea9tFbasQMdb96xaTvSsur.
+**Now: "Tonight's show, one tap"** (approved 2026-10-28 with corrections; **implemented on `feature/tonight-show-one-tap`, tested on the disposable stack, awaiting review; not merged**). [tonight-show-one-tap-plan](tonight-show-one-tap-plan.md); prototype https://claude.ai/artifact/Ea9tFbasQMdb96xaTvSsur.
 - The Dashboard's Tonight row and the gold capture button lead with tonight's booked show, using the existing linked Start.
 - "A different show" keeps today's manual path.
 - No schema, migration, API or permission change.
 - **Matt Woodson's feedback:** the manager prepares once, the crew starts it in two or three taps, and coverage becomes trustworthy.
 
-**Next: one validated team value experiment.** "Booked, no capture yet" follow-up on the existing Manager Overview: one list, not new cards.
+**Next: one validated team value experiment.** A "No linked capture" follow-up on the existing Manager Overview: one list, not new cards.
+- **A missing link is not a missed capture:** historical and New show captures are unlinked. No coverage percentage is claimed.
 - **Depends on Now:** captures must link to bookings first.
-- **Measured by:** the linked-capture rate within 48 hours and recovery time.
+- **Measured by:** items resolved within 7 days and time to resolution.
 - **Stops** if unused after four tour weeks.
 
 **Later: externally sourced evidence and selective integrations.** Desk-scoped first; nothing built.
@@ -152,5 +153,7 @@ Reconciled with the proposed product evolution strategy in [product-strategy-rec
 - the historical `review` audit (read-only, not run);
 - permissions (P2 attribution, no migration authorised; P3);
 - native limitations.
+
+**Open validation question:** whether the existing artist post-show value (celebration, share cards, Career, Proof) motivates consistent capture. Having the screens doesn't prove it.
 
 **Not bundled with Now:** the onboarding destination change, reminders (P4), new roles, manager dashboard additions.
