@@ -1,0 +1,345 @@
+[
+ {
+  "sec": 1,
+  "test": "Dashboard shows the Tonight row",
+  "got": "1",
+  "expect": "1",
+  "ok": true
+ },
+ {
+  "sec": 1,
+  "test": "row label",
+  "got": "Scheduled · Today | Mohawk mvsa8sqm | 11:42 AM · Austin · Start capture",
+  "expect": "Scheduled · Today | venue | time · city · Start capture",
+  "ok": true
+ },
+ {
+  "sec": 1,
+  "test": "confirmation names artist, venue, local date/time and zone, early/now",
+  "got": "Start capture now for Tonight Artist sqm — Mohawk mvsa8sqm, scheduled for Wed, Oct 28 (today), 11:42 AM CDT? / This starts the show early, ahead of its scheduled time.",
+  "expect": "artist — venue, scheduled for <Day, Mon D> (today), h:mm AM/PM CDT? / early-start note",
+  "ok": true
+ },
+ {
+  "sec": 1,
+  "test": "dismissing the confirmation creates nothing",
+  "got": "perfs=0 shows=1 events=\"\"",
+  "expect": "perfs=0 shows=1 events=\"\"",
+  "ok": true
+ },
+ {
+  "sec": 1,
+  "test": "OK → live capture with autostart, linked to the booking",
+  "got": "/app/live/579b765f-3087-43a0-a0a3-1c1cd07ab410; TM,TM,live",
+  "expect": "started_by=TM, captured_by=TM, live",
+  "ok": true
+ },
+ {
+  "sec": 1,
+  "test": "no new show row (still 1 booking for the artist)",
+  "got": "1",
+  "expect": "1",
+  "ok": true
+ },
+ {
+  "sec": 1,
+  "test": "telemetry: one scheduled_start \"dashboard.started\", no venue text",
+  "got": "\"dashboard.started\"; columns with text: 0",
+  "expect": "dashboard.started; 0",
+  "ok": true
+ },
+ {
+  "sec": 2,
+  "test": "gold button first screen leads with the booking",
+  "got": "1 heading; 1 Start",
+  "expect": "1; 1",
+  "ok": true
+ },
+ {
+  "sec": 2,
+  "test": "gold lead names the selected artist",
+  "got": "1",
+  "expect": "1",
+  "ok": true
+ },
+ {
+  "sec": 2,
+  "test": "gold confirmation names artist, venue, local date/time, zone",
+  "got": "Start capture now for Tonight Artist sqm — Mohawk mvsa8sqm, scheduled for Wed, Oct 28 (today), 11:27 AM CDT? / This starts the show early, ahead of its scheduled time.",
+  "expect": "artist — venue, scheduled for <Day, Mon D> (today), h:mm CDT?",
+  "ok": true
+ },
+ {
+  "sec": 2,
+  "test": "Start capture → OK → live, linked; 3 taps total",
+  "got": "perfs=1 shows=1",
+  "expect": "perfs=1 shows=1",
+  "ok": true
+ },
+ {
+  "sec": 2,
+  "test": "telemetry \"capture_button.started\"",
+  "got": "capture_button.started",
+  "expect": "capture_button.started",
+  "ok": true
+ },
+ {
+  "sec": 3,
+  "test": "Dashboard offers a choice, not a start",
+  "got": "1",
+  "expect": "1",
+  "ok": true
+ },
+ {
+  "sec": 3,
+  "test": "choice screen lists both, nothing started",
+  "got": "2 Start; perfs=0+0",
+  "expect": "2 Start; 0+0",
+  "ok": true
+ },
+ {
+  "sec": 3,
+  "test": "the chosen (later) show is the one linked",
+  "got": "early=0 late=1",
+  "expect": "early=0 late=1",
+  "ok": true
+ },
+ {
+  "sec": 4,
+  "test": "Dashboard: \"Add a start time\", no Start",
+  "got": "1 add; 0 start",
+  "expect": "1; 0",
+  "ok": true
+ },
+ {
+  "sec": 4,
+  "test": "gold: Add a start time, no Start",
+  "got": "1 add; 0 start",
+  "expect": "1; 0",
+  "ok": true
+ },
+ {
+  "sec": 4,
+  "test": "→ Schedule; no show or performance created",
+  "got": "/app/schedule; shows=1 perfs=0",
+  "expect": "/app/schedule; shows=1 perfs=0",
+  "ok": true
+ },
+ {
+  "sec": 5,
+  "test": "another zone shows the venue’s zone (EDT/EST)",
+  "got": "true",
+  "expect": "true",
+  "ok": true
+ },
+ {
+  "sec": 5,
+  "test": "previous-day case",
+  "got": "no zone currently between 1–3 AM in the list; covered by unit tests",
+  "expect": "skipped",
+  "ok": true
+ },
+ {
+  "sec": 5,
+  "test": "invalid time zone: no Tonight row",
+  "got": "0",
+  "expect": "0",
+  "ok": true
+ },
+ {
+  "sec": 6,
+  "test": "stale screen: refused with the existing message, kept visible after refresh",
+  "got": "true",
+  "expect": "true",
+  "ok": true
+ },
+ {
+  "sec": 6,
+  "test": "after refresh: teammate’s capture shown as status (no continue action)",
+  "got": "true; continue buttons=0",
+  "expect": "true; 0",
+  "ok": true
+ },
+ {
+  "sec": 6,
+  "test": "exactly one performance for the booking",
+  "got": "1",
+  "expect": "1",
+  "ok": true
+ },
+ {
+  "sec": 6,
+  "test": "telemetry: dashboard.started then capture_button.refused",
+  "got": "dashboard.started,capture_button.refused",
+  "expect": "dashboard.started,capture_button.refused",
+  "ok": true
+ },
+ {
+  "sec": 6,
+  "test": "manager Dashboard: \"Being captured by <TM>\", no continue, no Start",
+  "got": "true; buttons=0",
+  "expect": "true; 0",
+  "ok": true
+ },
+ {
+  "sec": 6,
+  "test": "artist (owner) Dashboard: teammate’s capture is status only",
+  "got": "true; continue=0",
+  "expect": "true; 0",
+  "ok": true
+ },
+ {
+  "sec": 6,
+  "test": "the capturer’s own Dashboard offers \"continue\"",
+  "got": "1",
+  "expect": "1",
+  "ok": true
+ },
+ {
+  "sec": 6,
+  "test": "simultaneous starts: one 200, one 409; one performance",
+  "got": "200,409; perfs=1",
+  "expect": "200,409; 1",
+  "ok": true
+ },
+ {
+  "sec": 6,
+  "test": "same starter retries (rejoin), still one performance",
+  "got": "200 already_started=true; perfs=1",
+  "expect": "no duplicate",
+  "ok": true
+ },
+ {
+  "sec": 7,
+  "test": "cancelled while open: message stays after refresh; no Start; \"A different show\" remains",
+  "got": "true; start=0; different=1; perfs=0",
+  "expect": "true; 0; 1; 0",
+  "ok": true
+ },
+ {
+  "sec": 7,
+  "test": "completed while open: message stays after refresh; no Start; \"A different show\" remains",
+  "got": "true; start=0; different=1; perfs=0",
+  "expect": "true; 0; 1; 0",
+  "ok": true
+ },
+ {
+  "sec": 7,
+  "test": "telemetry blocked: Start still reaches live capture",
+  "got": "true; perfs=1; events=\"\"",
+  "expect": "true; 1; \"\"",
+  "ok": true
+ },
+ {
+  "sec": 8,
+  "test": "Viewer: no Tonight row, no gold button",
+  "got": "rows=0 orb=0",
+  "expect": "rows=0 orb=0",
+  "ok": true
+ },
+ {
+  "sec": 8,
+  "test": "Viewer direct start → 403, nothing created",
+  "got": "403; perfs=0",
+  "expect": "403; 0",
+  "ok": true
+ },
+ {
+  "sec": 8,
+  "test": "Viewer opening New show directly: no Tonight start",
+  "got": "0",
+  "expect": "0",
+  "ok": true
+ },
+ {
+  "sec": 8,
+  "test": "access revoked while the screen was open: start → 403, nothing created",
+  "got": "403; perfs=0",
+  "expect": "403; 0",
+  "ok": true
+ },
+ {
+  "sec": 8,
+  "test": "revoked: the booking list for that artist is empty on refresh",
+  "got": "0",
+  "expect": "0",
+  "ok": true
+ },
+ {
+  "sec": 9,
+  "test": "switching workspace in place: row follows the selected artist",
+  "got": "before Mohawk=true; after Second Room=true, Mohawk=false",
+  "expect": "true; true, false",
+  "ok": true
+ },
+ {
+  "sec": 9,
+  "test": "confirmation names the newly selected artist",
+  "got": "true",
+  "expect": "true",
+  "ok": true
+ },
+ {
+  "sec": 10,
+  "test": "\"A different show\" opens today’s choice, with a way back",
+  "got": "1 live; 1 upload; back=1",
+  "expect": "1; 1; 1",
+  "ok": true
+ },
+ {
+  "sec": 10,
+  "test": "…and the booking is untouched",
+  "got": "scheduled",
+  "expect": "scheduled",
+  "ok": true
+ },
+ {
+  "sec": 10,
+  "test": "manual path: venue step works as today",
+  "got": "Backyard mvsa8sqm",
+  "expect": "Backyard mvsa8sqm",
+  "ok": true
+ },
+ {
+  "sec": 10,
+  "test": "upload-intent link: no Tonight lead",
+  "got": "0",
+  "expect": "0",
+  "ok": true
+ },
+ {
+  "sec": 10,
+  "test": "upload page still opens",
+  "got": "/app/upload/new",
+  "expect": "/app/upload/new",
+  "ok": true
+ },
+ {
+  "sec": 10,
+  "test": "Schedule Start unchanged: linked, entry \"schedule.started\"",
+  "got": "perfs=1; schedule.started",
+  "expect": "perfs=1; schedule.started",
+  "ok": true
+ },
+ {
+  "sec": 10,
+  "test": "nothing booked: no Tonight row",
+  "got": "0",
+  "expect": "0",
+  "ok": true
+ },
+ {
+  "sec": 10,
+  "test": "nothing booked: gold button opens today’s unchanged first screen",
+  "got": "1 upload; different=0",
+  "expect": "1; 0",
+  "ok": true
+ },
+ {
+  "sec": 11,
+  "test": "Preview: start refused before any write",
+  "got": "403 preview_disabled; perfs=0; show=scheduled",
+  "expect": "403 preview_disabled; 0; scheduled",
+  "ok": true
+ }
+]
