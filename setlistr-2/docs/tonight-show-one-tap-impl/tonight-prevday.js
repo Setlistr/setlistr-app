@@ -64,7 +64,8 @@ const nextDialog = (pg, accept = true) => new Promise(res => pg.once('dialog', a
   const v = venue(`Late Room ${T0}`, 'Somewhere')
   const zones = Intl.supportedValuesOf('timeZone')
   const hourIn = z => Number(new Intl.DateTimeFormat('en-US', { timeZone: z, hour: 'numeric', hourCycle: 'h23' }).format(new Date()))
-  const z = zones.find(z => hourIn(z) >= 1 && hourIn(z) <= 3)
+  const minsIn = z => { const p = new Intl.DateTimeFormat('en-US', { timeZone: z, hour: 'numeric', minute: 'numeric', hourCycle: 'h23' }).formatToParts(new Date()); return Number(p.find(x => x.type === 'hour').value) * 60 + Number(p.find(x => x.type === 'minute').value) }
+  const z = zones.find(z => { const m = minsIn(z); return m >= 15 && m <= 105 })  // local 00:15–01:45, so 2 h ago is the previous local day
   const show = book(A, v, -120, z)
   const local = new Intl.DateTimeFormat('en-US', { timeZone: z, weekday: 'short', month: 'short', day: 'numeric' }).format(new Date(Date.now() - 120 * 60000))
   const tm = await session(TM, { actingAs: A })

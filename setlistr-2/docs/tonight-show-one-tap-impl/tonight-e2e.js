@@ -140,7 +140,8 @@ const nextDialog = (pg, accept = true) => new Promise(res => pg.once('dialog', a
   // A zone where it is currently just after local midnight: a show that started 2 h ago there is on the previous local day.
   const zones = ['Pacific/Kiritimati', 'Pacific/Auckland', 'Asia/Tokyo', 'Asia/Kolkata', 'Asia/Dubai', 'Europe/Moscow', 'Europe/Berlin', 'Europe/London', 'Atlantic/Azores', 'America/Sao_Paulo', 'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles', 'Pacific/Honolulu', 'Pacific/Pago_Pago']
   const hourIn = z => Number(new Intl.DateTimeFormat('en-US', { timeZone: z, hour: 'numeric', hourCycle: 'h23' }).format(new Date()))
-  const zPast = zones.find(z => hourIn(z) >= 1 && hourIn(z) <= 3)
+  const minsIn = z => { const p = new Intl.DateTimeFormat('en-US', { timeZone: z, hour: 'numeric', minute: 'numeric', hourCycle: 'h23' }).formatToParts(new Date()); return Number(p.find(x => x.type === 'hour').value) * 60 + Number(p.find(x => x.type === 'minute').value) }
+  const zPast = zones.find(z => { const m = minsIn(z); return m >= 15 && m <= 105 })  // local 00:15–01:45, so 2 h ago is the previous local day
   if (zPast) book(A, vSecond, -120, zPast)
   const tm5 = await session(TM, { actingAs: A })
   await tm5.go('/app/show/new'); await tm5.pg.waitForSelector('text=A different show', { timeout: 60000 })

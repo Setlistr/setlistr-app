@@ -1,0 +1,79 @@
+[
+ {
+  "sec": 1,
+  "test": "only booking is featured: shown once; Coming up item omitted",
+  "got": "venue x1; \"Coming up\" x0; \"Next show\" x0",
+  "expect": "x1; x0; x0",
+  "ok": true
+ },
+ {
+  "sec": 1,
+  "test": "featured + a later booking: Coming up shows the next distinct one",
+  "got": "featured x1; next \"Next Week Hall\"",
+  "expect": "x1; Next Week Hall",
+  "ok": true
+ },
+ {
+  "sec": 1,
+  "test": "Viewer (no Tonight row): Coming up unchanged, shows tonight’s booking",
+  "got": "true / 1",
+  "expect": "true / 1",
+  "ok": true
+ },
+ {
+  "sec": 2,
+  "test": "320: Dashboard multi row fits (no horizontal clip/overflow; ≤ 2 summary lines)",
+  "got": "{\"page\":0,\"rowOverflow\":0,\"sumOverflow\":0,\"sumLines\":2,\"rightEdge\":300,\"within\":true}",
+  "expect": "overflow 0; within; lines ≤ 2",
+  "ok": true
+ },
+ {
+  "sec": 3,
+  "test": "320: scrolled to the end, \"A different show\" and its hint clear the bottom bar",
+  "got": "{\"btnBottom\":422,\"hintBottom\":448,\"barTop\":490,\"overflowX\":0}",
+  "expect": "btn & hint ≤ barTop; no overflow",
+  "ok": true
+ },
+ {
+  "sec": 2,
+  "test": "320-at-130pct: Dashboard multi row fits (no horizontal clip/overflow; ≤ 2 summary lines)",
+  "got": "{\"page\":0,\"rowOverflow\":0,\"sumOverflow\":0,\"sumLines\":2,\"rightEdge\":226,\"within\":true}",
+  "expect": "overflow 0; within; lines ≤ 2",
+  "ok": true
+ },
+ {
+  "sec": 3,
+  "test": "320-at-130pct: scrolled to the end, \"A different show\" and its hint clear the bottom bar",
+  "got": "{\"btnBottom\":273,\"hintBottom\":317,\"barTop\":359,\"overflowX\":0}",
+  "expect": "btn & hint ≤ barTop; no overflow",
+  "ok": true
+ },
+ {
+  "sec": 2,
+  "test": "390: Dashboard multi row fits (no horizontal clip/overflow; ≤ 2 summary lines)",
+  "got": "{\"page\":0,\"rowOverflow\":0,\"sumOverflow\":0,\"sumLines\":2,\"rightEdge\":370,\"within\":true}",
+  "expect": "overflow 0; within; lines ≤ 2",
+  "ok": true
+ },
+ {
+  "sec": 3,
+  "test": "390: scrolled to the end, \"A different show\" and its hint clear the bottom bar",
+  "got": "{\"btnBottom\":698,\"hintBottom\":724,\"barTop\":766,\"overflowX\":0}",
+  "expect": "btn & hint ≤ barTop; no overflow",
+  "ok": true
+ },
+ {
+  "sec": 2,
+  "test": "390-at-150pct: Dashboard multi row fits (no horizontal clip/overflow; ≤ 2 summary lines)",
+  "got": "{\"page\":0,\"rowOverflow\":0,\"sumOverflow\":0,\"sumLines\":2,\"rightEdge\":240,\"within\":true}",
+  "expect": "overflow 0; within; lines ≤ 2",
+  "ok": true
+ },
+ {
+  "sec": 3,
+  "test": "390-at-150pct: scrolled to the end, \"A different show\" and its hint clear the bottom bar",
+  "got": "{\"btnBottom\":399,\"hintBottom\":443,\"barTop\":485,\"overflowX\":0}",
+  "expect": "btn & hint ≤ barTop; no overflow",
+  "ok": true
+ }
+]

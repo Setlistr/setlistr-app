@@ -83,6 +83,32 @@ Branch `feature/tonight-show-one-tap`, from production `main` `039871e`. It impl
 - `phone-{dark,light}-{dashboard,gold}.jpg` and `desktop-{dark,light}-{dashboard,gold}.jpg`;
 - states: two shows, teammate capturing, teammate started first, cancelled, previous day, zones.
 
+## Finishing points (after visual review, 2026-10-28)
+
+1. **No repeated booking under Coming up.** When the Tonight row features a booking, Coming up shows the next *distinct* booking (Schedule's own "next" rule), or leaves that item out when there is none. A Viewer, who sees no Tonight row, sees Coming up unchanged.
+2. **The multiple-show summary** wraps onto at most two lines, then ends in an ellipsis. Long venue names break inside the row.
+   - The Dashboard's row column is now `minmax(0, 1fr)`, so no row widens past a narrow screen. Before this, at 320 px with larger text, a row's long title widened the column and the Dashboard clipped it on the right. That also applied to the existing in-progress and review rows.
+3. **"A different show" and its hint are reachable** above the bottom bar, including its raised capture button, once scrolled to the end. No change was needed: the app frame already reserves the space.
+
+**Focused layout checks** (`tonight-layout.js`; results in `layout-results.json`):
+- **"Larger text"** means browser zoom, which shrinks the CSS viewport, because these pages size text in px. So it's tested as 320 px at 130% (246 px) and 390 px at 150% (260 px).
+- **Result: 11/11 pass.**
+
+| Check | Result |
+|---|---|
+| Featured-only booking | Shown once; Coming up item omitted |
+| Featured plus a later booking | Coming up shows the later one |
+| Viewer | Coming up unchanged |
+| Multi row at 320 px, 246 px (320 @ 130%), 390 px, 260 px (390 @ 150%) | No horizontal overflow; ≤ 2 summary lines; inside the screen |
+| Gold-button screen scrolled to the end, at the same four sizes | Button and hint bottoms above the bar's top. At 320 px: hint 448 px, bar 490 px; at 246 px: 317 / 359. |
+
+**Behaviour after these changes:**
+- the end-to-end suite rerun on the finished build: **49/49**, including the previous-day case live (Europe/Moscow: "Scheduled · Wed, Oct 28 · 11:00 PM GMT+3");
+- the previous-day check: 3/3, with the harness corrected to pick a zone where 2 hours ago really is the previous local day. An earlier run picked a zone at 3:27 AM, where "Today" was right; that failure was the harness, not the app.
+- unit tests 23/23; type check and build pass.
+
+**Screens:** `layout-*.jpg`.
+
 ## Preview
 
 - On a Vercel Preview, which uses production data, **the start route refuses before any read or write**, and the client skips the telemetry insert, by host, fail-closed.
