@@ -9,7 +9,7 @@
 - **Research:** not committed to.
 - **Unverified:** recorded in working notes but not confirmed in the repository, so neither approved nor known to be missing.
 
-Production is `577dd3d` (2026-10-26). Nothing here authorises implementation, production SQL, merges, deployments or outreach.
+Production is `039871eef497280ca880e04b48b0182ac21d5963` (2026-10-28). Nothing here authorises implementation, production SQL, merges, deployments or outreach.
 
 ## 1. Shipped
 
@@ -26,6 +26,8 @@ Production is `577dd3d` (2026-10-26). Nothing here authorises implementation, pr
 | Schedule phone fix | Past-year dates wrap on phones; 44px controls (`5104622`). **Shipped 2026-10-26 in `577dd3d`; device verification pending** | `docs/spreadsheet-import-plan.md` (branch `docs/spreadsheet-import-plan`) |
 | Spreadsheet import | CSV/XLSX import with review, atomic import and Undo; date-only and imported shows on Schedule and History. Migration 0028 applied 2026-10-26 17:57 UTC (SHA-256 `b21d2ec4…07faed`; do not run again). **Shipped 2026-10-26 in `577dd3d` (PR #4); device verification pending; the first real import is still to come** | `docs/spreadsheet-import-plan.md` (release record and rollback, branch `docs/spreadsheet-import-plan`) |
 | Team and delegation | Invites, roles (manager, tour manager, band member, viewer), workspace switching, viewer write containment | [team-invite-identity](team-invite-identity.md), [delegation-audit](delegation-audit.md) |
+| R&D Log admin check | `POST /api/rd-log/structure` requires an admin session before any Anthropic call. **Shipped 2026-10-27 in `a40fc56` (PR #5)**; a signed-out request returns 401 | `docs/rd-log-structure-auth.RELEASED.md` (branch `docs/overhaul-roadmap`) |
+| Team invitation and admission | Invited people accept with an emailed 8-digit code and get **workspace-only** access, with no general beta admission. Pending invites expire after 14 days, and Resend issues a new link. Full admission is required for requests, invites into one's own workspace, and artist setup. Production Magic Link template is code-only. **Shipped 2026-10-28 in `039871e` (PR #6). Complete:** the owner's manual production check (private browser) passed 2026-10-28. Email authentication headers not checked | `docs/team-invite-admission.RELEASED.md`, [team-invite-admission-implementation](team-invite-admission-implementation.md) (branch `feature/team-invite-admission`) |
 
 None of these is to be rebuilt. Changes to them go through their own plans.
 
@@ -35,9 +37,6 @@ Nothing at present. The Schedule phone fix and spreadsheet import moved to secti
 
 ## 3. Proposals awaiting decision
 
-- **Team invitation and admission (P1 + R2):** product direction **approved** 2026-10-26: [team-invite-admission-proposal](team-invite-admission-proposal.md).
-  - **Validated** on the disposable stack, with an implementation-ready scope: [team-invite-admission-validation](team-invite-admission-validation.md).
-  - **Awaiting:** approval to implement, and confirmation of the production email settings. No SQL needed.
 - **Proof record photo:** [proof-record-photo-proposal](proof-record-photo-proposal.md). SQL not authorised.
 - **Proof data audit** (read-only queries, not run): [proof-data-audit-proposal](proof-data-audit-proposal.md).
 - **Unverified (working notes only; confirm before acting):**
@@ -58,7 +57,7 @@ Each track keeps its own record; these are pointers, not new commitments.
 - **Dates and time zones:** the paths still using the viewer's or server's zone ([record-review-submissions-handoff](record-review-submissions-handoff.md)); the schedule timeline's limits ([schedule-timeline-plan](schedule-timeline-plan.md)).
 - **Permissions and security:**
   - the direct-URL capture page has no read-only mode for Viewers ([release-review-combined](release-review-combined.md));
-  - the invite-link bearer decision R2 ([team-invite-identity](team-invite-identity.md));
+  - the invite-link bearer decision R2 is **resolved** by inbox-code acceptance (shipped `039871e`);
   - the audits: [rls-coverage-audit](rls-coverage-audit.md), [api-auth-audit](api-auth-audit.md), [invite-route-audit](invite-route-audit.md), [delegation-audit](delegation-audit.md).
   - Unverified: an email-change single-confirmation risk.
 - **Native app:** live capture owns its own safe areas ([ui-standard](ui-standard.md)).
@@ -123,7 +122,8 @@ A manager (Matt Woodson) plans to bring an artist onto Setlistr ahead of touring
 
 1. **Spreadsheet import release:** done 2026-10-26. 0028 applied, then one app release (`577dd3d`) that included the UI fix. Still to come: the installed-app check, then the first real import with a file the owner chooses.
 2. **Team journey assessment** (section 5): written, [team-journey-assessment](team-journey-assessment.md). Awaiting the owner's review.
-   - **Next slice proposed:** team invitation and admission, [team-invite-admission-proposal](team-invite-admission-proposal.md).
+   - **Team invitation and admission:** shipped `039871e` and **complete** (2026-10-28).
+   - **Next:** the show-setup and onboarding assessment, [show-setup-onboarding-assessment](show-setup-onboarding-assessment.md).
    - **Kept separate:**
      - P2 attribution: no migration authorised;
      - P3 recording a submission versus filing with a PRO;

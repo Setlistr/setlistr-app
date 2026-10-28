@@ -28,7 +28,8 @@ Production stays at `039871eef497280ca880e04b48b0182ac21d5963`.
   | `/` | 200 |
 - **No SQL or settings change.** The code-only Magic Link template applied on 2026-10-28 is unchanged.
 - **Verified:** delivery and visuals of the code email (owner, 2026-10-28).
-- **Not yet verified:** SPF/DKIM/DMARC headers, and a real acceptance (the controlled check below needs a second address the owner chooses).
+- **Not yet verified:** SPF/DKIM/DMARC headers.
+- **Real acceptance: verified** by the owner's manual production check (below), 2026-10-28.
 
 ## Rollback
 
@@ -47,7 +48,7 @@ A rollback keeps:
 
 The code-only template can stay, or be restored exactly from the secure backup on separate approval. Reverting also keeps the R&D Log fix, because it's in `a40fc56`, which the revert doesn't touch.
 
-## Manual acceptance check (owner; pending the owner naming a second address)
+## Manual acceptance check: PASSED (owner, 2026-10-28, private browser, production)
 
 1. The owner invites a second address they own as **Viewer**.
 2. They open the link in a private browser and sign up or sign in as that address, **without requesting beta access**.
@@ -56,3 +57,14 @@ The code-only template can stay, or be restored exactly from the secure backup o
 5. The owner removes the membership; the next workspace request is refused.
 
 Wrong-code, race and API boundary cases were covered on the disposable stack and aren't repeated. If the real flow fails, capture the exact error message, screen and time, and investigate that failure.
+
+**Result, as reported by the owner:** passed at every step:
+- the invitation arrived;
+- sign-up or sign-in worked **without beta approval**;
+- the emailed 8-digit code arrived and was accepted;
+- the Viewer reached the right artist workspace with no editing controls;
+- access was refused on the next request after the membership was removed.
+
+No failure was captured, so there was nothing to investigate. The SPF/DKIM/DMARC headers remain unchecked.
+
+**Team invitation and admission is complete.**
