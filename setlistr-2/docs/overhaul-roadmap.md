@@ -105,6 +105,9 @@ A manager (Matt Woodson) plans to bring an artist onto Setlistr ahead of touring
 
 ## 7. Proposed pilot (early 2027): proposal only
 
+Discovery guide and one-show pilot outline (owner-led; nothing scheduled or sent): [adoption-discovery-guide](adoption-discovery-guide.md). New feature implementation is paused until this has been run.
+
+
 - **Who:** Matt's artist, their tour manager and FOH.
 - **Validates:**
   - capture completion per show;
