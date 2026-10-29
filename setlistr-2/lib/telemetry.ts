@@ -34,7 +34,15 @@ export type ReviewActionType = 'confirm_song' | 'remove_song' | 'add_song' | 're
 export type ProductEventName =
   | 'show_created' | 'capture_started' | 'capture_ended'
   | 'review_opened' | 'review_action' | 'review_completed'
-  | 'export_generated'
+  | 'export_generated' | 'scheduled_start'
+
+// scheduled_start (docs/tonight-show-one-tap-plan.md): which entry started a
+// booked show and what happened, as "<entry>.<outcome>" in action_type.
+// Logged only after the user confirms; a dismissed confirmation records
+// nothing. No venue names or other free text.
+export type ScheduledStartEntry = 'dashboard' | 'capture_button' | 'schedule'
+export type ScheduledStartOutcome = 'started' | 'rejoined' | 'refused' | 'failed'
+export type ScheduledStartAction = `${ScheduledStartEntry}.${ScheduledStartOutcome}`
 
 // Postgres unique_violation — expected, not a fault, when a partial unique
 // index (0006_product_events.sql) rejects a legitimate idempotency-guarded
@@ -70,7 +78,7 @@ export interface ProductEventInput {
   // aren't trusted for segmentation).
   flow_source?: FlowSource | null
   actor_type?: ActorType | null
-  action_type?: ReviewActionType | null
+  action_type?: ReviewActionType | ScheduledStartAction | null
   song_count_current?: number | null
   song_count_detected?: number | null
   song_count_planned?: number | null

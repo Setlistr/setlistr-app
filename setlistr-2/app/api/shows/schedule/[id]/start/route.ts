@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { previewWritesLocked, START_PREVIEW_MESSAGE } from '@/lib/previewWrites'
 
 // The single sanctioned entry point into live capture from a scheduled
 // show. Delegates every guarantee (atomicity, fresh authorization, same-
@@ -7,7 +8,13 @@ import { createServerSupabaseClient } from '@/lib/supabase/server'
 // completed show) to start_scheduled_show() — a SECURITY DEFINER function
 // called via the authenticated client so auth.uid() resolves to the real
 // caller inside it. This route does not itself decide any of that.
+//
+// Preview deployments run against production data, so starting a show is
+// refused there before anything is read or written (lib/previewWrites.ts).
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+  if (previewWritesLocked(req.headers.get('host'))) {
+    return NextResponse.json({ error: START_PREVIEW_MESSAGE, code: 'preview_disabled' }, { status: 403 })
+  }
   const supabase = await createServerSupabaseClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -22,6 +29,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     if (code.includes('SHOW_ALREADY_COMPLETED')) return NextResponse.json({ error: 'This show has already finished.' }, { status: 409 })
     if (code.includes('SHOW_CANCELLED')) return NextResponse.json({ error: 'This show was cancelled.' }, { status: 409 })
     if (code.includes('SHOW_NEEDS_START_TIME')) return NextResponse.json({ error: 'Add a start time before starting capture: choose Edit show in the show’s menu.' }, { status: 409 })
+    if (code.includes('SHOW_MISSING_VENUE')) return NextResponse.json({ error: 'Add a venue before starting capture: choose Edit show in the show’s menu.' }, { status: 409 })
+    if (code.includes('SHOW_OWNER_MISSING_NAME')) return NextResponse.json({ error: 'The artist’s profile needs a name before this show can start.' }, { status: 409 })
     if (code.includes('SHOW_NOT_STARTABLE')) return NextResponse.json({ error: 'This is an imported past listing; it can’t be started.' }, { status: 409 })
     return NextResponse.json({ error: 'Could not start this show.' }, { status: 500 })
   }

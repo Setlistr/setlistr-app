@@ -96,12 +96,26 @@ export async function GET(req: NextRequest) {
     await authoriseProof(service, user.id, artistId)
 
     if (sp.get('section') === 'active') {
-      const { data, error } = await service.from('performances').select('id, venue_name, started_at, created_at, status, data_source')
+      const { data, error } = await service.from('performances').select('id, venue_name, started_at, created_at, status, data_source, user_id, started_by, captured_by, captured_by_name')
         .eq('user_id', artistId).is('deleted_at', null).in('status', ['live', 'pending']).order('started_at', { ascending: false }).limit(5)
       if (error) throw new Error(error.message)
       const since = (d: string) => (Date.now() - new Date(d).getTime()) / 60000
       const a = (data || []).find(p => p.data_source !== 'setlistfm_imported' && since(p.started_at || p.created_at) < LIVE_WINDOW_MIN)
-      return NextResponse.json({ active: a ? { id: a.id, venue: a.venue_name, started_at: a.started_at || a.created_at } : null }, { headers: noStore })
+      // Who is capturing, from the attribution every live-capture path
+      // records: started_by (set by every Schedule start), else captured_by
+      // (a teammate's New show), else the artist (an owner's own capture is
+      // recorded with both empty). "own" lets the caller rejoin their own
+      // capture; anyone else's is shown as status only, so a second device
+      // is never invited to start listening on it. Nothing here says which
+      // device is listening.
+      let own = false, by: 'you' | 'artist' | 'teammate' = 'teammate', byName: string | null = null
+      if (a) {
+        const capturer = a.started_by || a.captured_by || a.user_id
+        own = capturer === user.id
+        by = own ? 'you' : capturer === a.user_id ? 'artist' : 'teammate'
+        byName = by === 'teammate' && a.captured_by && a.captured_by === capturer ? a.captured_by_name : null
+      }
+      return NextResponse.json({ active: a ? { id: a.id, venue: a.venue_name, started_at: a.started_at || a.created_at, own, by, byName } : null }, { headers: noStore })
     }
 
     const limit = Math.max(1, Math.min(50, Number(sp.get('limit')) || 25))

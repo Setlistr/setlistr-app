@@ -5,6 +5,7 @@ import { AlertCircle, ChevronRight, Mic, RefreshCw } from 'lucide-react'
 import { isShowUpcoming, compareScheduled, showLocalDate, zonedToday } from '@/lib/scheduleTime'
 import { ScheduleForm, ShowActionsMenu, useShowActions, showWhen, type ScheduledShow } from './UpcomingShows'
 import { TIMELINE_CSS } from './timelineStyles'
+import { capturerText, type ActiveCapture } from './TonightShows'
 import { ImportNotice } from './import/ImportNotice'
 
 // The Schedule timeline (docs/schedule-timeline-plan.md; approved prototype).
@@ -26,7 +27,7 @@ type Item = {
   partners: Partner[]
   importedFrom?: { batchId: string; file: string; row: number | null } | null
 }
-type Active = { id: string; venue: string | null; started_at: string } | null
+type Active = ActiveCapture | null
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 // Dates are the record's own (YYYY-MM-DD) and are formatted without the
@@ -90,7 +91,7 @@ export function ScheduleTimeline({ artistId, artistName, canManage, importId }: 
   useEffect(() => { loadUpcoming(); loadActive(); loadHistory(null) }, [loadUpcoming, loadActive, loadHistory])
 
   const refreshAll = useCallback(() => { loadUpcoming(); loadHistory(null) }, [loadUpcoming, loadHistory])
-  const { starting, startError, confirmAndStart, handleCancel } = useShowActions({ artistName, onChanged: refreshAll })
+  const { starting, startError, confirmAndStart, handleCancel } = useShowActions({ artistName, onChanged: refreshAll, entry: 'schedule', artistId, onRefused: () => { refreshAll(); loadActive() } })
 
   // Timed shows and date-only bookings (spreadsheet import), each on its own clock.
   const upcoming = up.shows.filter(s => isShowUpcoming(s)).sort(compareScheduled)
@@ -100,22 +101,23 @@ export function ScheduleTimeline({ artistId, artistName, canManage, importId }: 
   const when = (s: ScheduledShow) => { const w = showWhen(s); return { day: w.day, time: w.time || 'Time not set' } }
   const addedByOf = (s: ScheduledShow) => s.scheduled_by && s.scheduled_by !== s.created_by ? (s.scheduled_by_name || 'a teammate') : null
 
-  // ── Capture in progress: the Dashboard's band and rule. It links to live
-  // capture only for people who can capture (the same check as Start). The
-  // capture page has no read-only mode, so a Viewer sees the same band as
-  // plain status, with no link and no capture controls. ──
+  // ── Capture in progress: the Dashboard's band and rule. It links back to
+  // live capture only for the person whose capture it is (own, from the
+  // active route). A teammate's capture, or a Viewer, sees plain status with
+  // no link, so a second device is never invited to start listening. ──
   const activeBand = active && (() => {
-    const interrupted = minutesSince(active.started_at) > 5
+    const mine = canManage && !!active.own
+    const interrupted = minutesSince(active.started_at) > 5 && mine
     const body = <>
       <span className="tl-mic" aria-hidden="true"><Mic size={16} strokeWidth={2.4} /></span>
       <span className="tl-grow">
         <span className="tl-act-st" style={{ color: interrupted ? 'var(--sl-live)' : 'var(--sl-ok)' }}>{interrupted ? 'Capture may have been interrupted' : 'Show in progress'}</span>
         <span className="tl-act-v">{active.venue || 'Untitled show'}</span>
-        <span className="tl-sub">{canManage ? (interrupted ? 'Tap to resume capture' : 'Tap to continue capture') : 'Being captured by the artist or their team'}</span>
+        <span className="tl-sub">{mine ? (interrupted ? 'Tap to resume capture' : 'Tap to continue capture') : active.by ? capturerText(active, artistName || null) : 'Being captured by the artist or their team'}</span>
       </span>
       <span className="tl-mono tl-el">{elapsed(active.started_at)}</span>
     </>
-    return canManage ? (
+    return mine ? (
       <Link href={`/app/live/${active.id}`} className="tl-active" aria-label={`${interrupted ? 'Resume capture' : 'Continue capture'} at ${active.venue || 'this show'}`}>
         {body}<ChevronRight size={18} aria-hidden="true" style={{ color: 'var(--sl-text-3)', flexShrink: 0 }} />
       </Link>
