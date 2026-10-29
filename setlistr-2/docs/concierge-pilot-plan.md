@@ -1,5 +1,7 @@
 # Concierge pilot: a maintained live-performance record
 
+> **STOPPED 2026-10-29 by the owner.** Manual processing can't be staffed and isn't the intended business model. Superseded by [performance-record-automation-feasibility](performance-record-automation-feasibility.md). Kept for the record only.
+
 *Operating-model experiment, 2026-10-28; production `21d2b63`.* Not a feature build: **no code, SQL, integrations, outreach or production inspection.** It uses only the shipped product plus human work. The roadmap and released product are unchanged. Contacting artists or managers is the owner's decision and the owner's action.
 
 **Evidence labels:**

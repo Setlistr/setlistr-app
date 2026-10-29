@@ -107,7 +107,12 @@ A manager (Matt Woodson) plans to bring an artist onto Setlistr ahead of touring
 
 Discovery guide and one-show pilot outline (owner-led; nothing scheduled or sent): [adoption-discovery-guide](adoption-discovery-guide.md). New feature implementation is paused until this has been run.
 
-Operating-model experiment (proposal; no build): [concierge-pilot-plan](concierge-pilot-plan.md). Two teams × three shows: the manager supplies the itinerary and planned setlist; Setlistr keeps drafts outside the record and enters only confirmed shows.
+Concierge pilot: **stopped 2026-10-29** (no manual processing; [concierge-pilot-plan](concierge-pilot-plan.md) is kept for the record only).
+
+Replaced by an automation feasibility proposal (no build): [performance-record-automation-feasibility](performance-record-automation-feasibility.md).
+- **One slice:** a stage-setlist photo added from the booking → an isolated draft → one confirmation → a linked performance.
+- **Public discovery:** limited to permitted, licensed or artist-authorised sources.
+- **Flags existing risks:** setlist.fm commercial use and storage; Bandsintown key scope; public evidence-photo URLs.
 
 
 - **Who:** Matt's artist, their tour manager and FOH.
