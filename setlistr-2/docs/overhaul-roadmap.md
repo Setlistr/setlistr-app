@@ -9,7 +9,7 @@
 - **Research:** not committed to.
 - **Unverified:** recorded in working notes but not confirmed in the repository, so neither approved nor known to be missing.
 
-Production is `039871eef497280ca880e04b48b0182ac21d5963` (2026-10-28). Nothing here authorises implementation, production SQL, merges, deployments or outreach.
+Production is `21d2b63b3caedf1b95fa963796e97a13a2dabaac` (2026-10-28). Nothing here authorises implementation, production SQL, merges, deployments or outreach.
 
 ## 1. Shipped
 
@@ -129,7 +129,7 @@ Reconciled with the proposed product evolution strategy in [product-strategy-rec
 - the R&D Log admin check (`a40fc56`);
 - the show-setup assessment ([show-setup-onboarding-assessment](show-setup-onboarding-assessment.md)).
 
-**Now: "Tonight's show, one tap"** (approved 2026-10-28 with corrections; **implemented on `feature/tonight-show-one-tap`, tested on the disposable stack, awaiting review; not merged**). [tonight-show-one-tap-plan](tonight-show-one-tap-plan.md); prototype https://claude.ai/artifact/Ea9tFbasQMdb96xaTvSsur.
+**Now: "Tonight's show, one tap"** (**shipped 2026-10-28 in `21d2b63` (PR #7); installed-app check pending**; release record `tonight-show-one-tap.RELEASED.md`). [tonight-show-one-tap-plan](tonight-show-one-tap-plan.md); prototype https://claude.ai/artifact/Ea9tFbasQMdb96xaTvSsur.
 - The Dashboard's Tonight row and the gold capture button lead with tonight's booked show, using the existing linked Start.
 - "A different show" keeps today's manual path.
 - No schema, migration, API or permission change.
