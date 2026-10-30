@@ -98,7 +98,7 @@ It links these existing assessments rather than repeating them:
 | Crew / TM / FOH | Least effort: the job's done and they can forget it | Show nights only | Fewer taps and minutes; *low* time in app |
 | Artist | Story and discovery: the night counted; they learn something true about their own live life | After shows; before shows in a new or returning city | Returns at those moments across a run |
 | Manager | Confidence: knowing what happened across the roster and what's left to do | Weekly, or after a run of shows | Fewer open items; faster answers |
-| Publisher | Accomplishment: works performed, territories, readiness for filing | Monthly or quarterly, at reporting deadlines | Complete, ready works at each deadline |
+| Publisher | Accomplishment: works performed and territories, with what's still unknown stated | Monthly or quarterly, at reporting deadlines | Fewer unknowns at each deadline. **Filing eligibility, completeness and authority are each PRO's rules and the rights holder's, not Setlistr's to assert.** |
 
 ## 5. Three experience hypotheses (beyond cards and dashboards)
 
@@ -118,27 +118,27 @@ It links these existing assessments rather than repeating them:
 
 | | **1. Explore and build your live career** | **2. Understand and experiment with your repertoire** | **3. A tour as an evolving personal story** |
 |---|---|---|---|
-| **Interaction** | On the Career map, tap a city, and its nights unfold as a stack: dates, venues, each night's setlist, "first night here". A timeline scrubber replays the career across the map, year by year. | **Set lab:** each song is a card with its live life (debut, plays, last played, cities, usual position as opener or closer). For an upcoming show, "Before tonight: Chicago" shows the last set there, what's changed since, and songs not played in a while. Then drag together a draft set and see, per song, "last played here 2024" or "new to this city on your record". | Each tour is a chapter: the route draws night by night; a strip shows how the set evolved (songs in and out, closer changes); firsts are marked. At the end it closes into a tour book that is also Proof-ready. |
+| **Interaction** | On the Career map, tap a city, and its nights unfold as a stack: dates, venues, each night's setlist, "first night here". A timeline scrubber replays the career across the map, year by year. | **Set lab:** each song is a card with its live life (debut, plays, last played, cities, usual position as opener or closer, **only where performed order is reliable**). For an upcoming show, "Before tonight: Chicago" shows the last set there, what's changed since, and songs not played in a while. Then drag together a draft set and see, per song, "last played here 2024" or "new to this city on your record". | Each tour is a chapter: the route draws night by night; a strip shows how the set evolved (songs in and out, closer changes); firsts are marked. At the end it closes into a tour book that is also Proof-ready. |
 | **Curiosity and satisfaction** | Seeing your own territory; rediscovering nights | Surprising but true facts about your own songs; making a set that's informed rather than guessed | Watching something grow; closure at the end |
-| **Useful outcome** | Locate any past night fast (support for Proof and claims) | **A better set for tonight; a planned setlist** (existing `planned_setlists`, which stay separate from performed) | A tour record ready for every PRO's live filing and for Proof |
-| **Why return** | Occasional nostalgia; a new city appears | **Every show day** (the set decision) and every morning after (what changed) | Every night of a tour; then dormant between tours |
-| **Data and limits** | Confirmed performances with cities. Unresolved cities and imported history (labelled) leave holes, so the map shows them as unknown, never as empty. | Confirmed `performance_songs` positions and `user_songs`. It needs about 10 or more confirmed shows to say anything. Cold start is solved only by automated input (photos of past setlists). Frequency never implies preference. | It needs **every** night confirmed. Gaps break the story, so it is the most dependent on input. Tours aren't a field today; they would be inferred from bookings or imports. |
+| **Useful outcome** | Locate any past night fast (support for Proof and claims) | **A better set for tonight; a planned setlist** (existing `planned_setlists`, which stay separate from performed) | A tour record from which filings can be prepared (PRO-agnostic), and Proof |
+| **Why return** | Occasional nostalgia; a new city appears | **[hypothesis]** the set decision on a show day, and the morning after. Whether artists actually return then is untested. | Every night of a tour; then dormant between tours |
+| **Data and limits** | Confirmed performances with cities. Unresolved cities and imported history (labelled) leave holes, so the map shows them as unknown, never as empty. | Confirmed `performance_songs` positions and `user_songs`. It needs about 10 or more confirmed shows to say anything. Cold start is solved only by automated input (photos of past setlists). Frequency never implies preference. | Every night needs evidence, or it shows as a **visible gap** ("no setlist on record for this night"). Gaps are never hidden, smoothed or filled with the planned set, so the story is the most exposed to missing input. Tours aren't a field today; they would be inferred from bookings or imports. |
 | **Overlap** | High: the Career map, Top venues and cities already exist. Mostly an interaction upgrade of Career. | Medium: My Songs (last played), Dormant songs, Song debuts, Most played already exist as lists. New: per-city history, positions, the set draft. | Medium: Night cards, Milestone, Proof. New: grouping by tour, the evolution strip. |
 | **Smallest prototype** | A static click-through of a city stack, on local fixture data | **A local prototype:** two screens (Before tonight; the set lab for one show) from one artist's confirmed fixtures | A static tour chapter for one past run, from fixtures |
-| **Automated-input risk** | Low (works from existing records) | **Medium**: grows with each confirmed show; backfill by photo | **High**: a gap on any night breaks the experience |
+| **Automated-input risk** | Low (works from existing records) | **Medium**: grows with each confirmed show; backfill by photo | **High**: each missing night is a visible gap in the story |
 
 **Managers and publishers: discovery and accomplishment without a game.** The same confirmed record answers professional questions in plain language:
 - **Manager:**
   - "Across the run: 18 of 20 bookings confirmed; 2 to resolve";
   - "*Neon Lights* is now in every set; it isn't yet registered with the artist's PRO".
 - **Publisher:**
-  - "Works performed live this quarter, by territory, ready to file";
+  - "Works performed live this quarter, by territory, with what's missing for each" (for example writers unknown, not in the work list). **Never "ready to file":** eligibility, completeness and filing authority aren't established by Setlistr;
   - "First live performances of new works".
 
-These use Prepare → Submit, the claim sheet and Proof for the action; they don't add another dashboard. The accomplishment is **a deadline met with nothing missing**.
+These use Prepare → Submit, the claim sheet and Proof for the action; they don't add another dashboard. The accomplishment is **a deadline approached with known gaps resolved or stated**.
 
-**Recommendation: prototype hypothesis 2 first, starting with "Before tonight".**
-- It has a natural, unforced reason to return on every show day.
+**Recommendation: prototype hypothesis 2 first, starting with "Before tonight".** It is a prototype to test, **not the chosen adoption solution.**
+- **[hypothesis]** It may give a natural reason to return on show days. Whether artists actually return then is untested.
 - It turns the record into something the artist *uses*, not only admires.
 - Its value compounds with each confirmed show.
 - Its input is exactly what the automation slice produces: confirmed setlists, backfilled from photos of past setlists.
@@ -152,7 +152,7 @@ Hypothesis 1 is a later upgrade of Career. Hypothesis 3 waits until linked captu
 |---|---|---|---|---|
 | **Motivation** | "My live life, all in one place, and it's real" | "Did last night count, and what did it add?" | "What should we play here?" | "What happened, and what's left to do?" |
 | **Immediate reward** | Seeing the whole record, with honest coverage | One true discovery about last night, and the record finish | Context in seconds, for a decision made anyway | A short list resolved; a sheet ready |
-| **Reason to return** | Milestones; new cities | Every show | Every show day | Each run's end; each filing deadline |
+| **Reason to return [hypothesis]** | Milestones; new cities | Every show | Show days | Each run's end; each filing deadline |
 | **Value growth** | Grows with every confirmed show | Discoveries get richer with history | More history makes better context | Fewer gaps over time |
 | **Observed by** | Career and Proof opens after new shows | Opened within 24 h of a show; confirmed | Opened before the show; a planned set made | Items resolved within 7 days; claim sheet used |
 | **Reuses [repo]** | Career, Proof, share cards | Celebration, Night card, Song debut | My Songs, Dormant songs, `planned_setlists` | Manager Overview, Prepare → Submit, claim sheet |
@@ -160,9 +160,16 @@ Hypothesis 1 is a later upgrade of Career. Hypothesis 3 waits until linked captu
 **How discoveries stay accurate:**
 - **Computed deterministically** from confirmed performances, with templated wording. No language model writes the insights, so nothing is invented.
 - **Each one states its basis:** "on your record (34 confirmed shows since March 2025; imported history excluded)".
-- **Minimum evidence:**
-  - no "first time in this city" unless the city has resolved shows;
-  - no rotation claims under 5 shows.
+- **Each insight has its own evidence requirement** (replacing the earlier arbitrary show-count thresholds):
+
+  | Insight | Shown only when | Otherwise |
+  |---|---|---|
+  | "Last set here" | At least one confirmed show whose city is resolved to this city, with its confirmed setlist | "No confirmed set here on your record" |
+  | "First time playing X here, on your record" | Every confirmed show in this city has a confirmed setlist (no city show missing songs) | Not shown; "N nights here have no setlist on record" |
+  | "Not played in N shows" | The last N confirmed shows all have confirmed setlists (no gaps in that run) | "Not in your last K confirmed setlists" with K the gap-free run, or nothing |
+  | "Song debut" / "returned after N shows" | The same gap-free run back to the previous play | Not shown |
+  | Opener / closer, "closed for the first time" | Performed order is reliable: live capture timestamps, or a confirmer-checked order. A photo's written order alone is the **planned** order, so it isn't enough unless the confirmer checks "played in this order". | Song shown without position claims |
+  | "What changed since your last set here" | Both sets confirmed | Not shown |
 - **No causal language and no audience claims.**
 
 ## 7. ONE consolidated next step
@@ -197,7 +204,7 @@ Built from the benchmark's output, as a local prototype for one sample artist wi
 
 **The artist experience (the compelling sample).** Lena, the morning after a Chicago show:
 1. **Last night:** confirmed, with the record finish (the existing celebration).
-2. **One true discovery:** "*Neon Lights* closed for the first time on your record. *Old Favourite* came back after 14 shows."
+2. **One true discovery:** "*Old Favourite* came back after 14 confirmed shows (no gaps in that run)." An opener or closer claim appears only when the confirmer checked "played in this order".
 3. **Before tonight, Minneapolis:**
    - "Your last set here (Apr 2025): 13 songs; 5 aren't in your current rotation";
    - "Not played in 30+ shows: *Harbour*, *June*".
