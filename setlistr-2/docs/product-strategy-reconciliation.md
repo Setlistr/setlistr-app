@@ -137,3 +137,25 @@ Audience reaction and attendance remain **separate, unvalidated research** (loud
 3. **Teammate's live capture:** after "just started by someone else", should the in-progress row still offer "Tap to continue capture" to a second phone? (That's today's behaviour; two devices could capture one show.)
 4. **Entry event:** include the one `show_started_from_schedule` event in the Now slice?
 5. **Wording:** "Scheduled · Today" (as prototyped, precise and zone-correct), or "Tonight"?
+
+## 7. Update 2026-10-30: product-experience requirement and research inputs
+
+**Requirement:** Setlistr must be exciting and rewarding to use, as well as effortless and trustworthy. Administrative efficiency alone is insufficient.
+
+Each proposed experience states:
+- the motivation it serves;
+- its immediate reward;
+- the natural reason to return;
+- how its value grows;
+- how repeat value is observed.
+
+Rewards and frequency differ by role, and daily use isn't the goal for everyone.
+
+The details live in [experience-strategy-update](experience-strategy-update.md):
+- research inputs, with source claims, founder observations and hypotheses kept separate;
+- conflicts reconciled;
+- Live Passport as a framing for shipped Career, Proof, celebration and share;
+- three experience hypotheses;
+- one consolidated next step: a photo-to-record benchmark, paired with a "Before tonight" and Morning After sample.
+
+Nothing here changes the Now/Next sequence, or authorises work.

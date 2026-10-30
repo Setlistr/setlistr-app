@@ -39,6 +39,7 @@ Nothing at present. The Schedule phone fix and spreadsheet import moved to secti
 
 - **Proof record photo:** [proof-record-photo-proposal](proof-record-photo-proposal.md). SQL not authorised.
 - **Proof data audit** (read-only queries, not run): [proof-data-audit-proposal](proof-data-audit-proposal.md).
+- **Experience and research update** (2026-10-30, planning only): [experience-strategy-update](experience-strategy-update.md). Recommends one paired next step, a photo-to-record benchmark plus a local "Before tonight" sample; no new roadmap commitment.
 - **Unverified (working notes only; confirm before acting):**
   - a mobile UX direction proposal;
   - a design-foundation brief;
