@@ -1,0 +1,4 @@
+model claude-sonnet-4-5-20250929; cap $4.5; worst case of every first attempt $2.93; already committed $0.0000
+API refused (400); aborting the run.
+exit 5
+key dir after run:

@@ -1,0 +1,360 @@
+{
+ "retrieved_at": "2026-10-30T14:22:21Z",
+ "requests": 19,
+ "artists": [
+  {
+   "query": "Phish",
+   "same_name_candidates": 1,
+   "candidates": [
+    {
+     "name": "Phish",
+     "disambiguation": "American rock band formed in Burlington, Vermont, in 1983",
+     "country": "US",
+     "score": 100
+    },
+    {
+     "name": "Phish Heads",
+     "disambiguation": "",
+     "country": "",
+     "score": 54
+    },
+    {
+     "name": "J-Phish",
+     "disambiguation": "",
+     "country": "",
+     "score": 54
+    },
+    {
+     "name": "Cell-Phish",
+     "disambiguation": "",
+     "country": "",
+     "score": 54
+    },
+    {
+     "name": "Zen Phish",
+     "disambiguation": "",
+     "country": "EE",
+     "score": 54
+    }
+   ],
+   "mbid": "e01646f2-2a04-450d-8bf2-0d993082e058",
+   "events_total": 607,
+   "events_fetched": 600,
+   "events_2023_2025": 49,
+   "with_setlist_text": 553,
+   "recent_with_setlist": 47,
+   "with_time": 1,
+   "cancelled": 0,
+   "types": {
+    "Concert": 584,
+    "Festival": 16
+   },
+   "sample": [
+    {
+     "name": "Phish in Atlantic City",
+     "date": "2012-06-16",
+     "time": "",
+     "type": "Concert",
+     "setlist_lines": 14,
+     "id": "025fe028-4690-4c24-86c4-7a7c8813b632"
+    },
+    {
+     "name": "Phish at Hollywood Bowl",
+     "date": "2025-04-25",
+     "time": "",
+     "type": "Concert",
+     "setlist_lines": 21,
+     "id": "06b0fb49-1e84-41cc-9919-541eeaabb48b"
+    },
+    {
+     "name": "Phish in Commerce City",
+     "date": "2015-09-06",
+     "time": "",
+     "type": "Concert",
+     "setlist_lines": 14,
+     "id": "07db0827-341c-4b9f-824b-7f9ae2bd8ceb"
+    }
+   ]
+  },
+  {
+   "query": "Radiohead",
+   "same_name_candidates": 1,
+   "candidates": [
+    {
+     "name": "Radiohead",
+     "disambiguation": "",
+     "country": "GB",
+     "score": 100
+    },
+    {
+     "name": "radiohead 3",
+     "disambiguation": "Capsmusic LTD. artist",
+     "country": "",
+     "score": 57
+    },
+    {
+     "name": "DJ Radiohead",
+     "disambiguation": "",
+     "country": "",
+     "score": 57
+    },
+    {
+     "name": "Radiohead 2",
+     "disambiguation": "",
+     "country": "",
+     "score": 57
+    },
+    {
+     "name": "Fake Plastic Radiohead",
+     "disambiguation": "",
+     "country": "",
+     "score": 53
+    }
+   ],
+   "mbid": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+   "events_total": 44,
+   "events_fetched": 44,
+   "events_2023_2025": 0,
+   "with_setlist_text": 7,
+   "recent_with_setlist": 0,
+   "with_time": 5,
+   "cancelled": 0,
+   "types": {
+    "Festival": 23,
+    "Concert": 15,
+    "null": 6
+   },
+   "sample": [
+    {
+     "name": "Later\u2026 With Jools Holland: Series 21, Episode 4",
+     "date": "2003-06-06",
+     "time": "23:35",
+     "type": null,
+     "setlist_lines": 35,
+     "id": "0a053f28-8549-488a-97d1-81859132cd08"
+    },
+    {
+     "name": "Later\u2026 with Jools Holland: Series 31, Episode 1",
+     "date": "2008-02-01",
+     "time": "23:35",
+     "type": null,
+     "setlist_lines": 35,
+     "id": "6e733f1d-e8a2-49e9-b35e-edf5bbc8dad5"
+    },
+    {
+     "name": "Later\u2026 With Jools Holland: Series 9, Episode 4",
+     "date": "1997-05-31",
+     "time": "23:30",
+     "type": null,
+     "setlist_lines": 32,
+     "id": "94a86e13-bc56-4640-8951-681a93480e13"
+    }
+   ]
+  },
+  {
+   "query": "Phoebe Bridgers",
+   "same_name_candidates": 1,
+   "candidates": [
+    {
+     "name": "Phoebe Bridgers",
+     "disambiguation": "",
+     "country": "US",
+     "score": 100
+    }
+   ],
+   "mbid": "96855c21-b832-4366-ba12-0d2330c36a86",
+   "events_total": 62,
+   "events_fetched": 62,
+   "events_2023_2025": 20,
+   "with_setlist_text": 1,
+   "recent_with_setlist": 0,
+   "with_time": 21,
+   "cancelled": 1,
+   "types": {
+    "Concert": 51,
+    "Festival": 11
+   },
+   "sample": [
+    {
+     "name": "2026 Spring Pop-Up Tour: New York",
+     "date": "2026-06-04",
+     "time": "21:05",
+     "type": "Concert",
+     "setlist_lines": 17,
+     "id": "53675ec3-6ce4-43c1-99f3-219f5102ae09"
+    }
+   ]
+  },
+  {
+   "query": "Wednesday",
+   "same_name_candidates": 3,
+   "candidates": [
+    {
+     "name": "Wednesday 13",
+     "disambiguation": "the band; do not use for songwriting credits!",
+     "country": "US",
+     "score": 100
+    },
+    {
+     "name": "Wednesday",
+     "disambiguation": "Asheville NC band",
+     "country": "US",
+     "score": 99
+    },
+    {
+     "name": "Blue Wednesday",
+     "disambiguation": "lo\u2010fi artist",
+     "country": "CA",
+     "score": 92
+    },
+    {
+     "name": "Wednesday",
+     "disambiguation": "German\u2010English rock band active from 1975\u20131980",
+     "country": "DE",
+     "score": 90
+    },
+    {
+     "name": "Wednesday",
+     "disambiguation": "70s Canadian pop vocal group",
+     "country": "CA",
+     "score": 87
+    }
+   ],
+   "mbid": "9833b455-0da2-40b5-8e63-37816c910604",
+   "events_total": 20,
+   "events_fetched": 20,
+   "events_2023_2025": 2,
+   "with_setlist_text": 0,
+   "recent_with_setlist": 0,
+   "with_time": 15,
+   "cancelled": 0,
+   "types": {
+    "Concert": 18,
+    "Festival": 2
+   },
+   "sample": [
+    {
+     "name": "Wednesday - Asia Tour 2026: Taipei, TW",
+     "date": "2026-01-27",
+     "time": "",
+     "type": "Concert",
+     "setlist_lines": 0,
+     "id": "0b733d93-0072-448c-b195-85fa3402ba7f"
+    },
+    {
+     "name": "Wednesday - Asia Tour 2026: Seoul, KR",
+     "date": "2026-01-23",
+     "time": "20:00",
+     "type": "Concert",
+     "setlist_lines": 0,
+     "id": "0e48cf36-cdbb-45bf-b034-37898c1b0b9a"
+    },
+    {
+     "name": "Wednesday - June 2026 Tour: Baltimore, MD",
+     "date": "2026-06-16",
+     "time": "20:00",
+     "type": "Concert",
+     "setlist_lines": 0,
+     "id": "0f92c616-f065-4182-b9a2-bf744cf7f3b6"
+    }
+   ]
+  },
+  {
+   "query": "Ratboys",
+   "same_name_candidates": 1,
+   "candidates": [
+    {
+     "name": "Ratboys",
+     "disambiguation": "",
+     "country": "US",
+     "score": 100
+    }
+   ],
+   "mbid": "423a85de-66ba-4113-abdc-ba2678ee89ba",
+   "events_total": 2,
+   "events_fetched": 2,
+   "events_2023_2025": 0,
+   "with_setlist_text": 0,
+   "recent_with_setlist": 0,
+   "with_time": 2,
+   "cancelled": 0,
+   "types": {
+    "Festival": 1,
+    "Concert": 1
+   },
+   "sample": [
+    {
+     "name": "Summerfest 2018, Day 9: Johnson Controls World Sound Stage",
+     "date": "2018-07-06",
+     "time": "12:00",
+     "type": "Festival",
+     "setlist_lines": 0,
+     "id": "3554d16f-9201-46dc-8dfa-737218695e13"
+    },
+    {
+     "name": "Jesse Welles - \"Red Tour 2026\" with Ratboys",
+     "date": "2026-08-14",
+     "time": "19:30",
+     "type": "Concert",
+     "setlist_lines": 0,
+     "id": "c29ce3b0-6973-4018-b5aa-b687032f3586"
+    }
+   ]
+  },
+  {
+   "query": "Hand Habits",
+   "same_name_candidates": 1,
+   "candidates": [
+    {
+     "name": "Hand Habits",
+     "disambiguation": "",
+     "country": "US",
+     "score": 100
+    }
+   ],
+   "mbid": "a92d48e1-40a9-457d-971c-ddb748d78759",
+   "events_total": 0,
+   "events_fetched": 0,
+   "events_2023_2025": 0,
+   "with_setlist_text": 0,
+   "recent_with_setlist": 0,
+   "with_time": 0,
+   "cancelled": 0,
+   "types": {},
+   "sample": []
+  },
+  {
+   "query": "Lizzie No",
+   "same_name_candidates": 1,
+   "candidates": [
+    {
+     "name": "Lizzie No",
+     "disambiguation": "",
+     "country": "US",
+     "score": 100
+    }
+   ],
+   "mbid": "343e3225-c05e-4fd1-b518-e2d862420e5d",
+   "events_total": 1,
+   "events_fetched": 1,
+   "events_2023_2025": 1,
+   "with_setlist_text": 0,
+   "recent_with_setlist": 0,
+   "with_time": 0,
+   "cancelled": 0,
+   "types": {
+    "Festival": 1
+   },
+   "sample": [
+    {
+     "name": "Luck Reunion 2025",
+     "date": "2025-03-13",
+     "time": "",
+     "type": "Festival",
+     "setlist_lines": 0,
+     "id": "4b219a3d-7a84-488f-aea4-5e38438613db"
+    }
+   ]
+  }
+ ]
+}

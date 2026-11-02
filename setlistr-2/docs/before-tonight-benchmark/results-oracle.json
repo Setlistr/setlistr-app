@@ -1,0 +1,526 @@
+{
+ "generated": "2026-10-30T14:45:36.142Z",
+ "actual_usd_total": 0,
+ "splits": {
+  "dev": {
+   "fixtures": 15,
+   "baseline": {
+    "L1": {
+     "fixtures": 15,
+     "missing_output": 0,
+     "truth_lines": 190,
+     "matched": 190,
+     "exact": 190,
+     "spurious": 0,
+     "out_lines": 190,
+     "crossed_total": 6,
+     "crossed_returned_unmarked": 6,
+     "crossed_marked": 0,
+     "crossed_omitted": 0,
+     "added_total": 5,
+     "added_captured": 5,
+     "added_marked": 0,
+     "tau_sum": 15,
+     "tau_n": 15,
+     "unreadable_total": 0,
+     "unreadable_refused": 0,
+     "unreadable_hallucinated_lines": 0,
+     "out_of_frame_lines": 2,
+     "out_of_frame_read": 0,
+     "wrong_lines_flagged": 0,
+     "wrong_lines": 0,
+     "right_lines_flagged": 0
+    },
+    "L2": {
+     "from_truth": {
+      "expected": 187,
+      "correct": 177,
+      "correct_new": 5,
+      "wrong_id_silent": 7,
+      "wrong_id_flagged": 0,
+      "should_match_got_new": 0,
+      "new_got_matched_silent": 0,
+      "new_got_matched_flagged": 0,
+      "missing_line": 3,
+      "composition_correct": 175,
+      "composition_wrong": 4,
+      "composition_unknown_stated": 5,
+      "flagged_correct": 0
+     },
+     "from_ocr": {
+      "expected": 187,
+      "correct": 171,
+      "correct_new": 5,
+      "wrong_id_silent": 9,
+      "wrong_id_flagged": 0,
+      "should_match_got_new": 4,
+      "new_got_matched_silent": 0,
+      "new_got_matched_flagged": 0,
+      "missing_line": 3,
+      "composition_correct": 171,
+      "composition_wrong": 4,
+      "composition_unknown_stated": 9,
+      "flagged_correct": 0
+     }
+    },
+    "L3": {
+     "n": 15,
+     "in_cands": 15,
+     "top_correct": 14,
+     "top_wrong": 1,
+     "no_cands": 0,
+     "ties": 1,
+     "by_photo_time": {
+      "loadout": {
+       "n": 10,
+       "top_correct": 10,
+       "top_wrong": 0,
+       "no_cands": 0
+      },
+      "after_midnight": {
+       "n": 5,
+       "top_correct": 4,
+       "top_wrong": 1,
+       "no_cands": 0
+      }
+     }
+    },
+    "L4": {
+     "n": 15,
+     "items": 191,
+     "decisions": 30,
+     "residual_silent": 35,
+     "off_paper": 4,
+     "typed_songs": 18,
+     "modeled_seconds": [
+      69,
+      23,
+      62.5,
+      24.5,
+      76,
+      98,
+      62.5,
+      79,
+      55.5,
+      42.5,
+      49.5,
+      37.5,
+      37.5,
+      52.5,
+      70.5
+     ],
+     "abandoned": 0,
+     "retake_ok": 0
+    },
+    "cost": {
+     "calls": 0,
+     "photos": 0,
+     "usd": 0,
+     "usd_per_photo": null,
+     "retries": 0,
+     "latency_ms_median": null,
+     "latency_ms_max": null,
+     "errored_calls": 0,
+     "in_tokens_mean": null,
+     "out_tokens_mean": null,
+     "out_tokens_max": null
+    }
+   },
+   "candidate": {
+    "L1": {
+     "fixtures": 15,
+     "missing_output": 0,
+     "truth_lines": 190,
+     "matched": 190,
+     "exact": 190,
+     "spurious": 0,
+     "out_lines": 190,
+     "crossed_total": 6,
+     "crossed_returned_unmarked": 0,
+     "crossed_marked": 6,
+     "crossed_omitted": 0,
+     "added_total": 5,
+     "added_captured": 5,
+     "added_marked": 5,
+     "tau_sum": 15,
+     "tau_n": 15,
+     "unreadable_total": 0,
+     "unreadable_refused": 0,
+     "unreadable_hallucinated_lines": 0,
+     "out_of_frame_lines": 2,
+     "out_of_frame_read": 0,
+     "wrong_lines_flagged": 0,
+     "wrong_lines": 0,
+     "right_lines_flagged": 0
+    },
+    "L2": {
+     "from_truth": {
+      "expected": 187,
+      "correct": 187,
+      "correct_new": 5,
+      "wrong_id_silent": 0,
+      "wrong_id_flagged": 0,
+      "should_match_got_new": 0,
+      "new_got_matched_silent": 0,
+      "new_got_matched_flagged": 0,
+      "missing_line": 0,
+      "composition_correct": 182,
+      "composition_wrong": 0,
+      "composition_unknown_stated": 5,
+      "flagged_correct": 32
+     },
+     "from_ocr": {
+      "expected": 187,
+      "correct": 185,
+      "correct_new": 5,
+      "wrong_id_silent": 0,
+      "wrong_id_flagged": 2,
+      "should_match_got_new": 0,
+      "new_got_matched_silent": 0,
+      "new_got_matched_flagged": 0,
+      "missing_line": 0,
+      "composition_correct": 180,
+      "composition_wrong": 2,
+      "composition_unknown_stated": 5,
+      "flagged_correct": 30
+     }
+    },
+    "L3": {
+     "n": 15,
+     "in_cands": 15,
+     "top_correct": 14,
+     "top_wrong": 1,
+     "no_cands": 0,
+     "ties": 1,
+     "by_photo_time": {
+      "loadout": {
+       "n": 10,
+       "top_correct": 10,
+       "top_wrong": 0,
+       "no_cands": 0
+      },
+      "after_midnight": {
+       "n": 5,
+       "top_correct": 4,
+       "top_wrong": 1,
+       "no_cands": 0
+      }
+     }
+    },
+    "L4": {
+     "n": 15,
+     "items": 191,
+     "decisions": 78,
+     "residual_silent": 8,
+     "off_paper": 4,
+     "typed_songs": 7,
+     "modeled_seconds": [
+      39.5,
+      31,
+      49.5,
+      28.5,
+      50.5,
+      39,
+      45.5,
+      75.5,
+      52.5,
+      38,
+      36.5,
+      45.5,
+      37,
+      60,
+      49
+     ],
+     "abandoned": 0,
+     "retake_ok": 0
+    },
+    "cost": {
+     "calls": 0,
+     "photos": 0,
+     "usd": 0,
+     "usd_per_photo": null,
+     "retries": 0,
+     "latency_ms_median": null,
+     "latency_ms_max": null,
+     "errored_calls": 0,
+     "in_tokens_mean": null,
+     "out_tokens_mean": null,
+     "out_tokens_max": null
+    }
+   }
+  },
+  "heldout": {
+   "fixtures": 25,
+   "baseline": {
+    "L1": {
+     "fixtures": 22,
+     "missing_output": 0,
+     "truth_lines": 279,
+     "matched": 279,
+     "exact": 279,
+     "spurious": 0,
+     "out_lines": 279,
+     "crossed_total": 8,
+     "crossed_returned_unmarked": 8,
+     "crossed_marked": 0,
+     "crossed_omitted": 0,
+     "added_total": 5,
+     "added_captured": 5,
+     "added_marked": 0,
+     "tau_sum": 22,
+     "tau_n": 22,
+     "unreadable_total": 3,
+     "unreadable_refused": 3,
+     "unreadable_hallucinated_lines": 0,
+     "out_of_frame_lines": 6,
+     "out_of_frame_read": 0,
+     "wrong_lines_flagged": 0,
+     "wrong_lines": 0,
+     "right_lines_flagged": 0
+    },
+    "L2": {
+     "from_truth": {
+      "expected": 274,
+      "correct": 264,
+      "correct_new": 2,
+      "wrong_id_silent": 5,
+      "wrong_id_flagged": 0,
+      "should_match_got_new": 2,
+      "new_got_matched_silent": 0,
+      "new_got_matched_flagged": 0,
+      "missing_line": 3,
+      "composition_correct": 263,
+      "composition_wrong": 4,
+      "composition_unknown_stated": 4,
+      "flagged_correct": 0
+     },
+     "from_ocr": {
+      "expected": 274,
+      "correct": 260,
+      "correct_new": 2,
+      "wrong_id_silent": 6,
+      "wrong_id_flagged": 0,
+      "should_match_got_new": 5,
+      "new_got_matched_silent": 0,
+      "new_got_matched_flagged": 0,
+      "missing_line": 3,
+      "composition_correct": 260,
+      "composition_wrong": 4,
+      "composition_unknown_stated": 7,
+      "flagged_correct": 0
+     }
+    },
+    "L3": {
+     "n": 22,
+     "in_cands": 13,
+     "top_correct": 13,
+     "top_wrong": 0,
+     "no_cands": 9,
+     "ties": 0,
+     "by_photo_time": {
+      "next_morning": {
+       "n": 8,
+       "top_correct": 8,
+       "top_wrong": 0,
+       "no_cands": 0
+      },
+      "none": {
+       "n": 9,
+       "top_correct": 0,
+       "top_wrong": 0,
+       "no_cands": 9
+      },
+      "after_midnight": {
+       "n": 5,
+       "top_correct": 5,
+       "top_wrong": 0,
+       "no_cands": 0
+      }
+     }
+    },
+    "L4": {
+     "n": 22,
+     "items": 277,
+     "decisions": 44,
+     "residual_silent": 44,
+     "off_paper": 7,
+     "typed_songs": 21,
+     "modeled_seconds": [
+      84,
+      70.5,
+      42.5,
+      67.5,
+      59,
+      64.5,
+      29,
+      30.5,
+      94,
+      42.5,
+      52.5,
+      66,
+      36.5,
+      47.5,
+      51,
+      44,
+      64.5,
+      24.5,
+      36,
+      41,
+      36,
+      66
+     ],
+     "abandoned": 0,
+     "retake_ok": 3
+    },
+    "cost": {
+     "calls": 0,
+     "photos": 0,
+     "usd": 0,
+     "usd_per_photo": null,
+     "retries": 0,
+     "latency_ms_median": null,
+     "latency_ms_max": null,
+     "errored_calls": 0,
+     "in_tokens_mean": null,
+     "out_tokens_mean": null,
+     "out_tokens_max": null
+    }
+   },
+   "candidate": {
+    "L1": {
+     "fixtures": 22,
+     "missing_output": 0,
+     "truth_lines": 279,
+     "matched": 279,
+     "exact": 279,
+     "spurious": 0,
+     "out_lines": 279,
+     "crossed_total": 8,
+     "crossed_returned_unmarked": 0,
+     "crossed_marked": 8,
+     "crossed_omitted": 0,
+     "added_total": 5,
+     "added_captured": 5,
+     "added_marked": 5,
+     "tau_sum": 22,
+     "tau_n": 22,
+     "unreadable_total": 3,
+     "unreadable_refused": 3,
+     "unreadable_hallucinated_lines": 0,
+     "out_of_frame_lines": 6,
+     "out_of_frame_read": 0,
+     "wrong_lines_flagged": 0,
+     "wrong_lines": 0,
+     "right_lines_flagged": 0
+    },
+    "L2": {
+     "from_truth": {
+      "expected": 274,
+      "correct": 274,
+      "correct_new": 2,
+      "wrong_id_silent": 0,
+      "wrong_id_flagged": 0,
+      "should_match_got_new": 0,
+      "new_got_matched_silent": 0,
+      "new_got_matched_flagged": 0,
+      "missing_line": 0,
+      "composition_correct": 272,
+      "composition_wrong": 0,
+      "composition_unknown_stated": 2,
+      "flagged_correct": 44
+     },
+     "from_ocr": {
+      "expected": 274,
+      "correct": 273,
+      "correct_new": 2,
+      "wrong_id_silent": 0,
+      "wrong_id_flagged": 1,
+      "should_match_got_new": 0,
+      "new_got_matched_silent": 0,
+      "new_got_matched_flagged": 0,
+      "missing_line": 0,
+      "composition_correct": 271,
+      "composition_wrong": 1,
+      "composition_unknown_stated": 2,
+      "flagged_correct": 43
+     }
+    },
+    "L3": {
+     "n": 22,
+     "in_cands": 16,
+     "top_correct": 14,
+     "top_wrong": 2,
+     "no_cands": 6,
+     "ties": 2,
+     "by_photo_time": {
+      "next_morning": {
+       "n": 8,
+       "top_correct": 8,
+       "top_wrong": 0,
+       "no_cands": 0
+      },
+      "none": {
+       "n": 9,
+       "top_correct": 1,
+       "top_wrong": 2,
+       "no_cands": 6
+      },
+      "after_midnight": {
+       "n": 5,
+       "top_correct": 5,
+       "top_wrong": 0,
+       "no_cands": 0
+      }
+     }
+    },
+    "L4": {
+     "n": 22,
+     "items": 277,
+     "decisions": 103,
+     "residual_silent": 14,
+     "off_paper": 7,
+     "typed_songs": 9,
+     "modeled_seconds": [
+      62.5,
+      49,
+      54.5,
+      38,
+      71,
+      69.5,
+      45,
+      38.5,
+      35.5,
+      30,
+      43.5,
+      36.5,
+      36.5,
+      59.5,
+      34,
+      60,
+      35,
+      32.5,
+      44,
+      45,
+      35.5,
+      32.5
+     ],
+     "abandoned": 0,
+     "retake_ok": 3
+    },
+    "cost": {
+     "calls": 0,
+     "photos": 0,
+     "usd": 0,
+     "usd_per_photo": null,
+     "retries": 0,
+     "latency_ms_median": null,
+     "latency_ms_max": null,
+     "errored_calls": 0,
+     "in_tokens_mean": null,
+     "out_tokens_mean": null,
+     "out_tokens_max": null
+    }
+   }
+  }
+ }
+}

@@ -1,0 +1,268 @@
+{
+ "n": 23,
+ "sources": {
+  "phish.net": 15,
+  "www.bbc.co.uk": 4,
+  "www.setlist.fm": 3,
+  "brucebase.wikidot.com": 1,
+  "www.last.fm": 1,
+  "www.nme.com": 1,
+  "(none cited)": 1
+ },
+ "rows": [
+  {
+   "artist": "Phish",
+   "date": "2026-10-12",
+   "has_place": true,
+   "sources": [
+    "phish.net"
+   ],
+   "song_lines": 20,
+   "song_lines_linked_to_mb": 20,
+   "has_time": false
+  },
+  {
+   "artist": "Phish",
+   "date": "2026-10-11",
+   "has_place": true,
+   "sources": [
+    "phish.net"
+   ],
+   "song_lines": 17,
+   "song_lines_linked_to_mb": 17,
+   "has_time": false
+  },
+  {
+   "artist": "Phish",
+   "date": "2026-10-09",
+   "has_place": true,
+   "sources": [
+    "phish.net"
+   ],
+   "song_lines": 22,
+   "song_lines_linked_to_mb": 22,
+   "has_time": false
+  },
+  {
+   "artist": "Phish",
+   "date": "2026-10-07",
+   "has_place": true,
+   "sources": [
+    "phish.net"
+   ],
+   "song_lines": 16,
+   "song_lines_linked_to_mb": 16,
+   "has_time": false
+  },
+  {
+   "artist": "Phish",
+   "date": "2026-10-06",
+   "has_place": true,
+   "sources": [
+    "phish.net"
+   ],
+   "song_lines": 16,
+   "song_lines_linked_to_mb": 16,
+   "has_time": false
+  },
+  {
+   "artist": "Phish",
+   "date": "2026-10-04",
+   "has_place": true,
+   "sources": [
+    "phish.net"
+   ],
+   "song_lines": 13,
+   "song_lines_linked_to_mb": 13,
+   "has_time": false
+  },
+  {
+   "artist": "Phish",
+   "date": "2026-10-03",
+   "has_place": true,
+   "sources": [
+    "phish.net"
+   ],
+   "song_lines": 17,
+   "song_lines_linked_to_mb": 17,
+   "has_time": false
+  },
+  {
+   "artist": "Phish",
+   "date": "2026-10-02",
+   "has_place": true,
+   "sources": [
+    "phish.net"
+   ],
+   "song_lines": 16,
+   "song_lines_linked_to_mb": 16,
+   "has_time": false
+  },
+  {
+   "artist": "Phish",
+   "date": "2025-09-21",
+   "has_place": true,
+   "sources": [
+    "phish.net"
+   ],
+   "song_lines": 21,
+   "song_lines_linked_to_mb": 21,
+   "has_time": false
+  },
+  {
+   "artist": "Phish",
+   "date": "2025-09-20",
+   "has_place": true,
+   "sources": [
+    "phish.net"
+   ],
+   "song_lines": 19,
+   "song_lines_linked_to_mb": 19,
+   "has_time": false
+  },
+  {
+   "artist": "Phish",
+   "date": "2025-09-19",
+   "has_place": true,
+   "sources": [
+    "phish.net"
+   ],
+   "song_lines": 20,
+   "song_lines_linked_to_mb": 20,
+   "has_time": false
+  },
+  {
+   "artist": "Phish",
+   "date": "2025-09-17",
+   "has_place": true,
+   "sources": [
+    "phish.net"
+   ],
+   "song_lines": 18,
+   "song_lines_linked_to_mb": 18,
+   "has_time": false
+  },
+  {
+   "artist": "Phish",
+   "date": "2025-09-16",
+   "has_place": true,
+   "sources": [
+    "phish.net"
+   ],
+   "song_lines": 21,
+   "song_lines_linked_to_mb": 21,
+   "has_time": false
+  },
+  {
+   "artist": "Phish",
+   "date": "2025-09-14",
+   "has_place": true,
+   "sources": [
+    "phish.net"
+   ],
+   "song_lines": 17,
+   "song_lines_linked_to_mb": 17,
+   "has_time": false
+  },
+  {
+   "artist": "Phish",
+   "date": "2025-09-13",
+   "has_place": true,
+   "sources": [
+    "phish.net"
+   ],
+   "song_lines": 16,
+   "song_lines_linked_to_mb": 16,
+   "has_time": false
+  },
+  {
+   "artist": "Radiohead",
+   "date": "2008-02-01",
+   "has_place": true,
+   "sources": [
+    "www.bbc.co.uk"
+   ],
+   "song_lines": 12,
+   "song_lines_linked_to_mb": 0,
+   "has_time": true
+  },
+  {
+   "artist": "Radiohead",
+   "date": "2003-10-17",
+   "has_place": false,
+   "sources": [
+    "www.setlist.fm"
+   ],
+   "song_lines": 1,
+   "song_lines_linked_to_mb": 1,
+   "has_time": false
+  },
+  {
+   "artist": "Radiohead",
+   "date": "2003-06-06",
+   "has_place": false,
+   "sources": [
+    "www.bbc.co.uk"
+   ],
+   "song_lines": 12,
+   "song_lines_linked_to_mb": 0,
+   "has_time": true
+  },
+  {
+   "artist": "Radiohead",
+   "date": "1998-12-10",
+   "has_place": true,
+   "sources": [
+    "brucebase.wikidot.com",
+    "www.last.fm",
+    "www.nme.com",
+    "www.setlist.fm"
+   ],
+   "song_lines": 7,
+   "song_lines_linked_to_mb": 7,
+   "has_time": false
+  },
+  {
+   "artist": "Radiohead",
+   "date": "1997-06-28",
+   "has_place": true,
+   "sources": [],
+   "song_lines": 0,
+   "song_lines_linked_to_mb": 0,
+   "has_time": false
+  },
+  {
+   "artist": "Radiohead",
+   "date": "1997-05-31",
+   "has_place": false,
+   "sources": [
+    "www.bbc.co.uk"
+   ],
+   "song_lines": 13,
+   "song_lines_linked_to_mb": 0,
+   "has_time": true
+  },
+  {
+   "artist": "Radiohead",
+   "date": "1995-05-27",
+   "has_place": false,
+   "sources": [
+    "www.bbc.co.uk"
+   ],
+   "song_lines": 11,
+   "song_lines_linked_to_mb": 0,
+   "has_time": true
+  },
+  {
+   "artist": "Phoebe Bridgers",
+   "date": "2026-06-04",
+   "has_place": true,
+   "sources": [
+    "www.setlist.fm"
+   ],
+   "song_lines": 16,
+   "song_lines_linked_to_mb": 16,
+   "has_time": true
+  }
+ ]
+}

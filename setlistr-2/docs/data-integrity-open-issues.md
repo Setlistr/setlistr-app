@@ -63,3 +63,14 @@ Until commit 909338b, the review save wrote `performances.status = 'completed'`,
 **Effects:** they still count on the record (the dashboard counts `review`), but they appear as "Needs review" (History, the app shell's needs-review badge) and are excluded wherever `complete` is required.
 
 **Not verified:** the production data hasn't been checked. An audit would count `review` shows whose `performance_songs` are all `artist_save_complete`, for the user to decide on. Changing any status is a separate decision.
+
+## 5. Setlist-photo title matcher silently substitutes wrong songs
+
+**Status:** open, recorded 2026-10-30 from local synthetic fixtures. **No fix authorised.** Detail and an offline repro: `parse-setlist-matcher-finding.md`, `before-tonight-benchmark/matcher-repro.js`.
+
+`fuzzyMatch` in `app/api/parse-setlist/route.ts` replaces the parsed title and artist with the best catalogue match above 0.65 and doesn't flag it.
+
+- **Ambiguous titles:** a cover written `Dreams (FM)` became the artist's own "Dreams" in 9 of 9 cases. **This gives the wrong composition and writers downstream in Prepare.**
+- **Medleys:** every `A > B` or `Medley: A / B` line lost one song (8 of 8). Which song is kept depends on catalogue row order.
+
+**Not verified:** how often real artists have same-titled songs, or write medleys on one line.

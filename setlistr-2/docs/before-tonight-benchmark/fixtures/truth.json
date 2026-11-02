@@ -1,0 +1,7022 @@
+{
+ "artist": "Lena Hart (synthetic)",
+ "catalogue": [
+  {
+   "id": "o0",
+   "title": "Neon Lights",
+   "artist": "Lena Hart",
+   "kind": "original",
+   "writers": [
+    "Lena Hart"
+   ],
+   "released": true
+  },
+  {
+   "id": "o1",
+   "title": "Old Favourite",
+   "artist": "Lena Hart",
+   "kind": "original",
+   "writers": [
+    "Lena Hart"
+   ],
+   "released": true
+  },
+  {
+   "id": "o2",
+   "title": "Harbour",
+   "artist": "Lena Hart",
+   "kind": "original",
+   "writers": [
+    "Lena Hart"
+   ],
+   "released": true
+  },
+  {
+   "id": "o3",
+   "title": "June",
+   "artist": "Lena Hart",
+   "kind": "original",
+   "writers": [
+    "Lena Hart"
+   ],
+   "released": true
+  },
+  {
+   "id": "o4",
+   "title": "Home",
+   "artist": "Lena Hart",
+   "kind": "original",
+   "writers": [
+    "Lena Hart"
+   ],
+   "released": true
+  },
+  {
+   "id": "o5",
+   "title": "Home Again",
+   "artist": "Lena Hart",
+   "kind": "original",
+   "writers": [
+    "Lena Hart"
+   ],
+   "released": true
+  },
+  {
+   "id": "o6",
+   "title": "Paper Moon Motel",
+   "artist": "Lena Hart",
+   "kind": "original",
+   "writers": [
+    "Lena Hart"
+   ],
+   "released": true
+  },
+  {
+   "id": "o7",
+   "title": "Glasshouse",
+   "artist": "Lena Hart",
+   "kind": "original",
+   "writers": [
+    "Lena Hart"
+   ],
+   "released": true
+  },
+  {
+   "id": "o8",
+   "title": "Small Hours",
+   "artist": "Lena Hart",
+   "kind": "original",
+   "writers": [
+    "Lena Hart"
+   ],
+   "released": true
+  },
+  {
+   "id": "o9",
+   "title": "Northbound",
+   "artist": "Lena Hart",
+   "kind": "original",
+   "writers": [
+    "Lena Hart"
+   ],
+   "released": true
+  },
+  {
+   "id": "o10",
+   "title": "Ribbon",
+   "artist": "Lena Hart",
+   "kind": "original",
+   "writers": [
+    "Lena Hart"
+   ],
+   "released": true
+  },
+  {
+   "id": "o11",
+   "title": "Static Bloom",
+   "artist": "Lena Hart",
+   "kind": "original",
+   "writers": [
+    "Lena Hart"
+   ],
+   "released": true
+  },
+  {
+   "id": "o12",
+   "title": "Saint Agnes",
+   "artist": "Lena Hart",
+   "kind": "original",
+   "writers": [
+    "Lena Hart"
+   ],
+   "released": true
+  },
+  {
+   "id": "o13",
+   "title": "Low Tide",
+   "artist": "Lena Hart",
+   "kind": "original",
+   "writers": [
+    "Lena Hart"
+   ],
+   "released": true
+  },
+  {
+   "id": "o14",
+   "title": "The Long Way Round",
+   "artist": "Lena Hart",
+   "kind": "original",
+   "writers": [
+    "Lena Hart"
+   ],
+   "released": true
+  },
+  {
+   "id": "o15",
+   "title": "Wildfire Season",
+   "artist": "Lena Hart",
+   "kind": "original",
+   "writers": [
+    "Lena Hart"
+   ],
+   "released": true
+  },
+  {
+   "id": "o16",
+   "title": "Copper",
+   "artist": "Lena Hart",
+   "kind": "original",
+   "writers": [
+    "Lena Hart"
+   ],
+   "released": true
+  },
+  {
+   "id": "o17",
+   "title": "Undertow",
+   "artist": "Lena Hart",
+   "kind": "original",
+   "writers": [
+    "Lena Hart"
+   ],
+   "released": true
+  },
+  {
+   "id": "o18",
+   "title": "Late Bloomer",
+   "artist": "Lena Hart",
+   "kind": "original",
+   "writers": [
+    "Lena Hart"
+   ],
+   "released": true
+  },
+  {
+   "id": "o19",
+   "title": "Kite String",
+   "artist": "Lena Hart",
+   "kind": "original",
+   "writers": [
+    "Lena Hart"
+   ],
+   "released": true
+  },
+  {
+   "id": "o20",
+   "title": "Dreams",
+   "artist": "Lena Hart",
+   "kind": "original",
+   "writers": [
+    "Lena Hart"
+   ],
+   "released": true
+  },
+  {
+   "id": "o21",
+   "title": "Sparrow",
+   "artist": "Lena Hart",
+   "kind": "original",
+   "writers": [
+    "Lena Hart"
+   ],
+   "released": true
+  },
+  {
+   "id": "o22",
+   "title": "Blue Hour",
+   "artist": "Lena Hart",
+   "kind": "original",
+   "writers": [
+    "Lena Hart"
+   ],
+   "released": true
+  },
+  {
+   "id": "o23",
+   "title": "Parking Lot Prayer",
+   "artist": "Lena Hart",
+   "kind": "original",
+   "writers": [
+    "Lena Hart"
+   ],
+   "released": true
+  },
+  {
+   "id": "o24",
+   "title": "Lighthouse Keeper",
+   "artist": "Lena Hart",
+   "kind": "original",
+   "writers": [
+    "Lena Hart"
+   ],
+   "released": true
+  },
+  {
+   "id": "u1",
+   "title": "Marigold",
+   "artist": "Lena Hart",
+   "kind": "original",
+   "writers": [
+    "Lena Hart"
+   ],
+   "released": false
+  },
+  {
+   "id": "u2",
+   "title": "Ferris Wheel",
+   "artist": "Lena Hart",
+   "kind": "original",
+   "writers": [
+    "Lena Hart",
+    "Sam Ortiz"
+   ],
+   "released": false
+  },
+  {
+   "id": "c1",
+   "title": "Jolene",
+   "artist": "Dolly Parton",
+   "kind": "cover",
+   "writers": [
+    "Dolly Parton"
+   ],
+   "released": true
+  },
+  {
+   "id": "c2",
+   "title": "Dreams",
+   "artist": "Fleetwood Mac",
+   "kind": "cover",
+   "writers": [
+    "Stevie Nicks"
+   ],
+   "released": true
+  },
+  {
+   "id": "c3",
+   "title": "Hallelujah",
+   "artist": "Leonard Cohen",
+   "kind": "cover",
+   "writers": [
+    "Leonard Cohen"
+   ],
+   "released": true
+  },
+  {
+   "id": "c4",
+   "title": "Landslide",
+   "artist": "Fleetwood Mac",
+   "kind": "cover",
+   "writers": [
+    "Stevie Nicks"
+   ],
+   "released": true
+  },
+  {
+   "id": "c5",
+   "title": "Dancing in the Dark",
+   "artist": "Bruce Springsteen",
+   "kind": "cover",
+   "writers": [
+    "Bruce Springsteen"
+   ],
+   "released": true
+  }
+ ],
+ "new_songs": [
+  {
+   "title": "Velvet Static",
+   "kind": "new_original"
+  },
+  {
+   "title": "Gasoline Halo",
+   "kind": "new_original"
+  },
+  {
+   "title": "Harvest Moon",
+   "kind": "new_cover",
+   "writers": [
+    "Neil Young"
+   ]
+  }
+ ],
+ "bookings": [
+  {
+   "id": "b00",
+   "venue": "Mohawk",
+   "city": "Austin",
+   "tz": "America/Chicago",
+   "local_date": "2026-02-15",
+   "time": "20:30",
+   "status": "scheduled",
+   "fixture": "f00"
+  },
+  {
+   "id": "b01",
+   "venue": "Thalia Hall",
+   "city": "Chicago",
+   "tz": "America/Chicago",
+   "local_date": "2026-02-24",
+   "time": "21:00",
+   "status": "scheduled",
+   "fixture": "f01"
+  },
+  {
+   "id": "b02",
+   "venue": "Empty Bottle",
+   "city": "Chicago",
+   "tz": "America/Chicago",
+   "local_date": "2026-03-01",
+   "time": "20:00",
+   "status": "scheduled",
+   "fixture": "f02"
+  },
+  {
+   "id": "b03",
+   "venue": "First Avenue",
+   "city": "Minneapolis",
+   "tz": "America/Chicago",
+   "local_date": "2026-03-10",
+   "time": "21:00",
+   "status": "scheduled",
+   "fixture": "f03"
+  },
+  {
+   "id": "b04",
+   "venue": "The Bluebird",
+   "city": "Denver",
+   "tz": "America/Denver",
+   "local_date": "2026-03-13",
+   "time": "20:00",
+   "status": "scheduled",
+   "fixture": "f04"
+  },
+  {
+   "id": "b05",
+   "venue": "Neumos",
+   "city": "Seattle",
+   "tz": "America/Los_Angeles",
+   "local_date": "2026-03-16",
+   "time": "21:00",
+   "status": "scheduled",
+   "fixture": "f05"
+  },
+  {
+   "id": "b06",
+   "venue": "Doug Fir",
+   "city": "Portland",
+   "tz": "America/Los_Angeles",
+   "local_date": "2026-03-21",
+   "time": "20:30",
+   "status": "scheduled",
+   "fixture": "f06"
+  },
+  {
+   "id": "b07",
+   "venue": "The Independent",
+   "city": "San Francisco",
+   "tz": "America/Los_Angeles",
+   "local_date": "2026-03-23",
+   "time": "20:30",
+   "status": "scheduled",
+   "fixture": "f07"
+  },
+  {
+   "id": "b08",
+   "venue": "Lodge Room",
+   "city": "Los Angeles",
+   "tz": "America/Los_Angeles",
+   "local_date": "2026-03-24",
+   "time": "20:00",
+   "status": "scheduled",
+   "fixture": "f08"
+  },
+  {
+   "id": "b09",
+   "venue": "Rough Trade",
+   "city": "New York",
+   "tz": "America/New_York",
+   "local_date": "2026-03-27",
+   "time": "20:30",
+   "status": "scheduled",
+   "fixture": "f09"
+  },
+  {
+   "id": "b10",
+   "venue": "The Sinclair",
+   "city": "Cambridge",
+   "tz": "America/New_York",
+   "local_date": "2026-03-30",
+   "time": "21:30",
+   "status": "scheduled",
+   "fixture": "f10"
+  },
+  {
+   "id": "b11",
+   "venue": "Black Cat",
+   "city": "Washington",
+   "tz": "America/New_York",
+   "local_date": "2026-04-08",
+   "time": "21:30",
+   "status": "scheduled",
+   "fixture": "f11"
+  },
+  {
+   "id": "b12",
+   "venue": "Mercy Lounge",
+   "city": "Nashville",
+   "tz": "America/Chicago",
+   "local_date": "2026-04-11",
+   "time": "20:00",
+   "status": "scheduled",
+   "fixture": "f12"
+  },
+  {
+   "id": "b13",
+   "venue": "Terminal West",
+   "city": "Atlanta",
+   "tz": "America/New_York",
+   "local_date": "2026-04-12",
+   "time": "21:30",
+   "status": "scheduled",
+   "fixture": "f13"
+  },
+  {
+   "id": "b14",
+   "venue": "Lee's Palace",
+   "city": "Toronto",
+   "tz": "America/Toronto",
+   "local_date": "2026-04-15",
+   "time": "21:30",
+   "status": "scheduled",
+   "fixture": "f14"
+  },
+  {
+   "id": "b15",
+   "venue": "Bootleg",
+   "city": "Los Angeles",
+   "tz": "America/Los_Angeles",
+   "local_date": "2026-04-20",
+   "time": "20:30",
+   "status": "scheduled",
+   "fixture": "f15"
+  },
+  {
+   "id": "b16",
+   "venue": "Pabst Theater",
+   "city": "Milwaukee",
+   "tz": "America/Chicago",
+   "local_date": "2026-04-29",
+   "time": "20:30",
+   "status": "scheduled",
+   "fixture": "f16"
+  },
+  {
+   "id": "b17",
+   "venue": "Turf Club",
+   "city": "St. Paul",
+   "tz": "America/Chicago",
+   "local_date": "2026-05-02",
+   "time": "21:30",
+   "status": "scheduled",
+   "fixture": "f17"
+  },
+  {
+   "id": "b18",
+   "venue": "Mohawk",
+   "city": "Austin",
+   "tz": "America/Chicago",
+   "local_date": "2026-05-11",
+   "time": "20:30",
+   "status": "scheduled",
+   "fixture": "f18"
+  },
+  {
+   "id": "b19",
+   "venue": "Thalia Hall",
+   "city": "Chicago",
+   "tz": "America/Chicago",
+   "local_date": "2026-05-13",
+   "time": "20:00",
+   "status": "scheduled",
+   "fixture": "f19"
+  },
+  {
+   "id": "b20",
+   "venue": "Empty Bottle",
+   "city": "Chicago",
+   "tz": "America/Chicago",
+   "local_date": "2026-05-18",
+   "time": "20:00",
+   "status": "scheduled",
+   "fixture": "f20"
+  },
+  {
+   "id": "b21",
+   "venue": "First Avenue",
+   "city": "Minneapolis",
+   "tz": "America/Chicago",
+   "local_date": "2026-05-20",
+   "time": "21:00",
+   "status": "scheduled",
+   "fixture": "f21"
+  },
+  {
+   "id": "b22",
+   "venue": "The Bluebird",
+   "city": "Denver",
+   "tz": "America/Denver",
+   "local_date": "2026-05-25",
+   "time": "20:30",
+   "status": "scheduled",
+   "fixture": "f22"
+  },
+  {
+   "id": "b23",
+   "venue": "Neumos",
+   "city": "Seattle",
+   "tz": "America/Los_Angeles",
+   "local_date": "2026-05-27",
+   "time": "20:00",
+   "status": "scheduled",
+   "fixture": "f23"
+  },
+  {
+   "id": "b24",
+   "venue": "Doug Fir",
+   "city": "Portland",
+   "tz": "America/Los_Angeles",
+   "local_date": "2026-05-28",
+   "time": "21:30",
+   "status": "scheduled",
+   "fixture": "f24"
+  },
+  {
+   "id": "b25",
+   "venue": "The Independent",
+   "city": "San Francisco",
+   "tz": "America/Los_Angeles",
+   "local_date": "2026-05-30",
+   "time": "20:00",
+   "status": "scheduled",
+   "fixture": "f25"
+  },
+  {
+   "id": "b26",
+   "venue": "Lodge Room",
+   "city": "Los Angeles",
+   "tz": "America/Los_Angeles",
+   "local_date": "2026-06-04",
+   "time": "21:30",
+   "status": "scheduled",
+   "fixture": "f26"
+  },
+  {
+   "id": "b27",
+   "venue": "Rough Trade",
+   "city": "New York",
+   "tz": "America/New_York",
+   "local_date": "2026-06-09",
+   "time": "20:00",
+   "status": "scheduled",
+   "fixture": "f27"
+  },
+  {
+   "id": "b28",
+   "venue": "The Sinclair",
+   "city": "Cambridge",
+   "tz": "America/New_York",
+   "local_date": "2026-06-11",
+   "time": "20:30",
+   "status": "scheduled",
+   "fixture": "f28"
+  },
+  {
+   "id": "b29",
+   "venue": "Black Cat",
+   "city": "Washington",
+   "tz": "America/New_York",
+   "local_date": "2026-06-12",
+   "time": "20:00",
+   "status": "scheduled",
+   "fixture": "f29"
+  },
+  {
+   "id": "b30",
+   "venue": "Mercy Lounge",
+   "city": "Nashville",
+   "tz": "America/Chicago",
+   "local_date": "2026-06-17",
+   "time": "21:00",
+   "status": "scheduled",
+   "fixture": "f30"
+  },
+  {
+   "id": "b31",
+   "venue": "Terminal West",
+   "city": "Atlanta",
+   "tz": "America/New_York",
+   "local_date": "2026-06-18",
+   "time": "20:00",
+   "status": "scheduled",
+   "fixture": "f31"
+  },
+  {
+   "id": "b32",
+   "venue": "Lee's Palace",
+   "city": "Toronto",
+   "tz": "America/Toronto",
+   "local_date": "2026-06-20",
+   "time": "21:30",
+   "status": "scheduled",
+   "fixture": "f32"
+  },
+  {
+   "id": "b33",
+   "venue": "Bootleg",
+   "city": "Los Angeles",
+   "tz": "America/Los_Angeles",
+   "local_date": "2026-06-29",
+   "time": "21:00",
+   "status": "scheduled",
+   "fixture": "f33"
+  },
+  {
+   "id": "b34",
+   "venue": "Pabst Theater",
+   "city": "Milwaukee",
+   "tz": "America/Chicago",
+   "local_date": "2026-07-01",
+   "time": "21:00",
+   "status": "scheduled",
+   "fixture": "f34"
+  },
+  {
+   "id": "b35",
+   "venue": "Turf Club",
+   "city": "St. Paul",
+   "tz": "America/Chicago",
+   "local_date": "2026-07-02",
+   "time": "21:00",
+   "status": "scheduled",
+   "fixture": "f35"
+  },
+  {
+   "id": "b36",
+   "venue": "Mohawk",
+   "city": "Austin",
+   "tz": "America/Chicago",
+   "local_date": "2026-07-11",
+   "time": "21:00",
+   "status": "scheduled",
+   "fixture": "f36"
+  },
+  {
+   "id": "b37",
+   "venue": "Thalia Hall",
+   "city": "Chicago",
+   "tz": "America/Chicago",
+   "local_date": "2026-07-20",
+   "time": "21:00",
+   "status": "scheduled",
+   "fixture": "f37"
+  },
+  {
+   "id": "b38",
+   "venue": "Empty Bottle",
+   "city": "Chicago",
+   "tz": "America/Chicago",
+   "local_date": "2026-07-22",
+   "time": "20:00",
+   "status": "scheduled",
+   "fixture": "f38"
+  },
+  {
+   "id": "b39",
+   "venue": "First Avenue",
+   "city": "Minneapolis",
+   "tz": "America/Chicago",
+   "local_date": "2026-07-25",
+   "time": "21:00",
+   "status": "scheduled",
+   "fixture": "f39"
+  },
+  {
+   "venue": "Hideout",
+   "city": "Minneapolis",
+   "tz": "America/Chicago",
+   "local_date": "2026-03-11",
+   "time": "21:00",
+   "status": "scheduled",
+   "id": "t03",
+   "trap": "same_city_next_day",
+   "fixture": null
+  },
+  {
+   "venue": "Washington Riverfront Fest",
+   "city": "Washington",
+   "tz": "America/New_York",
+   "local_date": "2026-04-08",
+   "time": "15:30",
+   "status": "scheduled",
+   "id": "t11",
+   "trap": "same_day_other_set",
+   "fixture": null
+  },
+  {
+   "venue": "Hideout",
+   "city": "Chicago",
+   "tz": "America/Chicago",
+   "local_date": "2026-05-14",
+   "time": "21:00",
+   "status": "scheduled",
+   "id": "t19",
+   "trap": "same_city_next_day",
+   "fixture": null
+  },
+  {
+   "venue": "The Echo",
+   "city": "Los Angeles",
+   "tz": "America/Los_Angeles",
+   "local_date": "2026-06-10",
+   "time": "20:00",
+   "status": "cancelled",
+   "id": "t27",
+   "trap": "cancelled_next_day",
+   "fixture": null
+  },
+  {
+   "venue": "Los Angeles Riverfront Fest",
+   "city": "Los Angeles",
+   "tz": "America/Los_Angeles",
+   "local_date": "2026-06-29",
+   "time": "15:30",
+   "status": "scheduled",
+   "id": "t33",
+   "trap": "same_day_other_set",
+   "fixture": null
+  },
+  {
+   "venue": "Record store in-store",
+   "city": "Austin",
+   "tz": "America/Chicago",
+   "local_date": "2026-07-11",
+   "time": null,
+   "status": "scheduled",
+   "id": "t36",
+   "trap": "date_only_same_day",
+   "fixture": null
+  }
+ ],
+ "fixtures": [
+  {
+   "id": "f00",
+   "booking": "b00",
+   "style": "typed",
+   "condition": "clean",
+   "lines": [
+    {
+     "text": "Wildfire Season *",
+     "title_text": "Wildfire Season",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o15"
+    },
+    {
+     "text": "Home",
+     "title_text": "Home",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o4"
+    },
+    {
+     "text": "Harbour (capo 2)",
+     "title_text": "Harbour",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o2"
+    },
+    {
+     "text": "Marigold - Bb",
+     "title_text": "Marigold",
+     "kind": "song",
+     "mark": "crossed",
+     "song_id": "u1"
+    },
+    {
+     "text": "The Long Way Round (solo)",
+     "title_text": "The Long Way Round",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o14"
+    },
+    {
+     "text": "Parking Lot Prayer (capo 2)",
+     "title_text": "Parking Lot Prayer",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o23"
+    },
+    {
+     "text": "Lighthouse Keeper (capo 2)",
+     "title_text": "Lighthouse Keeper",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o24"
+    },
+    {
+     "text": "Home Again (capo 2)",
+     "title_text": "Home Again",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o5"
+    },
+    {
+     "text": "Dreams",
+     "title_text": "Dreams",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o20"
+    },
+    {
+     "text": "Dancing in the Dark",
+     "title_text": "Dancing in the Dark",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "c5"
+    },
+    {
+     "text": "Kite String - Bb",
+     "title_text": "Kite String",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o19"
+    },
+    {
+     "text": "Low Tide (capo 2)",
+     "title_text": "Low Tide",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o13"
+    },
+    {
+     "text": "ENCORE",
+     "kind": "section"
+    },
+    {
+     "text": "Old Fav",
+     "title_text": "Old Fav",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o1"
+    },
+    {
+     "text": "Static Bloom (capo 2)",
+     "title_text": "Static Bloom",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o11"
+    }
+   ],
+   "performed": [
+    {
+     "song_id": "o15"
+    },
+    {
+     "song_id": "o4"
+    },
+    {
+     "song_id": "o2"
+    },
+    {
+     "song_id": "o14"
+    },
+    {
+     "song_id": "o23"
+    },
+    {
+     "song_id": "o24"
+    },
+    {
+     "song_id": "o5"
+    },
+    {
+     "song_id": "o20"
+    },
+    {
+     "song_id": "c5"
+    },
+    {
+     "song_id": "o19"
+    },
+    {
+     "song_id": "o13"
+    },
+    {
+     "song_id": "o1"
+    },
+    {
+     "song_id": "o11"
+    }
+   ],
+   "off_paper": null,
+   "hard_cases": [
+    "abbreviation",
+    "ambiguous_title_dreams",
+    "ambiguous_title_home",
+    "cover",
+    "crossed_out",
+    "unreleased_in_catalogue"
+   ],
+   "photo_time": "loadout",
+   "split": "dev"
+  },
+  {
+   "id": "f01",
+   "booking": "b01",
+   "style": "typed",
+   "condition": "angle",
+   "lines": [
+    {
+     "text": "THALIA HALL 2/24",
+     "kind": "header"
+    },
+    {
+     "text": "Marigold (solo)",
+     "title_text": "Marigold",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "u1"
+    },
+    {
+     "text": "Undertow (capo 2)",
+     "title_text": "Undertow",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o17"
+    },
+    {
+     "text": "Gasoline Halo",
+     "title_text": "Gasoline Halo",
+     "kind": "song",
+     "mark": "added",
+     "new": {
+      "title": "Gasoline Halo",
+      "kind": "new_original"
+     }
+    },
+    {
+     "text": "Ferris Wheel",
+     "title_text": "Ferris Wheel",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "u2"
+    },
+    {
+     "text": "Saint Agnes",
+     "title_text": "Saint Agnes",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o12"
+    },
+    {
+     "text": "Static Bloom (capo 2)",
+     "title_text": "Static Bloom",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o11"
+    },
+    {
+     "text": "Northbound",
+     "title_text": "Northbound",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o9"
+    },
+    {
+     "text": "Old Favourite",
+     "title_text": "Old Favourite",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o1"
+    },
+    {
+     "text": "Lighthouse Keeper",
+     "title_text": "Lighthouse Keeper",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o24"
+    },
+    {
+     "text": "Blue Hour",
+     "title_text": "Blue Hour",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o22"
+    }
+   ],
+   "performed": [
+    {
+     "song_id": "u1"
+    },
+    {
+     "song_id": "o17"
+    },
+    {
+     "new": {
+      "title": "Gasoline Halo",
+      "kind": "new_original"
+     }
+    },
+    {
+     "song_id": "u2"
+    },
+    {
+     "song_id": "o12"
+    },
+    {
+     "song_id": "o11"
+    },
+    {
+     "song_id": "o9"
+    },
+    {
+     "song_id": "o1"
+    },
+    {
+     "song_id": "o24"
+    },
+    {
+     "song_id": "o22"
+    }
+   ],
+   "off_paper": null,
+   "hard_cases": [
+    "addition_new_song",
+    "unreleased_in_catalogue"
+   ],
+   "photo_time": "after_midnight",
+   "split": "dev"
+  },
+  {
+   "id": "f02",
+   "booking": "b02",
+   "style": "marker",
+   "condition": "crop_bottom",
+   "lines": [
+    {
+     "text": "Neon Lights",
+     "title_text": "Neon Lights",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o0"
+    },
+    {
+     "text": "Sparrow",
+     "title_text": "Sparrow",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o21"
+    },
+    {
+     "text": "Dreams",
+     "title_text": "Dreams",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o20"
+    },
+    {
+     "text": "Dancing in the Dark",
+     "title_text": "Dancing in the Dark",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "c5"
+    },
+    {
+     "text": "Glasshouse (capo 2)",
+     "title_text": "Glasshouse",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o7"
+    },
+    {
+     "text": "Small Hours",
+     "title_text": "Small Hours",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o8"
+    },
+    {
+     "text": "Wildfire",
+     "title_text": "Wildfire",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o15"
+    },
+    {
+     "text": "Copper (capo 2)",
+     "title_text": "Copper",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o16"
+    },
+    {
+     "text": "Medley: Saint Agnes / Home",
+     "title_text": "Medley: Saint Agnes / Home",
+     "kind": "song",
+     "mark": "none",
+     "medley": [
+      "o12",
+      "o4"
+     ]
+    },
+    {
+     "text": "Late Bloomer *",
+     "title_text": "Late Bloomer",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o18"
+    },
+    {
+     "text": "Harbour - Bb",
+     "title_text": "Harbour",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o2"
+    },
+    {
+     "text": "Undertow",
+     "title_text": "Undertow",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o17"
+    },
+    {
+     "text": "Dreams (FM)",
+     "title_text": "Dreams (FM)",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "c2"
+    },
+    {
+     "text": "Blue Hour (capo 2)",
+     "title_text": "Blue Hour",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o22"
+    },
+    {
+     "text": "Northbound - Bb",
+     "title_text": "Northbound",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o9"
+    },
+    {
+     "text": "Kite String (solo)",
+     "title_text": "Kite String",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o19"
+    }
+   ],
+   "performed": [
+    {
+     "song_id": "o0"
+    },
+    {
+     "song_id": "o21"
+    },
+    {
+     "song_id": "o20"
+    },
+    {
+     "song_id": "c5"
+    },
+    {
+     "song_id": "o7"
+    },
+    {
+     "song_id": "o8"
+    },
+    {
+     "song_id": "o15"
+    },
+    {
+     "song_id": "o16"
+    },
+    {
+     "song_id": "o12",
+     "medley": true
+    },
+    {
+     "song_id": "o4",
+     "medley": true
+    },
+    {
+     "song_id": "o18"
+    },
+    {
+     "song_id": "o2"
+    },
+    {
+     "song_id": "o17"
+    },
+    {
+     "song_id": "c2"
+    },
+    {
+     "song_id": "o22"
+    },
+    {
+     "song_id": "o9"
+    },
+    {
+     "song_id": "o19"
+    }
+   ],
+   "off_paper": null,
+   "hard_cases": [
+    "abbreviation",
+    "ambiguous_title_dreams",
+    "cover",
+    "medley"
+   ],
+   "photo_time": "next_morning",
+   "split": "heldout"
+  },
+  {
+   "id": "f03",
+   "booking": "b03",
+   "style": "marker",
+   "condition": "clean",
+   "lines": [
+    {
+     "text": "PMM (capo 2)",
+     "title_text": "PMM",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o6"
+    },
+    {
+     "text": "Jolene - Bb",
+     "title_text": "Jolene",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "c1"
+    },
+    {
+     "text": "June *",
+     "title_text": "June",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o3"
+    },
+    {
+     "text": "Glasshouse",
+     "title_text": "Glasshouse",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o7"
+    },
+    {
+     "text": "Gasoline Halo",
+     "title_text": "Gasoline Halo",
+     "kind": "song",
+     "mark": "none",
+     "new": {
+      "title": "Gasoline Halo",
+      "kind": "new_original"
+     }
+    },
+    {
+     "text": "Parking Lot Prayer",
+     "title_text": "Parking Lot Prayer",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o23"
+    },
+    {
+     "text": "Lighthouse",
+     "title_text": "Lighthouse",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o24"
+    },
+    {
+     "text": "Kite String (solo)",
+     "title_text": "Kite String",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o19"
+    },
+    {
+     "text": "Sparrow",
+     "title_text": "Sparrow",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o21"
+    },
+    {
+     "text": "Dreams (capo 2)",
+     "title_text": "Dreams",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o20"
+    },
+    {
+     "text": "Dancing in the Dark",
+     "title_text": "Dancing in the Dark",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "c5"
+    },
+    {
+     "text": "Long Way",
+     "title_text": "Long Way",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o14"
+    },
+    {
+     "text": "Harbour - Bb",
+     "title_text": "Harbour",
+     "kind": "song",
+     "mark": "crossed",
+     "song_id": "o2"
+    },
+    {
+     "text": "Northbound (capo 2)",
+     "title_text": "Northbound",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o9"
+    },
+    {
+     "text": "ENCORE",
+     "kind": "section"
+    },
+    {
+     "text": "Old Favourite",
+     "title_text": "Old Favourite",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o1"
+    }
+   ],
+   "performed": [
+    {
+     "song_id": "o6"
+    },
+    {
+     "song_id": "c1"
+    },
+    {
+     "song_id": "o3"
+    },
+    {
+     "song_id": "o7"
+    },
+    {
+     "new": {
+      "title": "Gasoline Halo",
+      "kind": "new_original"
+     }
+    },
+    {
+     "song_id": "o23"
+    },
+    {
+     "song_id": "o24"
+    },
+    {
+     "song_id": "o19"
+    },
+    {
+     "song_id": "o21"
+    },
+    {
+     "song_id": "o20"
+    },
+    {
+     "song_id": "c5"
+    },
+    {
+     "song_id": "o14"
+    },
+    {
+     "song_id": "o9"
+    },
+    {
+     "song_id": "o1"
+    }
+   ],
+   "off_paper": null,
+   "hard_cases": [
+    "abbreviation",
+    "ambiguous_title_dreams",
+    "cover",
+    "crossed_out",
+    "unreleased_not_in_catalogue"
+   ],
+   "photo_time": "none",
+   "split": "heldout"
+  },
+  {
+   "id": "f04",
+   "booking": "b04",
+   "style": "hand_bradley",
+   "condition": "glare",
+   "lines": [
+    {
+     "text": "Glasshouse",
+     "title_text": "Glasshouse",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o7"
+    },
+    {
+     "text": "Home Again",
+     "title_text": "Home Again",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o5"
+    },
+    {
+     "text": "Harbour (solo)",
+     "title_text": "Harbour",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o2"
+    },
+    {
+     "text": "St Agnes",
+     "title_text": "St Agnes",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o12"
+    },
+    {
+     "text": "Dreams (FM)",
+     "title_text": "Dreams (FM)",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "c2"
+    },
+    {
+     "text": "Ribbon (capo 2)",
+     "title_text": "Ribbon",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o10"
+    },
+    {
+     "text": "Ferris Wheel - Bb",
+     "title_text": "Ferris Wheel",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "u2"
+    },
+    {
+     "text": "Parking Lot Prayer (solo)",
+     "title_text": "Parking Lot Prayer",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o23"
+    },
+    {
+     "text": "Wildfire Season",
+     "title_text": "Wildfire Season",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o15"
+    },
+    {
+     "text": "June (solo)",
+     "title_text": "June",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o3"
+    },
+    {
+     "text": "Lighthouse",
+     "title_text": "Lighthouse",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o24"
+    },
+    {
+     "text": "E:",
+     "kind": "section"
+    },
+    {
+     "text": "Old Fav",
+     "title_text": "Old Fav",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o1"
+    },
+    {
+     "text": "The Long Way Round - Bb",
+     "title_text": "The Long Way Round",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o14"
+    }
+   ],
+   "performed": [
+    {
+     "song_id": "o7"
+    },
+    {
+     "song_id": "o5"
+    },
+    {
+     "song_id": "o2"
+    },
+    {
+     "song_id": "o12"
+    },
+    {
+     "song_id": "c2"
+    },
+    {
+     "song_id": "o10"
+    },
+    {
+     "song_id": "u2"
+    },
+    {
+     "song_id": "o23"
+    },
+    {
+     "song_id": "o15"
+    },
+    {
+     "song_id": "o3"
+    },
+    {
+     "song_id": "o24"
+    },
+    {
+     "song_id": "o1"
+    },
+    {
+     "song_id": "o14"
+    },
+    {
+     "song_id": "o6"
+    }
+   ],
+   "off_paper": {
+    "played_unlisted": "o6"
+   },
+   "hard_cases": [
+    "abbreviation",
+    "ambiguous_title_dreams",
+    "ambiguous_title_home",
+    "cover",
+    "unreleased_in_catalogue"
+   ],
+   "photo_time": "loadout",
+   "split": "dev"
+  },
+  {
+   "id": "f05",
+   "booking": "b05",
+   "style": "hand_noteworthy",
+   "condition": "tape_shadow",
+   "lines": [
+    {
+     "text": "Wildfire",
+     "title_text": "Wildfire",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o15"
+    },
+    {
+     "text": "Hallelujah",
+     "title_text": "Hallelujah",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "c3"
+    },
+    {
+     "text": "Harbour - Bb",
+     "title_text": "Harbour",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o2"
+    },
+    {
+     "text": "Dancing in the Dark - Bb",
+     "title_text": "Dancing in the Dark",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "c5"
+    },
+    {
+     "text": "Home Again",
+     "title_text": "Home Again",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o5"
+    },
+    {
+     "text": "Parking Lot",
+     "title_text": "Parking Lot",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o23"
+    },
+    {
+     "text": "Sparrow *",
+     "title_text": "Sparrow",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o21"
+    },
+    {
+     "text": "Old Favourite (solo)",
+     "title_text": "Old Favourite",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o1"
+    },
+    {
+     "text": "June",
+     "title_text": "June",
+     "kind": "song",
+     "mark": "added",
+     "song_id": "o3"
+    },
+    {
+     "text": "Undertow",
+     "title_text": "Undertow",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o17"
+    },
+    {
+     "text": "Late Bloomer - Bb",
+     "title_text": "Late Bloomer",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o18"
+    },
+    {
+     "text": "Blue Hour",
+     "title_text": "Blue Hour",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o22"
+    },
+    {
+     "text": "\u2014 enc \u2014",
+     "kind": "section"
+    },
+    {
+     "text": "Lighthouse Keeper - Bb",
+     "title_text": "Lighthouse Keeper",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o24"
+    }
+   ],
+   "performed": [
+    {
+     "song_id": "o15"
+    },
+    {
+     "song_id": "c3"
+    },
+    {
+     "song_id": "o2"
+    },
+    {
+     "song_id": "c5"
+    },
+    {
+     "song_id": "o5"
+    },
+    {
+     "song_id": "o23"
+    },
+    {
+     "song_id": "o1"
+    },
+    {
+     "song_id": "o3"
+    },
+    {
+     "song_id": "o17"
+    },
+    {
+     "song_id": "o18"
+    },
+    {
+     "song_id": "o22"
+    },
+    {
+     "song_id": "o24"
+    }
+   ],
+   "off_paper": {
+    "skipped_unmarked": "o21"
+   },
+   "hard_cases": [
+    "abbreviation",
+    "addition",
+    "ambiguous_title_home",
+    "cover"
+   ],
+   "photo_time": "after_midnight",
+   "split": "heldout"
+  },
+  {
+   "id": "f06",
+   "booking": "b06",
+   "style": "hand_chalk",
+   "condition": "angle",
+   "lines": [
+    {
+     "text": "Parking Lot",
+     "title_text": "Parking Lot",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o23"
+    },
+    {
+     "text": "The Long Way Round (capo 2)",
+     "title_text": "The Long Way Round",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o14"
+    },
+    {
+     "text": "Jolene",
+     "title_text": "Jolene",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "c1"
+    },
+    {
+     "text": "Home",
+     "title_text": "Home",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o4"
+    },
+    {
+     "text": "Northbound (solo)",
+     "title_text": "Northbound",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o9"
+    },
+    {
+     "text": "June",
+     "title_text": "June",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o3"
+    },
+    {
+     "text": "Old Fav (solo)",
+     "title_text": "Old Fav",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o1"
+    },
+    {
+     "text": "Ferris Wheel",
+     "title_text": "Ferris Wheel",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "u2"
+    },
+    {
+     "text": "Wildfire Season (solo)",
+     "title_text": "Wildfire Season",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o15"
+    },
+    {
+     "text": "Static Bloom - Bb",
+     "title_text": "Static Bloom",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o11"
+    },
+    {
+     "text": "Small Hours",
+     "title_text": "Small Hours",
+     "kind": "song",
+     "mark": "crossed",
+     "song_id": "o8"
+    },
+    {
+     "text": "Ribbon",
+     "title_text": "Ribbon",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o10"
+    },
+    {
+     "text": "Neon Lights - Bb",
+     "title_text": "Neon Lights",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o0"
+    }
+   ],
+   "performed": [
+    {
+     "song_id": "o23"
+    },
+    {
+     "song_id": "o14"
+    },
+    {
+     "song_id": "c1"
+    },
+    {
+     "song_id": "o4"
+    },
+    {
+     "song_id": "o9"
+    },
+    {
+     "song_id": "o3"
+    },
+    {
+     "song_id": "o1"
+    },
+    {
+     "song_id": "u2"
+    },
+    {
+     "song_id": "o15"
+    },
+    {
+     "song_id": "o11"
+    },
+    {
+     "song_id": "o10"
+    },
+    {
+     "song_id": "o0"
+    }
+   ],
+   "off_paper": null,
+   "hard_cases": [
+    "abbreviation",
+    "ambiguous_title_home",
+    "cover",
+    "crossed_out",
+    "unreleased_in_catalogue"
+   ],
+   "photo_time": "next_morning",
+   "split": "heldout"
+  },
+  {
+   "id": "f07",
+   "booking": "b07",
+   "style": "hand_snell",
+   "condition": "unreadable_dark",
+   "lines": [
+    {
+     "text": "SAN FRANCISCO - The Independent",
+     "kind": "header"
+    },
+    {
+     "text": "Ferris Wheel (capo 2)",
+     "title_text": "Ferris Wheel",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "u2"
+    },
+    {
+     "text": "Jolene",
+     "title_text": "Jolene",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "c1"
+    },
+    {
+     "text": "Old Favourite (capo 2)",
+     "title_text": "Old Favourite",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o1"
+    },
+    {
+     "text": "Northbound",
+     "title_text": "Northbound",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o9"
+    },
+    {
+     "text": "Home > The Long Way Round",
+     "title_text": "Home > The Long Way Round",
+     "kind": "song",
+     "mark": "none",
+     "medley": [
+      "o4",
+      "o14"
+     ]
+    },
+    {
+     "text": "June (capo 2)",
+     "title_text": "June",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o3"
+    },
+    {
+     "text": "Ribbon (solo)",
+     "title_text": "Ribbon",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o10"
+    },
+    {
+     "text": "Late Bloomer",
+     "title_text": "Late Bloomer",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o18"
+    },
+    {
+     "text": "Sparrow",
+     "title_text": "Sparrow",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o21"
+    },
+    {
+     "text": "Low Tide - Bb",
+     "title_text": "Low Tide",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o13"
+    },
+    {
+     "text": "ENCORE",
+     "kind": "section"
+    },
+    {
+     "text": "Home Again",
+     "title_text": "Home Again",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o5"
+    }
+   ],
+   "performed": [
+    {
+     "song_id": "u2"
+    },
+    {
+     "song_id": "c1"
+    },
+    {
+     "song_id": "o1"
+    },
+    {
+     "song_id": "o9"
+    },
+    {
+     "song_id": "o4",
+     "medley": true
+    },
+    {
+     "song_id": "o14",
+     "medley": true
+    },
+    {
+     "song_id": "o3"
+    },
+    {
+     "song_id": "o10"
+    },
+    {
+     "song_id": "o18"
+    },
+    {
+     "song_id": "o21"
+    },
+    {
+     "song_id": "o13"
+    },
+    {
+     "song_id": "o5"
+    }
+   ],
+   "off_paper": null,
+   "hard_cases": [
+    "ambiguous_title_home",
+    "cover",
+    "medley",
+    "unreleased_in_catalogue"
+   ],
+   "photo_time": "none",
+   "expect_unreadable": true,
+   "split": "heldout"
+  },
+  {
+   "id": "f08",
+   "booking": "b08",
+   "style": "typed",
+   "condition": "clean",
+   "lines": [
+    {
+     "text": "LODGE ROOM 3/24",
+     "kind": "header"
+    },
+    {
+     "text": "Ferris Wheel",
+     "title_text": "Ferris Wheel",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "u2"
+    },
+    {
+     "text": "Harbour (capo 2)",
+     "title_text": "Harbour",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o2"
+    },
+    {
+     "text": "Dancing in the Dark",
+     "title_text": "Dancing in the Dark",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "c5"
+    },
+    {
+     "text": "Kite String",
+     "title_text": "Kite String",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o19"
+    },
+    {
+     "text": "Paper Moon (capo 2)",
+     "title_text": "Paper Moon",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o6"
+    },
+    {
+     "text": "Saint Agnes",
+     "title_text": "Saint Agnes",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o12"
+    },
+    {
+     "text": "Low Tide",
+     "title_text": "Low Tide",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o13"
+    },
+    {
+     "text": "Blue Hour",
+     "title_text": "Blue Hour",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o22"
+    },
+    {
+     "text": "Late Bloomer *",
+     "title_text": "Late Bloomer",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o18"
+    },
+    {
+     "text": "June",
+     "title_text": "June",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o3"
+    },
+    {
+     "text": "Copper - Bb",
+     "title_text": "Copper",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o16"
+    }
+   ],
+   "performed": [
+    {
+     "song_id": "u2"
+    },
+    {
+     "song_id": "o2"
+    },
+    {
+     "song_id": "c5"
+    },
+    {
+     "song_id": "o19"
+    },
+    {
+     "song_id": "o6"
+    },
+    {
+     "song_id": "o12"
+    },
+    {
+     "song_id": "o13"
+    },
+    {
+     "song_id": "o22"
+    },
+    {
+     "song_id": "o18"
+    },
+    {
+     "song_id": "o3"
+    },
+    {
+     "song_id": "o16"
+    }
+   ],
+   "off_paper": null,
+   "hard_cases": [
+    "abbreviation",
+    "cover",
+    "unreleased_in_catalogue"
+   ],
+   "photo_time": "loadout",
+   "split": "dev"
+  },
+  {
+   "id": "f09",
+   "booking": "b09",
+   "style": "typed",
+   "condition": "angle",
+   "lines": [
+    {
+     "text": "Rough Trade \u00b7 3.27",
+     "kind": "header"
+    },
+    {
+     "text": "Hallelujah (solo)",
+     "title_text": "Hallelujah",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "c3"
+    },
+    {
+     "text": "Home Again (solo)",
+     "title_text": "Home Again",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o5"
+    },
+    {
+     "text": "Low Tide",
+     "title_text": "Low Tide",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o13"
+    },
+    {
+     "text": "Velvet Static",
+     "title_text": "Velvet Static",
+     "kind": "song",
+     "mark": "added",
+     "new": {
+      "title": "Velvet Static",
+      "kind": "new_original"
+     }
+    },
+    {
+     "text": "Landslide (capo 2)",
+     "title_text": "Landslide",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "c4"
+    },
+    {
+     "text": "Small Hours",
+     "title_text": "Small Hours",
+     "kind": "song",
+     "mark": "crossed",
+     "song_id": "o8"
+    },
+    {
+     "text": "Neon",
+     "title_text": "Neon",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o0"
+    },
+    {
+     "text": "Glasshouse",
+     "title_text": "Glasshouse",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o7"
+    },
+    {
+     "text": "Kite String (solo)",
+     "title_text": "Kite String",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o19"
+    },
+    {
+     "text": "Static Bloom *",
+     "title_text": "Static Bloom",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o11"
+    },
+    {
+     "text": "Blue Hour",
+     "title_text": "Blue Hour",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o22"
+    },
+    {
+     "text": "Harbour",
+     "title_text": "Harbour",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o2"
+    },
+    {
+     "text": "ENCORE",
+     "kind": "section"
+    },
+    {
+     "text": "Copper - Bb",
+     "title_text": "Copper",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o16"
+    }
+   ],
+   "performed": [
+    {
+     "song_id": "c3"
+    },
+    {
+     "song_id": "o5"
+    },
+    {
+     "song_id": "o13"
+    },
+    {
+     "new": {
+      "title": "Velvet Static",
+      "kind": "new_original"
+     }
+    },
+    {
+     "song_id": "c4"
+    },
+    {
+     "song_id": "o0"
+    },
+    {
+     "song_id": "o7"
+    },
+    {
+     "song_id": "o19"
+    },
+    {
+     "song_id": "o11"
+    },
+    {
+     "song_id": "o22"
+    },
+    {
+     "song_id": "o2"
+    },
+    {
+     "song_id": "o16"
+    }
+   ],
+   "off_paper": null,
+   "hard_cases": [
+    "abbreviation",
+    "addition_new_song",
+    "ambiguous_title_home",
+    "cover",
+    "crossed_out"
+   ],
+   "photo_time": "after_midnight",
+   "split": "dev"
+  },
+  {
+   "id": "f10",
+   "booking": "b10",
+   "style": "marker",
+   "condition": "crop_bottom",
+   "lines": [
+    {
+     "text": "CAMBRIDGE - The Sinclair",
+     "kind": "header"
+    },
+    {
+     "text": "Home (capo 2)",
+     "title_text": "Home",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o4"
+    },
+    {
+     "text": "June *",
+     "title_text": "June",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o3"
+    },
+    {
+     "text": "Long Way - Bb",
+     "title_text": "Long Way",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o14"
+    },
+    {
+     "text": "Static Bloom",
+     "title_text": "Static Bloom",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o11"
+    },
+    {
+     "text": "Saint Agnes",
+     "title_text": "Saint Agnes",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o12"
+    },
+    {
+     "text": "Dreams",
+     "title_text": "Dreams",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o20"
+    },
+    {
+     "text": "Low Tide",
+     "title_text": "Low Tide",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o13"
+    },
+    {
+     "text": "Paper Moon Motel - Bb",
+     "title_text": "Paper Moon Motel",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o6"
+    },
+    {
+     "text": "Marigold *",
+     "title_text": "Marigold",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "u1"
+    },
+    {
+     "text": "Small Hours *",
+     "title_text": "Small Hours",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o8"
+    },
+    {
+     "text": "Old Favourite *",
+     "title_text": "Old Favourite",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o1"
+    },
+    {
+     "text": "Parking Lot Prayer (solo)",
+     "title_text": "Parking Lot Prayer",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o23"
+    },
+    {
+     "text": "Neon",
+     "title_text": "Neon",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o0"
+    },
+    {
+     "text": "Glasshouse (capo 2)",
+     "title_text": "Glasshouse",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o7"
+    },
+    {
+     "text": "Velvet Static",
+     "title_text": "Velvet Static",
+     "kind": "song",
+     "mark": "none",
+     "new": {
+      "title": "Velvet Static",
+      "kind": "new_original"
+     }
+    },
+    {
+     "text": "Dreams (FM) (capo 2)",
+     "title_text": "Dreams (FM)",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "c2"
+    }
+   ],
+   "performed": [
+    {
+     "song_id": "o4"
+    },
+    {
+     "song_id": "o3"
+    },
+    {
+     "song_id": "o14"
+    },
+    {
+     "song_id": "o11"
+    },
+    {
+     "song_id": "o12"
+    },
+    {
+     "song_id": "o20"
+    },
+    {
+     "song_id": "o13"
+    },
+    {
+     "song_id": "o6"
+    },
+    {
+     "song_id": "u1"
+    },
+    {
+     "song_id": "o8"
+    },
+    {
+     "song_id": "o1"
+    },
+    {
+     "song_id": "o23"
+    },
+    {
+     "song_id": "o0"
+    },
+    {
+     "song_id": "o7"
+    },
+    {
+     "new": {
+      "title": "Velvet Static",
+      "kind": "new_original"
+     }
+    },
+    {
+     "song_id": "c2"
+    },
+    {
+     "song_id": "o2"
+    }
+   ],
+   "off_paper": {
+    "played_unlisted": "o2"
+   },
+   "hard_cases": [
+    "abbreviation",
+    "ambiguous_title_dreams",
+    "ambiguous_title_home",
+    "cover",
+    "unreleased_in_catalogue",
+    "unreleased_not_in_catalogue"
+   ],
+   "photo_time": "next_morning",
+   "split": "heldout"
+  },
+  {
+   "id": "f11",
+   "booking": "b11",
+   "style": "marker",
+   "condition": "clean",
+   "lines": [
+    {
+     "text": "Glasshouse",
+     "title_text": "Glasshouse",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o7"
+    },
+    {
+     "text": "Undertow *",
+     "title_text": "Undertow",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o17"
+    },
+    {
+     "text": "Parking Lot (solo)",
+     "title_text": "Parking Lot",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o23"
+    },
+    {
+     "text": "Wildfire",
+     "title_text": "Wildfire",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o15"
+    },
+    {
+     "text": "Home Again - Bb",
+     "title_text": "Home Again",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o5"
+    },
+    {
+     "text": "Marigold",
+     "title_text": "Marigold",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "u1"
+    },
+    {
+     "text": "Sparrow (capo 2)",
+     "title_text": "Sparrow",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o21"
+    },
+    {
+     "text": "Neon",
+     "title_text": "Neon",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o0"
+    },
+    {
+     "text": "Long Way",
+     "title_text": "Long Way",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o14"
+    },
+    {
+     "text": "Dreams (FM) (solo)",
+     "title_text": "Dreams (FM)",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "c2"
+    },
+    {
+     "text": "Paper Moon Motel (capo 2)",
+     "title_text": "Paper Moon Motel",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o6"
+    }
+   ],
+   "performed": [
+    {
+     "song_id": "o7"
+    },
+    {
+     "song_id": "o17"
+    },
+    {
+     "song_id": "o23"
+    },
+    {
+     "song_id": "o15"
+    },
+    {
+     "song_id": "o5"
+    },
+    {
+     "song_id": "o21"
+    },
+    {
+     "song_id": "o0"
+    },
+    {
+     "song_id": "o14"
+    },
+    {
+     "song_id": "c2"
+    },
+    {
+     "song_id": "o6"
+    }
+   ],
+   "off_paper": {
+    "skipped_unmarked": "u1"
+   },
+   "hard_cases": [
+    "abbreviation",
+    "ambiguous_title_dreams",
+    "ambiguous_title_home",
+    "cover",
+    "unreleased_in_catalogue"
+   ],
+   "photo_time": "none",
+   "split": "heldout"
+  },
+  {
+   "id": "f12",
+   "booking": "b12",
+   "style": "hand_bradley",
+   "condition": "glare",
+   "lines": [
+    {
+     "text": "MERCY LOUNGE 4/11",
+     "kind": "header"
+    },
+    {
+     "text": "Long Way (capo 2)",
+     "title_text": "Long Way",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o14"
+    },
+    {
+     "text": "Undertow",
+     "title_text": "Undertow",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o17"
+    },
+    {
+     "text": "Medley: Late Bloomer / Neon Lights",
+     "title_text": "Medley: Late Bloomer / Neon Lights",
+     "kind": "song",
+     "mark": "none",
+     "medley": [
+      "o18",
+      "o0"
+     ]
+    },
+    {
+     "text": "Landslide *",
+     "title_text": "Landslide",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "c4"
+    },
+    {
+     "text": "Wildfire (capo 2)",
+     "title_text": "Wildfire",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o15"
+    },
+    {
+     "text": "Dancing in the Dark",
+     "title_text": "Dancing in the Dark",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "c5"
+    },
+    {
+     "text": "Harbour",
+     "title_text": "Harbour",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o2"
+    },
+    {
+     "text": "Small Hours (solo)",
+     "title_text": "Small Hours",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o8"
+    },
+    {
+     "text": "Static Bloom",
+     "title_text": "Static Bloom",
+     "kind": "song",
+     "mark": "crossed",
+     "song_id": "o11"
+    },
+    {
+     "text": "Lighthouse",
+     "title_text": "Lighthouse",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o24"
+    }
+   ],
+   "performed": [
+    {
+     "song_id": "o14"
+    },
+    {
+     "song_id": "o17"
+    },
+    {
+     "song_id": "o18",
+     "medley": true
+    },
+    {
+     "song_id": "o0",
+     "medley": true
+    },
+    {
+     "song_id": "c4"
+    },
+    {
+     "song_id": "o15"
+    },
+    {
+     "song_id": "c5"
+    },
+    {
+     "song_id": "o2"
+    },
+    {
+     "song_id": "o8"
+    },
+    {
+     "song_id": "o24"
+    }
+   ],
+   "off_paper": null,
+   "hard_cases": [
+    "abbreviation",
+    "cover",
+    "crossed_out",
+    "medley"
+   ],
+   "photo_time": "loadout",
+   "split": "dev"
+  },
+  {
+   "id": "f13",
+   "booking": "b13",
+   "style": "hand_noteworthy",
+   "condition": "tape_shadow",
+   "lines": [
+    {
+     "text": "Small Hours",
+     "title_text": "Small Hours",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o8"
+    },
+    {
+     "text": "Dancing in the Dark - Bb",
+     "title_text": "Dancing in the Dark",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "c5"
+    },
+    {
+     "text": "Long Way",
+     "title_text": "Long Way",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o14"
+    },
+    {
+     "text": "Saint Agnes",
+     "title_text": "Saint Agnes",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o12"
+    },
+    {
+     "text": "Marigold (solo)",
+     "title_text": "Marigold",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "u1"
+    },
+    {
+     "text": "Glasshouse",
+     "title_text": "Glasshouse",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o7"
+    },
+    {
+     "text": "Parking Lot",
+     "title_text": "Parking Lot",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o23"
+    },
+    {
+     "text": "Blue Hour",
+     "title_text": "Blue Hour",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o22"
+    },
+    {
+     "text": "Sparrow",
+     "title_text": "Sparrow",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o21"
+    },
+    {
+     "text": "Ribbon (capo 2)",
+     "title_text": "Ribbon",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o10"
+    },
+    {
+     "text": "Copper (solo)",
+     "title_text": "Copper",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o16"
+    },
+    {
+     "text": "E:",
+     "kind": "section"
+    },
+    {
+     "text": "Neon Lights",
+     "title_text": "Neon Lights",
+     "kind": "song",
+     "mark": "added",
+     "song_id": "o0"
+    },
+    {
+     "text": "Lighthouse - Bb",
+     "title_text": "Lighthouse",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o24"
+    },
+    {
+     "text": "Kite String (solo)",
+     "title_text": "Kite String",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o19"
+    }
+   ],
+   "performed": [
+    {
+     "song_id": "o8"
+    },
+    {
+     "song_id": "c5"
+    },
+    {
+     "song_id": "o14"
+    },
+    {
+     "song_id": "o12"
+    },
+    {
+     "song_id": "u1"
+    },
+    {
+     "song_id": "o7"
+    },
+    {
+     "song_id": "o23"
+    },
+    {
+     "song_id": "o22"
+    },
+    {
+     "song_id": "o21"
+    },
+    {
+     "song_id": "o10"
+    },
+    {
+     "song_id": "o16"
+    },
+    {
+     "song_id": "o0"
+    },
+    {
+     "song_id": "o24"
+    },
+    {
+     "song_id": "o19"
+    }
+   ],
+   "off_paper": null,
+   "hard_cases": [
+    "abbreviation",
+    "addition",
+    "cover",
+    "unreleased_in_catalogue"
+   ],
+   "photo_time": "after_midnight",
+   "split": "heldout"
+  },
+  {
+   "id": "f14",
+   "booking": "b14",
+   "style": "hand_chalk",
+   "condition": "angle",
+   "lines": [
+    {
+     "text": "Lee's Palace \u00b7 4.15",
+     "kind": "header"
+    },
+    {
+     "text": "Dreams - Bb",
+     "title_text": "Dreams",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o20"
+    },
+    {
+     "text": "Old Favourite",
+     "title_text": "Old Favourite",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o1"
+    },
+    {
+     "text": "Static Bloom - Bb",
+     "title_text": "Static Bloom",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o11"
+    },
+    {
+     "text": "Copper",
+     "title_text": "Copper",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o16"
+    },
+    {
+     "text": "Lighthouse Keeper (capo 2)",
+     "title_text": "Lighthouse Keeper",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o24"
+    },
+    {
+     "text": "Undertow - Bb",
+     "title_text": "Undertow",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o17"
+    },
+    {
+     "text": "Neon Lights",
+     "title_text": "Neon Lights",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o0"
+    },
+    {
+     "text": "Home - Bb",
+     "title_text": "Home",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o4"
+    },
+    {
+     "text": "Late Bloomer - Bb",
+     "title_text": "Late Bloomer",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o18"
+    },
+    {
+     "text": "Marigold",
+     "title_text": "Marigold",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "u1"
+    },
+    {
+     "text": "Harbour",
+     "title_text": "Harbour",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o2"
+    },
+    {
+     "text": "Parking Lot",
+     "title_text": "Parking Lot",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o23"
+    },
+    {
+     "text": "Kite String (solo)",
+     "title_text": "Kite String",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o19"
+    },
+    {
+     "text": "ENCORE",
+     "kind": "section"
+    },
+    {
+     "text": "Ferris Wheel",
+     "title_text": "Ferris Wheel",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "u2"
+    },
+    {
+     "text": "June - Bb",
+     "title_text": "June",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o3"
+    }
+   ],
+   "performed": [
+    {
+     "song_id": "o20"
+    },
+    {
+     "song_id": "o1"
+    },
+    {
+     "song_id": "o11"
+    },
+    {
+     "song_id": "o16"
+    },
+    {
+     "song_id": "o24"
+    },
+    {
+     "song_id": "o17"
+    },
+    {
+     "song_id": "o0"
+    },
+    {
+     "song_id": "o4"
+    },
+    {
+     "song_id": "o18"
+    },
+    {
+     "song_id": "u1"
+    },
+    {
+     "song_id": "o2"
+    },
+    {
+     "song_id": "o23"
+    },
+    {
+     "song_id": "o19"
+    },
+    {
+     "song_id": "u2"
+    },
+    {
+     "song_id": "o3"
+    }
+   ],
+   "off_paper": null,
+   "hard_cases": [
+    "abbreviation",
+    "ambiguous_title_dreams",
+    "ambiguous_title_home",
+    "unreleased_in_catalogue"
+   ],
+   "photo_time": "next_morning",
+   "split": "heldout"
+  },
+  {
+   "id": "f15",
+   "booking": "b15",
+   "style": "hand_snell",
+   "condition": "lowlight",
+   "lines": [
+    {
+     "text": "Ferris Wheel",
+     "title_text": "Ferris Wheel",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "u2"
+    },
+    {
+     "text": "Saint Agnes (solo)",
+     "title_text": "Saint Agnes",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o12"
+    },
+    {
+     "text": "Copper - Bb",
+     "title_text": "Copper",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o16"
+    },
+    {
+     "text": "Wildfire (capo 2)",
+     "title_text": "Wildfire",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o15"
+    },
+    {
+     "text": "Undertow *",
+     "title_text": "Undertow",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o17"
+    },
+    {
+     "text": "Home - Bb",
+     "title_text": "Home",
+     "kind": "song",
+     "mark": "crossed",
+     "song_id": "o4"
+    },
+    {
+     "text": "Dancing in the Dark",
+     "title_text": "Dancing in the Dark",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "c5"
+    },
+    {
+     "text": "Sparrow",
+     "title_text": "Sparrow",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o21"
+    },
+    {
+     "text": "Ribbon (capo 2)",
+     "title_text": "Ribbon",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o10"
+    },
+    {
+     "text": "The Long Way Round",
+     "title_text": "The Long Way Round",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o14"
+    },
+    {
+     "text": "Low Tide (solo)",
+     "title_text": "Low Tide",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o13"
+    },
+    {
+     "text": "Harbour",
+     "title_text": "Harbour",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o2"
+    },
+    {
+     "text": "ENCORE",
+     "kind": "section"
+    },
+    {
+     "text": "PMM (capo 2)",
+     "title_text": "PMM",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o6"
+    },
+    {
+     "text": "Late Bloomer (solo)",
+     "title_text": "Late Bloomer",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o18"
+    }
+   ],
+   "performed": [
+    {
+     "song_id": "u2"
+    },
+    {
+     "song_id": "o12"
+    },
+    {
+     "song_id": "o16"
+    },
+    {
+     "song_id": "o15"
+    },
+    {
+     "song_id": "o17"
+    },
+    {
+     "song_id": "c5"
+    },
+    {
+     "song_id": "o21"
+    },
+    {
+     "song_id": "o10"
+    },
+    {
+     "song_id": "o14"
+    },
+    {
+     "song_id": "o13"
+    },
+    {
+     "song_id": "o2"
+    },
+    {
+     "song_id": "o6"
+    },
+    {
+     "song_id": "o18"
+    }
+   ],
+   "off_paper": null,
+   "hard_cases": [
+    "abbreviation",
+    "ambiguous_title_home",
+    "cover",
+    "crossed_out",
+    "unreleased_in_catalogue"
+   ],
+   "photo_time": "none",
+   "split": "heldout"
+  },
+  {
+   "id": "f16",
+   "booking": "b16",
+   "style": "typed",
+   "condition": "clean",
+   "lines": [
+    {
+     "text": "MILWAUKEE - Pabst Theater",
+     "kind": "header"
+    },
+    {
+     "text": "Ferris Wheel",
+     "title_text": "Ferris Wheel",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "u2"
+    },
+    {
+     "text": "Neon Lights",
+     "title_text": "Neon Lights",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o0"
+    },
+    {
+     "text": "Parking Lot",
+     "title_text": "Parking Lot",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o23"
+    },
+    {
+     "text": "Old Favourite (solo)",
+     "title_text": "Old Favourite",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o1"
+    },
+    {
+     "text": "Landslide",
+     "title_text": "Landslide",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "c4"
+    },
+    {
+     "text": "Wildfire (capo 2)",
+     "title_text": "Wildfire",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o15"
+    },
+    {
+     "text": "Static Bloom (solo)",
+     "title_text": "Static Bloom",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o11"
+    },
+    {
+     "text": "Paper Moon Motel",
+     "title_text": "Paper Moon Motel",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o6"
+    },
+    {
+     "text": "Northbound",
+     "title_text": "Northbound",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o9"
+    },
+    {
+     "text": "Late Bloomer (capo 2)",
+     "title_text": "Late Bloomer",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o18"
+    },
+    {
+     "text": "June",
+     "title_text": "June",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o3"
+    },
+    {
+     "text": "Low Tide (solo)",
+     "title_text": "Low Tide",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o13"
+    },
+    {
+     "text": "\u2014 enc \u2014",
+     "kind": "section"
+    },
+    {
+     "text": "Copper",
+     "title_text": "Copper",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o16"
+    }
+   ],
+   "performed": [
+    {
+     "song_id": "u2"
+    },
+    {
+     "song_id": "o0"
+    },
+    {
+     "song_id": "o23"
+    },
+    {
+     "song_id": "o1"
+    },
+    {
+     "song_id": "c4"
+    },
+    {
+     "song_id": "o15"
+    },
+    {
+     "song_id": "o11"
+    },
+    {
+     "song_id": "o6"
+    },
+    {
+     "song_id": "o9"
+    },
+    {
+     "song_id": "o18"
+    },
+    {
+     "song_id": "o3"
+    },
+    {
+     "song_id": "o13"
+    },
+    {
+     "song_id": "o16"
+    },
+    {
+     "song_id": "o20"
+    }
+   ],
+   "off_paper": {
+    "played_unlisted": "o20"
+   },
+   "hard_cases": [
+    "abbreviation",
+    "cover",
+    "unreleased_in_catalogue"
+   ],
+   "photo_time": "loadout",
+   "split": "dev"
+  },
+  {
+   "id": "f17",
+   "booking": "b17",
+   "style": "typed",
+   "condition": "angle",
+   "lines": [
+    {
+     "text": "Paper Moon",
+     "title_text": "Paper Moon",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o6"
+    },
+    {
+     "text": "Lighthouse Keeper (solo)",
+     "title_text": "Lighthouse Keeper",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o24"
+    },
+    {
+     "text": "Dancing in the Dark",
+     "title_text": "Dancing in the Dark",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "c5"
+    },
+    {
+     "text": "Low Tide",
+     "title_text": "Low Tide",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o13"
+    },
+    {
+     "text": "Harbour (capo 2)",
+     "title_text": "Harbour",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o2"
+    },
+    {
+     "text": "Northbound (capo 2)",
+     "title_text": "Northbound",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o9"
+    },
+    {
+     "text": "Old Favourite",
+     "title_text": "Old Favourite",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o1"
+    },
+    {
+     "text": "Parking Lot Prayer > Static Bloom",
+     "title_text": "Parking Lot Prayer > Static Bloom",
+     "kind": "song",
+     "mark": "none",
+     "medley": [
+      "o23",
+      "o11"
+     ]
+    },
+    {
+     "text": "Gasoline Halo",
+     "title_text": "Gasoline Halo",
+     "kind": "song",
+     "mark": "none",
+     "new": {
+      "title": "Gasoline Halo",
+      "kind": "new_original"
+     }
+    },
+    {
+     "text": "Home Again",
+     "title_text": "Home Again",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o5"
+    },
+    {
+     "text": "Dreams",
+     "title_text": "Dreams",
+     "kind": "song",
+     "mark": "added",
+     "song_id": "o20"
+    },
+    {
+     "text": "Dreams (FM) - Bb",
+     "title_text": "Dreams (FM)",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "c2"
+    },
+    {
+     "text": "E:",
+     "kind": "section"
+    },
+    {
+     "text": "Home",
+     "title_text": "Home",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o4"
+    },
+    {
+     "text": "Copper",
+     "title_text": "Copper",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o16"
+    }
+   ],
+   "performed": [
+    {
+     "song_id": "o6"
+    },
+    {
+     "song_id": "o24"
+    },
+    {
+     "song_id": "c5"
+    },
+    {
+     "song_id": "o13"
+    },
+    {
+     "song_id": "o2"
+    },
+    {
+     "song_id": "o9"
+    },
+    {
+     "song_id": "o23",
+     "medley": true
+    },
+    {
+     "song_id": "o11",
+     "medley": true
+    },
+    {
+     "new": {
+      "title": "Gasoline Halo",
+      "kind": "new_original"
+     }
+    },
+    {
+     "song_id": "o5"
+    },
+    {
+     "song_id": "o20"
+    },
+    {
+     "song_id": "c2"
+    },
+    {
+     "song_id": "o4"
+    },
+    {
+     "song_id": "o16"
+    }
+   ],
+   "off_paper": {
+    "skipped_unmarked": "o1"
+   },
+   "hard_cases": [
+    "abbreviation",
+    "addition",
+    "ambiguous_title_dreams",
+    "ambiguous_title_home",
+    "cover",
+    "medley",
+    "unreleased_not_in_catalogue"
+   ],
+   "photo_time": "after_midnight",
+   "split": "dev"
+  },
+  {
+   "id": "f18",
+   "booking": "b18",
+   "style": "marker",
+   "condition": "crop_bottom",
+   "lines": [
+    {
+     "text": "Sparrow (capo 2)",
+     "title_text": "Sparrow",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o21"
+    },
+    {
+     "text": "Northbound (capo 2)",
+     "title_text": "Northbound",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o9"
+    },
+    {
+     "text": "Parking Lot Prayer",
+     "title_text": "Parking Lot Prayer",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o23"
+    },
+    {
+     "text": "Ribbon",
+     "title_text": "Ribbon",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o10"
+    },
+    {
+     "text": "Neon Lights *",
+     "title_text": "Neon Lights",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o0"
+    },
+    {
+     "text": "Low Tide *",
+     "title_text": "Low Tide",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o13"
+    },
+    {
+     "text": "Home Again *",
+     "title_text": "Home Again",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o5"
+    },
+    {
+     "text": "Kite String - Bb",
+     "title_text": "Kite String",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o19"
+    },
+    {
+     "text": "June (capo 2)",
+     "title_text": "June",
+     "kind": "song",
+     "mark": "crossed",
+     "song_id": "o3"
+    },
+    {
+     "text": "Jolene (capo 2)",
+     "title_text": "Jolene",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "c1"
+    },
+    {
+     "text": "Harbour",
+     "title_text": "Harbour",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o2"
+    },
+    {
+     "text": "Ferris Wheel",
+     "title_text": "Ferris Wheel",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "u2"
+    },
+    {
+     "text": "The Long Way Round (capo 2)",
+     "title_text": "The Long Way Round",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o14"
+    }
+   ],
+   "performed": [
+    {
+     "song_id": "o21"
+    },
+    {
+     "song_id": "o9"
+    },
+    {
+     "song_id": "o23"
+    },
+    {
+     "song_id": "o10"
+    },
+    {
+     "song_id": "o0"
+    },
+    {
+     "song_id": "o13"
+    },
+    {
+     "song_id": "o5"
+    },
+    {
+     "song_id": "o19"
+    },
+    {
+     "song_id": "c1"
+    },
+    {
+     "song_id": "o2"
+    },
+    {
+     "song_id": "u2"
+    },
+    {
+     "song_id": "o14"
+    }
+   ],
+   "off_paper": null,
+   "hard_cases": [
+    "ambiguous_title_home",
+    "cover",
+    "crossed_out",
+    "unreleased_in_catalogue"
+   ],
+   "photo_time": "next_morning",
+   "split": "heldout"
+  },
+  {
+   "id": "f19",
+   "booking": "b19",
+   "style": "marker",
+   "condition": "clean",
+   "lines": [
+    {
+     "text": "CHICAGO - Thalia Hall",
+     "kind": "header"
+    },
+    {
+     "text": "Low Tide",
+     "title_text": "Low Tide",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o13"
+    },
+    {
+     "text": "Home",
+     "title_text": "Home",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o4"
+    },
+    {
+     "text": "Late Bloomer",
+     "title_text": "Late Bloomer",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o18"
+    },
+    {
+     "text": "Old Fav",
+     "title_text": "Old Fav",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o1"
+    },
+    {
+     "text": "Dreams",
+     "title_text": "Dreams",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o20"
+    },
+    {
+     "text": "Long Way",
+     "title_text": "Long Way",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o14"
+    },
+    {
+     "text": "Ribbon - Bb",
+     "title_text": "Ribbon",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o10"
+    },
+    {
+     "text": "Glasshouse",
+     "title_text": "Glasshouse",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o7"
+    },
+    {
+     "text": "Dancing in the Dark",
+     "title_text": "Dancing in the Dark",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "c5"
+    },
+    {
+     "text": "Sparrow (solo)",
+     "title_text": "Sparrow",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o21"
+    },
+    {
+     "text": "Home Again",
+     "title_text": "Home Again",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o5"
+    },
+    {
+     "text": "Dreams (FM)",
+     "title_text": "Dreams (FM)",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "c2"
+    },
+    {
+     "text": "\u2014 enc \u2014",
+     "kind": "section"
+    },
+    {
+     "text": "June",
+     "title_text": "June",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o3"
+    }
+   ],
+   "performed": [
+    {
+     "song_id": "o13"
+    },
+    {
+     "song_id": "o4"
+    },
+    {
+     "song_id": "o18"
+    },
+    {
+     "song_id": "o1"
+    },
+    {
+     "song_id": "o20"
+    },
+    {
+     "song_id": "o14"
+    },
+    {
+     "song_id": "o10"
+    },
+    {
+     "song_id": "o7"
+    },
+    {
+     "song_id": "c5"
+    },
+    {
+     "song_id": "o21"
+    },
+    {
+     "song_id": "o5"
+    },
+    {
+     "song_id": "c2"
+    },
+    {
+     "song_id": "o3"
+    }
+   ],
+   "off_paper": null,
+   "hard_cases": [
+    "abbreviation",
+    "ambiguous_title_dreams",
+    "ambiguous_title_home",
+    "cover"
+   ],
+   "photo_time": "none",
+   "split": "heldout"
+  },
+  {
+   "id": "f20",
+   "booking": "b20",
+   "style": "hand_bradley",
+   "condition": "glare",
+   "lines": [
+    {
+     "text": "CHICAGO - Empty Bottle",
+     "kind": "header"
+    },
+    {
+     "text": "Northbound",
+     "title_text": "Northbound",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o9"
+    },
+    {
+     "text": "Undertow *",
+     "title_text": "Undertow",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o17"
+    },
+    {
+     "text": "Old Favourite *",
+     "title_text": "Old Favourite",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o1"
+    },
+    {
+     "text": "Kite String",
+     "title_text": "Kite String",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o19"
+    },
+    {
+     "text": "Paper Moon Motel *",
+     "title_text": "Paper Moon Motel",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o6"
+    },
+    {
+     "text": "Jolene",
+     "title_text": "Jolene",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "c1"
+    },
+    {
+     "text": "Copper *",
+     "title_text": "Copper",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o16"
+    },
+    {
+     "text": "Dreams",
+     "title_text": "Dreams",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o20"
+    },
+    {
+     "text": "Dreams (FM) - Bb",
+     "title_text": "Dreams (FM)",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "c2"
+    },
+    {
+     "text": "Wildfire Season",
+     "title_text": "Wildfire Season",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o15"
+    },
+    {
+     "text": "Neon",
+     "title_text": "Neon",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o0"
+    },
+    {
+     "text": "Low Tide",
+     "title_text": "Low Tide",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o13"
+    },
+    {
+     "text": "Saint Agnes",
+     "title_text": "Saint Agnes",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o12"
+    },
+    {
+     "text": "Harbour",
+     "title_text": "Harbour",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o2"
+    },
+    {
+     "text": "Home Again",
+     "title_text": "Home Again",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o5"
+    }
+   ],
+   "performed": [
+    {
+     "song_id": "o9"
+    },
+    {
+     "song_id": "o17"
+    },
+    {
+     "song_id": "o1"
+    },
+    {
+     "song_id": "o19"
+    },
+    {
+     "song_id": "o6"
+    },
+    {
+     "song_id": "c1"
+    },
+    {
+     "song_id": "o16"
+    },
+    {
+     "song_id": "o20"
+    },
+    {
+     "song_id": "c2"
+    },
+    {
+     "song_id": "o15"
+    },
+    {
+     "song_id": "o0"
+    },
+    {
+     "song_id": "o13"
+    },
+    {
+     "song_id": "o12"
+    },
+    {
+     "song_id": "o2"
+    },
+    {
+     "song_id": "o5"
+    }
+   ],
+   "off_paper": null,
+   "hard_cases": [
+    "abbreviation",
+    "ambiguous_title_dreams",
+    "ambiguous_title_home",
+    "cover"
+   ],
+   "photo_time": "loadout",
+   "split": "dev"
+  },
+  {
+   "id": "f21",
+   "booking": "b21",
+   "style": "hand_noteworthy",
+   "condition": "tape_shadow",
+   "lines": [
+    {
+     "text": "Jolene",
+     "title_text": "Jolene",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "c1"
+    },
+    {
+     "text": "Late Bloomer",
+     "title_text": "Late Bloomer",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o18"
+    },
+    {
+     "text": "Low Tide",
+     "title_text": "Low Tide",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o13"
+    },
+    {
+     "text": "June",
+     "title_text": "June",
+     "kind": "song",
+     "mark": "added",
+     "song_id": "o3"
+    },
+    {
+     "text": "Copper",
+     "title_text": "Copper",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o16"
+    },
+    {
+     "text": "Kite String",
+     "title_text": "Kite String",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o19"
+    },
+    {
+     "text": "Marigold",
+     "title_text": "Marigold",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "u1"
+    },
+    {
+     "text": "Ribbon (solo)",
+     "title_text": "Ribbon",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o10"
+    },
+    {
+     "text": "Glasshouse",
+     "title_text": "Glasshouse",
+     "kind": "song",
+     "mark": "crossed",
+     "song_id": "o7"
+    },
+    {
+     "text": "Northbound - Bb",
+     "title_text": "Northbound",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o9"
+    },
+    {
+     "text": "St Agnes (capo 2)",
+     "title_text": "St Agnes",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o12"
+    },
+    {
+     "text": "Lighthouse",
+     "title_text": "Lighthouse",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o24"
+    }
+   ],
+   "performed": [
+    {
+     "song_id": "c1"
+    },
+    {
+     "song_id": "o18"
+    },
+    {
+     "song_id": "o13"
+    },
+    {
+     "song_id": "o3"
+    },
+    {
+     "song_id": "o16"
+    },
+    {
+     "song_id": "o19"
+    },
+    {
+     "song_id": "u1"
+    },
+    {
+     "song_id": "o10"
+    },
+    {
+     "song_id": "o9"
+    },
+    {
+     "song_id": "o12"
+    },
+    {
+     "song_id": "o24"
+    }
+   ],
+   "off_paper": null,
+   "hard_cases": [
+    "abbreviation",
+    "addition",
+    "cover",
+    "crossed_out",
+    "unreleased_in_catalogue"
+   ],
+   "photo_time": "after_midnight",
+   "split": "heldout"
+  },
+  {
+   "id": "f22",
+   "booking": "b22",
+   "style": "hand_chalk",
+   "condition": "unreadable_blur",
+   "lines": [
+    {
+     "text": "The Bluebird \u00b7 5.25",
+     "kind": "header"
+    },
+    {
+     "text": "Landslide (capo 2)",
+     "title_text": "Landslide",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "c4"
+    },
+    {
+     "text": "Parking Lot Prayer",
+     "title_text": "Parking Lot Prayer",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o23"
+    },
+    {
+     "text": "Northbound",
+     "title_text": "Northbound",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o9"
+    },
+    {
+     "text": "Dreams - Bb",
+     "title_text": "Dreams",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o20"
+    },
+    {
+     "text": "Home Again",
+     "title_text": "Home Again",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o5"
+    },
+    {
+     "text": "Hallelujah - Bb",
+     "title_text": "Hallelujah",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "c3"
+    },
+    {
+     "text": "Small Hours (solo)",
+     "title_text": "Small Hours",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o8"
+    },
+    {
+     "text": "Kite String",
+     "title_text": "Kite String",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o19"
+    },
+    {
+     "text": "Medley: Wildfire Season / Neon Lights",
+     "title_text": "Medley: Wildfire Season / Neon Lights",
+     "kind": "song",
+     "mark": "none",
+     "medley": [
+      "o15",
+      "o0"
+     ]
+    },
+    {
+     "text": "Ribbon",
+     "title_text": "Ribbon",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o10"
+    },
+    {
+     "text": "Static Bloom",
+     "title_text": "Static Bloom",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o11"
+    },
+    {
+     "text": "Harbour",
+     "title_text": "Harbour",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o2"
+    },
+    {
+     "text": "ENCORE",
+     "kind": "section"
+    },
+    {
+     "text": "Undertow",
+     "title_text": "Undertow",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o17"
+    }
+   ],
+   "performed": [
+    {
+     "song_id": "c4"
+    },
+    {
+     "song_id": "o23"
+    },
+    {
+     "song_id": "o9"
+    },
+    {
+     "song_id": "o20"
+    },
+    {
+     "song_id": "o5"
+    },
+    {
+     "song_id": "c3"
+    },
+    {
+     "song_id": "o8"
+    },
+    {
+     "song_id": "o19"
+    },
+    {
+     "song_id": "o15",
+     "medley": true
+    },
+    {
+     "song_id": "o0",
+     "medley": true
+    },
+    {
+     "song_id": "o10"
+    },
+    {
+     "song_id": "o11"
+    },
+    {
+     "song_id": "o2"
+    },
+    {
+     "song_id": "o17"
+    },
+    {
+     "song_id": "o22"
+    }
+   ],
+   "off_paper": {
+    "played_unlisted": "o22"
+   },
+   "hard_cases": [
+    "ambiguous_title_dreams",
+    "ambiguous_title_home",
+    "cover",
+    "medley"
+   ],
+   "photo_time": "next_morning",
+   "expect_unreadable": true,
+   "split": "heldout"
+  },
+  {
+   "id": "f23",
+   "booking": "b23",
+   "style": "hand_snell",
+   "condition": "lowlight",
+   "lines": [
+    {
+     "text": "Hallelujah",
+     "title_text": "Hallelujah",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "c3"
+    },
+    {
+     "text": "Wildfire Season",
+     "title_text": "Wildfire Season",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o15"
+    },
+    {
+     "text": "Lighthouse Keeper *",
+     "title_text": "Lighthouse Keeper",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o24"
+    },
+    {
+     "text": "Northbound",
+     "title_text": "Northbound",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o9"
+    },
+    {
+     "text": "Dancing in the Dark",
+     "title_text": "Dancing in the Dark",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "c5"
+    },
+    {
+     "text": "Saint Agnes",
+     "title_text": "Saint Agnes",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o12"
+    },
+    {
+     "text": "Static Bloom *",
+     "title_text": "Static Bloom",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o11"
+    },
+    {
+     "text": "Kite String",
+     "title_text": "Kite String",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o19"
+    },
+    {
+     "text": "Blue Hour",
+     "title_text": "Blue Hour",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o22"
+    }
+   ],
+   "performed": [
+    {
+     "song_id": "c3"
+    },
+    {
+     "song_id": "o15"
+    },
+    {
+     "song_id": "o24"
+    },
+    {
+     "song_id": "o9"
+    },
+    {
+     "song_id": "o12"
+    },
+    {
+     "song_id": "o11"
+    },
+    {
+     "song_id": "o19"
+    },
+    {
+     "song_id": "o22"
+    }
+   ],
+   "off_paper": {
+    "skipped_unmarked": "c5"
+   },
+   "hard_cases": [
+    "cover"
+   ],
+   "photo_time": "none",
+   "split": "heldout"
+  },
+  {
+   "id": "f24",
+   "booking": "b24",
+   "style": "typed",
+   "condition": "clean",
+   "lines": [
+    {
+     "text": "PORTLAND - Doug Fir",
+     "kind": "header"
+    },
+    {
+     "text": "Paper Moon Motel",
+     "title_text": "Paper Moon Motel",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o6"
+    },
+    {
+     "text": "The Long Way Round",
+     "title_text": "The Long Way Round",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o14"
+    },
+    {
+     "text": "Harbour",
+     "title_text": "Harbour",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o2"
+    },
+    {
+     "text": "Blue Hour",
+     "title_text": "Blue Hour",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o22"
+    },
+    {
+     "text": "Old Favourite (capo 2)",
+     "title_text": "Old Favourite",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o1"
+    },
+    {
+     "text": "Velvet Static",
+     "title_text": "Velvet Static",
+     "kind": "song",
+     "mark": "none",
+     "new": {
+      "title": "Velvet Static",
+      "kind": "new_original"
+     }
+    },
+    {
+     "text": "Copper (capo 2)",
+     "title_text": "Copper",
+     "kind": "song",
+     "mark": "crossed",
+     "song_id": "o16"
+    },
+    {
+     "text": "Landslide (solo)",
+     "title_text": "Landslide",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "c4"
+    },
+    {
+     "text": "June (solo)",
+     "title_text": "June",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o3"
+    },
+    {
+     "text": "Wildfire Season (capo 2)",
+     "title_text": "Wildfire Season",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o15"
+    },
+    {
+     "text": "Jolene",
+     "title_text": "Jolene",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "c1"
+    },
+    {
+     "text": "Northbound - Bb",
+     "title_text": "Northbound",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o9"
+    },
+    {
+     "text": "Dreams",
+     "title_text": "Dreams",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o20"
+    }
+   ],
+   "performed": [
+    {
+     "song_id": "o6"
+    },
+    {
+     "song_id": "o14"
+    },
+    {
+     "song_id": "o2"
+    },
+    {
+     "song_id": "o22"
+    },
+    {
+     "song_id": "o1"
+    },
+    {
+     "new": {
+      "title": "Velvet Static",
+      "kind": "new_original"
+     }
+    },
+    {
+     "song_id": "c4"
+    },
+    {
+     "song_id": "o3"
+    },
+    {
+     "song_id": "o15"
+    },
+    {
+     "song_id": "c1"
+    },
+    {
+     "song_id": "o9"
+    },
+    {
+     "song_id": "o20"
+    }
+   ],
+   "off_paper": null,
+   "hard_cases": [
+    "ambiguous_title_dreams",
+    "cover",
+    "crossed_out",
+    "unreleased_not_in_catalogue"
+   ],
+   "photo_time": "loadout",
+   "split": "dev"
+  },
+  {
+   "id": "f25",
+   "booking": "b25",
+   "style": "typed",
+   "condition": "angle",
+   "lines": [
+    {
+     "text": "THE INDEPENDENT 5/30",
+     "kind": "header"
+    },
+    {
+     "text": "June",
+     "title_text": "June",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o3"
+    },
+    {
+     "text": "Low Tide - Bb",
+     "title_text": "Low Tide",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o13"
+    },
+    {
+     "text": "Wildfire *",
+     "title_text": "Wildfire",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o15"
+    },
+    {
+     "text": "Harbour",
+     "title_text": "Harbour",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o2"
+    },
+    {
+     "text": "The Long Way Round",
+     "title_text": "The Long Way Round",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o14"
+    },
+    {
+     "text": "Jolene",
+     "title_text": "Jolene",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "c1"
+    },
+    {
+     "text": "Harvest Moon",
+     "title_text": "Harvest Moon",
+     "kind": "song",
+     "mark": "added",
+     "new": {
+      "title": "Harvest Moon",
+      "kind": "new_cover",
+      "writers": [
+       "Neil Young"
+      ]
+     }
+    },
+    {
+     "text": "Kite String *",
+     "title_text": "Kite String",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o19"
+    },
+    {
+     "text": "Small Hours",
+     "title_text": "Small Hours",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o8"
+    },
+    {
+     "text": "Dancing in the Dark",
+     "title_text": "Dancing in the Dark",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "c5"
+    },
+    {
+     "text": "\u2014 enc \u2014",
+     "kind": "section"
+    },
+    {
+     "text": "St Agnes (capo 2)",
+     "title_text": "St Agnes",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o12"
+    }
+   ],
+   "performed": [
+    {
+     "song_id": "o3"
+    },
+    {
+     "song_id": "o13"
+    },
+    {
+     "song_id": "o15"
+    },
+    {
+     "song_id": "o2"
+    },
+    {
+     "song_id": "o14"
+    },
+    {
+     "song_id": "c1"
+    },
+    {
+     "new": {
+      "title": "Harvest Moon",
+      "kind": "new_cover",
+      "writers": [
+       "Neil Young"
+      ]
+     }
+    },
+    {
+     "song_id": "o19"
+    },
+    {
+     "song_id": "o8"
+    },
+    {
+     "song_id": "c5"
+    },
+    {
+     "song_id": "o12"
+    }
+   ],
+   "off_paper": null,
+   "hard_cases": [
+    "abbreviation",
+    "addition_new_song",
+    "cover"
+   ],
+   "photo_time": "after_midnight",
+   "split": "dev"
+  },
+  {
+   "id": "f26",
+   "booking": "b26",
+   "style": "marker",
+   "condition": "crop_bottom",
+   "lines": [
+    {
+     "text": "Lodge Room \u00b7 6.4",
+     "kind": "header"
+    },
+    {
+     "text": "Landslide (capo 2)",
+     "title_text": "Landslide",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "c4"
+    },
+    {
+     "text": "Northbound",
+     "title_text": "Northbound",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o9"
+    },
+    {
+     "text": "Parking Lot Prayer (solo)",
+     "title_text": "Parking Lot Prayer",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o23"
+    },
+    {
+     "text": "Copper",
+     "title_text": "Copper",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o16"
+    },
+    {
+     "text": "Harbour (capo 2)",
+     "title_text": "Harbour",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o2"
+    },
+    {
+     "text": "Blue Hour",
+     "title_text": "Blue Hour",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o22"
+    },
+    {
+     "text": "Kite String - Bb",
+     "title_text": "Kite String",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o19"
+    },
+    {
+     "text": "Hallelujah",
+     "title_text": "Hallelujah",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "c3"
+    },
+    {
+     "text": "Sparrow",
+     "title_text": "Sparrow",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o21"
+    },
+    {
+     "text": "Small Hours",
+     "title_text": "Small Hours",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o8"
+    },
+    {
+     "text": "Wildfire",
+     "title_text": "Wildfire",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o15"
+    },
+    {
+     "text": "Long Way - Bb",
+     "title_text": "Long Way",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o14"
+    },
+    {
+     "text": "Old Fav",
+     "title_text": "Old Fav",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o1"
+    },
+    {
+     "text": "E:",
+     "kind": "section"
+    },
+    {
+     "text": "Low Tide",
+     "title_text": "Low Tide",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o13"
+    },
+    {
+     "text": "June (capo 2)",
+     "title_text": "June",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o3"
+    }
+   ],
+   "performed": [
+    {
+     "song_id": "c4"
+    },
+    {
+     "song_id": "o9"
+    },
+    {
+     "song_id": "o23"
+    },
+    {
+     "song_id": "o16"
+    },
+    {
+     "song_id": "o2"
+    },
+    {
+     "song_id": "o22"
+    },
+    {
+     "song_id": "o19"
+    },
+    {
+     "song_id": "c3"
+    },
+    {
+     "song_id": "o21"
+    },
+    {
+     "song_id": "o8"
+    },
+    {
+     "song_id": "o15"
+    },
+    {
+     "song_id": "o14"
+    },
+    {
+     "song_id": "o1"
+    },
+    {
+     "song_id": "o13"
+    },
+    {
+     "song_id": "o3"
+    }
+   ],
+   "off_paper": null,
+   "hard_cases": [
+    "abbreviation",
+    "cover"
+   ],
+   "photo_time": "next_morning",
+   "split": "heldout"
+  },
+  {
+   "id": "f27",
+   "booking": "b27",
+   "style": "marker",
+   "condition": "clean",
+   "lines": [
+    {
+     "text": "NEW YORK - Rough Trade",
+     "kind": "header"
+    },
+    {
+     "text": "Hallelujah",
+     "title_text": "Hallelujah",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "c3"
+    },
+    {
+     "text": "Small Hours",
+     "title_text": "Small Hours",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o8"
+    },
+    {
+     "text": "June > Copper",
+     "title_text": "June > Copper",
+     "kind": "song",
+     "mark": "none",
+     "medley": [
+      "o3",
+      "o16"
+     ]
+    },
+    {
+     "text": "Ribbon (capo 2)",
+     "title_text": "Ribbon",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o10"
+    },
+    {
+     "text": "Kite String *",
+     "title_text": "Kite String",
+     "kind": "song",
+     "mark": "crossed",
+     "song_id": "o19"
+    },
+    {
+     "text": "Dancing in the Dark (capo 2)",
+     "title_text": "Dancing in the Dark",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "c5"
+    },
+    {
+     "text": "Parking Lot Prayer - Bb",
+     "title_text": "Parking Lot Prayer",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o23"
+    },
+    {
+     "text": "Harbour",
+     "title_text": "Harbour",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o2"
+    },
+    {
+     "text": "Sparrow - Bb",
+     "title_text": "Sparrow",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o21"
+    },
+    {
+     "text": "Late Bloomer",
+     "title_text": "Late Bloomer",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o18"
+    },
+    {
+     "text": "Home (capo 2)",
+     "title_text": "Home",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o4"
+    },
+    {
+     "text": "Neon",
+     "title_text": "Neon",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o0"
+    }
+   ],
+   "performed": [
+    {
+     "song_id": "c3"
+    },
+    {
+     "song_id": "o8"
+    },
+    {
+     "song_id": "o3",
+     "medley": true
+    },
+    {
+     "song_id": "o16",
+     "medley": true
+    },
+    {
+     "song_id": "o10"
+    },
+    {
+     "song_id": "c5"
+    },
+    {
+     "song_id": "o23"
+    },
+    {
+     "song_id": "o2"
+    },
+    {
+     "song_id": "o21"
+    },
+    {
+     "song_id": "o18"
+    },
+    {
+     "song_id": "o4"
+    },
+    {
+     "song_id": "o0"
+    }
+   ],
+   "off_paper": null,
+   "hard_cases": [
+    "abbreviation",
+    "ambiguous_title_home",
+    "cover",
+    "crossed_out",
+    "medley"
+   ],
+   "photo_time": "none",
+   "split": "heldout"
+  },
+  {
+   "id": "f28",
+   "booking": "b28",
+   "style": "hand_bradley",
+   "condition": "glare",
+   "lines": [
+    {
+     "text": "Saint Agnes (capo 2)",
+     "title_text": "Saint Agnes",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o12"
+    },
+    {
+     "text": "Home",
+     "title_text": "Home",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o4"
+    },
+    {
+     "text": "Old Fav",
+     "title_text": "Old Fav",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o1"
+    },
+    {
+     "text": "Sparrow",
+     "title_text": "Sparrow",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o21"
+    },
+    {
+     "text": "Hallelujah (capo 2)",
+     "title_text": "Hallelujah",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "c3"
+    },
+    {
+     "text": "Dreams",
+     "title_text": "Dreams",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o20"
+    },
+    {
+     "text": "Ribbon",
+     "title_text": "Ribbon",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o10"
+    },
+    {
+     "text": "Landslide *",
+     "title_text": "Landslide",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "c4"
+    },
+    {
+     "text": "Small Hours",
+     "title_text": "Small Hours",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o8"
+    },
+    {
+     "text": "Harbour",
+     "title_text": "Harbour",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o2"
+    },
+    {
+     "text": "Glasshouse *",
+     "title_text": "Glasshouse",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o7"
+    },
+    {
+     "text": "Neon Lights",
+     "title_text": "Neon Lights",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o0"
+    },
+    {
+     "text": "Low Tide",
+     "title_text": "Low Tide",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o13"
+    }
+   ],
+   "performed": [
+    {
+     "song_id": "o12"
+    },
+    {
+     "song_id": "o4"
+    },
+    {
+     "song_id": "o1"
+    },
+    {
+     "song_id": "o21"
+    },
+    {
+     "song_id": "c3"
+    },
+    {
+     "song_id": "o20"
+    },
+    {
+     "song_id": "o10"
+    },
+    {
+     "song_id": "c4"
+    },
+    {
+     "song_id": "o8"
+    },
+    {
+     "song_id": "o2"
+    },
+    {
+     "song_id": "o7"
+    },
+    {
+     "song_id": "o0"
+    },
+    {
+     "song_id": "o13"
+    },
+    {
+     "song_id": "o11"
+    }
+   ],
+   "off_paper": {
+    "played_unlisted": "o11"
+   },
+   "hard_cases": [
+    "abbreviation",
+    "ambiguous_title_dreams",
+    "ambiguous_title_home",
+    "cover"
+   ],
+   "photo_time": "loadout",
+   "split": "dev"
+  },
+  {
+   "id": "f29",
+   "booking": "b29",
+   "style": "hand_noteworthy",
+   "condition": "tape_shadow",
+   "lines": [
+    {
+     "text": "Sparrow",
+     "title_text": "Sparrow",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o21"
+    },
+    {
+     "text": "Static Bloom",
+     "title_text": "Static Bloom",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o11"
+    },
+    {
+     "text": "Copper - Bb",
+     "title_text": "Copper",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o16"
+    },
+    {
+     "text": "Dancing in the Dark",
+     "title_text": "Dancing in the Dark",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "c5"
+    },
+    {
+     "text": "Old Favourite (capo 2)",
+     "title_text": "Old Favourite",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o1"
+    },
+    {
+     "text": "Glasshouse - Bb",
+     "title_text": "Glasshouse",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o7"
+    },
+    {
+     "text": "Home - Bb",
+     "title_text": "Home",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o4"
+    },
+    {
+     "text": "Low Tide",
+     "title_text": "Low Tide",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o13"
+    },
+    {
+     "text": "Parking Lot",
+     "title_text": "Parking Lot",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o23"
+    },
+    {
+     "text": "Ferris Wheel",
+     "title_text": "Ferris Wheel",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "u2"
+    },
+    {
+     "text": "June (solo)",
+     "title_text": "June",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o3"
+    },
+    {
+     "text": "Dreams",
+     "title_text": "Dreams",
+     "kind": "song",
+     "mark": "added",
+     "song_id": "o20"
+    },
+    {
+     "text": "ENCORE",
+     "kind": "section"
+    },
+    {
+     "text": "The Long Way Round - Bb",
+     "title_text": "The Long Way Round",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o14"
+    },
+    {
+     "text": "Lighthouse - Bb",
+     "title_text": "Lighthouse",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o24"
+    }
+   ],
+   "performed": [
+    {
+     "song_id": "o21"
+    },
+    {
+     "song_id": "o11"
+    },
+    {
+     "song_id": "o16"
+    },
+    {
+     "song_id": "c5"
+    },
+    {
+     "song_id": "o1"
+    },
+    {
+     "song_id": "o7"
+    },
+    {
+     "song_id": "o4"
+    },
+    {
+     "song_id": "o23"
+    },
+    {
+     "song_id": "u2"
+    },
+    {
+     "song_id": "o3"
+    },
+    {
+     "song_id": "o20"
+    },
+    {
+     "song_id": "o14"
+    },
+    {
+     "song_id": "o24"
+    }
+   ],
+   "off_paper": {
+    "skipped_unmarked": "o13"
+   },
+   "hard_cases": [
+    "abbreviation",
+    "addition",
+    "ambiguous_title_dreams",
+    "ambiguous_title_home",
+    "cover",
+    "unreleased_in_catalogue"
+   ],
+   "photo_time": "after_midnight",
+   "split": "heldout"
+  },
+  {
+   "id": "f30",
+   "booking": "b30",
+   "style": "hand_chalk",
+   "condition": "angle",
+   "lines": [
+    {
+     "text": "Glasshouse (capo 2)",
+     "title_text": "Glasshouse",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o7"
+    },
+    {
+     "text": "Dreams (FM)",
+     "title_text": "Dreams (FM)",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "c2"
+    },
+    {
+     "text": "Undertow",
+     "title_text": "Undertow",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o17"
+    },
+    {
+     "text": "June",
+     "title_text": "June",
+     "kind": "song",
+     "mark": "crossed",
+     "song_id": "o3"
+    },
+    {
+     "text": "Home - Bb",
+     "title_text": "Home",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o4"
+    },
+    {
+     "text": "Old Fav",
+     "title_text": "Old Fav",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o1"
+    },
+    {
+     "text": "Low Tide",
+     "title_text": "Low Tide",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o13"
+    },
+    {
+     "text": "St Agnes",
+     "title_text": "St Agnes",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o12"
+    },
+    {
+     "text": "Kite String",
+     "title_text": "Kite String",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o19"
+    },
+    {
+     "text": "Hallelujah",
+     "title_text": "Hallelujah",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "c3"
+    },
+    {
+     "text": "Late Bloomer (solo)",
+     "title_text": "Late Bloomer",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o18"
+    }
+   ],
+   "performed": [
+    {
+     "song_id": "o7"
+    },
+    {
+     "song_id": "c2"
+    },
+    {
+     "song_id": "o17"
+    },
+    {
+     "song_id": "o4"
+    },
+    {
+     "song_id": "o1"
+    },
+    {
+     "song_id": "o13"
+    },
+    {
+     "song_id": "o12"
+    },
+    {
+     "song_id": "o19"
+    },
+    {
+     "song_id": "c3"
+    },
+    {
+     "song_id": "o18"
+    }
+   ],
+   "off_paper": null,
+   "hard_cases": [
+    "abbreviation",
+    "ambiguous_title_dreams",
+    "ambiguous_title_home",
+    "cover",
+    "crossed_out"
+   ],
+   "photo_time": "next_morning",
+   "split": "heldout"
+  },
+  {
+   "id": "f31",
+   "booking": "b31",
+   "style": "hand_snell",
+   "condition": "lowlight",
+   "lines": [
+    {
+     "text": "St Agnes",
+     "title_text": "St Agnes",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o12"
+    },
+    {
+     "text": "Sparrow",
+     "title_text": "Sparrow",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o21"
+    },
+    {
+     "text": "Gasoline Halo",
+     "title_text": "Gasoline Halo",
+     "kind": "song",
+     "mark": "none",
+     "new": {
+      "title": "Gasoline Halo",
+      "kind": "new_original"
+     }
+    },
+    {
+     "text": "Hallelujah",
+     "title_text": "Hallelujah",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "c3"
+    },
+    {
+     "text": "Dreams",
+     "title_text": "Dreams",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o20"
+    },
+    {
+     "text": "Marigold",
+     "title_text": "Marigold",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "u1"
+    },
+    {
+     "text": "June (capo 2)",
+     "title_text": "June",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o3"
+    },
+    {
+     "text": "The Long Way Round (solo)",
+     "title_text": "The Long Way Round",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o14"
+    },
+    {
+     "text": "Northbound *",
+     "title_text": "Northbound",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o9"
+    },
+    {
+     "text": "Undertow (solo)",
+     "title_text": "Undertow",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o17"
+    },
+    {
+     "text": "ENCORE",
+     "kind": "section"
+    },
+    {
+     "text": "Neon Lights",
+     "title_text": "Neon Lights",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o0"
+    }
+   ],
+   "performed": [
+    {
+     "song_id": "o12"
+    },
+    {
+     "song_id": "o21"
+    },
+    {
+     "new": {
+      "title": "Gasoline Halo",
+      "kind": "new_original"
+     }
+    },
+    {
+     "song_id": "c3"
+    },
+    {
+     "song_id": "o20"
+    },
+    {
+     "song_id": "u1"
+    },
+    {
+     "song_id": "o3"
+    },
+    {
+     "song_id": "o14"
+    },
+    {
+     "song_id": "o9"
+    },
+    {
+     "song_id": "o17"
+    },
+    {
+     "song_id": "o0"
+    }
+   ],
+   "off_paper": null,
+   "hard_cases": [
+    "abbreviation",
+    "ambiguous_title_dreams",
+    "cover",
+    "unreleased_in_catalogue",
+    "unreleased_not_in_catalogue"
+   ],
+   "photo_time": "none",
+   "split": "heldout"
+  },
+  {
+   "id": "f32",
+   "booking": "b32",
+   "style": "typed",
+   "condition": "clean",
+   "lines": [
+    {
+     "text": "Low Tide - Bb",
+     "title_text": "Low Tide",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o13"
+    },
+    {
+     "text": "Home Again",
+     "title_text": "Home Again",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o5"
+    },
+    {
+     "text": "Ferris Wheel",
+     "title_text": "Ferris Wheel",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "u2"
+    },
+    {
+     "text": "Glasshouse (capo 2)",
+     "title_text": "Glasshouse",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o7"
+    },
+    {
+     "text": "Sparrow",
+     "title_text": "Sparrow",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o21"
+    },
+    {
+     "text": "Home *",
+     "title_text": "Home",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o4"
+    },
+    {
+     "text": "Long Way",
+     "title_text": "Long Way",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o14"
+    },
+    {
+     "text": "Ribbon - Bb",
+     "title_text": "Ribbon",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o10"
+    },
+    {
+     "text": "June *",
+     "title_text": "June",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o3"
+    },
+    {
+     "text": "Dancing in the Dark - Bb",
+     "title_text": "Dancing in the Dark",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "c5"
+    },
+    {
+     "text": "Medley: Undertow / Harbour",
+     "title_text": "Medley: Undertow / Harbour",
+     "kind": "song",
+     "mark": "none",
+     "medley": [
+      "o17",
+      "o2"
+     ]
+    },
+    {
+     "text": "Static Bloom (capo 2)",
+     "title_text": "Static Bloom",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o11"
+    },
+    {
+     "text": "Dreams",
+     "title_text": "Dreams",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o20"
+    }
+   ],
+   "performed": [
+    {
+     "song_id": "o13"
+    },
+    {
+     "song_id": "o5"
+    },
+    {
+     "song_id": "u2"
+    },
+    {
+     "song_id": "o7"
+    },
+    {
+     "song_id": "o21"
+    },
+    {
+     "song_id": "o4"
+    },
+    {
+     "song_id": "o14"
+    },
+    {
+     "song_id": "o10"
+    },
+    {
+     "song_id": "o3"
+    },
+    {
+     "song_id": "c5"
+    },
+    {
+     "song_id": "o17",
+     "medley": true
+    },
+    {
+     "song_id": "o2",
+     "medley": true
+    },
+    {
+     "song_id": "o11"
+    },
+    {
+     "song_id": "o20"
+    }
+   ],
+   "off_paper": null,
+   "hard_cases": [
+    "abbreviation",
+    "ambiguous_title_dreams",
+    "ambiguous_title_home",
+    "cover",
+    "medley",
+    "unreleased_in_catalogue"
+   ],
+   "photo_time": "loadout",
+   "split": "dev"
+  },
+  {
+   "id": "f33",
+   "booking": "b33",
+   "style": "typed",
+   "condition": "angle",
+   "lines": [
+    {
+     "text": "Jolene *",
+     "title_text": "Jolene",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "c1"
+    },
+    {
+     "text": "Marigold",
+     "title_text": "Marigold",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "u1"
+    },
+    {
+     "text": "Low Tide",
+     "title_text": "Low Tide",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o13"
+    },
+    {
+     "text": "Late Bloomer *",
+     "title_text": "Late Bloomer",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o18"
+    },
+    {
+     "text": "Wildfire *",
+     "title_text": "Wildfire",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o15"
+    },
+    {
+     "text": "Neon",
+     "title_text": "Neon",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o0"
+    },
+    {
+     "text": "Small Hours",
+     "title_text": "Small Hours",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o8"
+    },
+    {
+     "text": "Harbour *",
+     "title_text": "Harbour",
+     "kind": "song",
+     "mark": "crossed",
+     "song_id": "o2"
+    },
+    {
+     "text": "Dreams (solo)",
+     "title_text": "Dreams",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o20"
+    },
+    {
+     "text": "Glasshouse - Bb",
+     "title_text": "Glasshouse",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o7"
+    },
+    {
+     "text": "Static Bloom (solo)",
+     "title_text": "Static Bloom",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o11"
+    },
+    {
+     "text": "Parking Lot *",
+     "title_text": "Parking Lot",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o23"
+    },
+    {
+     "text": "Kite String",
+     "title_text": "Kite String",
+     "kind": "song",
+     "mark": "added",
+     "song_id": "o19"
+    },
+    {
+     "text": "E:",
+     "kind": "section"
+    },
+    {
+     "text": "Ribbon - Bb",
+     "title_text": "Ribbon",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o10"
+    }
+   ],
+   "performed": [
+    {
+     "song_id": "c1"
+    },
+    {
+     "song_id": "u1"
+    },
+    {
+     "song_id": "o13"
+    },
+    {
+     "song_id": "o18"
+    },
+    {
+     "song_id": "o15"
+    },
+    {
+     "song_id": "o0"
+    },
+    {
+     "song_id": "o8"
+    },
+    {
+     "song_id": "o20"
+    },
+    {
+     "song_id": "o7"
+    },
+    {
+     "song_id": "o11"
+    },
+    {
+     "song_id": "o23"
+    },
+    {
+     "song_id": "o19"
+    },
+    {
+     "song_id": "o10"
+    }
+   ],
+   "off_paper": null,
+   "hard_cases": [
+    "abbreviation",
+    "addition",
+    "ambiguous_title_dreams",
+    "cover",
+    "crossed_out",
+    "unreleased_in_catalogue"
+   ],
+   "photo_time": "after_midnight",
+   "split": "dev"
+  },
+  {
+   "id": "f34",
+   "booking": "b34",
+   "style": "marker",
+   "condition": "crop_bottom",
+   "lines": [
+    {
+     "text": "MILWAUKEE - Pabst Theater",
+     "kind": "header"
+    },
+    {
+     "text": "June",
+     "title_text": "June",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o3"
+    },
+    {
+     "text": "Ribbon *",
+     "title_text": "Ribbon",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o10"
+    },
+    {
+     "text": "Saint Agnes",
+     "title_text": "Saint Agnes",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o12"
+    },
+    {
+     "text": "Static Bloom (capo 2)",
+     "title_text": "Static Bloom",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o11"
+    },
+    {
+     "text": "Neon Lights - Bb",
+     "title_text": "Neon Lights",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o0"
+    },
+    {
+     "text": "Parking Lot Prayer (capo 2)",
+     "title_text": "Parking Lot Prayer",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o23"
+    },
+    {
+     "text": "Dreams",
+     "title_text": "Dreams",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o20"
+    },
+    {
+     "text": "Copper *",
+     "title_text": "Copper",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o16"
+    },
+    {
+     "text": "Long Way",
+     "title_text": "Long Way",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o14"
+    },
+    {
+     "text": "Dancing in the Dark - Bb",
+     "title_text": "Dancing in the Dark",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "c5"
+    },
+    {
+     "text": "Ferris Wheel (solo)",
+     "title_text": "Ferris Wheel",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "u2"
+    },
+    {
+     "text": "Home - Bb",
+     "title_text": "Home",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o4"
+    }
+   ],
+   "performed": [
+    {
+     "song_id": "o3"
+    },
+    {
+     "song_id": "o10"
+    },
+    {
+     "song_id": "o12"
+    },
+    {
+     "song_id": "o11"
+    },
+    {
+     "song_id": "o0"
+    },
+    {
+     "song_id": "o23"
+    },
+    {
+     "song_id": "o20"
+    },
+    {
+     "song_id": "o16"
+    },
+    {
+     "song_id": "o14"
+    },
+    {
+     "song_id": "c5"
+    },
+    {
+     "song_id": "u2"
+    },
+    {
+     "song_id": "o4"
+    },
+    {
+     "song_id": "o22"
+    }
+   ],
+   "off_paper": {
+    "played_unlisted": "o22"
+   },
+   "hard_cases": [
+    "abbreviation",
+    "ambiguous_title_dreams",
+    "ambiguous_title_home",
+    "cover",
+    "unreleased_in_catalogue"
+   ],
+   "photo_time": "next_morning",
+   "split": "heldout"
+  },
+  {
+   "id": "f35",
+   "booking": "b35",
+   "style": "marker",
+   "condition": "clean",
+   "lines": [
+    {
+     "text": "Paper Moon Motel (capo 2)",
+     "title_text": "Paper Moon Motel",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o6"
+    },
+    {
+     "text": "Hallelujah",
+     "title_text": "Hallelujah",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "c3"
+    },
+    {
+     "text": "Home Again",
+     "title_text": "Home Again",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o5"
+    },
+    {
+     "text": "Northbound - Bb",
+     "title_text": "Northbound",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o9"
+    },
+    {
+     "text": "Parking Lot Prayer",
+     "title_text": "Parking Lot Prayer",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o23"
+    },
+    {
+     "text": "Neon Lights (capo 2)",
+     "title_text": "Neon Lights",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o0"
+    },
+    {
+     "text": "Home",
+     "title_text": "Home",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o4"
+    },
+    {
+     "text": "Jolene",
+     "title_text": "Jolene",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "c1"
+    },
+    {
+     "text": "Undertow",
+     "title_text": "Undertow",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o17"
+    },
+    {
+     "text": "Long Way *",
+     "title_text": "Long Way",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o14"
+    },
+    {
+     "text": "ENCORE",
+     "kind": "section"
+    },
+    {
+     "text": "Late Bloomer",
+     "title_text": "Late Bloomer",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o18"
+    },
+    {
+     "text": "Static Bloom",
+     "title_text": "Static Bloom",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o11"
+    }
+   ],
+   "performed": [
+    {
+     "song_id": "o6"
+    },
+    {
+     "song_id": "c3"
+    },
+    {
+     "song_id": "o5"
+    },
+    {
+     "song_id": "o9"
+    },
+    {
+     "song_id": "o23"
+    },
+    {
+     "song_id": "o0"
+    },
+    {
+     "song_id": "c1"
+    },
+    {
+     "song_id": "o17"
+    },
+    {
+     "song_id": "o14"
+    },
+    {
+     "song_id": "o18"
+    },
+    {
+     "song_id": "o11"
+    }
+   ],
+   "off_paper": {
+    "skipped_unmarked": "o4"
+   },
+   "hard_cases": [
+    "abbreviation",
+    "ambiguous_title_home",
+    "cover"
+   ],
+   "photo_time": "none",
+   "split": "heldout"
+  },
+  {
+   "id": "f36",
+   "booking": "b36",
+   "style": "hand_bradley",
+   "condition": "glare",
+   "lines": [
+    {
+     "text": "Mohawk \u00b7 7.11",
+     "kind": "header"
+    },
+    {
+     "text": "Copper *",
+     "title_text": "Copper",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o16"
+    },
+    {
+     "text": "Ribbon (solo)",
+     "title_text": "Ribbon",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o10"
+    },
+    {
+     "text": "Jolene *",
+     "title_text": "Jolene",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "c1"
+    },
+    {
+     "text": "St Agnes",
+     "title_text": "St Agnes",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o12"
+    },
+    {
+     "text": "Sparrow",
+     "title_text": "Sparrow",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o21"
+    },
+    {
+     "text": "Parking Lot - Bb",
+     "title_text": "Parking Lot",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o23"
+    },
+    {
+     "text": "Harbour *",
+     "title_text": "Harbour",
+     "kind": "song",
+     "mark": "crossed",
+     "song_id": "o2"
+    },
+    {
+     "text": "Home",
+     "title_text": "Home",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o4"
+    },
+    {
+     "text": "Paper Moon - Bb",
+     "title_text": "Paper Moon",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o6"
+    },
+    {
+     "text": "Dreams (FM)",
+     "title_text": "Dreams (FM)",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "c2"
+    },
+    {
+     "text": "Blue Hour - Bb",
+     "title_text": "Blue Hour",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o22"
+    },
+    {
+     "text": "Dreams - Bb",
+     "title_text": "Dreams",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o20"
+    },
+    {
+     "text": "The Long Way Round *",
+     "title_text": "The Long Way Round",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o14"
+    },
+    {
+     "text": "Wildfire Season (solo)",
+     "title_text": "Wildfire Season",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o15"
+    },
+    {
+     "text": "ENCORE",
+     "kind": "section"
+    },
+    {
+     "text": "Northbound (capo 2)",
+     "title_text": "Northbound",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o9"
+    }
+   ],
+   "performed": [
+    {
+     "song_id": "o16"
+    },
+    {
+     "song_id": "o10"
+    },
+    {
+     "song_id": "c1"
+    },
+    {
+     "song_id": "o12"
+    },
+    {
+     "song_id": "o21"
+    },
+    {
+     "song_id": "o23"
+    },
+    {
+     "song_id": "o4"
+    },
+    {
+     "song_id": "o6"
+    },
+    {
+     "song_id": "c2"
+    },
+    {
+     "song_id": "o22"
+    },
+    {
+     "song_id": "o20"
+    },
+    {
+     "song_id": "o14"
+    },
+    {
+     "song_id": "o15"
+    },
+    {
+     "song_id": "o9"
+    }
+   ],
+   "off_paper": null,
+   "hard_cases": [
+    "abbreviation",
+    "ambiguous_title_dreams",
+    "ambiguous_title_home",
+    "cover",
+    "crossed_out"
+   ],
+   "photo_time": "loadout",
+   "split": "dev"
+  },
+  {
+   "id": "f37",
+   "booking": "b37",
+   "style": "hand_noteworthy",
+   "condition": "tape_shadow",
+   "lines": [
+    {
+     "text": "Wildfire Season",
+     "title_text": "Wildfire Season",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o15"
+    },
+    {
+     "text": "Undertow",
+     "title_text": "Undertow",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o17"
+    },
+    {
+     "text": "Static Bloom",
+     "title_text": "Static Bloom",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o11"
+    },
+    {
+     "text": "Neon Lights (solo)",
+     "title_text": "Neon Lights",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o0"
+    },
+    {
+     "text": "Landslide - Bb",
+     "title_text": "Landslide",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "c4"
+    },
+    {
+     "text": "Northbound",
+     "title_text": "Northbound",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o9"
+    },
+    {
+     "text": "Ribbon - Bb",
+     "title_text": "Ribbon",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o10"
+    },
+    {
+     "text": "Paper Moon Motel > Dreams",
+     "title_text": "Paper Moon Motel > Dreams",
+     "kind": "song",
+     "mark": "none",
+     "medley": [
+      "o6",
+      "o20"
+     ]
+    },
+    {
+     "text": "Low Tide",
+     "title_text": "Low Tide",
+     "kind": "song",
+     "mark": "added",
+     "song_id": "o13"
+    },
+    {
+     "text": "Small Hours *",
+     "title_text": "Small Hours",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o8"
+    },
+    {
+     "text": "Hallelujah (capo 2)",
+     "title_text": "Hallelujah",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "c3"
+    },
+    {
+     "text": "E:",
+     "kind": "section"
+    },
+    {
+     "text": "Lighthouse Keeper (capo 2)",
+     "title_text": "Lighthouse Keeper",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o24"
+    }
+   ],
+   "performed": [
+    {
+     "song_id": "o15"
+    },
+    {
+     "song_id": "o17"
+    },
+    {
+     "song_id": "o11"
+    },
+    {
+     "song_id": "o0"
+    },
+    {
+     "song_id": "c4"
+    },
+    {
+     "song_id": "o9"
+    },
+    {
+     "song_id": "o10"
+    },
+    {
+     "song_id": "o6",
+     "medley": true
+    },
+    {
+     "song_id": "o20",
+     "medley": true
+    },
+    {
+     "song_id": "o13"
+    },
+    {
+     "song_id": "o8"
+    },
+    {
+     "song_id": "c3"
+    },
+    {
+     "song_id": "o24"
+    }
+   ],
+   "off_paper": null,
+   "hard_cases": [
+    "addition",
+    "cover",
+    "medley"
+   ],
+   "photo_time": "after_midnight",
+   "split": "heldout"
+  },
+  {
+   "id": "f38",
+   "booking": "b38",
+   "style": "hand_chalk",
+   "condition": "unreadable_dark",
+   "lines": [
+    {
+     "text": "Hallelujah (solo)",
+     "title_text": "Hallelujah",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "c3"
+    },
+    {
+     "text": "Sparrow",
+     "title_text": "Sparrow",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o21"
+    },
+    {
+     "text": "Ferris Wheel - Bb",
+     "title_text": "Ferris Wheel",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "u2"
+    },
+    {
+     "text": "Neon",
+     "title_text": "Neon",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o0"
+    },
+    {
+     "text": "Small Hours",
+     "title_text": "Small Hours",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o8"
+    },
+    {
+     "text": "Lighthouse - Bb",
+     "title_text": "Lighthouse",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o24"
+    },
+    {
+     "text": "Late Bloomer",
+     "title_text": "Late Bloomer",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o18"
+    },
+    {
+     "text": "Kite String (solo)",
+     "title_text": "Kite String",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o19"
+    },
+    {
+     "text": "Copper",
+     "title_text": "Copper",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o16"
+    },
+    {
+     "text": "Dreams",
+     "title_text": "Dreams",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o20"
+    },
+    {
+     "text": "Velvet Static",
+     "title_text": "Velvet Static",
+     "kind": "song",
+     "mark": "none",
+     "new": {
+      "title": "Velvet Static",
+      "kind": "new_original"
+     }
+    },
+    {
+     "text": "Parking Lot",
+     "title_text": "Parking Lot",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o23"
+    },
+    {
+     "text": "Home Again",
+     "title_text": "Home Again",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o5"
+    },
+    {
+     "text": "\u2014 enc \u2014",
+     "kind": "section"
+    },
+    {
+     "text": "Ribbon",
+     "title_text": "Ribbon",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o10"
+    },
+    {
+     "text": "Old Fav",
+     "title_text": "Old Fav",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o1"
+    }
+   ],
+   "performed": [
+    {
+     "song_id": "c3"
+    },
+    {
+     "song_id": "o21"
+    },
+    {
+     "song_id": "u2"
+    },
+    {
+     "song_id": "o0"
+    },
+    {
+     "song_id": "o8"
+    },
+    {
+     "song_id": "o24"
+    },
+    {
+     "song_id": "o18"
+    },
+    {
+     "song_id": "o19"
+    },
+    {
+     "song_id": "o16"
+    },
+    {
+     "song_id": "o20"
+    },
+    {
+     "new": {
+      "title": "Velvet Static",
+      "kind": "new_original"
+     }
+    },
+    {
+     "song_id": "o23"
+    },
+    {
+     "song_id": "o5"
+    },
+    {
+     "song_id": "o10"
+    },
+    {
+     "song_id": "o1"
+    }
+   ],
+   "off_paper": null,
+   "hard_cases": [
+    "abbreviation",
+    "ambiguous_title_dreams",
+    "ambiguous_title_home",
+    "cover",
+    "unreleased_in_catalogue",
+    "unreleased_not_in_catalogue"
+   ],
+   "photo_time": "next_morning",
+   "expect_unreadable": true,
+   "split": "heldout"
+  },
+  {
+   "id": "f39",
+   "booking": "b39",
+   "style": "hand_snell",
+   "condition": "lowlight",
+   "lines": [
+    {
+     "text": "First Avenue \u00b7 7.25",
+     "kind": "header"
+    },
+    {
+     "text": "Low Tide (solo)",
+     "title_text": "Low Tide",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o13"
+    },
+    {
+     "text": "Old Favourite (solo)",
+     "title_text": "Old Favourite",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o1"
+    },
+    {
+     "text": "Blue Hour - Bb",
+     "title_text": "Blue Hour",
+     "kind": "song",
+     "mark": "crossed",
+     "song_id": "o22"
+    },
+    {
+     "text": "Neon",
+     "title_text": "Neon",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o0"
+    },
+    {
+     "text": "Northbound *",
+     "title_text": "Northbound",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o9"
+    },
+    {
+     "text": "Static Bloom (solo)",
+     "title_text": "Static Bloom",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o11"
+    },
+    {
+     "text": "Marigold (solo)",
+     "title_text": "Marigold",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "u1"
+    },
+    {
+     "text": "Home Again (solo)",
+     "title_text": "Home Again",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o5"
+    },
+    {
+     "text": "Dancing in the Dark *",
+     "title_text": "Dancing in the Dark",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "c5"
+    },
+    {
+     "text": "Kite String *",
+     "title_text": "Kite String",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o19"
+    },
+    {
+     "text": "Wildfire Season",
+     "title_text": "Wildfire Season",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o15"
+    },
+    {
+     "text": "ENCORE",
+     "kind": "section"
+    },
+    {
+     "text": "Home",
+     "title_text": "Home",
+     "kind": "song",
+     "mark": "none",
+     "song_id": "o4"
+    }
+   ],
+   "performed": [
+    {
+     "song_id": "o13"
+    },
+    {
+     "song_id": "o1"
+    },
+    {
+     "song_id": "o0"
+    },
+    {
+     "song_id": "o9"
+    },
+    {
+     "song_id": "o11"
+    },
+    {
+     "song_id": "u1"
+    },
+    {
+     "song_id": "o5"
+    },
+    {
+     "song_id": "c5"
+    },
+    {
+     "song_id": "o19"
+    },
+    {
+     "song_id": "o15"
+    },
+    {
+     "song_id": "o4"
+    }
+   ],
+   "off_paper": null,
+   "hard_cases": [
+    "abbreviation",
+    "ambiguous_title_home",
+    "cover",
+    "crossed_out",
+    "unreleased_in_catalogue"
+   ],
+   "photo_time": "none",
+   "split": "heldout"
+  }
+ ]
+}

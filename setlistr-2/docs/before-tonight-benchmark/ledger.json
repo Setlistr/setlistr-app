@@ -1,0 +1,15 @@
+{
+ "committed_usd": 0.030096000000000005,
+ "actual_usd": 0,
+ "calls": [
+  {
+   "id": "f00",
+   "prompt": "baseline",
+   "split": "dev",
+   "attempt": 0,
+   "ms": 123,
+   "error": "400",
+   "usd": 0
+  }
+ ]
+}
