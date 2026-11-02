@@ -31,3 +31,13 @@ The loop: return to a city, make a creative decision, record what happened, see 
 The new-artist state has one previous set and a show in a new city.
 
 **Screenshots:** in `loop-shots/`, made by `walk3.js`.
+
+## FROZEN for customer testing: version 5 (2026-11-02)
+
+- **Artifact:** https://claude.ai/artifact/EwVAyKjY2LMuhXtPUVHo2d, version 5 (version id `1793636938-1136`).
+- **File:** `passport-loop.html`, sha256 prefix `1507016b928256ab`. It is the same file as the artifact.
+- **Changes since version 4:**
+  - Next up is a section of Home (Setlistr · Home), not a separate destination.
+  - The completion headline is "[City]. Set saved.", with the night count underneath. The discovery is kept.
+  - **Explicit confirmation:** after the two photo questions, the whole set as read is shown. You can mark any song not played or change it. Song order stays unconfirmed unless you tick "Played in this order". The final action is "Confirm these songs were played".
+- **Do not change this version during testing.** Record findings separately.

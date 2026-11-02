@@ -157,6 +157,21 @@ details.how dd { margin: 0 0 4px; color: var(--sl-text-3); }
 .btn:disabled { opacity: .45; cursor: default; }
 .act small { font-size: 12.5px; color: var(--sl-text-3); text-align: center; max-width: 520px; }
 .back { background: none; border: 0; padding: 0; min-height: 40px; color: var(--sl-gold-text); font-weight: 700; font-size: 14px; justify-self: start; }
+.apphead { display: flex; justify-content: space-between; align-items: baseline; padding-bottom: 10px; border-bottom: 1px solid var(--sl-line); }
+.apphead .wm { font-weight: 800; letter-spacing: -0.01em; font-size: 17px; }
+.apphead .pg { margin: 0; font-weight: 500; font-size: 13px; color: var(--sl-text-3); }
+.sec { margin: 6px 0 0; font-size: 17px; font-weight: 700; color: var(--sl-text); }
+.sec span { font-weight: 500; color: var(--sl-gold-text); }
+.done-h { font-size: clamp(52px, 15vw, 88px); }
+ol.set.rows li { grid-template-columns: 22px minmax(0,1fr) auto; padding: 2px 0; }
+.rowt { background: none; border: 0; padding: 8px 0; min-height: 44px; text-align: left; font-size: 15px; }
+ol.set.rows li.np .rowt { color: var(--sl-text-3); text-decoration: line-through; }
+.np-t { text-decoration: none; display: inline-block; margin-left: 6px; color: var(--sl-text-3); }
+.edit { background: none; border: 0; color: var(--sl-gold-text); font-size: 13px; font-weight: 700; min-height: 44px; padding: 0 2px; }
+.fix { background: var(--sl-bg); color: var(--sl-text); border: 1px solid var(--sl-gold); border-radius: 8px; padding: 8px; min-height: 40px; font: inherit; width: 100%; }
+.ordr { display: inline-flex; align-items: center; gap: 10px; background: none; border: 0; padding: 6px 0; min-height: 44px; font-size: 14.5px; color: var(--sl-text-2); justify-self: start; }
+.ordr .box { width: 22px; height: 22px; border-radius: 6px; border: 1.5px solid var(--sl-text-3); display: grid; place-items: center; font-size: 14px; color: var(--sl-on-accent); }
+.ordr[aria-pressed="true"] .box { background: var(--sl-accent); border-color: var(--sl-accent); }
 .skip { font-size: 12.5px; color: var(--sl-warn); border: 1px dashed var(--sl-warn); border-radius: 10px; padding: 8px 10px; }
 .toast { position: fixed; left: 50%; bottom: 104px; transform: translateX(-50%); width: min(520px, calc(100% - 32px)); background: var(--sl-surface-2); border: 1px solid color-mix(in srgb, var(--sl-gold) 40%, transparent); border-radius: 12px; padding: 10px 14px; font-size: 13.5px; z-index: 6; }
 @media (prefers-reduced-motion: reduce) { .scan { animation: none; top: 37%; } .tx li, .reveal { transition: none; } }
@@ -258,7 +273,7 @@ function discovery(show) {
 // ── Screens ───────────────────────────────────────────────────────────────
 function today() {
   const show = next()
-  if (!show) return `<section style="display:grid;gap:6px"><div class="ov">Next up</div><h1 class="city">Nothing booked</h1>
+  if (!show) return `<div class="apphead"><span class="wm">Setlistr</span><h1 class="pg">Home</h1></div><section style="display:grid;gap:6px"><h2 class="sec">Next up</h2><p class="city" style="font-size:64px;margin:0">Nothing booked</p>
     <p class="when">Add your next show and it will lead here.</p></section>${story()}`
   const d = discovery(show), n = days(A.today, show.date), when = n === 0 ? 'tonight' : n === 1 ? 'tomorrow' : `in ${n} days`
   const last = d.last, noSet = d.here.filter(x => !x.songs), lastAny = d.here[d.here.length - 1]
@@ -272,9 +287,10 @@ function today() {
     fact = `It’s in your songs. ${short(last.date)} in ${esc(last.city)} is your only set so far.`
   }
   return `
-    <section style="display:grid;gap:4px">
-      <div class="ov">Next up · ${when}</div>
-      <h1 class="city">${esc(show.city)}</h1>
+    <div class="apphead"><span class="wm">Setlistr</span><h1 class="pg">Home</h1></div>
+    <section style="display:grid;gap:4px" aria-labelledby="nextup-h">
+      <h2 class="sec" id="nextup-h">Next up <span>· ${when}</span></h2>
+      <p class="city">${esc(show.city)}</p>
       <p class="when"><b>${wday(show.date)}</b> · ${esc(show.venue)} · ${d.here.length ? `your ${ord(d.here.length + 1)} night here` : 'your first night here'}</p>
     </section>
     ${head ? `<section class="card gold">
@@ -296,7 +312,7 @@ function today() {
 function plan() {
   const d = S.sug, show = next(), planned = S.plan, changed = S.swap
   return `
-    <button class="back" data-go="today">← Next up</button>
+    <button class="back" data-go="today">← Home</button>
     <section style="display:grid;gap:4px">
       <div class="ov">Your set · ${wday(show.date)}</div>
       <p class="sub">From your ${short(d.last.date)} set${d.here.length ? ` in ${esc(show.city)}` : ''}.</p>
@@ -340,31 +356,55 @@ function makeSheet() {
 
 function confirmS() {
   const sh = S.sheet, show = next(), a = S.answers, reading = S.reading
+  const ready = a.x && a.add
+  if (ready && !S.rows) S.rows = buildRows()
   return `
+    <button class="back" data-go="today">← Home</button>
     <section style="display:grid;gap:4px"><div class="ov">After the show · ${esc(show.city)}</div><p class="sub">Your setlist photo</p></section>
     <div class="sheet" role="img" aria-label="Photo of the stage setlist (simulated)">${reading ? '<div class="scan"></div>' : ''}
       <div class="hdr">${esc(show.city.toUpperCase())} · ${short(show.date).toUpperCase()}</div>
       <ol>${sh.lines.map(l => `<li class="${l.x ? 'x' : ''} ${l.add ? 'add' : ''}">${l.add ? '^ ' : ''}${esc(l.text)}</li>`).join('')}</ol></div>
     ${reading ? `<p class="small" style="text-align:center">Reading the photo…</p>` : `
     <section style="display:grid;gap:10px">
-      <p class="say">Read ${sh.lines.length} lines. ${sh.lines.length - 2} matched your songs. <b>Two need you.</b></p>
+      <p class="say">Read ${sh.lines.length} lines. <b>Two need you.</b></p>
       <div class="q ${a.x ? 'ok' : ''}"><p><b>${esc(sh.crossed)}</b> is crossed out. Was it skipped?</p>
         <div class="opts">${[['skip', 'Skipped'], ['played', 'We played it']].map(([v, l]) => `<button class="opt" data-ans="x" data-v="${v}" aria-pressed="${a.x === v}">${l}</button>`).join('')}</div></div>
       <div class="q ${a.add ? 'ok' : ''}"><p>Handwritten <b>“${esc(SHORT[sh.extra] || sh.extra)}”</b> near the end. Which song is it?</p>
         <div class="opts">${[['song', sh.extra], ['none', 'Not a song we played']].map(([v, l]) => `<button class="opt" data-ans="add" data-v="${v}" aria-pressed="${a.add === v}">${esc(l)}</button>`).join('')}</div></div>
-      <p class="small">Order follows the sheet. Fix anything else in Review.</p>
-    </section>`}`
+    </section>
+    ${ready ? `<section class="card" id="interp">
+      <div class="kick">What you played</div>
+      <p class="small">Read from your photo. Tap a song to mark it not played, or change it.</p>
+      <ol class="set rows">${S.rows.map((r, i) => `<li class="${r.played ? '' : 'np'}">
+        <span class="i">${i + 1}</span>
+        ${S.editing === i
+          ? `<select class="fix" data-fix="${i}" aria-label="Change song ${i + 1}">${[r.song, ...A.catalog.filter(c => c !== r.song)].map(c => `<option ${c === r.song ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select>`
+          : `<button class="rowt" data-tog="${i}" aria-pressed="${r.played}" aria-label="${esc(r.song)}: ${r.played ? 'played' : 'not played'}">${esc(r.song)}${r.played ? (r.fixed ? ' <span class="tag np-t">changed</span>' : '') : ' <span class="tag np-t">not played</span>'}</button>`}
+        <button class="edit" data-edit="${i}">${S.editing === i ? 'Done' : 'Change'}</button></li>`).join('')}</ol>
+      <button class="ordr" data-order aria-pressed="${!!S.order}"><span class="box">${S.order ? '✓' : ''}</span>Played in this order</button>
+    </section>` : ''}`}`
+}
+function buildRows() {
+  const rows = []
+  for (const l of S.sheet.lines) {
+    if (l.add) { if (S.answers.add === 'song') rows.push({ song: l.song, played: true, added: true }); continue }
+    rows.push({ song: l.song, played: !(l.x && S.answers.x === 'skip') })
+  }
+  return rows
 }
 
 function done() {
   const show = S.result.night, here = inCity(show.city)
+  const nth = here.length === 1 ? 'Your first night here' : `Your ${ord(here.length)} night here`
   return `
-    <section style="display:grid;gap:4px"><div class="ov">${esc(show.city)} · ${esc(show.venue)} · ${short(show.date)}</div>
-      <h1 class="city">${here.length === 1 ? 'First night' : `Night ${w(here.length)}`}</h1>
-      <p class="when"><b>${show.songs.length} songs played</b> in ${esc(show.city)}.</p></section>
+    <button class="back" data-go="home">← Home</button>
+    <section style="display:grid;gap:6px"><div class="ov">${esc(show.venue)} · ${short(show.date)}</div>
+      <h1 class="city done-h">${esc(show.city)}. Set saved.</h1>
+      <p class="when">${nth} · <b>${show.songs.length} songs played</b></p></section>
     <section class="card">
       <div class="kick" id="txk">${S.plan ? 'Planned' : 'From your photo'}</div>
-      <ol class="set compact planned tx" id="tx">${S.result.rows.map((r, i) => `<li class="${r.added ? 'arrive' : ''}" data-r="${r.state}"><span class="i">${i + 1}</span><span class="t">${esc(r.song)}</span>${r.added ? '<span class="tag">added</span>' : r.state === 'skip' ? '<span class="tag" style="color:var(--sl-text-3)">skipped</span>' : ''}</li>`).join('')}</ol>
+      <ol class="set compact planned tx" id="tx">${S.result.rows.map((r, i) => `<li class="${r.added ? 'arrive' : ''}" data-r="${r.played ? 'played' : 'skip'}"><span class="i">${i + 1}</span><span class="t">${esc(r.song)}</span>${r.added ? '<span class="tag">added</span>' : ''}</li>`).join('')}</ol>
+      <p class="small">${S.result.rows.some(r => !r.played) ? `Not played: ${S.result.rows.filter(r => !r.played).map(r => esc(r.song)).join(', ')}. ` : ''}${S.order ? '' : 'Order not confirmed.'}</p>
     </section>
     <section class="card gold reveal wait" id="rv1">
       <p class="big-say">${S.result.change}</p>
@@ -375,8 +415,8 @@ function done() {
       <div class="hist">${here.map(n => `<div class="nt"><i class="m ${n.songs ? '' : 'none'} ${n === show ? 'new' : ''}"></i><span>${short(n.date)}<br>${n.date.slice(0, 4)}</span></div>`).join('')}</div>
       <details class="how"><summary>How this night was recorded</summary><dl>
         <dt>Source</dt><dd>Stage setlist photo, read by Setlistr.</dd>
-        <dt>Your answers</dt><dd>${esc(S.sheet.crossed)}: ${S.answers.x === 'skip' ? 'skipped' : 'played'}. “${esc(SHORT[S.sheet.extra] || S.sheet.extra)}”: ${S.answers.add === 'song' ? esc(S.sheet.extra) : 'not a song played'}.</dd>
-        <dt>Order</dt><dd>From the sheet.</dd>
+        <dt>Confirmed by you</dt><dd>${show.songs.length} songs played${S.result.rows.some(r => !r.played) ? `; ${S.result.rows.filter(r => !r.played).map(r => esc(r.song)).join(', ')} not played` : ''}.</dd>
+        <dt>Order</dt><dd>${S.order ? 'Confirmed as played.' : 'From the sheet. Not confirmed.'}</dd>
         ${S.plan ? '<dt>Your set</dt><dd>Kept as planned; it isn’t part of what was played.</dd>' : ''}</dl></details>
     </section>`
 }
@@ -399,10 +439,10 @@ function story() {
 
 // ── Actions ───────────────────────────────────────────────────────────────
 const NOTES = {
-  today: 'Proposed: the Next up briefing and Your set. Schedule, photo reading, Review and Career exist today. “Add the setlist photo” skips ahead to after the show.',
+  today: 'Proposed: a Next up section on Home, and Your set. Schedule, photo reading, Review and Career exist today. “Add the setlist photo” skips ahead to after the show.',
   plan: 'Proposed: Your set, built from a past set. Optional.',
   show: () => `Skipped ahead to ${wday(next().date)}, after the show.`,
-  confirm: 'Simulated photo, drawn by the prototype. Photo reading exists in Setlistr today; nothing here was read or recorded.',
+  confirm: 'Simulated photo, drawn by the prototype. Photo reading exists in Setlistr today; nothing here was read or recorded. The song-by-song confirmation is proposed.',
   done: 'Simulated night. Nothing was recorded.',
 }
 function action() {
@@ -413,22 +453,17 @@ function action() {
       : { label: 'Add your next show', note: '', go: () => toast('Prototype: would open Schedule.') }
     case 'plan': return { label: 'Save your set', note: S.swap ? `1 change from ${short(S.sug.last.date)}.` : `Same as ${short(S.sug.last.date)}.`, go: () => { S.stage = 'show'; render(true) } }
     case 'show': return { label: 'Add setlist photo', note: '', go: openPhoto }
-    case 'confirm': return { label: 'Confirm the night', note: S.reading ? 'Reading…' : (S.answers.x && S.answers.add ? '' : 'Answer the two questions first.'), disabled: S.reading || !(S.answers.x && S.answers.add), go: confirmNight }
+    case 'confirm': return { label: 'Confirm these songs were played', note: S.reading ? 'Reading…' : (S.answers.x && S.answers.add ? `${S.rows.filter(r => r.played).length} songs` : 'Answer the two questions first.'), disabled: S.reading || !(S.answers.x && S.answers.add), go: confirmNight }
     case 'done': { const nx = A.nights.find(n => n.upcoming); return { label: nx ? `Next up: ${nx.city}` : 'Done', note: '', go: () => { A.today = S.result.night.date; reset2(); render(true) } } }
   }
 }
 function reset2() { S = { stage: 'today', plan: null, base: null, sug: null, choosing: false, swap: null, answers: {}, sheet: null, result: null } }
 function startPlan() { const show = next(); S.sug = discovery(show); S.plan = S.sug.base.slice(); S.swap = null; S.choosing = false; S.stage = 'plan'; render(true) }
-function openPhoto() { S.sug = S.sug || discovery(next()); S.sheet = makeSheet(); S.answers = {}; S.reading = true; S.stage = 'confirm'; render(true); setTimeout(() => { S.reading = false; render() }, motion() ? 1400 : 0) }
+function openPhoto() { S.sug = S.sug || discovery(next()); S.sheet = makeSheet(); S.answers = {}; S.rows = null; S.editing = null; S.order = false; S.reading = true; S.stage = 'confirm'; render(true); setTimeout(() => { S.reading = false; render() }, motion() ? 1400 : 0) }
 
 function confirmNight() {
-  const show = next(), sh = S.sheet, a = S.answers
-  const rows = []
-  for (const l of sh.lines) {
-    if (l.add) { if (a.add === 'song') rows.push({ song: l.song, state: 'played', added: true }); continue }
-    rows.push({ song: l.song, state: l.x && a.x === 'skip' ? 'skip' : 'played' })
-  }
-  const songs = rows.filter(r => r.state === 'played').map(r => r.song)
+  const show = next(), rows = S.rows
+  const songs = rows.filter(r => r.played).map(r => r.song)
   const s = S.sug.song, everBefore = s && past().some(n => n.songs && n.songs.includes(s))
   const prior = inCity(show.city), noSet = prior.filter(n => !n.songs)
   for (const n of A.nights) n.justAdded = false
@@ -446,6 +481,7 @@ function confirmNight() {
   S.result = { night: show, rows, change, qual }
   S.stage = 'done'; render(true); animateDone()
 }
+
 const cap = t => t[0].toUpperCase() + t.slice(1)
 
 function animateDone() {
@@ -477,14 +513,22 @@ document.addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return
   const d = b.dataset
   if (d.go === 'today') { S.stage = 'today'; render(true) }
+  else if (d.go === 'home') { A.today = S.result.night.date; reset2(); render(true) }
+  else if (d.tog) { const r = S.rows[+d.tog]; r.played = !r.played; render() }
+  else if (d.edit) { S.editing = S.editing === +d.edit ? null : +d.edit; render() }
+  else if ('order' in d) { S.order = !S.order; render() }
   else if ('photo' in d) openPhoto()
   else if ('bring' in d) { S.choosing = true; render() }
   else if ('cancel' in d) { S.choosing = false; render() }
   else if (d.swap) { const i = +d.swap; S.swap = { i, from: S.plan[i], to: S.sug.song }; S.plan[i] = S.sug.song; S.choosing = false; render() }
   else if ('undo' in d) { S.plan[S.swap.i] = S.swap.from; S.swap = null; render() }
-  else if (d.ans) { S.answers[d.ans] = d.v; render() }
+  else if (d.ans) { S.answers[d.ans] = d.v; S.rows = null; S.editing = null; render() }
   else if (d.scn) { scn = d.scn; reset(); document.querySelectorAll('[data-scn]').forEach(x => x.setAttribute('aria-pressed', x === b)); render(true) }
   else if (d.th) { if (d.th === 'system') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme', d.th); document.querySelectorAll('[data-th]').forEach(x => x.setAttribute('aria-pressed', x === b)) }
+})
+document.addEventListener('change', e => {
+  const f = e.target.dataset && e.target.dataset.fix
+  if (f != null) { const r = S.rows[+f]; if (e.target.value !== r.song) { r.song = e.target.value; r.fixed = true; r.played = true } S.editing = null; render() }
 })
 render()
 </script>
