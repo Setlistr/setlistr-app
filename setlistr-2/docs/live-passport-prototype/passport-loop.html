@@ -1,8 +1,8 @@
-<title>Live Passport</title>
+<title>Next Up</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700;9..40,800&display=swap">
 <style>
-/* Layout: one phone-first column. Today's show leads; the Passport sits below. One primary action pinned to the bottom.
+/* Layout: one phone-first column. Next up leads; your live story (Career) sits below. One primary action pinned to the bottom.
    Dark-first like the app (Setlistr --sl tokens); Light uses the app's own Light values. */
 :root {
   --sl-bg: #0a0908; --sl-surface: #16140f; --sl-surface-2: #1d1a15; --sl-line: rgba(255,255,255,0.08);
@@ -40,6 +40,8 @@ button:focus-visible, summary:focus-visible { outline: 2px solid var(--sl-accent
 
 .proto { max-width: 520px; margin: 0 auto; padding-block: 10px; display: grid; gap: 8px; border-bottom: 1px dashed var(--sl-line); font-size: 12.5px; color: var(--sl-text-3); }
 .proto b { color: var(--sl-text-2); font-weight: 600; }
+.pnote { color: var(--sl-warn); }
+.pnote:empty { display: none; }
 .proto .row { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; justify-content: space-between; }
 .seg { display: inline-flex; gap: 4px; flex-wrap: wrap; }
 .seg button { background: none; border: 1px solid var(--sl-line); border-radius: 999px; padding: 4px 10px; min-height: 32px; font-size: 12.5px; color: var(--sl-text-2); }
@@ -79,6 +81,7 @@ ol.set.planned li .t::before { content: ''; display: inline-block; width: 7px; h
 ol.set.played li .t::before { content: ''; display: inline-block; width: 7px; height: 7px; background: var(--sl-gold); border-radius: 50%; margin-right: 8px; vertical-align: 1px; }
 ol.set.compact { display: block; columns: 2; column-gap: 18px; }
 ol.set.compact li { break-inside: avoid; border-top: 0; padding: 4px 0; font-size: 14px; grid-template-columns: 18px minmax(0,1fr) auto; gap: 8px; }
+ol.set li.skipd .t::before { background: transparent !important; border: 1.5px dashed var(--sl-text-3) !important; }
 ol.set li.skipd .t { text-decoration: line-through; color: var(--sl-text-3); }
 
 .chip { display: inline-flex; gap: 8px; align-items: center; min-height: 44px; padding: 8px 14px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--sl-gold) 50%, transparent); background: color-mix(in srgb, var(--sl-gold) 10%, transparent); color: var(--sl-gold-text); font-weight: 700; }
@@ -129,7 +132,7 @@ details.how dd { margin: 0 0 4px; color: var(--sl-text-3); }
 .hist span { font: 10.5px/1.3 var(--mono); color: var(--sl-text-3); white-space: nowrap; text-align: center; }
 @media (prefers-reduced-motion: no-preference) { .hist .m.new { animation: land .9s cubic-bezier(.2,.9,.2,1.2) both .2s; } @keyframes land { from { transform: translateY(-40px) scale(2.4); opacity: 0; } 60% { opacity: 1; } } }
 
-/* The wider Passport. */
+/* Your live story (within Career). */
 .pp { border-top: 1px solid var(--sl-text); padding-top: 14px; display: grid; gap: 14px; }
 .pp-id { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; flex-wrap: wrap; }
 .pp-name { font-family: var(--display); font-size: 44px; line-height: .9; letter-spacing: .012em; }
@@ -160,7 +163,8 @@ details.how dd { margin: 0 0 4px; color: var(--sl-text-3); }
 </style>
 
 <div class="proto" role="region" aria-label="Prototype controls">
-  <span><b>Prototype</b> · fictional sample artist. Nothing here was discovered or recorded. <span class="prop">Proposed</span> marks new ideas; photo reading, review, Schedule and Career history exist today.</span>
+  <span><b>Prototype</b> · Lena Hart is a fictional sample artist. Nothing here was discovered or recorded.</span>
+  <span id="pnote" class="pnote"></span>
   <div class="row">
     <span class="seg" aria-label="Sample"><button data-scn="est" aria-pressed="true">Touring artist</button><button data-scn="new" aria-pressed="false">New artist</button></span>
     <span class="seg" aria-label="Theme"><button data-th="system" aria-pressed="true">System</button><button data-th="light" aria-pressed="false">Light</button><button data-th="dark" aria-pressed="false">Dark</button></span>
@@ -254,86 +258,79 @@ function discovery(show) {
 // ── Screens ───────────────────────────────────────────────────────────────
 function today() {
   const show = next()
-  if (!show) return `<section style="display:grid;gap:10px"><div class="ov">Live Passport · ${esc(A.name)}</div><h1 class="city" style="font-size:72px">No show booked</h1>
-    <p class="when">Your record is up to date. Add your next show and its briefing will be here.</p></section>${passport()}`
-  const d = discovery(show), n = days(A.today, show.date), when = n === 0 ? 'Tonight' : n === 1 ? 'Tomorrow' : `In ${n} days`
-  const nth = d.here.length + 1, last = d.last, noSet = d.here.filter(x => !x.songs)
-  const lastAny = d.here[d.here.length - 1]
-  let say = '', scope = ''
+  if (!show) return `<section style="display:grid;gap:6px"><div class="ov">Next up</div><h1 class="city">Nothing booked</h1>
+    <p class="when">Add your next show and it will lead here.</p></section>${story()}`
+  const d = discovery(show), n = days(A.today, show.date), when = n === 0 ? 'tonight' : n === 1 ? 'tomorrow' : `in ${n} days`
+  const last = d.last, noSet = d.here.filter(x => !x.songs), lastAny = d.here[d.here.length - 1]
+  let head = '', fact = '', qual = ''
   if (d.kind === 'recent') {
-    say = `<em>${esc(d.song)}</em> has joined your sets: it’s in ${d.count} of your last ${d.of}, first on your record ${short(d.first)}. It isn’t in any ${esc(show.city)} setlist on your record.`
-    scope = `${w(d.sets.length)[0].toUpperCase() + w(d.sets.length).slice(1)} of your ${w(d.here.length)} ${esc(show.city)} nights have a setlist.${noSet.length ? ` ${noSet.map(x => full(x.date)).join(', ')} ${noSet.length === 1 ? 'has' : 'have'} none, so we can’t say what was played then.` : ''}`
+    head = `<em>${esc(d.song)}</em> is new since your last ${esc(show.city)} set.`
+    fact = `It’s in ${d.count} of your last ${d.of} sets, from ${short(d.first)}.`
+    qual = `Not in your ${w(d.sets.length)} ${esc(show.city)} setlists.${noSet.length ? ` ${noSet.map(x => full(x.date)).join(', ')} ${noSet.length === 1 ? 'has' : 'have'} no setlist, so it may have been played then.` : ''}`
   } else if (d.kind === 'catalog') {
-    say = `<em>${esc(d.song)}</em> is in your songs but not in your one recorded set.`
-    scope = `From your one recorded night and your song list. Nothing here is about what audiences like.`
+    head = `<em>${esc(d.song)}</em> wasn’t in your last set.`
+    fact = `It’s in your songs. ${short(last.date)} in ${esc(last.city)} is your only set so far.`
   }
   return `
     <section style="display:grid;gap:4px">
-      <div class="ov">${when} · Live Passport</div>
+      <div class="ov">Next up · ${when}</div>
       <h1 class="city">${esc(show.city)}</h1>
-      <p class="when"><b>${wday(show.date)}</b> · ${esc(show.venue)} · ${d.here.length ? `your ${ord(nth)} night here on your record` : d.last ? 'a new city on your record' : 'a new city'}</p>
+      <p class="when"><b>${wday(show.date)}</b> · ${esc(show.venue)} · ${d.here.length ? `your ${ord(d.here.length + 1)} night here` : 'your first night here'}</p>
     </section>
-    ${say ? `<section class="card gold">
-      <div class="kick">${d.kind === 'recent' ? `Since ${short(last.date)}` : 'Something to try'} <span class="prop">Proposed</span></div>
-      <p class="big-say">${say}</p>
-      <p class="small">${scope}</p>
-      <details class="how"><summary>How we know</summary><dl>${(d.here.length ? d.here : [last]).map(x => `<dt>${full(x.date)} · ${esc(x.venue)}</dt><dd>${x.songs ? `${x.songs.length} songs · ${x.source === 'photo' ? 'setlist photo, confirmed in review' : 'live capture, confirmed in review'}${x.songs.includes(d.song) ? ` · includes ${esc(d.song)}` : ''}` : 'Listed show you confirmed happened · no setlist'}</dd>`).join('')}</dl></details>
+    ${head ? `<section class="card gold">
+      <p class="big-say">${head}</p>
+      <p class="say">${fact}</p>
+      ${qual ? `<p class="small">${qual}</p>` : ''}
+      <details class="how"><summary>How we know</summary><dl>${(d.here.length ? d.here : [last]).map(x => `<dt>${full(x.date)} · ${esc(x.venue)}</dt><dd>${x.songs ? `${x.songs.length} songs · ${x.source === 'photo' ? 'setlist photo, confirmed in Review' : 'live capture, confirmed in Review'}${x.songs.includes(d.song) ? ` · includes ${esc(d.song)}` : ''}` : 'Show confirmed · no setlist'}</dd>`).join('')}</dl></details>
     </section>` : ''}
     ${last ? `<section class="card">
-      <div class="kick">${d.here.length ? 'Last time here' : 'Your last set'}</div>
-      <p class="sub"><b style="color:var(--sl-text)">${full(last.date)}</b> · ${esc(last.venue)}${d.here.length ? '' : `, ${esc(last.city)}`} · ${last.songs.length} songs${lastAny && lastAny !== last ? `<br><span class="small">Your most recent night here, ${full(lastAny.date)}, has no setlist.</span>` : ''}</p>
+      <div class="kick">${d.here.length ? `Last time in ${esc(show.city)}` : `Your last show · ${esc(last.city)}`}</div>
+      <p class="sub"><b style="color:var(--sl-text)">${full(last.date)}</b> · ${esc(last.venue)} · ${last.songs.length} songs${lastAny && lastAny !== last ? `<br><span class="small">${full(lastAny.date)} here has no setlist.</span>` : ''}</p>
       <ol class="set compact">${last.songs.map((s, i) => `<li><span class="i">${i + 1}</span><span class="t">${esc(s)}</span></li>`).join('')}</ol>
-      <p class="small">${last.source === 'photo' ? 'Order from a setlist photo, not confirmed as played.' : 'Order as played (live capture).'}</p>
+      ${last.source === 'photo' ? '<p class="small">Order from the setlist sheet.</p>' : ''}
     </section>` : ''}
-    ${passport()}`
+    <button class="ghost" data-photo style="justify-self:start">Played already? Add the setlist photo</button>
+    ${story()}`
 }
 
 function plan() {
-  const d = S.sug, show = next()
-  const planned = S.plan
-  const changed = S.swap
+  const d = S.sug, show = next(), planned = S.plan, changed = S.swap
   return `
-    <button class="back" data-go="today">← ${esc(show.city)}</button>
-    <section style="display:grid;gap:6px">
-      <div class="ov">Plan · ${wday(show.date)} <span class="prop">Proposed</span></div>
-      <p class="sub">Starting from ${d.here.length ? `your ${short(d.last.date)} set here` : `your ${short(d.last.date)} set`}. A plan is what you intend to play, never a record of what was played.</p>
+    <button class="back" data-go="today">← Next up</button>
+    <section style="display:grid;gap:4px">
+      <div class="ov">Your set · ${wday(show.date)}</div>
+      <p class="sub">From your ${short(d.last.date)} set${d.here.length ? ` in ${esc(show.city)}` : ''}.</p>
     </section>
     ${d.song && !changed ? `<section class="card gold">
-      ${S.choosing ? `<p class="say">Which song does <em>${esc(d.song)}</em> replace? Tap it.</p><button class="ghost" data-cancel style="justify-self:start">Cancel</button>`
-        : `<button class="chip" data-bring>Bring in ${esc(d.song)}</button><p class="small">You choose what it replaces. Setlistr doesn’t pick songs for you.</p>`}
+      ${S.choosing ? `<p class="say">Tap the song <em>${esc(d.song)}</em> replaces.</p><button class="ghost" data-cancel style="justify-self:start">Cancel</button>`
+        : `<button class="chip" data-bring>Bring in ${esc(d.song)}</button>`}
     </section>` : ''}
-    ${changed ? '' : `<section class="card">
-      <div class="kick">Planned · unchanged so far</div>
-      <ol class="set planned ${S.choosing ? 'pick' : ''}">${planned.map((s, i) => S.choosing
-        ? `<li><button data-swap="${i}"><span class="i">${i + 1}</span><span class="t">${esc(s)}</span><span class="x">replace</span></button></li>`
-        : `<li><span class="i">${i + 1}</span><span class="t">${esc(s)}</span></li>`).join('')}</ol>
-    </section>`}
     ${changed ? `<section class="card">
-      <div class="kick">Your plan, compared with ${short(d.last.date)}</div>
-      <div class="cmp"><div class="hd">${short(d.last.date)} · played</div><div class="hd">${short(show.date)} · planned only</div>
+      <div class="cmp"><div class="hd">${short(d.last.date)} · played</div><div class="hd">${short(show.date)} · planned</div>
         ${d.base.map((s, i) => `<div class="c ${i === changed.i ? 'out' : ''}">${esc(s)}</div><div class="c ${i === changed.i ? 'newin' : ''}">${esc(planned[i])}</div>`).join('')}</div>
-      <p class="say">One change: <em>${esc(changed.to)}</em> in for ${esc(changed.from)}, at number ${changed.i + 1}.</p>
+      <p class="say"><em>${esc(changed.to)}</em> in for ${esc(changed.from)}.</p>
       <button class="ghost" data-undo style="justify-self:start">Undo</button>
-    </section>` : ''}`
+    </section>` : `<section class="card">
+      <div class="kick">Planned</div>
+      <ol class="set planned ${S.choosing ? 'pick' : ''}">${planned.map((s, i) => S.choosing
+        ? `<li><button data-swap="${i}"><span class="i">${i + 1}</span><span class="t">${esc(s)}</span><span class="x">swap</span></button></li>`
+        : `<li><span class="i">${i + 1}</span><span class="t">${esc(s)}</span></li>`).join('')}</ol>
+    </section>`}`
 }
 
 function showDay() {
   const show = next()
   return `
-    <p class="skip">Prototype: skipping ahead to ${wday(show.date)}, after the show.</p>
     <section style="display:grid;gap:4px">
       <div class="ov">Tonight · ${esc(show.venue)}</div>
       <h1 class="city">${esc(show.city)}</h1>
-      <p class="when">Your plan had <b>${S.plan.length} songs</b>${S.swap ? `, with ${esc(S.swap.to)} new here` : ''}. Tell Setlistr what actually happened.</p>
+      ${S.plan ? `<p class="when">Your set: <b>${S.plan.length} songs planned</b>${S.swap ? `, with ${esc(S.swap.to)}` : ''}.</p>` : ''}
     </section>
-    <section class="card">
-      <p class="say">Take a photo of the stage setlist, as you can today, and confirm what Setlistr can’t read for sure. Live capture works too if you ran it during the set.</p>
-      <p class="small">Your plan isn’t used as the answer. Only what you confirm goes on your record.</p>
-    </section>`
+    <section class="card"><p class="big-say">What did you play?</p><p class="say">Add the stage setlist photo, or use live capture if it ran.</p></section>`
 }
 
 function makeSheet() {
-  const p = S.plan.slice(), xi = Math.max(1, p.length - 4)
+  const p = (S.plan || discovery(next()).base).slice(), xi = Math.max(1, p.length - 4)
   const crossed = p[xi] === S.swap?.to ? p[xi - 1] : p[xi]
   const extra = A.catalog.find(s => !p.includes(s) && SHORT[s]) || A.catalog.find(s => !p.includes(s))
   const lines = p.map(s => ({ text: s, song: s, x: s === crossed }))
@@ -342,12 +339,10 @@ function makeSheet() {
 }
 
 function confirmS() {
-  const sh = S.sheet, show = next(), a = S.answers
-  const reading = S.reading
+  const sh = S.sheet, show = next(), a = S.answers, reading = S.reading
   return `
-    <section style="display:grid;gap:4px"><div class="ov">After the show · ${esc(show.city)} <span class="prop sim">Simulated</span></div>
-      <p class="sub">Your setlist photo</p></section>
-    <div class="sheet" aria-label="Photo of the stage setlist (simulated)">${reading ? '<div class="scan"></div>' : ''}
+    <section style="display:grid;gap:4px"><div class="ov">After the show · ${esc(show.city)}</div><p class="sub">Your setlist photo</p></section>
+    <div class="sheet" role="img" aria-label="Photo of the stage setlist (simulated)">${reading ? '<div class="scan"></div>' : ''}
       <div class="hdr">${esc(show.city.toUpperCase())} · ${short(show.date).toUpperCase()}</div>
       <ol>${sh.lines.map(l => `<li class="${l.x ? 'x' : ''} ${l.add ? 'add' : ''}">${l.add ? '^ ' : ''}${esc(l.text)}</li>`).join('')}</ol></div>
     ${reading ? `<p class="small" style="text-align:center">Reading the photo…</p>` : `
@@ -357,68 +352,74 @@ function confirmS() {
         <div class="opts">${[['skip', 'Skipped'], ['played', 'We played it']].map(([v, l]) => `<button class="opt" data-ans="x" data-v="${v}" aria-pressed="${a.x === v}">${l}</button>`).join('')}</div></div>
       <div class="q ${a.add ? 'ok' : ''}"><p>Handwritten <b>“${esc(SHORT[sh.extra] || sh.extra)}”</b> near the end. Which song is it?</p>
         <div class="opts">${[['song', sh.extra], ['none', 'Not a song we played']].map(([v, l]) => `<button class="opt" data-ans="add" data-v="${v}" aria-pressed="${a.add === v}">${esc(l)}</button>`).join('')}</div></div>
-      <p class="small">Order is taken from the sheet and marked unconfirmed. Anything else can be fixed in Review.</p>
+      <p class="small">Order follows the sheet. Fix anything else in Review.</p>
     </section>`}`
 }
 
 function done() {
-  const show = S.result.night, d = S.sug
-  const here = inCity(show.city), sets = here.filter(n => n.songs)
-  const sup = S.result.change
+  const show = S.result.night, here = inCity(show.city)
   return `
-    <section style="display:grid;gap:4px"><div class="ov">On your record · ${wday(show.date)}</div>
-      <h1 class="city">${esc(show.city)}</h1>
-      <p class="when">${esc(show.venue)} · <b>${show.songs.length} songs played</b></p></section>
+    <section style="display:grid;gap:4px"><div class="ov">${esc(show.city)} · ${esc(show.venue)} · ${short(show.date)}</div>
+      <h1 class="city">${here.length === 1 ? 'First night' : `Night ${w(here.length)}`}</h1>
+      <p class="when"><b>${show.songs.length} songs played</b> in ${esc(show.city)}.</p></section>
     <section class="card">
-      <div class="kick" id="txk">Planned</div>
+      <div class="kick" id="txk">${S.plan ? 'Planned' : 'From your photo'}</div>
       <ol class="set compact planned tx" id="tx">${S.result.rows.map((r, i) => `<li class="${r.added ? 'arrive' : ''}" data-r="${r.state}"><span class="i">${i + 1}</span><span class="t">${esc(r.song)}</span>${r.added ? '<span class="tag">added</span>' : r.state === 'skip' ? '<span class="tag" style="color:var(--sl-text-3)">skipped</span>' : ''}</li>`).join('')}</ol>
     </section>
     <section class="card gold reveal wait" id="rv1">
-      <div class="kick">What changed</div>
-      <p class="big-say">${sup}</p>
-      ${here.length > 1 ? `<p class="small">${w(sets.length)[0].toUpperCase() + w(sets.length).slice(1)} of your ${w(here.length)} ${esc(show.city)} nights now have a setlist.</p>` : ''}
+      <p class="big-say">${S.result.change}</p>
+      ${S.result.qual ? `<p class="small">${S.result.qual}</p>` : ''}
     </section>
     <section class="card reveal wait" id="rv2">
-      <div class="kick">${esc(show.city)} on your record</div>
+      <div class="kick">${esc(show.city)} in your live story</div>
       <div class="hist">${here.map(n => `<div class="nt"><i class="m ${n.songs ? '' : 'none'} ${n === show ? 'new' : ''}"></i><span>${short(n.date)}<br>${n.date.slice(0, 4)}</span></div>`).join('')}</div>
-      <p class="small">Your effort tonight: one photo and two answers.</p>
       <details class="how"><summary>How this night was recorded</summary><dl>
-        <dt>Source</dt><dd>Photo of the stage setlist (simulated here), read by Setlistr.</dd>
+        <dt>Source</dt><dd>Stage setlist photo, read by Setlistr.</dd>
         <dt>Your answers</dt><dd>${esc(S.sheet.crossed)}: ${S.answers.x === 'skip' ? 'skipped' : 'played'}. “${esc(SHORT[S.sheet.extra] || S.sheet.extra)}”: ${S.answers.add === 'song' ? esc(S.sheet.extra) : 'not a song played'}.</dd>
-        <dt>Order</dt><dd>From the sheet. Not confirmed as played.</dd>
-        <dt>Plan</dt><dd>Kept separately. The plan isn’t part of the record.</dd></dl></details>
+        <dt>Order</dt><dd>From the sheet.</dd>
+        ${S.plan ? '<dt>Your set</dt><dd>Kept as planned; it isn’t part of what was played.</dd>' : ''}</dl></details>
     </section>`
 }
 
-function passport() {
-  const p = past(), first = p[0]
+function story() {
+  const p = past(), first = p[0], nc = new Set(p.map(n => n.city)).size
   const months = []; let [y, m] = A.nights[0].date.slice(0, 7).split('-').map(Number); const lastK = A.nights[A.nights.length - 1].date.slice(0, 7)
   while (`${y}-${String(m).padStart(2, '0')}` <= lastK) { months.push(`${y}-${String(m).padStart(2, '0')}`); if (++m > 12) { m = 1; y++ } }
   const cities = new Map(); for (const n of A.nights) { const c = cities.get(n.city) || { past: 0, up: null }; if (n.upcoming) c.up = c.up || n; else c.past++; cities.set(n.city, c) }
   const rows = [...cities].sort((a, b) => (b[1].up ? 1 : 0) - (a[1].up ? 1 : 0) || b[1].past - a[1].past).slice(0, 5)
-  return `<section class="pp" aria-label="Your Passport">
-    <div class="pp-id"><span class="pp-name">${esc(A.name)}</span><span class="sample prop">Sample</span></div>
-    <div class="pp-n"><b>${p.length}</b>${p.length === 1 ? 'night' : 'nights'} on your record · ${new Set(p.map(n => n.city)).size} ${new Set(p.map(n => n.city)).size === 1 ? 'city' : 'cities'} · since ${full(first.date)}</div>
+  return `<section class="pp" aria-labelledby="story-h">
+    <div class="pp-id"><span class="kick" id="story-h">Your live story</span><span class="small">In Career</span></div>
+    <span class="pp-name">${esc(A.name)}</span>
+    <div class="pp-n"><b>${p.length}</b>${p.length === 1 ? 'night' : 'nights'} · ${nc} ${nc === 1 ? 'city' : 'cities'} · since ${full(first.date)}</div>
+    <p class="small">From shows confirmed in Setlistr.</p>
     <div class="strip"><div class="months">${months.map((k, i) => `<div class="mo"><span class="dots">${A.nights.filter(n => n.date.startsWith(k)).map(n => `<i class="n ${n.upcoming ? 'up' : ''} ${n.justAdded ? 'new' : ''}"></i>`).join('')}</span><span class="yr">${k.endsWith('-01') || i === 0 ? k.slice(0, 4) : ''}</span></div>`).join('')}</div></div>
     <div class="rows">${rows.map(([c, v]) => `<div class="row-c ${v.up && v.up === next() ? 'hl' : ''}"><b>${esc(c)}</b><span>${v.up ? short(v.up.date) + ' · ' : ''}${v.past ? `${v.past} ${v.past === 1 ? 'night' : 'nights'}` : 'new'}</span></div>`).join('')}</div>
   </section>`
 }
 
 // ── Actions ───────────────────────────────────────────────────────────────
+const NOTES = {
+  today: 'Proposed: the Next up briefing and Your set. Schedule, photo reading, Review and Career exist today. “Add the setlist photo” skips ahead to after the show.',
+  plan: 'Proposed: Your set, built from a past set. Optional.',
+  show: () => `Skipped ahead to ${wday(next().date)}, after the show.`,
+  confirm: 'Simulated photo, drawn by the prototype. Photo reading exists in Setlistr today; nothing here was read or recorded.',
+  done: 'Simulated night. Nothing was recorded.',
+}
 function action() {
   const show = next()
   switch (S.stage) {
     case 'today': return show
-      ? { label: `Start ${short(show.date)} from your ${short(discovery(show).last.date)} set`, note: 'Builds a planned set you can change. Nothing is recorded.', go: startPlan }
-      : { label: 'Add your next show', note: 'Opens Schedule (exists today).', go: () => toast('Prototype: would open Schedule.') }
-    case 'plan': return { label: `Save plan for ${short(show.date)}`, note: S.swap ? `1 change from ${short(S.sug.last.date)}.` : 'No changes yet. You can still save.', go: () => { S.stage = 'show'; render(true) } }
-    case 'show': return { label: 'Add tonight’s setlist photo', note: 'Simulated in this prototype.', go: () => { S.sheet = makeSheet(); S.answers = {}; S.reading = true; S.stage = 'confirm'; render(true); setTimeout(() => { S.reading = false; render() }, motion() ? 1400 : 0) } }
-    case 'confirm': return { label: `Confirm ${short(show.date)}`, note: S.reading ? 'Reading…' : (S.answers.x && S.answers.add ? 'Puts this night on your record.' : 'Answer the two questions first.'), disabled: S.reading || !(S.answers.x && S.answers.add), go: confirmNight }
-    case 'done': { const nx = A.nights.find(n => n.upcoming); return { label: nx ? `Next: ${nx.city}, ${short(nx.date)}` : 'Back to your Passport', note: nx ? 'Its briefing is ready.' : 'Your record now includes tonight.', go: () => { A.today = S.result.night.date; reset2(); render(true) } } }
+      ? { label: 'Build your set', note: `Starts from your ${short(discovery(show).last.date)} set.`, go: startPlan }
+      : { label: 'Add your next show', note: '', go: () => toast('Prototype: would open Schedule.') }
+    case 'plan': return { label: 'Save your set', note: S.swap ? `1 change from ${short(S.sug.last.date)}.` : `Same as ${short(S.sug.last.date)}.`, go: () => { S.stage = 'show'; render(true) } }
+    case 'show': return { label: 'Add setlist photo', note: '', go: openPhoto }
+    case 'confirm': return { label: 'Confirm the night', note: S.reading ? 'Reading…' : (S.answers.x && S.answers.add ? '' : 'Answer the two questions first.'), disabled: S.reading || !(S.answers.x && S.answers.add), go: confirmNight }
+    case 'done': { const nx = A.nights.find(n => n.upcoming); return { label: nx ? `Next up: ${nx.city}` : 'Done', note: '', go: () => { A.today = S.result.night.date; reset2(); render(true) } } }
   }
 }
 function reset2() { S = { stage: 'today', plan: null, base: null, sug: null, choosing: false, swap: null, answers: {}, sheet: null, result: null } }
 function startPlan() { const show = next(); S.sug = discovery(show); S.plan = S.sug.base.slice(); S.swap = null; S.choosing = false; S.stage = 'plan'; render(true) }
+function openPhoto() { S.sug = S.sug || discovery(next()); S.sheet = makeSheet(); S.answers = {}; S.reading = true; S.stage = 'confirm'; render(true); setTimeout(() => { S.reading = false; render() }, motion() ? 1400 : 0) }
 
 function confirmNight() {
   const show = next(), sh = S.sheet, a = S.answers
@@ -428,20 +429,24 @@ function confirmNight() {
     rows.push({ song: l.song, state: l.x && a.x === 'skip' ? 'skip' : 'played' })
   }
   const songs = rows.filter(r => r.state === 'played').map(r => r.song)
-  const before = inCity(show.city).filter(n => n.songs).flatMap(n => n.songs)
-  const everBefore = past().some(n => n.songs && n.songs.includes(S.sug.song))
+  const s = S.sug.song, everBefore = s && past().some(n => n.songs && n.songs.includes(s))
+  const prior = inCity(show.city), noSet = prior.filter(n => !n.songs)
   for (const n of A.nights) n.justAdded = false
   Object.assign(show, { upcoming: false, songs, source: 'photo', justAdded: true })
-  let change
-  const s = S.sug.song
-  if (s && songs.includes(s)) change = everBefore
-    ? `<em>${esc(s)}</em> is now in a ${esc(show.city)} setlist on your record, for the first time.`
-    : `<em>${esc(s)}</em>: first time in a setlist on your record.${inCity(show.city).length === 1 ? ` And ${esc(show.city)} is a new city on your record.` : ''}`
-  else if (inCity(show.city).length === 1) change = `${esc(show.city)} is a new city on your record.`
-  else change = `${esc(show.city)} now has ${inCity(show.city).length} nights on your record.`
-  S.result = { night: show, rows, change }
+  const here = inCity(show.city), sets = here.filter(n => n.songs)
+  let change, qual = ''
+  if (s && songs.includes(s) && everBefore) {
+    change = `<em>${esc(s)}</em>, first time in a ${esc(show.city)} set.`
+    qual = noSet.length ? `Among your ${esc(show.city)} setlists. ${noSet.map(x => full(x.date)).join(', ')} ${noSet.length === 1 ? 'has' : 'have'} none.` : `Among your ${esc(show.city)} setlists.`
+  } else if (s && songs.includes(s)) {
+    change = `<em>${esc(s)}</em>, first time in a set.`
+    qual = here.length === 1 ? `And ${esc(show.city)} joins your live story.` : ''
+  } else if (here.length === 1) change = `${esc(show.city)} joins your live story.`
+  else { change = `${cap(w(sets.length))} of your ${w(here.length)} ${esc(show.city)} nights now have a setlist.` }
+  S.result = { night: show, rows, change, qual }
   S.stage = 'done'; render(true); animateDone()
 }
+const cap = t => t[0].toUpperCase() + t.slice(1)
 
 function animateDone() {
   const items = [...document.querySelectorAll('#tx li')], t = motion() ? 1 : 0
@@ -460,7 +465,8 @@ function render(top) {
   const m = { today, plan, show: showDay, confirm: confirmS, done }[S.stage]
   $('#main').innerHTML = m()
   const a = action()
-  $('#act').innerHTML = `<button class="btn" id="go" ${a.disabled ? 'disabled' : ''}>${esc(a.label)}</button><small>${esc(a.note)}</small>`
+  $('#act').innerHTML = `<button class="btn" id="go" ${a.disabled ? 'disabled' : ''}>${esc(a.label)}</button>${a.note ? `<small>${esc(a.note)}</small>` : ''}`
+  const pn = NOTES[S.stage]; $('#pnote').textContent = typeof pn === 'function' ? pn() : pn
   $('#go').onclick = a.go
   const st = document.querySelector('.strip'); if (st) st.scrollLeft = st.scrollWidth
   if (top) scrollTo({ top: 0, behavior: 'auto' })
@@ -471,6 +477,7 @@ document.addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return
   const d = b.dataset
   if (d.go === 'today') { S.stage = 'today'; render(true) }
+  else if ('photo' in d) openPhoto()
   else if ('bring' in d) { S.choosing = true; render() }
   else if ('cancel' in d) { S.choosing = false; render() }
   else if (d.swap) { const i = +d.swap; S.swap = { i, from: S.plan[i], to: S.sug.song }; S.plan[i] = S.sug.song; S.choosing = false; render() }
