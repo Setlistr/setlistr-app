@@ -185,7 +185,7 @@ export default function HomePage() {
             letterSpacing: '.16em', textTransform: 'uppercase',
           }}>
             <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#C9A84C' }} />
-            Verified Performance Intelligence
+            The Live Performance Record
           </div>
           <h1 className="sl-hero-h1">
             The Live<br />Performance Record<br />Has Never{' '}
@@ -204,8 +204,8 @@ export default function HomePage() {
             Working songwriters registered with SOCAN, ASCAP, BMI, PRS for Music,
             APRA AMCOS, SESAC, and GMR earn live performance royalties for every show.
             Setlistr is the infrastructure that connects live music performance to royalty payment —
-            automatically capturing setlist data and routing it through the submission pipeline
-            so no performance goes unaccounted for.
+            capturing setlists during the show, keeping a confirmed record of every performance,
+            and preparing the claim you file with your PRO.
           </p>
         </section>
 

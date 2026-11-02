@@ -4,11 +4,11 @@ import Link from 'next/link'
 
 export const metadata: Metadata = {
   title: 'How Setlistr Works — Live Setlist Capture & Royalty Submission',
-  description: 'How Setlistr automatically captures your live setlist, verifies every song, and submits royalty claims to SOCAN, ASCAP, BMI, PRS, APRA, SESAC, and GMR.',
+  description: 'How Setlistr captures your live setlist, lets you confirm every song, and prepares the claim you file with SOCAN, ASCAP, BMI, PRS, APRA, SESAC or GMR.',
   alternates: { canonical: '/how-it-works' },
   openGraph: {
     title: 'How Setlistr Works',
-    description: 'From planned setlist to verified performance to royalty submission — the full pipeline.',
+    description: 'From tonight’s show to a confirmed setlist and a claim you’re ready to file.',
     url: 'https://setlistr.ai/how-it-works',
     siteName: 'Setlistr',
     type: 'website',
@@ -29,50 +29,50 @@ const STEPS = [
     title: 'Capture the live show.',
     src: '/screenshots/capture-live.webp',
     alt: 'Setlistr live capture screen showing real-time song recognition during a performance',
-    copy: 'One tap starts the record. On-device audio recognition confirms each song as it’s played and verifies it against your set — no phone-waving, no post-show reconstruction from memory.',
+    copy: 'One tap starts the record. On-device audio recognition recognises each song as it’s played, ready for you to confirm after the show. No phone-waving, no reconstructing the set from memory.',
   },
   {
     n: '03',
     title: 'The show closes out clean.',
     src: '/screenshots/show-complete.webp',
-    alt: 'Setlistr show complete screen showing a verified eight-song setlist captured live',
-    copy: 'When you walk off stage, the performance is already a verified, timestamped record — every song, source-confirmed, ready to move into submission.',
+    alt: 'Setlistr show-complete screen with an eight-song setlist captured live',
+    copy: 'When you walk off stage, every recognised song is timestamped and waiting for your review. Confirm it, and the show is on your record.',
   },
   {
     n: '04',
-    title: 'Verified shows move to claim.',
+    title: 'Confirmed shows move to Prepare.',
     src: '/screenshots/claim-pipeline.webp',
-    alt: 'Setlistr submissions screen showing verified shows marked ready to claim',
+    alt: 'Setlistr Submissions screen listing confirmed shows to prepare',
     copy: 'Confirmed performances flow into the submission pipeline for the PROs you’re registered with — SOCAN, ASCAP, BMI, PRS, APRA, SESAC, GMR — without manual paperwork on your end.',
   },
   {
     n: '05',
     title: 'Your touring record builds itself.',
     src: '/screenshots/career-map.webp',
-    alt: 'Setlistr career map showing verified shows across multiple cities',
-    copy: 'Every verified show adds to a career record — cities played, venues, hours on stage — the performance history that’s never existed at this level of detail before.',
+    alt: 'Setlistr career map showing confirmed shows across multiple cities',
+    copy: 'Every confirmed show adds to a career record — cities played, venues, hours on stage — the performance history that’s never existed at this level of detail before.',
   },
   {
     n: '06',
     title: 'Every milestone is yours to share.',
     src: '/screenshots/share-card.webp',
-    alt: 'Setlistr verified show share card showing one hundred twenty four verified shows',
-    copy: 'Verified show counts and milestones generate shareable cards — proof of work, built for an audience that already follows you.',
+    alt: 'Setlistr share card showing one hundred twenty four confirmed shows',
+    copy: 'Confirmed show counts and milestones generate shareable cards — proof of work, built for an audience that already follows you.',
   },
 ]
 
 const FAQS = [
   {
     q: 'How do I submit a setlist to SOCAN, ASCAP, or BMI?',
-    a: 'Setlistr captures your setlist automatically during a live performance using audio recognition, then routes verified show data through the submission pipeline to your registered performing rights organization — including SOCAN, ASCAP, BMI, PRS, APRA, SESAC, and GMR — without manual paperwork.',
+    a: 'Setlistr captures your setlist during the show, and you confirm it afterwards. Prepare then turns it into a claim sheet in your PRO’s format (SOCAN, ASCAP, BMI, PRS, APRA, SESAC or GMR), which you file in your PRO’s own portal.',
   },
   {
     q: 'What live performance royalties am I owed as a songwriter?',
-    a: 'Performing rights organizations pay songwriters for live performances of their registered works, but most PROs rely on statistical sampling rather than tracking every show. Setlistr closes that gap by creating a verified record of every performance so no show goes unaccounted for.',
+    a: 'Performing rights organizations pay songwriters for live performances of their registered works, but most PROs rely on statistical sampling rather than tracking every show. Setlistr closes that gap by keeping a confirmed record of every show you capture, so none is forgotten when it’s time to file.',
   },
   {
-    q: 'How does Setlistr verify a live performance?',
-    a: 'Setlistr listens during the show using audio recognition, matching songs against the artist’s planned setlist and a cover catalog in real time, then confirms each detection before it becomes part of the permanent performance record.',
+    q: 'How does Setlistr record a live performance?',
+    a: 'Setlistr listens during the show and recognises songs as they’re played. Afterwards you review the list, fix anything it missed or got wrong, and confirm it. Only confirmed shows count on your record.',
   },
   {
     q: 'Is Setlistr available now?',
@@ -170,7 +170,7 @@ export default function HowItWorksPage() {
         </h1>
         <p style={{ fontSize: 17, fontWeight: 300, color: 'rgba(212,209,202,0.8)', lineHeight: 1.8, maxWidth: 560, margin: '0 auto' }}>
           Every screen below is the live product — not a mockup. This is what happens
-          between walking on stage and a royalty claim landing at your PRO.
+          between walking on stage and filing your claim with your PRO.
         </p>
       </section>
 
