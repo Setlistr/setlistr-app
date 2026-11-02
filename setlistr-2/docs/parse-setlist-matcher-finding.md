@@ -1,4 +1,10 @@
-# Finding: the setlist-photo title matcher silently substitutes wrong songs
+# Finding: the setlist-photo title matcher would substitute wrong songs (latent, in code)
+
+> **Correction, 2026-11-02.** The defects below are shown in the code and in offline reproductions; they are **not established production incidents**. The matcher's catalogue query asks `user_songs` for `title, artist`, but that table's columns are `song_title` and `canonical_artist`. Every other reader uses those names. So the query almost certainly fails in production, the catalogue comes back empty, and parsed titles are returned exactly as written. That was not checked against production.
+>
+> **What actually reaches a show today:** a medley line stays as a single combined title, such as "Harbour > June". A cover hint stays in the text, such as "Dreams (FM)". Neither is matched or split.
+>
+> **If the query is corrected, the defects below would become live.** The branch `fix/setlist-title-matcher` is on hold; see `matcher-assessment.md`.
 
 *Recorded 2026-10-30 from the local Before-tonight benchmark. No production data was read. **No fix is authorised.***
 
@@ -18,7 +24,7 @@ return { ...song, title: match.title, artist: match.artist || song.artist }
 
 Script `docs/before-tonight-benchmark/matcher-repro.js`. It has no network calls and copies the matcher logic verbatim. The catalogue contains the artist's own "Dreams" and a cover of Fleetwood Mac's "Dreams".
 
-| Written on the setlist | Production result | Correct | Failure |
+| Written on the setlist | Old matcher result (in code, if its query worked) | Correct | Failure |
 |---|---|---|---|
 | `Dreams (FM)` | Dreams · Lena Hart | Dreams · Fleetwood Mac (writer Stevie Nicks) | **Ambiguous title:** a silent wrong work; the songwriter would be wrong on the claim sheet |
 | `Dreams - Fleetwood Mac` | Dreams · Lena Hart | Dreams · Fleetwood Mac | The same: the artist hint is ignored |
@@ -37,7 +43,7 @@ Script `docs/before-tonight-benchmark/matcher-repro.js`. It has no network calls
 
 The unmatched acronym is kept as written, so it's not a wrong song.
 
-**Why it matters:**
+**Why it would matter if matching ran:**
 - **Silent and wrong, not merely missing:** a confirmer sees a plausible title and has no prompt to check it.
 - **For a cover, the composition and its writers are wrong**, and that carries through to Prepare and the claim sheet.
 - **Medley songs vanish** from the performed record.

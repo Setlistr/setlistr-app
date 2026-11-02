@@ -64,13 +64,29 @@ Until commit 909338b, the review save wrote `performances.status = 'completed'`,
 
 **Not verified:** the production data hasn't been checked. An audit would count `review` shows whose `performance_songs` are all `artist_save_complete`, for the user to decide on. Changing any status is a separate decision.
 
-## 5. Setlist-photo title matcher silently substitutes wrong songs
+## 5. Setlist-photo title matcher: latent wrong-song substitution
 
-**Status:** open, recorded 2026-10-30 from local synthetic fixtures. **No fix authorised.** Detail and an offline repro: `parse-setlist-matcher-finding.md`, `before-tonight-benchmark/matcher-repro.js`.
+**Status:** open, recorded 2026-10-30 from local synthetic fixtures; **corrected 2026-11-02:** the matcher's catalogue query names columns that don't exist (`title, artist` instead of `song_title, canonical_artist`), so in production it most likely never runs. The defects are demonstrated in code, not established production incidents. Assessment: `matcher-assessment.md`. **No fix authorised.** Detail and an offline repro: `parse-setlist-matcher-finding.md`, `before-tonight-benchmark/matcher-repro.js`.
 
-`fuzzyMatch` in `app/api/parse-setlist/route.ts` replaces the parsed title and artist with the best catalogue match above 0.65 and doesn't flag it.
+`fuzzyMatch` in `app/api/parse-setlist/route.ts` would replace the parsed title and artist with the best catalogue match above 0.65 without flagging it. Today, because the query fails, titles reach the show exactly as written: a medley line stays one combined title, and a cover hint stays in the text.
 
-- **Ambiguous titles:** a cover written `Dreams (FM)` became the artist's own "Dreams" in 9 of 9 cases. **This gives the wrong composition and writers downstream in Prepare.**
-- **Medleys:** every `A > B` or `Medley: A / B` line lost one song (8 of 8). Which song is kept depends on catalogue row order.
+- **Ambiguous titles (in code):** a cover written `Dreams (FM)` became the artist's own "Dreams" in 9 of 9 synthetic cases. **This gives the wrong composition and writers downstream in Prepare.**
+- **Medleys (in code):** every `A > B` or `Medley: A / B` line lost one song (8 of 8 synthetic cases). Which song is kept depends on catalogue row order.
 
 **Not verified:** how often real artists have same-titled songs, or write medleys on one line.
+
+## 6. Completing a show merges same-title songs and overwrites the stored artist
+
+**Status:** open, recorded 2026-11-02 from the migration text (`0027_catalog_on_complete.sql`). Not checked against production data. **No SQL is authorised.**
+
+`record_performance_catalog`, run when a show is marked complete, keys each song by a title key that ignores case, punctuation and anything in brackets. It then upserts `user_songs` on `(user_id, song_title)`.
+
+- **Two songs, one key:** the artist's own "Dreams" and a cover written "Dreams (Fleetwood Mac)" share the key `dreams`. If both are played at one show, only one is counted for that show.
+- **Same exact title, different artist:** a cover saved as "Dreams" with artist Fleetwood Mac adds a play to the artist's own "Dreams" row. It also sets that row's `canonical_artist` to Fleetwood Mac, because every update overwrites it with the latest artist.
+- **Effect:** catalogue play counts, Career's most-played songs, and the artist used for later matching. These are **song-performance counts**, not composition identity; Prepare's writers come from `performance_songs`, not from this table.
+
+## 7. Recognition accepts any recording whose title matches a planned song
+
+**Status:** open, recorded 2026-11-02 from the code. `app/api/identify` is not to be changed without explicit instruction.
+
+Live capture (`api/identify`) and upload (`api/upload-identify`) include a recognised recording when its title key matches a planned or uploaded-setlist title, at a score threshold of 1. A planned "Dreams (FM)" therefore admits any recording titled "Dreams", by any artist, with that recording's artist, ISRC and MusicBrainz writers. The composition comes from whichever recording was recognised, not from the person.

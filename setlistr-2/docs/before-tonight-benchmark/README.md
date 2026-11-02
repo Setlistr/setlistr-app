@@ -15,7 +15,7 @@
 | Path | What |
 |---|---|
 | `make_fixtures.py`, `render.js`, `fixtures/truth.json`, `fixtures/visibility.json` | The synthetic artist "Lena Hart", 40 setlists and 3 retakes. The images aren't committed; `render.js` regenerates them. |
-| `lib.js` | The production title matcher, copied verbatim, and a candidate matcher. **The candidate is development evidence only**: it was designed knowing the generator. |
+| `lib.js` | The title matcher's logic as written in production code (its catalogue query most likely fails there, so it probably never ran), copied verbatim, and a candidate matcher. **The candidate is development evidence only**: it was designed knowing the generator. |
 | `score.js`, `results-oracle.json` | The layered scorer (transcription, identification, event association, confirmation effort), run free from ground truth. |
 | `run.js`, `out/freeze.json`, `ledger.json`, `run.log` | The paid harness: pinned model, bounded tokens and retries, a worst-case reservation per call. `freeze.json` records the original fingerprints and the owner-approved diagnostic revision. |
 | `matcher-repro.js` | Offline reproduction of the matcher defects (see `../parse-setlist-matcher-finding.md`). |
@@ -24,7 +24,7 @@
 
 ## Findings worth keeping
 
-1. **Production matcher defects:** ambiguous titles and medleys. Recorded in `../parse-setlist-matcher-finding.md` and backlog item 5 of `../data-integrity-open-issues.md`. No fix authorised.
+1. **Matcher defects, latent in code:** ambiguous titles and medleys. Not production incidents: the matcher's catalogue query most likely fails in production (corrected 2026-11-02). Recorded in `../parse-setlist-matcher-finding.md` and backlog item 5 of `../data-integrity-open-issues.md`. No fix authorised.
 2. **Event association, run free from ground truth:**
    - With a photo time near the show and a header, the right booking was the top candidate in 14 of 15 dev and 14 of 22 held-out cases.
    - Held-out photos with no usable time had **no candidate at all** (6 of 22).
