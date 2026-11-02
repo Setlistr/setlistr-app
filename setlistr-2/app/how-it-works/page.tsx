@@ -28,7 +28,7 @@ const STEPS = [
     n: '02',
     title: 'Capture the live show.',
     src: '/screenshots/capture-live.webp',
-    alt: 'Setlistr live capture screen showing real-time song recognition during a performance',
+    alt: 'Setlistr live capture screen listening during a set, with six songs recognised so far (sample data)',
     copy: 'One tap starts the record. On-device audio recognition recognises each song as it’s played, ready for you to confirm after the show. No phone-waving, no reconstructing the set from memory.',
   },
   {
@@ -42,8 +42,8 @@ const STEPS = [
     n: '04',
     title: 'Confirmed shows move to Prepare.',
     src: '/screenshots/claim-pipeline.webp',
-    alt: 'Setlistr Submissions screen listing confirmed shows to prepare',
-    copy: 'Confirmed performances flow into the submission pipeline for the PROs you’re registered with — SOCAN, ASCAP, BMI, PRS, APRA, SESAC, GMR — without manual paperwork on your end.',
+    alt: 'Setlistr Submissions screen listing shows with what each still needs before filing (sample data)',
+    copy: 'Each show waits in Submissions with whatever it still needs. Prepare then turns it into a claim sheet in your PRO’s format (SOCAN, ASCAP, BMI, PRS, APRA, SESAC or GMR), ready for you to file.',
   },
   {
     n: '05',
@@ -56,8 +56,8 @@ const STEPS = [
     n: '06',
     title: 'Every milestone is yours to share.',
     src: '/screenshots/share-card.webp',
-    alt: 'Setlistr share card showing one hundred twenty four confirmed shows',
-    copy: 'Confirmed show counts and milestones generate shareable cards — proof of work, built for an audience that already follows you.',
+    alt: 'Setlistr share card for one night: Ryder Vance live at The Saltbox, Nashville, 8 songs (sample data)',
+    copy: 'Every confirmed show makes a card you can share, and milestones get their own — proof of work, built for an audience that already follows you.',
   },
 ]
 

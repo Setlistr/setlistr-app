@@ -27,7 +27,7 @@ const TOUR = [
     title: 'Proof, not paperwork.',
     copy: 'Confirmed shows, prepared in your PRO’s format for you to file. No spreadsheet, no chasing.',
     src: '/screenshots/claim-pipeline.webp',
-    alt: 'Setlistr screen listing recorded shows',
+    alt: 'Setlistr Submissions screen listing shows with what each still needs before filing (sample data)',
     reverse: false,
   },
   {
