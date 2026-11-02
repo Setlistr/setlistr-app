@@ -1,0 +1,483 @@
+<title>Live Passport</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700;9..40,800&display=swap">
+<style>
+/* Layout: one phone-first column. Today's show leads; the Passport sits below. One primary action pinned to the bottom.
+   Dark-first like the app (Setlistr --sl tokens); Light uses the app's own Light values. */
+:root {
+  --sl-bg: #0a0908; --sl-surface: #16140f; --sl-surface-2: #1d1a15; --sl-line: rgba(255,255,255,0.08);
+  --sl-text: #f3eee4; --sl-text-2: #cdc2a8; --sl-text-3: #ab9d82;
+  --sl-gold: #c9a84c; --sl-gold-text: #d8b85c; --sl-accent: #c9a84c; --sl-on-accent: #0a0908;
+  --sl-tick: rgba(255,255,255,0.16); --sl-warn: #f59e0b; --sl-ok: #4ade80;
+  --sl-page-glow: radial-gradient(ellipse at 50% 0%, rgba(201,168,76,0.08) 0%, transparent 60%);
+  --sl-card-bg: linear-gradient(180deg, #171512 0%, #121009 100%);
+  --sl-glow: 0 0 14px rgba(201,168,76,0.55);
+  --paper: #efe8d6; --ink: #1c1a16; --ink-blue: #2747a3;
+  --display: 'Bebas Neue', 'Oswald', 'Arial Narrow', sans-serif;
+  --sans: 'DM Sans', system-ui, -apple-system, sans-serif;
+  --mono: 'DM Mono', ui-monospace, Menlo, monospace;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) {
+  --sl-bg: #ffffff; --sl-surface: #f4f4f5; --sl-surface-2: #ececee; --sl-line: rgba(17,19,24,0.1);
+  --sl-text: #14161b; --sl-text-2: #3f434b; --sl-text-3: #5b5f67;
+  --sl-gold: #b8963e; --sl-gold-text: #7a5c0c; --sl-accent: #7a5e14; --sl-on-accent: #ffffff;
+  --sl-tick: rgba(17,19,24,0.15); --sl-warn: #9a5800; --sl-ok: #17703a; --sl-page-glow: none; --sl-card-bg: #f4f4f5; --sl-glow: 0 0 0 2px rgba(122,94,20,0.35);
+  --paper: #f6f0e0; color-scheme: light;
+} }
+:root[data-theme="light"] {
+  --sl-bg: #ffffff; --sl-surface: #f4f4f5; --sl-surface-2: #ececee; --sl-line: rgba(17,19,24,0.1);
+  --sl-text: #14161b; --sl-text-2: #3f434b; --sl-text-3: #5b5f67;
+  --sl-gold: #b8963e; --sl-gold-text: #7a5c0c; --sl-accent: #7a5e14; --sl-on-accent: #ffffff;
+  --sl-tick: rgba(17,19,24,0.15); --sl-warn: #9a5800; --sl-ok: #17703a; --sl-page-glow: none; --sl-card-bg: #f4f4f5; --sl-glow: 0 0 0 2px rgba(122,94,20,0.35);
+  --paper: #f6f0e0; color-scheme: light;
+}
+* { box-sizing: border-box; }
+html, body { background: var(--sl-bg); color: var(--sl-text); }
+body { font: 15px/1.5 var(--sans); padding-inline: 16px; padding-block: 0 140px; background-image: var(--sl-page-glow); background-repeat: no-repeat; }
+button { font: inherit; color: inherit; cursor: pointer; }
+button:focus-visible, summary:focus-visible { outline: 2px solid var(--sl-accent); outline-offset: 2px; border-radius: 4px; }
+
+.proto { max-width: 520px; margin: 0 auto; padding-block: 10px; display: grid; gap: 8px; border-bottom: 1px dashed var(--sl-line); font-size: 12.5px; color: var(--sl-text-3); }
+.proto b { color: var(--sl-text-2); font-weight: 600; }
+.proto .row { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; justify-content: space-between; }
+.seg { display: inline-flex; gap: 4px; flex-wrap: wrap; }
+.seg button { background: none; border: 1px solid var(--sl-line); border-radius: 999px; padding: 4px 10px; min-height: 32px; font-size: 12.5px; color: var(--sl-text-2); }
+.seg button[aria-pressed="true"] { border-color: var(--sl-gold); color: var(--sl-gold-text); }
+.prop { display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; border: 1px dashed var(--sl-text-3); color: var(--sl-text-3); border-radius: 999px; padding: 1px 7px; vertical-align: middle; white-space: nowrap; }
+.sim { border-style: solid; border-color: var(--sl-warn); color: var(--sl-warn); }
+
+main { max-width: 520px; margin: 0 auto; padding-top: 22px; display: grid; gap: 22px; }
+.ov { font-size: 13px; font-weight: 600; color: var(--sl-gold-text); display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.city { font-family: var(--display); font-weight: 400; font-size: clamp(76px, 24vw, 128px); line-height: .82; letter-spacing: .012em; margin: 6px 0 0 -3px; overflow-wrap: anywhere; }
+.when { margin: 10px 0 0; font-size: 15px; color: var(--sl-text-2); }
+.when b { color: var(--sl-text); font-weight: 600; }
+.h2 { font-size: 17px; font-weight: 700; margin: 0; }
+.sub { margin: 0; font-size: 14px; color: var(--sl-text-2); }
+.small { font-size: 12.5px; color: var(--sl-text-3); line-height: 1.45; margin: 0; }
+.card { background: var(--sl-card-bg); border-radius: 16px; padding: 16px; display: grid; gap: 10px; box-shadow: inset 0 0 0 1px var(--sl-line); }
+.card.gold { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sl-gold) 34%, transparent); }
+.kick { font-size: 11.5px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: var(--sl-gold-text); }
+.big-say { margin: 0; font-size: 19px; font-weight: 600; line-height: 1.35; text-wrap: pretty; }
+.big-say em, .say em { font-style: normal; color: var(--sl-gold-text); }
+.say { margin: 0; font-size: 15px; line-height: 1.45; }
+
+ol.set { list-style: none; margin: 0; padding: 0; display: grid; }
+ol.set li { display: grid; grid-template-columns: 22px minmax(0,1fr) auto; gap: 10px; align-items: baseline; padding: 7px 0; border-top: 1px solid var(--sl-line); font-size: 15px; }
+ol.set li:first-child { border-top: 0; }
+ol.set .i { font: 12px var(--mono); color: var(--sl-text-3); text-align: right; }
+ol.set .t { overflow-wrap: anywhere; }
+ol.set .tag { font-size: 11.5px; font-weight: 700; color: var(--sl-gold-text); }
+ol.set li.in .t { color: var(--sl-gold-text); font-weight: 600; }
+ol.set.pick li { padding: 0; }
+ol.set.pick button { all: unset; box-sizing: border-box; display: grid; grid-template-columns: 22px minmax(0,1fr) auto; gap: 10px; align-items: baseline; width: 100%; padding: 9px 0; cursor: pointer; min-height: 44px; }
+ol.set.pick button:focus-visible { outline: 2px solid var(--sl-accent); }
+ol.set.pick button .x { font-size: 12px; color: var(--sl-text-3); }
+ol.set.pick button:hover .t { color: var(--sl-gold-text); }
+ol.set.planned li .t { color: var(--sl-text-2); }
+ol.set.planned li .t::before { content: ''; display: inline-block; width: 7px; height: 7px; border: 1.5px dashed var(--sl-text-3); border-radius: 50%; margin-right: 8px; vertical-align: 1px; }
+ol.set.played li .t::before { content: ''; display: inline-block; width: 7px; height: 7px; background: var(--sl-gold); border-radius: 50%; margin-right: 8px; vertical-align: 1px; }
+ol.set.compact { display: block; columns: 2; column-gap: 18px; }
+ol.set.compact li { break-inside: avoid; border-top: 0; padding: 4px 0; font-size: 14px; grid-template-columns: 18px minmax(0,1fr) auto; gap: 8px; }
+ol.set li.skipd .t { text-decoration: line-through; color: var(--sl-text-3); }
+
+.chip { display: inline-flex; gap: 8px; align-items: center; min-height: 44px; padding: 8px 14px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--sl-gold) 50%, transparent); background: color-mix(in srgb, var(--sl-gold) 10%, transparent); color: var(--sl-gold-text); font-weight: 700; }
+.ghost { background: none; border: 1px solid var(--sl-line); border-radius: 999px; padding: 6px 12px; min-height: 40px; font-size: 13.5px; color: var(--sl-text-2); }
+.cmp { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; font-size: 14px; }
+.cmp .hd { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--sl-text-3); padding-bottom: 6px; border-bottom: 1px solid var(--sl-line); }
+.cmp div.c { padding: 4px 0; font-size: 13.5px; border-bottom: 1px solid var(--sl-line); overflow-wrap: anywhere; }
+.cmp .out { color: var(--sl-text-3); text-decoration: line-through; }
+.cmp .newin { color: var(--sl-gold-text); font-weight: 600; }
+
+details.how > summary { list-style: none; cursor: pointer; display: inline-flex; align-items: center; min-height: 40px; font-size: 13.5px; font-weight: 700; color: var(--sl-gold-text); }
+details.how > summary::-webkit-details-marker { display: none; }
+details.how dl { margin: 0; display: grid; gap: 6px; font-size: 13px; }
+details.how dt { font: 12px var(--mono); color: var(--sl-text-2); }
+details.how dd { margin: 0 0 4px; color: var(--sl-text-3); }
+
+/* The stage setlist photo (simulated). */
+.sheet { background: var(--paper); color: var(--ink); border-radius: 4px; padding: 14px 18px 18px; transform: rotate(-1.4deg); box-shadow: 0 18px 40px rgba(0,0,0,.35); position: relative; overflow: hidden; max-width: 330px; margin: 6px auto; }
+.sheet .hdr { font: 13px var(--mono); opacity: .7; margin-bottom: 8px; }
+.sheet ol { margin: 0; padding: 0; list-style: none; font-family: var(--display); font-size: 21px; line-height: 1.12; letter-spacing: .02em; }
+.sheet li.x { text-decoration: line-through; text-decoration-thickness: 3px; }
+.sheet li.add { color: var(--ink-blue); transform: rotate(-3deg) translateX(18px); font-size: 20px; }
+.scan { position: absolute; left: 0; right: 0; height: 26%; background: linear-gradient(to bottom, transparent, rgba(201,168,76,.45), transparent); animation: scan 1.1s ease-in-out infinite; }
+@keyframes scan { from { top: -26%; } to { top: 100%; } }
+.q { display: grid; gap: 8px; padding: 12px; border-radius: 12px; background: var(--sl-surface-2); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sl-warn) 35%, transparent); }
+.q.ok { box-shadow: inset 0 0 0 1px var(--sl-line); }
+.q p { margin: 0; font-size: 14.5px; }
+.q .opts { display: flex; gap: 6px; flex-wrap: wrap; }
+.opt { background: var(--sl-bg); border: 1px solid var(--sl-line); border-radius: 10px; padding: 8px 12px; min-height: 42px; font-size: 14px; }
+.opt[aria-pressed="true"] { border-color: var(--sl-gold); color: var(--sl-gold-text); background: color-mix(in srgb, var(--sl-gold) 12%, transparent); }
+
+/* Transformation: planned → played. */
+.tx li { transition: opacity .35s, transform .35s, max-height .4s, padding .4s; max-height: 60px; }
+.tx li.gone { opacity: 0; max-height: 0; padding-block: 0; border-top-color: transparent; overflow: hidden; }
+.tx li.arrive { opacity: 0; transform: translateX(-10px); }
+.tx li .t::before { transition: background .3s, border-color .3s; }
+.tx li.lit .t::before { background: var(--sl-gold); border: 1.5px solid var(--sl-gold); border-style: solid; }
+.tx li.lit .t { color: var(--sl-text); }
+.reveal { transition: opacity .5s, transform .5s; }
+.reveal.wait { opacity: 0; transform: translateY(8px); }
+
+/* City history: one mark per night here. */
+.hist { display: grid; grid-template-columns: repeat(auto-fit, minmax(54px, 1fr)); gap: 10px 6px; align-items: end; }
+.hist .nt { display: grid; justify-items: center; gap: 4px; }
+.hist .m { width: 14px; height: 14px; border-radius: 50%; background: var(--sl-gold); }
+.hist .m.none { background: transparent; border: 1.5px dashed var(--sl-text-3); }
+.hist .m.new { box-shadow: var(--sl-glow); }
+.hist span { font: 10.5px/1.3 var(--mono); color: var(--sl-text-3); white-space: nowrap; text-align: center; }
+@media (prefers-reduced-motion: no-preference) { .hist .m.new { animation: land .9s cubic-bezier(.2,.9,.2,1.2) both .2s; } @keyframes land { from { transform: translateY(-40px) scale(2.4); opacity: 0; } 60% { opacity: 1; } } }
+
+/* The wider Passport. */
+.pp { border-top: 1px solid var(--sl-text); padding-top: 14px; display: grid; gap: 14px; }
+.pp-id { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.pp-name { font-family: var(--display); font-size: 44px; line-height: .9; letter-spacing: .012em; }
+.pp-n { font-size: 14px; color: var(--sl-text-2); }
+.pp-n b { font-family: var(--display); font-weight: 400; font-size: 34px; color: var(--sl-text); vertical-align: -3px; margin-right: 4px; }
+.strip { overflow-x: auto; }
+.months { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(12px, 1fr); gap: 2px; align-items: end; min-width: max-content; padding-right: 16px; }
+.mo { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.mo .dots { display: flex; flex-direction: column-reverse; gap: 3px; align-items: center; width: 12px; min-height: 10px; }
+.mo .yr { width: 12px; overflow: visible; height: 16px; font-family: var(--display); font-size: 16px; line-height: 16px; color: var(--sl-text-3); white-space: nowrap; }
+.n { width: 10px; height: 10px; border-radius: 50%; background: var(--sl-gold); }
+.n.up { background: transparent; border: 1.5px solid var(--sl-gold); }
+.n.new { box-shadow: var(--sl-glow); }
+.rows { display: grid; }
+.row-c { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--sl-line); }
+.row-c b { font-family: var(--display); font-weight: 400; font-size: 28px; line-height: 1; }
+.row-c span { font: 12.5px var(--mono); color: var(--sl-text-3); }
+.row-c.hl b { color: var(--sl-gold-text); }
+
+.act { position: fixed; left: 0; right: 0; bottom: 0; padding: 14px 16px calc(14px + env(safe-area-inset-bottom, 0px)); background: linear-gradient(to bottom, transparent, var(--sl-bg) 32%); display: grid; justify-items: center; gap: 4px; z-index: 5; }
+.btn { width: 100%; max-width: 520px; min-height: 52px; border: 0; border-radius: 14px; background: var(--sl-accent); color: var(--sl-on-accent); font: 800 16px var(--sans); }
+.btn:disabled { opacity: .45; cursor: default; }
+.act small { font-size: 12.5px; color: var(--sl-text-3); text-align: center; max-width: 520px; }
+.back { background: none; border: 0; padding: 0; min-height: 40px; color: var(--sl-gold-text); font-weight: 700; font-size: 14px; justify-self: start; }
+.skip { font-size: 12.5px; color: var(--sl-warn); border: 1px dashed var(--sl-warn); border-radius: 10px; padding: 8px 10px; }
+.toast { position: fixed; left: 50%; bottom: 104px; transform: translateX(-50%); width: min(520px, calc(100% - 32px)); background: var(--sl-surface-2); border: 1px solid color-mix(in srgb, var(--sl-gold) 40%, transparent); border-radius: 12px; padding: 10px 14px; font-size: 13.5px; z-index: 6; }
+@media (prefers-reduced-motion: reduce) { .scan { animation: none; top: 37%; } .tx li, .reveal { transition: none; } }
+</style>
+
+<div class="proto" role="region" aria-label="Prototype controls">
+  <span><b>Prototype</b> · fictional sample artist. Nothing here was discovered or recorded. <span class="prop">Proposed</span> marks new ideas; photo reading, review, Schedule and Career history exist today.</span>
+  <div class="row">
+    <span class="seg" aria-label="Sample"><button data-scn="est" aria-pressed="true">Touring artist</button><button data-scn="new" aria-pressed="false">New artist</button></span>
+    <span class="seg" aria-label="Theme"><button data-th="system" aria-pressed="true">System</button><button data-th="light" aria-pressed="false">Light</button><button data-th="dark" aria-pressed="false">Dark</button></span>
+  </div>
+</div>
+
+<main id="main"></main>
+<div class="act" id="act"></div>
+
+<script>
+// ── Fictional sample data (deterministic). ────────────────────────────────
+function rng(seed) { return () => { seed = (seed * 1664525 + 1013904223) % 4294967296; return seed / 4294967296 } }
+const CORE = ['Neon Lights', 'Harbour', 'Lighthouse', 'Wildfire Season']
+const ROT = ['Paper Moon Motel', 'The Long Way Home', 'St Agnes', 'June', 'Old Favourites', 'Saltwater', 'Northern Line', 'Copper Sky', 'Glass Houses', 'Low Tide', 'Home Again', 'Dreams', 'Jolene', 'Landslide']
+const DEBUTS = { 'Velvet Static': '2026-05-02', 'Gasoline Halo': '2026-08-21' }
+const SHORT = { 'Northern Line': 'Northern Ln', 'Low Tide': 'Lo Tide', 'Glass Houses': 'Glass Hses', 'Paper Moon Motel': 'PMM', 'Marigold': 'Marigld', 'The Long Way Home': 'Long Way' }
+const EST = [
+  ['2024-03-15', 'Toronto', 'The Horseshoe Tavern'], ['2024-04-12', 'Montréal', 'Casa del Popolo'], ['2024-04-13', 'Ottawa', 'Club SAW'],
+  ['2024-05-24', 'Hamilton', 'Bridgeworks'], ['2024-06-21', 'Toronto', 'Lee’s Palace'], ['2024-07-19', 'Kingston', 'The Mansion'],
+  ['2024-09-13', 'Halifax', 'The Marquee Ballroom'], ['2024-09-14', 'Halifax', 'The Seahorse Tavern'], ['2024-10-04', 'Québec City', 'L’Anti'],
+  ['2024-11-02', 'Montréal', 'Bar Le Ritz PDB'], ['2024-11-03', 'Ottawa', 'Bronson Centre'], ['2024-12-14', 'Toronto', 'The Danforth Music Hall'],
+  ['2025-02-21', 'Winnipeg', 'The Good Will'], ['2025-02-23', 'Calgary', 'Palomino'], ['2025-02-26', 'Vancouver', 'The Biltmore'],
+  ['2025-04-11', 'Toronto', 'The Horseshoe Tavern'], ['2025-05-16', 'Hamilton', 'Bridgeworks'], ['2025-06-20', 'Kingston', 'The Mansion'],
+  ['2025-08-08', 'Ottawa', 'Club SAW'], ['2025-10-17', 'Montréal', 'Théâtre Fairmount'], ['2025-10-18', 'Québec City', 'L’Anti'],
+  ['2025-11-28', 'Toronto', 'Lee’s Palace'], ['2026-01-23', 'Hamilton', 'Bridgeworks'], ['2026-03-06', 'Ottawa', 'Bronson Centre'],
+  ['2026-03-07', 'Montréal', 'Théâtre Fairmount'], ['2026-04-10', 'Toronto', 'The Horseshoe Tavern'], ['2026-05-02', 'Toronto', 'The Danforth Music Hall'],
+  ['2026-05-30', 'Kingston', 'The Mansion'], ['2026-06-26', 'Halifax', 'The Marquee Ballroom'], ['2026-07-17', 'Hamilton', 'Bridgeworks'],
+  ['2026-08-21', 'Ottawa', 'Club SAW'], ['2026-09-11', 'Winnipeg', 'The Good Will'], ['2026-09-13', 'Calgary', 'Palomino'],
+  ['2026-09-16', 'Vancouver', 'The Biltmore'], ['2026-10-09', 'Toronto', 'Lee’s Palace'], ['2026-10-23', 'Hamilton', 'Bridgeworks'],
+  ['2026-10-30', 'Kingston', 'The Mansion'], ['2026-11-14', 'Montréal', 'Le National'], ['2026-11-15', 'Québec City', 'L’Anti'],
+]
+const PHOTO = new Set(['2024-09-14', '2025-02-23', '2026-01-23']), NO_SETLIST = new Set(['2025-10-17', '2024-07-19'])
+function estNights() {
+  const r = rng(7)
+  return EST.map(([date, city, venue], i) => {
+    const n = { id: 'n' + i, date, city, venue, upcoming: date > '2026-11-02' }
+    if (n.upcoming) return n
+    if (NO_SETLIST.has(date)) { n.source = 'listed'; return n }
+    n.source = PHOTO.has(date) ? 'photo' : 'capture'
+    const pool = ROT.slice().sort(() => r() - .5)
+    let set = [...CORE, ...pool.slice(0, 7 + Math.floor(r() * 4))]
+    for (const [s, d] of Object.entries(DEBUTS)) if (date >= d && r() < (date === d ? 1 : .9)) set.push(s)
+    n.songs = set.sort(() => r() - .5)
+    return n
+  })
+}
+const SAMPLES = {
+  est: () => ({ name: 'Lena Hart', today: '2026-11-02', catalog: [...CORE, ...ROT, ...Object.keys(DEBUTS)], nights: estNights() }),
+  new: () => ({ name: 'Lena Hart', today: '2026-11-02', catalog: ['Harbour', 'Neon Lights', 'June', 'Lighthouse', 'Saltwater', 'Wildfire Season', 'St Agnes', 'Ferris Wheel', 'Marigold', 'Paper Moon Motel'],
+    nights: [{ id: 'a', date: '2026-10-03', city: 'Toronto', venue: 'The Baby G', source: 'capture', songs: ['Harbour', 'Neon Lights', 'June', 'Lighthouse', 'Saltwater', 'Wildfire Season', 'St Agnes', 'Ferris Wheel'] },
+             { id: 'b', date: '2026-11-08', city: 'Guelph', venue: 'Jimmy Jazz', upcoming: true }] }),
+}
+
+// ── State ─────────────────────────────────────────────────────────────────
+let scn = 'est', A, S
+function reset() { A = SAMPLES[scn](); S = { stage: 'today', plan: null, base: null, sug: null, choosing: false, swap: null, answers: {}, sheet: null, result: null } }
+reset()
+
+// ── Helpers ───────────────────────────────────────────────────────────────
+const $ = s => document.querySelector(s)
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
+const D = d => new Date(d + 'T12:00:00Z')
+const short = d => D(d).toLocaleDateString('en-CA', { timeZone: 'UTC', month: 'short', day: 'numeric' })
+const full = d => D(d).toLocaleDateString('en-CA', { timeZone: 'UTC', month: 'short', day: 'numeric', year: 'numeric' })
+const wday = d => D(d).toLocaleDateString('en-CA', { timeZone: 'UTC', weekday: 'short', month: 'short', day: 'numeric' })
+const days = (a, b) => Math.round((D(b) - D(a)) / 864e5)
+const words = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten']
+const w = n => words[n] || String(n)
+const ord = n => n + (['th', 'st', 'nd', 'rd'][(n % 100 - 20) % 10] || ['th', 'st', 'nd', 'rd'][n % 100] || 'th')
+const past = () => A.nights.filter(n => !n.upcoming)
+const next = () => A.nights.find(n => n.upcoming)
+const inCity = c => past().filter(n => n.city === c)
+const firstOnRecord = s => past().find(n => n.songs && n.songs.includes(s))
+const motion = () => !matchMedia('(prefers-reduced-motion: reduce)').matches
+
+// The one discovery for this show: a song your recent sets carry that this city's recorded setlists don't.
+function discovery(show) {
+  const here = inCity(show.city), sets = here.filter(n => n.songs)
+  const last = sets[sets.length - 1] || past().filter(n => n.songs).slice(-1)[0], base = last.songs
+  const recent = past().filter(n => n.songs).slice(-10)
+  const heard = new Set(sets.flatMap(n => n.songs))
+  if (recent.length >= 5) {
+    const f = new Map(); for (const n of recent) for (const s of n.songs) f.set(s, (f.get(s) || 0) + 1)
+    const c = [...f].filter(([s, k]) => k >= 6 && !heard.has(s) && !base.includes(s)).sort((a, b) => b[1] - a[1])[0]
+    if (c) return { song: c[0], kind: 'recent', count: c[1], of: recent.length, first: firstOnRecord(c[0]).date, here, sets, last, base }
+  }
+  const s = A.catalog.find(x => !base.includes(x) && !past().some(n => n.songs && n.songs.includes(x)))
+  return s ? { song: s, kind: 'catalog', here, sets, last, base } : { here, sets, last, base }
+}
+
+// ── Screens ───────────────────────────────────────────────────────────────
+function today() {
+  const show = next()
+  if (!show) return `<section style="display:grid;gap:10px"><div class="ov">Live Passport · ${esc(A.name)}</div><h1 class="city" style="font-size:72px">No show booked</h1>
+    <p class="when">Your record is up to date. Add your next show and its briefing will be here.</p></section>${passport()}`
+  const d = discovery(show), n = days(A.today, show.date), when = n === 0 ? 'Tonight' : n === 1 ? 'Tomorrow' : `In ${n} days`
+  const nth = d.here.length + 1, last = d.last, noSet = d.here.filter(x => !x.songs)
+  const lastAny = d.here[d.here.length - 1]
+  let say = '', scope = ''
+  if (d.kind === 'recent') {
+    say = `<em>${esc(d.song)}</em> has joined your sets: it’s in ${d.count} of your last ${d.of}, first on your record ${short(d.first)}. It isn’t in any ${esc(show.city)} setlist on your record.`
+    scope = `${w(d.sets.length)[0].toUpperCase() + w(d.sets.length).slice(1)} of your ${w(d.here.length)} ${esc(show.city)} nights have a setlist.${noSet.length ? ` ${noSet.map(x => full(x.date)).join(', ')} ${noSet.length === 1 ? 'has' : 'have'} none, so we can’t say what was played then.` : ''}`
+  } else if (d.kind === 'catalog') {
+    say = `<em>${esc(d.song)}</em> is in your songs but not in your one recorded set.`
+    scope = `From your one recorded night and your song list. Nothing here is about what audiences like.`
+  }
+  return `
+    <section style="display:grid;gap:4px">
+      <div class="ov">${when} · Live Passport</div>
+      <h1 class="city">${esc(show.city)}</h1>
+      <p class="when"><b>${wday(show.date)}</b> · ${esc(show.venue)} · ${d.here.length ? `your ${ord(nth)} night here on your record` : d.last ? 'a new city on your record' : 'a new city'}</p>
+    </section>
+    ${say ? `<section class="card gold">
+      <div class="kick">${d.kind === 'recent' ? `Since ${short(last.date)}` : 'Something to try'} <span class="prop">Proposed</span></div>
+      <p class="big-say">${say}</p>
+      <p class="small">${scope}</p>
+      <details class="how"><summary>How we know</summary><dl>${(d.here.length ? d.here : [last]).map(x => `<dt>${full(x.date)} · ${esc(x.venue)}</dt><dd>${x.songs ? `${x.songs.length} songs · ${x.source === 'photo' ? 'setlist photo, confirmed in review' : 'live capture, confirmed in review'}${x.songs.includes(d.song) ? ` · includes ${esc(d.song)}` : ''}` : 'Listed show you confirmed happened · no setlist'}</dd>`).join('')}</dl></details>
+    </section>` : ''}
+    ${last ? `<section class="card">
+      <div class="kick">${d.here.length ? 'Last time here' : 'Your last set'}</div>
+      <p class="sub"><b style="color:var(--sl-text)">${full(last.date)}</b> · ${esc(last.venue)}${d.here.length ? '' : `, ${esc(last.city)}`} · ${last.songs.length} songs${lastAny && lastAny !== last ? `<br><span class="small">Your most recent night here, ${full(lastAny.date)}, has no setlist.</span>` : ''}</p>
+      <ol class="set compact">${last.songs.map((s, i) => `<li><span class="i">${i + 1}</span><span class="t">${esc(s)}</span></li>`).join('')}</ol>
+      <p class="small">${last.source === 'photo' ? 'Order from a setlist photo, not confirmed as played.' : 'Order as played (live capture).'}</p>
+    </section>` : ''}
+    ${passport()}`
+}
+
+function plan() {
+  const d = S.sug, show = next()
+  const planned = S.plan
+  const changed = S.swap
+  return `
+    <button class="back" data-go="today">← ${esc(show.city)}</button>
+    <section style="display:grid;gap:6px">
+      <div class="ov">Plan · ${wday(show.date)} <span class="prop">Proposed</span></div>
+      <p class="sub">Starting from ${d.here.length ? `your ${short(d.last.date)} set here` : `your ${short(d.last.date)} set`}. A plan is what you intend to play, never a record of what was played.</p>
+    </section>
+    ${d.song && !changed ? `<section class="card gold">
+      ${S.choosing ? `<p class="say">Which song does <em>${esc(d.song)}</em> replace? Tap it.</p><button class="ghost" data-cancel style="justify-self:start">Cancel</button>`
+        : `<button class="chip" data-bring>Bring in ${esc(d.song)}</button><p class="small">You choose what it replaces. Setlistr doesn’t pick songs for you.</p>`}
+    </section>` : ''}
+    ${changed ? '' : `<section class="card">
+      <div class="kick">Planned · unchanged so far</div>
+      <ol class="set planned ${S.choosing ? 'pick' : ''}">${planned.map((s, i) => S.choosing
+        ? `<li><button data-swap="${i}"><span class="i">${i + 1}</span><span class="t">${esc(s)}</span><span class="x">replace</span></button></li>`
+        : `<li><span class="i">${i + 1}</span><span class="t">${esc(s)}</span></li>`).join('')}</ol>
+    </section>`}
+    ${changed ? `<section class="card">
+      <div class="kick">Your plan, compared with ${short(d.last.date)}</div>
+      <div class="cmp"><div class="hd">${short(d.last.date)} · played</div><div class="hd">${short(show.date)} · planned only</div>
+        ${d.base.map((s, i) => `<div class="c ${i === changed.i ? 'out' : ''}">${esc(s)}</div><div class="c ${i === changed.i ? 'newin' : ''}">${esc(planned[i])}</div>`).join('')}</div>
+      <p class="say">One change: <em>${esc(changed.to)}</em> in for ${esc(changed.from)}, at number ${changed.i + 1}.</p>
+      <button class="ghost" data-undo style="justify-self:start">Undo</button>
+    </section>` : ''}`
+}
+
+function showDay() {
+  const show = next()
+  return `
+    <p class="skip">Prototype: skipping ahead to ${wday(show.date)}, after the show.</p>
+    <section style="display:grid;gap:4px">
+      <div class="ov">Tonight · ${esc(show.venue)}</div>
+      <h1 class="city">${esc(show.city)}</h1>
+      <p class="when">Your plan had <b>${S.plan.length} songs</b>${S.swap ? `, with ${esc(S.swap.to)} new here` : ''}. Tell Setlistr what actually happened.</p>
+    </section>
+    <section class="card">
+      <p class="say">Take a photo of the stage setlist, as you can today, and confirm what Setlistr can’t read for sure. Live capture works too if you ran it during the set.</p>
+      <p class="small">Your plan isn’t used as the answer. Only what you confirm goes on your record.</p>
+    </section>`
+}
+
+function makeSheet() {
+  const p = S.plan.slice(), xi = Math.max(1, p.length - 4)
+  const crossed = p[xi] === S.swap?.to ? p[xi - 1] : p[xi]
+  const extra = A.catalog.find(s => !p.includes(s) && SHORT[s]) || A.catalog.find(s => !p.includes(s))
+  const lines = p.map(s => ({ text: s, song: s, x: s === crossed }))
+  lines.splice(p.length - 1, 0, { text: SHORT[extra] || extra, song: extra, add: true })
+  return { lines, crossed, extra }
+}
+
+function confirmS() {
+  const sh = S.sheet, show = next(), a = S.answers
+  const reading = S.reading
+  return `
+    <section style="display:grid;gap:4px"><div class="ov">After the show · ${esc(show.city)} <span class="prop sim">Simulated</span></div>
+      <p class="sub">Your setlist photo</p></section>
+    <div class="sheet" aria-label="Photo of the stage setlist (simulated)">${reading ? '<div class="scan"></div>' : ''}
+      <div class="hdr">${esc(show.city.toUpperCase())} · ${short(show.date).toUpperCase()}</div>
+      <ol>${sh.lines.map(l => `<li class="${l.x ? 'x' : ''} ${l.add ? 'add' : ''}">${l.add ? '^ ' : ''}${esc(l.text)}</li>`).join('')}</ol></div>
+    ${reading ? `<p class="small" style="text-align:center">Reading the photo…</p>` : `
+    <section style="display:grid;gap:10px">
+      <p class="say">Read ${sh.lines.length} lines. ${sh.lines.length - 2} matched your songs. <b>Two need you.</b></p>
+      <div class="q ${a.x ? 'ok' : ''}"><p><b>${esc(sh.crossed)}</b> is crossed out. Was it skipped?</p>
+        <div class="opts">${[['skip', 'Skipped'], ['played', 'We played it']].map(([v, l]) => `<button class="opt" data-ans="x" data-v="${v}" aria-pressed="${a.x === v}">${l}</button>`).join('')}</div></div>
+      <div class="q ${a.add ? 'ok' : ''}"><p>Handwritten <b>“${esc(SHORT[sh.extra] || sh.extra)}”</b> near the end. Which song is it?</p>
+        <div class="opts">${[['song', sh.extra], ['none', 'Not a song we played']].map(([v, l]) => `<button class="opt" data-ans="add" data-v="${v}" aria-pressed="${a.add === v}">${esc(l)}</button>`).join('')}</div></div>
+      <p class="small">Order is taken from the sheet and marked unconfirmed. Anything else can be fixed in Review.</p>
+    </section>`}`
+}
+
+function done() {
+  const show = S.result.night, d = S.sug
+  const here = inCity(show.city), sets = here.filter(n => n.songs)
+  const sup = S.result.change
+  return `
+    <section style="display:grid;gap:4px"><div class="ov">On your record · ${wday(show.date)}</div>
+      <h1 class="city">${esc(show.city)}</h1>
+      <p class="when">${esc(show.venue)} · <b>${show.songs.length} songs played</b></p></section>
+    <section class="card">
+      <div class="kick" id="txk">Planned</div>
+      <ol class="set compact planned tx" id="tx">${S.result.rows.map((r, i) => `<li class="${r.added ? 'arrive' : ''}" data-r="${r.state}"><span class="i">${i + 1}</span><span class="t">${esc(r.song)}</span>${r.added ? '<span class="tag">added</span>' : r.state === 'skip' ? '<span class="tag" style="color:var(--sl-text-3)">skipped</span>' : ''}</li>`).join('')}</ol>
+    </section>
+    <section class="card gold reveal wait" id="rv1">
+      <div class="kick">What changed</div>
+      <p class="big-say">${sup}</p>
+      ${here.length > 1 ? `<p class="small">${w(sets.length)[0].toUpperCase() + w(sets.length).slice(1)} of your ${w(here.length)} ${esc(show.city)} nights now have a setlist.</p>` : ''}
+    </section>
+    <section class="card reveal wait" id="rv2">
+      <div class="kick">${esc(show.city)} on your record</div>
+      <div class="hist">${here.map(n => `<div class="nt"><i class="m ${n.songs ? '' : 'none'} ${n === show ? 'new' : ''}"></i><span>${short(n.date)}<br>${n.date.slice(0, 4)}</span></div>`).join('')}</div>
+      <p class="small">Your effort tonight: one photo and two answers.</p>
+      <details class="how"><summary>How this night was recorded</summary><dl>
+        <dt>Source</dt><dd>Photo of the stage setlist (simulated here), read by Setlistr.</dd>
+        <dt>Your answers</dt><dd>${esc(S.sheet.crossed)}: ${S.answers.x === 'skip' ? 'skipped' : 'played'}. “${esc(SHORT[S.sheet.extra] || S.sheet.extra)}”: ${S.answers.add === 'song' ? esc(S.sheet.extra) : 'not a song played'}.</dd>
+        <dt>Order</dt><dd>From the sheet. Not confirmed as played.</dd>
+        <dt>Plan</dt><dd>Kept separately. The plan isn’t part of the record.</dd></dl></details>
+    </section>`
+}
+
+function passport() {
+  const p = past(), first = p[0]
+  const months = []; let [y, m] = A.nights[0].date.slice(0, 7).split('-').map(Number); const lastK = A.nights[A.nights.length - 1].date.slice(0, 7)
+  while (`${y}-${String(m).padStart(2, '0')}` <= lastK) { months.push(`${y}-${String(m).padStart(2, '0')}`); if (++m > 12) { m = 1; y++ } }
+  const cities = new Map(); for (const n of A.nights) { const c = cities.get(n.city) || { past: 0, up: null }; if (n.upcoming) c.up = c.up || n; else c.past++; cities.set(n.city, c) }
+  const rows = [...cities].sort((a, b) => (b[1].up ? 1 : 0) - (a[1].up ? 1 : 0) || b[1].past - a[1].past).slice(0, 5)
+  return `<section class="pp" aria-label="Your Passport">
+    <div class="pp-id"><span class="pp-name">${esc(A.name)}</span><span class="sample prop">Sample</span></div>
+    <div class="pp-n"><b>${p.length}</b>${p.length === 1 ? 'night' : 'nights'} on your record · ${new Set(p.map(n => n.city)).size} ${new Set(p.map(n => n.city)).size === 1 ? 'city' : 'cities'} · since ${full(first.date)}</div>
+    <div class="strip"><div class="months">${months.map((k, i) => `<div class="mo"><span class="dots">${A.nights.filter(n => n.date.startsWith(k)).map(n => `<i class="n ${n.upcoming ? 'up' : ''} ${n.justAdded ? 'new' : ''}"></i>`).join('')}</span><span class="yr">${k.endsWith('-01') || i === 0 ? k.slice(0, 4) : ''}</span></div>`).join('')}</div></div>
+    <div class="rows">${rows.map(([c, v]) => `<div class="row-c ${v.up && v.up === next() ? 'hl' : ''}"><b>${esc(c)}</b><span>${v.up ? short(v.up.date) + ' · ' : ''}${v.past ? `${v.past} ${v.past === 1 ? 'night' : 'nights'}` : 'new'}</span></div>`).join('')}</div>
+  </section>`
+}
+
+// ── Actions ───────────────────────────────────────────────────────────────
+function action() {
+  const show = next()
+  switch (S.stage) {
+    case 'today': return show
+      ? { label: `Start ${short(show.date)} from your ${short(discovery(show).last.date)} set`, note: 'Builds a planned set you can change. Nothing is recorded.', go: startPlan }
+      : { label: 'Add your next show', note: 'Opens Schedule (exists today).', go: () => toast('Prototype: would open Schedule.') }
+    case 'plan': return { label: `Save plan for ${short(show.date)}`, note: S.swap ? `1 change from ${short(S.sug.last.date)}.` : 'No changes yet. You can still save.', go: () => { S.stage = 'show'; render(true) } }
+    case 'show': return { label: 'Add tonight’s setlist photo', note: 'Simulated in this prototype.', go: () => { S.sheet = makeSheet(); S.answers = {}; S.reading = true; S.stage = 'confirm'; render(true); setTimeout(() => { S.reading = false; render() }, motion() ? 1400 : 0) } }
+    case 'confirm': return { label: `Confirm ${short(show.date)}`, note: S.reading ? 'Reading…' : (S.answers.x && S.answers.add ? 'Puts this night on your record.' : 'Answer the two questions first.'), disabled: S.reading || !(S.answers.x && S.answers.add), go: confirmNight }
+    case 'done': { const nx = A.nights.find(n => n.upcoming); return { label: nx ? `Next: ${nx.city}, ${short(nx.date)}` : 'Back to your Passport', note: nx ? 'Its briefing is ready.' : 'Your record now includes tonight.', go: () => { A.today = S.result.night.date; reset2(); render(true) } } }
+  }
+}
+function reset2() { S = { stage: 'today', plan: null, base: null, sug: null, choosing: false, swap: null, answers: {}, sheet: null, result: null } }
+function startPlan() { const show = next(); S.sug = discovery(show); S.plan = S.sug.base.slice(); S.swap = null; S.choosing = false; S.stage = 'plan'; render(true) }
+
+function confirmNight() {
+  const show = next(), sh = S.sheet, a = S.answers
+  const rows = []
+  for (const l of sh.lines) {
+    if (l.add) { if (a.add === 'song') rows.push({ song: l.song, state: 'played', added: true }); continue }
+    rows.push({ song: l.song, state: l.x && a.x === 'skip' ? 'skip' : 'played' })
+  }
+  const songs = rows.filter(r => r.state === 'played').map(r => r.song)
+  const before = inCity(show.city).filter(n => n.songs).flatMap(n => n.songs)
+  const everBefore = past().some(n => n.songs && n.songs.includes(S.sug.song))
+  for (const n of A.nights) n.justAdded = false
+  Object.assign(show, { upcoming: false, songs, source: 'photo', justAdded: true })
+  let change
+  const s = S.sug.song
+  if (s && songs.includes(s)) change = everBefore
+    ? `<em>${esc(s)}</em> is now in a ${esc(show.city)} setlist on your record, for the first time.`
+    : `<em>${esc(s)}</em>: first time in a setlist on your record.${inCity(show.city).length === 1 ? ` And ${esc(show.city)} is a new city on your record.` : ''}`
+  else if (inCity(show.city).length === 1) change = `${esc(show.city)} is a new city on your record.`
+  else change = `${esc(show.city)} now has ${inCity(show.city).length} nights on your record.`
+  S.result = { night: show, rows, change }
+  S.stage = 'done'; render(true); animateDone()
+}
+
+function animateDone() {
+  const items = [...document.querySelectorAll('#tx li')], t = motion() ? 1 : 0
+  const step = (fn, ms) => setTimeout(fn, ms * t)
+  items.forEach((li, i) => step(() => {
+    if (li.dataset.r === 'skip') li.classList.add('skipd')
+    else { li.classList.remove('arrive'); li.classList.add('lit') }
+  }, 300 + i * 90))
+  step(() => { $('#tx').classList.replace('planned', 'played'); const k = $('#txk'); if (k) k.textContent = 'Played' }, 400 + items.length * 90)
+  step(() => $('#rv1')?.classList.remove('wait'), 700 + items.length * 90)
+  step(() => $('#rv2')?.classList.remove('wait'), 1100 + items.length * 90)
+}
+
+// ── Render ────────────────────────────────────────────────────────────────
+function render(top) {
+  const m = { today, plan, show: showDay, confirm: confirmS, done }[S.stage]
+  $('#main').innerHTML = m()
+  const a = action()
+  $('#act').innerHTML = `<button class="btn" id="go" ${a.disabled ? 'disabled' : ''}>${esc(a.label)}</button><small>${esc(a.note)}</small>`
+  $('#go').onclick = a.go
+  const st = document.querySelector('.strip'); if (st) st.scrollLeft = st.scrollWidth
+  if (top) scrollTo({ top: 0, behavior: 'auto' })
+}
+let tt; function toast(t) { document.querySelectorAll('.toast').forEach(x => x.remove()); const e = document.createElement('div'); e.className = 'toast'; e.setAttribute('role', 'status'); e.textContent = t; document.body.appendChild(e); clearTimeout(tt); tt = setTimeout(() => e.remove(), 3000) }
+
+document.addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return
+  const d = b.dataset
+  if (d.go === 'today') { S.stage = 'today'; render(true) }
+  else if ('bring' in d) { S.choosing = true; render() }
+  else if ('cancel' in d) { S.choosing = false; render() }
+  else if (d.swap) { const i = +d.swap; S.swap = { i, from: S.plan[i], to: S.sug.song }; S.plan[i] = S.sug.song; S.choosing = false; render() }
+  else if ('undo' in d) { S.plan[S.swap.i] = S.swap.from; S.swap = null; render() }
+  else if (d.ans) { S.answers[d.ans] = d.v; render() }
+  else if (d.scn) { scn = d.scn; reset(); document.querySelectorAll('[data-scn]').forEach(x => x.setAttribute('aria-pressed', x === b)); render(true) }
+  else if (d.th) { if (d.th === 'system') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme', d.th); document.querySelectorAll('[data-th]').forEach(x => x.setAttribute('aria-pressed', x === b)) }
+})
+render()
+</script>
