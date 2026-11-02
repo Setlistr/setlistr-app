@@ -3,7 +3,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 
 export const metadata: Metadata = {
-  title: 'How Setlistr Works — Live Setlist Capture & Royalty Submission',
+  title: 'How Setlistr Works — Live Setlist Capture & Claim Preparation',
   description: 'How Setlistr captures your live setlist, lets you confirm every song, and prepares the claim you file with SOCAN, ASCAP, BMI, PRS, APRA, SESAC or GMR.',
   alternates: { canonical: '/how-it-works' },
   openGraph: {
@@ -47,7 +47,7 @@ const STEPS = [
   },
   {
     n: '05',
-    title: 'Your touring record builds itself.',
+    title: 'Your touring record grows with every confirmed show.',
     src: '/screenshots/career-map.webp',
     alt: 'Setlistr career map showing confirmed shows across multiple cities',
     copy: 'Every confirmed show adds to a career record — cities played, venues, hours on stage — the performance history that’s never existed at this level of detail before.',
@@ -166,10 +166,10 @@ export default function HowItWorksPage() {
           lineHeight: 1.0, letterSpacing: '0.025em',
           color: '#FFFFFF', margin: '0 0 20px',
         }}>
-          Performance to payment.<br /><span style={{ color: '#C9A84C' }}>Six steps.</span>
+          Stage to claim sheet.<br /><span style={{ color: '#C9A84C' }}>Six steps.</span>
         </h1>
         <p style={{ fontSize: 17, fontWeight: 300, color: 'rgba(212,209,202,0.8)', lineHeight: 1.8, maxWidth: 560, margin: '0 auto' }}>
-          Every screen below is the live product — not a mockup. This is what happens
+          The screens below are from the Setlistr app. This is what happens
           between walking on stage and filing your claim with your PRO.
         </p>
       </section>

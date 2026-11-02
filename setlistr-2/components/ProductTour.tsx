@@ -17,17 +17,17 @@ const TOUR = [
   {
     n: '02',
     title: 'Every show, in the books.',
-    copy: 'The last note fades and the record is already written — timestamped, verified, yours.',
+    copy: 'The last note fades and your setlist is already timestamped, ready for you to confirm.',
     src: '/screenshots/show-complete.webp',
-    alt: 'Setlistr show complete screen showing a verified eight-song setlist captured live',
+    alt: 'Setlistr show complete screen showing an eight-song setlist captured live',
     reverse: true,
   },
   {
     n: '03',
     title: 'Proof, not paperwork.',
-    copy: 'Verified performances, in the exact form publishers and PROs need. No spreadsheet, no chasing.',
+    copy: 'Confirmed shows, prepared in your PRO’s format for you to file. No spreadsheet, no chasing.',
     src: '/screenshots/claim-pipeline.webp',
-    alt: 'Setlistr submissions screen showing verified shows ready to claim',
+    alt: 'Setlistr screen listing recorded shows',
     reverse: false,
   },
   {
@@ -35,7 +35,7 @@ const TOUR = [
     title: 'The whole career, kept.',
     copy: 'Every city, every venue, every night — building into a record that’s never existed until now.',
     src: '/screenshots/career-map.webp',
-    alt: 'Setlistr career map showing verified shows across multiple cities',
+    alt: 'Setlistr career map showing confirmed shows across multiple cities',
     reverse: true,
   },
 ]
@@ -197,7 +197,7 @@ export default function ProductTour() {
                       <div className="pt-num">{i + 1}</div>
                       <div className="pt-info">
                         <div className="pt-title">{s}</div>
-                        <div className="pt-status">{i < confirmed ? 'Verified ✓' : 'Listening…'}</div>
+                        <div className="pt-status">{i < confirmed ? 'Recognised ✓' : 'Listening…'}</div>
                       </div>
                       <div className="pt-check">&#10003;</div>
                     </div>

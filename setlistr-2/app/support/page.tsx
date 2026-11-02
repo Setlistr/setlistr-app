@@ -23,7 +23,7 @@ const FAQS = [
   },
   {
     q: 'What happens after the show?',
-    a: 'You get a review screen showing everything Setlistr captured. Confirm anything the app flagged as uncertain, make any edits, and save. Your show is then a verified record you can submit or keep.',
+    a: 'You get a review screen showing everything Setlistr captured. Confirm anything the app flagged as uncertain, make any edits, and save. Your show is then a confirmed record you can prepare for your PRO or keep.',
   },
   {
     q: 'How do I submit to my PRO?',
@@ -31,7 +31,7 @@ const FAQS = [
   },
   {
     q: 'Will this get me paid?',
-    a: 'Setlistr helps you capture and submit verified performance data so your live shows are properly documented and claimed. Actual payments are determined by your PRO based on their rules and rates — Setlistr doesn\'t pay royalties directly, and payout amounts vary. For cover songs, Setlistr builds an accurate record of what you performed; whether a performance generates a payment depends on your PRO and the rights involved.',
+    a: 'Setlistr helps you capture and confirm your setlists and prepare the claim you file, so your live shows are properly documented. Actual payments are determined by your PRO based on their rules and rates — Setlistr doesn\'t pay royalties directly, and payout amounts vary. For cover songs, Setlistr builds an accurate record of what you performed; whether a performance generates a payment depends on your PRO and the rights involved.',
   },
   {
     q: 'Does Setlistr record audio of my whole show?',

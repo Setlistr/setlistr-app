@@ -203,7 +203,7 @@ export default function HomePage() {
           <p style={{ fontSize: 13, fontWeight: 300, color: 'rgba(212,209,202,0.45)', lineHeight: 1.9, margin: 0, textAlign: 'center' }}>
             Working songwriters registered with SOCAN, ASCAP, BMI, PRS for Music,
             APRA AMCOS, SESAC, and GMR earn live performance royalties for every show.
-            Setlistr is the infrastructure that connects live music performance to royalty payment —
+            Setlistr connects live performance to the royalty claims you file —
             capturing setlists during the show, keeping a confirmed record of every performance,
             and preparing the claim you file with your PRO.
           </p>
