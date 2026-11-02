@@ -1,0 +1,140 @@
+{
+ "artist_query": "Jesse Slack",
+ "assembled_at": "2026-11-02T14:55:22.927Z",
+ "sources": {
+  "musicbrainz_search": {
+   "status": "retrieved",
+   "detail": "1 candidates, 1 exact"
+  },
+  "wikidata": {
+   "status": "retrieved",
+   "detail": "0 items labelled \"Jesse Slack\""
+  },
+  "musicbrainz_events": {
+   "status": "retrieved",
+   "detail": "0 events linked to this artist (of 0)"
+  },
+  "musicbrainz_releases": {
+   "status": "retrieved",
+   "detail": "0 release groups"
+  },
+  "musicbrainz_recordings": {
+   "status": "retrieved",
+   "detail": "1 recordings (of 1)"
+  },
+  "musicbrainz_event_name_search": {
+   "status": "retrieved",
+   "detail": "0 events mentioning the name but not linked"
+  },
+  "musicbrainz_recording_name_search": {
+   "status": "retrieved",
+   "detail": "0 further recordings credited to the name (score ≥ 90)"
+  },
+  "musicbrainz_works": {
+   "status": "retrieved",
+   "detail": "0 works looked up (cap 40)"
+  },
+  "not_used": [
+   {
+    "source": "Bandsintown",
+    "reason": "Needs an app_id. Official docs reviewed do not state who may hold one or the usage terms; Setlistr's existing key has an open terms question. Unavailable here."
+   },
+   {
+    "source": "Ticketmaster Discovery",
+    "reason": "Needs an API key; none held for this demo and terms for this use not reviewed. Unavailable here."
+   },
+   {
+    "source": "Spotify Web API",
+    "reason": "Needs client credentials; Setlistr's production credentials are not used for this demo. Unavailable here."
+   },
+   {
+    "source": "setlist.fm",
+    "reason": "Needs a key; terms limit API use to non-commercial purposes without permission. Unavailable here."
+   },
+   {
+    "source": "Apple iTunes Search API",
+    "reason": "Keyless, but terms permit use only to promote store content. Not a fit; unavailable here."
+   },
+   {
+    "source": "Deezer API",
+    "reason": "Terms limit use to non-commercial purposes. Unavailable here."
+   },
+   {
+    "source": "Discogs API",
+    "reason": "Terms page could not be retrieved (HTTP 403), so not verified. Unavailable here."
+   },
+   {
+    "source": "Your Setlistr record",
+    "reason": "Production reads are not authorised for this demo. Not loaded."
+   }
+  ]
+ },
+ "identity": {
+  "candidates": [
+   {
+    "mbid": "5f18f9ad-4ee9-4f77-b2e2-a839f3ff2b8c",
+    "name": "Jesse Slack",
+    "score": 100,
+    "type": "Person",
+    "country": "CA",
+    "area": "Canada",
+    "begin_area": null,
+    "disambiguation": "",
+    "life_begin": null,
+    "url": "https://musicbrainz.org/artist/5f18f9ad-4ee9-4f77-b2e2-a839f3ff2b8c"
+   }
+  ],
+  "exact_matches": 1,
+  "chosen": "5f18f9ad-4ee9-4f77-b2e2-a839f3ff2b8c",
+  "rule": "Chosen automatically only when exactly one MusicBrainz artist has this exact name; otherwise the person must pick.",
+  "detail": {
+   "mbid": "5f18f9ad-4ee9-4f77-b2e2-a839f3ff2b8c",
+   "name": "Jesse Slack",
+   "type": "Person",
+   "country": "CA",
+   "area": "Canada",
+   "begin_area": null,
+   "life_span": {
+    "ended": false,
+    "end": null,
+    "begin": null
+   },
+   "disambiguation": "",
+   "tags": [],
+   "url": "https://musicbrainz.org/artist/5f18f9ad-4ee9-4f77-b2e2-a839f3ff2b8c"
+  }
+ },
+ "events": [],
+ "releases": [],
+ "recordings": [
+  {
+   "mbid": "5d7f93a4-423e-47fa-bc68-c2fadab60202",
+   "title": "Full Throttle",
+   "length_s": 167,
+   "isrcs": [],
+   "first_release": "2020-07-09",
+   "releases": [
+    {
+     "title": "Full Throttle",
+     "date": "2020-07-09",
+     "url": "https://musicbrainz.org/release/bd419f31-63fa-4ba1-ab50-e71a278f14df"
+    }
+   ],
+   "work_ids": [],
+   "url": "https://musicbrainz.org/recording/5d7f93a4-423e-47fa-bc68-c2fadab60202",
+   "credit": "Jeremy Macklin & Jesse Slack"
+  }
+ ],
+ "works": [],
+ "links": [],
+ "wikidata": {
+  "query": "Jesse Slack",
+  "results": []
+ },
+ "name_only_events": [],
+ "name_only_recordings": [],
+ "effort": {
+  "requests": 10,
+  "elapsed_s": 11
+ }
+}

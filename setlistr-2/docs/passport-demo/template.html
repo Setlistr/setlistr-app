@@ -1,0 +1,319 @@
+<title>Jesse Slack's Passport</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,600;9..40,800&family=DM+Serif+Display&display=swap">
+<style>
+/* Layout: Setlistr's dark app world (single theme by choice, like the app). A phone frame holds the Passport; beside it, how it was assembled. */
+:root {
+  color-scheme: dark;
+  --bg: #0a0908; --card: #141210; --card-2: #1b1815; --line: #2a2620; --gold: #c9a84c; --gold-soft: #2a2416;
+  --cream: #f0ece3; --sand: #b8a888; --muted: #8f8473; --dim: #5a5448;
+  --ok: #4ade80; --warn: #f59e0b; --info: #60a5fa; --bad: #f87171;
+  --sans: "DM Sans", system-ui, -apple-system, sans-serif; --serif: "DM Serif Display", Georgia, serif; --mono: "DM Mono", ui-monospace, Menlo, monospace;
+  --orb: radial-gradient(circle at 40% 35%, #e8c76a, #c9a84c 55%, #a07828);
+}
+* { box-sizing: border-box; }
+html, body { background: var(--bg); color: var(--cream); }
+body { font: 15px/1.5 var(--sans); padding-inline: 16px; padding-block: 24px 48px; }
+button, input { font: inherit; color: inherit; }
+button { cursor: pointer; }
+button:focus-visible, input:focus-visible, a:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+a { color: var(--gold); }
+.top { max-width: 1060px; margin: 0 auto 18px; display: grid; gap: 4px; }
+.top h1 { font: 400 30px/1.1 var(--serif); margin: 0; text-wrap: balance; }
+.top p { margin: 0; color: var(--sand); font-size: 13px; max-width: 70ch; }
+.stage { max-width: 1060px; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 400px) minmax(0, 1fr); gap: 32px; align-items: start; }
+@media (max-width: 860px) { .stage { grid-template-columns: minmax(0, 1fr); } }
+.phone { background: var(--bg); border: 1px solid var(--line); border-radius: 34px; padding: 14px 0 0; min-height: 760px; overflow: hidden; position: relative; box-shadow: 0 30px 80px rgba(0,0,0,.5); display: flex; flex-direction: column; }
+.tabs { display: flex; gap: 4px; padding: 0 14px 10px; border-bottom: 1px solid var(--line); }
+.tabs button { flex: 1; background: none; border: 0; border-bottom: 2px solid transparent; padding: 8px 4px; font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); min-height: 40px; }
+.tabs button[aria-current="page"] { color: var(--gold); border-bottom-color: var(--gold); }
+.screen { padding: 18px 18px 24px; display: grid; gap: 14px; flex: 1; align-content: start; }
+.next { padding: 12px 18px 18px; border-top: 1px solid var(--line); background: linear-gradient(to bottom, transparent, #0a0908 30%); display: grid; gap: 6px; }
+.next small { color: var(--muted); font-size: 12px; text-align: center; }
+.eyebrow { font-size: 11px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; color: var(--gold); }
+.name { font: 400 40px/1 var(--serif); margin: 0; text-wrap: balance; }
+h2 { font: 400 24px/1.15 var(--serif); margin: 0; text-wrap: balance; }
+h3 { font-size: 12px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--sand); margin: 0; }
+.sub { color: var(--sand); font-size: 14px; margin: 0; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 14px; display: grid; gap: 10px; }
+.card.ask { border-color: #c9a84c55; }
+.basis { font: 12px/1.45 var(--mono); color: var(--muted); overflow-wrap: anywhere; }
+.pill { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--sand); white-space: nowrap; }
+.pill.gold { border-color: #c9a84c66; color: var(--gold); }
+.pill.warn { border-color: #f59e0b66; color: var(--warn); }
+.pill.info { border-color: #60a5fa55; color: var(--info); }
+.pill.ok { border-color: #4ade8055; color: var(--ok); }
+.btn { background: var(--gold); color: #1a1408; border: 0; border-radius: 14px; padding: 13px 16px; font-weight: 800; min-height: 48px; width: 100%; }
+.btn.ghost { background: transparent; color: var(--cream); border: 1px solid var(--line); font-weight: 600; }
+.row2 { display: flex; gap: 8px; flex-wrap: wrap; }
+.row2 > * { flex: 1 1 100px; }
+.row2.tight > * { flex: 1 1 56px; }
+.found { display: grid; }
+.found button { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; align-items: baseline; text-align: left; background: none; border: 0; border-top: 1px solid var(--line); padding: 12px 2px; min-height: 52px; }
+.found button:first-child { border-top: 0; }
+.found b { font-weight: 600; }
+.found .v { font: 400 22px/1 var(--serif); color: var(--cream); grid-row: span 2; align-self: center; }
+.found small { color: var(--muted); font-size: 12px; }
+.empty { border: 1.5px dashed var(--line); border-radius: 14px; padding: 12px; display: grid; gap: 4px; }
+.empty p { margin: 0; font-size: 14px; color: var(--sand); }
+.state { display: inline-flex; gap: 6px; align-items: center; font-size: 12px; font-weight: 600; }
+.state i { width: 8px; height: 8px; border-radius: 50%; display: block; border: 1.5px solid currentColor; }
+.state.retrieved { color: var(--ok); } .state.retrieved i { background: currentColor; }
+.state.none { color: var(--sand); }
+.state.notret { color: var(--warn); } .state.notret i { border-style: dashed; }
+.layers { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
+.layers li { display: grid; grid-template-columns: 96px 1fr; gap: 10px; padding: 8px 0; border-top: 1px solid var(--line); font-size: 13px; }
+.layers li:first-child { border-top: 0; }
+.layers .k { color: var(--muted); font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; padding-top: 2px; }
+.show { background: var(--card-2); border: 1px solid var(--line); border-radius: 14px; padding: 12px; display: grid; gap: 8px; }
+.show header { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.show .when { font: 12px var(--mono); color: var(--sand); }
+.show .where { font-weight: 600; }
+.opt { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; min-height: 40px; font-size: 13px; }
+.opt[aria-pressed="true"] { border-color: var(--gold); color: var(--gold); background: var(--gold-soft); }
+.places { display: flex; gap: 6px; flex-wrap: wrap; }
+.place { background: var(--card-2); border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; font-size: 13px; min-height: 36px; }
+.place[aria-pressed="true"] { border-color: var(--gold); color: var(--gold); background: var(--gold-soft); }
+.place b { font-family: var(--mono); font-weight: 500; color: var(--muted); margin-left: 6px; }
+form.add { display: grid; gap: 8px; }
+form.add label { display: grid; gap: 4px; font-size: 12px; color: var(--sand); }
+form.add input { background: var(--card-2); border: 1px solid var(--line); border-radius: 10px; padding: 10px; min-height: 44px; color-scheme: dark; }
+.song { display: grid; gap: 8px; }
+.song .title { font: 400 22px/1.15 var(--serif); }
+.toast { position: absolute; left: 18px; right: 18px; bottom: 96px; background: var(--card-2); border: 1px solid #c9a84c66; border-radius: 12px; padding: 10px 12px; font-size: 13px; display: flex; gap: 10px; align-items: center; }
+.toast .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--orb); box-shadow: 0 0 12px #c9a84c80; flex: none; }
+.notes { display: grid; gap: 18px; font-size: 14px; }
+.notes section { display: grid; gap: 8px; }
+.notes p { margin: 0; color: var(--sand); max-width: 66ch; }
+.tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { text-align: left; padding: 8px 10px; border-top: 1px solid var(--line); vertical-align: top; }
+thead th { border-top: 0; color: var(--muted); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+td.num { font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.legend { display: grid; gap: 6px; }
+.legend div { display: grid; grid-template-columns: 120px 1fr; gap: 10px; }
+.legend b { color: var(--cream); font-weight: 600; }
+@media (prefers-reduced-motion: no-preference) { .toast { animation: rise .25s ease-out; } @keyframes rise { from { transform: translateY(8px); opacity: .4; } } }
+</style>
+
+<div class="top">
+  <div class="eyebrow">Local demonstration · nothing here is saved to Setlistr</div>
+  <h1>Your Passport, already started</h1>
+  <p>Assembled automatically from free public sources for the artist name “<span id="qname"></span>” before you did anything. What sources didn’t have, or we couldn’t ask, is shown as such. Your additions stay in this browser only.</p>
+</div>
+
+<div class="stage">
+  <div class="phone" id="phone">
+    <nav class="tabs" aria-label="Passport sections">
+      <button data-tab="home" aria-current="page">Passport</button>
+      <button data-tab="shows">Places &amp; shows</button>
+      <button data-tab="songs">Songs</button>
+    </nav>
+    <div class="screen" id="screen"></div>
+    <div class="next" id="next"></div>
+  </div>
+
+  <aside class="notes" id="notes"></aside>
+</div>
+
+<script>
+const DATA = __DATA__;
+const $ = (s, el = document) => el.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const fmtDate = d => { if (!d) return 'date unknown'; const p = d.split('-'); const dt = new Date(Date.UTC(+p[0], (+p[1] || 1) - 1, +p[2] || 1)); return dt.toLocaleDateString('en-CA', { timeZone: 'UTC', year: 'numeric', month: p[1] ? 'short' : undefined, day: p[2] ? 'numeric' : undefined }) }
+const retrievedOn = fmtDate(DATA.assembled_at.slice(0, 10));
+const today = new Date().toISOString().slice(0, 10);
+const KEY = 'passport-demo-v1';
+let S = { identity: null, shows: [], songs: [], tab: 'home', place: null, adding: false, open: null };
+try { const saved = JSON.parse(localStorage.getItem(KEY) || 'null'); if (saved) S = { ...S, ...saved, tab: 'home', adding: false, open: null, place: null } } catch {}
+const save = () => { try { localStorage.setItem(KEY, JSON.stringify({ identity: S.identity, shows: S.shows, songs: S.songs })) } catch {} };
+
+const ID = DATA.identity, DET = ID.detail || {};
+const mine = () => S.identity !== 'no';   // MusicBrainz items count as yours unless you say they aren't
+const recs = () => mine() ? DATA.recordings : [];
+const ev = () => mine() ? DATA.events : [];
+const past = () => S.shows.filter(s => s.date < today), upcoming = () => S.shows.filter(s => s.date >= today);
+const cities = () => { const m = new Map(); for (const s of S.shows) m.set(s.city, (m.get(s.city) || 0) + 1); return [...m] };
+
+function nextAction() {
+  if (!S.identity) return { label: 'Is this you? Check the match', go: () => { S.tab = 'home'; render(); $('#idcard')?.scrollIntoView({ block: 'center' }) }, why: 'One name match was found. Nothing is linked to you until you say so.' };
+  const unanswered = past().find(s => !s.happened);
+  if (unanswered) return { label: `Did ${unanswered.venue} happen?`, go: () => { S.tab = 'shows'; S.open = unanswered.id; render() }, why: 'Answers only whether the show took place.' };
+  if (!upcoming().length) return { label: 'Add your next show', go: () => { S.tab = 'shows'; S.adding = true; render(); $('#f-date')?.focus() }, why: 'No listing source could be asked, so your next show has to come from you.' };
+  return { label: 'Add a past show', go: () => { S.tab = 'shows'; S.adding = true; render(); $('#f-date')?.focus() }, why: 'Every show you add becomes a place on your Passport.' };
+}
+
+function stateTag(kind, text) { return `<span class="state ${kind}"><i aria-hidden="true"></i>${esc(text)}</span>` }
+
+function home() {
+  const r = recs(), first = r.map(x => x.first_release).filter(Boolean).sort()[0];
+  const idCard = !S.identity ? `
+    <div class="card ask" id="idcard">
+      <h3>We found one match</h3>
+      <p class="sub">MusicBrainz lists <b>${esc(DET.name)}</b>, a person in <b>${esc(DET.area || DET.country || 'an unknown area')}</b>, credited on ${r.length} recording${r.length === 1 ? '' : 's'}. No other exact match exists there.</p>
+      <div class="basis">${esc(DET.url)}</div>
+      <div class="row2"><button class="btn" data-id="yes">That’s me</button><button class="btn ghost" data-id="no">Not me</button></div>
+    </div>` : `
+    <div class="basis">Identity: ${S.identity === 'yes' ? 'you said the MusicBrainz match is you' : 'you said the MusicBrainz match isn’t you, so nothing from it is shown'} · <button class="opt" data-id="reset" style="min-height:32px;padding:4px 8px">Change</button></div>`;
+  return `
+    <div class="eyebrow">Live Passport</div>
+    <h1 class="name">${esc(DET.name || DATA.artist_query)}</h1>
+    <p class="sub">${esc(DET.area || '')}${first ? ` · first credited release we found: ${fmtDate(first)}` : ''}${S.shows.length ? ` · ${S.shows.length} show${S.shows.length === 1 ? '' : 's'} on your Passport` : ''}</p>
+    ${idCard}
+    <div class="card">
+      <h3>Found before you did anything</h3>
+      <div class="found">
+        <button data-tab="shows"><b>Upcoming shows</b><span class="v">${upcoming().length || '–'}</span><small>${upcoming().length ? 'added by you' : 'No listing source could be asked'}</small></button>
+        <button data-tab="shows"><b>Past shows</b><span class="v">${ev().length + past().length || '0'}</span><small>${ev().length ? `${ev().length} reported on MusicBrainz` : 'None reported on MusicBrainz'}${past().length ? ` · ${past().length} added by you` : ''}</small></button>
+        <button data-tab="songs"><b>Released songs</b><span class="v">${r.length + S.songs.length}</span><small>${r.length ? `${r.length} on MusicBrainz` : 'None on MusicBrainz'}${S.songs.length ? ` · ${S.songs.length} added by you` : ''} · streaming catalogues not asked</small></button>
+        <button data-tab="shows"><b>Places</b><span class="v">${cities().length}</span><small>${cities().length ? cities().map(c => c[0]).join(', ') : 'Appear as shows are added'}</small></button>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Your record in Setlistr</h3>
+      <div class="empty"><p>Not loaded in this demonstration.</p><div class="basis">Confirmed shows and setlists live in Setlistr; reading them wasn’t authorised here. When shown, they are your team’s confirmations: complete only for what was captured, and correctable.</div></div>
+    </div>`;
+}
+
+function showCard(s) {
+  const open = S.open === s.id, isPast = s.date < today;
+  const happened = s.happened === 'yes' ? '<span class="pill ok">You said it happened</span>' : s.happened === 'no' ? '<span class="pill">You said it didn’t happen</span>' : s.happened === 'unsure' ? '<span class="pill warn">Not sure</span>' : isPast ? '<span class="pill warn">Not answered</span>' : '<span class="pill info">Upcoming</span>';
+  return `<article class="show">
+    <header><span class="when">${fmtDate(s.date)}</span>${happened}</header>
+    <div class="where">${esc(s.venue)}<span class="sub"> · ${esc(s.city)}</span></div>
+    <div class="basis">Added by you on this device · no outside source checked</div>
+    ${open ? `
+      <ul class="layers">
+        <li><span class="k">Happened</span><span>${isPast ? `<b>Did this show happen?</b>
+          <div class="row2 tight" style="margin-top:6px">${['yes', 'no', 'unsure'].map(v => `<button class="opt" data-happened="${v}" data-show="${s.id}" aria-pressed="${s.happened === v}">${{ yes: 'Yes', no: 'No', unsure: 'Not sure' }[v]}</button>`).join('')}</div>
+          <div class="basis" style="margin-top:6px">Records only that the show took place. No songs, catalogue counts or estimates change.</div>` : 'Not yet. You can answer after the date.'}</span></li>
+        <li><span class="k">Played</span><span>No setlist recorded. Songs come from live capture or a setlist in Setlistr, then your team’s review.</span></li>
+        <li><span class="k">Written by</span><span>Depends on the songs played; nothing to look up yet.</span></li>
+        <li><span class="k">Report details</span><span>Needs a reviewed setlist first. Setlistr never files for you.</span></li>
+      </ul>
+      <button class="opt" data-del="${s.id}">Remove this show</button>` : `<button class="opt" data-open="${s.id}">${isPast && !s.happened ? 'Did this show happen?' : 'Details'}</button>`}
+  </article>`;
+}
+
+function shows() {
+  const list = arr => arr.filter(s => !S.place || s.city === S.place).sort((a, b) => a.date.localeCompare(b.date)).map(showCard).join('');
+  const nr = DATA.sources.not_used.filter(x => /Bandsintown|Ticketmaster/.test(x.source));
+  return `
+    <h2>Places &amp; shows</h2>
+    ${cities().length ? `<div class="places">${cities().map(([c, n]) => `<button class="place" data-place="${esc(c)}" aria-pressed="${S.place === c}">${esc(c)}<b>${n}</b></button>`).join('')}</div>` : ''}
+    ${S.adding ? `
+      <form class="add card" id="addform">
+        <h3>Add a show</h3>
+        <label for="f-date">Date<input id="f-date" type="date" required></label>
+        <label for="f-venue">Venue<input id="f-venue" required placeholder="e.g. The Horseshoe Tavern"></label>
+        <label for="f-city">City<input id="f-city" required placeholder="e.g. Toronto"></label>
+        <div class="row2"><button class="btn" type="submit">Add to Passport</button><button class="btn ghost" type="button" data-cancel>Cancel</button></div>
+      </form>` : ''}
+    <section class="card">
+      <h3>Coming up · listings</h3>
+      ${upcoming().length ? list(upcoming()) : ''}
+      <div class="empty">${stateTag('notret', 'Not retrieved')}<p>No listing service could be asked, so we don’t know whether you have shows listed.</p>
+        <div class="basis">${nr.map(x => `${esc(x.source)}: ${esc(x.reason)}`).join('<br>')}</div></div>
+    </section>
+    <section class="card">
+      <h3>Past · reported events</h3>
+      ${ev().map(e => `<article class="show"><header><span class="when">${fmtDate(e.date)}</span><span class="pill">Reported</span></header><div class="where">${esc(e.place || e.name)}<span class="sub"> · ${esc(e.area || '')}</span></div><a class="basis" href="${esc(e.url)}" target="_blank" rel="noopener">MusicBrainz event</a></article>`).join('')}
+      ${past().length ? list(past()) : ''}
+      <div class="empty">${stateTag(mine() ? 'none' : 'notret', mine() ? `Retrieved ${retrievedOn}: none found` : 'No identity to look up')}<p>${mine() ? 'MusicBrainz has no events linked to you, and no events mention your name. That says the source is empty, not that you haven’t played.' : 'You said the MusicBrainz match isn’t you.'}</p>
+        <div class="basis">${DATA.sources.musicbrainz_events ? esc(DATA.sources.musicbrainz_events.detail) + ' · ' + esc(DATA.sources.musicbrainz_event_name_search?.detail || '') : ''}</div></div>
+    </section>
+    ${!S.adding ? '<button class="btn ghost" data-add>Add a show</button>' : ''}`;
+}
+
+function songs() {
+  const r = recs();
+  return `
+    <h2>Songs</h2>
+    <p class="sub">Released songs we could find, and what’s known about each. Four separate questions, answered separately.</p>
+    ${r.map(x => `
+      <article class="card song">
+        <div class="title">${esc(x.title)}</div>
+        <div class="basis">${esc(x.credit || DET.name)} · ${fmtDate(x.first_release)}${x.length_s ? ` · ${Math.floor(x.length_s / 60)}:${String(x.length_s % 60).padStart(2, '0')}` : ''}</div>
+        <ul class="layers">
+          <li><span class="k">Released</span><span>${stateTag('retrieved', 'Found')} ${x.releases.map(rl => `<a href="${esc(rl.url)}" target="_blank" rel="noopener">${esc(rl.title)}</a> (${fmtDate(rl.date)})`).join(', ') || '<a href="' + esc(x.url) + '" target="_blank" rel="noopener">recording</a>'}</span></li>
+          <li><span class="k">Played live</span><span>${stateTag('notret', 'Unknown')} No setlists on MusicBrainz; setlist.fm wasn’t asked.</span></li>
+          <li><span class="k">Written by</span><span>${x.work_ids.length ? stateTag('retrieved', 'Found') + ' see work' : stateTag('none', 'Not on MusicBrainz')} No composition linked, so writers and ISWC aren’t known here.</span></li>
+          <li><span class="k">Report details</span><span>${x.isrcs.length ? 'ISRC ' + esc(x.isrcs.join(', ')) : 'No ISRC listed on MusicBrainz.'} Writer and ISWC details not found. Your PRO registration may already have them.</span></li>
+        </ul>
+        <div class="basis">Retrieved ${retrievedOn} · <a href="${esc(x.url)}" target="_blank" rel="noopener">MusicBrainz recording</a></div>
+      </article>`).join('')}
+    ${S.songs.map((t, i) => `<article class="card song"><div class="title">${esc(t)}</div><div class="basis">Added by you · nothing looked up for it</div><button class="opt" data-delsong="${i}">Remove</button></article>`).join('')}
+    <div class="empty">${stateTag('notret', 'Not retrieved')}<p>Streaming catalogues weren’t asked (Spotify needs credentials; Apple’s and Deezer’s terms don’t fit). Your catalogue is probably larger than this.</p></div>
+    <form class="add card" id="songform"><label for="f-song">Add a song you play<input id="f-song" required placeholder="Song title"></label><button class="btn ghost" type="submit">Add song</button></form>`;
+}
+
+function notes() {
+  const src = [
+    ['MusicBrainz · identity', DATA.sources.musicbrainz_search],
+    ['MusicBrainz · events (linked)', DATA.sources.musicbrainz_events],
+    ['MusicBrainz · events (name search)', DATA.sources.musicbrainz_event_name_search],
+    ['MusicBrainz · releases', DATA.sources.musicbrainz_releases],
+    ['MusicBrainz · recordings', DATA.sources.musicbrainz_recordings],
+    ['MusicBrainz · recordings (name search)', DATA.sources.musicbrainz_recording_name_search],
+    ['MusicBrainz · compositions', DATA.sources.musicbrainz_works],
+    ['Wikidata · identity', DATA.sources.wikidata],
+  ].filter(x => x[1]);
+  const E = DATA.effort_log;
+  return `
+    <section><h3>What this shows</h3>
+      <p>Setlistr looked up the name “${esc(DATA.artist_query)}” in free, open sources before you touched anything: ${E.requests} requests in ${E.elapsed_s} seconds. It found one likely identity and one released song. Everything else is either genuinely empty in those sources or couldn’t be asked, and the Passport says which.</p></section>
+    <section><h3>Four separate questions</h3>
+      <div class="legend">
+        <div><b>Happened</b><span>Did the show take place? Answered by you, one tap. Nothing else changes.</span></div>
+        <div><b>Played</b><span>Which songs were performed. Comes from capture or a setlist, then review.</span></div>
+        <div><b>Written by</b><span>Composition metadata: writers, ISWC. From open data where it exists.</span></div>
+        <div><b>Report details</b><span>What a PRO report would need and what’s missing. Setlistr never files.</span></div>
+      </div></section>
+    <section><h3>Sources asked · ${retrievedOn}</h3>
+      <div class="tablewrap"><table><thead><tr><th>Source</th><th>Result</th></tr></thead><tbody>
+      ${src.map(([n, s]) => `<tr><td>${esc(n)}</td><td>${stateTag(s.status === 'retrieved' ? (/\b0 |none/i.test(s.detail) ? 'none' : 'retrieved') : 'notret', s.status === 'retrieved' ? 'Retrieved' : 'Not retrieved')}<div class="basis">${esc(s.detail)}</div></td></tr>`).join('')}
+      </tbody></table></div></section>
+    <section><h3>Not asked, and why</h3>
+      <div class="tablewrap"><table><tbody>${DATA.sources.not_used.map(x => `<tr><td>${esc(x.source)}</td><td class="basis">${esc(x.reason)}</td></tr>`).join('')}</tbody></table></div></section>
+    <section><h3>Effort</h3>
+      <div class="tablewrap"><table><tbody>
+        <tr><td>Automated retrieval (final run)</td><td class="num">${E.requests} requests · ${E.elapsed_s} s</td></tr>
+        <tr><td>Manual interventions</td><td>${E.manual.map(esc).join('<br>')}</td></tr>
+        <tr><td>Records written by hand</td><td class="num">0</td></tr>
+        <tr><td>Wall-clock, source checks to page</td><td class="num">${esc(E.wall)}</td></tr>
+      </tbody></table></div></section>`;
+}
+
+let toastTimer;
+function toast(msg) { document.querySelectorAll('.toast').forEach(x => x.remove()); const t = document.createElement('div'); t.className = 'toast'; t.setAttribute('role', 'status'); t.innerHTML = `<span class="dot"></span><span>${esc(msg)}</span>`; $('#phone').appendChild(t); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.remove(), 2600) }
+
+function render() {
+  document.querySelectorAll('.tabs button').forEach(b => b.setAttribute('aria-current', b.dataset.tab === S.tab ? 'page' : 'false'));
+  $('#screen').innerHTML = S.tab === 'home' ? home() : S.tab === 'shows' ? shows() : songs();
+  const n = nextAction();
+  $('#next').innerHTML = `<button class="btn" id="nextbtn">${esc(n.label)}</button><small>${esc(n.why)}</small>`;
+  $('#nextbtn').onclick = n.go;
+  const f = $('#addform');
+  if (f) f.onsubmit = e => { e.preventDefault(); const s = { id: Date.now().toString(36), date: $('#f-date').value, venue: $('#f-venue').value.trim(), city: $('#f-city').value.trim(), happened: null }; if (!s.date || !s.venue || !s.city) return; S.shows.push(s); S.adding = false; save(); render(); toast(`${s.city} is on your Passport`) };
+  const g = $('#songform');
+  if (g) g.onsubmit = e => { e.preventDefault(); const t = $('#f-song').value.trim(); if (!t) return; S.songs.push(t); save(); render(); toast(`${t} added to your songs`) };
+}
+
+document.addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  const d = b.dataset;
+  if (d.tab) { S.tab = d.tab; S.adding = false; render(); return }
+  if (d.id) { S.identity = d.id === 'reset' ? null : d.id; save(); render(); return }
+  if ('add' in d) { S.adding = true; render(); $('#f-date')?.focus(); return }
+  if ('cancel' in d) { S.adding = false; render(); return }
+  if (d.open) { S.open = S.open === d.open ? null : d.open; render(); return }
+  if (d.happened) { const s = S.shows.find(x => x.id === d.show); s.happened = d.happened; save(); render(); if (d.happened === 'yes') toast(`${s.venue}, ${s.city}: happened`); return }
+  if (d.del) { S.shows = S.shows.filter(x => x.id !== d.del); S.open = null; save(); render(); return }
+  if (d.delsong) { S.songs.splice(+d.delsong, 1); save(); render(); return }
+  if (d.place) { S.place = S.place === d.place ? null : d.place; render(); return }
+});
+
+$('#qname').textContent = DATA.artist_query;
+$('#notes').innerHTML = notes();
+render();
+</script>

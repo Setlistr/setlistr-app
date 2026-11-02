@@ -1,0 +1,62 @@
+[
+ {
+  "url": "https://musicbrainz.org/ws/2/artist/?query=artist%3A%22Jesse%20Slack%22&fmt=json&limit=10",
+  "status": 200,
+  "ms": 501,
+  "at": "2026-11-02T14:55:22.928Z"
+ },
+ {
+  "url": "https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Jesse%20Slack&language=en&type=item&limit=10&format=json",
+  "status": 200,
+  "ms": 296,
+  "at": "2026-11-02T14:55:23.430Z"
+ },
+ {
+  "url": "https://musicbrainz.org/ws/2/artist/5f18f9ad-4ee9-4f77-b2e2-a839f3ff2b8c?inc=url-rels+tags+aliases&fmt=json",
+  "status": 200,
+  "ms": 216,
+  "at": "2026-11-02T14:55:24.531Z"
+ },
+ {
+  "url": "https://musicbrainz.org/ws/2/event?artist=5f18f9ad-4ee9-4f77-b2e2-a839f3ff2b8c&inc=place-rels+area-rels+artist-rels&limit=100&fmt=json",
+  "status": 200,
+  "ms": 145,
+  "at": "2026-11-02T14:55:25.632Z"
+ },
+ {
+  "url": "https://musicbrainz.org/ws/2/release-group?artist=5f18f9ad-4ee9-4f77-b2e2-a839f3ff2b8c&limit=100&fmt=json",
+  "status": 200,
+  "ms": 162,
+  "at": "2026-11-02T14:55:26.734Z"
+ },
+ {
+  "url": "https://musicbrainz.org/ws/2/recording?artist=5f18f9ad-4ee9-4f77-b2e2-a839f3ff2b8c&inc=isrcs&limit=100&fmt=json",
+  "status": 200,
+  "ms": 334,
+  "at": "2026-11-02T14:55:27.836Z"
+ },
+ {
+  "url": "https://musicbrainz.org/ws/2/recording/5d7f93a4-423e-47fa-bc68-c2fadab60202?inc=work-rels+releases+artist-credits&fmt=json",
+  "status": 200,
+  "ms": 195,
+  "at": "2026-11-02T14:55:28.937Z"
+ },
+ {
+  "url": "https://musicbrainz.org/ws/2/event/?query=%22Jesse%20Slack%22&fmt=json&limit=25",
+  "status": 200,
+  "ms": 309,
+  "at": "2026-11-02T14:55:30.038Z"
+ },
+ {
+  "url": "https://musicbrainz.org/ws/2/recording/?query=artistname%3A%22Jesse%20Slack%22&fmt=json&limit=25",
+  "status": 503,
+  "ms": 161,
+  "at": "2026-11-02T14:55:31.139Z"
+ },
+ {
+  "url": "https://musicbrainz.org/ws/2/recording/?query=artistname%3A%22Jesse%20Slack%22&fmt=json&limit=25",
+  "status": 200,
+  "ms": 902,
+  "at": "2026-11-02T14:55:33.301Z"
+ }
+]

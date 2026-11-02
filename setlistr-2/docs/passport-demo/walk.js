@@ -1,0 +1,18 @@
+const { chromium } = require('/Users/jesseslack/.npm/_npx/e41f203b7505f1fb/node_modules/playwright')
+;(async () => {
+  const b = await chromium.launch(), p = await b.newPage({ viewport: { width: 1200, height: 1000 } }), errs = []
+  p.on('pageerror', e => errs.push(e.message)); p.on('console', m => m.type() === 'error' && errs.push(m.text()))
+  await p.goto('file://' + __dirname + '/passport.html'); await p.waitForTimeout(600)
+  await p.screenshot({ path: __dirname + '/s1-home.png', fullPage: true })
+  await p.click('button[data-id="yes"]'); await p.click('#nextbtn')
+  await p.fill('#f-date', '2026-10-24'); await p.fill('#f-venue', 'The Horseshoe Tavern'); await p.fill('#f-city', 'Toronto'); await p.click('#addform button[type=submit]')
+  await p.click('#nextbtn'); await p.waitForTimeout(200)
+  await p.screenshot({ path: __dirname + '/s2-show.png', fullPage: true })
+  await p.click('button[data-happened="yes"]'); await p.click('button[data-tab="songs"]')
+  await p.screenshot({ path: __dirname + '/s3-songs.png', fullPage: true })
+  const m = await b.newPage({ viewport: { width: 400, height: 900 } }); m.on('pageerror', e => errs.push(e.message))
+  await m.goto('file://' + __dirname + '/passport.html'); await m.waitForTimeout(400)
+  const over = await m.evaluate(() => document.documentElement.scrollWidth > innerWidth)
+  await m.screenshot({ path: __dirname + '/s4-phone.png' })
+  console.log('errors:', errs, 'phone overflow:', over); await b.close()
+})()
