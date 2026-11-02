@@ -33,3 +33,13 @@
 These are product screens, not website copy. Nothing has been changed.
 - **Legacy `/app/new`:** shows "Your show. Verified. Documented." (`app/app/new/page.tsx`).
 - **Live capture:** a recognised song that matches the planned setlist is labelled **"Verified ✓"** (`app/app/live/[id]/page.tsx`). Recognition matching a plan is not verification. Review already uses "Matched setlist ✓", which is a fitting replacement.
+
+### Proposed copy (not implemented; a separate small change)
+Each label should say what the system actually established.
+
+| Where | Current | What was established | Proposed |
+|---|---|---|---|
+| Live capture, a recognised song that matches the planned setlist (`app/app/live/[id]/page.tsx`) | "Verified ✓" | Audio recognition returned a title that matches a song on tonight's plan. | "Matched your setlist ✓" (same meaning as Review's "Matched setlist ✓") |
+| Legacy show setup, line under "Where tonight?" when there's no venue history (`app/app/new/page.tsx`) | "Your show. Verified. Documented." | Nothing yet: the show hasn't started. | "Setlistr listens as you play. You confirm the set afterwards." |
+
+Not changed by this proposal: Review's existing labels ("Matched setlist ✓", "Played from setlist ✓", "On your setlist ✓"), which already describe what happened.

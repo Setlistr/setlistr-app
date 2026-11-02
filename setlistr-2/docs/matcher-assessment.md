@@ -1,6 +1,6 @@
 # Setlist matcher: assessment before any further work
 
-*2026-11-02, from code and migration text only. No production queries. Branch `fix/setlist-title-matcher` is **on hold**, not to be activated.*
+*2026-11-02, from code and migration text only; revised the same day (sections 4–8). No production queries. Branch `fix/setlist-title-matcher` is **on hold**, not to be activated.*
 
 **Two things are kept apart throughout:**
 - **Song-performance counts:** how often a title was played (`user_songs.confirmed_count`, Career's most-played songs).
@@ -39,25 +39,74 @@ In production, the catalogue query fails, so nothing is matched and titles reach
   - **Today:** one combined row; one key, `home agn dreams`.
   - **Held branch:** two rows, both unresolved. "Home Agn" becomes its own catalogue song (a misspelled duplicate of Home or Home Again); "Dreams (FM)" behaves as above.
 
-## 4. Existing structures that could hold uncertainty (no new column needed)
-| Structure | Fit |
+## 4. Audit: `inclusion_reason` and `notes` (song level)
+**`performance_songs.inclusion_reason` records why a row exists, meaning how it was detected or added. Code depends on its exact values.**
+
+| Consumer | Use |
 |---|---|
-| `performance_songs.inclusion_reason` (text) | **Best fit.** Already says why a row exists; show/new writes it. A value such as `planned setlist - identity unresolved` could mark the row. Review's save compares this field to `planned setlist - not detected`, so that comparison would need to accept both. |
-| `performance_songs.notes` (text) | Can hold what was written and the candidates (Review already writes `was …` notes here). Free text, so it's for display, not logic. |
-| `performance_songs.source = 'unidentified'` | Review already treats these as "needs a name" and opens the assign sheet. Wrong fit: it means *no title*, it doesn't keep planned-song semantics, and the catalogue trigger counts it. |
-| `recordings`, `works`, `recording_works` with `candidate` or `confirmed` and `user_confirmed` scope (0007), plus `performance_songs.recording_id` | The intended home for **composition identity**: "this recording is that work", with confirmation recorded. No app code uses it, and planned rows have no recording. Whether 0007 is applied in production is unknown: locally, `recording_id` exists but the tables don't. |
-| Review's `reviewState` | Client-only; it can display uncertainty but not keep it. |
+| Recognition: `api/identify`, `upload-identify`, `upload-reconcile`, and the live page's save | Writes values such as `planned setlist - detected`, `uploaded setlist - detected`, `artist catalogue`, `added mid-show - detected/not detected`, plus threshold and score. |
+| Planning: show/new, new | Writes `planned setlist - not detected`. |
+| Upload: `show/upload`, `upload-performance` | Copies the value from recognition. |
+| Review save | Exact matches drive three behaviours: a kept `planned setlist - not detected` row counts as played (`playedPlanned`); a removed undetected row becomes TN, otherwise FP; kept undetected rows become FN, everything else TP. Rows added after the show become `manually added post-show`. |
+| Views | `performance_songs_visible` (0005) exposes it. |
 
-## 5. Recommended smallest complete fix (for review, not started)
-1. **Suggest, don't replace.** Correct the query, but never change a written title automatically except for case and spacing on a single exact match. Every other catalogue match becomes a one-tap suggestion on the planning row. This keeps today's behaviour of titles as written, without silent substitutions. Medley lines split, and each part keeps the line.
-2. **Keep the uncertainty, without a new column.** show/new writes unresolved rows with `inclusion_reason = 'planned setlist - identity unresolved'` and `notes = written as "…"; candidates: …`.
-3. **Review.** Such rows show the existing needs-review styling and the question. **✓ Played** opens the existing assign sheet (choose a catalogue song or keep as written) instead of silently marking the row played. The save treats a resolved row like any played planned row.
-4. **Migration, proposed and not applied:** a change to `record_performance_catalog` only:
-   - don't overwrite a non-empty `canonical_artist` with a different artist;
-   - don't count rows still marked `identity unresolved`;
-   - key the per-show marker on the exact title rather than the bracket-stripped key, so "Dreams (FM)" and "Dreams" are counted separately.
+**`performance_songs.notes`** is written only by Review, as a correction log (`was <artist>-<title>`), and is exposed through the same view; nothing reads it for logic. The `notes` field on the **show** (`performances.notes`) is a different column (setlist.fm import text and the performance page).
 
-   No table or unique-key change. Recording an original and a cover with an identical title as two songs would need `user_songs` keyed by artist, a larger change better handled through `recordings` and `works` later.
-5. **Recognition (needs your explicit go-ahead; `api/identify` is protected).** Exclude rows marked `identity unresolved` from the planned-title prior, so an unresolved planned title can't admit a recording at score 1. Without this, step 3 still holds: the detected row arrives separately and is visible in Review, but its writers come from the recording.
+**Not used by either field:**
+- **Proof provenance:** reads `source` (recognised versus entered by the team).
+- **Claim-sheet export:** title, artist, composer, ISRC, publisher.
+- **Copied setlists:** "Use a past setlist" and "Load that set" copy title, artist and position only.
+- **The completion trigger:** reads title, artist, `source` and removal.
 
-**Not in scope:** historical repair; turning on automatic substitution; work-level matching. The held branch's prompt, tests and merge helpers are reusable for steps 1 to 3.
+**Conclusion:** neither field should carry identity. Using `inclusion_reason` would break Review's played and FN/TP logic and the detection analytics. `notes` is free text that nothing reads for logic. Both keep their current meanings.
+
+## 5. Three separate facts
+| Fact | Where it lives | Unresolved row |
+|---|---|---|
+| **Was it played?** | A kept, confirmed `performance_songs` row: not removed, not still `planned`. | Yes: confirmed like any row. |
+| **Which composition?** | Writers and ISWC: `composer` on the row; later, `recording_id` → `recording_works` → `works` (0007, with candidate or confirmed states). | Unknown: no writer, no work link. Nothing is inferred. |
+| **Which catalogue entry?** | Today **implicit by title**: there is no ID link from a performance row to `user_songs`. | None. |
+
+**How each count behaves under the proposal:**
+- **Show song count, Proof counts and "songs played live":** every confirmed row, resolved or not. Unchanged.
+- **Catalogue entry count** (`user_songs.confirmed_count`, Career's most-played songs): only rows linked to that entry, once per show per entry. Unresolved rows count toward no entry. Career can say "2 plays not matched to a song".
+- **Composition** (claim sheet): writer only from a chosen entry or a confirmed work link. An unresolved row is listed as performed, with its writer missing.
+
+**Catalogue writes today:** counts are written in **five** places, all keyed by title, and all overwrite `canonical_artist`:
+- the live page's `writeUserSong`;
+- `api/identify`, `upload-identify` and `upload-reconcile`, at detection time, **before anyone confirms**;
+- the completion trigger.
+
+## 6. Two distinct compositions sharing a title
+**Constraints inspected:**
+- `user_songs` has `id` and `UNIQUE (user_id, song_title)`.
+- `user_song_performances` has `UNIQUE (user_id, performance_id, normalized_title)`, keyed on a bracket-stripped title.
+- `performance_songs` has no catalogue link; it has a nullable `recording_id`. Locally the recordings and works tables are missing, and whether 0007 is applied in production is unknown.
+
+So an original and a cover both called "Dreams" can't be two entries today, and nothing can say which entry a row means.
+
+**Proposal: an explicit link, no invented identity.** Proposed migration, not applied:
+1. **Add `performance_songs.user_song_id`:** nullable, `REFERENCES user_songs(id) ON DELETE SET NULL`. It's set only by a person's choice, or by a single exact, unambiguous match. **NULL means the identity is unresolved**, which needs no extra flag.
+2. **Add `user_song_performances.user_song_id`**, with `UNIQUE (performance_id, user_song_id)`. The completion trigger counts linked rows by entry and stops overwriting a non-empty `canonical_artist`. Legacy title markers remain for old rows. No historical repair.
+3. **Two entries with one title:** replace `UNIQUE (user_id, song_title)` with `UNIQUE (user_id, song_title, canonical_artist)`, where empty means the artist's own. **This only works once the other title-keyed writers select by ID or by title plus artist.** Those are the live page, the three recognition routes, admin preload, both Spotify imports, MySongs, and performance delete and undo. `api/identify` is protected and needs your explicit go-ahead. Until that's done, steps 1 and 2 still stop merges and invented identity; a same-title cover simply stays unresolved, or is chosen as the existing entry only if the person decides it is.
+
+## 7. Review interaction (existing assign sheet, extended)
+A confirmed row with no catalogue link shows "Which song is this?" and the original text ("Written as …"). Tapping it opens the existing assign sheet (`CatalogSearch`):
+- **Choose a known song:** links the entry, uses its title and artist, and copies its writer (existing behaviour).
+- **Correct or add a song:** type a title. "Add as a new song" creates an entry for it and links it. Today this also triggers a MusicBrainz writer lookup (`enrich-song`). Proposed: show the result as a suggestion to accept, never applied silently.
+- **Played, song not identified:** a new option. The row stays confirmed as played, with no link and no writer; it shows "Played · song not identified" and can be resolved later.
+- **Planned rows:** "✓ Played" works as today, marking the song played, but leaves the link empty when the title isn't an exact, single catalogue match.
+
+## 8. Revised recommendation
+1. **Keep the branch on hold.** Don't turn substitution on. When matching ships, it suggests only (section 1 of the held work), plus medley splitting with the line preserved.
+2. **Approve the link migration** (section 6, steps 1–2) and the Review options (section 7), so a played song can stay unidentified without a forced catalogue choice and without being merged by title.
+3. **Defer the uniqueness change** (step 3) until the title-keyed writers are converted.
+
+**Decisions needed:**
+- **The migration:** approve steps 1–2, applied first on the local disposable stack.
+- **Catalogue writes during recognition:** whether recognition routes should keep writing catalogue counts at detection time, before confirmation. Changing `api/identify` needs explicit instruction.
+- **New-song writers:** whether the MusicBrainz lookup for new songs becomes suggestion-only.
+- **Same-title entries:** whether to pursue step 3 (artist-keyed uniqueness) or rely on the work layer (0007) later.
+- **Turning the query on:** when to correct the catalogue query in production, once suggestions replace substitution.
+
+No historical repair is proposed. The website candidate is separate and can go to release review on its own.
