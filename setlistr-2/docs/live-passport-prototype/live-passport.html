@@ -1,0 +1,344 @@
+<title>Live Passport</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700;9..40,800&display=swap">
+<style>
+/* Layout: Proof's identity block and big figure, a night-by-night journey strip, then Proof-style city rows that open in place.
+   Dark-first like the app: Setlistr's --sl tokens, Light from the app's own Light values. */
+:root {
+  --sl-bg: #0a0908; --sl-surface: #16140f; --sl-surface-2: #1d1a15; --sl-line: rgba(255,255,255,0.08);
+  --sl-text: #f3eee4; --sl-text-2: #cdc2a8; --sl-text-3: #ab9d82; --sl-text-4: #958976;
+  --sl-gold: #c9a84c; --sl-gold-text: #d8b85c; --sl-accent: #c9a84c; --sl-on-accent: #0a0908;
+  --sl-tick: rgba(255,255,255,0.16); --sl-warn: #f59e0b;
+  --sl-page-glow: radial-gradient(ellipse at 50% 0%, rgba(201,168,76,0.07) 0%, transparent 65%);
+  --sl-card-bg: linear-gradient(180deg, #171512 0%, #121009 100%);
+  --sl-glow: 0 0 14px rgba(201,168,76,0.55);
+  --display: 'Bebas Neue', 'Oswald', 'Arial Narrow', sans-serif;
+  --sans: 'DM Sans', system-ui, -apple-system, sans-serif;
+  --mono: 'DM Mono', ui-monospace, Menlo, monospace;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) {
+  --sl-bg: #ffffff; --sl-surface: #f4f4f5; --sl-surface-2: #ececee; --sl-line: rgba(17,19,24,0.1);
+  --sl-text: #14161b; --sl-text-2: #3f434b; --sl-text-3: #5b5f67; --sl-text-4: #5f636a;
+  --sl-gold: #b8963e; --sl-gold-text: #7a5c0c; --sl-accent: #7a5e14; --sl-on-accent: #ffffff;
+  --sl-tick: rgba(17,19,24,0.15); --sl-warn: #9a5800; --sl-page-glow: none; --sl-card-bg: #f4f4f5; --sl-glow: 0 0 0 1px rgba(122,94,20,0.35);
+  color-scheme: light;
+} }
+:root[data-theme="light"] {
+  --sl-bg: #ffffff; --sl-surface: #f4f4f5; --sl-surface-2: #ececee; --sl-line: rgba(17,19,24,0.1);
+  --sl-text: #14161b; --sl-text-2: #3f434b; --sl-text-3: #5b5f67; --sl-text-4: #5f636a;
+  --sl-gold: #b8963e; --sl-gold-text: #7a5c0c; --sl-accent: #7a5e14; --sl-on-accent: #ffffff;
+  --sl-tick: rgba(17,19,24,0.15); --sl-warn: #9a5800; --sl-page-glow: none; --sl-card-bg: #f4f4f5; --sl-glow: 0 0 0 1px rgba(122,94,20,0.35);
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+html, body { background: var(--sl-bg); color: var(--sl-text); }
+body { font: 15px/1.5 var(--sans); padding-inline: 16px; padding-block: 0 120px; background-image: var(--sl-page-glow); background-repeat: no-repeat; }
+button { font: inherit; color: inherit; cursor: pointer; }
+button:focus-visible, summary:focus-visible { outline: 2px solid var(--sl-accent); outline-offset: 2px; border-radius: 4px; }
+
+/* Prototype controls: outside the product, clearly labelled. */
+.proto { max-width: 1120px; margin: 0 auto; padding-block: 10px; display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; border-bottom: 1px dashed var(--sl-line); font-size: 12.5px; color: var(--sl-text-3); }
+.proto b { color: var(--sl-text-2); font-weight: 600; }
+.seg { display: inline-flex; gap: 4px; flex-wrap: wrap; }
+.seg button { background: none; border: 1px solid var(--sl-line); border-radius: 999px; padding: 5px 11px; min-height: 32px; font-size: 12.5px; color: var(--sl-text-2); }
+.seg button[aria-pressed="true"] { border-color: var(--sl-gold); color: var(--sl-gold-text); }
+
+.lp { max-width: 1120px; margin: 0 auto; padding-top: 22px; display: grid; gap: 26px; }
+.who .ov { font-size: 13px; font-weight: 600; color: var(--sl-gold-text); margin-bottom: 6px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.sample { font-size: 10.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; border: 1px solid var(--sl-line); border-radius: 999px; padding: 2px 7px; color: var(--sl-text-3); }
+.name { font-family: var(--display); font-weight: 400; font-size: clamp(64px, 19vw, 132px); line-height: .84; letter-spacing: .012em; margin: 0 0 0 -3px; text-wrap: balance; }
+.period { margin: 10px 0 0; font-size: 14.5px; color: var(--sl-text-2); }
+.fig { display: grid; grid-template-columns: auto minmax(0,1fr); gap: 16px; align-items: end; }
+.big { font-family: var(--display); font-size: 136px; line-height: .76; margin-left: -4px; font-variant-numeric: tabular-nums; }
+.big-l { font-size: 16px; font-weight: 700; line-height: 1.25; }
+.supp { margin-top: 4px; font-size: 13.5px; color: var(--sl-text-2); }
+
+/* The journey: one tick per night, month by month; upcoming nights hollow. */
+.journey { display: grid; gap: 8px; }
+.strip { overflow-x: auto; padding-bottom: 4px; }
+.months { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(12px, 1fr); gap: 2px; align-items: end; min-width: max-content; padding-right: 20px; }
+.mo { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; min-width: 12px; width: 100%; overflow: visible; }
+.mo .dots { display: flex; flex-direction: column-reverse; gap: 3px; align-items: center; width: 12px; min-height: 10px; }
+.mo .yr { width: 12px; overflow: visible; height: 18px; font-family: var(--display); font-size: 18px; line-height: 18px; letter-spacing: .03em; color: var(--sl-text-3); white-space: nowrap; }
+.n { width: 10px; height: 10px; border-radius: 50%; background: var(--sl-tick); transition: background .35s, box-shadow .35s, opacity .35s, transform .35s; }
+.n.on { background: var(--sl-gold); }
+.n.up { background: transparent; border: 1.5px solid var(--sl-gold); }
+.focus .n { opacity: .35; }
+.focus .n.hit { opacity: 1; background: var(--sl-gold); box-shadow: var(--sl-glow); transform: scale(1.15); }
+.focus .n.hit.up { background: transparent; }
+.cap { display: flex; justify-content: space-between; gap: 4px 12px; flex-wrap: wrap; font-size: 12px; color: var(--sl-text-3); }
+
+/* Places, Proof-style: Bebas city names, mono counts; each opens in place. */
+.places-h { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding-bottom: 10px; border-bottom: 1px solid var(--sl-text); }
+.places-h h2 { margin: 0; font-size: 17px; font-weight: 700; }
+.places-h span { font-size: 13px; color: var(--sl-text-3); }
+.city { border-bottom: 1px solid var(--sl-line); }
+.city > button { width: 100%; display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 10px 0; background: none; border: 0; text-align: left; min-height: 52px; }
+.city b { font-family: var(--display); font-weight: 400; font-size: 34px; line-height: .95; letter-spacing: .01em; overflow-wrap: anywhere; transition: color .25s; }
+.city[data-open="true"] b { color: var(--sl-gold-text); }
+.city .ct { font-family: var(--mono); font-size: 12.5px; color: var(--sl-text-3); white-space: nowrap; display: flex; gap: 8px; align-items: baseline; }
+.soon { font-family: var(--sans); font-size: 11.5px; font-weight: 700; color: var(--sl-gold-text); border: 1px solid color-mix(in srgb, var(--sl-gold) 45%, transparent); border-radius: 999px; padding: 2px 8px; }
+.more { min-height: 44px; padding: 0; background: none; border: 0; color: var(--sl-gold-text); font-weight: 700; font-size: 14px; margin-top: 4px; }
+
+/* The opened city: the payoff. */
+.open { padding: 4px 0 18px; display: grid; gap: 16px; }
+@media (prefers-reduced-motion: no-preference) { .open { animation: unfold .45s cubic-bezier(.2,.8,.2,1); } @keyframes unfold { from { opacity: 0; transform: translateY(-6px); } } }
+.insight { background: var(--sl-card-bg); border-radius: 16px; padding: 16px; display: grid; gap: 6px; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sl-gold) 28%, transparent); }
+.insight .k { font-size: 11.5px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: var(--sl-gold-text); }
+.insight p { margin: 0; font-size: 18px; font-weight: 600; line-height: 1.35; text-wrap: pretty; }
+.insight p em { font-style: normal; color: var(--sl-gold-text); }
+.insight small { font-size: 12.5px; color: var(--sl-text-3); line-height: 1.45; }
+.nights { display: grid; }
+.night { border-top: 1px solid var(--sl-line); }
+.night > summary { list-style: none; cursor: pointer; display: grid; grid-template-columns: 62px minmax(0,1fr) auto; gap: 12px; align-items: baseline; padding: 11px 0; min-height: 44px; }
+.night > summary::-webkit-details-marker { display: none; }
+.dt { font-family: var(--mono); font-size: 13px; color: var(--sl-text-2); white-space: nowrap; }
+.vn { font-weight: 600; overflow-wrap: anywhere; }
+.night[open] .vn { color: var(--sl-gold-text); }
+.hw { font-size: 12.5px; color: var(--sl-text-3); white-space: nowrap; }
+.hw.miss { font-style: italic; }
+.setl { margin: 0 0 8px 74px; font-family: var(--mono); font-size: 13px; color: var(--sl-text-2); line-height: 1.7; }
+.setl mark { background: none; color: var(--sl-gold-text); font-weight: 500; }
+.ev { margin: 0 0 14px 74px; display: grid; gap: 8px; }
+.ev dt { font-size: 11px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--sl-text-3); }
+.ev dd { margin: 1px 0 0; font-size: 13.5px; line-height: 1.45; }
+
+/* One primary action, fixed to the bottom on phones. */
+.act { position: fixed; left: 0; right: 0; bottom: 0; padding: 12px 16px calc(14px + env(safe-area-inset-bottom, 0px)); background: linear-gradient(to bottom, transparent, var(--sl-bg) 35%); display: grid; justify-items: center; gap: 4px; z-index: 5; }
+.btn { width: 100%; max-width: 520px; min-height: 52px; border: 0; border-radius: 14px; background: var(--sl-accent); color: var(--sl-on-accent); font: 800 16px var(--sans); }
+.act small { font-size: 12.5px; color: var(--sl-text-3); text-align: center; max-width: 520px; }
+.toast { position: fixed; left: 50%; bottom: 96px; transform: translateX(-50%); width: min(520px, calc(100% - 32px)); background: var(--sl-surface-2); border: 1px solid color-mix(in srgb, var(--sl-gold) 40%, transparent); border-radius: 12px; padding: 10px 14px; font-size: 13.5px; z-index: 6; }
+
+@media (min-width: 900px) {
+  body { padding-bottom: 48px; }
+  .lp { grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); column-gap: 56px; align-items: start; padding-top: 36px; }
+  .lp > .left { position: sticky; top: 24px; display: grid; gap: 30px; }
+  .big { font-size: 190px; }
+  .act { position: static; padding: 0; background: none; justify-items: stretch; margin-top: 18px; }
+  .act small { text-align: left; }
+  .toast { bottom: 24px; }
+}
+.left { display: grid; gap: 26px; }
+</style>
+
+<div class="proto" role="region" aria-label="Prototype controls">
+  <span><b>Prototype</b> · sample artist with fictional history. Nothing here was discovered or recorded.</span>
+  <span class="seg" aria-label="Sample">
+    <button data-scn="est" aria-pressed="true">Touring artist</button>
+    <button data-scn="new" aria-pressed="false">New artist</button>
+  </span>
+  <span class="seg" aria-label="Theme">
+    <button data-th="system" aria-pressed="true">System</button><button data-th="light" aria-pressed="false">Light</button><button data-th="dark" aria-pressed="false">Dark</button>
+  </span>
+</div>
+
+<main class="lp" id="lp"></main>
+<div class="act" id="act"></div>
+
+<script>
+// ── Sample data: fictional, generated deterministically. ──────────────────
+const TODAY = '2026-11-02'
+function rng(seed) { return () => { seed = (seed * 1664525 + 1013904223) % 4294967296; return seed / 4294967296 } }
+const CORE = ['Neon Lights', 'Harbour', 'Lighthouse', 'Wildfire Season']
+const ROT = ['Paper Moon Motel', 'The Long Way Home', 'St Agnes', 'June', 'Old Favourites', 'Saltwater', 'Northern Line', 'Copper Sky', 'Glass Houses', 'Low Tide', 'Home Again', 'Dreams', 'Jolene', 'Landslide']
+const DEBUTS = { 'Velvet Static': '2026-05-02', 'Gasoline Halo': '2026-08-21' }
+
+const EST_NIGHTS = [
+  ['2024-03-15', 'Toronto', 'The Horseshoe Tavern'], ['2024-04-12', 'Montréal', 'Casa del Popolo'], ['2024-04-13', 'Ottawa', 'Club SAW'],
+  ['2024-05-24', 'Hamilton', 'Bridgeworks'], ['2024-06-21', 'Toronto', 'Lee’s Palace'], ['2024-07-19', 'Kingston', 'The Mansion'],
+  ['2024-09-13', 'Halifax', 'The Marquee Ballroom'], ['2024-09-14', 'Halifax', 'The Seahorse Tavern'], ['2024-10-04', 'Québec City', 'L’Anti'],
+  ['2024-11-02', 'Montréal', 'Bar Le Ritz PDB'], ['2024-11-03', 'Ottawa', 'Bronson Centre'], ['2024-12-14', 'Toronto', 'The Danforth Music Hall'],
+  ['2025-02-21', 'Winnipeg', 'The Good Will'], ['2025-02-23', 'Calgary', 'Palomino'], ['2025-02-26', 'Vancouver', 'The Biltmore'],
+  ['2025-04-11', 'Toronto', 'The Horseshoe Tavern'], ['2025-05-16', 'Hamilton', 'Bridgeworks'], ['2025-06-20', 'Kingston', 'The Mansion'],
+  ['2025-08-08', 'Ottawa', 'Club SAW'], ['2025-10-17', 'Montréal', 'Théâtre Fairmount'], ['2025-10-18', 'Québec City', 'L’Anti'],
+  ['2025-11-28', 'Toronto', 'Lee’s Palace'], ['2026-01-23', 'Hamilton', 'Bridgeworks'], ['2026-03-06', 'Ottawa', 'Bronson Centre'],
+  ['2026-03-07', 'Montréal', 'Théâtre Fairmount'], ['2026-04-10', 'Toronto', 'The Horseshoe Tavern'], ['2026-05-02', 'Toronto', 'The Danforth Music Hall'],
+  ['2026-05-30', 'Kingston', 'The Mansion'], ['2026-06-26', 'Halifax', 'The Marquee Ballroom'], ['2026-07-17', 'Hamilton', 'Bridgeworks'],
+  ['2026-08-21', 'Ottawa', 'Club SAW'], ['2026-09-11', 'Winnipeg', 'The Good Will'], ['2026-09-13', 'Calgary', 'Palomino'],
+  ['2026-09-16', 'Vancouver', 'The Biltmore'], ['2026-10-09', 'Toronto', 'Lee’s Palace'], ['2026-10-23', 'Hamilton', 'Bridgeworks'],
+  ['2026-10-30', 'Kingston', 'The Mansion'], ['2026-11-14', 'Montréal', 'Le National'], ['2026-11-15', 'Québec City', 'L’Anti'],
+]
+// Evidence per night: most captured live; a few from a setlist photo; one listed show with no setlist.
+const PHOTO = new Set(['2024-09-14', '2025-02-23', '2026-01-23'])
+const NO_SETLIST = new Set(['2025-10-17', '2024-07-19'])
+
+function buildNights(list, seed, opts = {}) {
+  const r = rng(seed)
+  return list.map(([date, city, venue], i) => {
+    const n = { id: 'n' + i, date, city, venue, upcoming: date > TODAY }
+    if (n.upcoming) return n
+    if (NO_SETLIST.has(date) && !opts.plain) { n.source = 'listed'; return n }
+    n.source = PHOTO.has(date) && !opts.plain ? 'photo' : 'capture'
+    const pool = ROT.slice().sort(() => r() - .5)
+    let set = [...CORE, ...pool.slice(0, opts.short ? 4 : 7 + Math.floor(r() * 4))]
+    for (const [s, d] of Object.entries(DEBUTS)) if (date >= d && r() < (date === d ? 1 : .9)) set.push(s)
+    if (opts.extra) set.push(...opts.extra(date))
+    set = set.sort(() => r() - .5)
+    n.songs = set
+    n.recognised = n.source === 'capture' ? set.length - (r() < .3 ? 1 : 0) : null
+    n.orderConfirmed = n.source === 'capture'
+    return n
+  })
+}
+
+const SAMPLES = {
+  est: { name: 'Lena Hart', nights: buildNights(EST_NIGHTS, 7) },
+  new: { name: 'Lena Hart', nights: buildNights([['2026-10-03', 'Toronto', 'The Baby G'], ['2026-10-18', 'Hamilton', 'Mills Hardware'], ['2026-11-08', 'Guelph', 'Jimmy Jazz']], 11,
+    { plain: true, short: true, extra: d => d === '2026-10-18' ? ['Ferris Wheel'] : [] }) },
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────
+const $ = s => document.querySelector(s)
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
+const D = d => new Date(d + 'T12:00:00Z')
+const short = d => D(d).toLocaleDateString('en-CA', { timeZone: 'UTC', month: 'short', day: 'numeric' })
+const full = d => D(d).toLocaleDateString('en-CA', { timeZone: 'UTC', month: 'short', day: 'numeric', year: 'numeric' })
+const monthYr = d => D(d).toLocaleDateString('en-CA', { timeZone: 'UTC', month: 'short', year: 'numeric' })
+const pl = (n, a, b) => `${n} ${n === 1 ? a : b}`
+const words = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten']
+
+let scn = 'est', city = null, showAll = false
+
+function model() {
+  const s = SAMPLES[scn], nights = s.nights
+  const past = nights.filter(n => !n.upcoming), up = nights.filter(n => n.upcoming)
+  const byCity = new Map()
+  for (const n of nights) { if (!byCity.has(n.city)) byCity.set(n.city, []); byCity.get(n.city).push(n) }
+  const next = up[0] || null
+  return { s, nights, past, up, byCity, next }
+}
+
+// One insight per city, chosen by what's most useful now; scoped to the record.
+function insight(m, c) {
+  const all = m.byCity.get(c), here = all.filter(n => !n.upcoming), withSet = here.filter(n => n.songs)
+  const upHere = all.find(n => n.upcoming)
+  const scope = here.length > withSet.length
+    ? `Based on ${words[withSet.length] || withSet.length} of ${words[here.length] || here.length} nights here with a setlist on your record. ${here.filter(n => !n.songs).map(n => full(n.date)).join(', ')} has none.`
+    : here.length ? `Based on ${here.length === 1 ? 'the one night' : `all ${words[here.length] || here.length} nights`} here on your record.` : ''
+  if (!here.length) return { k: 'New city', text: `${c} will be a new city on your record on <em>${short(upHere.date)}</em>.`, scope: 'Your record starts here with this show.' }
+  // A song from your recent sets that this city hasn't heard (on your record).
+  const recent = m.past.filter(n => n.songs).slice(-10)
+  const freq = new Map(); for (const n of recent) for (const s of n.songs) freq.set(s, (freq.get(s) || 0) + 1)
+  const heard = new Set(withSet.flatMap(n => n.songs))
+  const fresh = [...freq].filter(([s, k]) => k >= 6 && !heard.has(s)).sort((a, b) => b[1] - a[1])[0]
+  if (upHere && fresh) {
+    const last = withSet[withSet.length - 1], deb = DEBUTS[fresh[0]]
+    return { k: `Before ${short(upHere.date)}`, song: fresh[0],
+      text: `<em>${esc(fresh[0])}</em> is in ${fresh[1]} of your last ${recent.length} sets, but ${esc(c)} hasn’t heard it on your record.${deb && deb > last.date ? ` Your last night here, ${short(last.date)}, came before its debut on ${short(deb)}.` : ''}`, scope }
+  }
+  // A song that has been in every set here.
+  if (withSet.length >= 2) {
+    // Songs in nearly every set everywhere say nothing about this city.
+    const overall = s => m.past.filter(n => n.songs && n.songs.includes(s)).length / m.past.filter(n => n.songs).length
+    const pick = withSet[0].songs.find(s => withSet.every(n => n.songs.includes(s)) && overall(s) < 0.6)
+    if (pick) return { k: `${c} and you`, song: pick, text: `<em>${esc(pick)}</em> has been in every ${esc(c)} set on your record.`, scope }
+  }
+  // A debut here.
+  const firstAt = new Map(); for (const n of m.past) for (const s of n.songs || []) if (!firstAt.has(s)) firstAt.set(s, n)
+  const debHere = [...firstAt].find(([s, n]) => n.city === c && m.past.indexOf(n) > 0)
+  if (debHere) return { k: 'First played here', song: debHere[0], text: `<em>${esc(debHere[0])}</em> was first played in ${esc(c)}, on ${short(debHere[1].date)}. The first time on your record.`, scope }
+  const f = here[0]
+  return { k: 'Where it started', text: `${full(f.date)} at ${esc(f.venue)}${f.songs ? `, ${f.songs.length} songs` : ''}. ${m.past.indexOf(f) === 0 ? 'The first night on your record.' : ''}`, scope }
+}
+
+function action(m) {
+  if (scn === 'new') {
+    const nx = m.next
+    return city && m.byCity.get(city).some(n => n.upcoming)
+      ? { label: `Record ${nx.city} on ${short(nx.date)}`, note: 'On the night, one tap starts live capture.', toast: 'Prototype: opens Tonight’s show on the day.' }
+      : { label: `Record ${nx.city} on ${short(nx.date)}`, note: `Your third night. ${nx.city} will be a new city.`, toast: 'Prototype: opens Tonight’s show on the day.' }
+  }
+  const nx = m.next
+  if (city === nx.city) return { label: `Plan ${short(nx.date)} from your ${nx.city} nights`, note: 'Starts a planned set. Nothing is recorded until the show.', toast: 'Prototype: would open set planning with your last Montréal set and Velvet Static suggested.' }
+  if (city) return { label: `Back to ${nx.city} · ${short(nx.date)}`, note: `Your next show.`, go: () => openCity(nx.city) }
+  return { label: `Explore ${nx.city} before ${short(nx.date)}`, note: `${pl(m.byCity.get(nx.city).filter(n => !n.upcoming).length, 'night', 'nights')} there on your record.`, go: () => openCity(nx.city) }
+}
+
+// ── Render ────────────────────────────────────────────────────────────────
+function strip(m) {
+  const first = m.nights[0].date.slice(0, 7), last = m.nights[m.nights.length - 1].date.slice(0, 7)
+  const months = []; let [y, mo] = first.split('-').map(Number)
+  while (`${y}-${String(mo).padStart(2, '0')}` <= last) { months.push(`${y}-${String(mo).padStart(2, '0')}`); mo++; if (mo > 12) { mo = 1; y++ } }
+  return `<div class="strip"><div class="months ${city ? 'focus' : ''}" role="img" aria-label="${pl(m.past.length, 'night', 'nights')} on your record, ${pl(m.up.length, 'upcoming show', 'upcoming shows')}${city ? `; ${city} highlighted` : ''}">
+    ${months.map((k, i) => `<div class="mo"><span class="dots">${m.nights.filter(n => n.date.startsWith(k)).map(n => `<i class="n ${n.upcoming ? 'up' : 'on'} ${city === n.city ? 'hit' : ''}"></i>`).join('')}</span><span class="yr">${k.endsWith('-01') || i === 0 ? k.slice(0, 4) : ''}</span></div>`).join('')}
+  </div></div>`
+}
+
+function cityRows(m) {
+  const rows = [...m.byCity].map(([c, ns]) => ({ c, past: ns.filter(n => !n.upcoming).length, up: ns.find(n => n.upcoming) }))
+    .sort((a, b) => (b.up ? 1 : 0) - (a.up ? 1 : 0) || b.past - a.past)
+  const shown = showAll || rows.length <= 6 ? rows : rows.slice(0, 6)
+  return shown.map(r => `
+    <div class="city" data-open="${city === r.c}">
+      <button data-city="${esc(r.c)}" aria-expanded="${city === r.c}">
+        <b>${esc(r.c)}</b>
+        <span class="ct">${r.up ? `<span class="soon">${short(r.up.date)}</span>` : ''}${r.past ? pl(r.past, 'night', 'nights') : 'new'}</span>
+      </button>
+      ${city === r.c ? opened(m, r.c) : ''}
+    </div>`).join('') + (rows.length > 6 && !showAll ? `<button class="more" data-all>All ${rows.length} cities</button>` : '')
+}
+
+function opened(m, c) {
+  const ins = insight(m, c), here = m.byCity.get(c).filter(n => !n.upcoming).slice().reverse()
+  return `<div class="open">
+    <div class="insight" role="status"><span class="k">${esc(ins.k)}</span><p>${ins.text}</p>${ins.scope ? `<small>${esc(ins.scope)}</small>` : ''}</div>
+    ${here.length ? `<div class="nights">${here.map(n => night(n, ins.song)).join('')}</div>` : ''}
+  </div>`
+}
+
+function night(n, song) {
+  const how = n.source === 'listed' ? 'No setlist' : `${n.songs.length} songs`
+  const ev = n.source === 'capture'
+    ? [['How it was recorded', n.recognised === n.songs.length ? `Live capture. All ${n.songs.length} songs recognised.` : `Live capture. ${n.recognised} of ${n.songs.length} songs recognised; ${n.songs.length - n.recognised} added in review.`], ['Confirmed', `In review by your team, ${short(addDays(n.date, 1))}.`], ['Order', 'As played.']]
+    : n.source === 'photo'
+    ? [['How it was recorded', 'From a photo of the stage setlist.'], ['Confirmed', `In review by your team, ${short(addDays(n.date, 2))}.`], ['Order', 'From the sheet. Not confirmed as played.']]
+    : [['How it was recorded', 'A listed show you confirmed happened.'], ['Setlist', 'None on your record, so this night isn’t counted in song insights.']]
+  return `<details class="night"><summary><span class="dt">${short(n.date)}<br>${n.date.slice(0, 4)}</span><span class="vn">${esc(n.venue)}</span><span class="hw ${n.songs ? '' : 'miss'}">${how}</span></summary>
+    ${n.songs ? `<p class="setl">${n.songs.map(s => s === song ? `<mark>${esc(s)}</mark>` : esc(s)).join(' · ')}</p>` : ''}
+    <dl class="ev">${ev.map(([k, v]) => `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl></details>`
+}
+function addDays(d, k) { const x = D(d); x.setUTCDate(x.getUTCDate() + k); return x.toISOString().slice(0, 10) }
+
+function render() {
+  const m = model(), first = m.past[0], cities = m.byCity.size
+  const fig = `<div class="fig"><div class="big">${m.past.length}</div><div><div class="big-l">${m.past.length === 1 ? 'night' : 'nights'} on your record</div>
+    <div class="supp">${scn === 'new' ? `Since ${short(first.date)}. Next: ${esc(m.next.city)}, ${short(m.next.date)}.` : `${cities} cities · ${new Set(m.past.flatMap(n => n.songs || [])).size} songs played live`}</div></div></div>`
+  $('#lp').innerHTML = `
+    <div class="left">
+      <div class="who"><div class="ov">Live Passport <span class="sample">Sample</span></div>
+        <h1 class="name">${esc(m.s.name)}</h1>
+        <p class="period">Live record · ${monthYr(first.date)} – now</p></div>
+      ${fig}
+      <section class="journey" aria-label="Your nights">${strip(m)}
+        <div class="cap"><span>Each mark is a night${m.up.length ? '; hollow marks are coming up' : ''}.</span><span>${city ? `${esc(city)} highlighted` : 'Open a city to follow it'}</span></div></section>
+    </div>
+    <section aria-labelledby="pl-h">
+      <div class="places-h"><h2 id="pl-h">Places</h2><span>${pl(cities, 'city', 'cities')}</span></div>
+      ${cityRows(m)}
+      <div class="act" id="act-d"></div>
+    </section>`
+  const a = action(m), wide = matchMedia('(min-width: 900px)').matches
+  const html = `<button class="btn" id="go">${esc(a.label)}</button><small>${esc(a.note)}</small>`
+  $('#act').innerHTML = wide ? '' : html; $('#act-d').innerHTML = wide ? html : ''
+  $('#go').onclick = () => a.go ? a.go() : toast(a.toast)
+  const st = document.querySelector('.strip'); if (st) st.scrollLeft = st.scrollWidth
+}
+
+function openCity(c) {
+  city = city === c ? null : c; render()
+  const el = document.querySelector(`.city[data-open="true"]`)
+  if (el) el.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' })
+}
+let tt; function toast(t) { document.querySelectorAll('.toast').forEach(x => x.remove()); const e = document.createElement('div'); e.className = 'toast'; e.setAttribute('role', 'status'); e.textContent = t; document.body.appendChild(e); clearTimeout(tt); tt = setTimeout(() => e.remove(), 3200) }
+
+document.addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return
+  if (b.dataset.city) openCity(b.dataset.city)
+  else if ('all' in b.dataset) { showAll = true; render() }
+  else if (b.dataset.scn) { scn = b.dataset.scn; city = null; showAll = false; document.querySelectorAll('[data-scn]').forEach(x => x.setAttribute('aria-pressed', x === b)); render() }
+  else if (b.dataset.th) { const t = b.dataset.th; if (t === 'system') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme', t); document.querySelectorAll('[data-th]').forEach(x => x.setAttribute('aria-pressed', x === b)) }
+})
+matchMedia('(min-width: 900px)').addEventListener('change', render)
+render()
+</script>
