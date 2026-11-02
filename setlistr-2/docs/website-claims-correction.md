@@ -28,3 +28,8 @@
 - the page-by-page audit;
 - screenshots that display the word "verified" (to check during the audit);
 - claims about earnings or royalty amounts.
+
+## In-app wording found during the website work (separate; not in the website candidate)
+These are product screens, not website copy. Nothing has been changed.
+- **Legacy `/app/new`:** shows "Your show. Verified. Documented." (`app/app/new/page.tsx`).
+- **Live capture:** a recognised song that matches the planned setlist is labelled **"Verified ✓"** (`app/app/live/[id]/page.tsx`). Recognition matching a plan is not verification. Review already uses "Matched setlist ✓", which is a fitting replacement.
