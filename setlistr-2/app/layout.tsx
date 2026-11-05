@@ -5,6 +5,7 @@ import Script from 'next/script'
 import { organizationSchema, softwareApplicationSchema, websiteSchema } from '@/lib/schema'
 import { APPEARANCE_BOOT_SCRIPT } from '@/lib/appearance'
 import AppearanceSync from '@/components/AppearanceSync'
+import NativeSplashHide from '@/components/NativeSplashHide'
 
 export const metadata: Metadata = {
   title: {
@@ -120,6 +121,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body>
         <AppearanceSync />
+        <NativeSplashHide />
         <GoogleAnalytics />
         <Script
           id="warmly-script-loader"
