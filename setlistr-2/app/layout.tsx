@@ -1,11 +1,11 @@
 import type { Metadata, Viewport } from 'next'
 import './globals.css'
 import GoogleAnalytics from '@/components/GoogleAnalytics'
-import Script from 'next/script'
 import { organizationSchema, softwareApplicationSchema, websiteSchema } from '@/lib/schema'
 import { APPEARANCE_BOOT_SCRIPT } from '@/lib/appearance'
 import AppearanceSync from '@/components/AppearanceSync'
 import NativeSplashHide from '@/components/NativeSplashHide'
+import WebOnlyScripts from '@/components/WebOnlyScripts'
 
 export const metadata: Metadata = {
   title: {
@@ -117,38 +117,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteSchema()) }}
         />
-        <script dangerouslySetInnerHTML={{ __html: `!function(key) {if (window.reb2b) return;window.reb2b = {loaded: true};var s = document.createElement("script");s.async = true;s.src = "https://ddwl4m2hdecbv.cloudfront.net/b/" + key + "/" + key + ".js.gz";document.getElementsByTagName("script")[0].parentNode.insertBefore(s, document.getElementsByTagName("script")[0]);}("1N5W0H7VG8O5");` }} />
+        <script dangerouslySetInnerHTML={{ __html: `!function(key) {if (window.reb2b || window.androidBridge || (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.bridge)) return;window.reb2b = {loaded: true};var s = document.createElement("script");s.async = true;s.src = "https://ddwl4m2hdecbv.cloudfront.net/b/" + key + "/" + key + ".js.gz";document.getElementsByTagName("script")[0].parentNode.insertBefore(s, document.getElementsByTagName("script")[0]);}("1N5W0H7VG8O5");` }} />
       </head>
       <body>
         <AppearanceSync />
         <NativeSplashHide />
         <GoogleAnalytics />
-        <Script
-          id="warmly-script-loader"
-          src="https://opps-widget.getwarmly.com/warmly.js?clientId=6ec093d4295038808bea7174bdab7ee6"
-          strategy="afterInteractive"
-        />
+        <WebOnlyScripts />
         {children}
-        <Script id="linkedin-insight" strategy="afterInteractive">
-          {`
-            _linkedin_partner_id = "9157938";
-            window._linkedin_data_partner_ids = window._linkedin_data_partner_ids || [];
-            window._linkedin_data_partner_ids.push(_linkedin_partner_id);
-            (function(l) {
-              if (!l){window.lintrk = function(a,b){window.lintrk.q.push([a,b])};
-              window.lintrk.q=[]}
-              var s = document.getElementsByTagName("script")[0];
-              var b = document.createElement("script");
-              b.type = "text/javascript";b.async = true;
-              b.src = "https://snap.licdn.com/li.lms-analytics/insight.min.js";
-              s.parentNode.insertBefore(b, s);})(window.lintrk);
-          `}
-        </Script>
-        <Script
-          id="contentsquare"
-          src="https://t.contentsquare.net/uxa/a119ec66d2a69.js"
-          strategy="afterInteractive"
-        />
       </body>
     </html>
   )
