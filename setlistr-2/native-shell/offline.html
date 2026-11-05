@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Setlistr</title>
+</head>
+<!-- Native app only. Capacitor shows this bundled page (server.errorPath) when
+     https://setlistr.ai fails to load, e.g. with no connection. It is not an
+     offline mode: nothing works until the site loads again. -->
+<body style="margin:0;min-height:100vh;background:#0a0908;color:#f0ece3;font-family:-apple-system,system-ui,sans-serif;display:flex;align-items:center;justify-content:center;padding:max(24px,env(safe-area-inset-top)) 24px max(24px,env(safe-area-inset-bottom));box-sizing:border-box;text-align:center">
+  <main style="max-width:320px">
+    <h1 style="font-size:22px;font-weight:600;margin:0 0 10px">Setlistr couldn't load</h1>
+    <p style="font-size:15px;line-height:1.5;color:#b8a888;margin:0 0 24px">Check your connection, then try again. Setlistr needs a connection to open.</p>
+    <button id="retry" type="button" style="width:100%;padding:14px;border:0;border-radius:10px;background:#c9a84c;color:#0a0908;font-size:16px;font-weight:600">Try again</button>
+    <p id="status" role="status" aria-live="polite" style="font-size:13px;color:#b8a888;margin:14px 0 0;min-height:18px"></p>
+  </main>
+<script>
+  var APP_URL = 'https://setlistr.ai/'
+  var statusEl = document.getElementById('status')
+  function retry() {
+    if (navigator.onLine === false) { statusEl.textContent = 'Still no connection.'; return }
+    statusEl.textContent = 'Loading…'
+    window.location.replace(APP_URL)
+  }
+  document.getElementById('retry').addEventListener('click', retry)
+  window.addEventListener('online', function () { statusEl.textContent = 'Connection is back.' })
+</script>
+</body>
+</html>
