@@ -1,7 +1,7 @@
 import { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'ai.setlistr.app',
+  appId: 'ai.setlistr.mobile',
   appName: 'Setlistr',
   webDir: 'out',
   // App background (#0a0908) behind the WebView, so nothing flashes white
@@ -9,7 +9,6 @@ const config: CapacitorConfig = {
   backgroundColor: '#0a0908',
   server: {
     url: 'https://setlistr.ai',
-    cleartext: true,
   },
   plugins: {
     // The splash reuses LaunchScreen.storyboard, so the iOS launch screen
