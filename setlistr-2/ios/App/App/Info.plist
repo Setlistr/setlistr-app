@@ -27,7 +27,7 @@
 	<key>NSCameraUsageDescription</key>
 	<string>Setlistr uses your camera to capture photo setlists.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Setlistr checks your location when a performance starts to verify you were at the venue, which strengthens your royalty claims.</string>
+	<string>Setlistr notes your location when you start capturing a show, to add venue context to your performance record.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Setlistr uses your microphone to identify songs during live performances.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
