@@ -1,10 +1,12 @@
 'use client'
 import { useEffect, useState } from 'react'
 import Script from 'next/script'
+import GoogleAnalytics from '@/components/GoogleAnalytics'
+import { isSensitiveUrl } from '@/lib/sensitive-url'
 
-// Marketing and session-recording scripts for the website only. Inside the
-// native app (Capacitor WKWebView) they never load: the App Store privacy
-// label declares no tracking, and these are advertising/identity tools.
+// Analytics, marketing and session-recording scripts for the website only.
+// They never load inside the native app (Capacitor WKWebView), nor on a page
+// whose address carries an auth or invitation value (lib/sensitive-url.ts).
 // Detection mirrors Capacitor's own (native-bridge.js getPlatformId), which
 // the native app injects at document start. Rendered after mount, so the
 // check runs in the browser; the root layout persists across client
@@ -16,11 +18,14 @@ export function isNativeShell(): boolean {
 
 export default function WebOnlyScripts() {
   const [web, setWeb] = useState(false)
-  useEffect(() => { if (!isNativeShell()) setWeb(true) }, [])
+  useEffect(() => {
+    if (!isNativeShell() && !isSensitiveUrl(window.location.search, window.location.hash)) setWeb(true)
+  }, [])
   if (!web) return null
 
   return (
     <>
+      <GoogleAnalytics />
       <Script
         id="warmly-script-loader"
         src="https://opps-widget.getwarmly.com/warmly.js?clientId=6ec093d4295038808bea7174bdab7ee6"

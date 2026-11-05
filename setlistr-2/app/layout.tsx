@@ -1,11 +1,11 @@
 import type { Metadata, Viewport } from 'next'
 import './globals.css'
-import GoogleAnalytics from '@/components/GoogleAnalytics'
 import { organizationSchema, softwareApplicationSchema, websiteSchema } from '@/lib/schema'
 import { APPEARANCE_BOOT_SCRIPT } from '@/lib/appearance'
 import AppearanceSync from '@/components/AppearanceSync'
 import NativeSplashHide from '@/components/NativeSplashHide'
 import WebOnlyScripts from '@/components/WebOnlyScripts'
+import { SENSITIVE_URL_SOURCE } from '@/lib/sensitive-url'
 
 export const metadata: Metadata = {
   title: {
@@ -117,12 +117,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteSchema()) }}
         />
-        <script dangerouslySetInnerHTML={{ __html: `!function(key) {if (window.reb2b || window.androidBridge || (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.bridge)) return;window.reb2b = {loaded: true};var s = document.createElement("script");s.async = true;s.src = "https://ddwl4m2hdecbv.cloudfront.net/b/" + key + "/" + key + ".js.gz";document.getElementsByTagName("script")[0].parentNode.insertBefore(s, document.getElementsByTagName("script")[0]);}("1N5W0H7VG8O5");` }} />
+        <script dangerouslySetInnerHTML={{ __html: `!function(key) {var u=location.search+location.hash;try{u=decodeURIComponent(u)}catch(e){}if (window.reb2b || window.androidBridge || (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.bridge) || new RegExp(${JSON.stringify(SENSITIVE_URL_SOURCE)}, "i").test(u)) return;window.reb2b = {loaded: true};var s = document.createElement("script");s.async = true;s.src = "https://ddwl4m2hdecbv.cloudfront.net/b/" + key + "/" + key + ".js.gz";document.getElementsByTagName("script")[0].parentNode.insertBefore(s, document.getElementsByTagName("script")[0]);}("1N5W0H7VG8O5");` }} />
       </head>
       <body>
         <AppearanceSync />
         <NativeSplashHide />
-        <GoogleAnalytics />
         <WebOnlyScripts />
         {children}
       </body>
