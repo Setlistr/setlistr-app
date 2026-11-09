@@ -184,7 +184,7 @@ function SongIntelligenceSheet({
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20, marginTop: 8 }}>
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 20, padding: '5px 12px' }}>
             <span style={{ fontSize: 13, fontWeight: 800, color: C.gold, fontFamily: '"DM Mono", monospace' }}>{song.confirmed_count}×</span>
-            <span style={{ fontSize: 11, color: C.gold }}>verified performances</span>
+            <span style={{ fontSize: 11, color: C.gold }}>confirmed performances</span>
           </div>
           {song.confirmed_count === 0 && (
             <span style={{ fontSize: 11, color: C.muted }}>not yet performed</span>

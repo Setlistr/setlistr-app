@@ -906,7 +906,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
                         {isPendingDel
                           ? <p style={{ fontSize: 11, color: 'var(--sl-danger)', margin: '2px 0 0', fontWeight: 600 }}>Tap ✕ again to delete</p>
                           : isVerified
-                          ? <p style={{ fontSize: 12, color: C.green, margin: '2px 0 0', fontWeight: 600, ...(song.confirmedAt !== undefined && Date.now() - song.confirmedAt < 2500 ? { opacity: 0, animation: 'fadeIn 0.25s 350ms ease-out forwards' } : { opacity: 1 }) }}>Verified ✓</p>
+                          ? <p style={{ fontSize: 12, color: C.green, margin: '2px 0 0', fontWeight: 600, ...(song.confirmedAt !== undefined && Date.now() - song.confirmedAt < 2500 ? { opacity: 0, animation: 'fadeIn 0.25s 350ms ease-out forwards' } : { opacity: 1 }) }}>Matched setlist ✓</p>
                           : song.artist && song.artist !== performance.artist_name
                           ? <p style={{ fontSize: 13, color: C.muted, margin: '2px 0 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{song.artist}</p>
                           : null
