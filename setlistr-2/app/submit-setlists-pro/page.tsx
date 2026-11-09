@@ -110,7 +110,7 @@ export default function Page() {
 
       <Callout color={COLORS.GREEN}><strong style={{ color: '#fff' }}>The hard part isn’t the portal — it’s the data.</strong> Every step above assumes you have an accurate setlist. Setlistr captures it automatically during the show, so when you sit down to submit, the list is already there.</Callout>
 
-      <EndCTA heading="Skip the guesswork" sub="Setlistr builds your setlist automatically during the show — ready to submit to any PRO. Free to start." />
+      <EndCTA heading="Skip the guesswork" sub="Setlistr builds your setlist automatically during the show — ready to prepare for your PRO. Free to start." />
 
       <Related links={[
         { href: '/get-paid-for-live-shows', title: 'How to Get Paid for Live Performances (ASCAP, BMI, SOCAN Guide)' },

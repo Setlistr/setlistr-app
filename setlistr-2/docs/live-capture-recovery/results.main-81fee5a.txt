@@ -1,0 +1,40 @@
+# Unmodified main (81fee5a)
+— S2. Reload mid-capture
+  ok   [S2] server holds the recognition record → 1
+  FAIL [S2] list after reload → (empty)   (expected Alpha Song, Edited Two)
+  FAIL [S2] saved after End →    (expected Alpha Song:fingerprint | Edited Two:manual)
+— S3. Interruption (page closed without End), reopen, continue, repeat detection
+  FAIL [S3] list after reopen → (empty)   (expected Alpha Song, Manual Three)
+  ok   [S3] new recognition after reopen → true
+  FAIL [S3] repeat of a restored song is not duplicated on screen → 0   (expected 1)
+  FAIL [S3] saved after End → Bravo Song:fingerprint   (expected Alpha Song:fingerprint | Manual Three:manual | Bravo Song:fingerprint)
+— S4. Repeated recovery with edits and deletes in between
+ERROR locator.click: Timeout 30000ms exceeded.
+Call log:
+[2m  - waiting for locator('div').filter({ has: getByText('Manual Gone', { exact: true }) }).filter({ has: getByRole('button', { name: '✕' }) }).last().getByRole('button', { name: '✕' })[22m
+
+    at deleteRow (/private/tmp/claude-501/-Users-jesseslack/5f62ecc6-cca6-4bad-a244-5d37e786fd65/scratchpad/recovery/recovery-e2e.js:63:224)
+    at /private/tmp/claude-501/-Users-jesseslack/5f62ecc6-cca6-4bad-a244-5d37e786fd65/scratchpad/recovery/recovery-e2e.js:126:11
+— S4. Repeated recovery with edits and deletes in between
+  note cannot delete "Manual Gone": not on screen
+  note cannot edit "Charlie Song": not on screen
+  FAIL [S4] after second recovery: edit kept, delete kept → (empty)   (expected Edited Charlie, Manual Four)
+  FAIL [S4] after third recovery, unchanged → (empty)   (expected Edited Charlie, Manual Four)
+  FAIL [S4] saved after End →    (expected Edited Charlie:fingerprint | Manual Four:manual)
+— S5. Late recognition response (during End)
+  ok   [S5] late response held (during End) → true
+  ok   [S5] saved record has no duplicate and no write after End (during End) → Delta Song:fingerprint | Late Song:fingerprint
+  ok   [S5] record stable after the late response settles (during End) → Delta Song:fingerprint | Late Song:fingerprint
+— S5. Late recognition response (after End)
+  ok   [S5] late response held (after End) → true
+  ok   [S5] saved record has no duplicate and no write after End (after End) → Delta Song:fingerprint
+  ok   [S5] record stable after the late response settles (after End) → Delta Song:fingerprint
+— S6. Scope: same show for a workspace manager; nothing for another account
+  FAIL [S6] manager acting for the artist sees the recovered list → (empty)   (expected Echo Song, Manual Six)
+  ok   [S6] other show of the same artist untouched → (none)
+  ok   [S6] another account reads none of it → 0
+  ok   [S6] another account cannot write to it → refused
+  ok   [S6] another account opening the show sees no songs → (none)
+
+provider calls answered by the stub: 12 (identify-us-west-2.acrcloud.com, musicbrainz.org); real external calls: 0 by construction
+10 passed, 4 failed

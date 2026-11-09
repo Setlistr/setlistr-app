@@ -84,7 +84,7 @@ export default function Page() {
 
       <Callout color={COLORS.GREEN}><strong style={{ color: '#fff' }}>The capture step, automated.</strong> The whole system depends on you knowing what you played. Setlistr listens during your set and builds the setlist for you &mdash; so the submission data exists before you even leave the venue.</Callout>
 
-      <EndCTA heading="Start with your next show" sub="Setlistr captures your setlist automatically so you never lose a performance. Free to start." />
+      <EndCTA heading="Start with your next show" sub="Setlistr captures your setlist during the show, ready for you to confirm. Free to start." />
 
       <Related links={[
         { href: '/get-paid-for-live-shows', title: 'How to Get Paid for Live Performances (Full Guide)' },

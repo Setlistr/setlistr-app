@@ -42,6 +42,9 @@ type DetectedSong = {
   confirmedAt?: number
   // Inclusion metadata returned by /api/identify (for the confusion-matrix dataset)
   inclusion_reason?: string | null; threshold?: number | null; score?: number | null
+  // The performance_songs row this song is saved as during capture (see the
+  // in-progress save below). Assigned once, kept across edits and reloads.
+  row_id?: string
 }
 type PendingCandidate = {
   title: string; artist: string
@@ -154,6 +157,14 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   // not again on a restartListening() recovery cycle — that's the same
   // capture session, not a new one.
   const captureStartedLoggedRef = useRef(false)
+  // In-progress save: the list is written to performance_songs as it changes,
+  // so a reload, a closed app or a crashed page reopens with the same songs.
+  // restoredRef: the saved list has been loaded (never save before that).
+  // lastSavedRef: what was last written, so an unchanged list isn't rewritten.
+  // saveChainRef: saves run one at a time, in order; End waits for the last one.
+  const restoredRef   = useRef(false)
+  const lastSavedRef  = useRef<string>('')
+  const saveChainRef  = useRef<Promise<void>>(Promise.resolve())
 
   useEffect(() => { pendingCandidateRef.current = pendingCandidate }, [pendingCandidate])
   useEffect(() => { confirmedSongsRef.current = songs }, [songs])
@@ -177,18 +188,24 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
           if (data.started_at) showStartRef.current = new Date(data.started_at).getTime()
           const supabase2 = createClient()
           supabase2.from('performance_songs_visible')
-            .select('title, artist, isrc, composer, publisher, source, position, was_planned')
+            .select('id, title, artist, isrc, composer, publisher, source, position, was_planned, inclusion_reason, threshold, score')
             .eq('performance_id', data.id)
             .order('position', { ascending: true })
-            .then(({ data: existingSongs }) => {
+            .then(({ data: existingSongs, error }) => {
               if (existingSongs && existingSongs.length > 0) {
-                setSongs(existingSongs.map(s => ({
+                const restored: DetectedSong[] = existingSongs.map(s => ({
                   title: s.title || 'Unknown Song', artist: s.artist || '',
                   source: (s.source as any) || 'manual',
                   isrc: s.isrc || '', composer: s.composer || '', publisher: s.publisher || '',
                   was_planned: s.was_planned === true,
-                })))
+                  inclusion_reason: s.inclusion_reason ?? null, threshold: s.threshold ?? null, score: s.score ?? null,
+                  row_id: s.id,
+                }))
+                lastSavedRef.current = JSON.stringify(songRows(data, restored))
+                setSongs(restored)
               }
+              // A failed read must not let the first save erase rows it never saw.
+              if (!error) restoredRef.current = true
             })
           supabase2.from('planned_setlists').select('id').eq('performance_id', data.id).single()
             .then(({ data: planned }) => {
@@ -533,9 +550,62 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
     startListening()
   }, [performance, startListening])
 
+  // The rows the in-progress save writes: the same songs, order and fields End
+  // writes (End still rewrites them with its final labels).
+  function songRows(perf: Performance, list: DetectedSong[]) {
+    return list
+      .filter(s => !(s.source === 'unidentified' && s.title === 'Unknown Song') && s.row_id)
+      .map((song, i) => ({
+        id: song.row_id as string,
+        performance_id: perf.id,
+        title: song.title,
+        artist: song.artist || perf.artist_name || null,
+        position: i + 1, isrc: song.isrc || null, composer: song.composer || null,
+        publisher: song.publisher || null, source: song.source || 'manual',
+        was_planned: song.was_planned || false,
+        inclusion_reason: song.inclusion_reason ?? null, threshold: song.threshold ?? null, score: song.score ?? null,
+        confusion_matrix_result: 'TBD',
+      }))
+  }
+
+  // Give every new song (recognised, added, picked from recent) its row id.
+  useEffect(() => {
+    if (!songs.some(s => !s.row_id)) return
+    setSongs(prev => prev.map(s => s.row_id ? s : { ...s, row_id: crypto.randomUUID() }))
+  }, [songs])
+
+  // Save the list while the show is live: upsert by row id, then remove rows
+  // the artist deleted. Never before the saved list has loaded, never once
+  // End has started (End writes the final rows), never for a show that isn't
+  // live. Failures are left for the next change or End to retry.
+  useEffect(() => {
+    const perf = performance
+    if (!perf || perf.status !== 'live' || !restoredRef.current || endingRef.current) return
+    if (songs.some(s => !s.row_id)) return
+    const rows = songRows(perf, songs)
+    const key = JSON.stringify(rows)
+    if (key === lastSavedRef.current) return
+    lastSavedRef.current = key
+    saveChainRef.current = saveChainRef.current.then(async () => {
+      if (endingRef.current) return
+      const supabase = createClient()
+      if (rows.length > 0) {
+        const { error } = await supabase.from('performance_songs').upsert(rows, { onConflict: 'id' })
+        if (error) { if (lastSavedRef.current === key) lastSavedRef.current = ''; return }
+      }
+      if (endingRef.current) return
+      let del = supabase.from('performance_songs').delete().eq('performance_id', perf.id)
+      if (rows.length > 0) del = del.not('id', 'in', `(${rows.map(r => r.id).join(',')})`)
+      const { error } = await del
+      if (error && lastSavedRef.current === key) lastSavedRef.current = ''
+    }).catch(() => {})
+  }, [songs, performance])
+
   const handleEnd = useCallback(async () => {
     if (endingRef.current || !performance) return
     setEnding(true); endingRef.current = true; stopListening()
+    // Let an in-progress save finish first, so End's rewrite is the last write.
+    await saveChainRef.current
     const supabase = createClient()
     const endedAt = new Date()
     const durationMinutes = performance?.started_at
@@ -906,7 +976,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
                         {isPendingDel
                           ? <p style={{ fontSize: 11, color: 'var(--sl-danger)', margin: '2px 0 0', fontWeight: 600 }}>Tap ✕ again to delete</p>
                           : isVerified
-                          ? <p style={{ fontSize: 12, color: C.green, margin: '2px 0 0', fontWeight: 600, ...(song.confirmedAt !== undefined && Date.now() - song.confirmedAt < 2500 ? { opacity: 0, animation: 'fadeIn 0.25s 350ms ease-out forwards' } : { opacity: 1 }) }}>Verified ✓</p>
+                          ? <p style={{ fontSize: 12, color: C.green, margin: '2px 0 0', fontWeight: 600, ...(song.confirmedAt !== undefined && Date.now() - song.confirmedAt < 2500 ? { opacity: 0, animation: 'fadeIn 0.25s 350ms ease-out forwards' } : { opacity: 1 }) }}>Matched setlist ✓</p>
                           : song.artist && song.artist !== performance.artist_name
                           ? <p style={{ fontSize: 13, color: C.muted, margin: '2px 0 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{song.artist}</p>
                           : null

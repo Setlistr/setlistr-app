@@ -935,7 +935,7 @@ export default function UploadNewPerformancePage() {
         {!recordingFile && !setlistPhotoUrl && (
           <div style={{ marginBottom: 16, padding: '18px 20px', borderRadius: 16, border: `1px dashed color-mix(in srgb, var(--sl-text) 12%, transparent)`, background: 'color-mix(in srgb, var(--sl-text) 1.5%, transparent)' }}>
             <p style={{ fontSize: 14, fontWeight: 700, color: C.text, margin: '0 0 4px' }}>Have the setlist?</p>
-            <p style={{ fontSize: 12, color: C.muted, margin: '0 0 14px', lineHeight: 1.5 }}>Optional — helps Setlistr verify your performance more accurately.</p>
+            <p style={{ fontSize: 12, color: C.muted, margin: '0 0 14px', lineHeight: 1.5 }}>Optional — helps Setlistr match your songs more accurately.</p>
             <input ref={cameraInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" capture="environment" style={{ display: 'none' }} onChange={handleSetlistInputChange} />
             <input ref={setlistInputRef} type="file" accept="image/jpeg,image/png,image/webp,application/pdf,text/plain" style={{ display: 'none' }} onChange={handleSetlistInputChange} />
             <div style={{ display: 'flex', gap: 8 }}>

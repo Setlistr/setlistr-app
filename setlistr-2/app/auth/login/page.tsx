@@ -276,7 +276,7 @@ function LoginPageInner() {
       }}>
       <div style={{ width: '100%', maxWidth: 400 }}>
 
-        <p className="sl-auth-tagline" style={{ fontSize: 10, color: C.muted, letterSpacing: '0.25em', textTransform: 'uppercase', margin: '0 0 20px', textAlign: 'center', animation: 'fadeUp 0.3s ease' }}>Your verified live career starts here.</p>
+        <p className="sl-auth-tagline" style={{ fontSize: 10, color: C.muted, letterSpacing: '0.25em', textTransform: 'uppercase', margin: '0 0 20px', textAlign: 'center', animation: 'fadeUp 0.3s ease' }}>Your live career starts here.</p>
 
         {!showWaitlist && !showForgotPassword ? (
           <div style={{ animation: 'fadeUp 0.35s ease' }}>

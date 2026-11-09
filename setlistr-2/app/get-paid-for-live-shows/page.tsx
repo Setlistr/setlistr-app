@@ -91,9 +91,9 @@ export default function Page() {
       <P>The submission process is straightforward once you know it. The real problem is remembering what you played. A 12-song set at 11pm after soundcheck and load-in is hard to reconstruct accurately the next morning.</P>
       <P>That&rsquo;s why most live royalties go unclaimed &mdash; not ignorance of the system, friction at the data-capture step.</P>
 
-      <Callout color={COLORS.GREEN}><strong style={{ color: '#fff' }}>Setlistr automates the capture step.</strong> It listens during your set, detects songs via audio fingerprinting, and builds your setlist automatically. After the show, you confirm in under 90 seconds &mdash; then the submission data is ready and formatted for your PRO.</Callout>
+      <Callout color={COLORS.GREEN}><strong style={{ color: '#fff' }}>Setlistr automates the capture step.</strong> It listens during your set, detects songs via audio fingerprinting, and builds your setlist as you play. After the show, you review and confirm it &mdash; then Prepare formats it for your PRO, ready for you to file.</Callout>
 
-      <EndCTA heading="Stop leaving royalties on stage" sub="Setlistr captures your setlist automatically during the show. Free to start." />
+      <EndCTA heading="Stop leaving royalties on stage" sub="Setlistr captures your setlist automatically during the show, ready for you to confirm. Free to start." />
 
       <Related links={[
         { href: '/unclaimed-music-royalties', title: 'Millions in Unclaimed Live Performance Royalties — Are You Missing Out?' },

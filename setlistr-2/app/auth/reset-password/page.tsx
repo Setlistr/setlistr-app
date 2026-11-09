@@ -130,7 +130,7 @@ function ResetPasswordInner() {
 
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 32, animation: 'fadeUp 0.3s ease' }}>
           <Image src="/logo-white.png" alt="Setlistr" width={200} height={52} priority style={{ marginBottom: 10 }} />
-          <p style={{ fontSize: 10, color: C.muted, letterSpacing: '0.25em', textTransform: 'uppercase', margin: 0 }}>Your verified live career starts here.</p>
+          <p style={{ fontSize: 10, color: C.muted, letterSpacing: '0.25em', textTransform: 'uppercase', margin: 0 }}>Your live career starts here.</p>
         </div>
 
         <div style={{ animation: 'fadeUp 0.35s ease' }}>
