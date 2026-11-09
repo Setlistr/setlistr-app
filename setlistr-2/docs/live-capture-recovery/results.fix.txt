@@ -1,0 +1,41 @@
+— S1. Normal End (no interruption)
+  ok   [S1] recognised song appears → true
+  ok   [S1] saved at End, once each → Alpha Song:fingerprint | Manual One:manual
+  ok   [S1] End labels unchanged → Alpha Song=artist catalogue | Manual One=added mid-show - not detected
+  info [S1] catalogue after End: Alpha Song=2, Bravo Song=1, Charlie Song=1, Delta Song=1, Echo Song=1, Late Song=1; markers=1
+— S2. Reload mid-capture
+  ok   [S2] server holds the recognition record → 1
+  ok   [S2] list after reload → Alpha Song, Edited Two
+  ok   [S2] saved after End → Alpha Song:fingerprint | Edited Two:manual
+— S3. Interruption (page closed without End), reopen, continue, repeat detection
+  dbg [S3] after detect: Alpha Song:fingerprint
+  dbg [S3] after settle: Alpha Song:fingerprint | screen: Alpha Song
+  dbg [S3] before close: Alpha Song:fingerprint | Manual Three:manual | screen: Alpha Song, Manual Three
+  ok   [S3] list after reopen → Alpha Song, Manual Three
+  ok   [S3] new recognition after reopen → true
+  ok   [S3] repeat of a restored song is not duplicated on screen → 1
+  ok   [S3] saved after End → Alpha Song:fingerprint | Manual Three:manual | Bravo Song:fingerprint
+— S4. Repeated recovery with edits and deletes in between
+  ok   [S4] after second recovery: edit kept, delete kept → Edited Charlie, Manual Four
+  ok   [S4] after third recovery, unchanged → Edited Charlie, Manual Four
+  ok   [S4] saved after End → Edited Charlie:fingerprint | Manual Four:manual
+— S5. Late recognition response (during End)
+  dbg [S5] after Delta: Delta Song:fingerprint | screen: Delta Song
+  ok   [S5] late response held (during End) → true
+  ok   [S5] saved record has no duplicate and no write after End (during End) → Delta Song:fingerprint | Late Song:fingerprint
+  ok   [S5] record stable after the late response settles (during End) → Delta Song:fingerprint | Late Song:fingerprint
+— S5. Late recognition response (after End)
+  dbg [S5] after Delta: Delta Song:fingerprint | screen: Delta Song
+  ok   [S5] late response held (after End) → true
+  ok   [S5] saved record has no duplicate and no write after End (after End) → Delta Song:fingerprint
+  ok   [S5] record stable after the late response settles (after End) → Delta Song:fingerprint
+— S6. Scope: same show for a workspace manager; nothing for another account
+  ok   [S6] manager acting for the artist sees the recovered list → Echo Song, Manual Six
+  ok   [S6] other show of the same artist untouched → (none)
+  ok   [S6] another account reads none of it → 0
+  ok   [S6] another account cannot write to it → refused
+  ok   [S6] another account opening the show sees no songs → (none)
+
+provider calls answered by the stub: 23 (identify-us-west-2.acrcloud.com, musicbrainz.org); real external calls: 0 by construction
+24 passed, 0 failed
+exit=0
