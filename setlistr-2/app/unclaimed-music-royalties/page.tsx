@@ -102,7 +102,7 @@ export default function Page() {
         ))}
       </div>
 
-      <EndCTA heading="Never miss a setlist again" sub="Setlistr listens during your show and builds the setlist automatically. Free to start." cta="Capture Your Next Show →" />
+      <EndCTA heading="Keep every setlist" sub="Setlistr listens during your show and builds the setlist automatically, ready for you to confirm. Free to start." cta="Capture Your Next Show →" />
 
       <Related links={[
         { href: '/get-paid-for-live-shows', title: 'How to Get Paid for Live Performances (ASCAP, BMI, SOCAN Guide)' },

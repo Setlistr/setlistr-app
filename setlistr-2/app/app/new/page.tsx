@@ -447,7 +447,7 @@ export default function NewShowPage() {
         <p style={{ fontSize: 13, color: C.muted, margin: '0 0 20px' }}>
           {venueMemory
             ? `${ordinal(venueMemory.showCount + 1)} time here · last played ${daysAgo === 0 ? 'today' : daysAgo === 1 ? 'yesterday' : `${daysAgo}d ago`}`
-            : 'Your show. Verified. Documented.'}
+            : 'Your show, documented.'}
         </p>
 
         {/* ── VENUE CARD ── */}

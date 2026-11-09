@@ -372,7 +372,7 @@ export default function OnboardingPage() {
 
         {/* Wordmark */}
         <div style={{ textAlign: 'center', marginBottom: 32, animation: 'fadeUp 0.3s ease' }}>
-          <p style={{ fontSize: 13, color: C.muted, letterSpacing: '0.08em', margin: 0 }}>Your verified live career starts here.</p>
+          <p style={{ fontSize: 13, color: C.muted, letterSpacing: '0.08em', margin: 0 }}>Your live career starts here.</p>
         </div>
 
         {/* Step dots */}
@@ -597,7 +597,7 @@ export default function OnboardingPage() {
                 <div style={{ background: 'color-mix(in srgb, var(--sl-text) 3%, transparent)', border: `1px solid ${C.border}`, borderRadius: 12, padding: '16px', marginBottom: 20 }}>
                   <p style={{ fontSize: 15, fontWeight: 700, color: C.gold, margin: '0 0 4px' }}>Your record starts with your next show.</p>
                   <p style={{ fontSize: 13, color: C.muted, margin: 0, lineHeight: 1.5 }}>
-                    The first show you capture becomes the beginning of a permanent, verified career archive. Every show after that builds it.
+                    The first show you capture becomes the beginning of your career archive. Every show after that builds it.
                   </p>
                 </div>
 
@@ -692,7 +692,7 @@ export default function OnboardingPage() {
         )}
 
         <p style={{ textAlign: 'center', fontSize: 13, color: C.muted, marginTop: 16 }}>
-          {step === 1 ? 'Free forever · No credit card' : step === 2 ? 'Verified performance data · Not financial advice' : 'Your record starts tonight.'}
+          {step === 1 ? 'Free forever · No credit card' : step === 2 ? 'Performance data you confirm · Not financial advice' : 'Your record starts tonight.'}
         </p>
 
         <style>{`

@@ -8,9 +8,9 @@ export const SETLISTR_NAME = 'Setlistr'
 export const SETLISTR_LEGAL_NAME = 'Setlistr, Inc.'
 
 export const SETLISTR_DESCRIPTION =
-  'Setlistr is a live performance intelligence platform that helps artists, songwriters, and their teams capture what was played, build a verified performance record, and prepare eligible shows for royalty claims.'
+  'Setlistr is a live performance intelligence platform that helps artists, songwriters, and their teams capture what was played, build a confirmed performance record, and prepare eligible shows for royalty claims.'
 
-export const SETLISTR_SHORT = 'The verified live performance record for independent artists.'
+export const SETLISTR_SHORT = 'The live performance record for independent artists.'
 
 export function organizationSchema() {
   return {
