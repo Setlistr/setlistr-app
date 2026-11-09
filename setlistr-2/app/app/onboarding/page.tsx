@@ -597,7 +597,7 @@ export default function OnboardingPage() {
                 <div style={{ background: 'color-mix(in srgb, var(--sl-text) 3%, transparent)', border: `1px solid ${C.border}`, borderRadius: 12, padding: '16px', marginBottom: 20 }}>
                   <p style={{ fontSize: 15, fontWeight: 700, color: C.gold, margin: '0 0 4px' }}>Your record starts with your next show.</p>
                   <p style={{ fontSize: 13, color: C.muted, margin: 0, lineHeight: 1.5 }}>
-                    The first show you capture becomes the beginning of a permanent, verified career archive. Every show after that builds it.
+                    The first show you capture becomes the beginning of your career archive. Every show after that builds it.
                   </p>
                 </div>
 

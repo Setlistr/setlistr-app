@@ -348,7 +348,7 @@ export default function UploadShowPage() {
             {/* Setlist upload */}
             <div style={{ background: C.card, border: `1px solid ${setlistFile ? C.borderGold : C.border}`, borderRadius: 16, padding: '20px', marginBottom: 16, transition: 'border-color 0.2s ease' }}>
               <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.muted, margin: '0 0 6px' }}>
-                Setlist <span style={{ color: C.gold, fontSize: 10, fontWeight: 600 }}>OPTIONAL — BOOSTS VERIFICATION</span>
+                Setlist <span style={{ color: C.gold, fontSize: 10, fontWeight: 600 }}>OPTIONAL — HELPS MATCH SONGS</span>
               </p>
               <p style={{ fontSize: 12, color: C.muted, margin: '0 0 14px', lineHeight: 1.4 }}>
                 Add a photo or PDF of your setlist. We'll compare it with the songs recognised from the audio.
