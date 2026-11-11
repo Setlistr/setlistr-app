@@ -5,6 +5,8 @@ import { createClient } from '@/lib/supabase/client'
 import { useActingAs } from '@/components/ActingAsProvider'
 import { normalizeSongKey } from '@/lib/reconciliation/normalize'
 import { logProductEvent, awaitWithTimeout } from '@/lib/telemetry'
+import { ensureSetlistAiConsent } from '@/components/SetlistAiConsent'
+import { AI_CONSENT_FIELD, AI_CONSENT_GRANTED, needsAiConsent } from '@/lib/aiConsent'
 import { Camera, Upload, Check } from 'lucide-react'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
@@ -854,15 +856,20 @@ export default function UploadNewPerformancePage() {
     const isHEIC = fileName.endsWith('.heic') || fileName.endsWith('.heif') || file.type === 'image/heic' || file.type === 'image/heif'
     const isAllowed = ALLOWED_SETLIST_MIME_TYPES.includes(file.type) || isHEIC
     if (!isAllowed) { setSetlistError('Unsupported file type. Please upload a JPG, PNG, PDF, or TXT file.'); return }
+    const { data: { user } } = await createClient().auth.getUser()
+    if (!(await ensureSetlistAiConsent(user?.id, file))) {
+      // The setlist is optional here; the recording and Review still work without it.
+      setSetlistError('Not sent. The setlist is optional, and you can correct songs in Review.')
+      return
+    }
     setSetlistUploading(true)
     try {
       let uploadFile = file
       if (file.type.startsWith('image/') || isHEIC) uploadFile = await compressImage(file)
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
       const formData = new FormData()
       formData.append('file', uploadFile)
       if (user?.id) formData.append('userId', user.id)
+      if (needsAiConsent(file)) formData.append(AI_CONSENT_FIELD, AI_CONSENT_GRANTED)
       const res = await fetch('/api/parse-setlist', { method: 'POST', body: formData })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Upload failed')

@@ -4,6 +4,8 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Calendar, ArrowRight, RefreshCw, Check, MapPin, Search, X, Plus } from 'lucide-react'
 import { useActingAs } from '@/components/ActingAsProvider'
+import { ensureSetlistAiConsent } from '@/components/SetlistAiConsent'
+import { AI_CONSENT_FIELD, AI_CONSENT_GRANTED, needsAiConsent } from '@/lib/aiConsent'
 
 const C = {
   bg: '#0a0908', card: '#141210', cardHover: '#181614',
@@ -249,15 +251,20 @@ export default function NewShowPage() {
     const isHEIC = fileName.endsWith('.heic') || fileName.endsWith('.heif') || file.type === 'image/heic' || file.type === 'image/heif'
     const isAllowed = ALLOWED_MIME_TYPES.includes(file.type) || isHEIC
     if (!isAllowed) { setUploadError('Unsupported file type. Please upload a JPG, PNG, PDF, or TXT file.'); return }
+    const { data: { user } } = await createClient().auth.getUser()
+    if (!(await ensureSetlistAiConsent(user?.id, file))) {
+      setUploadError('Not sent. You can type the songs instead.')
+      setSetlistMode('quick')
+      return
+    }
     setUploading(true)
     try {
       let uploadFile = file
       if (file.type.startsWith('image/') || isHEIC) uploadFile = await compressImage(file)
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
       const formData = new FormData()
       formData.append('file', uploadFile)
       if (user?.id) formData.append('userId', user.id)
+      if (needsAiConsent(file)) formData.append(AI_CONSENT_FIELD, AI_CONSENT_GRANTED)
       const res = await fetch('/api/parse-setlist', { method: 'POST', body: formData })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Upload failed')
