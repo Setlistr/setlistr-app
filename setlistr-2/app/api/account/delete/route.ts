@@ -8,22 +8,34 @@ export const dynamic = 'force-dynamic'
 const CHUNK_SIZE = 200
 const REMOVE_BATCH = 100
 
-// Each failure says exactly what has and hasn't been removed. The stages run
-// in this order so the account is never deleted while its files remain:
-// 1) collect, 2) delete files and verify they're gone, 3) request removal of
-// the internal Notion record, 4) delete or anonymise database records,
-// 5) delete the sign-in last. Every step is safe to repeat, so trying again
-// after a failure picks up where it stopped.
-const FILES_NOT_DELETED = {
-  error: 'We couldn’t delete all of your files, so your account hasn’t been deleted and nothing else was removed. Please try again, or contact info@setlistr.ai.',
+// Stages, in this order, so the account is never deleted while its files
+// remain: 1) collect, 2) delete files and verify they're gone, 3) send the
+// internal request (Notion record, and any manual step), 4) delete or
+// anonymise database records, 5) delete the sign-in last. Every step is safe
+// to repeat, so trying again after a failure picks up where it stopped, and
+// each failure says exactly what has and hasn't been removed.
+//
+// Some bookings can't be changed or deleted by this route: a booking names
+// whoever scheduled it in shows.scheduled_by, which is immutable by design
+// (migrations 0020/0028), and scheduled or listed bookings can only be
+// cancelled, never deleted (reject_scheduled_show_delete). Both block deleting
+// the profile. When an account has such bookings, the request is accepted:
+// everything else is deleted, sign-in is closed, and our team finishes the
+// rest within 30 days and emails the person (step 3 sends the instructions).
+const FILES_NONE_DELETED = {
+  error: 'We couldn’t delete your files, so your account hasn’t been deleted and nothing was changed. Please try again, or contact info@setlistr.ai.',
   code: 'files_not_deleted',
 }
+const FILES_PARTLY_DELETED = {
+  error: 'We deleted some of your files but couldn’t delete the rest, so your account hasn’t been deleted yet. The files already deleted can’t be recovered; your account, shows and other records are unchanged. Please try again to finish, or contact info@setlistr.ai.',
+  code: 'files_partly_deleted',
+}
 const NOTICE_NOT_SENT = {
-  error: 'Your uploaded files were deleted, but we couldn’t finish deleting your account, and nothing else was removed. Please try again, or contact info@setlistr.ai.',
+  error: 'Your uploaded files were deleted, but we couldn’t finish deleting your account. Your account, shows and other records are unchanged. Please try again to finish, or contact info@setlistr.ai.',
   code: 'deletion_incomplete',
 }
 const RECORDS_INCOMPLETE = {
-  error: 'Your uploaded files were deleted, but we couldn’t finish deleting your account records. Please try again, or contact info@setlistr.ai.',
+  error: 'Your uploaded files and some of your records were deleted, but we couldn’t finish deleting your account. Please try again to finish, or contact info@setlistr.ai.',
   code: 'deletion_incomplete',
 }
 
@@ -31,9 +43,12 @@ const RECORDS_INCOMPLETE = {
 // in place of their name, once their account is gone.
 const FORMER_MEMBER = 'Former team member'
 
-// Internal inbox that receives the request to remove the account's entry from
-// the Notion artists database (see step 3).
-const NOTION_REMOVAL_INBOX = 'info@setlistr.ai'
+// Internal inbox that receives the request to remove the account's Notion
+// record and, when needed, the manual completion steps.
+const INTERNAL_INBOX = 'info@setlistr.ai'
+
+// Bookings in these states can only be cancelled, not deleted.
+const UNDELETABLE_SHOW_STATUSES = ['scheduled', 'listed']
 
 // NOTE: audio_captures.storage_path is bucket-relative but which bucket it
 // lives in is unconfirmed and currently unverifiable — storage_path is null
@@ -90,7 +105,7 @@ export async function POST() {
     .from('performances')
     .select('id, show_id, recording_path, setlist_path, setlist_photo_url, photo_url')
     .eq('user_id', userId)
-  if (perfSelectError) return fail('select performances', perfSelectError, FILES_NOT_DELETED)
+  if (perfSelectError) return fail('select performances', perfSelectError, FILES_NONE_DELETED)
   const performanceIds = (performances ?? []).map(p => p.id as string)
   const showIds = Array.from(new Set((performances ?? []).map(p => p.show_id as string | null).filter((s): s is string => !!s)))
 
@@ -99,30 +114,25 @@ export async function POST() {
     .from('artists')
     .select('id')
     .eq('user_id', userId)
-  if (artistSelectError) return fail('select artists', artistSelectError, FILES_NOT_DELETED)
+  if (artistSelectError) return fail('select artists', artistSelectError, FILES_NONE_DELETED)
   const artistIds = (artists ?? []).map(a => a.id as string)
 
-  // Bookings this person scheduled for other artists name them in
-  // shows.scheduled_by, which the database keeps unchangeable (migrations
-  // 0020/0028) and which would block deleting the profile at the last step.
-  // Stop before removing anything and route them to support.
-  {
-    const { count, error } = await admin.from('shows').select('id', { count: 'exact', head: true })
-      .eq('scheduled_by', userId).or(`created_by.is.null,created_by.neq.${userId}`)
-    if (error) return fail('check bookings scheduled for other artists', error, FILES_NOT_DELETED)
-    if (count && count > 0) {
-      return NextResponse.json({
-        error: 'Your account is named on shows you scheduled for other artists, which can’t be removed automatically yet. Nothing has been deleted. Contact info@setlistr.ai and we’ll delete your account for you.',
-        code: 'needs_support',
-      }, { status: 409 })
-    }
-  }
+  // c) Bookings this route can't change or delete (see the note at the top):
+  //    other artists' bookings that name this person as their scheduler, and
+  //    this account's own scheduled or listed bookings.
+  const { count: othersScheduled, error: othersScheduledError } = await admin.from('shows').select('id', { count: 'exact', head: true })
+    .eq('scheduled_by', userId).or(`created_by.is.null,created_by.neq.${userId}`)
+  if (othersScheduledError) return fail('count bookings scheduled for other artists', othersScheduledError, FILES_NONE_DELETED)
+  const { count: ownUndeletable, error: ownUndeletableError } = await admin.from('shows').select('id', { count: 'exact', head: true })
+    .eq('created_by', userId).in('status', UNDELETABLE_SHOW_STATUSES)
+  if (ownUndeletableError) return fail('count own scheduled bookings', ownUndeletableError, FILES_NONE_DELETED)
+  const manualStep = (othersScheduled ?? 0) + (ownUndeletable ?? 0) > 0
 
-  // c) Name and sign-up date, for the internal record removal request (step 3).
-  //    The whole row, so a missing optional column can't drop the name.
+  // d) Name and sign-up date, for the internal request (step 3). The whole
+  //    row, so a missing optional column can't drop the name.
   const { data: profile } = await admin.from('profiles').select('*').eq('id', userId).maybeSingle()
 
-  // d) Files to delete, by bucket
+  // e) Files to delete, by bucket
   const files = new Map<string, Set<string>>()
   const addFile = (bucket: string, path: string | null | undefined) => {
     if (!path) return
@@ -150,7 +160,7 @@ export async function POST() {
       .select('storage_path')
       .in('artist_id', idChunk)
       .not('storage_path', 'is', null)
-    if (captureSelectError) return fail('select audio_captures.storage_path', captureSelectError, FILES_NOT_DELETED)
+    if (captureSelectError) return fail('select audio_captures.storage_path', captureSelectError, FILES_NONE_DELETED)
     for (const c of captures ?? []) {
       const path = c.storage_path as string | null
       if (!path) continue
@@ -165,7 +175,7 @@ export async function POST() {
       .from('attachments')
       .select('url')
       .in('performance_id', idChunk)
-    if (attachmentSelectError) return fail('select attachments.url', attachmentSelectError, FILES_NOT_DELETED)
+    if (attachmentSelectError) return fail('select attachments.url', attachmentSelectError, FILES_NONE_DELETED)
     for (const a of attachments ?? []) {
       const parsed = a.url ? parseStorageObjectUrl(a.url as string) : null
       if (parsed) addFile(parsed.bucket, parsed.path)
@@ -181,13 +191,13 @@ export async function POST() {
     .select('recording_path, setlist_path')
     .neq('user_id', userId)
     .or(`recording_path.like.${userId}/*,setlist_path.like.${userId}/*`)
-  if (othersPathError) return fail('select other artists\' recordings', othersPathError, FILES_NOT_DELETED)
+  if (othersPathError) return fail('select other artists\' recordings', othersPathError, FILES_NONE_DELETED)
   const { data: othersByPhoto, error: othersPhotoError } = await admin
     .from('performances')
     .select('setlist_photo_url')
     .neq('user_id', userId)
     .like('setlist_photo_url', `%/setlists/${userId}/%`)
-  if (othersPhotoError) return fail('select other artists\' setlist photos', othersPhotoError, FILES_NOT_DELETED)
+  if (othersPhotoError) return fail('select other artists\' setlist photos', othersPhotoError, FILES_NONE_DELETED)
   const keep = new Set<string>()
   for (const p of othersByPath ?? []) {
     if (p.recording_path) keep.add(`show-recordings/${p.recording_path}`)
@@ -200,7 +210,7 @@ export async function POST() {
   for (const [bucket, folder] of [['show-recordings', userId], ['performance-photos', `setlists/${userId}`], ['avatars', userId]] as const) {
     for (let offset = 0; ; offset += 1000) {
       const { data: listed, error: listError } = await admin.storage.from(bucket).list(folder, { limit: 1000, offset })
-      if (listError) return fail(`list ${bucket}/${folder}`, listError, FILES_NOT_DELETED)
+      if (listError) return fail(`list ${bucket}/${folder}`, listError, FILES_NONE_DELETED)
       for (const f of listed ?? []) {
         if (!f.name || f.id === null) continue   // a sub-folder, not a file
         const path = `${folder}/${f.name}`
@@ -211,10 +221,14 @@ export async function POST() {
   }
 
   // ── 2. Delete files, then confirm each one is gone ────────────────────────
+  // Removing a file that is already gone succeeds, so a retry after a partial
+  // failure simply finishes the job.
+  let removedAny = false
   for (const [bucket, set] of Array.from(files.entries())) {
     for (const batch of chunk(Array.from(set), REMOVE_BATCH)) {
-      const { error: removeError } = await admin.storage.from(bucket).remove(batch)
-      if (removeError) return fail(`remove files from ${bucket}`, removeError, FILES_NOT_DELETED)
+      const { data: removed, error: removeError } = await admin.storage.from(bucket).remove(batch)
+      if (removeError) return fail(`remove files from ${bucket}`, removeError, removedAny ? FILES_PARTLY_DELETED : FILES_NONE_DELETED)
+      if ((removed ?? []).length > 0) removedAny = true
     }
   }
   let remaining = 0
@@ -222,44 +236,66 @@ export async function POST() {
     for (const path of Array.from(set)) {
       const { dir, name } = splitPath(path)
       const { data: found, error: verifyError } = await admin.storage.from(bucket).list(dir, { search: name, limit: 100 })
-      if (verifyError) return fail(`verify ${bucket}`, verifyError, FILES_NOT_DELETED)
+      if (verifyError) return fail(`verify ${bucket}`, verifyError, removedAny ? FILES_PARTLY_DELETED : FILES_NONE_DELETED)
       if ((found ?? []).some(f => f.name === name)) remaining++
     }
   }
-  if (remaining > 0) return fail('files still present after removal', { remaining }, FILES_NOT_DELETED)
+  if (remaining > 0) return fail('files still present after removal', { remaining }, removedAny ? FILES_PARTLY_DELETED : FILES_NONE_DELETED)
 
-  // ── 3. Request removal of the internal Notion record ──────────────────────
+  // ── 3. Internal request: Notion record, and any manual completion ─────────
   // The profile trigger copies new accounts into the Notion artists database,
   // titled with the person's name (or email when no name was set). No page id
   // is stored, and names aren't unique, so the page can't be matched safely
   // from here; an admin removes it from this request instead.
   {
     const key = process.env.RESEND_API_KEY
-    if (!key) return fail('notion removal request (RESEND_API_KEY missing)', null, NOTICE_NOT_SENT)
+    if (!key) return fail('internal request (RESEND_API_KEY missing)', null, NOTICE_NOT_SENT)
     const created = (profile?.created_at as string | undefined) || user.created_at
     const signedUp = created ? new Date(created).toISOString().slice(0, 10) : 'unknown'
+    const name = (profile?.full_name as string | null) || '(none set)'
+    const lines = [
+      'A Setlistr account was deleted. Please remove its entry from the Notion artists database, and its show entries.',
+      '',
+      `Name: ${name}`,
+      `Email: ${email || '(none)'}`,
+      `Signed up: ${signedUp}`,
+      `Account id: ${userId}`,
+      '',
+      'The Notion page is titled with the name, or the email when no name was set.',
+    ]
+    if (manualStep) {
+      lines.push(
+        '',
+        `MANUAL STEP NEEDED within 30 days (${othersScheduled ?? 0} booking(s) scheduled for other artists, ${ownUndeletable ?? 0} of the account's own scheduled or listed booking(s)).`,
+        'Everything else has been deleted and sign-in is closed. To finish:',
+        '1. Supabase dashboard -> SQL Editor, run:',
+        '   begin;',
+        '   alter table public.shows disable trigger user;',
+        `   delete from public.shows where created_by = '${userId}' and status in ('scheduled', 'listed');`,
+        `   update public.shows set scheduled_by = null, scheduled_by_name = '${FORMER_MEMBER}' where scheduled_by = '${userId}';`,
+        '   alter table public.shows enable trigger user;',
+        `   delete from public.show_import_batches where artist_id = '${userId}';`,
+        `   update public.show_import_batches set imported_by = artist_id where imported_by = '${userId}';`,
+        `   update public.show_import_batches set undone_by = null where undone_by = '${userId}';`,
+        '   commit;',
+        `2. Supabase dashboard -> Authentication -> Users -> find ${email || userId} -> Delete user.`,
+        `3. Email ${email || '(no email)'}: "Your Setlistr account deletion is complete."`,
+      )
+    }
     try {
       const res = await fetch('https://api.resend.com/emails', {
         method: 'POST',
         headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           from: 'Setlistr <invites@setlistr.ai>',
-          to: NOTION_REMOVAL_INBOX,
-          subject: 'Account deleted: remove its Notion artist entry',
-          text: [
-            'A Setlistr account was deleted. Please remove its entry from the Notion artists database, and its show entries.',
-            '',
-            `Name: ${(profile?.full_name as string | null) || '(none set)'}`,
-            `Email: ${email || '(none)'}`,
-            `Signed up: ${signedUp}`,
-            '',
-            'The Notion page is titled with the name, or the email when no name was set.',
-          ].join('\n'),
+          to: INTERNAL_INBOX,
+          subject: manualStep ? 'Account deletion: manual step needed + remove Notion entry' : 'Account deleted: remove its Notion artist entry',
+          text: lines.join('\n'),
         }),
       })
-      if (!res.ok) return fail('notion removal request', await res.text().catch(() => res.status), NOTICE_NOT_SENT)
+      if (!res.ok) return fail('internal request', await res.text().catch(() => res.status), NOTICE_NOT_SENT)
     } catch (err) {
-      return fail('notion removal request', err, NOTICE_NOT_SENT)
+      return fail('internal request', err, NOTICE_NOT_SENT)
     }
   }
 
@@ -341,13 +377,19 @@ export async function POST() {
   }
 
   // e) This account's own bookings and spreadsheet imports (its workspace).
-  //    Shows go first: they reference the import batches.
+  //    Scheduled or listed bookings can't be deleted here (manual step), and
+  //    an import batch still referenced by one of them must stay too.
   {
-    const { error } = await admin.from('shows').delete().eq('created_by', userId)
+    const { error } = await admin.from('shows').delete().eq('created_by', userId).not('status', 'in', `(${UNDELETABLE_SHOW_STATUSES.join(',')})`)
     if (error) return fail('delete own shows', error)
   }
   {
-    const { error } = await admin.from('show_import_batches').delete().eq('artist_id', userId)
+    const { data: stillUsed, error: usedError } = await admin.from('shows').select('import_batch_id').eq('created_by', userId).not('import_batch_id', 'is', null)
+    if (usedError) return fail('select own shows still using import batches', usedError)
+    const used = Array.from(new Set((stillUsed ?? []).map(s => s.import_batch_id as string)))
+    let del = admin.from('show_import_batches').delete().eq('artist_id', userId)
+    if (used.length > 0) del = del.not('id', 'in', `(${used.join(',')})`)
+    const { error } = await del
     if (error) return fail('delete own show_import_batches', error)
   }
 
@@ -367,10 +409,18 @@ export async function POST() {
     if (error) return fail('delete artists', error)
   }
 
-  // h) Other artists' records this person worked on as a team member: keep the
+  // h) A publisher workspace this account owns (its roster and invitations
+  //    cascade). Its reference to the sign-in has no ON DELETE and would
+  //    otherwise block step 5.
+  {
+    const { error } = await admin.from('publisher_accounts').delete().eq('user_id', userId)
+    if (error) return fail('delete publisher_accounts', error)
+  }
+
+  // i) Other artists' records this person worked on as a team member: keep the
   //    records (they belong to those artists) and remove this person from them.
   //    These columns reference the profile without ON DELETE, so leaving them
-  //    would also block step 5.
+  //    would also block step 5. (Bookings they scheduled are the manual step.)
   {
     const { error } = await admin.from('performances').update({ captured_by: null, captured_by_name: FORMER_MEMBER }).eq('captured_by', userId)
     if (error) return fail('clear performances.captured_by', error)
@@ -382,17 +432,17 @@ export async function POST() {
   {
     // imported_by can't be empty: an import made for another artist is
     // attributed to that artist, on whose behalf it was made.
-    const { data: batches, error: batchSelectError } = await admin.from('show_import_batches').select('id, artist_id').eq('imported_by', userId)
+    const { data: batches, error: batchSelectError } = await admin.from('show_import_batches').select('id, artist_id').eq('imported_by', userId).neq('artist_id', userId)
     if (batchSelectError) return fail('select show_import_batches.imported_by', batchSelectError)
     for (const b of batches ?? []) {
       const { error } = await admin.from('show_import_batches').update({ imported_by: b.artist_id }).eq('id', b.id)
       if (error) return fail('reassign show_import_batches.imported_by', error)
     }
-    const { error: undoneError } = await admin.from('show_import_batches').update({ undone_by: null }).eq('undone_by', userId)
+    const { error: undoneError } = await admin.from('show_import_batches').update({ undone_by: null }).eq('undone_by', userId).neq('artist_id', userId)
     if (undoneError) return fail('clear show_import_batches.undone_by', undoneError)
   }
 
-  // i) artist_delegates.invited_by — null first, fall back to delete if the column is NOT NULL
+  // j) artist_delegates.invited_by — null first, fall back to delete if the column is NOT NULL
   {
     const { error } = await admin.from('artist_delegates').update({ invited_by: null }).eq('invited_by', userId)
     if (error) {
@@ -402,11 +452,38 @@ export async function POST() {
     }
   }
 
-  // j) The access invitation for this email: it only grants access to the
+  // k) The access invitation for this email: it only grants access to the
   //    account being deleted. A later sign-up needs a new invitation.
   for (const address of Array.from(new Set([email, email.toLowerCase()].filter(Boolean)))) {
     const { error } = await admin.from('beta_invites').delete().eq('email', address)
     if (error) return fail('delete beta_invites', error)
+  }
+
+  // ── 5a. Bookings that need the manual step: accept the request now ────────
+  // Remove the person from every team, clear their profile details, and close
+  // sign-in. The profile row stays only as the reference those bookings still
+  // hold until our team finishes the deletion.
+  if (manualStep) {
+    {
+      const { error } = await admin.from('artist_delegates').delete().or(`delegate_id.eq.${userId},artist_id.eq.${userId}`)
+      if (error) return fail('remove team memberships', error)
+    }
+    {
+      const { error } = await admin.from('profiles').update({
+        full_name: null, artist_name: null, avatar_url: null, pro_affiliation: null, ipi_number: null,
+        publisher_name: null, legal_name: null, bandsintown_artist_name: null,
+      }).eq('id', userId)
+      if (error) return fail('clear profile details', error)
+    }
+    {
+      const { error } = await admin.auth.admin.updateUserById(userId, { ban_duration: '876000h' })
+      if (error) return fail('close sign-in', error)
+    }
+    const n = (othersScheduled ?? 0) + (ownUndeletable ?? 0)
+    return NextResponse.json({
+      status: 'accepted',
+      message: `Your deletion request is accepted. We’ve deleted your files, shows and records and closed your account, so you can no longer sign in. ${n === 1 ? 'One booking still names you' : `${n} bookings still name you`} and can’t be removed automatically, so our team will finish deleting your account within 30 days and email ${email || 'you'} when it’s done.`,
+    }, { status: 202 })
   }
 
   // ── 5. Delete the auth user last — profiles and its remaining cascades fire from here

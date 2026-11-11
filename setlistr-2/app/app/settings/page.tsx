@@ -136,6 +136,8 @@ export default function SettingsPage() {
   const [deleteConfirmText, setDeleteConfirmText] = useState('')
   const [deleting, setDeleting]                   = useState(false)
   const [deleteError, setDeleteError]             = useState('')
+  // Set when deletion is accepted but our team finishes it (see /api/account/delete).
+  const [deletionAccepted, setDeletionAccepted]   = useState('')
 
   // Appearance — saved on this device, Dark by default (lib/appearance.ts).
   const [appearance, setAppearance] = useState<AppearancePreference>('dark')
@@ -469,6 +471,11 @@ export default function SettingsPage() {
         return
       }
       const supabase = createClient()
+      if (res.status === 202 && data.status === 'accepted') {
+        setDeletionAccepted(data.message || 'Your deletion request is accepted.')
+        await supabase.auth.signOut()
+        return
+      }
       await supabase.auth.signOut()
       router.push('/')
     } catch {
@@ -493,6 +500,21 @@ export default function SettingsPage() {
     fontSize: 11, fontWeight: 700, letterSpacing: '0.1em',
     textTransform: 'uppercase', color: C.secondary,
     display: 'block', marginBottom: 6,
+  }
+
+  if (deletionAccepted) {
+    return (
+      <div style={{ minHeight: 'var(--sl-page-min-height, 100svh)', background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif', padding: '48px 16px' }}>
+        <div role="status" style={{ maxWidth: 520, margin: '0 auto', background: CARD.background, border: `1px solid ${C.border}`, borderRadius: 16, padding: '24px 20px', boxShadow: CARD.boxShadow, display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <p style={{ fontSize: 18, fontWeight: 800, color: C.text, margin: 0 }}>Deletion request accepted</p>
+          <p style={{ fontSize: 14, color: C.secondary, margin: 0, lineHeight: 1.6 }}>{deletionAccepted}</p>
+          <button onClick={() => router.push('/')}
+            style={{ width: '100%', minHeight: 44, padding: '13px', background: C.gold, border: 'none', borderRadius: 10, color: 'var(--sl-on-accent)', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
+            Done
+          </button>
+        </div>
+      </div>
+    )
   }
 
   return (
