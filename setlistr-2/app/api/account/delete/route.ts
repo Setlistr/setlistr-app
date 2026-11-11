@@ -102,6 +102,22 @@ export async function POST() {
   if (artistSelectError) return fail('select artists', artistSelectError, FILES_NOT_DELETED)
   const artistIds = (artists ?? []).map(a => a.id as string)
 
+  // Bookings this person scheduled for other artists name them in
+  // shows.scheduled_by, which the database keeps unchangeable (migrations
+  // 0020/0028) and which would block deleting the profile at the last step.
+  // Stop before removing anything and route them to support.
+  {
+    const { count, error } = await admin.from('shows').select('id', { count: 'exact', head: true })
+      .eq('scheduled_by', userId).or(`created_by.is.null,created_by.neq.${userId}`)
+    if (error) return fail('check bookings scheduled for other artists', error, FILES_NOT_DELETED)
+    if (count && count > 0) {
+      return NextResponse.json({
+        error: 'Your account is named on shows you scheduled for other artists, which can’t be removed automatically yet. Nothing has been deleted. Contact info@setlistr.ai and we’ll delete your account for you.',
+        code: 'needs_support',
+      }, { status: 409 })
+    }
+  }
+
   // c) Name and sign-up date, for the internal record removal request (step 3).
   //    The whole row, so a missing optional column can't drop the name.
   const { data: profile } = await admin.from('profiles').select('*').eq('id', userId).maybeSingle()
@@ -362,10 +378,6 @@ export async function POST() {
   {
     const { error } = await admin.from('performances').update({ started_by: null }).eq('started_by', userId)
     if (error) return fail('clear performances.started_by', error)
-  }
-  {
-    const { error } = await admin.from('shows').update({ scheduled_by: null, scheduled_by_name: FORMER_MEMBER }).eq('scheduled_by', userId)
-    if (error) return fail('clear shows.scheduled_by', error)
   }
   {
     // imported_by can't be empty: an import made for another artist is
