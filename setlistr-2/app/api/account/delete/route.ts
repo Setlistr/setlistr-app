@@ -102,8 +102,9 @@ export async function POST() {
   if (artistSelectError) return fail('select artists', artistSelectError, FILES_NOT_DELETED)
   const artistIds = (artists ?? []).map(a => a.id as string)
 
-  // c) Name and sign-up date, for the internal record removal request (step 3)
-  const { data: profile } = await admin.from('profiles').select('full_name, created_at').eq('id', userId).maybeSingle()
+  // c) Name and sign-up date, for the internal record removal request (step 3).
+  //    The whole row, so a missing optional column can't drop the name.
+  const { data: profile } = await admin.from('profiles').select('*').eq('id', userId).maybeSingle()
 
   // d) Files to delete, by bucket
   const files = new Map<string, Set<string>>()
@@ -219,7 +220,8 @@ export async function POST() {
   {
     const key = process.env.RESEND_API_KEY
     if (!key) return fail('notion removal request (RESEND_API_KEY missing)', null, NOTICE_NOT_SENT)
-    const signedUp = profile?.created_at ? new Date(profile.created_at as string).toISOString().slice(0, 10) : 'unknown'
+    const created = (profile?.created_at as string | undefined) || user.created_at
+    const signedUp = created ? new Date(created).toISOString().slice(0, 10) : 'unknown'
     try {
       const res = await fetch('https://api.resend.com/emails', {
         method: 'POST',
