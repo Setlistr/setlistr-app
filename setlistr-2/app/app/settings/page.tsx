@@ -472,8 +472,9 @@ export default function SettingsPage() {
       }
       const supabase = createClient()
       if (res.status === 202 && data.status === 'accepted') {
+        // Sign-in is already closed on the server; sign out here when they tap
+        // Done, so the confirmation stays on screen until they've read it.
         setDeletionAccepted(data.message || 'Your deletion request is accepted.')
-        await supabase.auth.signOut()
         return
       }
       await supabase.auth.signOut()
@@ -508,7 +509,7 @@ export default function SettingsPage() {
         <div role="status" style={{ maxWidth: 520, margin: '0 auto', background: CARD.background, border: `1px solid ${C.border}`, borderRadius: 16, padding: '24px 20px', boxShadow: CARD.boxShadow, display: 'flex', flexDirection: 'column', gap: 14 }}>
           <p style={{ fontSize: 18, fontWeight: 800, color: C.text, margin: 0 }}>Deletion request accepted</p>
           <p style={{ fontSize: 14, color: C.secondary, margin: 0, lineHeight: 1.6 }}>{deletionAccepted}</p>
-          <button onClick={() => router.push('/')}
+          <button onClick={async () => { await createClient().auth.signOut(); router.push('/') }}
             style={{ width: '100%', minHeight: 44, padding: '13px', background: C.gold, border: 'none', borderRadius: 10, color: 'var(--sl-on-accent)', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
             Done
           </button>
