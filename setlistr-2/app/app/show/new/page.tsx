@@ -9,6 +9,8 @@ import { useShowActions } from '@/components/scheduling/UpcomingShows'
 import { TonightLead, useTonightShows } from '@/components/scheduling/TonightShows'
 import { toCoords } from '@/lib/geolocation'
 import { logProductEvent, actorTypeFor, awaitWithTimeout } from '@/lib/telemetry'
+import { ensureSetlistAiConsent } from '@/components/SetlistAiConsent'
+import { AI_CONSENT_FIELD, AI_CONSENT_GRANTED, needsAiConsent } from '@/lib/aiConsent'
 import { Calendar, ArrowRight, ArrowLeft, RefreshCw, Check, MapPin, Search, X, Plus, ChevronDown, ChevronUp, Camera, Upload, ListMusic } from 'lucide-react'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
@@ -523,15 +525,20 @@ export default function NewShowPage() {
     const isHEIC = fileName.endsWith('.heic') || fileName.endsWith('.heif') || file.type === 'image/heic' || file.type === 'image/heif'
     const isAllowed = ALLOWED_MIME_TYPES.includes(file.type) || isHEIC
     if (!isAllowed) { setUploadError('Unsupported file type. Please upload a JPG, PNG, PDF, or TXT file.'); return }
+    const { data: { user } } = await createClient().auth.getUser()
+    if (!(await ensureSetlistAiConsent(user?.id, file))) {
+      setUploadError('Not sent. You can pick or type the songs instead.')
+      setSetlistMode('quick')
+      return
+    }
     setUploading(true)
     try {
       let uploadFile = file
       if (file.type.startsWith('image/') || isHEIC) uploadFile = await compressImage(file)
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
       const formData = new FormData()
       formData.append('file', uploadFile)
       if (user?.id) formData.append('userId', user.id)
+      if (needsAiConsent(file)) formData.append(AI_CONSENT_FIELD, AI_CONSENT_GRANTED)
       const res = await fetch('/api/parse-setlist', { method: 'POST', body: formData })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Upload failed')

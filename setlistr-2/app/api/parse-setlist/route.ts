@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { createClient } from '@supabase/supabase-js'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { AI_CONSENT_FIELD, AI_CONSENT_GRANTED } from '@/lib/aiConsent'
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY!,
@@ -120,6 +121,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         error: `Unsupported file type (${file.type}). Please upload a JPG, PNG, PDF, or TXT file.`,
       }, { status: 400 })
+    }
+
+    // Images and PDFs go to Anthropic below, so they need the person's explicit
+    // permission first (lib/aiConsent.ts). Checked before anything is converted,
+    // sent or stored. Plain text is read here and never leaves our server.
+    if (mimeType !== 'text/plain' && formData.get(AI_CONSENT_FIELD) !== AI_CONSENT_GRANTED) {
+      return NextResponse.json({
+        error: 'Setlistr needs your permission before sending this file to Anthropic. Allow it when asked, or type the songs instead.',
+        code: 'ai_consent_required',
+      }, { status: 403 })
     }
 
     let bytes = await file.arrayBuffer()

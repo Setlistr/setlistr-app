@@ -6,7 +6,49 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 const CHUNK_SIZE = 200
-const GENERIC_ERROR = { error: 'Account deletion failed. Please try again or contact support.' }
+const REMOVE_BATCH = 100
+
+// Stages, in this order, so the account is never deleted while its files
+// remain: 1) collect, 2) delete files and verify they're gone, 3) send the
+// internal request (Notion record, and any manual step), 4) delete or
+// anonymise database records, 5) delete the sign-in last. Every step is safe
+// to repeat, so trying again after a failure picks up where it stopped, and
+// each failure says exactly what has and hasn't been removed.
+//
+// Some bookings can't be changed or deleted by this route: a booking names
+// whoever scheduled it in shows.scheduled_by, which is immutable by design
+// (migrations 0020/0028), and scheduled or listed bookings can only be
+// cancelled, never deleted (reject_scheduled_show_delete). Both block deleting
+// the profile. When an account has such bookings, the request is accepted:
+// everything else is deleted, sign-in is closed, and our team finishes the
+// rest within 30 days and emails the person (step 3 sends the instructions).
+const FILES_NONE_DELETED = {
+  error: 'We couldn’t delete your files, so your account hasn’t been deleted and nothing was changed. Please try again, or contact info@setlistr.ai.',
+  code: 'files_not_deleted',
+}
+const FILES_PARTLY_DELETED = {
+  error: 'We deleted some of your files but couldn’t delete the rest, so your account hasn’t been deleted yet. The files already deleted can’t be recovered; your account, shows and other records are unchanged. Please try again to finish, or contact info@setlistr.ai.',
+  code: 'files_partly_deleted',
+}
+const NOTICE_NOT_SENT = {
+  error: 'Your uploaded files were deleted, but we couldn’t finish deleting your account. Your account, shows and other records are unchanged. Please try again to finish, or contact info@setlistr.ai.',
+  code: 'deletion_incomplete',
+}
+const RECORDS_INCOMPLETE = {
+  error: 'Your uploaded files and some of your records were deleted, but we couldn’t finish deleting your account. Please try again to finish, or contact info@setlistr.ai.',
+  code: 'deletion_incomplete',
+}
+
+// Shown on other artists' records this person worked on as a team member,
+// in place of their name, once their account is gone.
+const FORMER_MEMBER = 'Former team member'
+
+// Internal inbox that receives the request to remove the account's Notion
+// record and, when needed, the manual completion steps.
+const INTERNAL_INBOX = 'info@setlistr.ai'
+
+// Bookings in these states can only be cancelled, not deleted.
+const UNDELETABLE_SHOW_STATUSES = ['scheduled', 'listed']
 
 // NOTE: audio_captures.storage_path is bucket-relative but which bucket it
 // lives in is unconfirmed and currently unverifiable — storage_path is null
@@ -25,9 +67,9 @@ function chunk<T>(items: T[], size: number): T[][] {
   return chunks
 }
 
-function fail(step: string, error: unknown) {
+function fail(step: string, error: unknown, body: { error: string; code: string } = RECORDS_INCOMPLETE) {
   console.error(`[account/delete] Failed at step "${step}":`, error)
-  return NextResponse.json(GENERIC_ERROR, { status: 500 })
+  return NextResponse.json(body, { status: 500 })
 }
 
 // Parses a Supabase Storage object URL (public, signed, or authenticated)
@@ -36,6 +78,11 @@ function parseStorageObjectUrl(url: string): { bucket: string; path: string } | 
   const match = url.match(/\/storage\/v1\/object\/(?:public|sign|authenticated)\/([^/]+)\/([^?]+)/)
   if (!match) return null
   return { bucket: match[1], path: decodeURIComponent(match[2]) }
+}
+
+function splitPath(path: string): { dir: string; name: string } {
+  const i = path.lastIndexOf('/')
+  return i === -1 ? { dir: '', name: path } : { dir: path.slice(0, i), name: path.slice(i + 1) }
 }
 
 export async function POST() {
@@ -47,96 +94,262 @@ export async function POST() {
   }
 
   const userId = user.id
+  const email = user.email ?? ''
   const admin = createAdminSupabaseClient()
 
-  // a) This user's performances
+  // ── 1. Collect ────────────────────────────────────────────────────────────
+
+  // a) This account's own performances (it is the artist). Team members'
+  //    performances for other artists are never collected here.
   const { data: performances, error: perfSelectError } = await admin
     .from('performances')
-    .select('id')
+    .select('id, show_id, recording_path, setlist_path, setlist_photo_url, photo_url')
     .eq('user_id', userId)
-  if (perfSelectError) return fail('select performances', perfSelectError)
+  if (perfSelectError) return fail('select performances', perfSelectError, FILES_NONE_DELETED)
   const performanceIds = (performances ?? []).map(p => p.id as string)
+  const showIds = Array.from(new Set((performances ?? []).map(p => p.show_id as string | null).filter((s): s is string => !!s)))
 
   // b) This user's artist row(s) — one-to-one in practice, coded generally
   const { data: artists, error: artistSelectError } = await admin
     .from('artists')
     .select('id')
     .eq('user_id', userId)
-  if (artistSelectError) return fail('select artists', artistSelectError)
+  if (artistSelectError) return fail('select artists', artistSelectError, FILES_NONE_DELETED)
   const artistIds = (artists ?? []).map(a => a.id as string)
 
-  // c) audio_captures.storage_path (non-null) for those artist ids
-  const audioCapturePaths: string[] = []
+  // c) Bookings this route can't change or delete (see the note at the top):
+  //    other artists' bookings that name this person as their scheduler, and
+  //    this account's own scheduled or listed bookings.
+  const { count: othersScheduled, error: othersScheduledError } = await admin.from('shows').select('id', { count: 'exact', head: true })
+    .eq('scheduled_by', userId).or(`created_by.is.null,created_by.neq.${userId}`)
+  if (othersScheduledError) return fail('count bookings scheduled for other artists', othersScheduledError, FILES_NONE_DELETED)
+  const { count: ownUndeletable, error: ownUndeletableError } = await admin.from('shows').select('id', { count: 'exact', head: true })
+    .eq('created_by', userId).in('status', UNDELETABLE_SHOW_STATUSES)
+  if (ownUndeletableError) return fail('count own scheduled bookings', ownUndeletableError, FILES_NONE_DELETED)
+  const manualStep = (othersScheduled ?? 0) + (ownUndeletable ?? 0) > 0
+
+  // d) Name and sign-up date, for the internal request (step 3). The whole
+  //    row, so a missing optional column can't drop the name.
+  const { data: profile } = await admin.from('profiles').select('*').eq('id', userId).maybeSingle()
+
+  // e) Files to delete, by bucket
+  const files = new Map<string, Set<string>>()
+  const addFile = (bucket: string, path: string | null | undefined) => {
+    if (!path) return
+    const set = files.get(bucket) ?? new Set<string>()
+    set.add(path)
+    files.set(bucket, set)
+  }
+
+  // Recordings, setlist files and photos attached to this account's own shows,
+  // whoever uploaded them (a team member's upload for this artist is this
+  // artist's record).
+  for (const p of performances ?? []) {
+    addFile('show-recordings', p.recording_path as string | null)
+    addFile('show-recordings', p.setlist_path as string | null)
+    for (const url of [p.setlist_photo_url, p.photo_url] as (string | null)[]) {
+      const parsed = url ? parseStorageObjectUrl(url) : null
+      if (parsed) addFile(parsed.bucket, parsed.path)
+    }
+  }
+
+  // audio_captures.storage_path for those artist ids
   for (const idChunk of chunk(artistIds, CHUNK_SIZE)) {
     const { data: captures, error: captureSelectError } = await admin
       .from('audio_captures')
       .select('storage_path')
       .in('artist_id', idChunk)
       .not('storage_path', 'is', null)
-    if (captureSelectError) return fail('select audio_captures.storage_path', captureSelectError)
+    if (captureSelectError) return fail('select audio_captures.storage_path', captureSelectError, FILES_NONE_DELETED)
     for (const c of captures ?? []) {
-      if (c.storage_path) audioCapturePaths.push(c.storage_path as string)
+      const path = c.storage_path as string | null
+      if (!path) continue
+      console.warn('[account/delete] audio storage_path encountered — verify bucket', { storagePath: path, bucketsAttempted: AUDIO_CAPTURE_BUCKETS })
+      for (const bucket of AUDIO_CAPTURE_BUCKETS) addFile(bucket, path)
     }
   }
 
-  // d) attachments.url for those performance ids, parsed into bucket + path.
-  //    Must happen before performances are deleted (attachments cascades away with them).
-  const attachmentObjects: { bucket: string; path: string }[] = []
+  // attachments.url for those performance ids (cascades away with the performances)
   for (const idChunk of chunk(performanceIds, CHUNK_SIZE)) {
     const { data: attachments, error: attachmentSelectError } = await admin
       .from('attachments')
       .select('url')
       .in('performance_id', idChunk)
-    if (attachmentSelectError) return fail('select attachments.url', attachmentSelectError)
+    if (attachmentSelectError) return fail('select attachments.url', attachmentSelectError, FILES_NONE_DELETED)
     for (const a of attachments ?? []) {
       const parsed = a.url ? parseStorageObjectUrl(a.url as string) : null
-      if (parsed) attachmentObjects.push(parsed)
+      if (parsed) addFile(parsed.bucket, parsed.path)
     }
   }
 
-  // e) Remove collected storage objects, plus an avatars/<userId> prefix sweep.
-  //    Storage failures are logged only — they must never abort account deletion.
-  try {
-    const byBucket = new Map<string, string[]>()
-    for (const path of audioCapturePaths) {
-      console.warn('[account/delete] audio storage_path encountered — verify bucket', {
-        storagePath: path,
-        bucketsAttempted: AUDIO_CAPTURE_BUCKETS,
+  // Files this account uploaded under its own folders that no show uses any
+  // more (for example a setlist photo read during New Show and then
+  // abandoned). Files in those folders that belong to another artist's show,
+  // uploaded while working for that artist, are that artist's records and stay.
+  const { data: othersByPath, error: othersPathError } = await admin
+    .from('performances')
+    .select('recording_path, setlist_path')
+    .neq('user_id', userId)
+    .or(`recording_path.like.${userId}/*,setlist_path.like.${userId}/*`)
+  if (othersPathError) return fail('select other artists\' recordings', othersPathError, FILES_NONE_DELETED)
+  const { data: othersByPhoto, error: othersPhotoError } = await admin
+    .from('performances')
+    .select('setlist_photo_url')
+    .neq('user_id', userId)
+    .like('setlist_photo_url', `%/setlists/${userId}/%`)
+  if (othersPhotoError) return fail('select other artists\' setlist photos', othersPhotoError, FILES_NONE_DELETED)
+  const keep = new Set<string>()
+  for (const p of othersByPath ?? []) {
+    if (p.recording_path) keep.add(`show-recordings/${p.recording_path}`)
+    if (p.setlist_path) keep.add(`show-recordings/${p.setlist_path}`)
+  }
+  for (const p of othersByPhoto ?? []) {
+    const parsed = p.setlist_photo_url ? parseStorageObjectUrl(p.setlist_photo_url as string) : null
+    if (parsed) keep.add(`${parsed.bucket}/${parsed.path}`)
+  }
+  for (const [bucket, folder] of [['show-recordings', userId], ['performance-photos', `setlists/${userId}`], ['avatars', userId]] as const) {
+    for (let offset = 0; ; offset += 1000) {
+      const { data: listed, error: listError } = await admin.storage.from(bucket).list(folder, { limit: 1000, offset })
+      if (listError) return fail(`list ${bucket}/${folder}`, listError, FILES_NONE_DELETED)
+      for (const f of listed ?? []) {
+        if (!f.name || f.id === null) continue   // a sub-folder, not a file
+        const path = `${folder}/${f.name}`
+        if (!keep.has(`${bucket}/${path}`)) addFile(bucket, path)
+      }
+      if (!listed || listed.length < 1000) break
+    }
+  }
+
+  // ── 2. Delete files, then confirm each one is gone ────────────────────────
+  // Removing a file that is already gone succeeds, so a retry after a partial
+  // failure simply finishes the job.
+  let removedAny = false
+  for (const [bucket, set] of Array.from(files.entries())) {
+    for (const batch of chunk(Array.from(set), REMOVE_BATCH)) {
+      const { data: removed, error: removeError } = await admin.storage.from(bucket).remove(batch)
+      if (removeError) return fail(`remove files from ${bucket}`, removeError, removedAny ? FILES_PARTLY_DELETED : FILES_NONE_DELETED)
+      if ((removed ?? []).length > 0) removedAny = true
+    }
+  }
+  let remaining = 0
+  for (const [bucket, set] of Array.from(files.entries())) {
+    for (const path of Array.from(set)) {
+      const { dir, name } = splitPath(path)
+      const { data: found, error: verifyError } = await admin.storage.from(bucket).list(dir, { search: name, limit: 100 })
+      if (verifyError) return fail(`verify ${bucket}`, verifyError, removedAny ? FILES_PARTLY_DELETED : FILES_NONE_DELETED)
+      if ((found ?? []).some(f => f.name === name)) remaining++
+    }
+  }
+  if (remaining > 0) return fail('files still present after removal', { remaining }, removedAny ? FILES_PARTLY_DELETED : FILES_NONE_DELETED)
+
+  // ── 3. Internal request: Notion record, and any manual completion ─────────
+  // The profile trigger copies new accounts into the Notion artists database,
+  // titled with the person's name (or email when no name was set). No page id
+  // is stored, and names aren't unique, so the page can't be matched safely
+  // from here; an admin removes it from this request instead.
+  {
+    const key = process.env.RESEND_API_KEY
+    if (!key) return fail('internal request (RESEND_API_KEY missing)', null, NOTICE_NOT_SENT)
+    const created = (profile?.created_at as string | undefined) || user.created_at
+    const signedUp = created ? new Date(created).toISOString().slice(0, 10) : 'unknown'
+    const name = (profile?.full_name as string | null) || '(none set)'
+    const lines = [
+      'A Setlistr account was deleted. Please remove its entry from the Notion artists database, and its show entries.',
+      '',
+      `Name: ${name}`,
+      `Email: ${email || '(none)'}`,
+      `Signed up: ${signedUp}`,
+      `Account id: ${userId}`,
+      '',
+      'The Notion page is titled with the name, or the email when no name was set.',
+    ]
+    if (manualStep) {
+      lines.push(
+        '',
+        `MANUAL STEP NEEDED within 30 days (${othersScheduled ?? 0} booking(s) scheduled for other artists, ${ownUndeletable ?? 0} of the account's own scheduled or listed booking(s)).`,
+        'Everything else has been deleted and sign-in is closed. To finish:',
+        '1. Supabase dashboard -> SQL Editor, run:',
+        '   begin;',
+        '   alter table public.shows disable trigger user;',
+        `   delete from public.shows where created_by = '${userId}' and status in ('scheduled', 'listed');`,
+        `   update public.shows set scheduled_by = null, scheduled_by_name = '${FORMER_MEMBER}' where scheduled_by = '${userId}';`,
+        '   alter table public.shows enable trigger user;',
+        `   delete from public.show_import_batches where artist_id = '${userId}';`,
+        `   update public.show_import_batches set imported_by = artist_id where imported_by = '${userId}';`,
+        `   update public.show_import_batches set undone_by = null where undone_by = '${userId}';`,
+        '   commit;',
+        `2. Supabase dashboard -> Authentication -> Users -> find ${email || userId} -> Delete user.`,
+        `3. Email ${email || '(no email)'}: "Your Setlistr account deletion is complete."`,
+      )
+    }
+    try {
+      const res = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          from: 'Setlistr <invites@setlistr.ai>',
+          to: INTERNAL_INBOX,
+          subject: manualStep ? 'Account deletion: manual step needed + remove Notion entry' : 'Account deleted: remove its Notion artist entry',
+          text: lines.join('\n'),
+        }),
       })
-      for (const bucket of AUDIO_CAPTURE_BUCKETS) {
-        const list = byBucket.get(bucket) ?? []
-        list.push(path)
-        byBucket.set(bucket, list)
-      }
+      if (!res.ok) return fail('internal request', await res.text().catch(() => res.status), NOTICE_NOT_SENT)
+    } catch (err) {
+      return fail('internal request', err, NOTICE_NOT_SENT)
     }
-    for (const { bucket, path } of attachmentObjects) {
-      const list = byBucket.get(bucket) ?? []
-      list.push(path)
-      byBucket.set(bucket, list)
-    }
-    for (const [bucket, paths] of Array.from(byBucket.entries())) {
-      if (paths.length === 0) continue
-      const { error: removeError } = await admin.storage.from(bucket).remove(paths)
-      if (removeError) {
-        console.error(`[account/delete] Storage removal failed for bucket "${bucket}":`, removeError)
-      }
-    }
-
-    const { data: avatarFiles, error: avatarListError } = await admin.storage.from('avatars').list(userId)
-    if (avatarListError) {
-      console.error('[account/delete] Failed to list avatars/<userId> prefix:', avatarListError)
-    } else if (avatarFiles && avatarFiles.length > 0) {
-      const avatarPaths = avatarFiles.map(f => `${userId}/${f.name}`)
-      const { error: avatarRemoveError } = await admin.storage.from('avatars').remove(avatarPaths)
-      if (avatarRemoveError) {
-        console.error('[account/delete] Failed to remove avatars/<userId> files:', avatarRemoveError)
-      }
-    }
-  } catch (storageErr) {
-    console.error('[account/delete] Unexpected storage cleanup error:', storageErr)
   }
 
-  // f) detection_events / manual_song_events — by performance_id AND by user_id,
+  // ── 4. Database records ───────────────────────────────────────────────────
+
+  // a) Recognition records for this account's shows: processing logs (they
+  //    would otherwise lose their show link and stay as orphans holding the
+  //    device type and recognition responses), recognition jobs and results,
+  //    and capture records.
+  for (const idChunk of chunk(performanceIds, CHUNK_SIZE)) {
+    const { error } = await admin.from('recognition_logs').delete().in('performance_id', idChunk)
+    if (error) return fail('delete recognition_logs', error)
+  }
+  const captureIds = new Set<string>()
+  for (const [column, ids] of [['show_id', showIds], ['artist_id', [userId, ...artistIds]]] as const) {
+    for (const idChunk of chunk(ids as string[], CHUNK_SIZE)) {
+      const { data, error } = await admin.from('audio_captures').select('id').in(column, idChunk)
+      if (error) return fail(`select audio_captures by ${column}`, error)
+      for (const c of data ?? []) captureIds.add(c.id as string)
+    }
+  }
+  const jobIds = new Set<string>()
+  for (const idChunk of chunk(Array.from(captureIds), CHUNK_SIZE)) {
+    const { data, error } = await admin.from('recognition_jobs').select('id').in('audio_capture_id', idChunk)
+    if (error) return fail('select recognition_jobs by capture', error)
+    for (const j of data ?? []) jobIds.add(j.id as string)
+  }
+  for (const idChunk of chunk(performanceIds, CHUNK_SIZE)) {
+    const { data, error } = await admin.from('recognition_jobs').select('id').in('raw_request->>performance_id', idChunk)
+    if (error) return fail('select recognition_jobs by performance', error)
+    for (const j of data ?? []) jobIds.add(j.id as string)
+  }
+  for (const idChunk of chunk(Array.from(jobIds), CHUNK_SIZE)) {
+    const { error: resultsErr } = await admin.from('recognition_results').delete().in('job_id', idChunk)
+    if (resultsErr) return fail('delete recognition_results', resultsErr)
+    const { error: jobsErr } = await admin.from('recognition_jobs').delete().in('id', idChunk)
+    if (jobsErr) return fail('delete recognition_jobs', jobsErr)
+  }
+  for (const idChunk of chunk(Array.from(captureIds), CHUNK_SIZE)) {
+    const { error } = await admin.from('audio_captures').delete().in('id', idChunk)
+    if (error) return fail('delete audio_captures', error)
+  }
+
+  // b) Usage events about this account or its shows
+  {
+    const { error } = await admin.from('product_events').delete().eq('user_id', userId)
+    if (error) return fail('delete product_events by user', error)
+  }
+  for (const idChunk of chunk(performanceIds, CHUNK_SIZE)) {
+    const { error } = await admin.from('product_events').delete().in('performance_id', idChunk)
+    if (error) return fail('delete product_events by performance', error)
+  }
+
+  // c) detection_events / manual_song_events — by performance_id AND by user_id,
   //    since rows on both tables can carry a null performance_id.
   for (const idChunk of chunk(performanceIds, CHUNK_SIZE)) {
     const { error } = await admin.from('detection_events').delete().in('performance_id', idChunk)
@@ -155,20 +368,34 @@ export async function POST() {
     if (error) return fail('delete manual_song_events by user_id', error)
   }
 
-  // g) Delete this user's performances. Cascades: attachments, capture_sessions,
+  // d) Delete this user's performances. Cascades: attachments, capture_sessions,
   //    performance_songs, reconciliation_runs. SET NULL (automatic, no action
-  //    needed here): recognition_logs.performance_id, planned_setlists.performance_id.
+  //    needed here): planned_setlists.performance_id.
   {
     const { error } = await admin.from('performances').delete().eq('user_id', userId)
     if (error) return fail('delete performances', error)
   }
 
-  // h) Children of the artist row that would otherwise SET NULL into orphans —
+  // e) This account's own bookings and spreadsheet imports (its workspace).
+  //    Scheduled or listed bookings can't be deleted here (manual step), and
+  //    an import batch still referenced by one of them must stay too.
+  {
+    const { error } = await admin.from('shows').delete().eq('created_by', userId).not('status', 'in', `(${UNDELETABLE_SHOW_STATUSES.join(',')})`)
+    if (error) return fail('delete own shows', error)
+  }
+  {
+    const { data: stillUsed, error: usedError } = await admin.from('shows').select('import_batch_id').eq('created_by', userId).not('import_batch_id', 'is', null)
+    if (usedError) return fail('select own shows still using import batches', usedError)
+    const used = Array.from(new Set((stillUsed ?? []).map(s => s.import_batch_id as string)))
+    let del = admin.from('show_import_batches').delete().eq('artist_id', userId)
+    if (used.length > 0) del = del.not('id', 'in', `(${used.join(',')})`)
+    const { error } = await del
+    if (error) return fail('delete own show_import_batches', error)
+  }
+
+  // f) Children of the artist row that would otherwise SET NULL into orphans —
   //    must be removed before the artist row itself.
   for (const idChunk of chunk(artistIds, CHUNK_SIZE)) {
-    const { error: audioErr } = await admin.from('audio_captures').delete().in('artist_id', idChunk)
-    if (audioErr) return fail('delete audio_captures', audioErr)
-
     const { error: captureErr } = await admin.from('capture_sessions').delete().in('artist_id', idChunk)
     if (captureErr) return fail('delete capture_sessions by artist_id', captureErr)
 
@@ -176,19 +403,46 @@ export async function POST() {
     if (songsErr) return fail('delete songs', songsErr)
   }
 
-  // i) Delete the artist row itself (no FK to auth.users/profiles — must be explicit)
+  // g) Delete the artist row itself (no FK to auth.users/profiles — must be explicit)
   {
     const { error } = await admin.from('artists').delete().eq('user_id', userId)
     if (error) return fail('delete artists', error)
   }
 
-  // j) Other users' performances captured by this user — null the reference, never delete the row
+  // h) A publisher workspace this account owns (its roster and invitations
+  //    cascade). Its reference to the sign-in has no ON DELETE and would
+  //    otherwise block step 5.
   {
-    const { error } = await admin.from('performances').update({ captured_by: null }).eq('captured_by', userId)
-    if (error) return fail('clear performances.captured_by', error)
+    const { error } = await admin.from('publisher_accounts').delete().eq('user_id', userId)
+    if (error) return fail('delete publisher_accounts', error)
   }
 
-  // k) artist_delegates.invited_by — null first, fall back to delete if the column is NOT NULL
+  // i) Other artists' records this person worked on as a team member: keep the
+  //    records (they belong to those artists) and remove this person from them.
+  //    These columns reference the profile without ON DELETE, so leaving them
+  //    would also block step 5. (Bookings they scheduled are the manual step.)
+  {
+    const { error } = await admin.from('performances').update({ captured_by: null, captured_by_name: FORMER_MEMBER }).eq('captured_by', userId)
+    if (error) return fail('clear performances.captured_by', error)
+  }
+  {
+    const { error } = await admin.from('performances').update({ started_by: null }).eq('started_by', userId)
+    if (error) return fail('clear performances.started_by', error)
+  }
+  {
+    // imported_by can't be empty: an import made for another artist is
+    // attributed to that artist, on whose behalf it was made.
+    const { data: batches, error: batchSelectError } = await admin.from('show_import_batches').select('id, artist_id').eq('imported_by', userId).neq('artist_id', userId)
+    if (batchSelectError) return fail('select show_import_batches.imported_by', batchSelectError)
+    for (const b of batches ?? []) {
+      const { error } = await admin.from('show_import_batches').update({ imported_by: b.artist_id }).eq('id', b.id)
+      if (error) return fail('reassign show_import_batches.imported_by', error)
+    }
+    const { error: undoneError } = await admin.from('show_import_batches').update({ undone_by: null }).eq('undone_by', userId).neq('artist_id', userId)
+    if (undoneError) return fail('clear show_import_batches.undone_by', undoneError)
+  }
+
+  // j) artist_delegates.invited_by — null first, fall back to delete if the column is NOT NULL
   {
     const { error } = await admin.from('artist_delegates').update({ invited_by: null }).eq('invited_by', userId)
     if (error) {
@@ -198,7 +452,41 @@ export async function POST() {
     }
   }
 
-  // l) Delete the auth user last — profiles and its remaining cascades fire from here
+  // k) The access invitation for this email: it only grants access to the
+  //    account being deleted. A later sign-up needs a new invitation.
+  for (const address of Array.from(new Set([email, email.toLowerCase()].filter(Boolean)))) {
+    const { error } = await admin.from('beta_invites').delete().eq('email', address)
+    if (error) return fail('delete beta_invites', error)
+  }
+
+  // ── 5a. Bookings that need the manual step: accept the request now ────────
+  // Remove the person from every team, clear their profile details, and close
+  // sign-in. The profile row stays only as the reference those bookings still
+  // hold until our team finishes the deletion.
+  if (manualStep) {
+    {
+      const { error } = await admin.from('artist_delegates').delete().or(`delegate_id.eq.${userId},artist_id.eq.${userId}`)
+      if (error) return fail('remove team memberships', error)
+    }
+    {
+      const { error } = await admin.from('profiles').update({
+        full_name: null, artist_name: null, avatar_url: null, pro_affiliation: null, ipi_number: null,
+        publisher_name: null, legal_name: null, bandsintown_artist_name: null,
+      }).eq('id', userId)
+      if (error) return fail('clear profile details', error)
+    }
+    {
+      const { error } = await admin.auth.admin.updateUserById(userId, { ban_duration: '876000h' })
+      if (error) return fail('close sign-in', error)
+    }
+    const n = (othersScheduled ?? 0) + (ownUndeletable ?? 0)
+    return NextResponse.json({
+      status: 'accepted',
+      message: `Your deletion request is accepted. We’ve deleted your files, shows and records and closed your account, so you can no longer sign in. ${n === 1 ? 'One booking still names you' : `${n} bookings still name you`} and can’t be removed automatically, so our team will finish deleting your account within 30 days and email ${email || 'you'} when it’s done.`,
+    }, { status: 202 })
+  }
+
+  // ── 5. Delete the auth user last — profiles and its remaining cascades fire from here
   {
     const { error } = await admin.auth.admin.deleteUser(userId)
     if (error) return fail('delete auth user', error)

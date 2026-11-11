@@ -8,6 +8,7 @@ import { ADMIN_EMAILS, NATIVE_APPEARANCE_PREVIEW_EMAILS } from '@/lib/admin-conf
 import { useSessionGuard } from '@/lib/useSessionGuard'
 import { isNativeApp, saveAppearancePreference, storedAppearancePreference, type AppearancePreference } from '@/lib/appearance'
 import { diffFields, toWirePayload } from '@/lib/profileFormDiff'
+import { hasAiSetlistConsent, setAiSetlistConsent } from '@/lib/aiConsent'
 
 const CARD = {
   background: 'var(--sl-card-bg)',
@@ -136,6 +137,8 @@ export default function SettingsPage() {
   const [deleteConfirmText, setDeleteConfirmText] = useState('')
   const [deleting, setDeleting]                   = useState(false)
   const [deleteError, setDeleteError]             = useState('')
+  // Set when deletion is accepted but our team finishes it (see /api/account/delete).
+  const [deletionAccepted, setDeletionAccepted]   = useState('')
 
   // Appearance — saved on this device, Dark by default (lib/appearance.ts).
   const [appearance, setAppearance] = useState<AppearancePreference>('dark')
@@ -146,6 +149,17 @@ export default function SettingsPage() {
     // (Dark) the rollout grant for the signed-in account.
     saveAppearancePreference(pref, nativeApp ? loadedViewerId : undefined)
     setAppearance(pref)
+  }
+
+  // Permission to send setlist photos/PDFs to Anthropic (lib/aiConsent.ts) —
+  // remembered on this device per account; withdrawing makes the app ask again.
+  const [aiConsent, setAiConsent] = useState(false)
+  const [aiConsentWithdrawn, setAiConsentWithdrawn] = useState(false)
+  useEffect(() => { setAiConsent(hasAiSetlistConsent(loadedViewerId)) }, [loadedViewerId])
+  function withdrawAiConsent() {
+    if (!loadedViewerId) return
+    setAiSetlistConsent(loadedViewerId, false)
+    setAiConsent(false); setAiConsentWithdrawn(true)
   }
 
   const sessionGuard = useSessionGuard(loadedViewerId)
@@ -469,6 +483,12 @@ export default function SettingsPage() {
         return
       }
       const supabase = createClient()
+      if (res.status === 202 && data.status === 'accepted') {
+        // Sign-in is already closed on the server; sign out here when they tap
+        // Done, so the confirmation stays on screen until they've read it.
+        setDeletionAccepted(data.message || 'Your deletion request is accepted.')
+        return
+      }
       await supabase.auth.signOut()
       router.push('/')
     } catch {
@@ -493,6 +513,21 @@ export default function SettingsPage() {
     fontSize: 11, fontWeight: 700, letterSpacing: '0.1em',
     textTransform: 'uppercase', color: C.secondary,
     display: 'block', marginBottom: 6,
+  }
+
+  if (deletionAccepted) {
+    return (
+      <div style={{ minHeight: 'var(--sl-page-min-height, 100svh)', background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif', padding: '48px 16px' }}>
+        <div role="status" style={{ maxWidth: 520, margin: '0 auto', background: CARD.background, border: `1px solid ${C.border}`, borderRadius: 16, padding: '24px 20px', boxShadow: CARD.boxShadow, display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <p style={{ fontSize: 18, fontWeight: 800, color: C.text, margin: 0 }}>Deletion request accepted</p>
+          <p style={{ fontSize: 14, color: C.secondary, margin: 0, lineHeight: 1.6 }}>{deletionAccepted}</p>
+          <button onClick={async () => { await createClient().auth.signOut(); router.push('/') }}
+            style={{ width: '100%', minHeight: 44, padding: '13px', background: C.gold, border: 'none', borderRadius: 10, color: 'var(--sl-on-accent)', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
+            Done
+          </button>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -893,6 +928,23 @@ export default function SettingsPage() {
             style={{ width: '100%', padding: '13px', background: passwordSaved ? 'var(--sl-ok-strong)' : C.gold, border: 'none', borderRadius: 10, color: passwordSaved ? '#fff' : 'var(--sl-on-accent)', fontSize: 13, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontFamily: 'inherit', opacity: passwordSaving ? 0.7 : 1 }}>
             {passwordSaved ? <><Check size={14} strokeWidth={2.5} />Updated</> : passwordSaving ? 'Updating...' : 'Update Password'}
           </button>
+        </div>
+
+        {/* ── Setlist photos: AI reading permission ── */}
+        <div style={{ background: CARD.background, border: `1px solid ${C.border}`, borderRadius: 16, padding: '20px', display: 'flex', flexDirection: 'column', gap: 12, boxShadow: CARD.boxShadow }}>
+          <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.secondary, margin: 0 }}>Setlist photos</p>
+          <p style={{ fontSize: 12, color: C.muted, margin: 0, lineHeight: 1.6 }}>
+            When you add a setlist photo or PDF, Setlistr sends the file to Anthropic, which reads the song titles with the Claude AI model. This only happens with your permission. Typed setlists are never sent.
+          </p>
+          <p style={{ fontSize: 13, color: aiConsent ? C.text : C.secondary, margin: 0, fontWeight: 600 }}>
+            {aiConsent ? 'Allowed on this device' : aiConsentWithdrawn ? 'Withdrawn. You’ll be asked again before any file is sent.' : 'Not allowed on this device. You’ll be asked first.'}
+          </p>
+          {aiConsent && (
+            <button onClick={withdrawAiConsent} disabled={sessionGuard.invalid}
+              style={{ width: '100%', minHeight: 44, padding: '12px', background: 'transparent', border: `1px solid ${C.border}`, borderRadius: 10, color: C.secondary, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+              Withdraw permission
+            </button>
+          )}
         </div>
 
         {/* ── Appearance ── */}
