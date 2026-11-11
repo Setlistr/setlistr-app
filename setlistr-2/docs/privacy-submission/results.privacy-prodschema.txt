@@ -1,0 +1,38 @@
+— C. AI permission for setlist photos and PDFs
+  ok   [C1] photo without permission is refused by the server → 403 ai_consent_required
+  ok   [C1] nothing sent to Anthropic or stored → anthropic +0, uploads +0
+  ok   [C2] typed (.txt) setlist needs no permission and never reaches Anthropic → 200 songs=2 anthropic +0
+  ok   [C3] photo with permission is read (stubbed Anthropic) → 200 songs=2 anthropic +1
+  ok   [C4] New Show: camera photo asks first; declining sends nothing → asked=true requests=0 closed=true
+  ok   [C4] New Show: .txt from the file picker is not asked about → asked=false requests=1
+  ok   [C5] New Show: library photo asks; Allow sends it with the permission flag → asked=true requests=1 flag=true anthropic +1
+  ok   [C5] New Show: permission is remembered on this device → asked=false requests=1 flag=true
+  ok   [C6] Settings shows the permission and withdraws it → shown=true withdrawn=true stored=null
+  ok   [C7] legacy New: asks again after withdrawal; declining sends nothing → asked=true requests=0
+  ok   [C7] legacy New: manual entry opens after declining → true
+  ok   [C8] Upload: setlist photo asks; Allow sends it with the flag → asked=true requests=1 flag=true
+— D. Account deletion on production table definitions: files, boundaries, honest failures, records, accepted requests
+  ok   [D0] Settings accepts the request in-app and states the timeframe and confirmation → shown=true "Deletion request accepted Your deletion request is accepted. We’ve deleted your files, shows and records and closed your…"
+  ok   [D0] Done signs out and returns to the homepage → at=/ sessionStored=false
+  ok   [D0] internal request carries the manual step with the account id → subject="Account deletion: manual step needed + remove Notion entry" manual=true id=true
+  ok   [D0] accepted: sign-in closed, profile details cleared, teams left, data and files deleted → signin=refused profile=∅|∅ teams=0 events=0 pastShow=0 avatar=0
+  ok   [D0] protected bookings untouched until the manual step → true|1
+  ok   [D0] manual step completes: account gone, own booking removed, other artist's booking kept and anonymised → sql=true deleteUser=ok auth=0 profile=0 ownBooking=0 otherBooking=∅|Former team member songs=0
+  ok   [D1a] first file fails: Settings says nothing was changed → true
+  ok   [D1a] every file still present; records untouched; no internal request → files=7/7 perf=1 profile=1 events=2 emails+0
+  ok   [D1b] partial: some files deleted, then a failure → message says so → 500 files_partly_deleted "We deleted some of your files but couldn’t delete the rest, …"
+  ok   [D1b] records untouched after a partial file failure → perf=1 profile=1 events=2 recordingsGone=true photoKept=true
+  ok   [D2] file still present after removal is caught (retry over already-deleted files is safe) → 500 files_partly_deleted
+  ok   [D2] records untouched → perf=1 profile=1 events=2
+  ok   [D3] internal request failure: honest message → 500 deletion_incomplete "Your uploaded files were deleted, but we couldn’t …"
+  ok   [D3] account's files gone; other artist's files kept; records intact → A 7/7 removed · B 3/3 kept · perf=1 profile=1 events=2
+  ok   [D4] retry completes → 200 {"success":true}
+  ok   [D4] one internal Notion request (no manual step needed) → emails+1 name=true manual=false
+  ok   [D4] deleted across production tables → {"auth":0,"profile":0,"perfs":0,"attachments":0,"shows":0,"batches":0,"events":0,"logs":0,"jobs":0,"results":0,"captures":0,"detections":0,"manual":0,"songs":0,"planned":0,"publisher":0,"invite":0,"teams":0}
+  ok   [D4] other artist's records kept; deleted member anonymised → perf ∅|Former team member|∅ · import true|∅
+  ok   [D4] other artist's records untouched → perf=1 show=1 log=1 job=1 capture=1 event=1 files=3
+  ok   [D4] deleted account can no longer sign in → refused
+
+stubbed service calls: 118 (anthropic, storage, resend); real external calls: 0 by construction
+32 passed, 0 failed
+exit=0
