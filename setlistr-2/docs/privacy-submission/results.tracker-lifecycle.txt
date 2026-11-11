@@ -1,0 +1,39 @@
+
+0. Ordinary pages keep analytics
+  ok   0a. all 5 initialise on the home page
+  ok   0b. client navigation to /get-paid stays in the same page load and is still observed
+
+1. Ordinary page (trackers running) → auth / invitation page
+  ok   1a. "Sign In" link: a full page load, not a client navigation
+  ok   1b. no tracker sees /auth/login (no load, tick, history or input report)
+  ok   1c. password sign-in works (regression) and lands on the dashboard
+  ok   1d. the password never reaches a tracker
+  ok   1e. dashboard had trackers; a programmatic push to /auth/login becomes a full page load (signed in, the server then redirects to the dashboard)
+  ok   1f. after it, no tracker reports the auth address as the page (load/tick/history)
+       note: history wrappers installed by trackers still see the pushState ARGUMENT: 8 report(s); no in-app code builds a secret-bearing address from a page that runs trackers
+
+2. Auth / invitation page → token consumed and removed → ordinary pages (regressions)
+       magic link landed on /app/dashboard
+  ok   2a. magic link signs in, the token leaves the address, the user reaches the app (regression)
+  ok   2b. through confirm → history → dashboard, no tracker initialises or reports
+  ok   2c. password reset: saved, page moves on to the app, and the new password signs in from a fresh browser (regression)
+  ok   2d. no tracker saw the reset token or either password
+  ok   2e. no tracker initialised on the reset page or either login page
+  ok   2f. invitation: code emailed, accepted, then on to the app (regression)
+  ok   2g. the invite token, the code and the password never reach a tracker
+  ok   2h. from opening the invitation through Accept and on to the dashboard: no tracker report at all
+
+3. Direct entry with token values
+  ok   3. /?token=probe-q1: no tracker initialises (also after navigating on), no value leaves
+  ok   3. /get-paid?code=probe-q2: no tracker initialises (also after navigating on), no value leaves
+  ok   3. /auth/login?next=%2Fapp%2Faccept-invite%3Ftoken%3Dprobe-q3: no tracker initialises (also after navigating on), no value leaves
+  ok   3. /#access_token=probe-f1&refresh_token=probe-f2: no tracker initialises (also after navigating on), no value leaves
+  ok   3. /app/accept-invite?token=probe-q4: no tracker initialises (also after navigating on), no value leaves
+  ok   3. /auth/confirm?token_hash=probe-q5&type=magiclink: no tracker initialises (also after navigating on), no value leaves
+
+4. Native app
+  ok   4. native / → /get-paid: none of the 5 initialises or reports
+  ok   4. native /auth/login → /: none of the 5 initialises or reports
+
+24 passed, 0 failed
+exit=0

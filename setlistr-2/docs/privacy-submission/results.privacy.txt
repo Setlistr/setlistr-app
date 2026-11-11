@@ -1,0 +1,33 @@
+— C. AI permission for setlist photos and PDFs
+  ok   [C1] photo without permission is refused by the server → 403 ai_consent_required
+  ok   [C1] nothing sent to Anthropic or stored → anthropic +0, uploads +0
+  ok   [C2] typed (.txt) setlist needs no permission and never reaches Anthropic → 200 songs=2 anthropic +0
+  ok   [C3] photo with permission is read (stubbed Anthropic) → 200 songs=2 anthropic +1
+  ok   [C4] New Show: camera photo asks first; declining sends nothing → asked=true requests=0 closed=true
+  ok   [C4] New Show: .txt from the file picker is not asked about → asked=false requests=1
+  ok   [C5] New Show: library photo asks; Allow sends it with the permission flag → asked=true requests=1 flag=true anthropic +1
+  ok   [C5] New Show: permission is remembered on this device → asked=false requests=1 flag=true
+  ok   [C6] Settings shows the permission and withdraws it → shown=true withdrawn=true stored=null
+  ok   [C7] legacy New: asks again after withdrawal; declining sends nothing → asked=true requests=0
+  ok   [C7] legacy New: manual entry opens after declining → true
+  ok   [C8] Upload: setlist photo asks; Allow sends it with the flag → asked=true requests=1 flag=true
+— D. Account deletion: files, ownership boundaries, honest failures, records
+  ok   [D0] member named on another artist's booking: routed to support before anything is removed → 409 needs_support profile=1 avatar=true
+  ok   [D1] remove failure: Settings says files weren't all deleted and the account wasn't → true
+  ok   [D1] remove failure: account records untouched; no Notion request → perf=1 profile=1 events=2 emails+0
+  ok   [D2] file still present after removal is caught → 500 files_not_deleted
+  ok   [D2] account records untouched → perf=1 profile=1 events=2
+  ok   [D3] Notion request failure: honest message → 500 deletion_incomplete "Your uploaded files were deleted, but we coul…"
+  ok   [D3] all of the account's files are gone (incl. a team member's upload for it and an orphan) → 6/6 removed
+  ok   [D3] other artist's files kept, even in the deleted account's folders → 3/3 kept
+  ok   [D3] account records still intact → perf=1 profile=1 events=2
+  ok   [D4] retry completes → 200 {"success":true}
+  ok   [D4] one internal Notion removal request, with name, email and sign-up date → emails+1 to=info@setlistr.ai name=true email=true
+  ok   [D4] deleted: sign-in, profile, shows, bookings, imports, usage events, recognition logs/jobs/results/captures, invitation → {"auth":0,"profile":0,"perfs":0,"shows":0,"batches":0,"events":0,"logs":0,"jobs":0,"results":0,"captures":0,"invite":0}
+  ok   [D4] other artist's show kept, deleted member anonymised → perf ∅|Former team member|∅ · booking true|other person · import true|∅
+  ok   [D4] other artist's records untouched → perf=1 log=1 job=1 capture=1 event=1 files=3
+  ok   [D4] deleted account can no longer sign in → refused
+
+stubbed service calls: 90 (anthropic, storage, resend); real external calls: 0 by construction
+27 passed, 0 failed
+exit=0
