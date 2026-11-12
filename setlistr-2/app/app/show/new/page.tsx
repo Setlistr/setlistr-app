@@ -175,7 +175,7 @@ function VenueMap({ venueName, city, country, onCoordsResolved }: { venueName: s
         style: 'mapbox://styles/mapbox/dark-v11',
         center: [coords.lng, coords.lat],
         zoom: 13,
-        attributionControl: false,
+        attributionControl: true,
         scrollZoom: false,
       })
       map.current.on('load', () => { map.current?.setPaintProperty('background', 'background-color', '#0a0908') }) // map imagery: fixed
@@ -1299,7 +1299,7 @@ export default function NewShowPage() {
         input::placeholder { color: var(--sl-text-4); }
         input:focus { border-color: var(--sl-input-line-active) !important; outline: none; }
         input[type="datetime-local"]::-webkit-calendar-picker-indicator { filter: invert(0.5); cursor: pointer; }
-        .mapboxgl-ctrl-bottom-left, .mapboxgl-ctrl-bottom-right, .mapboxgl-ctrl-top-right { display: none !important; }
+        .mapboxgl-ctrl-top-right { display: none !important; }
         .mapboxgl-canvas { border-radius: 12px !important; }
       `}</style>
     </div>

@@ -288,7 +288,7 @@ function VenueMapPreview({ venueName, city }: { venueName: string; city?: string
     if (!map.current) {
       map.current = new mapboxgl.Map({
         container: mapContainer.current, style: 'mapbox://styles/mapbox/dark-v11',
-        center: [coords.lng, coords.lat], zoom: 13, attributionControl: false, scrollZoom: false,
+        center: [coords.lng, coords.lat], zoom: 13, attributionControl: true, scrollZoom: false,
       })
       map.current.on('load', () => { map.current?.setPaintProperty('background', 'background-color', '#0a0908') }) // map imagery: fixed
     } else {

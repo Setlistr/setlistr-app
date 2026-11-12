@@ -141,7 +141,7 @@ export default function CareerMapPage() {
       style: 'mapbox://styles/mapbox/dark-v11',
       center: [locations[0].lng, locations[0].lat],
       zoom: 3,
-      attributionControl: false,
+      attributionControl: true,
     })
 
     map.current.on('load', () => {
@@ -250,7 +250,6 @@ export default function CareerMapPage() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700;800&display=swap');
         @keyframes breathe { 0%,100%{transform:scale(1);opacity:.3} 50%{transform:scale(1.2);opacity:.8} }
-        .mapboxgl-ctrl-bottom-left, .mapboxgl-ctrl-bottom-right { display: none !important; }
         .setlistr-popup .mapboxgl-popup-content { background: transparent; padding: 0; box-shadow: none; }
         .setlistr-popup .mapboxgl-popup-tip { display: none; }
         .mapboxgl-canvas { border-radius: 12px !important; }
