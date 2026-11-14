@@ -59,7 +59,7 @@ export default async function BetaPage() {
         ) : (
           <>
             <p style={{ color: C.muted, textAlign: 'center', fontSize: 14, maxWidth: 320, margin: '0 0 28px', lineHeight: 1.5 }}>
-              Setlistr is invite-only. Request access and we'll be in touch.
+              Request access to Setlistr, or sign in if you’ve already been approved or invited.
             </p>
             <div style={{ background: '#1a1814', border: '1px solid #2e2b26', borderRadius: 16, padding: '24px', width: '100%', maxWidth: 420 }}>
               <p style={{ fontSize: 11, color: '#4a4640', textTransform: 'uppercase' as const, letterSpacing: '0.1em', margin: '0 0 16px', textAlign: 'center' }}>Need access?</p>
