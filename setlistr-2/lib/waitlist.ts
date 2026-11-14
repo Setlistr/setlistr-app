@@ -4,6 +4,9 @@ export type WaitlistSubmission = {
   note: string | null
   roles: string[]
   pro: string | null
+  // Artist or project name, and a website or social link (for screening).
+  project?: string | null
+  link?: string | null
 }
 
 // Both waitlist write sites (WaitlistForm.tsx, auth/login's Request Access

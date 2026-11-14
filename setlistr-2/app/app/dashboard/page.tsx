@@ -243,9 +243,10 @@ export default function DashboardPage() {
         if (!profile?.artist_name?.trim() && !actingAs) {
           if (managed.length > 0 || recruitedAsManager) { router.replace('/app/manager'); return }
           // A team-only user whose LAST connection was just removed has
-          // managed.length === 0 and, since Grant access defaults
-          // beta_invites.invited_role to 'artist' whenever no role is
-          // explicitly passed (see app/api/admin/beta-invite/route.ts),
+          // managed.length === 0 and, since Grant access defaulted
+          // beta_invites.invited_role to 'artist' when no role was passed
+          // (approvals before the role had to be chosen; see
+          // app/api/admin/beta-invite/route.ts),
           // recruitedAsManager is also false even though they were never
           // an artist either — that default is not proof of an established
           // artist workspace. Without this check they fell straight into

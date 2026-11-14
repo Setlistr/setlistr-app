@@ -28,7 +28,6 @@ type Mode = 'signin' | 'signup'
 
 function LoginPageInner() {
   const searchParams = useSearchParams()
-  const fromStart    = searchParams.get('from') === 'start'
   const next         = sanitizeNextPath(searchParams.get('next'))
   // ?mode=signup (the marketing page's Create Account link) only picks the
   // initial tab. Switching tabs is local state, so the URL — and with it
@@ -48,6 +47,8 @@ function LoginPageInner() {
 
   const [showWaitlist, setShowWaitlist]       = useState(false)
   const [waitlistName, setWaitlistName]       = useState('')
+  const [waitlistProject, setWaitlistProject] = useState('')
+  const [waitlistLink, setWaitlistLink]       = useState('')
   const [waitlistRoles, setWaitlistRoles]     = useState<string[]>([])
   const [waitlistPro, setWaitlistPro]         = useState('')
   const [waitlistNote, setWaitlistNote]       = useState('')
@@ -163,18 +164,20 @@ function LoginPageInner() {
 
   async function handleWaitlist(e?: React.FormEvent) {
     e?.preventDefault()
-    if (!email.trim() || !waitlistName.trim() || waitlistRoles.length === 0) return
+    if (!email.trim() || !waitlistName.trim() || !waitlistProject.trim() || waitlistRoles.length === 0) return
     setWaitlistLoading(true)
     setWaitlistError('')
     const { error } = await submitWaitlistEntry({
       email,
       name: waitlistName,
+      project: waitlistProject.trim(),
+      link: waitlistLink.trim() || null,
       note: waitlistNote.trim() || null,
       roles: waitlistRoles,
       pro: waitlistPro || null,
     })
     if (error) {
-      setWaitlistError(error.code === '23505' ? 'You’ve already requested access — we’ll be in touch.' : error.message)
+      setWaitlistError(error.code === '23505' ? 'You’ve already requested access with this email.' : error.message)
       setWaitlistLoading(false)
       return
     }
@@ -282,12 +285,6 @@ function LoginPageInner() {
           <div style={{ animation: 'fadeUp 0.35s ease' }}>
             <div className="sl-auth-card" style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 18, padding: '24px', marginBottom: 12 }}>
 
-              {fromStart && (
-                <div style={{ background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 10, padding: '10px 14px', marginBottom: 20 }}>
-                  <p style={{ fontSize: 12, color: C.gold, margin: 0, fontWeight: 600, lineHeight: 1.5 }}>Your setlist is ready — sign in or create an account to save it.</p>
-                </div>
-              )}
-
               {/* Sign in / Create account toggle */}
               <div role="group" aria-label="Choose sign in or create account" style={{ display: 'flex', gap: 4, background: 'rgba(255,255,255,0.03)', border: `1px solid ${C.border}`, borderRadius: 10, padding: 4, marginBottom: 12 }}>
                 {(['signin', 'signup'] as Mode[]).map(m => (
@@ -304,7 +301,7 @@ function LoginPageInner() {
                 {mode === 'signin' ? 'Sign in to Setlistr' : 'Create your Setlistr account'}
               </h1>
               <p style={{ fontSize: 13, color: C.muted, margin: '0 0 12px', lineHeight: 1.4 }}>
-                {mode === 'signin' ? 'Welcome back.' : 'Set up with your email and a password.'}
+                {mode === 'signin' ? 'Welcome back.' : <>Free to download. Account access requires approval. Use the email address you requested access or were invited with.</>}
               </p>
 
               {/* A real <form>: Enter / the phone keyboard's Go key submit
@@ -460,24 +457,22 @@ function LoginPageInner() {
               </form>
             </div>
 
-            {/* Waitlist CTA */}
-            {!fromStart && (
-              <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '20px 24px', textAlign: 'center', marginBottom: 20 }}>
-                <p style={{ fontSize: 13, fontWeight: 600, color: C.secondary, margin: '0 0 5px' }}>Not invited yet?</p>
-                <p style={{ fontSize: 12, color: C.muted, margin: '0 0 16px', lineHeight: 1.5 }}>
-                  Setlistr is invite-only. Request access and we&apos;ll reach out.
-                </p>
-                <button onClick={() => setShowWaitlist(true)}
-                  style={{ width: '100%', minHeight: 44, padding: '11px', background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 10, color: C.gold, fontSize: 12, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer', transition: 'all 0.15s ease', fontFamily: 'inherit' }}
-                  onMouseEnter={e => (e.currentTarget.style.background = 'rgba(201,168,76,0.15)')}
-                  onMouseLeave={e => (e.currentTarget.style.background = C.goldDim)}>
-                  Request Access
-                </button>
-              </div>
-            )}
+            {/* Request access */}
+            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '20px 24px', textAlign: 'center', marginBottom: 20 }}>
+              <p style={{ fontSize: 13, fontWeight: 600, color: C.secondary, margin: '0 0 5px' }}>Not approved yet?</p>
+              <p style={{ fontSize: 12, color: C.muted, margin: '0 0 16px', lineHeight: 1.5 }}>
+                Account access requires approval. Request access and we&apos;ll review it.
+              </p>
+              <button onClick={() => setShowWaitlist(true)}
+                style={{ width: '100%', minHeight: 44, padding: '11px', background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 10, color: C.gold, fontSize: 12, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer', transition: 'all 0.15s ease', fontFamily: 'inherit' }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(201,168,76,0.15)')}
+                onMouseLeave={e => (e.currentTarget.style.background = C.goldDim)}>
+                Request Access
+              </button>
+            </div>
 
             <p style={{ textAlign: 'center', fontSize: 10, color: C.faint, letterSpacing: '0.18em', textTransform: 'uppercase' }}>
-              {fromStart ? 'Free forever · No credit card' : 'Invite Only'}
+              Approval required
             </p>
           </div>
 
@@ -533,13 +528,13 @@ function LoginPageInner() {
                   <div style={{ width: 56, height: 56, borderRadius: '50%', margin: '0 auto 18px', background: C.goldDim, border: `1px solid ${C.borderGold}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }} />
                   <h2 style={{ fontSize: 20, fontWeight: 800, color: C.text, margin: '0 0 8px', letterSpacing: '-0.02em' }}>Request received</h2>
                   <p style={{ fontSize: 13, color: C.secondary, margin: 0, lineHeight: 1.6 }}>
-                    We’ll be in touch shortly.
+                    We review every request individually. If your account is approved, we’ll email you at <span style={{ color: C.gold }}>{email.trim()}</span>. Sign in with that same email address.
                   </p>
                 </div>
               ) : (
                 <>
                   <h1 style={{ fontSize: 20, fontWeight: 800, color: C.text, margin: '0 0 4px', letterSpacing: '-0.02em' }}>Request Access</h1>
-                  <p style={{ fontSize: 13, color: C.muted, margin: '0 0 24px', lineHeight: 1.5 }}>Drop your info and we’ll be in touch.</p>
+                  <p style={{ fontSize: 13, color: C.muted, margin: '0 0 24px', lineHeight: 1.5 }}>Free to download. Account access requires approval. Tell us about your music and we’ll review your request.</p>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                     <div>
                       <label style={lbl}>Email <span style={{ color: C.gold }}>*</span></label>
@@ -554,6 +549,21 @@ function LoginPageInner() {
                         style={inp(waitlistName)}
                         onFocus={e => (e.target.style.borderColor = C.lineActive)}
                         onBlur={e => (e.target.style.borderColor = waitlistName.trim() ? C.lineActive : C.line)} />
+                    </div>
+                    <div>
+                      <label htmlFor="waitlist-project" style={lbl}>Artist or project name <span style={{ color: C.gold }}>*</span></label>
+                      <input id="waitlist-project" type="text" value={waitlistProject} onChange={e => setWaitlistProject(e.target.value)} placeholder="e.g. The Late Shift" maxLength={120}
+                        style={inp(waitlistProject)}
+                        onFocus={e => (e.target.style.borderColor = C.lineActive)}
+                        onBlur={e => (e.target.style.borderColor = waitlistProject.trim() ? C.lineActive : C.line)} />
+                    </div>
+                    <div>
+                      <label htmlFor="waitlist-link" style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.13em', textTransform: 'uppercase', color: C.muted, display: 'block', marginBottom: 6 }}>Website or social link <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional)</span></label>
+                      <input id="waitlist-link" type="text" inputMode="url" autoCapitalize="none" autoCorrect="off" spellCheck={false} value={waitlistLink} onChange={e => setWaitlistLink(e.target.value)} placeholder="yourband.com or @yourname" maxLength={200}
+                        style={inp(waitlistLink)}
+                        onFocus={e => (e.target.style.borderColor = C.lineActive)}
+                        onBlur={e => (e.target.style.borderColor = waitlistLink.trim() ? C.lineActive : C.line)} />
+                      <p style={{ fontSize: 12, color: C.muted, margin: '6px 0 0', lineHeight: 1.45 }}>Your website, Spotify, Instagram or similar. It helps us review your request.</p>
                     </div>
                     <div>
                       <label style={lbl}>What best describes you? <span style={{ color: C.gold }}>*</span></label>
@@ -593,8 +603,8 @@ function LoginPageInner() {
                         <p style={{ fontSize: 13, color: C.red, margin: 0 }}>{waitlistError}</p>
                       </div>
                     )}
-                    <button onClick={handleWaitlist} disabled={waitlistLoading || !email.trim() || !waitlistName.trim() || waitlistRoles.length === 0}
-                      style={{ width: '100%', padding: '13px', background: (email.trim() && waitlistName.trim() && waitlistRoles.length) ? C.gold : C.muted, border: 'none', borderRadius: 10, color: '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: (waitlistLoading || !email.trim() || !waitlistName.trim() || waitlistRoles.length === 0) ? 'not-allowed' : 'pointer', opacity: waitlistLoading ? 0.7 : 1, transition: 'all 0.2s ease', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                    <button onClick={handleWaitlist} disabled={waitlistLoading || !email.trim() || !waitlistName.trim() || !waitlistProject.trim() || waitlistRoles.length === 0}
+                      style={{ width: '100%', padding: '13px', background: (email.trim() && waitlistName.trim() && waitlistProject.trim() && waitlistRoles.length) ? C.gold : C.muted, border: 'none', borderRadius: 10, color: '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: (waitlistLoading || !email.trim() || !waitlistName.trim() || !waitlistProject.trim() || waitlistRoles.length === 0) ? 'not-allowed' : 'pointer', opacity: waitlistLoading ? 0.7 : 1, transition: 'all 0.2s ease', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
                       {waitlistLoading ? <><Spinner />Submitting...</> : 'Request Access'}
                     </button>
                   </div>
@@ -608,7 +618,7 @@ function LoginPageInner() {
               </button>
             )}
             <p style={{ textAlign: 'center', fontSize: 10, color: C.faint, letterSpacing: '0.18em', textTransform: 'uppercase', marginTop: 16 }}>
-              Invite Only
+              Approval required
             </p>
           </div>
         )}
