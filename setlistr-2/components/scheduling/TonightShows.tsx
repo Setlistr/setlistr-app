@@ -14,6 +14,10 @@ export type Item = TonightItem<ScheduledShow>
 // active section). own: the signed-in person may rejoin it; otherwise it is
 // status only — never an action that starts listening on a second device.
 export type ActiveCapture = { id: string; venue: string | null; started_at: string; own?: boolean; by?: 'you' | 'artist' | 'teammate'; byName?: string | null }
+// A capture still marked live but started before the rejoin window: it was
+// interrupted and never ended. Its songs are saved until it is finished.
+// songs: how many are saved (null when the count couldn't be read).
+export type UnfinishedCapture = ActiveCapture & { songs: number | null }
 
 const REFRESH_MS = 60_000
 
@@ -25,6 +29,7 @@ const REFRESH_MS = 60_000
 export function useTonightShows(artistId: string | null, enabled: boolean) {
   const [shows, setShows] = useState<ScheduledShow[]>([])
   const [active, setActive] = useState<ActiveCapture | null>(null)
+  const [unfinished, setUnfinished] = useState<UnfinishedCapture[]>([])
   const [now, setNow] = useState(() => new Date())
   const reqFor = useRef<string | null>(null)
   const seq = useRef(0)
@@ -41,15 +46,17 @@ export function useTonightShows(artistId: string | null, enabled: boolean) {
       if (mine !== seq.current || reqFor.current !== forId) return
       // A failed read offers nothing to start (never a stale list).
       setShows(s.ok ? ((await s.json()).shows || []) : [])
-      setActive(a.ok ? ((await a.json()).active || null) : null)
+      const act = a.ok ? await a.json() : null
+      setActive(act?.active || null)
+      setUnfinished(act?.unfinished || [])
       setNow(new Date())
     } catch {
-      if (mine === seq.current) { setShows([]); setActive(null) }
+      if (mine === seq.current) { setShows([]); setActive(null); setUnfinished([]) }
     }
   }, [artistId, enabled])
 
   useEffect(() => {
-    setShows([]); setActive(null)
+    setShows([]); setActive(null); setUnfinished([])
     if (!artistId || !enabled) return
     load()
     const onFocus = () => load()
@@ -62,7 +69,24 @@ export function useTonightShows(artistId: string | null, enabled: boolean) {
 
   const deviceZone = useMemo(() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || null } catch { return null } }, [])
   const items = useMemo(() => tonightShows(shows, now, deviceZone), [shows, now, deviceZone])
-  return { items, shows, active, refresh: load }
+  return { items, shows, active, unfinished, refresh: load }
+}
+
+// Just the unfinished captures, for screens without the Tonight row (History).
+// Same endpoint, same authorisation and the same stale-response guard.
+export function useUnfinishedCaptures(artistId: string | null, enabled: boolean) {
+  const [unfinished, setUnfinished] = useState<UnfinishedCapture[]>([])
+  const seq = useRef(0)
+  useEffect(() => {
+    setUnfinished([])
+    if (!artistId || !enabled) return
+    const mine = ++seq.current
+    fetch(`/api/shows/timeline?artist_id=${artistId}&section=active`, { cache: 'no-store' })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (mine === seq.current) setUnfinished(d?.unfinished || []) })
+      .catch(() => { if (mine === seq.current) setUnfinished([]) })
+  }, [artistId, enabled])
+  return unfinished
 }
 
 // ── Shared look (the Dashboard's existing band values) ─────────────────────
@@ -120,6 +144,40 @@ export function ActiveCaptureRow({ active, artistName, canCapture, interrupted, 
   )
   return mine
     ? <button onClick={onRejoin} aria-label={`${interrupted ? 'Resume' : 'Continue'} capture at ${active.venue || 'this show'}`} style={band}>{body}{chevron}</button>
+    : <div role="status" style={{ ...band, cursor: 'default' }}>{body}</div>
+}
+
+// When an unfinished capture started, in the device's own words
+// ("Thu, Nov 12, 9:12 PM").
+export function startedText(iso: string): string {
+  try { return new Date(iso).toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) } catch { return '' }
+}
+
+// ── Unfinished capture: finish your own, status for anyone else's ─────────
+// Nothing here deletes anything. The person who started the capture opens it
+// to finish (songs go to Review) or keep capturing; anyone else sees status.
+export function UnfinishedCaptureRow({ capture, artistName, canCapture, onOpen }: {
+  capture: UnfinishedCapture; artistName: string | null; canCapture: boolean; onOpen: () => void
+}) {
+  const mine = canCapture && !!capture.own
+  const saved = capture.songs === null ? 'Saved songs are kept' : capture.songs === 1 ? '1 song saved' : `${capture.songs} songs saved`
+  const body = (
+    <>
+      <span aria-hidden="true" style={{ width: 40, height: 40, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'color-mix(in srgb, var(--sl-warn) 14%, transparent)', color: 'var(--sl-warn)' }}>
+        <Mic size={16} strokeWidth={2.4} />
+      </span>
+      <span style={{ flex: 1, minWidth: 0 }}>
+        <StatusLine color="var(--sl-warn)">Unfinished show</StatusLine>
+        <span style={title}>{capture.venue || 'Untitled show'}</span>
+        <span style={sub}>
+          {`Started ${startedText(capture.started_at)} · ${saved}`}
+          {!mine && <><br />{`Started by ${capture.by === 'artist' ? (artistName || 'the artist') : capture.by === 'teammate' ? (capture.byName || 'a teammate') : 'the artist or their team'}`}</>}
+        </span>
+      </span>
+    </>
+  )
+  return mine
+    ? <button onClick={onOpen} aria-label={`Finish or keep capturing the unfinished show at ${capture.venue || 'this venue'}`} style={band}>{body}{chevron}</button>
     : <div role="status" style={{ ...band, cursor: 'default' }}>{body}</div>
 }
 
