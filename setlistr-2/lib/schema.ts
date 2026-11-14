@@ -12,6 +12,8 @@ export const SETLISTR_DESCRIPTION =
 
 export const SETLISTR_SHORT = 'The live performance record for independent artists.'
 
+export const APP_STORE_URL = 'https://apps.apple.com/us/app/setlistr-live-performance/id6794425733'
+
 export function organizationSchema() {
   return {
     '@context': 'https://schema.org',
@@ -33,11 +35,11 @@ export function organizationSchema() {
       { '@type': 'Person', name: 'Jesse Slack' },
       { '@type': 'Person', name: 'Daryl Scott' },
     ],
-    // Crunchbase profile and App Store URL still pending — do NOT add the App
-    // Store URL yet: app is still in review and the link is dead until it's live.
+    // The App Store listing is live (1.1, Nov 2026). Crunchbase still pending.
     sameAs: [
       'https://www.linkedin.com/company/setlistr-ai/',
       'https://github.com/Setlistr',
+      APP_STORE_URL,
     ],
   }
 }
@@ -50,7 +52,8 @@ export function softwareApplicationSchema() {
     applicationCategory: 'MusicApplication',
     operatingSystem: 'iOS, Web',
     url: SITE_URL,
-    description: `${SETLISTR_DESCRIPTION} Access is currently invite-only.`,
+    description: `${SETLISTR_DESCRIPTION} Free to download on the App Store; account access requires approval.`,
+    downloadUrl: APP_STORE_URL,
     offers: {
       '@type': 'Offer',
       price: '0',

@@ -4,7 +4,7 @@ import Image from 'next/image'
 import { collectionPageSchema, breadcrumbSchema } from '@/lib/schema'
 
 export const metadata: Metadata = {
-  title: 'Get Paid for Live Shows — Live Performance Royalty Guides | Setlistr',
+  title: 'Get Paid for Live Shows — Live Performance Royalty Guides',
   description: 'Most performing songwriters leave real money behind after every show. Learn how to claim live performance royalties from SOCAN, ASCAP, BMI, PRS, APRA and more.',
   alternates: { canonical: '/get-paid' },
   openGraph: {
@@ -78,7 +78,7 @@ export default function GetPaidPage() {
         </Link>
         <nav style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
           <Link href="/how-it-works" className="gp-navlink" style={{ fontFamily: '"DM Mono", monospace', fontSize: 11, letterSpacing: '.14em', textTransform: 'uppercase', color: 'rgba(232,228,219,0.78)', textDecoration: 'none' }}>How It Works</Link>
-          <Link href="/app/show/new" style={{ fontFamily: '"DM Mono", monospace', fontSize: 11, letterSpacing: '.14em', textTransform: 'uppercase', background: '#C9A84C', color: '#080706', textDecoration: 'none', padding: '10px 20px', borderRadius: 6 }}>Start Free</Link>
+          <Link href="/beta" style={{ fontFamily: '"DM Mono", monospace', fontSize: 11, letterSpacing: '.14em', textTransform: 'uppercase', background: '#C9A84C', color: '#080706', textDecoration: 'none', padding: '10px 20px', borderRadius: 6 }}>Request Access</Link>
         </nav>
       </header>
 
@@ -129,8 +129,8 @@ export default function GetPaidPage() {
         <section style={{ maxWidth: 720, margin: '40px auto 0', padding: '0 24px' }}>
           <div style={{ background: 'linear-gradient(160deg, rgba(201,168,76,.1), rgba(201,168,76,.03))', border: '1px solid rgba(201,168,76,0.28)', borderRadius: 24, padding: '48px 32px', textAlign: 'center' }}>
             <h2 style={{ fontFamily: '"Bebas Neue", sans-serif', fontSize: 'clamp(28px, 4vw, 44px)', lineHeight: 1.05, letterSpacing: '.02em', marginBottom: 14 }}>Ready to stop leaving<br /><span style={{ color: '#C9A84C' }}>money on stage?</span></h2>
-            <p style={{ fontSize: 15, fontWeight: 300, color: 'rgba(212,209,202,0.7)', lineHeight: 1.6, maxWidth: 400, margin: '0 auto 28px' }}>Setlistr automatically captures your setlist during the show. Free to start.</p>
-            <Link href="/app/show/new" style={{ display: 'inline-block', fontFamily: '"Bebas Neue", sans-serif', fontSize: 18, letterSpacing: '.08em', background: '#C9A84C', color: '#080706', padding: '15px 40px', textDecoration: 'none', borderRadius: 8 }}>Start Free &rarr;</Link>
+            <p style={{ fontSize: 15, fontWeight: 300, color: 'rgba(212,209,202,0.7)', lineHeight: 1.6, maxWidth: 400, margin: '0 auto 28px' }}>Setlistr captures your setlist during the show, ready for you to confirm. Free to download; account access requires approval.</p>
+            <Link href="/beta" style={{ display: 'inline-block', fontFamily: '"Bebas Neue", sans-serif', fontSize: 18, letterSpacing: '.08em', background: '#C9A84C', color: '#080706', padding: '15px 40px', textDecoration: 'none', borderRadius: 8 }}>Request Access &rarr;</Link>
           </div>
         </section>
 
