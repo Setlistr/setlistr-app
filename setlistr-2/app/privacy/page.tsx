@@ -1,7 +1,8 @@
 // setlistr-2/app/privacy/page.tsx
 
 export const metadata = {
-  title: 'Privacy Policy — Setlistr',
+  title: 'Privacy Policy',
+  alternates: { canonical: '/privacy' },
   description: 'Setlistr Privacy Policy',
 };
 

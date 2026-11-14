@@ -1,7 +1,8 @@
 // setlistr-2/app/terms/page.tsx
 
 export const metadata = {
-  title: 'Terms of Service — Setlistr',
+  title: 'Terms of Service',
+  alternates: { canonical: '/terms' },
   description: 'Setlistr Terms of Service',
 };
 

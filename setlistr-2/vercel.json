@@ -1,9 +1,9 @@
 {
-  "rewrites": [
-    { "source": "/about", "destination": "/about.html" },
-    { "source": "/product", "destination": "/product.html" },
-    { "source": "/estimator", "destination": "/estimator.html" },
-    { "source": "/investor", "destination": "/investor.html" },
-    { "source": "/registry", "destination": "/registry.html" }
+  "redirects": [
+    { "source": "/about", "destination": "/", "permanent": false },
+    { "source": "/product", "destination": "/how-it-works", "permanent": false },
+    { "source": "/estimator", "destination": "/start", "permanent": false },
+    { "source": "/investor", "destination": "/", "permanent": false },
+    { "source": "/registry", "destination": "/", "permanent": false }
   ]
 }

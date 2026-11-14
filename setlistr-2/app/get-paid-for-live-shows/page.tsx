@@ -3,7 +3,7 @@ import { ArticleShell, Crumb, Tag, H1, Standfirst, H2, P, Callout, EndCTA, Relat
 import Link from 'next/link'
 
 export const metadata: Metadata = {
-  title: 'How to Get Paid for Live Performances (ASCAP, BMI, SOCAN Guide) | Setlistr',
+  title: 'How to Get Paid for Live Performances (ASCAP, BMI, SOCAN Guide)',
   description: "Most performing artists are leaving real money on the table after every show. Here's exactly how to collect live performance royalties from ASCAP, BMI, SOCAN, PRS and more.",
   alternates: { canonical: '/get-paid-for-live-shows' },
   openGraph: {
@@ -93,7 +93,7 @@ export default function Page() {
 
       <Callout color={COLORS.GREEN}><strong style={{ color: '#fff' }}>Setlistr automates the capture step.</strong> It listens during your set, detects songs via audio fingerprinting, and builds your setlist as you play. After the show, you review and confirm it &mdash; then Prepare formats it for your PRO, ready for you to file.</Callout>
 
-      <EndCTA heading="Stop leaving royalties on stage" sub="Setlistr captures your setlist automatically during the show, ready for you to confirm. Free to start." />
+      <EndCTA heading="Stop leaving royalties on stage" sub="Setlistr captures your setlist automatically during the show, ready for you to confirm. Free to download; account access requires approval." />
 
       <Related links={[
         { href: '/unclaimed-music-royalties', title: 'Millions in Unclaimed Live Performance Royalties — Are You Missing Out?' },

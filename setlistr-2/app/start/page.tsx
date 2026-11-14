@@ -129,20 +129,20 @@ export default function StartPage() {
             letterSpacing: '0.08em', textTransform: 'uppercase',
             margin: '0 0 20px',
           }}>
-            unclaimed
+            rough estimate
           </p>
 
           <p style={{
             fontSize: 13, color: '#6a6050',
             margin: 0, lineHeight: 1.6,
           }}>
-            Every venue pays a licensing fee on your behalf. Your PRO can't distribute it without a setlist submission.
+            Licensed venues pay performing rights fees, and PROs use the setlists songwriters file to pay them out. Estimates only, not guaranteed. You file with your PRO; Setlistr helps you keep the setlist record.
           </p>
         </div>
 
         {/* CTA */}
         <button
-          onClick={() => router.push('/auth/login?from=start')}
+          onClick={() => router.push('/beta')}
           style={{
             width: '100%', padding: '17px',
             background: '#c9a84c', border: 'none', borderRadius: 12,
@@ -154,8 +154,11 @@ export default function StartPage() {
           onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.85'}
           onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}
         >
-          Start claiming →
+          Request access →
         </button>
+        <p style={{ fontSize: 13, color: '#8a7a68', textAlign: 'center', margin: '12px 0 0', lineHeight: 1.5 }}>
+          Free to download. Account access requires approval.
+        </p>
 
       </div>
 

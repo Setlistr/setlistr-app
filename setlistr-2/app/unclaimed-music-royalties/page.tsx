@@ -3,7 +3,7 @@ import { ArticleShell, Crumb, Tag, H1, Standfirst, H2, P, Callout, EndCTA, Relat
 import Link from 'next/link'
 
 export const metadata: Metadata = {
-  title: 'Millions in Unclaimed Live Performance Royalties — Are You Missing Out? | Setlistr',
+  title: 'Millions in Unclaimed Live Performance Royalties — Are You Missing Out?',
   description: "Billions in live performance royalties go unclaimed every year because artists don't submit their setlists. Find out how much you might be owed.",
   alternates: { canonical: '/unclaimed-music-royalties' },
   openGraph: {
@@ -102,7 +102,7 @@ export default function Page() {
         ))}
       </div>
 
-      <EndCTA heading="Keep every setlist" sub="Setlistr listens during your show and builds the setlist automatically, ready for you to confirm. Free to start." cta="Capture Your Next Show →" />
+      <EndCTA heading="Keep every setlist" sub="Setlistr listens during your show and builds the setlist automatically, ready for you to confirm. Free to download; account access requires approval." />
 
       <Related links={[
         { href: '/get-paid-for-live-shows', title: 'How to Get Paid for Live Performances (ASCAP, BMI, SOCAN Guide)' },

@@ -1,7 +1,10 @@
 import { MetadataRoute } from 'next'
 
 export default function robots(): MetadataRoute.Robots {
-  const disallow = ['/api/', '/app/', '/auth/', '/beta']
+  // /auth/ and /beta are crawlable on purpose: they carry noindex, which a
+  // crawler can only read if it may fetch the page. Disallowing them kept the
+  // URLs indexable from links with no way to see the directive.
+  const disallow = ['/api/', '/app/']
 
   return {
     rules: [
