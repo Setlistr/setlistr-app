@@ -40,6 +40,20 @@ const SAVE_RETRY_MS = 15 * 1000
 // Consecutive recognition requests that never reached the server before the
 // artist is told the connection is the problem (one blip isn't worth a word).
 const NETWORK_FAILS_BEFORE_NOTICE = 2
+// End waits this long for song checks of audio recorded before End (sent
+// already, or the last partial sample) so their answers make the final list.
+// A check still unanswered after that is left out of the setlist; its result
+// is kept in the recognition log (/api/identify writes detection_events,
+// never the setlist), so it can't change the finished show.
+const END_CHECK_WAIT_MS = 20 * 1000
+
+// A recognised song that arrived while End was running, applied to the final
+// list by End itself (not through on-screen state) so it can't be missed.
+type EndResult = {
+  title: string; artist: string; source: DetectedSong['source']; setlist_item_id?: string
+  isrc?: string; composer?: string; publisher?: string
+  inclusion_reason?: string | null; threshold?: number | null; score?: number | null
+}
 
 // Why the microphone isn't capturing, in words the artist can act on.
 type MicProblem = 'denied' | 'unavailable' | 'interrupted'
@@ -72,6 +86,28 @@ type EngineState = 'idle' | 'listening' | 'slow' | 'stalled'
 function isSameSong(a: { title: string }, b: { title: string }): boolean {
   return normalizeSongKey(a.title) === normalizeSongKey(b.title)
 }
+// Applies answers that arrived during End to the list, the way a live
+// detection would: a song already on the list is skipped; one on the planned
+// setlist upgrades that entry (or is added under its planned title); anything
+// else is appended.
+function mergeEndResults(list: DetectedSong[], results: EndResult[], planned: { title: string; normalizedTitle: string; artist: string }[]): DetectedSong[] {
+  let out = list
+  for (const r of results) {
+    if (out.some(s => s.source !== 'planned' && isSameSong(s, r))) continue
+    const extra = { isrc: r.isrc || '', composer: r.composer || '', publisher: r.publisher || '', inclusion_reason: r.inclusion_reason ?? null, threshold: r.threshold ?? null, score: r.score ?? null }
+    const plannedMatch = planned.find(p => p.normalizedTitle === normalizeSongKey(r.title))
+    if (plannedMatch) {
+      const idx = out.findIndex(s => normalizeSongKey(s.title) === plannedMatch.normalizedTitle)
+      out = idx !== -1
+        ? out.map((s, i) => i === idx ? { ...s, source: r.source, confidence_level: 'auto' as const, was_planned: true, confirmedAt: Date.now(), ...extra } : s)
+        : [...out, { title: plannedMatch.title, artist: plannedMatch.artist || r.artist, source: r.source, setlist_item_id: r.setlist_item_id, confidence_level: 'auto' as const, was_planned: true, confirmedAt: Date.now(), ...extra }]
+    } else {
+      out = [...out, { title: r.title, artist: r.artist, source: r.source, setlist_item_id: r.setlist_item_id, confidence_level: 'auto' as const, was_planned: false, confirmedAt: Date.now(), ...extra }]
+    }
+  }
+  return out
+}
+
 function timeAgo(ms: number): string {
   const sec = Math.floor((Date.now() - ms) / 1000)
   if (sec < 60) return `${sec}s ago`
@@ -201,6 +237,13 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   const lastSavedRef  = useRef<string>('')
   const saveChainRef  = useRef<Promise<void>>(Promise.resolve())
   const saveRetryTimerRef = useRef<NodeJS.Timeout | null>(null)
+  // Song checks in flight, End's start time, answers that arrived during End,
+  // and the last partial sample being handed off when End stopped recording.
+  const inflightRef     = useRef<Set<Promise<void>>>(new Set())
+  const endStartedAtRef = useRef(0)
+  const endResultsRef   = useRef<EndResult[]>([])
+  const finalChunkRef   = useRef<Promise<void> | null>(null)
+  const [endPhase, setEndPhase] = useState<'checks' | 'saving' | null>(null)
 
   useEffect(() => { pendingCandidateRef.current = pendingCandidate }, [pendingCandidate])
   useEffect(() => { confirmedSongsRef.current = songs }, [songs])
@@ -443,7 +486,18 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
     setDetectStatus('')
   }, [])
 
-  const detectSong = useCallback(async (audioBlob: Blob) => {
+  // recordedFrom: when this sample started recording. Audio recorded after End
+  // started is never sent (recording stops at End, so this is a backstop).
+  // Every check is tracked so End can wait for it.
+  const detectSong = useCallback((audioBlob: Blob, recordedFrom: number): Promise<void> => {
+    if (endStartedAtRef.current && recordedFrom >= endStartedAtRef.current) return Promise.resolve()
+    const run = detectSongNow(audioBlob)
+    inflightRef.current.add(run)
+    run.finally(() => inflightRef.current.delete(run))
+    return run
+  }, [params.id, showId, setlistId, artistId, performance])
+
+  const detectSongNow = async (audioBlob: Blob) => {
     // Already over the ceiling — don't spend another request finding out again.
     if (detectionLimitedRef.current) return
     setIsDetecting(true)
@@ -495,6 +549,12 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         .some(s => isSameSong(s, { title: data.title }))
       if (already) { setDetectStatus(''); return }
 
+      // Answered while End is running: End adds it to the final list itself.
+      if (endingRef.current) {
+        endResultsRef.current.push({ title: data.title, artist: data.artist, source: data.source, setlist_item_id: data.setlist_item_id, isrc: data.isrc, composer: data.composer, publisher: data.publisher, inclusion_reason: data.inclusion_reason, threshold: data.threshold, score: data.score })
+        return
+      }
+
       const now = Date.now()
       confirmCandidate(
         { title: data.title, artist: data.artist, source: data.source, confidence_level: 'auto', firstDetectedAt: now, lastDetectedAt: now, matchCount: 1 },
@@ -509,7 +569,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
       if (netFailsRef.current >= NETWORK_FAILS_BEFORE_NOTICE || (typeof navigator !== 'undefined' && navigator.onLine === false)) setNetProblem(true)
       setDetectStatus('')
     } finally { setIsDetecting(false) }
-  }, [params.id, showId, setlistId, artistId, confirmCandidate, performance, pauseDetectionForLimit])
+  }
 
   // Record where the device is at the moment capture starts, and measure it
   // against the venue's stored coordinates. Fire-and-forget by design: the
@@ -575,11 +635,13 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         placementTimerRef.current = setTimeout(() => setShowPlacementCard(false), 8000)
       }
       const recordAndDetect = () => {
-        if (isDetecting) return; chunksRef.current = []
+        // Nothing new is recorded once End has started.
+        if (isDetecting || endingRef.current) return; chunksRef.current = []
+        const recordedFrom = Date.now()
         const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4'
         const recorder = new MediaRecorder(stream, { mimeType }); mediaRecorderRef.current = recorder
         recorder.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data) }
-        recorder.onstop = () => detectSong(new Blob(chunksRef.current, { type: mimeType }))
+        recorder.onstop = () => detectSong(new Blob(chunksRef.current, { type: mimeType }), recordedFrom)
         recorder.start(); setTimeout(() => { if (recorder.state === 'recording') recorder.stop() }, 14000)
       }
       recordAndDetect(); listenIntervalRef.current = setInterval(recordAndDetect, 20000)
@@ -600,7 +662,13 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
 
   const stopListening = useCallback(() => {
     if (listenIntervalRef.current) { clearInterval(listenIntervalRef.current); listenIntervalRef.current = null }
-    if (mediaRecorderRef.current?.state === 'recording') mediaRecorderRef.current.stop()
+    // Stopping mid-sample hands the audio recorded so far to its song check
+    // (onstop). finalChunkRef lets End wait until that check has started.
+    const rec = mediaRecorderRef.current
+    if (rec?.state === 'recording') {
+      finalChunkRef.current = new Promise<void>(res => rec.addEventListener('stop', () => setTimeout(res, 0), { once: true }))
+      rec.stop()
+    } else finalChunkRef.current = null
     if (streamRef.current) { streamRef.current.getTracks().forEach(t => t.stop()); streamRef.current = null }
     setIsListening(false); setEngineState('idle'); setDetectStatus('')
     if (wakeLockRef.current) { try { wakeLockRef.current.release() } catch {}; wakeLockRef.current = null }
@@ -707,11 +775,20 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   // On any failure the artist stays here with their songs and a Try again.
   const handleEnd = useCallback(async () => {
     if (endingRef.current || !performance) return
-    endingRef.current = true; setEnding(true); setEndFailed(false); stopListening()
+    endingRef.current = true; endStartedAtRef.current = Date.now()
+    setEnding(true); setEndFailed(false); setEndPhase('checks'); stopListening()
     // Also nudges the in-progress save, so songs given a row id just now are
-    // saved even if the artist leaves without retrying.
-    const fail = () => { endingRef.current = false; setEnding(false); setEndFailed(true); setSaveRetryTick(t => t + 1) }
+    // saved even if the artist leaves without retrying. Recording can resume
+    // after a failed End, so its start mark is cleared.
+    const fail = () => { endingRef.current = false; endStartedAtRef.current = 0; setEnding(false); setEndPhase(null); setEndFailed(true); setSaveRetryTick(t => t + 1) }
     try {
+      // Song checks of audio recorded before End: let the last partial sample
+      // start its check, then wait (bounded) for every check still running.
+      // Their answers are collected in endResultsRef and merged below.
+      if (finalChunkRef.current) await awaitWithTimeout(finalChunkRef.current, 2000)
+      const pendingChecks = Array.from(inflightRef.current)
+      if (pendingChecks.length > 0) await awaitWithTimeout(Promise.allSettled(pendingChecks).then(() => {}), END_CHECK_WAIT_MS)
+      setEndPhase('saving')
       // Let an in-progress save finish first, so End's writes are the last.
       await saveChainRef.current
       // Never finalise from a list whose saved songs didn't load: try the read
@@ -728,9 +805,11 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
 
       // Every song keeps the row id it was saved under; one that hasn't got
       // one yet gets it now, kept on screen so a retry writes the same rows.
-      const current = confirmedSongsRef.current
+      const onScreen = confirmedSongsRef.current
+      const current = mergeEndResults(onScreen, endResultsRef.current, plannedSongsRef.current)
+      endResultsRef.current = []
       const withIds = current.map(s => s.row_id ? s : { ...s, row_id: crypto.randomUUID() })
-      if (withIds.some((s, i) => s !== current[i])) { confirmedSongsRef.current = withIds; setSongs(withIds) }
+      if (withIds.length !== onScreen.length || withIds.some((s, i) => s !== onScreen[i])) { confirmedSongsRef.current = withIds; setSongs(withIds) }
 
       // Which titles did ACR actually detect this show? Used to label manual mid-show
       // adds: if ACR also caught a manual add it's a TP, otherwise it's an FN.
@@ -1297,7 +1376,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         <button onClick={() => { buzzLong(); handleEnd() }} disabled={ending}
           style={{ width: '100%', padding: '16px', background: 'color-mix(in srgb, var(--sl-danger) 5%, transparent)', border: `1px solid color-mix(in srgb, var(--sl-danger) 15%, transparent)`, borderRadius: 12, color: ending ? C.muted : 'var(--sl-danger)', fontSize: 14, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: ending ? 'not-allowed' : 'pointer', opacity: ending ? 0.4 : 1, transition: 'all 0.15s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent' }}>
           <span style={{ width: 6, height: 6, background: ending ? C.muted : C.red, borderRadius: 1, display: 'inline-block', flexShrink: 0 }} />
-          {ending ? 'Saving…' : 'End Show'}
+          {ending ? (endPhase === 'checks' ? 'Finishing the last song check…' : 'Saving…') : 'End Show'}
         </button>
         )}
       </div>
