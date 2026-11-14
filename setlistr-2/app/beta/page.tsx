@@ -54,6 +54,7 @@ export default async function BetaPage() {
             email={user.email}
             fullName={fullName}
             inviteDetails={inviteDetails}
+            inviteToken={inviteDetails ? cookies().get(PENDING_INVITE_COOKIE)?.value ?? null : null}
             initialAlreadyRequested={alreadyRequested}
           />
         ) : (

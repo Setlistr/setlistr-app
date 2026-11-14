@@ -17,6 +17,9 @@ type Props = {
   email: string
   fullName: string | null
   inviteDetails: { role: string; artistName: string } | null
+  // The invitation token this browser presented (re-validated server-side
+  // before inviteDetails is set); used only to link back to accepting it.
+  inviteToken?: string | null
   initialAlreadyRequested: boolean
 }
 
@@ -27,7 +30,7 @@ type Props = {
 // replaces: the old WaitlistForm always showed "Sign In", which for an
 // authenticated user just bounced them through /auth/login straight
 // back to /app/dashboard and then back here, doing nothing).
-export default function BetaSignedInStatus({ email, fullName, inviteDetails, initialAlreadyRequested }: Props) {
+export default function BetaSignedInStatus({ email, fullName, inviteDetails, inviteToken, initialAlreadyRequested }: Props) {
   const router = useRouter()
   const [alreadyRequested, setAlreadyRequested] = useState(initialAlreadyRequested)
   const [signingOut, setSigningOut] = useState(false)
@@ -65,8 +68,14 @@ export default function BetaSignedInStatus({ email, fullName, inviteDetails, ini
           <div>
             <p style={{ fontSize: 14, fontWeight: 700, color: C.gold, margin: '0 0 6px' }}>Your team invitation is saved</p>
             <p style={{ fontSize: 13, color: C.secondary, margin: 0, lineHeight: 1.5 }}>
-              {inviteDetails.artistName} invited you as a {roleInfoFor(inviteDetails.role).label.toLowerCase()}. Your account needs approval before you can accept it. Once you're approved, come back here on this device, or reopen the invitation link from your email.
+              {inviteDetails.artistName} invited you as a {roleInfoFor(inviteDetails.role).label.toLowerCase()}. Team invitations don’t need separate approval: accept it with the code we email to {email}.
             </p>
+            {inviteToken && (
+              <a href={`/app/accept-invite?token=${encodeURIComponent(inviteToken)}`}
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 44, marginTop: 12, borderRadius: 10, background: C.gold, color: '#0a0908', fontSize: 13, fontWeight: 800, textDecoration: 'none' }}>
+                Open the invitation
+              </a>
+            )}
           </div>
         ) : (
           <div>
@@ -89,7 +98,7 @@ export default function BetaSignedInStatus({ email, fullName, inviteDetails, ini
           </div>
         ) : (
           <div>
-            <p style={{ fontSize: 13, fontWeight: 700, color: C.text, margin: '0 0 10px' }}>Tell us about your music</p>
+            <p style={{ fontSize: 13, fontWeight: 700, color: C.text, margin: '0 0 10px' }}>{inviteDetails ? 'Want your own artist account too? Tell us about your music' : 'Tell us about your music'}</p>
             <WaitlistForm lockedEmail={email} defaultName={fullName} contextNote={contextNote} onDone={() => setAlreadyRequested(true)} />
           </div>
         )}
