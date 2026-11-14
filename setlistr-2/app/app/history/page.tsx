@@ -16,6 +16,7 @@ import { SubmissionEntryRow, SubmissionRowsSkeleton, SubmissionsDesktopStyles } 
 import { Skeleton } from '@/components/ui/Skeleton'
 import { LoadError } from '@/components/ui/LoadError'
 import { useWorkspaceRole } from '@/components/layout/WorkspaceRole'
+import { UnfinishedCaptureRow, useUnfinishedCaptures } from '@/components/scheduling/TonightShows'
 
 const CARD = {
   background: 'var(--sl-card-bg)',
@@ -121,11 +122,16 @@ export default function HistoryPage() {
   // route already refuses them; this just stops offering a dead end).
   const { canWrite } = useWorkspaceRole()
   const [editing, setEditing]             = useState(false)
+  // Unfinished captures aren't part of the record (the list below excludes
+  // live shows), but their saved songs must stay findable from History too.
+  const [ownId, setOwnId] = useState<string | null>(null)
+  const unfinished = useUnfinishedCaptures(resolved ? (actingAsArtistId || ownId) : null, resolved)
 
   async function loadPerformances(isCancelled: () => boolean) {
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { router.push('/auth/login'); return }
+    setOwnId(user.id)
     const key = actingAsArtistId || 'own'
 
     // Same profile fetch (and the same owner/delegate identity-privacy
@@ -370,6 +376,15 @@ export default function HistoryPage() {
         </p>
 
         <SubmissionsSwitcher active="history" filingQueueCount={navCounts?.filingQueueCount} fullHistoryCount={navCounts?.fullHistoryCount} />
+
+        {unfinished.length > 0 && (
+          <section aria-label="Unfinished shows" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 8, marginBottom: 16 }}>
+            {unfinished.map(u => (
+              <UnfinishedCaptureRow key={u.id} capture={u} artistName={actingAs?.artist_name || null} canCapture={canWrite}
+                onOpen={() => router.push(`/app/live/${u.id}`)} />
+            ))}
+          </section>
+        )}
 
         {/* ── Undo banner ── */}
         {undoBanner && (
