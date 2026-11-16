@@ -521,7 +521,7 @@ export default function OnboardingPage() {
                     ${career.estimatedMin.toLocaleString()} – ${career.estimatedMax.toLocaleString()}
                   </p>
                   <p style={{ fontSize: 12, color: C.muted, margin: 0, lineHeight: 1.5 }}>
-                    Across your {career.totalShows} shows, royalties were generated — most redistributed because no setlists were on file. We can't recover the past. We protect everything from today.
+                    We found part of your performance history. Review it and add your setlists to build your record. Royalty eligibility depends on your PRO&apos;s rules.
                   </p>
                 </div>
 
@@ -565,7 +565,7 @@ export default function OnboardingPage() {
                   <p style={{ fontSize: 20, fontWeight: 800, color: C.text, margin: '0 0 4px' }}>
                     ${career.estimatedMin.toLocaleString()} – ${career.estimatedMax.toLocaleString()} uncollected
                   </p>
-                  <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>The actual number is almost certainly higher.</p>
+                  <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>Played more shows? Add any that are missing.</p>
                   <p style={{ fontSize: 10, color: 'var(--sl-text-4)', margin: '6px 0 0' }}>Estimate only, not guaranteed — actual payouts vary by PRO.</p>
                 </div>
 
@@ -588,8 +588,11 @@ export default function OnboardingPage() {
               <div style={{ background: C.card, border: '1px solid color-mix(in srgb, var(--sl-text) 4%, transparent)', borderRadius: 20, padding: '32px 28px' }}>
                 <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.13em', textTransform: 'uppercase', color: C.muted, margin: '0 0 8px' }}>Your career</p>
                 <h2 style={{ fontSize: 28, fontWeight: 800, color: C.text, margin: '0 0 8px', letterSpacing: '-0.02em', lineHeight: 1.2 }}>
-                  No record found.<br />That's the problem.
+                  Your live record starts here.
                 </h2>
+                <p style={{ fontSize: 15, color: C.secondary, margin: '0 0 12px', lineHeight: 1.5 }}>
+                  Setlistr didn&apos;t find past shows under this artist name. That only means we haven&apos;t found them, not that no record of your performances exists.
+                </p>
                 <p style={{ fontSize: 15, color: C.secondary, margin: '0 0 20px', lineHeight: 1.5 }}>
                   Keep a record of the songs you perform live. Eligible performances may qualify for royalties under your PRO&apos;s rules; Setlistr helps you prepare the details for your own filing.
                 </p>
