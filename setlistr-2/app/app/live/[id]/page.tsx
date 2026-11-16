@@ -11,6 +11,7 @@ import { ACR_LIMIT_MESSAGE } from '@/lib/acr-limits'
 import { normalizeSongKey } from '@/lib/reconciliation/normalize'
 import { logProductEvent, awaitWithTimeout } from '@/lib/telemetry'
 import { finalizeLiveCapture, type FinalSongRow } from '@/lib/live-finalize'
+import { readLiveDraft, writeLiveDraft, clearLiveDraft, mergeLiveDraft, songFingerprint } from '@/lib/live-draft'
 import { LOOK_BACK_MS } from '@/lib/tonightShows'
 import { startedText } from '@/components/scheduling/TonightShows'
 
@@ -183,6 +184,18 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   // The in-progress save last failed; it retries on its own.
   const [saveProblem, setSaveProblem] = useState(false)
   const [saveRetryTick, setSaveRetryTick] = useState(0)
+  // Songs brought back from this device's draft (lib/live-draft.ts) when the
+  // show reopened: changes that hadn't reached the server before the page was
+  // closed or thrown away.
+  const [recoveredCount, setRecoveredCount] = useState(0)
+  // Whether this device holds a current copy of the list. Only when it does
+  // does the page say unsaved songs are kept; otherwise it asks the artist to
+  // keep Setlistr open. null: not known yet (no copy written).
+  const [draftKept, setDraftKept] = useState<boolean | null>(null)
+  // The signed-in account the copy belongs to (set when the saved list loads),
+  // and the server's version of each saved row as this device last saw it.
+  const draftOwnerRef = useRef<string | null>(null)
+  const serverBaseRef = useRef<Record<string, string>>({})
   const [plannedCount, setPlannedCount] = useState<number>(0)
   const plannedSongsRef = useRef<{ title: string; normalizedTitle: string; artist: string }[]>([])
 
@@ -260,11 +273,17 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   }, [])
 
   // Load the songs saved for this show (during capture, or before the app
-  // was closed). Anything already on screen that isn't saved yet is kept after
-  // them, so a retry after a failed first read never drops a song added since.
-  // Until a read succeeds nothing is saved or finalised: a failed read must
-  // not let a save or End erase rows it never saw. Returns whether it loaded.
+  // was closed). Changes kept on this device that never reached the server
+  // (lib/live-draft.ts: the page was closed or thrown away while offline) are
+  // merged in, and anything already on screen that isn't saved yet is kept
+  // after them, so a retry after a failed first read never drops a song added
+  // since. Until a read succeeds nothing is saved or finalised: a failed read
+  // must not let a save or End erase rows it never saw, nor replace the draft.
+  // Returns whether it loaded.
   async function restoreSaved(perf: Performance): Promise<boolean> {
+    // The account the device copy belongs to: read from the stored session (no
+    // network needed). Without one no copy is read or written.
+    try { draftOwnerRef.current = (await createClient().auth.getSession()).data.session?.user?.id ?? null } catch { draftOwnerRef.current = null }
     const { data: existingSongs, error } = await createClient().from('performance_songs_visible')
       .select('id, title, artist, isrc, composer, publisher, source, position, was_planned, inclusion_reason, threshold, score')
       .eq('performance_id', perf.id)
@@ -278,10 +297,20 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
       inclusion_reason: s.inclusion_reason ?? null, threshold: s.threshold ?? null, score: s.score ?? null,
       row_id: s.id,
     }))
-    const savedIds = new Set(restored.map(s => s.row_id))
-    const unsaved = confirmedSongsRef.current.filter(s => !s.row_id || !savedIds.has(s.row_id))
-    const merged = [...restored, ...unsaved]
+    // A draft only counts for a show that is still live: once it's finished
+    // (here or on another device) its songs are never rewritten.
+    const owner = draftOwnerRef.current
+    const draft = perf.status === 'live' ? readLiveDraft<DetectedSong>(owner, perf.id) : null
+    if (perf.status !== 'live') clearLiveDraft(owner, perf.id)
+    // Server wins wherever it changed since the copy was made (lib/live-draft.ts).
+    const { songs: withDraft, recovered } = draft ? mergeLiveDraft(restored, draft) : { songs: restored, recovered: 0 }
+    serverBaseRef.current = Object.fromEntries(restored.map(s => [s.row_id as string, songFingerprint(s)]))
+    const listedIds = new Set(withDraft.map(s => s.row_id))
+    const unsaved = confirmedSongsRef.current.filter(s => !s.row_id || !listedIds.has(s.row_id))
+    const merged = [...withDraft, ...unsaved]
+    // What the server holds, so the in-progress save writes the recovered changes.
     lastSavedRef.current = JSON.stringify(songRows(perf, restored))
+    if (recovered > 0) setRecoveredCount(recovered)
     confirmedSongsRef.current = merged
     if (merged.length > 0) setSongs(merged)
     restoredRef.current = true
@@ -749,9 +778,24 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
       if (rows.length > 0) del = del.not('id', 'in', `(${rows.map(r => r.id).join(',')})`)
       const { error } = await del
       if (error) { failed(); return }
-      if (lastSavedRef.current === key) setSaveProblem(false)
+      // Both steps succeeded: the server now holds exactly these rows.
+      serverBaseRef.current = Object.fromEntries(rows.map(r => [r.id, songFingerprint({ ...r, title: r.title ?? '', artist: r.artist ?? '' })]))
+      // It holds the latest list: the device copy isn't needed. A newer change
+      // is still waiting: keep the copy, now against this server version.
+      if (lastSavedRef.current === key) { setSaveProblem(false); clearLiveDraft(draftOwnerRef.current, perf.id) }
+      else setDraftKept(writeLiveDraft(draftOwnerRef.current, perf.id, confirmedSongsRef.current, serverBaseRef.current))
     }).catch(() => failed())
   }, [songs, performance, saveRetryTick])
+
+  // Keep this device's copy of the list current (lib/live-draft.ts), so
+  // changes that can't be saved yet survive the page being closed or thrown
+  // away. Not before the saved list has loaded: an empty or partial list must
+  // never replace a draft that holds unsaved songs.
+  useEffect(() => {
+    const perf = performance
+    if (!perf || perf.status !== 'live' || !restoredRef.current) return
+    setDraftKept(writeLiveDraft(draftOwnerRef.current, perf.id, songs, serverBaseRef.current))
+  }, [songs, performance])
 
   // Connection changes: going offline is said at once; coming back retries
   // any save that failed (the recognition notice clears on the next answer).
@@ -862,6 +906,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         performanceId: performance.id, rows, endedAt: endedAt.toISOString(), durationMinutes,
       })
       if (!result.ok) return fail()
+      clearLiveDraft(draftOwnerRef.current, performance.id)
 
       // Follow-on records, only from the attempt that finished the show. None
       // of them holds songs: a failure here can't lose the setlist, and
@@ -1139,7 +1184,9 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         {netProblem && isListening && micProblem !== 'interrupted' && (
           <div role="status" style={{ marginTop: 18, width: '100%', maxWidth: 320, background: C.amberDim, border: '1px solid color-mix(in srgb, var(--sl-warn) 32%, transparent)', borderRadius: 12, padding: '12px 16px', animation: 'fadeIn 0.2s ease' }}>
             <span style={{ display: 'block', fontSize: 13, color: C.amber, lineHeight: 1.45, fontWeight: 600 }}>No connection right now. Songs can’t be recognised until it’s back.</span>
-            <span style={{ display: 'block', fontSize: 12, color: C.secondary, lineHeight: 1.45, marginTop: 4 }}>Keep playing. Add any songs you want by hand; your list is kept.</span>
+            <span style={{ display: 'block', fontSize: 12, color: C.secondary, lineHeight: 1.45, marginTop: 4 }}>{draftKept
+              ? 'Keep playing. Add any songs you want by hand; your list is kept on this phone until it saves.'
+              : 'Keep playing and add songs by hand, but keep Setlistr open until the connection is back: this phone can’t keep a copy.'}</span>
           </div>
         )}
 
@@ -1357,10 +1404,19 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
           </div>
         )}
 
+        {recoveredCount > 0 && !endFailed && (
+          <p role="status" style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, color: C.secondary, margin: '2px 2px 0', lineHeight: 1.4 }}>
+            <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: '50%', background: C.green, flexShrink: 0 }} />
+            {recoveredCount === 1 ? 'Brought back 1 change' : `Brought back ${recoveredCount} changes`} that hadn’t saved before Setlistr closed.
+          </p>
+        )}
+
         {saveProblem && !endFailed && (
           <p role="status" style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, color: C.secondary, margin: '2px 2px 0', lineHeight: 1.4 }}>
             <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: '50%', background: C.amber, flexShrink: 0 }} />
-            Latest changes aren’t saved yet. Retrying automatically.
+            {draftKept
+              ? 'Latest changes aren’t saved yet. Retrying automatically.'
+              : 'Latest changes aren’t saved yet. Retrying automatically. Keep Setlistr open until they are: this phone can’t keep a copy.'}
           </p>
         )}
 
