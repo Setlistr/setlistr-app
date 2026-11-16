@@ -39,13 +39,13 @@ export default function StartPage() {
             fontWeight: 800, color: '#f0ece3',
             margin: '0 0 14px', letterSpacing: '-0.03em', lineHeight: 1.1,
           }}>
-            The money is already there.
+            Your live shows deserve a record.
           </h1>
           <p style={{
             fontSize: 16, color: '#6a6050',
             margin: 0, lineHeight: 1.6,
           }}>
-            Shows you played may have earned performance royalties, depending on your PRO&apos;s rules and whether your songs are registered. Most artists never collect them.
+            Your performances may qualify for royalties under your PRO&apos;s rules. Keep your setlists organised so you can prepare your own filing.
           </p>
         </div>
 
