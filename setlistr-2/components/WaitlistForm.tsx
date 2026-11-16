@@ -17,9 +17,17 @@ const fieldStyle: React.CSSProperties = {
   outline: 'none',
 }
 
-export default function WaitlistForm() {
-  const [email, setEmail]           = useState('')
-  const [name, setName]             = useState('')
+// The request-access form (homepage, /beta). Signed in (lockedEmail), it
+// requests approval for the account's own email: no email field and no
+// sign-in link. contextNote is added to the request for the reviewer (e.g. a
+// team invitation this person is responding to).
+export default function WaitlistForm({ lockedEmail, defaultName, contextNote, onDone }: {
+  lockedEmail?: string; defaultName?: string | null; contextNote?: string | null; onDone?: () => void
+} = {}) {
+  const [email, setEmail]           = useState(lockedEmail || '')
+  const [name, setName]             = useState(defaultName || '')
+  const [project, setProject]       = useState('')
+  const [link, setLink]             = useState('')
   const [roles, setRoles]           = useState<string[]>([])
   const [pro, setPro]               = useState('')
   const [note, setNote]             = useState('')
@@ -34,23 +42,28 @@ export default function WaitlistForm() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!email.trim() || !name.trim() || roles.length === 0) return
+    if (!email.trim() || !name.trim() || !project.trim() || roles.length === 0) return
     setLoading(true)
     setError('')
     const { error: err } = await submitWaitlistEntry({
       email,
       name,
-      note: note.trim() || null,
+      project: project.trim(),
+      link: link.trim() || null,
+      note: [contextNote, note.trim()].filter(Boolean).join('\n') || null,
       roles,
       pro: pro || null,
     })
     if (err) {
-      setError(err.code === '23505' ? 'Already registered.' : 'Something went wrong.')
+      setError(err.code === '23505' ? 'You’ve already requested access with this email.' : err.message || 'Something went wrong.')
       setLoading(false)
       return
     }
     setDone(true)
+    onDone?.()
   }
+
+  const ready = !!(email.trim() && name.trim() && project.trim() && roles.length)
 
   if (done) {
     return (
@@ -67,9 +80,9 @@ export default function WaitlistForm() {
           fontSize: 15, fontWeight: 300,
           color: 'rgba(212,209,202,0.7)', lineHeight: 1.7, marginBottom: 28,
         }}>
-          We’ll be in touch shortly.
+          We review every request individually. If your account is approved, we’ll email you at <span style={{ color: '#f5f3ef' }}>{email.trim()}</span>. Sign in with that same email address.
         </p>
-        <a href="/auth/login" style={{
+        {!lockedEmail && <a href="/auth/login" style={{
           display: 'block',
           fontFamily: '"Bebas Neue", sans-serif',
           fontSize: 16, letterSpacing: '0.1em',
@@ -81,8 +94,8 @@ export default function WaitlistForm() {
           borderRadius: 10,
           transition: 'border-color 0.2s',
         }}>
-          Already have access? Sign in →
-        </a>
+          Already approved or invited? Sign in →
+        </a>}
       </div>
     )
   }
@@ -91,7 +104,7 @@ export default function WaitlistForm() {
     <div style={{ width: '100%', maxWidth: 420, margin: '0 auto' }}>
 
       {/* ── Sign in — dominant, above the form ── */}
-      <a href="/auth/login" style={{
+      {!lockedEmail && <><a href="/auth/login" style={{
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -110,7 +123,7 @@ export default function WaitlistForm() {
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ opacity: 0.7 }}>
           <path d="M8 1a4 4 0 1 1 0 8A4 4 0 0 1 8 1zm0 9c3.314 0 6 1.343 6 3v1H2v-1c0-1.657 2.686-3 6-3z" fill="#C9A84C"/>
         </svg>
-        Already have access? Sign In
+        Already approved or invited? Sign In
         <span style={{ opacity: 0.5 }}>→</span>
       </a>
 
@@ -126,12 +139,19 @@ export default function WaitlistForm() {
           color: 'rgba(212,209,202,0.5)', textTransform: 'uppercase',
         }}>or request access</span>
         <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.07)' }} />
-      </div>
+      </div></>}
+
+      <p style={{
+        fontFamily: '"DM Sans", sans-serif', fontSize: 14, fontWeight: 400,
+        color: 'rgba(212,209,202,0.8)', lineHeight: 1.55, margin: '0 0 14px', textAlign: 'center',
+      }}>
+        Free to download. Account access requires approval.
+      </p>
 
       {/* ── Waitlist form ── */}
       <form onSubmit={handleSubmit}>
         {/* Email */}
-        <div style={{ marginBottom: 10 }}>
+        {!lockedEmail && <div style={{ marginBottom: 10 }}>
           <input
             type="email"
             required
@@ -142,7 +162,7 @@ export default function WaitlistForm() {
             onFocus={e  => { e.currentTarget.style.borderColor = 'rgba(201,168,76,0.4)' }}
             onBlur={e   => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)' }}
           />
-        </div>
+        </div>}
 
         {/* Full name */}
         <div style={{ marginBottom: 10 }}>
@@ -156,6 +176,42 @@ export default function WaitlistForm() {
             onFocus={e  => { e.currentTarget.style.borderColor = 'rgba(201,168,76,0.4)' }}
             onBlur={e   => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)' }}
           />
+        </div>
+
+        {/* Artist or project name */}
+        <div style={{ marginBottom: 10 }}>
+          <input
+            type="text"
+            required
+            maxLength={120}
+            placeholder="Artist or project name"
+            value={project}
+            onChange={e => setProject(e.target.value)}
+            style={fieldStyle}
+            onFocus={e  => { e.currentTarget.style.borderColor = 'rgba(201,168,76,0.4)' }}
+            onBlur={e   => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)' }}
+          />
+        </div>
+
+        {/* Website or social link */}
+        <div style={{ marginBottom: 10 }}>
+          <input
+            type="text"
+            inputMode="url"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+            maxLength={200}
+            placeholder="Website or social link (optional)"
+            value={link}
+            onChange={e => setLink(e.target.value)}
+            style={fieldStyle}
+            onFocus={e  => { e.currentTarget.style.borderColor = 'rgba(201,168,76,0.4)' }}
+            onBlur={e   => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)' }}
+          />
+          <p style={{ fontFamily: '"DM Sans", sans-serif', fontSize: 12, color: 'rgba(212,209,202,0.55)', margin: '6px 2px 0', lineHeight: 1.45 }}>
+            Your website, Spotify, Instagram or similar. It helps us review your request.
+          </p>
         </div>
 
         {/* Role — multi-select pills */}
@@ -234,15 +290,15 @@ export default function WaitlistForm() {
 
         <button
           type="submit"
-          disabled={loading || !email || !name || roles.length === 0}
+          disabled={loading || !ready}
           style={{
             width: '100%', padding: '16px',
-            background: email && name && roles.length ? '#C9A84C' : 'rgba(201,168,76,0.32)',
+            background: ready ? '#C9A84C' : 'rgba(201,168,76,0.32)',
             border: 'none', borderRadius: 10,
-            color: email && name && roles.length ? '#080706' : 'rgba(232,228,219,0.6)',
+            color: ready ? '#080706' : 'rgba(232,228,219,0.6)',
             fontFamily: '"Bebas Neue", sans-serif',
             fontSize: 18, letterSpacing: '0.12em',
-            cursor: email && name && roles.length ? 'pointer' : 'not-allowed',
+            cursor: ready ? 'pointer' : 'not-allowed',
             transition: 'all 0.2s ease',
             opacity: loading ? 0.6 : 1,
           }}

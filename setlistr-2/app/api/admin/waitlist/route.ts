@@ -45,7 +45,23 @@ export async function GET() {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    return NextResponse.json({ entries })
+    // Whether each applicant already has a Setlistr account (someone who
+    // downloaded the app and signed up is waiting inside it). Read from
+    // profiles by email; on a failed read it's left unknown (null), never
+    // guessed. Informational only: nothing here changes access.
+    const emails = Array.from(new Set((entries || []).map((e: { email: string }) => e.email.trim().toLowerCase())))
+    const withAccount = new Set<string>()
+    let accountsKnown = true
+    for (let i = 0; i < emails.length; i += 100) {
+      const { data: profs, error: profError } = await supabase.from('profiles').select('email').in('email', emails.slice(i, i + 100))
+      if (profError) { accountsKnown = false; break }
+      for (const p of profs || []) if (p.email) withAccount.add(String(p.email).trim().toLowerCase())
+    }
+    const annotated = (entries || []).map((e: { email: string }) => ({
+      ...e, has_account: accountsKnown ? withAccount.has(e.email.trim().toLowerCase()) : null,
+    }))
+
+    return NextResponse.json({ entries: annotated })
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 })
   }

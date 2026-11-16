@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { waitlistRequestExists } from '@/lib/waitlistStatus'
+import { cleanProject, cleanLink, composeNote } from '@/lib/waitlist-note'
 
 function getSupabase() {
   return createClient(
@@ -11,7 +12,6 @@ function getSupabase() {
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-const NOTE_MAX_LENGTH = 500
 
 // ── GET — has the CALLER's own session email already submitted a
 // waitlist request? Identity-bound to the verified session, never an
@@ -34,7 +34,7 @@ export async function GET() {
 // The dedup-then-merge has to happen here, behind the service role.
 export async function POST(req: NextRequest) {
   try {
-    const { email, name, roles, pro, note } = await req.json()
+    const { email, name, roles, pro, note, project, link } = await req.json()
 
     const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : ''
     const normalizedName  = typeof name === 'string' ? name.trim() : ''
@@ -42,9 +42,18 @@ export async function POST(req: NextRequest) {
       ? roles.filter((r): r is string => typeof r === 'string' && r.trim().length > 0)
       : []
     const normalizedPro  = typeof pro === 'string' && pro.trim() ? pro.trim().toLowerCase() : null
-    const normalizedNote = typeof note === 'string' && note.trim()
-      ? note.trim().slice(0, NOTE_MAX_LENGTH)
-      : null
+    // Artist/project name and a website or social link, for screening. They
+    // ride in the existing note column (lib/waitlist-note.ts). Optional here
+    // so older clients keep working; the request forms ask for them.
+    const cleanedProject = cleanProject(project)
+    const cleanedLink    = cleanLink(link)
+    if (cleanedProject.error) return NextResponse.json({ error: cleanedProject.error }, { status: 400 })
+    if (cleanedLink.error) return NextResponse.json({ error: cleanedLink.error }, { status: 400 })
+    const normalizedNote = composeNote({
+      project: cleanedProject.value,
+      link: cleanedLink.value,
+      note: typeof note === 'string' ? note : null,
+    })
 
     if (!normalizedEmail || !EMAIL_RE.test(normalizedEmail)) {
       return NextResponse.json({ error: 'Valid email required' }, { status: 400 })

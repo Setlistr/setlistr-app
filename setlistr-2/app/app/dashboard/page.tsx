@@ -9,7 +9,7 @@ import { openAccountMenu } from '@/components/layout/AccountMenu'
 import { useWorkspaceRole } from '@/components/layout/WorkspaceRole'
 import { NextShowSummary, useShowActions } from '@/components/scheduling/UpcomingShows'
 import { pickNextScheduled } from '@/lib/scheduleTime'
-import { TonightBand, useTonightShows, capturerText } from '@/components/scheduling/TonightShows'
+import { TonightBand, useTonightShows, capturerText, UnfinishedCaptureRow } from '@/components/scheduling/TonightShows'
 import { isCapturedShow, isRealVenue } from '@/lib/performance-status'
 import { summarizeRecord, showDate, lastShowLabel } from '@/lib/record-summary'
 import { showDay } from '@/lib/show-date'
@@ -243,9 +243,10 @@ export default function DashboardPage() {
         if (!profile?.artist_name?.trim() && !actingAs) {
           if (managed.length > 0 || recruitedAsManager) { router.replace('/app/manager'); return }
           // A team-only user whose LAST connection was just removed has
-          // managed.length === 0 and, since Grant access defaults
-          // beta_invites.invited_role to 'artist' whenever no role is
-          // explicitly passed (see app/api/admin/beta-invite/route.ts),
+          // managed.length === 0 and, since Grant access defaulted
+          // beta_invites.invited_role to 'artist' when no role was passed
+          // (approvals before the role had to be chosen; see
+          // app/api/admin/beta-invite/route.ts),
           // recruitedAsManager is also false even though they were never
           // an artist either — that default is not proof of an established
           // artist workspace. Without this check they fell straight into
@@ -659,11 +660,22 @@ export default function DashboardPage() {
     </button>
   ))
 
-  const hasBand = !showLoading && (!!(liveBand || reviewBand || todayBand || startMessage))
+  // Captures interrupted and never ended (older than the live window above).
+  // Their saved songs wait here until finished; the live page offers Finish
+  // or Keep capturing. Only the person whose capture it is gets the link,
+  // as with the live row (the capture page has no read-only mode).
+  const unfinishedBands = tonight.unfinished.length > 0 && (
+    <>{tonight.unfinished.slice(0, 3).map(u => (
+      <UnfinishedCaptureRow key={u.id} capture={u} artistName={workspaceName} canCapture={canCapture}
+        onOpen={() => router.push(`/app/live/${u.id}`)} />
+    ))}</>
+  )
+
+  const hasBand = !showLoading && (!!(liveBand || unfinishedBands || reviewBand || todayBand || startMessage))
   const bands = hasBand && (
     // minmax(0, 1fr): a row's long text truncates or wraps inside the column instead
     // of widening it past a narrow screen (320 px at larger text sizes).
-    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 8, paddingTop: 8 }}>{liveBand}{reviewBand}{todayBand}{startMessage}</div>
+    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 8, paddingTop: 8 }}>{liveBand}{unfinishedBands}{reviewBand}{todayBand}{startMessage}</div>
   )
 
   // The one sentence under the number.
