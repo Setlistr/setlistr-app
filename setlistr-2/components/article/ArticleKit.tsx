@@ -68,7 +68,7 @@ function ArticleNav() {
       <nav style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
         <Link href="/get-paid" style={navLink} className="art-navlink">For Artists</Link>
         <Link href="/how-it-works" style={navLink} className="art-navlink">How It Works</Link>
-        <Link href="/app/show/new" style={{ fontFamily: '"DM Mono", monospace', fontSize: 11, letterSpacing: '.14em', textTransform: 'uppercase', background: GOLD, color: '#080706', textDecoration: 'none', padding: '10px 20px', borderRadius: 6 }}>Start Free</Link>
+        <Link href="/beta" style={{ fontFamily: '"DM Mono", monospace', fontSize: 11, letterSpacing: '.14em', textTransform: 'uppercase', background: GOLD, color: '#080706', textDecoration: 'none', padding: '10px 20px', borderRadius: 6 }}>Request Access</Link>
       </nav>
     </header>
   )
@@ -106,7 +106,7 @@ export function Callout({ children, color = GOLD }: { children: React.ReactNode;
   return <div style={{ borderLeft: `2px solid ${color}`, background: grad, borderRadius: '0 12px 12px 0', padding: '22px 26px', margin: '40px 0', fontSize: 15.5, lineHeight: 1.7, color: 'rgba(212,209,202,0.85)' }}>{children}</div>
 }
 
-export function EndCTA({ heading, sub, href = '/app/show/new', cta = 'Start Free →' }: { heading: string; sub: string; href?: string; cta?: string }) {
+export function EndCTA({ heading, sub, href = '/beta', cta = 'Request Access →' }: { heading: string; sub: string; href?: string; cta?: string }) {
   return (
     <div style={{ background: 'linear-gradient(160deg, rgba(201,168,76,.12), rgba(201,168,76,.03))', border: '1px solid rgba(201,168,76,0.3)', borderRadius: 20, padding: '40px 32px', textAlign: 'center', marginTop: 56 }}>
       <h3 style={{ fontFamily: '"Bebas Neue", sans-serif', fontSize: 'clamp(26px, 4vw, 38px)', letterSpacing: '.02em', margin: '0 0 12px' }}>{heading}</h3>

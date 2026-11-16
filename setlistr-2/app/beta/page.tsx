@@ -1,4 +1,5 @@
 import Image from 'next/image'
+import type { Metadata } from 'next'
 import WaitlistForm from '@/components/WaitlistForm'
 import BetaSignedInStatus from '@/components/BetaSignedInStatus'
 import { cookies } from 'next/headers'
@@ -9,6 +10,12 @@ import { waitlistRequestExists } from '@/lib/waitlistStatus'
 const C = {
   bg: '#0a0908',
   text: '#f0ece3', secondary: '#b8a888', muted: '#8a7a68',
+}
+
+// The access-request / waiting page: for people, not search results.
+export const metadata: Metadata = {
+  title: 'Request access',
+  robots: { index: false, follow: false },
 }
 
 export default async function BetaPage() {

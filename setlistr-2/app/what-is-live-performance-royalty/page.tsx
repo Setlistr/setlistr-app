@@ -3,7 +3,7 @@ import { ArticleShell, Crumb, Tag, H1, Standfirst, H2, P, Callout, EndCTA, Relat
 import Link from 'next/link'
 
 export const metadata: Metadata = {
-  title: 'What Is a Live Performance Royalty? A Simple Explanation | Setlistr',
+  title: 'What Is a Live Performance Royalty? A Simple Explanation',
   description: "A plain-English explanation of what live performance royalties are, where the money comes from, who pays it, and how performing songwriters collect what they're owed.",
   alternates: { canonical: '/what-is-live-performance-royalty' },
   openGraph: {
@@ -84,7 +84,7 @@ export default function Page() {
 
       <Callout color={COLORS.GREEN}><strong style={{ color: '#fff' }}>The capture step, automated.</strong> The whole system depends on you knowing what you played. Setlistr listens during your set and builds the setlist for you &mdash; so the submission data exists before you even leave the venue.</Callout>
 
-      <EndCTA heading="Start with your next show" sub="Setlistr captures your setlist during the show, ready for you to confirm. Free to start." />
+      <EndCTA heading="Start with your next show" sub="Setlistr captures your setlist during the show, ready for you to confirm. Free to download; account access requires approval." />
 
       <Related links={[
         { href: '/get-paid-for-live-shows', title: 'How to Get Paid for Live Performances (Full Guide)' },

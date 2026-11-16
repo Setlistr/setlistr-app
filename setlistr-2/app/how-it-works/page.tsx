@@ -76,7 +76,7 @@ const FAQS = [
   },
   {
     q: 'Is Setlistr available now?',
-    a: 'Yes. Setlistr is available now and access is invite-only while we onboard artists. Request an invite and we’ll be in touch.',
+    a: 'Yes. Setlistr is free to download on the App Store, and account access currently requires approval. Request access and we’ll review your request.',
   },
 ]
 

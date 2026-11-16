@@ -1,5 +1,6 @@
 export const metadata = {
-  title: 'Imprint — Setlistr',
+  title: 'Imprint',
+  alternates: { canonical: '/imprint' },
   description: 'Legal notice and company information for Setlistr.',
 }
 

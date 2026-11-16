@@ -5,6 +5,8 @@ import WaitlistForm from '@/components/WaitlistForm'
 import { BrandLogo } from '@/components/BrandLogo'
 import ProductTour from '@/components/ProductTour'
 
+const APP_STORE_URL = 'https://apps.apple.com/us/app/setlistr-live-performance/id6794425733'
+
 export const metadata: Metadata = {
   title: 'Setlistr — The System of Record for Live Music',
   description: 'Live performance is the largest blind spot in music. Every show. Every song. Every royalty. Finally accounted for.',
@@ -150,7 +152,7 @@ export default function HomePage() {
           <Link href="/get-paid" className="sl-nav-link" style={{ marginRight: 8 }}>For Artists</Link>
           <Link href="/how-it-works" className="sl-nav-link" style={{ marginRight: 8 }}>How It Works</Link>
           <Link href="/auth/login" className="sl-btn-signin">Sign In</Link>
-          <Link href="/auth/login?mode=signup" className="sl-btn-signin sl-btn-signup">Create Account</Link>
+          <a href={APP_STORE_URL} className="sl-btn-signin sl-btn-signup" rel="noopener">Get the App</a>
           <a href="#access" className="sl-btn-apply">Request Access</a>
         </nav>
       </header>
@@ -192,6 +194,15 @@ export default function HomePage() {
             <span style={{ color: '#C9A84C' }}>Existed.</span>
           </h1>
           <div className="sl-ghost">Until Now.</div>
+          {/* Request access leads; the free download sits beside it, and the
+              approval requirement is said where both are offered. */}
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center', marginTop: 36 }}>
+            <a href="#access" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minHeight: 48, padding: '0 26px', borderRadius: 10, background: '#C9A84C', color: '#080706', fontFamily: '"Bebas Neue", sans-serif', fontSize: 18, letterSpacing: '0.1em', textDecoration: 'none' }}>Request Access</a>
+            <a href={APP_STORE_URL} rel="noopener" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minHeight: 48, padding: '0 22px', borderRadius: 10, border: '1px solid rgba(201,168,76,0.4)', color: '#C9A84C', fontFamily: '"Bebas Neue", sans-serif', fontSize: 18, letterSpacing: '0.1em', textDecoration: 'none' }}>Download on the App Store</a>
+          </div>
+          <p style={{ fontSize: 14, fontWeight: 300, color: 'rgba(212,209,202,0.7)', margin: '14px 0 0' }}>
+            Free to download. Account access requires approval.
+          </p>
           <div className="sl-scroll-hint"><span className="sl-scroll-arrow" />See it live</div>
         </section>
 
@@ -216,13 +227,14 @@ export default function HomePage() {
             width: 1, height: 100, background: 'linear-gradient(to bottom, transparent, rgba(201,168,76,0.5))',
           }} />
           <h2 style={{ fontFamily: '"Bebas Neue", sans-serif', fontSize: 'clamp(48px,8vw,96px)', lineHeight: 0.9, letterSpacing: '0.02em', color: '#FFFFFF', margin: '0 0 8px' }}>
-            Invite Only.
+            Free to Download.
           </h2>
           <h2 style={{ fontFamily: '"Bebas Neue", sans-serif', fontSize: 'clamp(48px,8vw,96px)', lineHeight: 0.9, letterSpacing: '0.02em', color: '#C9A84C', margin: '0 0 28px' }}>
             Request Access.
           </h2>
           <p style={{ fontSize: 16, fontWeight: 300, color: 'rgba(212,209,202,0.45)', maxWidth: 340, margin: '0 auto 52px', lineHeight: 1.7 }}>
-            We onboard artists directly.
+            Account access requires approval. We review every request individually.{' '}
+            Get the app on the <a href={APP_STORE_URL} rel="noopener" style={{ color: 'rgba(201,168,76,0.85)', textDecoration: 'none' }}>App Store</a>.
           </p>
           <WaitlistForm />
           <p style={{ fontFamily: '"DM Mono", monospace', fontSize: 10, letterSpacing: '0.12em', color: 'rgba(212,209,202,0.4)', marginTop: 36 }}>

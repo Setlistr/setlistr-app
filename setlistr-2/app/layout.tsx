@@ -17,11 +17,11 @@ export const metadata: Metadata = {
   authors: [{ name: 'Setlistr', url: 'https://setlistr.ai' }],
   creator: 'Setlistr',
   metadataBase: new URL('https://setlistr.ai'),
-  alternates: { canonical: '/' },
-  verification: {
-    google: 'GOOGLE_TOKEN_PLACEHOLDER',
-    other: { 'msvalidate.01': 'BING_TOKEN_PLACEHOLDER' },
-  },
+  // No site-wide canonical: each public page declares its own. A canonical
+  // here was inherited by every page without one, telling search engines
+  // that /start, /support, /privacy and others were copies of the homepage.
+  // No placeholder verification tags either; Search Console and Bing
+  // verification are account steps (DNS or a real token).
   openGraph: {
     type: 'website',
     siteName: 'Setlistr',
@@ -37,14 +37,9 @@ export const metadata: Metadata = {
     creator: '@setlistr',
     images: ['/og-image.jpg'],
   },
-  robots: {
-    index: true,
-    follow: true,
-    googleBot: {
-      index: true,
-      follow: true,
-    },
-  },
+  // Indexing is the default; pages that shouldn't be indexed (sign-in, the
+  // access waiting page, restricted tools) say noindex themselves. A
+  // site-wide "index, follow" here contradicted the 404 page's noindex.
   manifest: '/manifest.json',
   icons: {
     icon: [
