@@ -78,7 +78,7 @@ export default function ProductTour() {
 
   return (
     <>
-      <style>{`
+      <style dangerouslySetInnerHTML={{ __html: `
         .pt-capture { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: center; max-width: 1180px; margin: 0 auto; padding: 8px 32px 110px; }
         .pt-eyebrow { font-family: "DM Mono", monospace; font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: rgba(201,168,76,.95); margin-bottom: 18px; display: flex; align-items: center; gap: 10px; }
         .pt-eyebrow .dot { width: 6px; height: 6px; border-radius: 50%; background: #C9A84C; animation: pt-pulse 2s infinite; }
@@ -161,7 +161,7 @@ export default function ProductTour() {
           .pt-phone, .pt-frame::after, .pt-listening, .pt-eyebrow .dot { animation: none !important; }
           .pt-row { opacity:1 !important; transform:none !important; }
         }
-      `}</style>
+      ` }} />
 
       {/* HERO 2: live capture */}
       <section className="pt-capture">
