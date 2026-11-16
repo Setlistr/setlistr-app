@@ -11,6 +11,7 @@ import { ACR_LIMIT_MESSAGE } from '@/lib/acr-limits'
 import { normalizeSongKey } from '@/lib/reconciliation/normalize'
 import { logProductEvent, awaitWithTimeout } from '@/lib/telemetry'
 import { finalizeLiveCapture, type FinalSongRow } from '@/lib/live-finalize'
+import { readLiveDraft, writeLiveDraft, clearLiveDraft, mergeLiveDraft } from '@/lib/live-draft'
 import { LOOK_BACK_MS } from '@/lib/tonightShows'
 import { startedText } from '@/components/scheduling/TonightShows'
 
@@ -183,6 +184,10 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   // The in-progress save last failed; it retries on its own.
   const [saveProblem, setSaveProblem] = useState(false)
   const [saveRetryTick, setSaveRetryTick] = useState(0)
+  // Songs brought back from this device's draft (lib/live-draft.ts) when the
+  // show reopened: changes that hadn't reached the server before the page was
+  // closed or thrown away.
+  const [recoveredCount, setRecoveredCount] = useState(0)
   const [plannedCount, setPlannedCount] = useState<number>(0)
   const plannedSongsRef = useRef<{ title: string; normalizedTitle: string; artist: string }[]>([])
 
@@ -260,10 +265,13 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   }, [])
 
   // Load the songs saved for this show (during capture, or before the app
-  // was closed). Anything already on screen that isn't saved yet is kept after
-  // them, so a retry after a failed first read never drops a song added since.
-  // Until a read succeeds nothing is saved or finalised: a failed read must
-  // not let a save or End erase rows it never saw. Returns whether it loaded.
+  // was closed). Changes kept on this device that never reached the server
+  // (lib/live-draft.ts: the page was closed or thrown away while offline) are
+  // merged in, and anything already on screen that isn't saved yet is kept
+  // after them, so a retry after a failed first read never drops a song added
+  // since. Until a read succeeds nothing is saved or finalised: a failed read
+  // must not let a save or End erase rows it never saw, nor replace the draft.
+  // Returns whether it loaded.
   async function restoreSaved(perf: Performance): Promise<boolean> {
     const { data: existingSongs, error } = await createClient().from('performance_songs_visible')
       .select('id, title, artist, isrc, composer, publisher, source, position, was_planned, inclusion_reason, threshold, score')
@@ -278,10 +286,17 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
       inclusion_reason: s.inclusion_reason ?? null, threshold: s.threshold ?? null, score: s.score ?? null,
       row_id: s.id,
     }))
-    const savedIds = new Set(restored.map(s => s.row_id))
-    const unsaved = confirmedSongsRef.current.filter(s => !s.row_id || !savedIds.has(s.row_id))
-    const merged = [...restored, ...unsaved]
+    // A draft only counts for a show that is still live: once it's finished
+    // (here or on another device) its songs are never rewritten.
+    const draft = perf.status === 'live' ? readLiveDraft<DetectedSong>(perf.id) : null
+    if (perf.status !== 'live') clearLiveDraft(perf.id)
+    const { songs: withDraft, recovered } = draft ? mergeLiveDraft(restored, draft.songs) : { songs: restored, recovered: 0 }
+    const listedIds = new Set(withDraft.map(s => s.row_id))
+    const unsaved = confirmedSongsRef.current.filter(s => !s.row_id || !listedIds.has(s.row_id))
+    const merged = [...withDraft, ...unsaved]
+    // What the server holds, so the in-progress save writes the recovered changes.
     lastSavedRef.current = JSON.stringify(songRows(perf, restored))
+    if (recovered > 0) setRecoveredCount(recovered)
     confirmedSongsRef.current = merged
     if (merged.length > 0) setSongs(merged)
     restoredRef.current = true
@@ -749,9 +764,20 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
       if (rows.length > 0) del = del.not('id', 'in', `(${rows.map(r => r.id).join(',')})`)
       const { error } = await del
       if (error) { failed(); return }
-      if (lastSavedRef.current === key) setSaveProblem(false)
+      // The server now holds the latest list: the device copy isn't needed.
+      if (lastSavedRef.current === key) { setSaveProblem(false); clearLiveDraft(perf.id) }
     }).catch(() => failed())
   }, [songs, performance, saveRetryTick])
+
+  // Keep this device's copy of the list current (lib/live-draft.ts), so
+  // changes that can't be saved yet survive the page being closed or thrown
+  // away. Not before the saved list has loaded: an empty or partial list must
+  // never replace a draft that holds unsaved songs.
+  useEffect(() => {
+    const perf = performance
+    if (!perf || perf.status !== 'live' || !restoredRef.current) return
+    writeLiveDraft(perf.id, songs)
+  }, [songs, performance])
 
   // Connection changes: going offline is said at once; coming back retries
   // any save that failed (the recognition notice clears on the next answer).
@@ -862,6 +888,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         performanceId: performance.id, rows, endedAt: endedAt.toISOString(), durationMinutes,
       })
       if (!result.ok) return fail()
+      clearLiveDraft(performance.id)
 
       // Follow-on records, only from the attempt that finished the show. None
       // of them holds songs: a failure here can't lose the setlist, and
@@ -1355,6 +1382,13 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
               </div>
             )}
           </div>
+        )}
+
+        {recoveredCount > 0 && !endFailed && (
+          <p role="status" style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, color: C.secondary, margin: '2px 2px 0', lineHeight: 1.4 }}>
+            <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: '50%', background: C.green, flexShrink: 0 }} />
+            {recoveredCount === 1 ? 'Brought back 1 change' : `Brought back ${recoveredCount} changes`} that hadn’t saved before Setlistr closed.
+          </p>
         )}
 
         {saveProblem && !endFailed && (
