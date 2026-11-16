@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { submitWaitlistEntry } from '@/lib/waitlist'
+import WaitlistForm from '@/components/WaitlistForm'
 import { roleInfoFor } from '@/lib/teamRoleInfo'
 
 const C = {
@@ -17,6 +17,9 @@ type Props = {
   email: string
   fullName: string | null
   inviteDetails: { role: string; artistName: string } | null
+  // The invitation token this browser presented (re-validated server-side
+  // before inviteDetails is set); used only to link back to accepting it.
+  inviteToken?: string | null
   initialAlreadyRequested: boolean
 }
 
@@ -27,11 +30,9 @@ type Props = {
 // replaces: the old WaitlistForm always showed "Sign In", which for an
 // authenticated user just bounced them through /auth/login straight
 // back to /app/dashboard and then back here, doing nothing).
-export default function BetaSignedInStatus({ email, fullName, inviteDetails, initialAlreadyRequested }: Props) {
+export default function BetaSignedInStatus({ email, fullName, inviteDetails, inviteToken, initialAlreadyRequested }: Props) {
   const router = useRouter()
   const [alreadyRequested, setAlreadyRequested] = useState(initialAlreadyRequested)
-  const [requesting, setRequesting] = useState(false)
-  const [requestError, setRequestError] = useState('')
   const [signingOut, setSigningOut] = useState(false)
 
   async function handleSignOut() {
@@ -41,41 +42,14 @@ export default function BetaSignedInStatus({ email, fullName, inviteDetails, ini
     router.push('/auth/login')
   }
 
-  async function handleRequestApproval() {
-    setRequesting(true)
-    setRequestError('')
-    // Auto-filled from what we already know — never re-asks a known
-    // recipient for their email or to re-describe why they're here.
-    // roles/note reuse the EXISTING waitlist columns, but the two are
-    // deliberately NOT conflated: waitlist's roles taxonomy (Artist/
-    // Songwriter/Manager/Publisher/Label/Booking agent/Other) classifies
-    // admission intent, while a team invite's role (viewer/manager/
-    // tour_manager/band_member) is a delegation permission level — they
-    // answer different questions. Forcing a team-invite role into that
-    // taxonomy previously mislabeled every non-manager recipient (e.g. a
-    // Band Member) as "MANAGER" in Admin. 'Other' makes no specific claim
-    // either way; the real role is named precisely in the note instead.
-    const note = inviteDetails
-      ? `Responding to a team invitation (${roleInfoFor(inviteDetails.role).label}) from ${inviteDetails.artistName}.`
-      : 'Requesting beta approval after signing up.'
-    const { error } = await submitWaitlistEntry({
-      email,
-      name: fullName || email,
-      note,
-      roles: ['Other'],
-      pro: null,
-    })
-    setRequesting(false)
-    if (error) {
-      setRequestError(error.code === '23505' ? 'Already requested.' : 'Something went wrong — try again.')
-      // A 23505 here means a request already exists (e.g. a concurrent
-      // submission from another tab) — reflect that as success, not an
-      // error state with no way forward.
-      if (error.code === '23505') setAlreadyRequested(true)
-      return
-    }
-    setAlreadyRequested(true)
-  }
+  // A team invitation is named precisely for the reviewer. Its role (viewer/
+  // manager/tour_manager/band_member) is a delegation permission level, not
+  // the request form's description of the person, so it goes in the note;
+  // the applicant describes themselves in the form, and Admin still chooses
+  // the access role (a self-described role never grants anything).
+  const contextNote = inviteDetails
+    ? `Responding to a team invitation (${roleInfoFor(inviteDetails.role).label}) from ${inviteDetails.artistName}.`
+    : null
 
   return (
     <div style={{ width: '100%', maxWidth: 420, margin: '0 auto' }}>
@@ -85,7 +59,7 @@ export default function BetaSignedInStatus({ email, fullName, inviteDetails, ini
             Signed in as <span style={{ color: C.secondary }}>{email}</span>
           </p>
           <button onClick={handleSignOut} disabled={signingOut}
-            style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 8, padding: '5px 10px', color: C.secondary, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0, opacity: signingOut ? 0.6 : 1 }}>
+            style={{ minHeight: 36, background: 'none', border: `1px solid ${C.border}`, borderRadius: 8, padding: '5px 10px', color: C.secondary, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0, opacity: signingOut ? 0.6 : 1 }}>
             {signingOut ? '...' : 'Sign Out'}
           </button>
         </div>
@@ -94,30 +68,45 @@ export default function BetaSignedInStatus({ email, fullName, inviteDetails, ini
           <div>
             <p style={{ fontSize: 14, fontWeight: 700, color: C.gold, margin: '0 0 6px' }}>Your team invitation is saved</p>
             <p style={{ fontSize: 13, color: C.secondary, margin: 0, lineHeight: 1.5 }}>
-              {inviteDetails.artistName} invited you as a {roleInfoFor(inviteDetails.role).label.toLowerCase()}. Setlistr approval is required before you can accept it. Once you're approved, come back here on this device, or reopen the invitation link from your email.
+              {inviteDetails.artistName} invited you as a {roleInfoFor(inviteDetails.role).label.toLowerCase()}. Team invitations don’t need separate approval: accept it with the code we email to {email}.
             </p>
+            {inviteToken && (
+              <a href={`/app/accept-invite?token=${encodeURIComponent(inviteToken)}`}
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 44, marginTop: 12, borderRadius: 10, background: C.gold, color: '#0a0908', fontSize: 13, fontWeight: 800, textDecoration: 'none' }}>
+                Open the invitation
+              </a>
+            )}
           </div>
         ) : (
-          <p style={{ fontSize: 13, color: C.secondary, margin: 0, lineHeight: 1.5 }}>
-            Setlistr is invite-only — your account is saved and ready as soon as you're approved. If you were invited to a team, open the invitation link from your email.
-          </p>
+          <div>
+            <p style={{ fontSize: 14, fontWeight: 700, color: C.text, margin: '0 0 6px' }}>Your account is waiting for approval</p>
+            <p style={{ fontSize: 13, color: C.secondary, margin: 0, lineHeight: 1.5 }}>
+              Setlistr is free to download, and account access requires approval. Your account is saved and opens as soon as it’s approved. If you were invited to a team, open the invitation link from your email.
+            </p>
+          </div>
         )}
 
         {alreadyRequested ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 10, padding: '10px 14px' }}>
-            <span style={{ width: 7, height: 7, borderRadius: '50%', background: C.gold, flexShrink: 0 }} />
-            <p style={{ fontSize: 12, fontWeight: 700, color: C.gold, margin: 0 }}>Awaiting approval</p>
+          <div role="status" style={{ background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 10, padding: '12px 14px' }}>
+            <p style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 700, color: C.gold, margin: '0 0 4px' }}>
+              <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: '50%', background: C.gold, flexShrink: 0 }} />
+              Request received
+            </p>
+            <p style={{ fontSize: 12.5, color: C.secondary, margin: 0, lineHeight: 1.5 }}>
+              We review every request individually. If it’s approved, we’ll email you at this address and your account opens the next time you sign in.
+            </p>
           </div>
         ) : (
-          <button onClick={handleRequestApproval} disabled={requesting}
-            style={{ width: '100%', padding: '13px', background: C.gold, border: 'none', borderRadius: 10, color: '#0a0908', fontSize: 13, fontWeight: 800, letterSpacing: '0.04em', cursor: requesting ? 'default' : 'pointer', fontFamily: 'inherit', opacity: requesting ? 0.7 : 1 }}>
-            {requesting ? 'Requesting...' : 'Request Approval'}
-          </button>
+          <div>
+            <p style={{ fontSize: 13, fontWeight: 700, color: C.text, margin: '0 0 10px' }}>{inviteDetails ? 'Want your own artist account too? Tell us about your music' : 'Tell us about your music'}</p>
+            <WaitlistForm lockedEmail={email} defaultName={fullName} contextNote={contextNote} onDone={() => setAlreadyRequested(true)} />
+          </div>
         )}
 
-        {requestError && (
-          <p style={{ fontSize: 12, color: C.red, margin: 0 }}>{requestError}</p>
-        )}
+        {/* Approval belongs to an email address, never moved between accounts. */}
+        <p style={{ fontSize: 12, color: C.muted, margin: 0, lineHeight: 1.5 }}>
+          Approval is linked to the email you sign in with ({email}). If you requested access, or were approved or invited, with a different email address, sign out and use that one. We can’t move an approval to another account.
+        </p>
       </div>
     </div>
   )

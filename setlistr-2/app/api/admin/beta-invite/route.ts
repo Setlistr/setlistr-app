@@ -58,16 +58,19 @@ async function sendBetaInviteEmail({ to, name, invitedRole }: { to: string; name
     fallbackLabel = 'Or use this link:'
     fallbackUrl = ctaHref
   } else {
+    // Accurate approval language: the account (this email address) is
+    // approved; Setlistr helps prepare filings the artist makes themselves.
     const isManager = invitedRole === 'manager'
-    heading = isManager ? "You're in — as a manager." : "You're in."
+    heading = isManager ? "You're approved — as a manager." : "You're approved."
     bodyCopy = isManager
-      ? `You've been invited to the Setlistr beta as a manager. Once you sign up, you'll land in your Manager workspace — no artist profile to set up. From there you can request access to the artists you work with.`
-      : `You've been invited to the Setlistr beta. Capture your live performances and we'll help you prepare the royalty claims that follow.`
+      ? `Your Setlistr account is approved for a Manager workspace. Sign in or create your account with this email address and you'll land in your workspace, with no artist profile to set up. From there you can request access to the artists you work with.`
+      : `Your Setlistr account is approved. Sign in or create your account with this email address to start capturing your live shows and keeping your performance record. Setlistr helps you prepare the details for the filings you make with your PRO.`
     ctaCopy = isManager ? 'Set Up Your Workspace →' : 'Get the App →'
     ctaHref = isManager ? signupUrl : APP_STORE_URL
     fallbackLabel = isManager ? 'Sign in here:' : 'On desktop or Android? Use this link instead:'
     fallbackUrl = signupUrl
   }
+  const emailNote = `Approval is linked to ${escapeHtml(to)}. Use this email address when you sign in.`
 
   const html = `
     <div style="font-family: system-ui, sans-serif; max-width: 480px; margin: 0 auto; background: #0a0908; color: #f0ece3; padding: 40px 32px; border-radius: 16px;">
@@ -84,8 +87,11 @@ async function sendBetaInviteEmail({ to, name, invitedRole }: { to: string; name
       <a href="${ctaHref}" style="display: inline-block; background: #c9a84c; color: #0a0908; font-size: 14px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; text-decoration: none; padding: 16px 32px; border-radius: 12px; margin-bottom: 24px;">
         ${ctaCopy}
       </a>
-      <p style="font-size: 12px; color: #8a7a68; margin: 0 0 24px; line-height: 1.6;">
+      <p style="font-size: 12px; color: #8a7a68; margin: 0 0 12px; line-height: 1.6;">
         ${fallbackLabel} <span style="color: #b8a888;">${fallbackUrl}</span>
+      </p>
+      <p style="font-size: 12px; color: #8a7a68; margin: 0 0 24px; line-height: 1.6;">
+        ${emailNote}
       </p>
       <hr style="border: none; border-top: 1px solid rgba(255,255,255,0.07); margin: 24px 0;" />
       <p style="font-size: 11px; color: #8a7a68; margin: 0;">
@@ -104,7 +110,7 @@ async function sendBetaInviteEmail({ to, name, invitedRole }: { to: string; name
       body: JSON.stringify({
         from: 'Setlistr <invites@setlistr.ai>',
         to,
-        subject: pendingInvite ? "You're approved — continue to your team invitation" : "You're invited to the Setlistr beta",
+        subject: pendingInvite ? "You're approved — continue to your team invitation" : "Your Setlistr account is approved",
         html,
       }),
     })
@@ -156,7 +162,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Email required' }, { status: 400 })
     }
 
-    const invitedRole: 'artist' | 'manager' = role === 'manager' ? 'manager' : 'artist'
+    // The admin must choose the access role every time. A request's
+    // self-described role can inform that choice but never stands in for it,
+    // and there is no default. Only the two existing roles can be granted
+    // here; industry access (publishers, labels) is arranged separately.
+    if (role !== 'artist' && role !== 'manager') {
+      return NextResponse.json({ error: 'Choose the access role to approve: artist or manager.' }, { status: 400 })
+    }
+    const invitedRole: 'artist' | 'manager' = role
 
     const { data: invite, error } = await supabase
       .from('beta_invites')

@@ -109,9 +109,9 @@ export default function OnboardingPage() {
         router.replace('/app/manager')
       } else if (await hasEverBeenConnected(supabase, user.id)) {
         // A team-only user whose last connection was removed — not proof
-        // of artist intent just because betaInvite.invited_role defaults
-        // to 'artist' when Grant access passes no role at all (see
-        // app/api/admin/beta-invite/route.ts). Never land them in the
+        // of artist intent just because betaInvite.invited_role defaulted
+        // to 'artist' when Grant access passed no role (approvals before the
+        // role had to be chosen; see app/api/admin/beta-invite/route.ts). Never land them in the
         // artist-onboarding form, including via a direct/stale link; Team
         // already renders its own disconnected-workspace recovery state.
         router.replace('/app/team')
@@ -692,7 +692,7 @@ export default function OnboardingPage() {
         )}
 
         <p style={{ textAlign: 'center', fontSize: 13, color: C.muted, marginTop: 16 }}>
-          {step === 1 ? 'Free forever · No credit card' : step === 2 ? 'Performance data you confirm · Not financial advice' : 'Your record starts tonight.'}
+          {step === 1 ? 'Your live record starts here' : step === 2 ? 'Performance data you confirm · Not financial advice' : 'Your record starts tonight.'}
         </p>
 
         <style>{`

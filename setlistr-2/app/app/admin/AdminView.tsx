@@ -1,5 +1,6 @@
 'use client'
 import { useState, useMemo, useEffect, useRef } from 'react'
+import { parseNote, linkHref } from '@/lib/waitlist-note'
 import { useRouter } from 'next/navigation'
 import AdminShell, { type AdminShellTab } from './AdminShell'
 
@@ -90,7 +91,13 @@ type WaitlistEntry = {
   roles: string[] | null
   pro: string | null
   created_at: string
+  // Already signed up (e.g. from the App Store); null when it couldn't be read.
+  has_account?: boolean | null
 }
+
+// Self-described roles that ask for industry access. Those are arranged
+// separately and can't be approved from the waitlist.
+const INDUSTRY_ROLES = ['publisher', 'label', 'booking agent']
 
 // ── Reconciliation engine (Phase 1, read-only) ─────────────────────────────
 // Mirrors lib/reconciliation/types.ts's PriorApplied / evidence shape.
@@ -448,7 +455,10 @@ export default function AdminDashboard({
   const [invites, setInvites]         = useState<BetaInvite[]>(betaInvites)
   const [waitlist, setWaitlist]       = useState<WaitlistEntry[]>([])
   const [waitlistLoaded, setWaitlistLoaded] = useState(false)
-  const [waitlistInviteState, setWaitlistInviteState] = useState<Record<string, 'sending' | 'invited' | 'error'>>({})
+  // no_email: approved, but the approval email didn't send.
+  const [waitlistInviteState, setWaitlistInviteState] = useState<Record<string, 'sending' | 'invited' | 'no_email' | 'error'>>({})
+  // Which request has its approval choice open (the admin picks the role).
+  const [waitlistReviewing, setWaitlistReviewing] = useState<string | null>(null)
   const [waitlistInviteError, setWaitlistInviteError] = useState<Record<string, string>>({})
   const [waitlistRemovePending, setWaitlistRemovePending] = useState<string | null>(null)
   const waitlistRemoveTimerRef = useRef<NodeJS.Timeout | null>(null)
@@ -745,7 +755,7 @@ export default function AdminDashboard({
       if (!res.ok) { setAddError(data.error || 'Failed to add user') }
       else {
         setInvites(prev => [data.invite, ...prev]); setNewEmail(''); setNewName('')
-        setAddSuccess(`${data.invite.email} (${recruitKind}) ${data.email_sent ? '— invite email sent' : '— added, no email sent'}`)
+        setAddSuccess(`${data.invite.email} (${recruitKind}) ${data.email_sent ? '— approval email sent' : '— approved, but the approval email was not sent'}`)
         setAddSuccessNoEmail(!data.email_sent)
       }
     } catch { setAddError('Network error — try again') }
@@ -760,11 +770,13 @@ export default function AdminDashboard({
     } catch {}
   }
 
-  async function grantWaitlistAccess(entry: WaitlistEntry) {
+  // The admin chooses the access role explicitly; the request's own roles
+  // only inform that choice (see the review panel below).
+  async function grantWaitlistAccess(entry: WaitlistEntry, role: 'artist' | 'manager') {
     setWaitlistInviteState(prev => ({ ...prev, [entry.id]: 'sending' }))
     setWaitlistInviteError(prev => ({ ...prev, [entry.id]: '' }))
     try {
-      const res = await fetch('/api/admin/beta-invite', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: entry.email.trim().toLowerCase(), name: entry.name || null }) })
+      const res = await fetch('/api/admin/beta-invite', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: entry.email.trim().toLowerCase(), name: entry.name || null, role }) })
       const data = await res.json()
       if (!res.ok) {
         setWaitlistInviteState(prev => ({ ...prev, [entry.id]: 'error' }))
@@ -772,7 +784,8 @@ export default function AdminDashboard({
         return
       }
       setInvites(prev => [data.invite, ...prev])
-      setWaitlistInviteState(prev => ({ ...prev, [entry.id]: 'invited' }))
+      setWaitlistInviteState(prev => ({ ...prev, [entry.id]: data.email_sent ? 'invited' : 'no_email' }))
+      setWaitlistReviewing(null)
     } catch {
       setWaitlistInviteState(prev => ({ ...prev, [entry.id]: 'error' }))
       setWaitlistInviteError(prev => ({ ...prev, [entry.id]: 'Network error — try again' }))
@@ -1275,12 +1288,27 @@ export default function AdminDashboard({
                 {waitlist.map(entry => {
                   const alreadyInvited = invites.some(i => i.email.trim().toLowerCase() === entry.email.trim().toLowerCase())
                   const state = waitlistInviteState[entry.id] || (alreadyInvited ? 'invited' : undefined)
+                  const details = parseNote(entry.note)
+                  const href = details.link ? linkHref(details.link) : null
+                  const requested = (entry.roles || []).map(r => r.toLowerCase())
+                  const industryOnly = requested.length > 0 && requested.every(r => INDUSTRY_ROLES.includes(r))
+                  const suggests = requested.includes('manager') && !requested.some(r => r === 'artist' || r === 'songwriter') ? 'manager' : 'artist'
                   return (
                     <div key={entry.id}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', background: C.card, border: `1px solid ${C.border}`, borderRadius: 10 }}>
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <p style={{ fontSize: 13, fontWeight: 600, color: C.text, margin: 0 }}>{entry.email}</p>
+                          <p style={{ fontSize: 13, fontWeight: 600, color: C.text, margin: 0 }}>
+                            {entry.email}
+                            {entry.has_account === true && <span style={{ marginLeft: 8, display: 'inline-block', whiteSpace: 'nowrap', fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', padding: '2px 7px', borderRadius: 4, background: 'rgba(74,222,128,0.1)', border: '1px solid rgba(74,222,128,0.3)', color: '#4ade80' }}>Has account</span>}
+                            {entry.has_account === false && <span style={{ marginLeft: 8, display: 'inline-block', whiteSpace: 'nowrap', fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: C.muted }}>No account yet</span>}
+                          </p>
                           {entry.name && <p style={{ fontSize: 12, color: C.muted, margin: '1px 0 0' }}>{entry.name}</p>}
+                          {details.project && <p style={{ fontSize: 12, color: C.secondary, margin: '3px 0 0' }}>Artist or project: <span style={{ color: C.text, fontWeight: 600 }}>{details.project}</span></p>}
+                          {details.link && (
+                            <p style={{ fontSize: 12, color: C.secondary, margin: '2px 0 0', overflowWrap: 'anywhere' }}>
+                              Link: {href ? <a href={href} target="_blank" rel="noopener noreferrer nofollow" style={{ color: C.gold }}>{details.link}</a> : <span style={{ color: C.text }}>{details.link}</span>}
+                            </p>
+                          )}
                           {entry.roles && entry.roles.length > 0 && (
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, margin: '4px 0 0' }}>
                               {entry.roles.map(role => (
@@ -1290,17 +1318,20 @@ export default function AdminDashboard({
                               ))}
                             </div>
                           )}
-                          {entry.note && <p style={{ fontSize: 11, color: C.muted, margin: '4px 0 0' }}>{entry.note}</p>}
+                          {details.rest && <p style={{ fontSize: 11, color: C.muted, margin: '4px 0 0', whiteSpace: 'pre-line' }}>{details.rest}</p>}
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
                           {entry.pro && <span style={{ fontSize: 11, color: C.muted, textTransform: 'uppercase' }}>{entry.pro}</span>}
                           <p style={{ fontSize: 11, color: C.muted, margin: 0, fontFamily: '"DM Mono", monospace' }}>{formatDate(entry.created_at)}</p>
                           {state === 'invited' ? (
-                            <span style={{ fontSize: 11, color: C.muted, fontWeight: 600 }}>Invited</span>
+                            <span style={{ fontSize: 11, color: C.muted, fontWeight: 600 }}>Approved</span>
+                          ) : state === 'no_email' ? (
+                            <span style={{ fontSize: 11, color: '#f59e0b', fontWeight: 700 }}>Approved · email not sent</span>
                           ) : (
-                            <button onClick={() => grantWaitlistAccess(entry)} disabled={state === 'sending'}
-                              style={{ padding: '6px 12px', background: C.gold, border: 'none', borderRadius: 8, color: '#0a0908', fontSize: 11, fontWeight: 700, cursor: state === 'sending' ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: state === 'sending' ? 0.7 : 1, whiteSpace: 'nowrap' }}>
-                              {state === 'sending' ? 'Granting…' : 'Grant access'}
+                            <button onClick={() => setWaitlistReviewing(waitlistReviewing === entry.id ? null : entry.id)} disabled={state === 'sending'}
+                              aria-expanded={waitlistReviewing === entry.id}
+                              style={{ padding: '6px 12px', background: waitlistReviewing === entry.id ? 'transparent' : C.gold, border: waitlistReviewing === entry.id ? `1px solid ${C.border}` : 'none', borderRadius: 8, color: waitlistReviewing === entry.id ? C.secondary : '#0a0908', fontSize: 11, fontWeight: 700, cursor: state === 'sending' ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: state === 'sending' ? 0.7 : 1, whiteSpace: 'nowrap' }}>
+                              {state === 'sending' ? 'Approving…' : waitlistReviewing === entry.id ? 'Cancel' : 'Review…'}
                             </button>
                           )}
                           {(() => {
@@ -1330,6 +1361,32 @@ export default function AdminDashboard({
                           })()}
                         </div>
                       </div>
+                      {waitlistReviewing === entry.id && state !== 'invited' && state !== 'no_email' && (
+                        <div style={{ margin: '4px 0 0', padding: '12px 14px', background: 'rgba(255,255,255,0.02)', border: `1px solid ${C.border}`, borderRadius: 10 }}>
+                          <p style={{ fontSize: 12, color: C.secondary, margin: '0 0 8px', lineHeight: 1.5 }}>
+                            Requested: {requested.length ? requested.join(', ') : 'not stated'}. That's how they describe themselves; choose the access to approve.
+                          </p>
+                          {industryOnly ? (
+                            <p style={{ fontSize: 12, color: C.muted, margin: 0, lineHeight: 1.5 }}>
+                              Publisher, label and booking-agent access is arranged separately and can't be approved from here.
+                            </p>
+                          ) : (
+                            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                              {(['artist', 'manager'] as const).map(r => (
+                                <button key={r} onClick={() => grantWaitlistAccess(entry, r)} disabled={state === 'sending'}
+                                  style={{ padding: '7px 12px', background: r === suggests ? C.gold : 'transparent', border: r === suggests ? 'none' : `1px solid ${C.borderGold}`, borderRadius: 8, color: r === suggests ? '#0a0908' : C.gold, fontSize: 11, fontWeight: 700, cursor: state === 'sending' ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+                                  {r === 'artist' ? 'Approve as artist' : 'Approve as manager'}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      {state === 'no_email' && (
+                        <p style={{ fontSize: 11, color: '#f59e0b', margin: '4px 0 0 14px', lineHeight: 1.5 }}>
+                          The approval email didn't send. Let them know directly that they can sign in with {entry.email}.
+                        </p>
+                      )}
                       {state === 'error' && waitlistInviteError[entry.id] && (
                         <p style={{ fontSize: 11, color: C.red, margin: '4px 0 0 14px' }}>{waitlistInviteError[entry.id]}</p>
                       )}
