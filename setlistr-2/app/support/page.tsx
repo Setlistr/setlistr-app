@@ -1,7 +1,8 @@
 // setlistr-2/app/support/page.tsx
 
 export const metadata = {
-  title: 'Support — Setlistr',
+  title: 'Support',
+  alternates: { canonical: '/support' },
   description: 'Get help with Setlistr: how live capture works, submitting to your PRO, resetting your password, and how to reach us. FAQs and support contact.',
 }
 

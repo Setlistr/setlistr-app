@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { PRO_RULES } from '@/lib/pro-rules'
 
 export const metadata: Metadata = {
-  title: 'How to Submit Setlists to ASCAP, BMI & SOCAN (Step-by-Step) | Setlistr',
+  title: 'How to Submit Setlists to ASCAP, BMI & SOCAN (Step-by-Step)',
   description: "A complete step-by-step guide to submitting your setlists to every major PRO's live performance portal so you can stop leaving money on stage.",
   alternates: { canonical: '/submit-setlists-pro' },
   openGraph: {
@@ -110,7 +110,7 @@ export default function Page() {
 
       <Callout color={COLORS.GREEN}><strong style={{ color: '#fff' }}>The hard part isn’t the portal — it’s the data.</strong> Every step above assumes you have an accurate setlist. Setlistr captures it automatically during the show, so when you sit down to submit, the list is already there.</Callout>
 
-      <EndCTA heading="Skip the guesswork" sub="Setlistr builds your setlist automatically during the show — ready to prepare for your PRO. Free to start." />
+      <EndCTA heading="Skip the guesswork" sub="Setlistr builds your setlist automatically during the show — ready to prepare for your PRO. Free to download; account access requires approval." />
 
       <Related links={[
         { href: '/get-paid-for-live-shows', title: 'How to Get Paid for Live Performances (ASCAP, BMI, SOCAN Guide)' },
