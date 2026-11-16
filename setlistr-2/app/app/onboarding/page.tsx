@@ -591,7 +591,7 @@ export default function OnboardingPage() {
                   No record found.<br />That's the problem.
                 </h2>
                 <p style={{ fontSize: 15, color: C.secondary, margin: '0 0 20px', lineHeight: 1.5 }}>
-                  You've been performing and the industry has no record of it. Every show you've played generated royalties — and with no setlists on file, that money went elsewhere.
+                  Keep a record of the songs you perform live. Eligible performances may qualify for royalties under your PRO&apos;s rules; Setlistr helps you prepare the details for your own filing.
                 </p>
 
                 <div style={{ background: 'color-mix(in srgb, var(--sl-text) 3%, transparent)', border: `1px solid ${C.border}`, borderRadius: 12, padding: '16px', marginBottom: 20 }}>
