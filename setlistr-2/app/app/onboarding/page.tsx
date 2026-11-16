@@ -493,7 +493,7 @@ export default function OnboardingPage() {
                   <h2 style={{ fontSize: 36, fontWeight: 800, color: C.text, margin: '0 0 6px', letterSpacing: '-0.02em', lineHeight: 1.1 }}>
                     <span style={{ fontFamily: '"DM Mono", monospace', color: C.gold }}>{countedShows}</span>
                     {' '}
-                    <span style={{ opacity: revealPhase >= 2 ? 1 : 0, transition: 'opacity 0.4s ease' }}>shows on record</span>
+                    <span style={{ opacity: revealPhase >= 2 ? 1 : 0, transition: 'opacity 0.4s ease' }}>past shows found</span>
                   </h2>
                   {revealPhase >= 2 && career.cities.length > 0 && (
                     <p style={{ fontSize: 15, color: C.secondary, margin: 0, lineHeight: 1.5 }}>
@@ -514,13 +514,8 @@ export default function OnboardingPage() {
                   </div>
                 </div>
 
-                {/* Estimate card */}
-                <div style={{ background: C.redDim, border: '1px solid color-mix(in srgb, var(--sl-danger) 20%, transparent)', borderRadius: 12, padding: '16px', marginBottom: 20, opacity: 0, animation: revealPhase >= 3 ? 'fadeUp 0.35s 200ms ease forwards' : 'none' }}>
-                  <p style={{ fontSize: 13, fontWeight: 700, color: C.red, margin: '0 0 4px', letterSpacing: '0.04em' }}>Estimated uncollected</p>
-                  <p style={{ fontSize: 22, fontWeight: 800, color: C.text, margin: '0 0 6px', letterSpacing: '-0.02em' }}>
-                    ${career.estimatedMin.toLocaleString()} – ${career.estimatedMax.toLocaleString()}
-                  </p>
-                  <p style={{ fontSize: 12, color: C.muted, margin: 0, lineHeight: 1.5 }}>
+                <div style={{ background: 'color-mix(in srgb, var(--sl-text) 3%, transparent)', border: `1px solid ${C.border}`, borderRadius: 12, padding: '16px', marginBottom: 20, opacity: 0, animation: revealPhase >= 3 ? 'fadeUp 0.35s 200ms ease forwards' : 'none' }}>
+                  <p style={{ fontSize: 13, color: C.secondary, margin: 0, lineHeight: 1.5 }}>
                     We found part of your performance history. Review it and add your setlists to build your record. Royalty eligibility depends on your PRO&apos;s rules.
                   </p>
                 </div>
@@ -533,13 +528,9 @@ export default function OnboardingPage() {
                 {/* Closing line — phase 4, only if venue and year are available */}
                 {revealPhase >= 4 && earliestVenue && earliestYear && (
                   <p style={{ fontSize: 12, color: C.secondary, margin: '10px 0 0', textAlign: 'center', opacity: 0, animation: 'fadeUp 0.4s ease forwards', lineHeight: 1.5 }}>
-                    Show #1: {earliestVenue}, {earliestYear}. It's all on record now.
+                    Show #1: {earliestVenue}, {earliestYear}. Your show history is taking shape.
                   </p>
                 )}
-
-                <p style={{ fontSize: 11, color: C.muted, margin: '8px 0 0', textAlign: 'center' }}>
-                  Estimate only, not guaranteed. Based on {career.totalShows} shows · Standard PRO live rates · <span style={{ color: C.gold }}>How we calculate this</span>
-                </p>
               </div>
             )}
 
@@ -560,13 +551,8 @@ export default function OnboardingPage() {
                   )}
                 </div>
 
-                <div style={{ background: C.redDim, border: '1px solid color-mix(in srgb, var(--sl-danger) 20%, transparent)', borderRadius: 12, padding: '16px', marginBottom: 20, opacity: 0, animation: revealPhase >= 3 ? 'fadeUp 0.35s ease forwards' : 'none' }}>
-                  <p style={{ fontSize: 13, fontWeight: 700, color: C.red, margin: '0 0 4px' }}>From what we found</p>
-                  <p style={{ fontSize: 20, fontWeight: 800, color: C.text, margin: '0 0 4px' }}>
-                    ${career.estimatedMin.toLocaleString()} – ${career.estimatedMax.toLocaleString()} uncollected
-                  </p>
-                  <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>Played more shows? Add any that are missing.</p>
-                  <p style={{ fontSize: 10, color: 'var(--sl-text-4)', margin: '6px 0 0' }}>Estimate only, not guaranteed — actual payouts vary by PRO.</p>
+                <div style={{ background: 'color-mix(in srgb, var(--sl-text) 3%, transparent)', border: `1px solid ${C.border}`, borderRadius: 12, padding: '16px', marginBottom: 20, opacity: 0, animation: revealPhase >= 3 ? 'fadeUp 0.35s ease forwards' : 'none' }}>
+                  <p style={{ fontSize: 13, color: C.secondary, margin: 0, lineHeight: 1.5 }}>Played more shows? Add any that are missing.</p>
                 </div>
 
                 <button onClick={() => setStep(3)}
@@ -577,7 +563,7 @@ export default function OnboardingPage() {
                 {/* Closing line — phase 4, only if venue and year are available */}
                 {revealPhase >= 4 && earliestVenue && earliestYear && (
                   <p style={{ fontSize: 12, color: C.secondary, margin: '10px 0 0', textAlign: 'center', opacity: 0, animation: 'fadeUp 0.4s ease forwards', lineHeight: 1.5 }}>
-                    Show #1: {earliestVenue}, {earliestYear}. It's all on record now.
+                    Show #1: {earliestVenue}, {earliestYear}. Your show history is taking shape.
                   </p>
                 )}
               </div>
