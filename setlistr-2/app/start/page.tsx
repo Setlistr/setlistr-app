@@ -45,7 +45,7 @@ export default function StartPage() {
             fontSize: 16, color: '#6a6050',
             margin: 0, lineHeight: 1.6,
           }}>
-            Every show you played created royalties. Most artists never collect them.
+            Shows you played may have earned performance royalties, depending on your PRO&apos;s rules and whether your songs are registered. Most artists never collect them.
           </p>
         </div>
 
