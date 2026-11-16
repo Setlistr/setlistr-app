@@ -10,6 +10,9 @@ import { evaluateGeolocation, toCoords } from '@/lib/geolocation'
 import { ACR_LIMIT_MESSAGE } from '@/lib/acr-limits'
 import { normalizeSongKey } from '@/lib/reconciliation/normalize'
 import { logProductEvent, awaitWithTimeout } from '@/lib/telemetry'
+import { finalizeLiveCapture, type FinalSongRow } from '@/lib/live-finalize'
+import { LOOK_BACK_MS } from '@/lib/tonightShows'
+import { startedText } from '@/components/scheduling/TonightShows'
 
 const C = {
   bg: 'var(--sl-bg)', card: 'var(--sl-surface)', border: 'color-mix(in srgb, var(--sl-text) 7%, transparent)',
@@ -30,6 +33,30 @@ const SILENCE_WARNING_MS = 45 * 60 * 1000
 // 20s recordAndDetect interval + 14s recording), so 45s absorbs one slow or
 // skipped cycle without a false alarm while still catching a real death fast.
 const CAPTURE_HEALTH_WINDOW_MS = 45 * 1000
+
+// A failed in-progress save is retried on its own after this long (and as
+// soon as the device reports it's back online).
+const SAVE_RETRY_MS = 15 * 1000
+// Consecutive recognition requests that never reached the server before the
+// artist is told the connection is the problem (one blip isn't worth a word).
+const NETWORK_FAILS_BEFORE_NOTICE = 2
+// End waits this long for song checks of audio recorded before End (sent
+// already, or the last partial sample) so their answers make the final list.
+// A check still unanswered after that is left out of the setlist; its result
+// is kept in the recognition log (/api/identify writes detection_events,
+// never the setlist), so it can't change the finished show.
+const END_CHECK_WAIT_MS = 20 * 1000
+
+// A recognised song that arrived while End was running, applied to the final
+// list by End itself (not through on-screen state) so it can't be missed.
+type EndResult = {
+  title: string; artist: string; source: DetectedSong['source']; setlist_item_id?: string
+  isrc?: string; composer?: string; publisher?: string
+  inclusion_reason?: string | null; threshold?: number | null; score?: number | null
+}
+
+// Why the microphone isn't capturing, in words the artist can act on.
+type MicProblem = 'denied' | 'unavailable' | 'interrupted'
 
 type AcrCandidate = { title: string; artist: string; score: number }
 type DetectedSong = {
@@ -59,6 +86,28 @@ type EngineState = 'idle' | 'listening' | 'slow' | 'stalled'
 function isSameSong(a: { title: string }, b: { title: string }): boolean {
   return normalizeSongKey(a.title) === normalizeSongKey(b.title)
 }
+// Applies answers that arrived during End to the list, the way a live
+// detection would: a song already on the list is skipped; one on the planned
+// setlist upgrades that entry (or is added under its planned title); anything
+// else is appended.
+function mergeEndResults(list: DetectedSong[], results: EndResult[], planned: { title: string; normalizedTitle: string; artist: string }[]): DetectedSong[] {
+  let out = list
+  for (const r of results) {
+    if (out.some(s => s.source !== 'planned' && isSameSong(s, r))) continue
+    const extra = { isrc: r.isrc || '', composer: r.composer || '', publisher: r.publisher || '', inclusion_reason: r.inclusion_reason ?? null, threshold: r.threshold ?? null, score: r.score ?? null }
+    const plannedMatch = planned.find(p => p.normalizedTitle === normalizeSongKey(r.title))
+    if (plannedMatch) {
+      const idx = out.findIndex(s => normalizeSongKey(s.title) === plannedMatch.normalizedTitle)
+      out = idx !== -1
+        ? out.map((s, i) => i === idx ? { ...s, source: r.source, confidence_level: 'auto' as const, was_planned: true, confirmedAt: Date.now(), ...extra } : s)
+        : [...out, { title: plannedMatch.title, artist: plannedMatch.artist || r.artist, source: r.source, setlist_item_id: r.setlist_item_id, confidence_level: 'auto' as const, was_planned: true, confirmedAt: Date.now(), ...extra }]
+    } else {
+      out = [...out, { title: r.title, artist: r.artist, source: r.source, setlist_item_id: r.setlist_item_id, confidence_level: 'auto' as const, was_planned: false, confirmedAt: Date.now(), ...extra }]
+    }
+  }
+  return out
+}
+
 function timeAgo(ms: number): string {
   const sec = Math.floor((Date.now() - ms) / 1000)
   if (sec < 60) return `${sec}s ago`
@@ -88,6 +137,9 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   const [artistId, setArtistId]       = useState<string | null>(null)
   const [elapsed, setElapsed]         = useState(0)
   const [ending, setEnding]           = useState(false)
+  // End couldn't finish saving. The show is still live and every saved song
+  // is kept (lib/live-finalize.ts); the artist can try again.
+  const [endFailed, setEndFailed]     = useState(false)
   const [songInput, setSongInput]     = useState('')
   const [songs, setSongs]             = useState<DetectedSong[]>([])
   const [isListening, setIsListening] = useState(false)
@@ -121,6 +173,16 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   // detection/scoring logic changes — this only makes an existing failure
   // visible instead of silent.
   const [recognitionUnavailable, setRecognitionUnavailable] = useState(false)
+  // Three different reasons nothing is being recognised, told apart:
+  //   micProblem  — the microphone couldn't start or stopped (capture problem)
+  //   netProblem  — requests aren't reaching Setlistr (connection problem)
+  //   lastCheck   — the last sample was answered: matched, or no match (normal)
+  const [micProblem, setMicProblem]   = useState<MicProblem | null>(null)
+  const [netProblem, setNetProblem]   = useState(false)
+  const [lastCheck, setLastCheck]     = useState<'match' | 'no_match' | null>(null)
+  // The in-progress save last failed; it retries on its own.
+  const [saveProblem, setSaveProblem] = useState(false)
+  const [saveRetryTick, setSaveRetryTick] = useState(0)
   const [plannedCount, setPlannedCount] = useState<number>(0)
   const plannedSongsRef = useRef<{ title: string; normalizedTitle: string; artist: string }[]>([])
 
@@ -141,12 +203,21 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   const pendingCandidateRef = useRef<PendingCandidate | null>(null)
   const confirmedSongsRef   = useRef<DetectedSong[]>([])
   const showStartRef        = useRef<number>(Date.now())
+  // When the current listening session began (start or resume on this page).
+  // The automatic end-of-show limits count from here, not from when the show
+  // started, so reopening yesterday's unfinished show doesn't end it at once.
+  const sessionStartRef     = useRef<number>(Date.now())
+  const netFailsRef         = useRef(0)
+  // When the capture-health flag tripped; a request started after it that
+  // gets answered proves the recording loop is alive again.
+  const staleSinceRef       = useRef(0)
   const lastPingRef         = useRef<number>(0)
   const lastSongRef         = useRef<number>(0)
   // Last time /api/identify actually answered — any verdict counts, including
   // "nothing recognized". Distinct from lastPingRef, which marks attempt START.
   const lastAcrResponseRef  = useRef<number>(0)
   const isListeningRef      = useRef<boolean>(false)
+  const micProblemRef       = useRef<MicProblem | null>(null)
   const endingRef           = useRef<boolean>(false)
   const wakeLockRef         = useRef<WakeLockSentinel | null>(null)
   const autoStartFiredRef   = useRef(false)
@@ -165,11 +236,20 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   const restoredRef   = useRef(false)
   const lastSavedRef  = useRef<string>('')
   const saveChainRef  = useRef<Promise<void>>(Promise.resolve())
+  const saveRetryTimerRef = useRef<NodeJS.Timeout | null>(null)
+  // Song checks in flight, End's start time, answers that arrived during End,
+  // and the last partial sample being handed off when End stopped recording.
+  const inflightRef     = useRef<Set<Promise<void>>>(new Set())
+  const endStartedAtRef = useRef(0)
+  const endResultsRef   = useRef<EndResult[]>([])
+  const finalChunkRef   = useRef<Promise<void> | null>(null)
+  const [endPhase, setEndPhase] = useState<'checks' | 'saving' | null>(null)
 
   useEffect(() => { pendingCandidateRef.current = pendingCandidate }, [pendingCandidate])
   useEffect(() => { confirmedSongsRef.current = songs }, [songs])
   useEffect(() => { isListeningRef.current = isListening }, [isListening])
   useEffect(() => { endingRef.current = ending }, [ending])
+  useEffect(() => { micProblemRef.current = micProblem }, [micProblem])
   useEffect(() => { performanceRef.current = performance }, [performance])
 
   useEffect(() => {
@@ -179,6 +259,35 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
     }
   }, [])
 
+  // Load the songs saved for this show (during capture, or before the app
+  // was closed). Anything already on screen that isn't saved yet is kept after
+  // them, so a retry after a failed first read never drops a song added since.
+  // Until a read succeeds nothing is saved or finalised: a failed read must
+  // not let a save or End erase rows it never saw. Returns whether it loaded.
+  async function restoreSaved(perf: Performance): Promise<boolean> {
+    const { data: existingSongs, error } = await createClient().from('performance_songs_visible')
+      .select('id, title, artist, isrc, composer, publisher, source, position, was_planned, inclusion_reason, threshold, score')
+      .eq('performance_id', perf.id)
+      .order('position', { ascending: true })
+    if (error || !existingSongs) return false
+    const restored: DetectedSong[] = existingSongs.map(s => ({
+      title: s.title || 'Unknown Song', artist: s.artist || '',
+      source: (s.source as any) || 'manual',
+      isrc: s.isrc || '', composer: s.composer || '', publisher: s.publisher || '',
+      was_planned: s.was_planned === true,
+      inclusion_reason: s.inclusion_reason ?? null, threshold: s.threshold ?? null, score: s.score ?? null,
+      row_id: s.id,
+    }))
+    const savedIds = new Set(restored.map(s => s.row_id))
+    const unsaved = confirmedSongsRef.current.filter(s => !s.row_id || !savedIds.has(s.row_id))
+    const merged = [...restored, ...unsaved]
+    lastSavedRef.current = JSON.stringify(songRows(perf, restored))
+    confirmedSongsRef.current = merged
+    if (merged.length > 0) setSongs(merged)
+    restoredRef.current = true
+    return true
+  }
+
   useEffect(() => {
     const supabase = createClient()
     supabase.from('performances_visible').select('*, show_id, setlist_id, artist_id').eq('id', params.id).single()
@@ -187,26 +296,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
           setPerformance(data); setShowId(data.show_id || null); setSetlistId(data.setlist_id || null); setArtistId(data.artist_id || null)
           if (data.started_at) showStartRef.current = new Date(data.started_at).getTime()
           const supabase2 = createClient()
-          supabase2.from('performance_songs_visible')
-            .select('id, title, artist, isrc, composer, publisher, source, position, was_planned, inclusion_reason, threshold, score')
-            .eq('performance_id', data.id)
-            .order('position', { ascending: true })
-            .then(({ data: existingSongs, error }) => {
-              if (existingSongs && existingSongs.length > 0) {
-                const restored: DetectedSong[] = existingSongs.map(s => ({
-                  title: s.title || 'Unknown Song', artist: s.artist || '',
-                  source: (s.source as any) || 'manual',
-                  isrc: s.isrc || '', composer: s.composer || '', publisher: s.publisher || '',
-                  was_planned: s.was_planned === true,
-                  inclusion_reason: s.inclusion_reason ?? null, threshold: s.threshold ?? null, score: s.score ?? null,
-                  row_id: s.id,
-                }))
-                lastSavedRef.current = JSON.stringify(songRows(data, restored))
-                setSongs(restored)
-              }
-              // A failed read must not let the first save erase rows it never saw.
-              if (!error) restoredRef.current = true
-            })
+          restoreSaved(data)
           supabase2.from('planned_setlists').select('id').eq('performance_id', data.id).single()
             .then(({ data: planned }) => {
               if (!planned?.id) return
@@ -244,17 +334,20 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         // artist is still adding songs to by hand. The hard ceiling stays as
         // an absolute backstop.
         setEngineState('idle')
-        if ((now - showStartRef.current) >= HARD_CEILING_MS && !endingRef.current) handleEndRef.current()
+        if ((now - sessionStartRef.current) >= HARD_CEILING_MS && !endingRef.current) handleEndRef.current()
         return
       }
       const msSincePing = now - lastPingRef.current
       if (msSincePing < HEARTBEAT_SLOW_MS) setEngineState('listening')
       else if (msSincePing < HEARTBEAT_STALL_MS) setEngineState('slow')
       else setEngineState('stalled')
-      const msSinceSong = now - (lastSongRef.current || showStartRef.current)
+      // Both limits count from this listening session: a song confirmed
+      // yesterday (restored with the show) or a start time hours ago must not
+      // end a show the artist has just resumed.
+      const msSinceSong = now - Math.max(lastSongRef.current, sessionStartRef.current)
       if (lastSongRef.current > 0 && msSinceSong >= SILENCE_WARNING_MS && !endingRef.current) setShowSilenceWarning(true)
       if (lastSongRef.current > 0 && msSinceSong >= AUTO_CLOSE_SILENCE_MS && !endingRef.current) handleEndRef.current()
-      if ((now - showStartRef.current) >= HARD_CEILING_MS && !endingRef.current) handleEndRef.current()
+      if ((now - sessionStartRef.current) >= HARD_CEILING_MS && !endingRef.current) handleEndRef.current()
     }, 15000)
     return () => clearInterval(interval)
   }, [])
@@ -276,7 +369,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         && !detectionLimitedRef.current
         && lastAcrResponseRef.current > 0
         && (Date.now() - lastAcrResponseRef.current) > CAPTURE_HEALTH_WINDOW_MS
-      if (stale) setCaptureStale(true)
+      if (stale) { if (!staleSinceRef.current) staleSinceRef.current = Date.now(); setCaptureStale(true) }
     }, 1000)
     return () => clearInterval(interval)
   }, [])
@@ -393,7 +486,18 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
     setDetectStatus('')
   }, [])
 
-  const detectSong = useCallback(async (audioBlob: Blob) => {
+  // recordedFrom: when this sample started recording. Audio recorded after End
+  // started is never sent (recording stops at End, so this is a backstop).
+  // Every check is tracked so End can wait for it.
+  const detectSong = useCallback((audioBlob: Blob, recordedFrom: number): Promise<void> => {
+    if (endStartedAtRef.current && recordedFrom >= endStartedAtRef.current) return Promise.resolve()
+    const run = detectSongNow(audioBlob)
+    inflightRef.current.add(run)
+    run.finally(() => inflightRef.current.delete(run))
+    return run
+  }, [params.id, showId, setlistId, artistId, performance])
+
+  const detectSongNow = async (audioBlob: Blob) => {
     // Already over the ceiling — don't spend another request finding out again.
     if (detectionLimitedRef.current) return
     setIsDetecting(true)
@@ -415,6 +519,11 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         body: formData,
       })
       lastAcrResponseRef.current = Date.now()  // answered — capture is alive, whatever the verdict
+      // The request reached Setlistr: the connection is fine again. And if it
+      // was recorded after the health flag tripped, the recording loop is
+      // alive too, so the flag can clear (a straggler from before can't).
+      netFailsRef.current = 0; setNetProblem(false)
+      if (staleSinceRef.current && pingTime > staleSinceRef.current && !micProblemRef.current) { staleSinceRef.current = 0; setCaptureStale(false) }
 
       // A non-2xx means the route rejected the request before ever reaching
       // a real verdict (e.g. recognition credentials not configured in this
@@ -430,7 +539,8 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
 
       // Trust the route's verdict — same as upload mode. No client-side cooldown,
       // pending card, or multi-hit gating; the route already decided.
-      if (!data.detected || data.confidence_level !== 'auto') { setDetectStatus(''); return }
+      if (!data.detected || data.confidence_level !== 'auto') { setLastCheck('no_match'); setDetectStatus(''); return }
+      setLastCheck('match')
 
       // Exclude planned-but-unverified rows from the dedup so a detected planned
       // song can be upgraded in place (→ confirmCandidate's planned match).
@@ -439,14 +549,27 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         .some(s => isSameSong(s, { title: data.title }))
       if (already) { setDetectStatus(''); return }
 
+      // Answered while End is running: End adds it to the final list itself.
+      if (endingRef.current) {
+        endResultsRef.current.push({ title: data.title, artist: data.artist, source: data.source, setlist_item_id: data.setlist_item_id, isrc: data.isrc, composer: data.composer, publisher: data.publisher, inclusion_reason: data.inclusion_reason, threshold: data.threshold, score: data.score })
+        return
+      }
+
       const now = Date.now()
       confirmCandidate(
         { title: data.title, artist: data.artist, source: data.source, confidence_level: 'auto', firstDetectedAt: now, lastDetectedAt: now, matchCount: 1 },
         data.setlist_item_id,
         { isrc: data.isrc, composer: data.composer, publisher: data.publisher, inclusion_reason: data.inclusion_reason, threshold: data.threshold, score: data.score }
       )
-    } catch { setDetectStatus('') } finally { setIsDetecting(false) }
-  }, [params.id, showId, setlistId, artistId, confirmCandidate, performance, pauseDetectionForLimit])
+    } catch {
+      // The request never got an answer: a connection problem, not "no song".
+      // This sample is not retried (no stored audio in this version); the
+      // next one goes out as usual.
+      netFailsRef.current += 1
+      if (netFailsRef.current >= NETWORK_FAILS_BEFORE_NOTICE || (typeof navigator !== 'undefined' && navigator.onLine === false)) setNetProblem(true)
+      setDetectStatus('')
+    } finally { setIsDetecting(false) }
+  }
 
   // Record where the device is at the moment capture starts, and measure it
   // against the venue's stored coordinates. Fire-and-forget by design: the
@@ -487,7 +610,13 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   const startListening = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      streamRef.current = stream; setIsListening(true)
+      streamRef.current = stream; setIsListening(true); setMicProblem(null)
+      sessionStartRef.current = Date.now()
+      // The system can take the microphone mid-show (a call, another app).
+      // Say so directly instead of waiting for the health window to notice.
+      stream.getAudioTracks().forEach(t => t.addEventListener('ended', () => {
+        if (streamRef.current === stream && !endingRef.current) { setMicProblem('interrupted'); setCaptureStale(true) }
+      }))
       if (!captureStartedLoggedRef.current && performanceRef.current) {
         captureStartedLoggedRef.current = true
         logProductEvent(createClient(), {
@@ -499,22 +628,30 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
       const pingTime = Date.now(); lastPingRef.current = pingTime; setEngineState('listening')
       // Grace period: the first real response is ~14s out, so seed the health
       // clock on start/resume instead of instantly reading as interrupted.
-      lastAcrResponseRef.current = pingTime; setCaptureStale(false)
+      lastAcrResponseRef.current = pingTime; setCaptureStale(false); staleSinceRef.current = 0
       try { if ('wakeLock' in navigator) wakeLockRef.current = await (navigator as any).wakeLock.request('screen') } catch {}
       if (!placementShownRef.current) {
         placementShownRef.current = true; setShowPlacementCard(true)
         placementTimerRef.current = setTimeout(() => setShowPlacementCard(false), 8000)
       }
       const recordAndDetect = () => {
-        if (isDetecting) return; chunksRef.current = []
+        // Nothing new is recorded once End has started.
+        if (isDetecting || endingRef.current) return; chunksRef.current = []
+        const recordedFrom = Date.now()
         const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4'
         const recorder = new MediaRecorder(stream, { mimeType }); mediaRecorderRef.current = recorder
         recorder.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data) }
-        recorder.onstop = () => detectSong(new Blob(chunksRef.current, { type: mimeType }))
+        recorder.onstop = () => detectSong(new Blob(chunksRef.current, { type: mimeType }), recordedFrom)
         recorder.start(); setTimeout(() => { if (recorder.state === 'recording') recorder.stop() }, 14000)
       }
       recordAndDetect(); listenIntervalRef.current = setInterval(recordAndDetect, 20000)
-    } catch { setIsListening(false) } finally {
+    } catch (err) {
+      // Denied (now or earlier, remembered by the system) versus no usable
+      // microphone. Either way nothing is recording, and the artist is told.
+      const name = (err as { name?: string } | null)?.name
+      setMicProblem(name === 'NotAllowedError' || name === 'SecurityError' ? 'denied' : 'unavailable')
+      setIsListening(false)
+    } finally {
       // In `finally`, not the try body: a denied microphone must not also cost
       // the artist their location evidence. Running here keeps the mic prompt
       // first (getUserMedia is awaited above) while still asking for location
@@ -525,7 +662,13 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
 
   const stopListening = useCallback(() => {
     if (listenIntervalRef.current) { clearInterval(listenIntervalRef.current); listenIntervalRef.current = null }
-    if (mediaRecorderRef.current?.state === 'recording') mediaRecorderRef.current.stop()
+    // Stopping mid-sample hands the audio recorded so far to its song check
+    // (onstop). finalChunkRef lets End wait until that check has started.
+    const rec = mediaRecorderRef.current
+    if (rec?.state === 'recording') {
+      finalChunkRef.current = new Promise<void>(res => rec.addEventListener('stop', () => setTimeout(res, 0), { once: true }))
+      rec.stop()
+    } else finalChunkRef.current = null
     if (streamRef.current) { streamRef.current.getTracks().forEach(t => t.stop()); streamRef.current = null }
     setIsListening(false); setEngineState('idle'); setDetectStatus('')
     if (wakeLockRef.current) { try { wakeLockRef.current.release() } catch {}; wakeLockRef.current = null }
@@ -577,7 +720,9 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   // Save the list while the show is live: upsert by row id, then remove rows
   // the artist deleted. Never before the saved list has loaded, never once
   // End has started (End writes the final rows), never for a show that isn't
-  // live. Failures are left for the next change or End to retry.
+  // live. A failure is shown quietly and retried on its own (after
+  // SAVE_RETRY_MS, or as soon as the device is back online), as well as on
+  // the next change and by End.
   useEffect(() => {
     const perf = performance
     if (!perf || perf.status !== 'live' || !restoredRef.current || endingRef.current) return
@@ -586,86 +731,114 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
     const key = JSON.stringify(rows)
     if (key === lastSavedRef.current) return
     lastSavedRef.current = key
+    const failed = () => {
+      if (lastSavedRef.current === key) lastSavedRef.current = ''
+      setSaveProblem(true)
+      if (saveRetryTimerRef.current) clearTimeout(saveRetryTimerRef.current)
+      saveRetryTimerRef.current = setTimeout(() => setSaveRetryTick(t => t + 1), SAVE_RETRY_MS)
+    }
     saveChainRef.current = saveChainRef.current.then(async () => {
       if (endingRef.current) return
       const supabase = createClient()
       if (rows.length > 0) {
         const { error } = await supabase.from('performance_songs').upsert(rows, { onConflict: 'id' })
-        if (error) { if (lastSavedRef.current === key) lastSavedRef.current = ''; return }
+        if (error) { failed(); return }
       }
       if (endingRef.current) return
       let del = supabase.from('performance_songs').delete().eq('performance_id', perf.id)
       if (rows.length > 0) del = del.not('id', 'in', `(${rows.map(r => r.id).join(',')})`)
       const { error } = await del
-      if (error && lastSavedRef.current === key) lastSavedRef.current = ''
-    }).catch(() => {})
-  }, [songs, performance])
+      if (error) { failed(); return }
+      if (lastSavedRef.current === key) setSaveProblem(false)
+    }).catch(() => failed())
+  }, [songs, performance, saveRetryTick])
 
+  // Connection changes: going offline is said at once; coming back retries
+  // any save that failed (the recognition notice clears on the next answer).
+  useEffect(() => {
+    const onOffline = () => setNetProblem(true)
+    const onOnline = () => setSaveRetryTick(t => t + 1)
+    window.addEventListener('offline', onOffline)
+    window.addEventListener('online', onOnline)
+    return () => {
+      window.removeEventListener('offline', onOffline)
+      window.removeEventListener('online', onOnline)
+      if (saveRetryTimerRef.current) clearTimeout(saveRetryTimerRef.current)
+    }
+  }, [])
+
+  // End: finalise through lib/live-finalize.ts, which keeps the show live
+  // (and every saved song) until the saved list is verified against this
+  // one, and only then marks it finished. Safe to tap twice or retry: one
+  // attempt runs at a time (endingRef), the in-progress save is drained and
+  // held off first, and a show someone already finished is never rewritten.
+  // On any failure the artist stays here with their songs and a Try again.
   const handleEnd = useCallback(async () => {
     if (endingRef.current || !performance) return
-    setEnding(true); endingRef.current = true; stopListening()
-    // Let an in-progress save finish first, so End's rewrite is the last write.
-    await saveChainRef.current
-    const supabase = createClient()
-    const endedAt = new Date()
-    const durationMinutes = performance?.started_at
-      ? Math.round((endedAt.getTime() - new Date(performance.started_at).getTime()) / 60000)
-      : null
-    await supabase.from('performances').update({ status: 'review', ended_at: endedAt.toISOString(), set_duration_minutes: durationMinutes }).eq('id', performance.id)
-    // Started here (not awaited yet) so its network time overlaps with the
-    // rest of this function's already-awaited DB work below, rather than
-    // adding serially — awaited (bounded) right before router.push at the
-    // end, since navigation shouldn't be trusted to keep it alive.
-    const captureEndedLogged = logProductEvent(supabase, {
-      event_name: 'capture_ended', user_id: performance.user_id, performance_id: performance.id,
-      show_id: showId, flow_source: 'live', actor_type: actingAsArtistId ? 'delegate' : 'owner',
-      song_count_current: confirmedSongsRef.current.filter(s => s.source !== 'planned' && s.source !== 'unidentified').length,
-      song_count_planned: plannedCount,
-      occurred_at: endedAt.toISOString(),
-    })
-    if (showId) await supabase.from('shows').update({ status: 'completed', ended_at: new Date().toISOString() }).eq('id', showId)
-    await supabase.from('capture_sessions').update({ ended_at: new Date().toISOString(), status: 'ended' }).eq('performance_id', performance.id)
-    if (setlistId) {
-      const manualSongs = confirmedSongsRef.current.filter(s => s.source === 'manual' && !s.was_planned)
-      if (manualSongs.length > 0) {
-        const { data: existingItems } = await supabase.from('setlist_items').select('position').eq('setlist_id', setlistId).order('position', { ascending: false }).limit(1)
-        const startPosition = (existingItems?.[0]?.position || 0) + 1
-        await supabase.from('setlist_items').insert(manualSongs.map((song, i) => ({ setlist_id: setlistId, title: song.title, artist_name: song.artist || performance.artist_name, position: startPosition + i, source: 'manual' })))
+    endingRef.current = true; endStartedAtRef.current = Date.now()
+    setEnding(true); setEndFailed(false); setEndPhase('checks'); stopListening()
+    // Also nudges the in-progress save, so songs given a row id just now are
+    // saved even if the artist leaves without retrying. Recording can resume
+    // after a failed End, so its start mark is cleared.
+    const fail = () => { endingRef.current = false; endStartedAtRef.current = 0; setEnding(false); setEndPhase(null); setEndFailed(true); setSaveRetryTick(t => t + 1) }
+    try {
+      // Song checks of audio recorded before End: let the last partial sample
+      // start its check, then wait (bounded) for every check still running.
+      // Their answers are collected in endResultsRef and merged below.
+      if (finalChunkRef.current) await awaitWithTimeout(finalChunkRef.current, 2000)
+      const pendingChecks = Array.from(inflightRef.current)
+      if (pendingChecks.length > 0) await awaitWithTimeout(Promise.allSettled(pendingChecks).then(() => {}), END_CHECK_WAIT_MS)
+      setEndPhase('saving')
+      // Let an in-progress save finish first, so End's writes are the last.
+      await saveChainRef.current
+      // Never finalise from a list whose saved songs didn't load: try the read
+      // again (keeping anything added since), and stop here if it still fails.
+      if (!restoredRef.current && !(await restoreSaved(performance))) return fail()
+      const supabase = createClient()
+      const endedAt = new Date()
+      const startedMs = performance.started_at ? new Date(performance.started_at).getTime() : null
+      // A show resumed long after it started (or one left running past the
+      // automatic limit) has no trustworthy length: leave it unset rather
+      // than record the hours it sat unfinished.
+      const durationMinutes = startedMs !== null && endedAt.getTime() - startedMs <= HARD_CEILING_MS
+        ? Math.round((endedAt.getTime() - startedMs) / 60000) : null
+
+      // Every song keeps the row id it was saved under; one that hasn't got
+      // one yet gets it now, kept on screen so a retry writes the same rows.
+      const onScreen = confirmedSongsRef.current
+      const current = mergeEndResults(onScreen, endResultsRef.current, plannedSongsRef.current)
+      endResultsRef.current = []
+      const withIds = current.map(s => s.row_id ? s : { ...s, row_id: crypto.randomUUID() })
+      if (withIds.length !== onScreen.length || withIds.some((s, i) => s !== onScreen[i])) { confirmedSongsRef.current = withIds; setSongs(withIds) }
+
+      // Which titles did ACR actually detect this show? Used to label manual mid-show
+      // adds: if ACR also caught a manual add it's a TP, otherwise it's an FN.
+      // If this read fails, songs keep the labels they already had.
+      const { data: detEvents, error: detError } = await supabase.from('detection_events')
+        .select('final_title, auto_confirmed, candidate_pool').eq('performance_id', performance.id)
+      const detectedMap = new Map<string, { inclusion_reason: string | null; threshold: number | null; score: number | null }>()
+      for (const e of detEvents || []) {
+        if (!e.final_title) continue
+        const key  = normalizeSongKey(e.final_title)
+        const pool = Array.isArray(e.candidate_pool) ? e.candidate_pool[0] : null
+        const info = { inclusion_reason: pool?.inclusion_reason ?? null, threshold: pool?.threshold ?? null, score: pool?.score ?? null }
+        if (!detectedMap.has(key) || e.auto_confirmed) detectedMap.set(key, info)
       }
-      await supabase.from('setlists').update({ status: 'review', updated_at: new Date().toISOString() }).eq('id', setlistId)
-    }
-    await supabase.from('performance_songs').delete().eq('performance_id', performance.id)
 
-    // Which titles did ACR actually detect this show? Used to label manual mid-show
-    // adds: if ACR also caught a manual add it's a TP, otherwise it's an FN.
-    const { data: detEvents } = await supabase.from('detection_events')
-      .select('final_title, auto_confirmed, candidate_pool').eq('performance_id', performance.id)
-    const detectedMap = new Map<string, { inclusion_reason: string | null; threshold: number | null; score: number | null }>()
-    for (const e of detEvents || []) {
-      if (!e.final_title) continue
-      const key  = normalizeSongKey(e.final_title)
-      const pool = Array.isArray(e.candidate_pool) ? e.candidate_pool[0] : null
-      const info = { inclusion_reason: pool?.inclusion_reason ?? null, threshold: pool?.threshold ?? null, score: pool?.score ?? null }
-      if (!detectedMap.has(key) || e.auto_confirmed) detectedMap.set(key, info)
-    }
-
-    // Save all songs — planned (unverified) included so artist can confirm on review
-    const songsToSave = confirmedSongsRef.current.filter(s => !(s.source === 'unidentified' && s.title === 'Unknown Song'))
-    if (songsToSave.length > 0) {
-      await supabase.from('performance_songs').insert(songsToSave.map((song, i) => {
+      // Save all songs — planned (unverified) included so artist can confirm on review
+      const songsToSave = withIds.filter(s => !(s.source === 'unidentified' && s.title === 'Unknown Song'))
+      const rows: FinalSongRow[] = songsToSave.map((song, i) => {
         const cleanedTitle = song.source === 'unidentified' ? (song.title === 'Unknown Song' ? null : song.title) : song.title
 
         // ── Confusion-matrix label for this row ────────────────────────────────
         let inclusion_reason: string | null = song.inclusion_reason ?? null
         let threshold: number | null        = song.threshold ?? null
         let score: number | null            = song.score ?? null
-        // Confusion result is left undetermined until the artist reviews & saves.
-        const confusion_matrix_result       = 'TBD'
 
         if (song.source === 'planned') {
           // On the plan but never detected
           inclusion_reason = 'planned setlist - not detected'; threshold = null; score = null
-        } else if (song.source === 'manual' && !song.was_planned) {
+        } else if (song.source === 'manual' && !song.was_planned && !detError) {
           // Manual mid-show add: did ACR independently catch it?
           const det = detectedMap.get(normalizeSongKey(song.title))
           if (det) { inclusion_reason = 'added mid-show - detected'; threshold = det.threshold; score = det.score }
@@ -673,18 +846,55 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
         }
 
         return {
+          id: song.row_id as string,
           performance_id: performance.id,
           title: cleanedTitle,
           artist: song.artist || performance.artist_name || null,
           position: i + 1, isrc: song.isrc || null, composer: song.composer || null,
           publisher: song.publisher || null, source: song.source || 'manual',
           was_planned: song.was_planned || false,
-          inclusion_reason, threshold, score, confusion_matrix_result,
+          // Confusion result is left undetermined until the artist reviews & saves.
+          inclusion_reason, threshold, score, confusion_matrix_result: 'TBD',
         }
-      }))
+      })
+
+      const result = await finalizeLiveCapture(supabase, {
+        performanceId: performance.id, rows, endedAt: endedAt.toISOString(), durationMinutes,
+      })
+      if (!result.ok) return fail()
+
+      // Follow-on records, only from the attempt that finished the show. None
+      // of them holds songs: a failure here can't lose the setlist, and
+      // nothing is repeated on a later tap.
+      if (result.transitioned) {
+        try {
+          const captureEndedLogged = logProductEvent(supabase, {
+            event_name: 'capture_ended', user_id: performance.user_id, performance_id: performance.id,
+            show_id: showId, flow_source: 'live', actor_type: actingAsArtistId ? 'delegate' : 'owner',
+            song_count_current: withIds.filter(s => s.source !== 'planned' && s.source !== 'unidentified').length,
+            song_count_planned: plannedCount,
+            occurred_at: endedAt.toISOString(),
+          })
+          if (showId) await supabase.from('shows').update({ status: 'completed', ended_at: new Date().toISOString() }).eq('id', showId)
+          await supabase.from('capture_sessions').update({ ended_at: new Date().toISOString(), status: 'ended' }).eq('performance_id', performance.id)
+          if (setlistId) {
+            const manualSongs = withIds.filter(s => s.source === 'manual' && !s.was_planned)
+            if (manualSongs.length > 0) {
+              const { data: existingItems } = await supabase.from('setlist_items').select('position').eq('setlist_id', setlistId).order('position', { ascending: false }).limit(1)
+              const startPosition = (existingItems?.[0]?.position || 0) + 1
+              await supabase.from('setlist_items').insert(manualSongs.map((song, i) => ({ setlist_id: setlistId, title: song.title, artist_name: song.artist || performance.artist_name, position: startPosition + i, source: 'manual' })))
+            }
+            await supabase.from('setlists').update({ status: 'review', updated_at: new Date().toISOString() }).eq('id', setlistId)
+          }
+          await awaitWithTimeout(captureEndedLogged)
+        } catch { /* the show is finished and its songs saved; these are extras */ }
+      }
+      router.push(`/app/review/${performance.id}?source=live`)
+    } catch {
+      // A thrown error (dropped connection mid-request) is the same as a
+      // refused write: the show is still live with its saved songs.
+      fail()
     }
-    await awaitWithTimeout(captureEndedLogged)
-    router.push(`/app/review/${performance.id}?source=live`)
   }, [performance, songs, router, stopListening, showId, setlistId])
 
   useEffect(() => { handleEndRef.current = handleEnd }, [handleEnd])
@@ -694,7 +904,11 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
     setSongs(s => [...s, { title: trimmed, artist: performance?.artist_name || '', source: 'manual', was_planned: false }]); setSongInput('')
   }
 
-  function formatTime(s: number) { const m = Math.floor(s / 60); const sec = s % 60; return `${m}:${sec.toString().padStart(2, '0')}` }
+  // h:mm:ss once past an hour (a two-hour set read "120:00" before).
+  function formatTime(s: number) {
+    const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60
+    return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}` : `${m}:${String(sec).padStart(2, '0')}`
+  }
 
   if (!performance) return (
     <div style={{ minHeight: '100svh', background: C.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -710,6 +924,11 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   const waitingSongs   = songs.filter(s => s.source === 'planned')
   const unknownSongs   = songs.filter(s => s.source === 'unidentified')
   const verifiedCount  = songs.filter(s => s.was_planned && s.source !== 'planned').length
+  // Started longer ago than any capture runs (the Dashboard's live window):
+  // interrupted and never ended. The running clock means nothing then.
+  const isOldShow  = !!performance.started_at && elapsed * 1000 >= LOOK_BACK_MS
+  const showUnfinishedNotice = isOldShow && !isListening && !ending && !endFailed
+  const savedCount = songs.filter(s => !(s.source === 'unidentified' && s.title === 'Unknown Song')).length
 
   const ringState   = catchFlash ? 'catch' : isDetecting ? 'detect' : isListening ? 'listen' : 'idle'
   // captureStale (the 45s latched health flag) trips well before engineState
@@ -804,7 +1023,9 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
           {confirmedSongs.length > 0 && (
             <span style={{ fontFamily: '"DM Mono", monospace', fontSize: 15, fontWeight: 800, color: C.gold, letterSpacing: '-0.01em', animation: 'fadeIn 0.3s ease' }}>{confirmedSongs.length}</span>
           )}
-          <span style={{ fontFamily: '"DM Mono", monospace', fontSize: 18, fontWeight: 700, color: C.muted, letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums' }}>{formatTime(elapsed)}</span>
+          {isOldShow
+            ? <span style={{ fontSize: 12, fontWeight: 600, color: C.muted }}>{`Started ${startedText(performance.started_at as string)}`}</span>
+            : <span style={{ fontFamily: '"DM Mono", monospace', fontSize: 18, fontWeight: 700, color: C.muted, letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums' }}>{formatTime(elapsed)}</span>}
         </div>
       </div>
 
@@ -816,6 +1037,25 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
           </div>
           <span style={{ fontSize: 11, color: C.green, fontWeight: 700, flexShrink: 0, fontFamily: '"DM Mono", monospace' }}>{verifiedCount}/{plannedCount}</span>
           <span style={{ fontSize: 11, color: C.muted, flexShrink: 0 }}>confirmed</span>
+        </div>
+      )}
+
+      {/* Unfinished show: reopened long after it started. Nothing is removed;
+          the artist finishes it (songs go to Review) or keeps capturing. */}
+      {showUnfinishedNotice && (
+        <div role="status" style={{ position: 'relative', zIndex: 10, background: C.amberDim, borderBottom: `1px solid color-mix(in srgb, var(--sl-warn) 28%, transparent)`, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10, flexShrink: 0, animation: 'slideDown 0.2s ease' }}>
+          <div>
+            <p style={{ fontSize: 14, fontWeight: 700, color: C.text, margin: '0 0 3px' }}>This show wasn’t finished</p>
+            <p style={{ fontSize: 13, color: C.secondary, margin: 0, lineHeight: 1.45 }}>
+              {`Started ${startedText(performance.started_at as string)}. `}
+              {savedCount === 0 ? 'No songs were saved.' : savedCount === 1 ? '1 song is saved.' : `${savedCount} songs are saved.`}
+              {' Finish it to review the setlist, or keep capturing if you’re still playing.'}
+            </p>
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' as const }}>
+            <button onClick={handleEnd} style={{ flex: '1 1 140px', minHeight: 44, padding: '0 16px', background: C.gold, border: 'none', borderRadius: 10, color: 'var(--sl-on-accent)', fontSize: 14, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>Finish and review</button>
+            <button onClick={startListening} style={{ flex: '1 1 140px', minHeight: 44, padding: '0 16px', background: 'transparent', border: `1px solid color-mix(in srgb, var(--sl-accent) 35%, transparent)`, borderRadius: 10, color: C.gold, fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Keep capturing</button>
+          </div>
         </div>
       )}
 
@@ -885,23 +1125,51 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
           </div>
         )}
 
+        {micProblem && micProblem !== 'interrupted' && !isListening && (
+          <div role="alert" style={{ marginTop: 18, width: '100%', maxWidth: 320, background: 'color-mix(in srgb, var(--sl-danger) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--sl-danger) 30%, transparent)', borderRadius: 12, padding: '12px 16px', animation: 'fadeIn 0.2s ease' }}>
+            <span style={{ display: 'block', fontSize: 13, color: C.red, lineHeight: 1.45, fontWeight: 600 }}>
+              {micProblem === 'denied'
+                ? 'Microphone access is off for Setlistr. Turn it on in Settings, then tap the mic to start.'
+                : 'Couldn’t start the microphone. Tap the mic to try again.'}
+            </span>
+            <span style={{ display: 'block', fontSize: 12, color: C.secondary, lineHeight: 1.45, marginTop: 4 }}>You can still add songs by hand below.</span>
+          </div>
+        )}
+
+        {netProblem && isListening && micProblem !== 'interrupted' && (
+          <div role="status" style={{ marginTop: 18, width: '100%', maxWidth: 320, background: C.amberDim, border: '1px solid color-mix(in srgb, var(--sl-warn) 32%, transparent)', borderRadius: 12, padding: '12px 16px', animation: 'fadeIn 0.2s ease' }}>
+            <span style={{ display: 'block', fontSize: 13, color: C.amber, lineHeight: 1.45, fontWeight: 600 }}>No connection right now. Songs can’t be recognised until it’s back.</span>
+            <span style={{ display: 'block', fontSize: 12, color: C.secondary, lineHeight: 1.45, marginTop: 4 }}>Keep playing. Add any songs you want by hand; your list is kept.</span>
+          </div>
+        )}
+
         {/* ── Session health — is ACR still answering? ──────────────────────── */}
         {isListening && (
           <div style={{ marginTop: 18, width: '100%', maxWidth: 320, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
             <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--sl-text-4)' }}>
               Session Health
             </span>
-            {captureStale ? (
+            {netProblem && micProblem !== 'interrupted' ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                <div style={{ width: 6, height: 6, borderRadius: '50%', background: C.amber }} />
+                <span style={{ fontSize: 12, color: C.amber, fontWeight: 600, letterSpacing: '0.04em' }}>Waiting for a connection</span>
+              </div>
+            ) : captureStale ? (
               <button onClick={restartListening} disabled={restarting}
                 style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, width: '100%', padding: '11px 16px', background: 'color-mix(in srgb, var(--sl-danger) 12%, transparent)', border: '1px solid color-mix(in srgb, var(--sl-danger) 30%, transparent)', borderRadius: 20, color: 'var(--sl-danger)', fontSize: 12, fontWeight: 700, cursor: restarting ? 'default' : 'pointer', fontFamily: 'inherit', opacity: restarting ? 0.6 : 1, WebkitTapHighlightColor: 'transparent', textAlign: 'center' as const, animation: 'fadeIn 0.2s ease' }}>
                 <RefreshCw size={12} style={{ flexShrink: 0, animation: restarting ? 'spin 0.7s linear infinite' : 'none' }} />
-                {restarting ? 'Resuming...' : 'Recording Interrupted — Click to Resume'}
+                {restarting ? 'Resuming...' : micProblem === 'interrupted' ? 'Microphone stopped — Tap to Resume' : 'Recording Interrupted — Click to Resume'}
               </button>
             ) : (
               <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                 <div style={{ width: 6, height: 6, borderRadius: '50%', background: C.green, boxShadow: '0 0 5px color-mix(in srgb, var(--sl-ok) 50%, transparent)' }} />
                 <span style={{ fontSize: 12, color: C.green, fontWeight: 600, letterSpacing: '0.04em' }}>Capture Stable</span>
               </div>
+            )}
+            {/* An answered sample with no song in it is normal between songs —
+                said quietly, so it isn't mistaken for a fault. */}
+            {!captureStale && !netProblem && lastCheck === 'no_match' && (
+              <span style={{ fontSize: 11, color: 'var(--sl-text-4)' }}>Last sample: no song recognised</span>
             )}
           </div>
         )}
@@ -1089,11 +1357,28 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
           </div>
         )}
 
+        {saveProblem && !endFailed && (
+          <p role="status" style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, color: C.secondary, margin: '2px 2px 0', lineHeight: 1.4 }}>
+            <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: '50%', background: C.amber, flexShrink: 0 }} />
+            Latest changes aren’t saved yet. Retrying automatically.
+          </p>
+        )}
+
+        {endFailed ? (
+          <div role="alert" style={{ background: C.amberDim, border: '1px solid color-mix(in srgb, var(--sl-warn) 32%, transparent)', borderRadius: 12, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div>
+              <p style={{ fontSize: 14, fontWeight: 700, color: C.text, margin: '0 0 3px' }}>Couldn’t finish saving this show</p>
+              <p style={{ fontSize: 13, color: C.secondary, margin: 0, lineHeight: 1.45 }}>Your songs are still here and nothing has been removed. Check your connection, then try again.</p>
+            </div>
+            <button onClick={handleEnd} style={{ minHeight: 44, padding: '0 16px', background: C.gold, border: 'none', borderRadius: 10, color: 'var(--sl-on-accent)', fontSize: 14, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>Try again</button>
+          </div>
+        ) : (
         <button onClick={() => { buzzLong(); handleEnd() }} disabled={ending}
           style={{ width: '100%', padding: '16px', background: 'color-mix(in srgb, var(--sl-danger) 5%, transparent)', border: `1px solid color-mix(in srgb, var(--sl-danger) 15%, transparent)`, borderRadius: 12, color: ending ? C.muted : 'var(--sl-danger)', fontSize: 14, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: ending ? 'not-allowed' : 'pointer', opacity: ending ? 0.4 : 1, transition: 'all 0.15s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent' }}>
           <span style={{ width: 6, height: 6, background: ending ? C.muted : C.red, borderRadius: 1, display: 'inline-block', flexShrink: 0 }} />
-          {ending ? 'Ending...' : 'End Show'}
+          {ending ? (endPhase === 'checks' ? 'Finishing the last song check…' : 'Saving…') : 'End Show'}
         </button>
+        )}
       </div>
 
       <style>{`

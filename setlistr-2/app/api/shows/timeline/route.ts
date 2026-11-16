@@ -15,7 +15,8 @@ export const dynamic = 'force-dynamic'
 // Read-only (docs/schedule-timeline-plan.md). The caller must be the artist
 // or an accepted, non-revoked delegate of any role, checked on every request
 // as Proof does. Reads with the service role; returns summaries only.
-//   section=active  — a capture in progress (the Dashboard's rejoin rule). Cheap.
+//   section=active  — a capture in progress (the Dashboard's rejoin rule), plus
+//                     unfinished captures older than that window. Cheap.
 //   section=history — past shows, newest first, 25 per page, with possible
 //                     duplicates. Loaded separately so it never delays
 //                     upcoming shows or their actions.
@@ -97,10 +98,11 @@ export async function GET(req: NextRequest) {
 
     if (sp.get('section') === 'active') {
       const { data, error } = await service.from('performances').select('id, venue_name, started_at, created_at, status, data_source, user_id, started_by, captured_by, captured_by_name')
-        .eq('user_id', artistId).is('deleted_at', null).in('status', ['live', 'pending']).order('started_at', { ascending: false }).limit(5)
+        .eq('user_id', artistId).is('deleted_at', null).in('status', ['live', 'pending']).order('started_at', { ascending: false }).limit(20)
       if (error) throw new Error(error.message)
       const since = (d: string) => (Date.now() - new Date(d).getTime()) / 60000
-      const a = (data || []).find(p => p.data_source !== 'setlistfm_imported' && since(p.started_at || p.created_at) < LIVE_WINDOW_MIN)
+      const captures = (data || []).filter(p => p.data_source !== 'setlistfm_imported')
+      const a = captures.find(p => since(p.started_at || p.created_at) < LIVE_WINDOW_MIN)
       // Who is capturing, from the attribution every live-capture path
       // records: started_by (set by every Schedule start), else captured_by
       // (a teammate's New show), else the artist (an owner's own capture is
@@ -108,14 +110,27 @@ export async function GET(req: NextRequest) {
       // capture; anyone else's is shown as status only, so a second device
       // is never invited to start listening on it. Nothing here says which
       // device is listening.
-      let own = false, by: 'you' | 'artist' | 'teammate' = 'teammate', byName: string | null = null
-      if (a) {
-        const capturer = a.started_by || a.captured_by || a.user_id
-        own = capturer === user.id
-        by = own ? 'you' : capturer === a.user_id ? 'artist' : 'teammate'
-        byName = by === 'teammate' && a.captured_by && a.captured_by === capturer ? a.captured_by_name : null
+      const describe = (p: (typeof captures)[number]) => {
+        const capturer = p.started_by || p.captured_by || p.user_id
+        const own = capturer === user.id
+        const by: 'you' | 'artist' | 'teammate' = own ? 'you' : capturer === p.user_id ? 'artist' : 'teammate'
+        const byName = by === 'teammate' && p.captured_by && p.captured_by === capturer ? p.captured_by_name : null
+        return { id: p.id, venue: p.venue_name, started_at: p.started_at || p.created_at, own, by, byName }
       }
-      return NextResponse.json({ active: a ? { id: a.id, venue: a.venue_name, started_at: a.started_at || a.created_at, own, by, byName } : null }, { headers: noStore })
+      // Unfinished: still live/pending but started before the rejoin window,
+      // so the capture was interrupted and never ended. Its saved songs stay
+      // until someone finishes it, so it must stay findable (same attribution,
+      // same status-only rule for anyone else's capture). Song counts are a
+      // summary only; a failed count read leaves them out, never the show.
+      const old = captures.filter(p => since(p.started_at || p.created_at) >= LIVE_WINDOW_MIN)
+      const counts: Record<string, number> = {}
+      let counted = false
+      if (old.length) {
+        const { data: rows, error: countError } = await service.from('performance_songs_visible').select('performance_id').in('performance_id', old.map(p => p.id))
+        if (!countError) { counted = true; for (const r of rows || []) counts[r.performance_id] = (counts[r.performance_id] || 0) + 1 }
+      }
+      const unfinished = old.map(p => ({ ...describe(p), songs: counted ? (counts[p.id] || 0) : null }))
+      return NextResponse.json({ active: a ? describe(a) : null, unfinished }, { headers: noStore })
     }
 
     const limit = Math.max(1, Math.min(50, Number(sp.get('limit')) || 25))
