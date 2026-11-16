@@ -45,7 +45,7 @@ export default function HomePage() {
       fontFamily: '"DM Sans", system-ui, sans-serif',
       color: '#FFFFFF',
     }}>
-      <style>{`
+      <style dangerouslySetInnerHTML={{ __html: `
         .sl-orb { position: fixed; pointer-events: none; z-index: 0; border-radius: 50%; filter: blur(120px); }
 
         .sl-nav-link {
@@ -131,7 +131,7 @@ export default function HomePage() {
         }
 
         input::placeholder { color: #3a3028 !important; }
-      `}</style>
+      ` }} />
 
       <div className="sl-orb" style={{ width: 620, height: 620, background: 'radial-gradient(circle, rgba(201,168,76,1), transparent)', opacity: 0.10, top: -260, right: -180 }} />
       <div className="sl-orb" style={{ width: 460, height: 460, background: 'radial-gradient(circle, rgba(201,168,76,1), transparent)', opacity: 0.07, bottom: '10%', left: -160 }} />
