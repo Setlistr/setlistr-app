@@ -3,7 +3,7 @@ import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { ChevronRight, Mic, Info } from 'lucide-react'
+import { ChevronRight, Mic, Info, AlertCircle } from 'lucide-react'
 import { useActingAs } from '@/components/ActingAsProvider'
 import { openAccountMenu } from '@/components/layout/AccountMenu'
 import { useWorkspaceRole } from '@/components/layout/WorkspaceRole'
@@ -57,12 +57,12 @@ function getDisplayStatus(p: Performance): { label: string; color: string } {
   const map: Record<string, { label: string; color: string }> = {
     live:      { label: 'Live',         color: 'var(--sl-live)' },
     pending:   { label: 'Live',         color: 'var(--sl-live)' },
-    review:    { label: 'Needs review', color: 'var(--sl-gold-text)' },
-    complete:  { label: 'Completed',    color: 'var(--sl-text-2)' },
-    completed: { label: 'Completed',    color: 'var(--sl-text-2)' },
+    review:    { label: 'Needs review', color: 'var(--sl-warn)' },
+    complete:  { label: 'Saved',        color: 'var(--sl-text-3)' },
+    completed: { label: 'Saved',        color: 'var(--sl-text-3)' },
     exported:  { label: 'Exported',     color: 'var(--sl-text-2)' },
   }
-  return map[p.status] || { label: 'Needs review', color: 'var(--sl-gold-text)' }
+  return map[p.status] || { label: 'Needs review', color: 'var(--sl-warn)' }
 }
 
 function minutesSince(d: string) { return Math.floor((Date.now() - new Date(d).getTime()) / 60000) }
@@ -96,7 +96,7 @@ const bandButton: React.CSSProperties = {
   borderRadius: 18, border: 'none', cursor: 'pointer', textAlign: 'left', fontFamily: SANS,
   background: 'var(--sl-band-bg)', boxShadow: 'var(--sl-band-ring)', color: 'var(--sl-text)',
 }
-const bandTitle: React.CSSProperties = { display: 'block', fontSize: 16, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }
+const bandTitle: React.CSSProperties = { display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', overflowWrap: 'anywhere', fontSize: 16, fontWeight: 700, lineHeight: 1.25 } as React.CSSProperties
 const bandSub: React.CSSProperties = { display: 'block', fontSize: 13, color: 'var(--sl-text-2)', marginTop: 2 }
 // Sizes read --d-* so the wider layouts (see the container rules at the
 // bottom of the page) can use the approved desktop measurements; phones get
@@ -581,7 +581,7 @@ export default function DashboardPage() {
   const workspaceName = actingAs ? actingAs.artist_name : ownArtistName
   const tonight = useTonightShows(workspaceId, !!workspaceId)
   const tonightActions = useShowActions({ artistName: workspaceName, onChanged: tonight.refresh, entry: 'dashboard', artistId: workspaceId, onRefused: tonight.refresh })
-  const overline      = actingAs ? `${possessive(actingAs.artist_name)} live record` : 'Your live record'
+  const overline      = actingAs ? `${possessive(actingAs.artist_name)} shows played` : 'Shows played'
   const loadFailed    = (contextLoadError && !!actingAs) || (ownLoadError && !actingAs)
   const showLoading   = loading || dataFor !== (actingAs ? actingAs.artist_id : 'own')
   const linkRow: React.CSSProperties = { ...rowBase, width: '100%', background: 'none', border: 'none', borderBottom: '1px solid var(--sl-line)', cursor: 'pointer', fontFamily: SANS, textAlign: 'left' }
@@ -695,12 +695,12 @@ export default function DashboardPage() {
   // Hero size: phones as reviewed (200, or 168 under a session row, capped
   // by width); the wider layouts set --d-hero / --d-hero-band from the
   // space the content actually has (container units, not the window).
-  const heroSize = hasBand ? 'var(--d-hero-band, min(168px, 48cqw))' : 'var(--d-hero, min(200px, 56cqw))'
+  const heroSize = hasBand ? 'var(--d-hero-band, min(104px, 30cqw))' : 'var(--d-hero, min(104px, 30cqw))'
   // The overline carries the information button (44px target, named, with its
   // expanded state); Escape closes the explanation and focus stays on the button.
   const overlineEl = (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingTop: 8 }}>
-      <p style={{ fontSize: 'var(--d-ov, 14px)', fontWeight: 600, color: 'var(--sl-gold-text)', margin: 0 }}>{overline}</p>
+      <p style={{ fontSize: 'var(--d-ov, 12.5px)', fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--sl-gold-text)', margin: 0 }}>{overline}</p>
       <button onClick={() => setCountInfoOpen(o => !o)} onKeyDown={e => { if (e.key === 'Escape') setCountInfoOpen(false) }}
         aria-label="How the record is counted" aria-expanded={countInfoOpen} aria-controls="record-count-info"
         style={{ width: 44, height: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', borderRadius: 22, color: countInfoOpen ? 'var(--sl-gold-text)' : 'var(--sl-text-3)', cursor: 'pointer', flexShrink: 0 }}>
@@ -731,7 +731,7 @@ export default function DashboardPage() {
         {/* Follows the loaded record: overline, number (its own size), the
             one-line sentence, then the milestone dots and Last show. */}
         <Skeleton w="40%" h={16} />
-        <Skeleton w="62%" h="calc(var(--d-hero, min(200px, 56cqw)) * 0.8)" mt={22} r={14} />
+        <Skeleton w="30%" h="calc(var(--d-hero, min(104px, 30cqw)) * 0.8)" mt={14} r={12} />
         <Skeleton w="70%" h={20} mt={14} />
         <Skeleton w="100%" h={140} mt={14} />
       </div>
@@ -755,18 +755,20 @@ export default function DashboardPage() {
       </div>
     )
   } else if (record.count === 0) {
+    // No shows yet: a welcome and the way in, not a giant zero.
+    const welcomeName = actingAs ? actingAs.artist_name : (artistName || ownArtistName)
     poster = (
-      <>
-        {overlineEl}
-        <p style={{ ...heroStyle, fontSize: 'var(--d-hero, min(200px, 56cqw))', color: 'var(--sl-text-3)' }}>0</p>
-        <p style={captionStyle}>
+      <div style={{ paddingTop: hasBand ? 12 : 20 }}>
+        <h1 style={{ fontSize: 26, fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1.15, color: 'var(--sl-text)', margin: '0 0 8px', textWrap: 'balance', overflowWrap: 'anywhere' } as React.CSSProperties}>
+          {welcomeName ? `Welcome, ${welcomeName}.` : 'Welcome to Setlistr.'}
+        </h1>
+        <p style={{ ...captionStyle, margin: 0 }}>
           <b style={{ color: 'var(--sl-text)', fontWeight: 600 }}>
             {actingAs ? `The record starts with ${possessive(actingAs.artist_name)} first show.` : 'Your record starts with your first show.'}
           </b>
-          {canCapture && <> Tap the gold button when the set starts. Played already? You can <Link href="/app/upload/new" style={{ color: 'var(--sl-gold-text)', fontWeight: 600 }}>upload a recording</Link>.</>}
+          {canCapture && <> {scheduledBand ? 'Tap tonight’s booking, or the gold button, when the set starts.' : 'Tap the gold button when the set starts.'} Played already? You can <Link href="/app/upload/new" style={{ color: 'var(--sl-gold-text)', fontWeight: 600 }}>upload a recording</Link>.</>}
         </p>
-        {countInfo}
-      </>
+      </div>
     )
   } else {
     poster = (
@@ -877,38 +879,42 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* ── Recent shows ── */}
-      {recentPerfs.length > 0 && (
-        <>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-            <h2 style={sectionHeading}>Recent shows</h2>
-            {recordShows.length > 5 && (
-              <Link href="/app/history" style={{ display: 'inline-flex', alignItems: 'center', minHeight: 44, marginTop: 28, fontSize: 14, fontWeight: 600, color: 'var(--sl-gold-text)', textDecoration: 'none' }}>All shows</Link>
-            )}
-          </div>
-          <div style={{ borderTop: '1px solid var(--sl-line)', marginTop: 4 }}>
-            {recentPerfs.map(perf => {
-              const displayStatus = getDisplayStatus(perf)
-              const d = showDay(perf, perf.show_timezone)
-              const songCount = songCountMap[perf.id] || 0
-              return (
-                <button key={perf.id} onClick={() => navigateToPerformance(perf)} className="sl-hoverable" style={linkRow}>
-                  <span style={{ width: 40, flexShrink: 0, textAlign: 'center' }}>
-                    <span style={{ display: 'block', fontSize: 18, fontWeight: 600, color: 'var(--sl-text)', lineHeight: 1.1, fontVariantNumeric: 'tabular-nums' }}>{d ? d.getDate() : '–'}</span>
-                    <span style={{ display: 'block', fontSize: 12, color: 'var(--sl-text-3)' }}>{d ? d.toLocaleDateString('en-US', { month: 'short' }) : ''}</span>
-                  </span>
-                  <span style={{ flex: 1, minWidth: 0 }}>
-                    <span style={{ display: 'block', fontSize: 16, fontWeight: 600, color: 'var(--sl-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{perf.venue_name || 'Untitled show'}</span>
-                    <span style={{ display: 'block', fontSize: 13, color: 'var(--sl-text-3)' }}>{[perf.city, songCount > 0 ? `${songCount} songs` : null].filter(Boolean).join(' · ')}</span>
-                  </span>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: displayStatus.color, flexShrink: 0 }}>{displayStatus.label}</span>
-                  {chevron}
-                </button>
-              )
-            })}
-          </div>
-        </>
-      )}
+    </>
+  )
+
+  // ── Recent shows: before the royalties summary on phones, so recent
+  //    activity has room. Tappable rows on one charcoal group. ──
+  const recent = !showLoading && !loadFailed && recentPerfs.length > 0 && (
+    <>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+        <h2 style={sectionHeading}>Recent shows</h2>
+        {recordShows.length > 5 && (
+          <Link href="/app/history" style={{ display: 'inline-flex', alignItems: 'center', minHeight: 44, marginTop: 28, fontSize: 14, fontWeight: 600, color: 'var(--sl-gold-text)', textDecoration: 'none' }}>All shows</Link>
+        )}
+      </div>
+      <div className="sl-recent" style={{ background: 'var(--sl-group)', borderRadius: 16, overflow: 'hidden', marginTop: 8 }}>
+        {recentPerfs.map((perf, idx) => {
+          const displayStatus = getDisplayStatus(perf)
+          const d = showDay(perf, perf.show_timezone)
+          const songCount = songCountMap[perf.id] || 0
+          return (
+            <button key={perf.id} onClick={() => navigateToPerformance(perf)} className="sl-hoverable sl-recent-row" style={{ ...linkRow, display: 'grid', borderBottom: 'none', borderTop: idx ? '1px solid var(--sl-line)' : 'none', padding: '10px 12px 10px 14px' }}>
+              <span className="sl-recent-date" style={{ width: 34, textAlign: 'center' }}>
+                <span style={{ display: 'block', fontSize: 18, fontWeight: 600, color: 'var(--sl-text)', lineHeight: 1.1, fontVariantNumeric: 'tabular-nums' }}>{d ? d.getDate() : '–'}</span>
+                <span style={{ display: 'block', fontSize: 12, color: 'var(--sl-text-3)' }}>{d ? d.toLocaleDateString('en-US', { month: 'short' }) : ''}</span>
+              </span>
+              <span className="sl-recent-name" style={{ minWidth: 0 }}>
+                <span style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', overflowWrap: 'anywhere', fontSize: 16, fontWeight: 600, lineHeight: 1.25, color: 'var(--sl-text)' } as React.CSSProperties}>{perf.venue_name || 'Untitled show'}</span>
+                <span style={{ display: 'block', fontSize: 13, color: 'var(--sl-text-3)' }}>{[perf.city, songCount > 0 ? `${songCount} songs` : null].filter(Boolean).join(' · ')}</span>
+              </span>
+              <span className="sl-recent-status" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 13, fontWeight: displayStatus.label === 'Needs review' ? 700 : 600, color: displayStatus.color }}>
+                {displayStatus.label === 'Needs review' && <AlertCircle size={14} aria-hidden="true" />}{displayStatus.label}
+              </span>
+              {chevron}
+            </button>
+          )
+        })}
+      </div>
     </>
   )
 
@@ -920,6 +926,7 @@ export default function DashboardPage() {
         <div className="sl-dash-grid" style={{ position: 'relative' }}>
           {bands && <div className="sl-a-band">{bands}</div>}
           <div className="sl-a-poster">{poster}</div>
+          {recent && <div className="sl-a-recent">{recent}</div>}
           {ledger && <div className="sl-a-ledger">{ledger}</div>}
           {more && <div className="sl-a-more">{more}</div>}
         </div>
@@ -929,6 +936,24 @@ export default function DashboardPage() {
         /* Layout follows the width this page actually has (the content area
            beside the desktop sidebar, or the phone screen), not the window. */
         .sl-dash { container-type: inline-size; container-name: sl-dash; }
+        /* One column (phones, tablets): tonight, the record, recent shows,
+           then filing and royalties, then what's coming up. */
+        .sl-dash-grid { display: flex; flex-direction: column; }
+        /* Recent shows: date | name | status | chevron. Where the column is
+           narrow (small phones, larger text) the status moves under the name
+           instead of squeezing it. */
+        .sl-recent { container-type: inline-size; }
+        .sl-recent-row { grid-template-columns: 34px minmax(0, 1fr) auto auto; column-gap: 12px; row-gap: 2px; align-items: center; }
+        .sl-recent-date { grid-row: 1 / span 2; }
+        .sl-recent-name { grid-column: 2; grid-row: 1 / span 2; }
+        .sl-recent-status { grid-column: 3; grid-row: 1 / span 2; }
+        .sl-recent-row > svg { grid-column: 4; grid-row: 1 / span 2; }
+        @container (max-width: 330px) {
+          .sl-recent-row { grid-template-columns: 34px minmax(0, 1fr) auto; }
+          .sl-recent-name { grid-row: 1; }
+          .sl-recent-status { grid-column: 2; grid-row: 2; }
+          .sl-recent-row > svg { grid-column: 3; }
+        }
         /* Wider single column (tablets, narrow laptop windows): desktop
            type sizes, everything still stacked. */
         @container sl-dash (min-width: 600px) {
@@ -948,13 +973,14 @@ export default function DashboardPage() {
           }
           .sl-dash-grid {
             display: grid; grid-template-columns: minmax(0, 1fr) minmax(360px, 440px); column-gap: 72px;
-            grid-template-areas: "band band" "poster ledger" "poster more"; grid-template-rows: auto auto 1fr;
+            grid-template-areas: "band band" "poster ledger" "poster more" "poster recent"; grid-template-rows: auto auto auto 1fr;
             align-items: start; padding-top: 8px;
           }
           .sl-a-band { grid-area: band; margin-bottom: 12px; }
           .sl-a-poster { grid-area: poster; }
           .sl-a-ledger { grid-area: ledger; padding-top: 0; }
           .sl-a-more { grid-area: more; }
+          .sl-a-recent { grid-area: recent; }
         }
       `}</style>
     </div>

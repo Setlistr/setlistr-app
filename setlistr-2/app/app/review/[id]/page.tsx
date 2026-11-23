@@ -13,7 +13,7 @@ import {
   useSortable, verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { GripVertical, Download, Check, X, Music2, MapPin, Calendar } from 'lucide-react'
+import { GripVertical, Download, Check, X, ChevronRight, AlertCircle, Info, ImagePlus } from 'lucide-react'
 import { estimateRoyalties, capacityToBand } from '@/lib/royalty-estimate'
 import CatalogSearch, { type CatalogSong } from '@/components/CatalogSearch'
 import { normalizeSong } from '@/lib/song-utils'
@@ -192,23 +192,26 @@ function sourceLine(song: Song): string {
   return [origin, song.isrc ? `ISRC ${song.isrc}` : null].filter(Boolean).join(' · ')
 }
 
-function SortableRow({ song, index, onDelete, onTap, editMode }: {
-  song: Song; index: number; onDelete: (id: string) => void; onTap: (id: string) => void; editMode: boolean
+// One row of the setlist (Review revision 3). Named songs are quiet: the title
+// and a chevron. An unidentified song is the one thing in amber. The drag
+// handle and the remove control appear only in EDIT; outside it, swiping left
+// still reveals Edit and Delete as a shortcut (with UNDO after a delete).
+function SortableRow({ song, index, onDelete, onTap, editMode, locked, first }: {
+  song: Song; index: number; onDelete: (id: string) => void; onTap: (id: string) => void; editMode: boolean; locked: boolean; first: boolean
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: song.id })
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: song.id, disabled: !editMode || locked })
   const [swipeX, setSwipeX]   = useState(0)
   const [swiping, setSwiping] = useState(false)
-  const [hovered, setHovered] = useState(false)
   const touchStart             = useRef<{ x: number; y: number } | null>(null)
   const ACTION_W = 140; const THRESHOLD = 60
   const isOpen = swipeX <= -THRESHOLD
   const isUnknown = song.source === 'unidentified'
   const needsReview = isUnknown || song.reviewState === 'needs_review'
-  const isVerified = !!song.was_planned && song.source !== 'planned'
+  const canSwipe = !editMode && !locked
 
-  function onTouchStart(e: React.TouchEvent) { touchStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }; setSwiping(false) }
+  function onTouchStart(e: React.TouchEvent) { if (!canSwipe) return; touchStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }; setSwiping(false) }
   function onTouchMove(e: React.TouchEvent) {
-    if (!touchStart.current) return
+    if (!touchStart.current || !canSwipe) return
     const dx = e.touches[0].clientX - touchStart.current.x
     const dy = e.touches[0].clientY - touchStart.current.y
     if (!swiping && Math.abs(dx) < 6 && Math.abs(dy) < 6) return
@@ -220,211 +223,161 @@ function SortableRow({ song, index, onDelete, onTap, editMode }: {
   function onTouchEnd() { if (!swiping) return; setSwiping(false); touchStart.current = null; setSwipeX(swipeX < -THRESHOLD ? -ACTION_W : 0) }
   function closeSwipe() { setSwipeX(0) }
 
-  const leftBorder = isVerified ? 'color-mix(in srgb, var(--sl-ok) 50%, transparent)' : needsReview ? 'color-mix(in srgb, var(--sl-accent) 60%, transparent)' : 'color-mix(in srgb, var(--sl-ok) 25%, transparent)'
-
   return (
-    <div ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition: swiping ? 'none' : transition, position: 'relative', borderRadius: 12, overflow: 'hidden', opacity: isDragging ? 0.4 : 1 }}>
-      <div style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: ACTION_W, display: 'flex', pointerEvents: swipeX < -20 ? 'auto' : 'none' }}>
-        <button onClick={() => { closeSwipe(); onTap(song.id) }} style={{ flex: 1, background: C.gold, border: 'none', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3, color: 'var(--sl-on-accent)' }}>
-          <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', fontFamily: 'inherit' }}>Edit</span>
-        </button>
-        <button onClick={() => { closeSwipe(); onDelete(song.id) }} style={{ flex: 1, background: C.red, border: 'none', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3, color: 'var(--sl-on-accent)', borderRadius: '0 12px 12px 0' }}>
-          <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', fontFamily: 'inherit' }}>Delete</span>
-        </button>
-      </div>
+    <div ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition: swiping ? 'none' : transition, position: 'relative', overflow: 'hidden', opacity: isDragging ? 0.4 : 1, borderTop: first ? 'none' : '1px solid var(--sl-line)' }}>
+      {canSwipe && (
+        // The swipe actions exist for touch only until a swipe reveals them:
+        // hidden from assistive technology and the tab order until then.
+        <div aria-hidden={swipeX < -20 ? undefined : true} style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: ACTION_W, display: 'flex', pointerEvents: swipeX < -20 ? 'auto' : 'none' }}>
+          <button tabIndex={swipeX < -20 ? 0 : -1} onClick={() => { closeSwipe(); onTap(song.id) }} style={{ flex: 1, background: C.gold, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--sl-on-accent)', fontSize: 11, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', fontFamily: 'inherit' }}>Edit</button>
+          <button tabIndex={swipeX < -20 ? 0 : -1} onClick={() => { closeSwipe(); onDelete(song.id) }} style={{ flex: 1, background: C.red, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--sl-on-accent)', fontSize: 11, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', fontFamily: 'inherit' }}>Delete</button>
+        </div>
+      )}
       <div
         onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}
-        onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
-        onClick={() => { if (swipeX < -10) { closeSwipe(); return } onTap(song.id) }}
-        style={{ transform: `translateX(${swipeX}px)`, transition: swiping ? 'none' : 'transform 0.22s cubic-bezier(0.25,1,0.5,1)', background: isDragging ? C.cardHover : C.card, border: '1px solid color-mix(in srgb, var(--sl-text) 4%, transparent)', borderLeft: `3px solid ${leftBorder}`, borderRadius: 12, display: 'flex', alignItems: 'center', gap: 12, padding: '14px 14px 14px 12px', minHeight: 64, cursor: 'pointer', WebkitTapHighlightColor: 'transparent', userSelect: 'none' }}>
-        <div {...attributes} {...listeners} onClick={e => e.stopPropagation()} style={{ color: C.muted, cursor: 'grab', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '15px', margin: '-15px -12px -15px -14px', touchAction: 'none' }}>
-          <GripVertical size={15} />
-        </div>
-        <span style={{ fontSize: 11, fontWeight: 700, color: C.muted, minWidth: 18, textAlign: 'right', flexShrink: 0, fontFamily: '"DM Mono", monospace', fontVariantNumeric: 'tabular-nums' }}>{index + 1}</span>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          {needsReview ? (
-            <div>
-              <p style={{ fontSize: 16, fontWeight: 600, color: C.gold, margin: 0, fontStyle: 'italic' }}>{isUnknown ? 'Unidentified song' : song.title}</p>
-              <p style={{ fontSize: 13, color: C.gold, margin: '2px 0 0', fontWeight: 600 }}>{isUnknown ? 'Tap to name it' : 'Tap to check it'}</p>
-            </div>
-          ) : (
-            <div>
-              <p style={{ fontSize: 17, fontWeight: 600, color: C.text, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', letterSpacing: '-0.01em' }}>{song.title}</p>
-              {isVerified ? <p style={{ fontSize: 13, color: C.green, margin: '2px 0 0', fontWeight: 600 }}>{verificationLabel(song)}</p> : null}
-            </div>
-          )}
-        </div>
-        {/* Edit mode: an accessible remove in place of the status mark (swipe stays). */}
+        onClick={() => { if (locked) return; if (swipeX < -10) { closeSwipe(); return } if (!editMode) onTap(song.id) }}
+        role={editMode ? undefined : 'button'} aria-label={editMode ? undefined : (isUnknown ? `Song ${index + 1}, not identified. Name it` : `${song.title}. Open`)}
+        style={{ transform: `translateX(${swipeX}px)`, transition: swiping ? 'none' : 'transform 0.22s cubic-bezier(0.25,1,0.5,1)', background: needsReview ? 'color-mix(in srgb, var(--sl-warn) 9%, var(--sl-group))' : isDragging ? C.cardHover : 'var(--sl-group)', display: 'flex', alignItems: 'center', gap: 12, padding: '8px 12px 8px 14px', minHeight: 54, cursor: locked || editMode ? 'default' : 'pointer', WebkitTapHighlightColor: 'transparent', userSelect: 'none' }}>
+        {editMode && (
+          <div {...attributes} {...listeners} onClick={e => e.stopPropagation()} aria-label={`Reorder ${isUnknown ? 'song ' + (index + 1) : song.title}`}
+            style={{ color: C.muted, cursor: 'grab', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 44, margin: '-6px -6px -6px -8px', touchAction: 'none' }}>
+            <GripVertical size={16} />
+          </div>
+        )}
+        <span style={{ fontSize: 12.5, color: C.muted, minWidth: 20, textAlign: 'right', flexShrink: 0, fontFamily: '"DM Mono", monospace', fontVariantNumeric: 'tabular-nums' }}>{index + 1}</span>
+        {needsReview ? (
+          <p style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 8, fontSize: 16.5, fontWeight: 600, color: 'var(--sl-warn)', margin: 0 }}>
+            <AlertCircle size={16} aria-hidden="true" style={{ flexShrink: 0 }} />{isUnknown ? 'Name this song' : song.title}
+          </p>
+        ) : (
+          <p style={{ flex: 1, minWidth: 0, fontSize: 16.5, fontWeight: 500, color: C.text, margin: 0, lineHeight: 1.28, letterSpacing: '-0.01em', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', overflowWrap: 'anywhere' } as React.CSSProperties}>{song.title}</p>
+        )}
         {editMode ? (
-          <button onClick={e => { e.stopPropagation(); onDelete(song.id) }} aria-label={`Remove ${isUnknown ? 'song ' + (index + 1) : song.title}`}
-            style={{ flexShrink: 0, width: 44, height: 44, margin: '-10px -6px -10px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 10, background: 'color-mix(in srgb, var(--sl-danger) 12%, transparent)', border: '1px solid color-mix(in srgb, var(--sl-danger) 30%, transparent)', color: C.red, cursor: 'pointer' }}>
+          <button onClick={e => { e.stopPropagation(); if (!locked) onDelete(song.id) }} disabled={locked} aria-label={`Remove ${isUnknown ? 'song ' + (index + 1) : song.title}`}
+            style={{ flexShrink: 0, width: 44, height: 44, margin: '-6px -6px -6px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 10, background: 'color-mix(in srgb, var(--sl-danger) 12%, transparent)', border: '1px solid color-mix(in srgb, var(--sl-danger) 30%, transparent)', color: C.red, cursor: 'pointer' }}>
             <X size={17} strokeWidth={2.5} />
           </button>
         ) : (
-        <div onClick={hovered ? (e) => { e.stopPropagation(); onDelete(song.id) } : undefined}
-          style={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: 6, background: hovered ? 'color-mix(in srgb, var(--sl-danger) 12%, transparent)' : 'transparent', border: hovered ? '1px solid color-mix(in srgb, var(--sl-danger) 25%, transparent)' : '1px solid transparent', transition: 'all 0.15s ease', cursor: hovered ? 'pointer' : 'default' }}>
-          {hovered ? (
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={C.red} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-          ) : isVerified ? (
-            <span style={{ width: 9, height: 9, borderRadius: '50%', background: C.gold, display: 'inline-block', flexShrink: 0 }} />
-          ) : needsReview ? (
-            <span style={{ fontSize: 10, color: C.gold, fontWeight: 700 }}>!</span>
-          ) : (
-            <span style={{ width: 9, height: 9, borderRadius: '50%', background: 'transparent', border: `1.5px solid ${C.gold}`, display: 'inline-block', opacity: 0.6, flexShrink: 0 }} />
-          )}
-        </div>
+          <ChevronRight size={18} aria-hidden="true" style={{ flexShrink: 0, color: needsReview ? 'var(--sl-warn)' : 'var(--sl-text-4)' }} />
         )}
       </div>
     </div>
   )
 }
 
-function EditSheet({ song, onSave, onClose }: { song: Song; onSave: (id: string, title: string, artist: string) => void; onClose: () => void }) {
-  const details = sourceLine(song)
-  const [title, setTitle]   = useState(song.title === 'Unknown song' ? '' : song.title)
+// Where a song came from, said once, in the song sheet (provenance stays out
+// of the list). DETECTED/ADDED before the save; VERIFIED is only ever said
+// after a confirmed save, on the recap.
+function songFacts(song: Song): { chip: 'Detected' | 'Added'; source: string } {
+  const auto = AUTO_SOURCES.includes(song.source || '')
+  const plannedPlayed = song.source === 'manual' && song.was_planned && song.inclusion_reason === 'planned setlist - not detected'
+  const source = auto ? 'Recognised during the show'
+    : plannedPlayed ? 'Marked played from your planned setlist'
+    : song.isNew ? 'Added by you in Review'
+    : song.isModified && song.origTitle === 'Unknown Song' ? 'Named by you in Review'
+    : 'Added during the show'
+  return { chip: auto ? 'Detected' : 'Added', source: song.isModified && !song.isNew && auto ? `${source} · edited` : source }
+}
+
+// One sheet per song: its facts, its title and artist, DONE, and REMOVE SONG.
+function SongSheet({ song, position, total, onSave, onRemove, onClose }: {
+  song: Song; position: number; total: number
+  onSave: (id: string, title: string, artist: string) => void; onRemove: (id: string) => void; onClose: () => void
+}) {
+  const facts = songFacts(song)
+  const [title, setTitle]   = useState(song.title.toLowerCase() === 'unknown song' ? '' : song.title)
   const [artist, setArtist] = useState(song.artist)
   const bottomOffset        = useKeyboardOffset()
+  const done = () => {
+    if (!title.trim()) return
+    if (title.trim() !== song.title || artist.trim() !== song.artist) onSave(song.id, title.trim(), artist.trim())
+    onClose()
+  }
+  const fact = (k: string, v: React.ReactNode) => (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, minHeight: 42, borderBottom: '1px solid var(--sl-line)', fontSize: 14.5 }}>
+      <span style={{ color: C.muted }}>{k}</span><span style={{ color: C.text, textAlign: 'right' }}>{v}</span>
+    </div>
+  )
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', animation: 'fadeIn 0.15s ease' }} onClick={onClose}>
-      <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 520, background: C.cardGrad, borderRadius: '20px 20px 0 0', border: '1px solid color-mix(in srgb, var(--sl-text) 7%, transparent)', borderBottom: 'none', padding: '20px 20px 40px', display: 'flex', flexDirection: 'column', gap: 12, animation: 'sheetUp 0.22s ease', fontFamily: '"DM Sans", system-ui, sans-serif', marginBottom: bottomOffset, transition: 'margin-bottom 0.15s ease', boxShadow: 'var(--sl-card-inset)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-          <div><p style={{ fontSize: 16, fontWeight: 700, color: C.text, margin: 0 }}>Edit song</p>{details && <p style={{ fontSize: 13, color: C.secondary, margin: '2px 0 0' }}>{details}</p>}</div>
+    <div style={{ position: 'fixed', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', animation: 'fadeIn 0.15s ease' }} onClick={onClose}>
+      <div role="dialog" aria-label={`Song ${position} of ${total}`} onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 520, background: 'var(--sl-sheet)', borderRadius: '22px 22px 0 0', borderTop: '1px solid color-mix(in srgb, var(--sl-text) 12%, transparent)', boxShadow: '0 -24px 48px rgba(0,0,0,0.5)', padding: '10px 20px calc(24px + env(safe-area-inset-bottom, 0px))', display: 'flex', flexDirection: 'column', gap: 8, animation: 'sheetUp 0.22s ease', fontFamily: '"DM Sans", system-ui, sans-serif', marginBottom: bottomOffset, transition: 'margin-bottom 0.15s ease' }}>
+        <div aria-hidden="true" style={{ width: 38, height: 5, borderRadius: 3, background: 'color-mix(in srgb, var(--sl-text) 22%, transparent)', margin: '0 auto 6px' }} />
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span style={{ fontSize: 11.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.secondary, background: 'color-mix(in srgb, var(--sl-text) 7%, transparent)', borderRadius: 7, padding: '5px 9px' }}>{facts.chip}</span>
           <button onClick={onClose} aria-label="Close" style={{ width: 44, height: 44, marginRight: -10, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', color: C.secondary, cursor: 'pointer' }}><X size={18} /></button>
         </div>
-        <input autoFocus value={title} onChange={e => setTitle(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && title.trim()) { onSave(song.id, title.trim(), artist.trim()); onClose() } }} placeholder="Song title" spellCheck={false} autoCorrect="off" autoCapitalize="words" style={{ background: C.input, border: '1px solid var(--sl-input-line-active)', borderRadius: 10, padding: '13px 14px', color: C.text, fontSize: 16, outline: 'none', fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' }} />
-        <input value={artist} onChange={e => setArtist(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && title.trim()) { onSave(song.id, title.trim(), artist.trim()); onClose() } }} placeholder="Artist" spellCheck={false} autoCorrect="off" autoCapitalize="words" style={{ background: C.input, border: `1px solid var(--sl-input-line)`, borderRadius: 10, padding: '13px 14px', color: C.text, fontSize: 16, outline: 'none', fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' }} />
-        <button onClick={() => { if (title.trim()) { onSave(song.id, title.trim(), artist.trim()); onClose() } }} disabled={!title.trim()} style={{ width: '100%', padding: '14px', background: title.trim() ? C.gold : C.muted, border: 'none', borderRadius: 10, color: 'var(--sl-on-accent)', fontSize: 13, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: title.trim() ? 'pointer' : 'not-allowed', opacity: title.trim() ? 1 : 0.4, fontFamily: 'inherit', marginTop: 4 }}>
-          Save
+        <label style={{ fontSize: 13, fontWeight: 600, color: C.muted }}>Title · song {position} of {total}
+          <input value={title} onChange={e => setTitle(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') done() }} placeholder="Song title" spellCheck={false} autoCorrect="off" autoCapitalize="words" style={{ display: 'block', marginTop: 5, background: C.input, border: '1px solid var(--sl-input-line-active)', borderRadius: 12, padding: '13px 14px', color: C.text, fontSize: 16, outline: 'none', fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' }} />
+        </label>
+        <label style={{ fontSize: 13, fontWeight: 600, color: C.muted }}>Artist
+          <input value={artist} onChange={e => setArtist(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') done() }} placeholder="Artist" spellCheck={false} autoCorrect="off" autoCapitalize="words" style={{ display: 'block', marginTop: 5, background: C.input, border: '1px solid var(--sl-input-line)', borderRadius: 12, padding: '13px 14px', color: C.text, fontSize: 16, outline: 'none', fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' }} />
+        </label>
+        <div style={{ borderTop: '1px solid var(--sl-line)', margin: '4px 0 8px' }}>
+          {fact('Source', facts.source)}
+          {fact('Planned setlist', song.was_planned ? 'On it' : 'Not on it')}
+          {fact('Writer', song.composer || <span style={{ color: C.muted }}>Not on file</span>)}
+          {song.isrc ? fact('ISRC', <span style={{ fontFamily: '"DM Mono", monospace', fontSize: 13 }}>{song.isrc}</span>) : null}
+        </div>
+        <button onClick={done} disabled={!title.trim()} style={{ width: '100%', minHeight: 52, background: title.trim() ? C.gold : C.muted, border: 'none', borderRadius: 14, color: 'var(--sl-on-accent)', fontSize: 14.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: title.trim() ? 'pointer' : 'not-allowed', opacity: title.trim() ? 1 : 0.5, fontFamily: 'inherit' }}>
+          Done
+        </button>
+        <button onClick={() => { onRemove(song.id); onClose() }} style={{ minHeight: 44, background: 'none', border: 'none', color: C.red, fontSize: 13, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'inherit' }}>
+          Remove song
         </button>
       </div>
     </div>
   )
 }
 
-function AssignSheet({ assignSheet, onAssign, onClose, onCatalogSelect, userId, currentSongs }: {
+function AssignSheet({ assignSheet, onAssign, onClose, onCatalogSelect, onRemove, userId, currentSongs }: {
   assignSheet: { songId: string; currentTitle: string }; onAssign: (s: RecentSong) => void
   onClose: () => void; onCatalogSelect: (song: CatalogSong, songId: string) => void
+  onRemove: (id: string) => void
   userId: string | null; currentSongs: string[]
 }) {
   const bottomOffset = useKeyboardOffset()
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', animation: 'fadeIn 0.15s ease' }} onClick={onClose}>
-      <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 520, background: C.cardGrad, borderRadius: '20px 20px 0 0', border: '1px solid color-mix(in srgb, var(--sl-text) 7%, transparent)', borderBottom: 'none', padding: '20px 20px 40px', display: 'flex', flexDirection: 'column', gap: 12, animation: 'sheetUp 0.22s ease', fontFamily: '"DM Sans", system-ui, sans-serif', marginBottom: bottomOffset, transition: 'margin-bottom 0.15s ease', boxShadow: 'var(--sl-card-inset)' }}>
+      <div role="dialog" aria-label="What song was this?" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 520, background: 'var(--sl-sheet)', borderRadius: '22px 22px 0 0', borderTop: '1px solid color-mix(in srgb, var(--sl-text) 12%, transparent)', boxShadow: '0 -24px 48px rgba(0,0,0,0.5)', padding: '16px 20px calc(20px + env(safe-area-inset-bottom, 0px))', display: 'flex', flexDirection: 'column', gap: 12, animation: 'sheetUp 0.22s ease', fontFamily: '"DM Sans", system-ui, sans-serif', marginBottom: bottomOffset, transition: 'margin-bottom 0.15s ease' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
           <div>
-            <p style={{ fontSize: 14, fontWeight: 700, color: C.text, margin: 0 }}>What song was this?</p>
-            {assignSheet.currentTitle && assignSheet.currentTitle !== 'Unknown song' ? <p style={{ fontSize: 11, color: C.muted, margin: '2px 0 0' }}>replacing: {assignSheet.currentTitle}</p> : null}
+            <p style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--sl-warn)', background: 'color-mix(in srgb, var(--sl-warn) 10%, transparent)', borderRadius: 7, padding: '5px 9px', margin: '0 0 8px' }}><AlertCircle size={13} aria-hidden="true" />Not identified</p>
+            <p style={{ fontSize: 20, fontWeight: 800, color: C.text, margin: 0 }}>What song was this?</p>
+            {assignSheet.currentTitle && assignSheet.currentTitle.toLowerCase() !== 'unknown song' ? <p style={{ fontSize: 11, color: C.muted, margin: '2px 0 0' }}>replacing: {assignSheet.currentTitle}</p> : null}
           </div>
           <button onClick={onClose} aria-label="Close" style={{ width: 44, height: 44, marginRight: -10, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', color: C.secondary, cursor: 'pointer' }}><X size={18} /></button>
         </div>
         <CatalogSearch userId={userId} placeholder="Search or type any song title..." autoFocus showEmpty currentSongs={currentSongs} onSelect={(song) => onCatalogSelect(song, assignSheet.songId)} />
-        <p style={{ fontSize: 11, color: C.muted, margin: '4px 0 0', lineHeight: 1.5, textAlign: 'center' }}>Search your catalog or type any title to add it</p>
+        <p style={{ fontSize: 13, color: C.muted, margin: '4px 0 0', lineHeight: 1.5, textAlign: 'center' }}>Search your catalog or type any title to add it</p>
+        <button onClick={() => { onRemove(assignSheet.songId); onClose() }} style={{ minHeight: 44, background: 'none', border: 'none', color: C.red, fontSize: 13, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'inherit' }}>
+          Remove song
+        </button>
       </div>
     </div>
   )
 }
 
-function PlannedSongRow({ song, onPlayed, onRemove }: {
+function PlannedSongRow({ song, onPlayed, onRemove, locked, first }: {
   song: Song
   onPlayed: (id: string) => void
   onRemove: (id: string) => void
+  locked: boolean; first: boolean
 }) {
   return (
-    <div style={{
-      display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px',
-      background: 'color-mix(in srgb, var(--sl-text) 2%, transparent)',
-      border: '1px dashed color-mix(in srgb, var(--sl-text) 10%, transparent)',
-      borderRadius: 12,
-    }}>
-      <div style={{ width: 18, height: 18, borderRadius: '50%', border: '1.5px solid color-mix(in srgb, var(--sl-text) 15%, transparent)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ width: 5, height: 5, borderRadius: '50%', background: 'color-mix(in srgb, var(--sl-text) 20%, transparent)' }} />
-      </div>
-      <p style={{ fontSize: 14, fontWeight: 500, color: C.secondary, margin: 0, flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, minHeight: 56, padding: '6px 8px 6px 14px', borderTop: first ? 'none' : '1px solid var(--sl-line)' }}>
+      <p style={{ fontSize: 16, fontWeight: 400, color: C.secondary, margin: 0, flex: 1, minWidth: 0, lineHeight: 1.28, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', overflowWrap: 'anywhere' } as React.CSSProperties}>
         {song.title}
       </p>
       <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-        <button
-          onClick={() => onPlayed(song.id)}
-          style={{ minHeight: 44, padding: '0 14px', background: 'color-mix(in srgb, var(--sl-ok) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--sl-ok) 25%, transparent)', borderRadius: 8, color: C.green, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', letterSpacing: '0.02em', WebkitTapHighlightColor: 'transparent', whiteSpace: 'nowrap' }}>
-          ✓ Played
+        <button onClick={() => onPlayed(song.id)} disabled={locked}
+          style={{ minHeight: 44, minWidth: 64, padding: '0 12px', background: 'transparent', border: '1px solid color-mix(in srgb, var(--sl-text) 22%, transparent)', borderRadius: 11, color: C.text, fontSize: 12.5, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: locked ? 'default' : 'pointer', fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent' }}>
+          Played
         </button>
-        <button
-          onClick={() => onRemove(song.id)} aria-label={`Didn't play ${song.title}`}
-          style={{ minWidth: 44, minHeight: 44, padding: '0 10px', background: 'transparent', border: `1px solid ${C.border}`, borderRadius: 8, color: C.muted, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent' }}>
-          ✕
+        <button onClick={() => onRemove(song.id)} disabled={locked} aria-label={`Skip ${song.title}: not played`}
+          style={{ minHeight: 44, minWidth: 64, padding: '0 12px', background: 'transparent', border: '1px solid var(--sl-line)', borderRadius: 11, color: C.secondary, fontSize: 12.5, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: locked ? 'default' : 'pointer', fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent' }}>
+          Skip
         </button>
       </div>
-    </div>
-  )
-}
-
-
-function CeremonyCountCard({ songCount, showDate, verifiedCount, autoCount, manualCount, songs, flowSource }: {
-  songCount: number; showDate: string
-  // verifiedCount: songs on the setlist; autoCount: detected songs NOT on it;
-  // manualCount: added songs not on it. The three never overlap.
-  verifiedCount: number; autoCount: number; manualCount: number
-  songs: Song[]; flowSource: FlowSource
-}) {
-  const count = useCountUp(songCount, 900, 450)
-  return (
-    <div className="cer-in" style={{ background: C.cardGrad, border: '1px solid color-mix(in srgb, var(--sl-text) 4%, transparent)', borderRadius: 24, overflow: 'hidden', opacity: 0, animation: 'fadeUp 0.45s 0.5s ease forwards', boxShadow: 'var(--sl-card-inset)' }}>
-      <div style={{ padding: '20px 24px 16px', borderBottom: `1px solid color-mix(in srgb, var(--sl-text) 5%, transparent)` }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 4 }}>
-          <span style={{ fontSize: 64, fontWeight: 800, color: 'var(--sl-text)', fontFamily: '"DM Mono", monospace', letterSpacing: '-0.04em', lineHeight: 1, animation: count === songCount ? 'countPulse 0.4s ease' : 'none' }}>
-            {count}
-          </span>
-          <span style={{ fontSize: 20, fontWeight: 700, color: 'var(--sl-text-2)', letterSpacing: '-0.01em' }}>
-            {songCount === 1 ? 'song' : 'songs'}
-          </span>
-        </div>
-        <p style={{ fontSize: 13, color: 'var(--sl-text-3)', margin: 0, letterSpacing: '0.04em' }}>
-          {capturedLabel(flowSource)} · {showDate}
-        </p>
-      </div>
-      <div style={{ padding: '16px 0 8px' }}>
-        {songs.map((s, i) => (
-          <div key={s.id} style={{ display: 'flex', alignItems: 'baseline', gap: 14, padding: '9px 24px', opacity: 0, animation: `fadeUp 0.35s ${Math.min(0.55 + i * 0.03, 1.0)}s ease forwards` }}>
-            <span style={{ fontSize: 11, color: 'var(--sl-text-4)', minWidth: 18, textAlign: 'right', fontFamily: '"DM Mono", monospace', flexShrink: 0 }}>{i + 1}</span>
-            <p style={{ fontSize: 16, fontWeight: s.was_planned ? 600 : 500, color: 'var(--sl-text)', margin: 0, flex: 1, minWidth: 0, overflowWrap: 'anywhere', letterSpacing: '-0.005em' }}>{s.title}</p>
-          </div>
-        ))}
-      </div>
-      <div style={{ padding: '12px 24px 18px', borderTop: `1px solid color-mix(in srgb, var(--sl-text) 4%, transparent)`, display: 'flex', gap: 16, flexWrap: 'wrap' as const }}>
-        {verifiedCount > 0 && <span style={{ fontSize: 13, color: 'var(--sl-text-4)' }}>✓ {verifiedCount} from setlist</span>}
-        {autoCount > 0 && <span style={{ fontSize: 13, color: 'var(--sl-text-4)' }}>◈ {autoCount} detected</span>}
-        {manualCount > 0 && <span style={{ fontSize: 13, color: 'var(--sl-text-4)' }}>+ {manualCount} added</span>}
-      </div>
-    </div>
-  )
-}
-
-function CeremonyRoyaltyCard({ expected, low, high, performanceId, onClaim }: {
-  expected: number; low: number; high: number
-  performanceId: string; onClaim: (() => void) | null
-}) {
-  const count = useCountUp(expected, 900, 400)
-  // Secondary to the show and its moments: a quiet surface, a smaller figure,
-  // always labelled as an estimate.
-  return (
-    <div style={{ background: 'transparent', border: `1px solid color-mix(in srgb, var(--sl-text) 9%, transparent)`, borderRadius: 20, padding: '18px 20px', opacity: 0, animation: 'fadeUp 0.45s 0.4s ease forwards' }}>
-      <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--sl-text-3)', margin: '0 0 8px' }}>
-        Estimated royalties for tonight
-      </p>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 6 }}>
-        <span style={{ fontSize: 36, fontWeight: 700, color: 'var(--sl-text)', fontFamily: '"DM Mono", monospace', letterSpacing: '-0.03em', lineHeight: 1 }}>
-          {formatEstimate(count)}
-        </span>
-        <span style={{ fontSize: 15, color: 'var(--sl-text-3)', fontWeight: 500 }}>{ESTIMATE_UNIT}</span>
-      </div>
-      <p style={{ fontSize: 13.5, color: 'var(--sl-text-2)', margin: '0 0 6px' }}>${low}–${high} estimated range for the songs you performed</p>
-      <p style={{ fontSize: 12, color: 'var(--sl-text-3)', margin: onClaim ? '0 0 16px' : 0 }}>{ESTIMATE_DISCLAIMER}</p>
-      {onClaim && (
-        <button onClick={onClaim}
-          style={{ width: '100%', minHeight: 52, padding: '0 16px', background: C.gold, border: 'none', borderRadius: 14, color: 'var(--sl-on-accent)', fontSize: 15, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', letterSpacing: '0.02em' }}>
-          Open the claim sheet →
-        </button>
-      )}
     </div>
   )
 }
@@ -466,6 +419,14 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
   const [showExport, setShowExport]     = useState(false)
   const [selectedPRO, setSelectedPRO]   = useState<PRO>('SOCAN')
   const [editSheet, setEditSheet]       = useState<Song | null>(null)
+  // UNDO for the last removed or skipped song (5 seconds), and the explicit
+  // confirmation before saving a show with no songs.
+  const [undo, setUndo]                 = useState<{ song: Song; index: number; label: string } | null>(null)
+  const undoTimerRef                    = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [emptyConfirm, setEmptyConfirm] = useState(false)
+  const plannedRef                      = useRef<HTMLDivElement>(null)
+  const keyboardOffset                  = useKeyboardOffset()
+  const [aboutVerified, setAboutVerified] = useState(false)
   const [assignSheet, setAssignSheet]   = useState<{ songId: string; currentTitle: string } | null>(null)
   const [userId, setUserId]             = useState<string | null>(null)
   const [intelligence, setIntelligence] = useState<ShowIntelligence | null>(null)
@@ -567,7 +528,27 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
     logReviewAction('confirm_song')
   }
 
+  // Remembers a song as it was before a remove or skip, so UNDO can put it back.
+  function offerUndo(songId: string, label: string) {
+    const index = songs.findIndex(s => s.id === songId)
+    if (index < 0) return
+    setUndo({ song: songs[index], index, label })
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current)
+    undoTimerRef.current = setTimeout(() => setUndo(null), 5000)
+  }
+  function undoLast() {
+    if (!undo) return
+    const { song, index } = undo
+    setSongs(prev => prev.some(s => s.id === song.id)
+      ? prev.map(s => s.id === song.id ? song : s)
+      : [...prev.slice(0, index), song, ...prev.slice(index)])
+    setUndo(null)
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current)
+  }
+  useEffect(() => () => { if (undoTimerRef.current) clearTimeout(undoTimerRef.current) }, [])
+
   function removePlannedSong(songId: string) {
+    offerUndo(songId, `${songs.find(s => s.id === songId)?.title || 'Song'} skipped.`)
     setSongs(prev => {
       const t = prev.find(s => s.id === songId)
       if (t?.isNew) return prev.filter(s => s.id !== songId)
@@ -802,6 +783,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
     }
   }
   function handleDelete(id: string) {
+    offerUndo(id, 'Song removed.')
     setSongs(prev => {
       const t = prev.find(s => s.id === id)
       if (t?.isNew) return prev.filter(s => s.id !== id)                 // never persisted → just drop
@@ -1187,13 +1169,17 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
     return mins > 0 ? `${mins} min` : ''
   }
 
+  // Opening a show: placeholders in the page's own shape (docs/ui-standard.md → Loading).
   if (loading) return (
-    <div style={{ minHeight: '100svh', background: C.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
-        <div style={{ width: 44, height: 44, borderRadius: '50%', border: `1.5px solid ${C.gold}`, animation: 'breathe 1.8s ease-in-out infinite' }} />
-        <span style={{ color: C.muted, fontSize: 11, letterSpacing: '0.15em', textTransform: 'uppercase' }}>Loading</span>
+    <div aria-busy="true" aria-label="Loading the show" style={{ minHeight: 'var(--sl-page-min-height, 100svh)', background: C.bg }}>
+      <div style={{ maxWidth: 720, margin: '0 auto', padding: '28px 20px' }}>
+        <Skeleton w="34%" h={12} r={4} />
+        <Skeleton w="72%" h={32} mt={14} r={8} />
+        <Skeleton w="46%" h={14} mt={12} r={5} />
+        <Skeleton h={64} mt={22} r={18} />
+        <Skeleton w="28%" h={14} mt={28} r={5} />
+        <div style={{ marginTop: 12, borderRadius: 16, overflow: 'hidden' }}>{[0, 1, 2, 3, 4].map(i => <Skeleton key={i} h={54} r={0} mt={i ? 1 : 0} />)}</div>
       </div>
-      <style>{`@keyframes breathe{0%,100%{transform:scale(1);opacity:.3}50%{transform:scale(1.2);opacity:.8}}`}</style>
     </div>
   )
 
@@ -1344,113 +1330,120 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
     const estimate  = estimateRoyalties({ songCount, venueCapacityBand: capacityToBand(performance?.venue_capacity), showType: (performance?.show_type as any) || 'single', territory })
     const showDate  = theShowDate ? theShowDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) : ''
     const durMins   = performance?.started_at && performance?.ended_at ? Math.round((new Date(performance.ended_at).getTime() - new Date(performance.started_at).getTime()) / 60000) : null
-    const manualCount = confirmedSongs.filter(s => s.source === 'manual' && !s.was_planned).length
+    // VERIFIED: the songs this save just confirmed. The artist (or a teammate
+    // with edit access) saved them, and the save was confirmed above
+    // (artist_save_complete written, the show read back as complete). Titled
+    // songs only: an unidentified entry is saved but never verified, and is
+    // counted separately. Nothing here is inferred for older shows.
+    const unidentifiedCount = confirmedSongs.filter(s => s.source === 'unidentified').length
+    const verifiedSongs = songCount - unidentifiedCount
 
-    // What tonight's save earned, from the post-save intelligence query.
-    // A "first appearance" is the song's first confirmed appearance in this
-    // record's song catalog (user_songs.confirmed_count reached 1 with this
-    // save); it isn't proof of a first live performance, so it isn't called one.
-    const moments: Array<{ label: string; detail: string }> = []
+    // One moment, the first that applies of the ones the app already finds:
+    // a milestone, a new room, a first appearance on the record, back again.
+    // None (or not loaded): no moment line.
+    let moment: { label: string; detail: string } | null = null
     if (intelligence) {
-      if (intelligence.songDebuts.length > 0) moments.push({ label: 'First appearance on your record', detail: intelligence.songDebuts.join(', ') })
-      // The milestone this show holds by its place on the record (show-date
-      // order), whether this is its first save or a later one. Never "new".
-      if (heldMilestone) moments.push({ label: 'Milestone', detail: `Show ${heldMilestone} on your record` })
       const v = intelligence.venueVisits
-      if (v === 1) moments.push({ label: 'New room', detail: `First show on your record at ${performance?.venue_name}` })
-      else if (v > 1) moments.push({ label: 'Back again', detail: `${ordinal(v)} show at ${performance?.venue_name}` })
+      if (heldMilestone) moment = { label: 'Milestone', detail: `Show ${heldMilestone} on your record` }
+      else if (v === 1) moment = { label: 'New room', detail: 'Your first show here.' }
+      else if (intelligence.songDebuts.length > 0) moment = { label: 'First appearance on your record', detail: intelligence.songDebuts.join(', ') }
+      else if (v > 1) moment = { label: 'Back again', detail: `${ordinal(v)} show at ${performance?.venue_name}` }
     }
-    // One brief entrance (about a second). Opacity only; every control is
-    // live from the first frame. Reduced motion: everything at once.
-    const enter = (delay: number): React.CSSProperties => ({ opacity: 0, animation: `fadeUp 0.45s ${delay}s ease forwards` })
+    const meta = [performance?.city, showDate, durMins ? `${durMins} min` : null].filter(Boolean).join(' · ')
 
     return (
-      <div className="cer" style={{ minHeight: 'var(--sl-page-min-height, 100svh)', background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif', position: 'relative', overflow: 'hidden' }}>
-        {/* The existing restrained gold halo, held behind the opening */}
-        <div aria-hidden="true" style={{ position: 'absolute', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120%', height: 560, pointerEvents: 'none', zIndex: 0, background: 'radial-gradient(ellipse at 50% 0%, color-mix(in srgb, var(--sl-accent) 10%, transparent) 0%, transparent 60%)', animation: 'goldFlare 1.6s ease forwards' }} />
-        <PageFrame style={{ position: 'relative', zIndex: 1 }}>
-          {/* ── The finish of the night ── */}
-          <div className="cer-head" style={{ paddingTop: 52, paddingBottom: 30, textAlign: 'center' }}>
-            {/* The orb breathes over the venue first, so the title card
-                arrives as it leaves; "N songs saved" is there from the start. */}
-            <p style={{ display: 'inline-flex', alignItems: 'center', gap: 9, fontSize: 11, fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'var(--sl-gold-text)', margin: '0 0 16px', ...enter(0.33) }}>
-              <span ref={pipRef} aria-hidden="true" style={{ width: 9, height: 9, borderRadius: '50%', flexShrink: 0, background: ORB_GOLD, opacity: orbLanded ? 1 : 0, transition: 'opacity 0.2s ease' }} />
-              Show complete
-            </p>
-            <h1 ref={venueHeadingRef} style={{ fontSize: 48, fontWeight: 800, color: C.text, margin: '0 0 12px', letterSpacing: '-0.035em', lineHeight: 1.04, textWrap: 'balance' as any, overflowWrap: 'anywhere', ...enter(0.4) }}>
-              {performance?.venue_name}
-            </h1>
-            <p style={{ fontSize: 15, color: C.secondary, margin: '0 0 26px', ...enter(0.47) }}>
-              {performance?.city && <span>{performance.city}</span>}
-              {showDate && <><span style={{ color: 'var(--sl-text-4)', margin: '0 8px' }}>·</span><span>{showDate}</span></>}
-              {!!durMins && <><span style={{ color: 'var(--sl-text-4)', margin: '0 8px' }}>·</span><span>{durMins} min</span></>}
-            </p>
-            {/* Tonight's figure. Shows on the record are the counter below. */}
-            <p style={{ fontSize: 22, fontWeight: 700, color: C.text, margin: 0, letterSpacing: '-0.01em', ...enter(0.18) }}>
-              {songCount} {songCount === 1 ? 'song' : 'songs'} saved
-            </p>
+      <div className="cer" style={{ minHeight: 'var(--sl-page-min-height, 100svh)', background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif', position: 'relative', overflow: 'hidden', animation: 'cerIn 0.2s ease-out both' }}>
+        {/* The artist's own show photo when there is one; otherwise the gold glow. */}
+        {photoUrl ? (
+          <div aria-hidden="true" style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 300, zIndex: 0 }}>
+            <img src={photoUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+            <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, color-mix(in srgb, var(--sl-bg) 0%, transparent) 20%, color-mix(in srgb, var(--sl-bg) 78%, transparent) 68%, var(--sl-bg) 100%)' }} />
           </div>
-
-          {/* ── Lifetime progress, compact: the saved show stays the subject.
-              The large lifetime counter is the dashboard's. ── */}
-          <RecordFinish
-            data={recordFinish}
-            label={actingAsArtistId && performance?.artist_name ? `${/s$/i.test(performance.artist_name) ? `${performance.artist_name}’` : `${performance.artist_name}’s`} record` : 'Your record'}
-            startRef={venueHeadingRef}
-            pipRef={pipRef}
-            onLanded={() => setOrbLanded(true)}
-          />
-
-          <div className="cer-grid">
-            <div className="cer-col cer-col-a">
-              {/* ── The full saved setlist, counted up ── */}
-              <div className="cer-setlist">
-                <CeremonyCountCard
-                  songCount={confirmedSongs.length}
-                  showDate={showDate}
-                  verifiedCount={verifiedCount}
-                  autoCount={confirmedSongs.filter(s => (s.source === 'recognized' || s.source === 'detected' || s.source === 'fingerprint' || s.source === 'humming') && !s.was_planned).length}
-                  manualCount={manualCount}
-                  songs={confirmedSongs}
-                  flowSource={flowSourceRef.current}
-                />
-              </div>
+        ) : (
+          <div aria-hidden="true" style={{ position: 'absolute', top: -60, left: '-20%', right: '-20%', height: 380, pointerEvents: 'none', zIndex: 0, background: 'radial-gradient(ellipse 60% 55% at 32% 45%, color-mix(in srgb, var(--sl-accent) 22%, transparent), color-mix(in srgb, var(--sl-accent) 6%, transparent) 55%, transparent 75%)' }} />
+        )}
+        <PageFrame style={{ position: 'relative', zIndex: 1 }}>
+          <div style={{ maxWidth: 560, margin: '0 auto' }}>
+            {/* ── The show ── */}
+            <div className="cer-head" style={{ paddingTop: photoUrl ? 190 : 56, paddingBottom: 18 }}>
+              <p style={{ display: 'flex', alignItems: 'center', gap: 9, fontSize: 12, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--sl-gold-text)', margin: '0 0 10px' }}>
+                <span ref={pipRef} aria-hidden="true" style={{ width: 10, height: 10, borderRadius: '50%', flexShrink: 0, background: ORB_GOLD, opacity: orbLanded ? 1 : 0, transition: 'opacity 0.2s ease' }} />
+                Show complete
+              </p>
+              <h1 ref={venueHeadingRef} style={{ fontSize: 38, fontWeight: 800, color: C.text, margin: '0 0 8px', letterSpacing: '-0.035em', lineHeight: 1.04, textWrap: 'balance' as any, overflowWrap: 'anywhere' }}>
+                {performance?.venue_name}
+              </h1>
+              {meta && <p style={{ fontSize: 15, color: C.secondary, margin: 0 }}>{meta}</p>}
             </div>
 
-            <div className="cer-col cer-col-b">
-              {/* ── Tonight's moments: emphasis by type and gold, no extra cards ── */}
-              {(intelligenceState === 'loading' || intelligenceState === 'idle') && (
-                <div className="cer-moments" aria-busy="true" style={{ padding: '6px 2px', ...enter(0.3) }}>
-                  <p style={{ fontSize: 13.5, color: C.muted, margin: '0 0 10px' }}>Reading the night…</p>
-                  <Skeleton h={16} w="70%" r={5} />
-                  <Skeleton h={16} w="52%" r={5} mt={10} />
-                </div>
-              )}
-              {intelligenceState === 'ok' && moments.length > 0 && (
-                <div className="cer-moments" style={{ borderTop: '1px solid color-mix(in srgb, var(--sl-accent) 30%, transparent)', borderBottom: '1px solid color-mix(in srgb, var(--sl-accent) 30%, transparent)', padding: '4px 2px', ...enter(0.3) }}>
-                  <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--sl-gold-text)', margin: '14px 0 4px' }}>Tonight’s moments</p>
-                  {moments.map((m, i) => (
-                    <div key={i} style={{ padding: '10px 0', borderTop: i ? '1px solid color-mix(in srgb, var(--sl-text) 7%, transparent)' : 'none' }}>
-                      <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--sl-gold-text)', margin: 0 }}>{m.label}</p>
-                      <p style={{ fontSize: 20, fontWeight: 700, color: C.text, margin: '2px 0 0', letterSpacing: '-0.01em', lineHeight: 1.25, overflowWrap: 'anywhere' }}>{m.detail}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* ── Estimate and the primary next action ── */}
-              <div className="cer-estimate">
-                <CeremonyRoyaltyCard
-                  expected={estimate.expected}
-                  low={estimate.low}
-                  high={estimate.high}
-                  performanceId={params.id}
-                  onClaim={canWrite ? () => router.push(`/app/submit/${params.id}`) : null}
-                />
+            {/* ── Saved: one green confirmation; unidentified entries counted apart ── */}
+            <div role="status" style={{ display: 'flex', gap: 12, alignItems: 'flex-start', background: 'color-mix(in srgb, var(--sl-ok) 10%, transparent)', borderRadius: 14, padding: '14px 4px 14px 16px', boxShadow: 'inset 0 0 0 1px color-mix(in srgb, var(--sl-ok) 30%, transparent)' }}>
+              <svg className="cer-tick" width="20" height="20" viewBox="0 0 16 16" aria-hidden="true" style={{ flexShrink: 0, marginTop: 2, color: 'var(--sl-ok)' }}>
+                <circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" strokeWidth="1.5" />
+                <path d="M4.9 8.3l2.1 2.1 4.2-4.6" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ fontSize: 17.5, fontWeight: 700, color: C.text, margin: 0, lineHeight: 1.3 }}>
+                  {verifiedSongs > 0 ? `Saved. ${verifiedSongs} ${verifiedSongs === 1 ? 'song' : 'songs'} verified.` : 'Saved.'}
+                </p>
+                {unidentifiedCount > 0 && (
+                  <p style={{ display: 'flex', gap: 7, alignItems: 'flex-start', fontSize: 14.5, color: C.secondary, margin: '6px 0 0', lineHeight: 1.4 }}>
+                    <AlertCircle size={15} aria-hidden="true" style={{ color: 'var(--sl-warn)', flexShrink: 0, marginTop: 2 }} />
+                    {unidentifiedCount} unidentified {unidentifiedCount === 1 ? 'entry' : 'entries'} saved separately, not verified.
+                  </p>
+                )}
+                {aboutVerified && (
+                  <p id="about-verified" style={{ fontSize: 14, color: C.secondary, margin: '8px 0 0', lineHeight: 1.45 }}>
+                    Verified means you or an authorised teammate confirmed the song in Review and the show saved. A recognised or typed title on its own isn’t enough.
+                  </p>
+                )}
               </div>
+              <button onClick={() => setAboutVerified(v => !v)} aria-label="What verified means" aria-expanded={aboutVerified} aria-controls="about-verified"
+                style={{ width: 44, height: 44, margin: '-12px 0 -12px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', color: C.muted, cursor: 'pointer', flexShrink: 0 }}>
+                <Info size={17} />
+              </button>
+            </div>
 
-              <div className="cer-share" style={enter(0.55)}>
-          {/* ── SHARE CARDS ── */}
+            {/* ── One moment, and the record ── */}
+            <div style={{ marginTop: 24 }}>
+              {(intelligenceState === 'loading' || intelligenceState === 'idle') && (
+                <div aria-busy="true" style={{ marginBottom: 16 }}>
+                  <Skeleton h={13} w="28%" r={4} />
+                  <Skeleton h={18} w="62%" r={5} mt={8} />
+                </div>
+              )}
+              {intelligenceState === 'ok' && moment && (
+                <div style={{ marginBottom: 16 }}>
+                  <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--sl-gold-text)', margin: 0 }}>{moment.label}</p>
+                  <p style={{ fontSize: 18, fontWeight: 500, color: C.text, margin: '3px 0 0', letterSpacing: '-0.01em', lineHeight: 1.3, overflowWrap: 'anywhere' }}>{moment.detail}</p>
+                </div>
+              )}
+              <RecordFinish
+                data={recordFinish}
+                label={actingAsArtistId && performance?.artist_name ? `${/s$/i.test(performance.artist_name) ? `${performance.artist_name}’` : `${performance.artist_name}’s`} record` : 'Your record'}
+                startRef={venueHeadingRef}
+                pipRef={pipRef}
+                onLanded={() => setOrbLanded(true)}
+              />
+            </div>
+
+            {/* ── The full saved setlist ── */}
+            <div style={{ marginTop: 6 }}>
+              <p style={{ fontSize: 15, fontWeight: 600, color: C.secondary, margin: '0 0 6px' }}>Tonight’s setlist</p>
+              <ol style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+                {confirmedSongs.map((s, i) => (
+                  <li key={s.id} style={{ display: 'flex', alignItems: 'baseline', gap: 14, padding: '10px 0', borderTop: i ? '1px solid var(--sl-line)' : 'none' }}>
+                    <span style={{ fontSize: 12.5, color: C.muted, minWidth: 20, textAlign: 'right', fontFamily: '"DM Mono", monospace', flexShrink: 0 }}>{i + 1}</span>
+                    {s.source === 'unidentified'
+                      ? <span style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 16.5, fontWeight: 600, color: 'var(--sl-warn)' }}><AlertCircle size={15} aria-hidden="true" />Not identified</span>
+                      : <span style={{ fontSize: 16.5, fontWeight: 450, color: C.text, lineHeight: 1.3, overflowWrap: 'anywhere' }}>{s.title}</span>}
+                  </li>
+                ))}
+              </ol>
+            </div>
+
+            {/* ── Sharing, then the claim sheet ── */}
+            <div className="cer-share" style={{ marginTop: 32 }}>
               {(() => {
                   const royaltyAmount = estimate.expected
                   const artist = performance?.artist_name || ''
@@ -1522,10 +1515,10 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
                   const active = cards[Math.min(activeCardIndex, cards.length - 1)]
                   const format: ShareFormat = active.formats ? shareFormat : 'story'
                   return (
-                    <div style={{ marginBottom: 16, opacity: 0, animation: 'fadeUp 0.6s 1.0s ease forwards' }}>
+                    <div style={{ marginBottom: 16 }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, margin: '0 0 12px' }}>
-                        <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.muted, margin: 0 }}>
-                          Your cards
+                        <p style={{ fontSize: 15, fontWeight: 600, color: C.secondary, margin: 0 }}>
+                          Your card
                         </p>
                         {/* Story (9:16) or Feed (4:5): each composed for its frame; the preview is what's shared. */}
                         {active.formats && (
@@ -1543,7 +1536,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
                       {/* Card display with swipe support */}
                       <div
                         ref={shareCardRef}
-                        style={{ marginBottom: 12, touchAction: 'pan-y' }}
+                        style={{ marginBottom: 12, touchAction: 'pan-y', width: format === 'story' ? '64%' : '80%', marginLeft: 'auto', marginRight: 'auto' }}
                         onTouchStart={(e) => {
                           const touch = e.touches[0]
                           ;(e.currentTarget as any)._touchStartX = touch.clientX
@@ -1594,65 +1587,66 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
                         onClick={() => shareCard(format)}
                         disabled={shareState === 'working'}
                         style={{
-                          width: '100%', padding: '14px',
+                          width: '100%', minHeight: 48, padding: '0 14px',
                           background: 'transparent',
-                          border: `1px solid ${C.borderGold}`,
-                          borderRadius: 12, color: C.gold,
-                          fontSize: 14, fontWeight: 700,
+                          border: '1px solid color-mix(in srgb, var(--sl-accent) 45%, transparent)',
+                          borderRadius: 14, color: 'var(--sl-gold-text)',
+                          fontSize: 13.5, fontWeight: 800,
                           cursor: 'pointer', fontFamily: 'inherit',
                           display: 'flex', alignItems: 'center',
                           justifyContent: 'center', gap: 8,
-                          letterSpacing: '0.04em',
+                          letterSpacing: '0.08em', textTransform: 'uppercase',
                         }}>
                         {shareState === 'working' ? 'Preparing the image…' : '✦ Share this card'}
                       </button>
                     </div>
                   )
                 })()}
+            </div>
 
-              </div>
+            {/* The claim sheet: one quiet row with tonight's estimate and its disclaimer. */}
+            {(() => {
+              const body = (
+                <>
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <span style={{ display: 'block', fontSize: 16, fontWeight: 600, color: C.text }}>Claim sheet</span>
+                    <span style={{ display: 'block', fontSize: 13.5, color: C.secondary, marginTop: 3, lineHeight: 1.4 }}>Tonight’s estimate {formatEstimate(estimate.expected)} {ESTIMATE_UNIT} {ESTIMATE_DISCLAIMER}</span>
+                  </span>
+                  {canWrite && <ChevronRight size={20} aria-hidden="true" style={{ color: 'var(--sl-text-4)', flexShrink: 0 }} />}
+                </>
+              )
+              const rowStyle: React.CSSProperties = { width: '100%', display: 'flex', alignItems: 'center', gap: 12, textAlign: 'left', background: 'var(--sl-group)', border: 'none', borderRadius: 14, padding: '14px 12px 14px 16px', marginTop: 14, fontFamily: 'inherit', color: C.text }
+              return canWrite
+                ? <button onClick={() => router.push(`/app/submit/${params.id}`)} aria-label="Open the claim sheet" style={{ ...rowStyle, cursor: 'pointer' }}>{body}</button>
+                : <div style={rowStyle}>{body}</div>
+            })()}
 
-              <div className="cer-actions" style={{ display: 'flex', flexDirection: 'column', gap: 4, ...enter(0.6) }}>
-                <button onClick={() => router.push('/app/dashboard')}
-                  style={{ width: '100%', minHeight: 48, background: 'transparent', border: '1px solid color-mix(in srgb, var(--sl-accent) 35%, transparent)', borderRadius: 14, color: 'var(--sl-gold-text)', fontSize: 14.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
-                  Back to your record
-                </button>
-                <button onClick={() => setShowComplete(false)}
-                  style={{ width: '100%', minHeight: 44, background: 'transparent', border: 'none', borderRadius: 10, color: C.secondary, fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-                  Review the night
-                </button>
-              </div>
+            <div className="cer-actions" style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 16, paddingBottom: 24 }}>
+              <button onClick={() => router.push('/app/dashboard')}
+                style={{ width: '100%', minHeight: 48, background: 'transparent', border: '1px solid color-mix(in srgb, var(--sl-text) 14%, transparent)', borderRadius: 14, color: C.secondary, fontSize: 13.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'inherit' }}>
+                Back to your record
+              </button>
+              <button onClick={() => setShowComplete(false)}
+                style={{ width: '100%', minHeight: 44, background: 'transparent', border: 'none', borderRadius: 10, color: C.secondary, fontSize: 13, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'inherit' }}>
+                Review the night
+              </button>
             </div>
           </div>
         </PageFrame>
 
         <style>{`
-          @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500;700&display=swap');
           @keyframes fadeUp { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
           @keyframes spin { to{transform:rotate(360deg)} }
-          @keyframes goldFlare { 0%{opacity:0} 30%{opacity:1} 100%{opacity:0.7} }
-          @keyframes countPulse { 0%{transform:scale(1)} 50%{transform:scale(1.04)} 100%{transform:scale(1)} }
+          /* The entrance: one short cross-fade, the tick draws once; the
+             record's orb lands on its dot (RecordFinish). */
+          @keyframes cerIn { from { opacity: 0 } to { opacity: 1 } }
+          @keyframes cerTick { to { stroke-dashoffset: 0 } }
+          .cer-tick path { stroke-dasharray: 12; stroke-dashoffset: 12; animation: cerTick 0.24s 0.14s ease-out forwards; }
           * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
-          /* Phones: the show and its moments first, then the estimate and the
-             claim sheet, the full saved setlist, cards and links.
-             900px+: the saved setlist beside moments, estimate and cards. */
-          .cer-grid { display: flex; flex-direction: column; gap: 14px; }
-          .cer-col { display: contents; }
-          .cer-moments { order: 1; } .cer-estimate { order: 2; } .cer-setlist { order: 3; } .cer-share { order: 4; } .cer-actions { order: 5; }
-          /* Lifetime progress: full width on phones; a ledger-width block
-             centred under the header from 600px, with the dashboard's
-             wider dot size. */
-          @container sl-frame (min-width: 600px) {
-            .rf { max-width: 440px; margin-left: auto; margin-right: auto; --d-dot: 10px; --d-dot-gap: 5px; }
-          }
-          @container sl-frame (min-width: 900px) {
-            .cer-head { padding-top: 64px !important; }
-            .cer-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(360px, 420px); column-gap: 40px; align-items: start; max-width: 960px; margin: 0 auto; }
-            .cer-col { display: flex; flex-direction: column; gap: 14px; }
-          }
           /* Reduced motion: everything is there at once. */
           @media (prefers-reduced-motion: reduce) {
-            .cer *, .cer *::before, .cer *::after { animation-duration: 0.01ms !important; animation-delay: 0s !important; }
+            .cer, .cer *, .cer *::before, .cer *::after { animation-duration: 0.01ms !important; animation-delay: 0s !important; }
+            .cer-tick path { stroke-dashoffset: 0; }
           }
         `}</style>
       </div>
@@ -1671,212 +1665,229 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
     </div>
   )
 
+  // ── Review (revision 3) ──────────────────────────────────────────────────
+  // What's left to decide: unidentified songs to name, and planned songs not
+  // heard (the same filters the save uses: removed and planned rows aside).
+  const toName    = confirmedSongs.filter(s => s.source === 'unidentified' || s.reviewState === 'needs_review')
+  const toCheck   = plannedPending.length
+  const leftText  = [toName.length ? `${toName.length} song${toName.length > 1 ? 's' : ''} to name` : '', toCheck ? `${toCheck} planned song${toCheck > 1 ? 's' : ''} to check` : ''].filter(Boolean).join(' · ')
+  const locked    = saving
+  const emptyShow = confirmedSongs.length === 0
+  const sheetOpen = !!editSheet || !!assignSheet || emptyConfirm || showAdd
+  // The pinned bar steps aside for EDIT, an open sheet and the keyboard.
+  const showBar   = !songsError && !editMode && !sheetOpen && keyboardOffset === 0
+  const unnamedCount = toName.filter(s => s.source === 'unidentified').length
+  const fine = unnamedCount
+    ? `Saving confirms the named songs. ${unnamedCount === 1 ? 'The unnamed entry is' : `The ${unnamedCount} unnamed entries are`} saved as unidentified.`
+    : toCheck ? 'Saving confirms these songs. Undecided planned songs aren’t added.'
+    : 'Saving confirms you performed these songs at this show.'
+  function jumpToNext() {
+    if (locked) return
+    if (toName[0]) { openAssignSheet(toName[0].id); return }
+    const reduced = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    plannedRef.current?.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'center' })
+  }
+  const capsButton: React.CSSProperties = { fontSize: 13, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', fontFamily: 'inherit' }
+  const sectionLabel: React.CSSProperties = { fontSize: 15, fontWeight: 600, color: C.secondary, margin: 0 }
+  const moreRow: React.CSSProperties = { width: '100%', display: 'flex', alignItems: 'center', gap: 12, minHeight: 54, padding: '8px 12px 8px 14px', background: 'none', border: 'none', textAlign: 'left', cursor: locked ? 'default' : 'pointer', fontFamily: 'inherit', color: C.secondary, fontSize: 15.5, fontWeight: 500 }
+
   return (
     <div style={{ minHeight: 'var(--sl-page-min-height, 100svh)', background: C.bg, fontFamily: '"DM Sans", system-ui, sans-serif', display: 'flex', flexDirection: 'column' }}>
       <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '100vw', height: '40vh', pointerEvents: 'none', zIndex: 0, background: 'var(--sl-page-glow)' }} />
       <div style={{ position: 'relative', zIndex: 1, flex: 1, display: 'flex', flexDirection: 'column', maxWidth: 720, width: '100%', margin: '0 auto', padding: '0 20px', boxSizing: 'border-box' }}>
 
-        <div style={{ paddingTop: 32, paddingBottom: 24, animation: 'fadeUp 0.4s ease' }}>
-          <h1 style={{ fontSize: 'clamp(32px, 5vw, 44px)', fontWeight: 800, color: C.text, margin: '0 0 10px', letterSpacing: '-0.03em', lineHeight: 1.08, textWrap: 'balance' as any }}>{performance?.venue_name}</h1>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 14, color: C.secondary }}><MapPin size={13} />{performance?.city}</span>
-            {theShowDate ? <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 14, color: C.secondary }}><Calendar size={13} />{theShowDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</span> : null}
-            {dur ? <span style={{ fontSize: 14, color: C.secondary }}>· {dur}</span> : null}
-          </div>
-          <div style={{ marginTop: 12, display: 'flex', gap: 6, alignItems: 'center' }}>
-            <span style={{ fontSize: 14, color: C.secondary }}>{confirmedSongs.length} songs</span>
-            {autoCount > 0 && <><span style={{ color: 'var(--sl-text-4)' }}>·</span><span style={{ fontSize: 14, color: C.muted }}>{autoCount} detected</span></>}
-            {needsReviewCount > 0 && <><span style={{ color: 'var(--sl-text-4)' }}>·</span><span style={{ fontSize: 14, color: C.gold, fontWeight: 600 }}>{needsReviewCount} {needsReviewCount === 1 ? 'needs a name' : 'need names'}</span></>}
-          </div>
+        <div style={{ paddingTop: 26, paddingBottom: 4 }}>
+          <p style={{ fontSize: 12, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--sl-gold-text)', margin: '0 0 8px' }}>Review your set</p>
+          <h1 style={{ fontSize: 'clamp(30px, 5vw, 40px)', fontWeight: 800, color: C.text, margin: '0 0 8px', letterSpacing: '-0.03em', lineHeight: 1.08, textWrap: 'balance' as any, overflowWrap: 'anywhere' }}>{performance?.venue_name}</h1>
+          <p style={{ fontSize: 15, color: C.secondary, margin: 0 }}>
+            {[performance?.city, theShowDate ? theShowDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : null, dur || null].filter(Boolean).join(' · ')}
+          </p>
         </div>
 
-        {/* ── SHOW PHOTO ── */}
-        <div style={{ marginBottom: 16 }}>
-          {photoUrl ? (
-            <div style={{ position: 'relative', borderRadius: 12, overflow: 'hidden', marginBottom: 8 }}>
-              <img
-                src={photoUrl}
-                alt="Show photo"
-                style={{ width: '100%', aspectRatio: '16/9', objectFit: 'cover', display: 'block' }}
-              />
-              <label style={{
-                position: 'absolute', bottom: 10, right: 10,
-                background: 'color-mix(in srgb, var(--sl-bg) 80%, transparent)', border: '1px solid color-mix(in srgb, var(--sl-text) 15%, transparent)',
-                borderRadius: 8, padding: '6px 12px', cursor: 'pointer',
-                fontSize: 12, color: 'var(--sl-text-2)', fontFamily: 'inherit', fontWeight: 600,
-              }}>
-                Change photo
-                <input type="file" accept="image/*" onChange={handlePhotoUpload} style={{ display: 'none' }} />
-              </label>
-            </div>
+        {/* ── What's left: one specific summary; tap to go to the next one ── */}
+        {!songsError && !emptyShow && (
+          leftText ? (
+            <button onClick={jumpToNext} disabled={locked} aria-label={`${leftText}. Go to the next one.`}
+              style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left', margin: '20px 0 22px', padding: 16, minHeight: 60, background: 'var(--sl-raised)', border: 'none', borderRadius: 18, cursor: locked ? 'default' : 'pointer', fontFamily: 'inherit', color: C.text }}>
+              <AlertCircle size={20} aria-hidden="true" style={{ color: 'var(--sl-warn)', flexShrink: 0 }} />
+              <span style={{ flex: 1, minWidth: 0, fontSize: 17.5, fontWeight: 800, letterSpacing: '-0.01em', lineHeight: 1.3 }}>{leftText}</span>
+              <ChevronRight size={20} aria-hidden="true" style={{ color: C.muted, flexShrink: 0 }} />
+            </button>
           ) : (
-            <label style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              gap: 8, width: '100%', padding: '14px',
-              background: 'color-mix(in srgb, var(--sl-text) 2%, transparent)',
-              border: '1px dashed color-mix(in srgb, var(--sl-text) 12%, transparent)',
-              borderRadius: 12, cursor: 'pointer',
-              fontSize: 13, color: 'var(--sl-text-3)', fontFamily: 'inherit',
-            }}>
-              {photoUploading ? (
-                <>
-                  <div style={{ width: 14, height: 14, borderRadius: '50%', border: '1.5px solid color-mix(in srgb, var(--sl-accent) 30%, transparent)', borderTopColor: 'var(--sl-accent)', animation: 'spin 0.7s linear infinite' }} />
-                  Uploading...
-                </>
-              ) : (
-                <>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--sl-text-3)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/>
-                    <polyline points="21 15 16 10 5 21"/>
-                  </svg>
-                  Add a photo from tonight
-                </>
-              )}
-              <input type="file" accept="image/*" onChange={handlePhotoUpload} style={{ display: 'none' }} />
-            </label>
-          )}
-          {photoError && <p role="alert" style={{ fontSize: 13.5, color: C.text, margin: '8px 0 0' }}>The photo couldn’t be added. Try again.</p>}
-        </div>
+            <div role="status" style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '20px 0 22px', padding: 16, minHeight: 60, borderRadius: 18, background: 'linear-gradient(180deg, color-mix(in srgb, var(--sl-ok) 7%, var(--sl-raised)), var(--sl-raised) 70%)', boxShadow: 'inset 0 0 0 1px color-mix(in srgb, var(--sl-ok) 32%, transparent)' }}>
+              <Check size={20} strokeWidth={2.5} aria-hidden="true" style={{ color: 'var(--sl-ok)', flexShrink: 0 }} />
+              <span style={{ fontSize: 17.5, fontWeight: 800, color: C.text }}>Ready to save</span>
+            </div>
+          )
+        )}
 
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, animation: 'fadeUp 0.4s 0.05s ease both' }}>
-          <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', color: C.muted }}>Setlist</span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          {confirmedSongs.length > 0 && (
-            <button onClick={() => setEditMode(m => !m)} aria-pressed={editMode}
-              style={{ minHeight: 44, padding: '0 12px', background: 'none', border: 'none', color: editMode ? C.gold : C.secondary, fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+        {/* ── Setlist ── */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', minHeight: 44, marginTop: emptyShow ? 22 : 0 }}>
+          <p style={sectionLabel}>Setlist · {confirmedSongs.length}</p>
+          {confirmedSongs.length > 0 && !songsError && (
+            <button onClick={() => setEditMode(m => !m)} aria-pressed={editMode} disabled={locked}
+              style={{ ...capsButton, minHeight: 44, padding: '0 2px 0 12px', background: 'none', border: 'none', color: 'var(--sl-gold-text)', cursor: locked ? 'default' : 'pointer', opacity: locked ? 0.4 : 1 }}>
               {editMode ? 'Done' : 'Edit'}
             </button>
           )}
-          <button onClick={() => setShowAdd(!showAdd)}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, background: showAdd ? 'transparent' : C.goldDim, border: `1px solid ${showAdd ? C.border : C.borderGold}`, borderRadius: 10, padding: '9px 16px', color: showAdd ? C.muted : C.gold, fontSize: 13, fontWeight: 700, cursor: 'pointer', letterSpacing: '0.04em', transition: 'all 0.15s ease', fontFamily: 'inherit', minHeight: 44, WebkitTapHighlightColor: 'transparent' }}>
-            <span style={{ display: 'inline-block', transform: showAdd ? 'rotate(45deg)' : 'rotate(0)', transition: 'transform 0.2s ease', fontSize: 16, lineHeight: 1, fontWeight: 400 }}>+</span>
-            Add Song
-          </button>
-          </div>
         </div>
-
-        {showAdd ? (
-          <div style={{ background: C.cardGrad, border: `1px solid ${C.borderGold}`, borderRadius: 12, padding: 14, marginBottom: 10, animation: 'slideUp 0.2s ease', boxShadow: 'var(--sl-card-inset)' }}>
-            <CatalogSearch userId={userId} placeholder="Search or add a song..." autoFocus showEmpty currentSongs={confirmedSongs.map(s => s.title)}
-              onSelect={(catalogSong) => {
-                const normalized = normalizeSong({ title: catalogSong.title, artist: catalogSong.artist || performance?.artist_name || '' })
-                setSongs(prev => [...prev, { id: `manual-${Date.now()}`, title: normalized.title, artist: normalized.artist, position: songs.length + 1, source: 'manual', recognition_decision_id: null, isrc: catalogSong.isrc || '', composer: catalogSong.composer || '', publisher: catalogSong.publisher || '', reviewState: 'clean', isNew: true }])
-                setShowAdd(false)
-                logReviewAction('add_song')
-              }} />
-            <button onClick={() => setShowAdd(false)} style={{ width: '100%', marginTop: 8, padding: '8px', background: 'transparent', border: 'none', color: C.muted, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
-          </div>
-        ) : null}
+        {editMode && <p style={{ fontSize: 14, color: C.muted, margin: '0 0 10px' }}>Drag to reorder. Tap ✕ to remove a song.</p>}
 
         {songsError ? (
           <LoadError compact message="The songs for this show couldn’t be loaded." detail="Saving is unavailable until they load." onRetry={() => setReloadKey(k => k + 1)} />
-        ) : confirmedSongs.length === 0 && plannedPending.length === 0 ? (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '64px 0', animation: 'fadeUp 0.4s ease' }}>
-            <div style={{ width: 56, height: 56, borderRadius: '50%', background: C.card, border: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
-              <Music2 size={22} style={{ color: C.muted }} />
-            </div>
-            <p style={{ fontSize: 14, color: C.secondary, margin: 0 }}>No songs detected</p>
-            <p style={{ fontSize: 12, color: C.muted, margin: '4px 0 0' }}>Add songs manually above</p>
-          </div>
-        ) : null}
-
-        {confirmedSongs.length > 0 ? (
-          <div style={{ animation: 'fadeUp 0.4s 0.1s ease both' }}>
-            {confirmedSongs.length > 0 ? <p style={{ fontSize: 14, color: C.muted, margin: '0 0 12px' }}>{editMode ? 'Tap ✕ to remove a song. Removed songs won’t count.' : 'Tap any song to edit · swipe to delete'}</p> : null}
-            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-              <SortableContext items={confirmedSongs.map(s => s.id)} strategy={verticalListSortingStrategy}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {confirmedSongs.map((song, index) => <SortableRow key={song.id} song={song} index={index} onDelete={handleDelete} onTap={handleRowTap} editMode={editMode} />)}
-                </div>
-              </SortableContext>
-            </DndContext>
-          </div>
-        ) : null}
-
-        {plannedPending.length > 0 && (
-          <div style={{ marginTop: confirmedSongs.length > 0 ? 20 : 0, animation: 'fadeUp 0.4s 0.12s ease both' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-              <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted, margin: 0 }}>
-                On your setlist · did you play these?
-              </p>
-              <span style={{ fontSize: 10, color: C.muted, fontFamily: '"DM Mono", monospace' }}>{plannedPending.length}</span>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {plannedPending.map(song => (
-                <PlannedSongRow
-                  key={song.id}
-                  song={song}
-                  onPlayed={markPlannedAsPlayed}
-                  onRemove={removePlannedSong}
-                />
-              ))}
-            </div>
-            <p style={{ fontSize: 11, color: C.muted, margin: '8px 0 0', lineHeight: 1.5 }}>
-              "Played" adds them to your setlist. "✕" removes them — they won't count toward royalties.
-            </p>
+        ) : (
+          <div aria-busy={locked || undefined} style={{ background: 'var(--sl-group)', borderRadius: 16, overflow: 'hidden', opacity: locked ? 0.55 : 1, pointerEvents: locked ? 'none' : 'auto', transition: 'opacity 0.2s ease' }}>
+            {confirmedSongs.length > 0 && (
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                <SortableContext items={confirmedSongs.map(s => s.id)} strategy={verticalListSortingStrategy}>
+                  {confirmedSongs.map((song, index) => <SortableRow key={song.id} song={song} index={index} onDelete={handleDelete} onTap={handleRowTap} editMode={editMode} locked={locked} first={index === 0} />)}
+                </SortableContext>
+              </DndContext>
+            )}
+            {emptyShow && (
+              <div style={{ padding: '18px 16px 6px' }}>
+                <p style={{ fontSize: 16, fontWeight: 600, color: C.text, margin: '0 0 2px' }}>No songs on this setlist yet</p>
+                <p style={{ fontSize: 14, color: C.muted, margin: 0 }}>Add the songs you played.</p>
+              </div>
+            )}
+            {showAdd ? (
+              <div style={{ padding: 12, borderTop: confirmedSongs.length > 0 ? '1px solid var(--sl-line)' : 'none' }}>
+                <CatalogSearch userId={userId} placeholder="Search or add a song..." autoFocus showEmpty currentSongs={confirmedSongs.map(s => s.title)}
+                  onSelect={(catalogSong) => {
+                    const normalized = normalizeSong({ title: catalogSong.title, artist: catalogSong.artist || performance?.artist_name || '' })
+                    setSongs(prev => [...prev, { id: `manual-${Date.now()}`, title: normalized.title, artist: normalized.artist, position: songs.length + 1, source: 'manual', recognition_decision_id: null, isrc: catalogSong.isrc || '', composer: catalogSong.composer || '', publisher: catalogSong.publisher || '', reviewState: 'clean', isNew: true }])
+                    setShowAdd(false)
+                    logReviewAction('add_song')
+                  }} />
+                <button onClick={() => setShowAdd(false)} style={{ ...capsButton, width: '100%', minHeight: 44, marginTop: 6, background: 'transparent', border: 'none', color: C.secondary, cursor: 'pointer' }}>Cancel</button>
+              </div>
+            ) : !editMode && (
+              <button onClick={() => setShowAdd(true)} disabled={locked}
+                style={{ ...capsButton, width: '100%', display: 'flex', alignItems: 'center', gap: 12, minHeight: 54, padding: '0 14px', background: 'none', border: 'none', borderTop: confirmedSongs.length > 0 ? '1px solid var(--sl-line)' : 'none', color: 'var(--sl-gold-text)', cursor: 'pointer', textAlign: 'left' }}>
+                <span aria-hidden="true" style={{ minWidth: 20, textAlign: 'right', fontSize: 18, fontWeight: 600 }}>+</span>Add song
+              </button>
+            )}
           </div>
         )}
 
-        <div style={{ marginTop: 12, background: 'transparent', border: 'none', borderRadius: 16, overflow: 'hidden', animation: 'fadeUp 0.4s 0.15s ease both' }}>
-          <button onClick={() => setShowExport(!showExport)}
-            style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 600, color: C.muted }}><Download size={14} style={{ color: C.gold }} />Export for PRO Submission</span>
-            <span style={{ fontSize: 10, color: C.muted, transform: showExport ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s ease', display: 'inline-block' }}>▼</span>
-          </button>
-          {showExport ? (
-            <div style={{ padding: '0 14px 14px', borderTop: `1px solid ${C.border}`, animation: 'slideUp 0.15s ease' }}>
-              <p style={{ fontSize: 11, color: C.muted, margin: '12px 0 10px' }}>Select your PRO to download a formatted CSV:</p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {(['SOCAN', 'ASCAP', 'BMI'] as PRO[]).map(pro => (
-                  <button key={pro} onClick={() => generateExportCSV(pro)} onMouseEnter={() => setSelectedPRO(pro)}
-                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '11px 14px', background: selectedPRO === pro ? C.goldDim : 'transparent', border: `1px solid ${selectedPRO === pro ? C.borderGold : C.border}`, borderRadius: 10, cursor: 'pointer', transition: 'all 0.15s ease', fontFamily: 'inherit' }}>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: selectedPRO === pro ? C.gold : C.text }}>{pro}</span>
-                    <span style={{ fontSize: 11, color: C.muted }}>{pro === 'SOCAN' ? 'Canada' : 'USA'} · CSV ↓</span>
-                  </button>
-                ))}
-              </div>
+        {/* ── Planned, not heard ── */}
+        {plannedPending.length > 0 && !songsError && (
+          <div ref={plannedRef} style={{ marginTop: 22 }}>
+            <p style={{ ...sectionLabel, display: 'flex', alignItems: 'center', gap: 7, minHeight: 44 }}>
+              <span aria-hidden="true" style={{ width: 15, height: 15, borderRadius: '50%', border: '1.5px dashed var(--sl-warn)', flexShrink: 0 }} />
+              Planned, not heard · {plannedPending.length}
+            </p>
+            <div style={{ background: 'var(--sl-group)', borderRadius: 16, overflow: 'hidden', opacity: locked ? 0.55 : 1, pointerEvents: locked ? 'none' : 'auto' }}>
+              {plannedPending.map((song, i) => (
+                <PlannedSongRow key={song.id} song={song} onPlayed={markPlannedAsPlayed} onRemove={removePlannedSong} locked={locked} first={i === 0} />
+              ))}
             </div>
-          ) : null}
-        </div>
+          </div>
+        )}
 
-        <div style={{ paddingTop: 14, paddingBottom: 40, display: 'flex', flexDirection: 'column', gap: 10, animation: 'fadeUp 0.4s 0.2s ease both' }}>
-          <p style={{ fontSize: 11, color: C.muted, textAlign: 'center', margin: '0 0 2px' }}>By saving, you confirm these songs were performed at this show.</p>
-          {saveError && (
-            <div role="alert" style={{ background: 'color-mix(in srgb, var(--sl-warn) 7%, transparent)', border: '1px solid color-mix(in srgb, var(--sl-warn) 28%, transparent)', borderRadius: 12, padding: '12px 14px', fontSize: 14, color: 'var(--sl-text)', lineHeight: 1.45 }}>
-              {saveError.text}
-              <span style={{ display: 'block', fontSize: 12, color: 'var(--sl-text-3)', marginTop: 4, fontFamily: '"DM Mono", monospace' }}>{saveError.ref}</span>
+        {/* ── More for this show: the photo and the CSV export (unchanged) ── */}
+        {!songsError && (
+          <div style={{ marginTop: 26 }}>
+            <p style={{ ...sectionLabel, minHeight: 32 }}>More for this show</p>
+            <div style={{ background: 'var(--sl-group)', borderRadius: 16, overflow: 'hidden', opacity: locked ? 0.55 : 1, pointerEvents: locked ? 'none' : 'auto' }}>
+              {photoUrl && <img src={photoUrl} alt="Show photo" style={{ width: '100%', aspectRatio: '16/9', objectFit: 'cover', display: 'block' }} />}
+              <label style={{ ...moreRow, borderTop: photoUrl ? '1px solid var(--sl-line)' : 'none' }}>
+                <ImagePlus size={18} aria-hidden="true" style={{ color: C.muted, flexShrink: 0, width: 20 }} />
+                <span role={photoUploading ? 'status' : undefined} style={{ flex: 1 }}>{photoUploading ? 'Adding photo…' : photoUrl ? 'Change photo' : 'Add a photo from tonight'}</span>
+                <ChevronRight size={18} aria-hidden="true" style={{ color: 'var(--sl-text-4)' }} />
+                <input type="file" accept="image/*" onChange={handlePhotoUpload} disabled={photoUploading || locked} style={{ display: 'none' }} />
+              </label>
+              <button onClick={() => setShowExport(!showExport)} aria-expanded={showExport} style={{ ...moreRow, borderTop: '1px solid var(--sl-line)' }}>
+                <Download size={18} aria-hidden="true" style={{ color: C.muted, flexShrink: 0, width: 20 }} />
+                <span style={{ flex: 1 }}>Export CSV for SOCAN, ASCAP or BMI</span>
+                <ChevronRight size={18} aria-hidden="true" style={{ color: 'var(--sl-text-4)', transform: showExport ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s ease' }} />
+              </button>
+              {showExport ? (
+                <div style={{ padding: '0 14px 14px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {(['SOCAN', 'ASCAP', 'BMI'] as PRO[]).map(pro => (
+                    <button key={pro} onClick={() => generateExportCSV(pro)} onMouseEnter={() => setSelectedPRO(pro)}
+                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', minHeight: 44, padding: '0 14px', background: selectedPRO === pro ? C.goldDim : 'transparent', border: `1px solid ${selectedPRO === pro ? C.borderGold : C.border}`, borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit' }}>
+                      <span style={{ fontSize: 14, fontWeight: 600, color: selectedPRO === pro ? C.gold : C.text }}>{pro}</span>
+                      <span style={{ fontSize: 13, color: C.muted }}>{pro === 'SOCAN' ? 'Canada' : 'USA'} · CSV ↓</span>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
             </div>
-          )}
-          <button onClick={handleSave} disabled={saving || saved || songsError}
-            style={{ width: '100%', padding: '15px', minHeight: 52, background: saved ? 'var(--sl-ok-strong)' : C.gold, border: 'none', borderRadius: 12, color: saved ? '#fff' : 'var(--sl-on-accent)', fontSize: 13, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: saving || saved || songsError ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : songsError ? 0.5 : 1, transition: 'all 0.25s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit' }}
-            onMouseEnter={e => { if (!saving && !saved) (e.currentTarget as HTMLElement).style.opacity = '0.8' }}
-            onMouseLeave={e => { if (!saving && !saved) (e.currentTarget as HTMLElement).style.opacity = '1' }}>
-            {saved ? <><Check size={16} strokeWidth={2.5} /> Saved</> : saving ? <><div style={{ width: 14, height: 14, borderRadius: '50%', border: `2px solid color-mix(in srgb, var(--sl-on-accent) 25%, transparent)`, borderTopColor: 'var(--sl-on-accent)', animation: 'spin 0.7s linear infinite' }} />Saving...</> : saveError?.retry ? 'Try again' : 'Save & Complete'}
-          </button>
-          <button onClick={() => router.push('/app/dashboard')}
-            style={{ background: 'none', border: 'none', color: C.muted, fontSize: 13, cursor: 'pointer', letterSpacing: '0.04em', fontFamily: 'inherit', minHeight: 44, padding: '0 12px', alignSelf: 'center', transition: 'opacity 0.15s ease' }}
-            onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.7'}
-            onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}>
-            Back to Dashboard
-          </button>
-        </div>
+            {photoError && <p role="alert" style={{ fontSize: 13.5, color: C.text, margin: '8px 0 0' }}>The photo couldn’t be added. Try again.</p>}
+          </div>
+        )}
+
+        {/* Clearance so the last row scrolls clear of the pinned bar. */}
+        <div aria-hidden="true" style={{ height: showBar ? (saveError ? 260 : 170) : 40 }} />
       </div>
 
-      {editSheet ? <EditSheet song={editSheet} onSave={handleEdit} onClose={() => setEditSheet(null)} /> : null}
-      {assignSheet ? <AssignSheet assignSheet={assignSheet} onAssign={assignSong} onClose={closeAssignSheet} onCatalogSelect={assignFromCatalog} userId={userId} currentSongs={confirmedSongs.filter(s => s.id !== assignSheet.songId).map(s => s.title)} /> : null}
+      {/* ── Pinned SAVE SHOW, above the tab bar ── */}
+      {showBar && (
+        <div className="rv-savebar">
+          <div style={{ maxWidth: 680, margin: '0 auto' }}>
+            {saveError && (
+              <div role="alert" style={{ background: 'color-mix(in srgb, var(--sl-warn) 9%, var(--sl-bg))', border: '1px solid color-mix(in srgb, var(--sl-warn) 28%, transparent)', borderRadius: 12, padding: '12px 14px', fontSize: 14, color: 'var(--sl-text)', lineHeight: 1.45, marginBottom: 10 }}>
+                {saveError.text}
+                <span style={{ display: 'block', fontSize: 12.5, color: 'var(--sl-text-3)', marginTop: 4, fontFamily: '"DM Mono", monospace' }}>{saveError.ref}</span>
+              </div>
+            )}
+            {emptyShow ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <button onClick={() => setShowAdd(true)} disabled={locked} style={{ ...capsButton, fontSize: 14.5, width: '100%', minHeight: 52, background: C.gold, border: 'none', borderRadius: 14, color: 'var(--sl-on-accent)', cursor: 'pointer' }}>Add song</button>
+                <button onClick={() => setEmptyConfirm(true)} disabled={locked || saved} style={{ ...capsButton, width: '100%', minHeight: 48, background: 'transparent', border: '1px solid color-mix(in srgb, var(--sl-text) 14%, transparent)', borderRadius: 14, color: C.secondary, cursor: locked ? 'default' : 'pointer' }}>{saving ? 'Saving…' : 'Save without songs'}</button>
+              </div>
+            ) : (
+              <>
+                <button onClick={handleSave} disabled={saving || saved}
+                  style={{ ...capsButton, fontSize: 14.5, width: '100%', minHeight: 52, background: saved ? 'var(--sl-ok-strong)' : C.gold, border: 'none', borderRadius: 14, color: saved ? '#fff' : 'var(--sl-on-accent)', cursor: saving || saved ? 'not-allowed' : 'pointer', opacity: saving ? 0.6 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                  {saved ? <><Check size={16} strokeWidth={2.5} /> Saved</> : saving ? 'Saving…' : saveError?.retry ? 'Try again' : 'Save show'}
+                </button>
+                <p style={{ fontSize: 13, color: C.muted, textAlign: 'center', margin: '7px 0 0', lineHeight: 1.4 }}>{fine}</p>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {undo && !saving && (
+        <div role="status" className="rv-toast" style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 52, padding: '0 6px 0 16px', background: 'var(--sl-sheet)', borderRadius: 12, boxShadow: '0 12px 30px rgba(0,0,0,0.5)', fontSize: 15, color: C.text }}>
+          <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{undo.label}</span>
+          <button onClick={undoLast} style={{ ...capsButton, minHeight: 44, padding: '0 12px', background: 'none', border: 'none', color: 'var(--sl-gold-text)', cursor: 'pointer' }}>Undo</button>
+        </div>
+      )}
+
+      {editSheet ? (() => {
+        const pos = confirmedSongs.findIndex(s => s.id === editSheet.id) + 1
+        return <SongSheet song={editSheet} position={pos} total={confirmedSongs.length} onSave={handleEdit} onRemove={handleDelete} onClose={() => setEditSheet(null)} />
+      })() : null}
+      {assignSheet ? <AssignSheet assignSheet={assignSheet} onAssign={assignSong} onClose={closeAssignSheet} onCatalogSelect={assignFromCatalog} onRemove={handleDelete} userId={userId} currentSongs={confirmedSongs.filter(s => s.id !== assignSheet.songId).map(s => s.title)} /> : null}
+
+      {/* SAVE WITHOUT SONGS asks first; only its own button runs the existing save. */}
+      {emptyConfirm && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', animation: 'fadeIn 0.15s ease' }} onClick={() => setEmptyConfirm(false)}>
+          <div role="alertdialog" aria-label="Save without songs?" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 520, background: 'var(--sl-sheet)', borderRadius: '22px 22px 0 0', padding: '22px 20px calc(24px + env(safe-area-inset-bottom, 0px))', display: 'flex', flexDirection: 'column', gap: 10, animation: 'sheetUp 0.22s ease', fontFamily: '"DM Sans", system-ui, sans-serif' }}>
+            <p style={{ fontSize: 20, fontWeight: 800, color: C.text, margin: 0 }}>Save without songs?</p>
+            <p style={{ fontSize: 15, color: C.secondary, margin: '0 0 8px', lineHeight: 1.45 }}>{performance?.venue_name} will be saved as complete with an empty setlist.</p>
+            <button onClick={() => { setEmptyConfirm(false); handleSave() }} style={{ ...capsButton, fontSize: 14.5, minHeight: 52, background: C.gold, border: 'none', borderRadius: 14, color: 'var(--sl-on-accent)', cursor: 'pointer' }}>Save without songs</button>
+            <button onClick={() => setEmptyConfirm(false)} style={{ ...capsButton, minHeight: 48, background: 'transparent', border: 'none', color: C.secondary, cursor: 'pointer' }}>Cancel</button>
+          </div>
+        </div>
+      )}
 
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500;700&display=swap');
         @keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
         @keyframes fadeIn{from{opacity:0}to{opacity:1}}
         @keyframes slideUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
         @keyframes sheetUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
-        @keyframes spin{to{transform:rotate(360deg)}}
-        @keyframes breathe{0%,100%{transform:scale(1);opacity:.3}50%{transform:scale(1.2);opacity:.8}}
-        @keyframes showStamp{from{transform:scale(1.06)}to{transform:scale(1)}}
         *{-webkit-tap-highlight-color:transparent}
         input::placeholder{color:var(--sl-text-3)}
         input:focus{border-color:var(--sl-input-line-active)!important}
+        /* SAVE SHOW sits above the phone tab bar (65px + the raised capture
+           disc) and the home-indicator inset; beside the sidebar on desktop. */
+        .rv-savebar { position: fixed; left: 0; right: 0; bottom: calc(79px + env(safe-area-inset-bottom, 0px)); z-index: 39; padding: 14px max(20px, env(safe-area-inset-right, 0px)) 10px max(20px, env(safe-area-inset-left, 0px)); background: linear-gradient(180deg, color-mix(in srgb, var(--sl-bg) 0%, transparent) 0, color-mix(in srgb, var(--sl-bg) 94%, transparent) 18px, var(--sl-bg) 100%); }
+        .rv-toast { position: fixed; left: 16px; right: 16px; bottom: calc(190px + env(safe-area-inset-bottom, 0px)); z-index: 41; max-width: 488px; margin: 0 auto; }
+        @media (min-width: 900px) { .rv-savebar { left: 248px; bottom: 0; padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px)); } .rv-toast { left: 264px; bottom: 140px; } }
         ::-webkit-scrollbar{width:4px}
         ::-webkit-scrollbar-track{background:transparent}
         ::-webkit-scrollbar-thumb{background:color-mix(in srgb, var(--sl-text) 8%, transparent);border-radius:2px}

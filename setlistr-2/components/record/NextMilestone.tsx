@@ -5,15 +5,16 @@
 //
 // Sizes read --d-* so a wider layout can set the approved desktop
 // measurements; phones get the fallbacks. --d-dot / --d-dot-gap size the
-// dots (narrow phones shrink them through the vw fallback so a 280px ledger
-// still fits all 25 with at least 8px between groups of five).
+// dots. The fallbacks follow the row's own width (container units), not the
+// screen's, so all 25 always fit inside the content column: on a narrow
+// phone, beside the desktop sidebar, and at larger text sizes.
 import { milestoneFor } from '@/lib/record-summary'
 
 const rowLabel: React.CSSProperties = { flex: 1, minWidth: 0, fontSize: 'var(--d-label, 14px)', color: 'var(--sl-text-2)', lineHeight: 1.35 }
 const rowValue: React.CSSProperties = { textAlign: 'right', fontSize: 'var(--d-value, 16px)', fontWeight: 600, color: 'var(--sl-text)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }
 const unit: React.CSSProperties = { fontWeight: 400, color: 'var(--sl-text-3)' }
-const DOT = 'var(--d-dot, clamp(6px, 2.3vw, 9px))'
-const DOT_GAP = 'var(--d-dot-gap, clamp(2px, 0.9vw, 4px))'
+const DOT = 'var(--d-dot, min(9px, 2.6cqw))'
+const DOT_GAP = 'var(--d-dot-gap, min(4px, 1cqw))'
 
 export function MilestoneDots({ first, next, count }: { first: number; next: number; count: number }) {
   const groups = []
@@ -32,13 +33,12 @@ export function MilestoneDots({ first, next, count }: { first: number; next: num
     }
     groups.push(<span key={g} style={{ display: 'flex', gap: DOT_GAP }}>{dots}</span>)
   }
+  // The row is its own size container (see DOT above). The block's ends
+  // aren't labelled: "Show N · M to go" beside the dots already says them.
   return (
-    <>
-      <div role="img" aria-label={`Shows ${first} to ${next}, one dot per show; ${Math.max(0, Math.min(count, next) - first + 1)} of ${next - first + 1} played`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 12 }}>{groups}</div>
-      <div aria-hidden="true" style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--sl-text-3)', marginTop: 6 }}>
-        <span>{first}</span><span>{next}</span>
-      </div>
-    </>
+    <div style={{ containerType: 'inline-size', marginTop: 12 } as React.CSSProperties}>
+      <div role="img" aria-label={`Shows ${first} to ${next}, one dot per show; ${Math.max(0, Math.min(count, next) - first + 1)} of ${next - first + 1} played`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'min(8px, 2cqw)' }}>{groups}</div>
+    </div>
   )
 }
 
