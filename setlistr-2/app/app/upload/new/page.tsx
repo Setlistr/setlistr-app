@@ -1002,7 +1002,7 @@ export default function UploadNewPerformancePage() {
             <div style={{ position: 'absolute', top: -70, left: '50%', transform: 'translateX(-50%)', width: 320, height: 220, background: 'radial-gradient(ellipse at center, color-mix(in srgb, var(--sl-accent) 15%, transparent) 0%, transparent 70%)', pointerEvents: 'none' }} />
             <div style={{ position: 'relative' }}>
               <p style={{ fontSize: 12, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: C.gold, margin: '0 0 6px', textAlign: 'center' }}>
-                {creatingDraft ? 'Starting…'
+                {creatingDraft ? 'Creating your show…'
                   : scanning ? 'Building Your Setlist'
                   : detectedSongs.length > 0 ? `${detectedSongs.length} Song${detectedSongs.length === 1 ? '' : 's'} Found`
                   : 'Scan Complete'}
@@ -1034,12 +1034,6 @@ export default function UploadNewPerformancePage() {
                   {fmtClock(recordingDuration)} recording
                   {scanning ? ` · ${Math.round(scanProgress * 100)}%` : ''}
                 </p>
-              )}
-
-              {creatingDraft && (
-                <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0' }}>
-                  <div style={{ width: 22, height: 22, borderRadius: '50%', border: '2px solid color-mix(in srgb, var(--sl-accent) 25%, transparent)', borderTopColor: C.gold, animation: 'spin 0.8s linear infinite' }} />
-                </div>
               )}
 
               {(scanning || scanDone) && (
@@ -1185,7 +1179,7 @@ export default function UploadNewPerformancePage() {
             disabled={!readyForReview}
             style={{ width: '100%', padding: '17px', background: readyForReview ? C.gold : C.muted, border: 'none', borderRadius: 14, color: 'var(--sl-on-accent)', fontSize: 15, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: readyForReview ? 'pointer' : 'not-allowed', opacity: finalizing ? 0.7 : 1, fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
             {finalizing
-              ? <><div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid color-mix(in srgb, var(--sl-on-accent) 25%, transparent)', borderTopColor: 'var(--sl-on-accent)', animation: 'spin 0.7s linear infinite' }} />Saving…</>
+              ? 'Saving…'
               : !allReconciled ? 'Waiting for analysis…'
               : !detailsValid ? 'Complete show details'
               : 'Continue to Review →'}

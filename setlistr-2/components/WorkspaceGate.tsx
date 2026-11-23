@@ -1,5 +1,6 @@
 'use client'
 import { useActingAs, type WorkspaceState } from '@/components/ActingAsProvider'
+import { SetlistrLoader } from '@/components/SetlistrLoader'
 
 // Central blocking surface for resolving/verification_failed/unauthorized.
 // Every workspace-scoped page renders this instead of its own content when
@@ -33,14 +34,13 @@ function copyFor(state: WorkspaceState): { title: string; body: string } {
 export function WorkspaceGate() {
   const { state, retry, returnToOwnWorkspace } = useActingAs()
 
+  // Opening the app: there's no page to show yet, so the brand mark is the
+  // loading state (docs/ui-standard.md → Loading). It assembles once per app
+  // open, then pulses; under reduced motion it appears complete and still.
   if (state.status === 'resolving') {
     return (
-      <div style={{ minHeight: '100svh', background: C.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: '"DM Sans", system-ui, sans-serif' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
-          <div style={{ width: 44, height: 44, borderRadius: '50%', border: `1.5px solid ${C.gold}`, animation: 'gateBreathe 1.8s ease-in-out infinite' }} />
-          <span style={{ color: C.muted, fontSize: 11, letterSpacing: '0.15em', textTransform: 'uppercase' as const }}>Loading</span>
-        </div>
-        <style>{`@keyframes gateBreathe{0%,100%{transform:scale(1);opacity:.3}50%{transform:scale(1.2);opacity:.8}}`}</style>
+      <div role="status" aria-label="Loading your workspace">
+        <SetlistrLoader />
       </div>
     )
   }
