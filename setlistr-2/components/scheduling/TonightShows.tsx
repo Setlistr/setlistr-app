@@ -96,7 +96,8 @@ const band: React.CSSProperties = {
   borderRadius: 18, border: 'none', cursor: 'pointer', textAlign: 'left', fontFamily: SANS,
   background: 'var(--sl-band-bg)', boxShadow: 'var(--sl-band-ring)', color: 'var(--sl-text)',
 }
-const title: React.CSSProperties = { display: 'block', fontSize: 16, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }
+// Long venue names wrap to two lines, then an ellipsis (never past the row).
+const title: React.CSSProperties = { display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', overflowWrap: 'anywhere', fontSize: 16, fontWeight: 700, lineHeight: 1.25 } as React.CSSProperties
 const sub: React.CSSProperties = { display: 'block', fontSize: 13, color: 'var(--sl-text-2)', marginTop: 2 }
 const chevron = <ChevronRight size={18} aria-hidden="true" style={{ color: 'var(--sl-text-3)', flexShrink: 0 }} />
 const micDot = (
