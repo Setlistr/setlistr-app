@@ -76,6 +76,9 @@ const RUN = Date.now().toString(36)
 // performances.artist_name is NOT NULL in the local fixture schema — same
 // fixture value the viewer-write-containment suite uses.
 const FIXTURE_ARTIST_NAME = 'Fixture Artist'
+// performances.performance_date is NOT NULL in the current schema; a fixture
+// value only, no assertion depends on it.
+const FIXTURE_PERFORMANCE_DATE = new Date().toISOString()
 
 let pass = 0
 let fail = 0
@@ -147,7 +150,7 @@ async function readBack(token: string, performanceId: string): Promise<ReadBack>
 
 async function seedPerformance(ownerId: string, label: string) {
   return unwrap<{ id: string }>(await service.from('performances').insert({ artist_name: FIXTURE_ARTIST_NAME,
-    user_id: ownerId, venue_name: `Submit Write ${label} ${RUN}`,
+    user_id: ownerId, venue_name: `Submit Write ${label} ${RUN}`, performance_date: FIXTURE_PERFORMANCE_DATE,
   }).select().single(), `perf ${label}`)
 }
 
