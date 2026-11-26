@@ -22,8 +22,9 @@ export function isShareCancel(e: unknown): boolean {
   return !!e && typeof e === 'object' && (e as { name?: string }).name === 'AbortError'
 }
 
-export function claimSheetFile(text: string, filename: string): File | null {
-  try { return new File([text], filename, { type: 'text/plain' }) } catch { return null }
+// `type` lets the setlist CSV (lib/setlist-csv.ts) take the same route.
+export function claimSheetFile(text: string, filename: string, type = 'text/plain'): File | null {
+  try { return new File([text], filename, { type }) } catch { return null }
 }
 
 export function canShareFile(nav: Navigator | undefined, file: File | null): boolean {
@@ -33,8 +34,8 @@ export function canShareFile(nav: Navigator | undefined, file: File | null): boo
 }
 
 // The browser download, unchanged from the released page.
-export function downloadTextFile(text: string, filename: string) {
-  const blob = new Blob([text], { type: 'text/plain' })
+export function downloadTextFile(text: string, filename: string, type = 'text/plain') {
+  const blob = new Blob([text], { type })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url

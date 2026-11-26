@@ -19,6 +19,8 @@ import { StatusLabel } from '@/components/ui/StatusLabel'
 import { useActingAs } from '@/components/ActingAsProvider'
 import { isNativeApp } from '@/lib/appearance'
 import { chooseHandoffRoute, isShareCancel, claimSheetFile, canShareFile, downloadTextFile } from '@/lib/claim-sheet-handoff'
+import { buildSetlistCsv, orderedLayouts, type CsvLayout } from '@/lib/setlist-csv'
+import { logProductEvent, awaitWithTimeout } from '@/lib/telemetry'
 import { deadlineLine as deadlineWording, deadlineQualifier as deadlineBasis, deadlineExplanation, claimSheetDeadlineLines } from '@/lib/deadline-wording'
 import {
   claimInputsKey, legacyClaimInputsKey, preflightKey, legacyPreflightKey, progressKey, scrollKey,
@@ -62,6 +64,9 @@ type Song = {
   title: string; artist: string; isrc?: string; composer?: string
   publisher?: string
   matchConfidence: 'full' | 'partial' | 'none'
+  // A planned song not marked played. The setlist CSV leaves these out, as
+  // it did in Review; the claim sheet is unchanged.
+  plannedOnly?: boolean
 }
 type Performance = {
   id: string; user_id: string; venue_name: string; city: string; country: string
@@ -254,6 +259,9 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
   // text to copy when the installed app can't hand over a file.
   const [sheetError, setSheetError]       = useState<string | null>(null)
   const [sheetText, setSheetText]         = useState<string | null>(null)
+  // Which download the error or text above belongs to: the claim sheet's
+  // actions, or the setlist CSV under Other formats.
+  const [sheetFor, setSheetFor]           = useState<'claim' | 'csv'>('claim')
   // The signed-in account this sheet was loaded for. Saved preparation is
   // kept per account (lib/claim-progress.ts).
   const [viewerId, setViewerId]           = useState<string | null>(null)
@@ -388,6 +396,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
         isrc: s.isrc || '', composer: s.composer || '',
         publisher: s.publisher || '',
         matchConfidence: deriveConfidence(s),
+        plannedOnly: s.song_source === 'planned',
       }))
       setSongs(mapped)
 
@@ -659,6 +668,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
         .sb-notes { grid-column: 1; grid-row: 6; }
         .sb-mark { grid-column: 2; grid-row: 3; }
         .sb-help { grid-column: 2; grid-row: 4; }
+        .sb-other { grid-column: 2; grid-row: 5; }
       }
       .sb-row:hover:not(:disabled) { background: color-mix(in srgb, var(--sl-text) 3%, transparent) !important; }
       .sb-row:focus-visible, .sb-btn:focus-visible, .sb-check:focus-visible, .sb-more > summary:focus-visible { outline: 2px solid var(--sl-accent); outline-offset: -2px; }
@@ -977,7 +987,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
   // Never writes anything: the sheet is built from what's on screen.
   async function download() {
     if (songs.length === 0 || !performance) return
-    setSheetError(null)
+    setSheetError(null); setSheetFor('claim')
     let sheet: { text: string; filename: string }
     try {
       sheet = buildSubmissionBrief({ performance, songs, profile, rule, deadline, suggestedTitle, effectiveCapacity: effectiveCapacity ?? null, inputs })
@@ -1008,12 +1018,48 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
     setSheetError('This app can’t save files yet. Copy the claim sheet below and paste it into Notes or an email.')
     setSheetText(sheet.text)
   }
+  // The setlist CSV (moved from Review, same columns): the same route off the
+  // page as the claim sheet. Never writes the show; only the export event.
+  async function downloadCsv(layout: CsvLayout) {
+    if (!performance || songsFailed) return
+    const csvSongs = songs.filter(s => !s.plannedOnly)
+    setSheetError(null); setSheetText(null); setSheetFor('csv')
+    const sheet = buildSetlistCsv(layout, performance, csvSongs, showDate)
+    const file = claimSheetFile(sheet.text, sheet.filename, 'text/csv')
+    const route = chooseHandoffRoute({ native: isNativeApp(window), canShareFile: canShareFile(navigator, file) })
+    let delivered = false
+    if (route === 'download') {
+      try { downloadTextFile(sheet.text, sheet.filename, 'text/csv'); delivered = true } catch (e) {
+        console.error('[SubmitPage] setlist CSV download failed:', e)
+        setSheetError('The CSV couldn’t be saved from this browser.')
+        setSheetText(sheet.text)
+      }
+    } else if (route === 'share' && file) {
+      try { await navigator.share({ files: [file], title: sheet.filename }); delivered = true } catch (e) {
+        if (isShareCancel(e)) return
+        console.error('[SubmitPage] setlist CSV share failed:', e)
+        setSheetError('The CSV couldn’t be shared from the app. Copy it below instead.')
+        setSheetText(sheet.text)
+      }
+    } else {
+      setSheetError('This app can’t save files yet. Copy the CSV below and paste it into a spreadsheet or an email.')
+      setSheetText(sheet.text)
+    }
+    if (!delivered) return
+    await awaitWithTimeout(logProductEvent(createClient(), {
+      event_name: 'export_generated', user_id: performance.user_id, performance_id: performance.id,
+      show_id: (performance as { show_id?: string | null }).show_id || null, flow_source: null,
+      actor_type: isDelegate ? 'delegate' : 'owner',
+      song_count_current: csvSongs.length,
+    }))
+  }
+  const panelFor = (which: 'claim' | 'csv') => sheetFor === which ? sheetPanel : null
   const sheetPanel = (sheetError || sheetText) ? (
     <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
       {sheetError && <p role="alert" style={{ margin: 0, padding: '12px 14px', borderRadius: 12, fontSize: 14.5, color: C.text, lineHeight: 1.5, background: C.amberDim, border: '1px solid color-mix(in srgb, var(--sl-warn) 28%, transparent)' }}>{sheetError}</p>}
       {sheetText && (
         <>
-          <label htmlFor="sb-sheet-text" style={{ fontSize: 14, fontWeight: 600, color: C.text }}>Claim sheet text</label>
+          <label htmlFor="sb-sheet-text" style={{ fontSize: 14, fontWeight: 600, color: C.text }}>{sheetFor === 'csv' ? 'Setlist CSV text' : 'Claim sheet text'}</label>
           <textarea id="sb-sheet-text" readOnly value={sheetText} rows={10}
             style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', borderRadius: 12, border: '1px solid var(--sl-input-line)', background: 'var(--sl-input-bg, var(--sl-bg))', color: C.text, fontFamily: MONO, fontSize: 13, lineHeight: 1.45, resize: 'vertical' }} />
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0 16px' }}>
@@ -1084,6 +1130,35 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
       {isDelegate && <>{linkBtn(false)}{handoffNote}</>}
     </>
   }
+
+  // Other formats: secondary, folded. The artist's own PRO's layout first when
+  // there is one; the claim sheet above stays the main route.
+  const otherFormats = (
+    <section className="sb-other" aria-label="Other formats" style={SECTION}>
+      <details className="sb-more" open={sheetFor === 'csv' && !!(sheetError || sheetText) ? true : undefined}>
+        <summary style={{ minHeight: 52, padding: '0 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, fontSize: 15, fontWeight: 700, color: C.text }}>
+          Other formats <ChevronDown className="sb-chev" size={16} aria-hidden="true" />
+        </summary>
+        <div style={{ padding: '0 18px 16px' }}>
+          <p style={{ ...SUB, margin: '0 0 10px' }}>The setlist as a spreadsheet (CSV){songs.some(s => s.plannedOnly) ? ', without planned songs not marked played' : ''}. Downloading doesn’t submit anything or mark this show.</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {orderedLayouts(rule?.code).map(layout => {
+              const own = rule?.code === layout
+              const off = songsFailed || songs.every(s => s.plannedOnly)
+              return (
+                <button key={layout} className="sb-btn" onClick={() => downloadCsv(layout)} disabled={off}
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, minHeight: 48, padding: '0 14px', background: 'transparent', border: `1px solid ${own ? C.borderGold : C.border}`, borderRadius: 12, cursor: off ? 'default' : 'pointer', opacity: off ? 0.55 : 1, fontFamily: 'inherit', textAlign: 'left' }}>
+                  <span style={{ fontSize: 14.5, fontWeight: 600, color: C.text }}>{layout} columns{own ? <span style={{ fontWeight: 500, color: C.secondary }}> · {isDelegate ? `${artistDisplayName}’s PRO` : 'your PRO'}</span> : null}</span>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13.5, color: 'var(--sl-gold-text)', fontWeight: 700, whiteSpace: 'nowrap' }}><FileText size={14} aria-hidden="true" />CSV</span>
+                </button>
+              )
+            })}
+          </div>
+          {panelFor('csv')}
+        </div>
+      </details>
+    </section>
+  )
 
   // Each prerequisite is its own optional, self-reported note.
   const submitterIsArtist = isDelegate
@@ -1167,7 +1242,9 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
             ? <button className="sb-btn" onClick={markSubmitted} disabled={markingDone || songsFailed} style={{ ...secondaryBtn, marginTop: 16, opacity: markingDone || songsFailed ? 0.55 : 1 }}><Check size={15} strokeWidth={2.5} aria-hidden="true" />{markingDone ? 'Recording…' : 'Mark as submitted'}</button>
             : <div style={{ marginTop: 16 }}>{linkBtn(false)}</div>}
         </section>
-      ) : rule && (
+      ) : null}
+      {!hasPRO && <div style={{ marginTop: 16 }}>{otherFormats}</div>}
+      {hasPRO && rule && (
         <div className="sb-grid">
             {/* Details: the values with Edit when complete; open fields when something is missing. */}
             {hasDetails && (
@@ -1214,7 +1291,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
               )}
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 14 }}>{actions}</div>
-              {sheetPanel}
+              {panelFor('claim')}
             </section>
 
             {/* The claim sheet, in the portal's order */}
@@ -1284,6 +1361,7 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
                 </div>
               )}
             </section>
+            {otherFormats}
         </div>
       )}
     </>

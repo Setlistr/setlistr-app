@@ -13,7 +13,7 @@ import {
   useSortable, verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { GripVertical, Download, Check, X, ChevronRight, AlertCircle, Info, ImagePlus } from 'lucide-react'
+import { GripVertical, Check, X, ChevronRight, AlertCircle, Info, ImagePlus } from 'lucide-react'
 import { estimateRoyalties, capacityToBand } from '@/lib/royalty-estimate'
 import CatalogSearch, { type CatalogSong } from '@/components/CatalogSearch'
 import { normalizeSong } from '@/lib/song-utils'
@@ -115,7 +115,6 @@ type Performance = {
   show_timezone?: string | null
 }
 
-type PRO = 'SOCAN' | 'ASCAP' | 'BMI'
 type RecentSong = { id: string; title: string; artist: string; play_count: number; last_played: string }
 type ShowIntelligence = {
   totalShows: number
@@ -420,8 +419,6 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
   const [newTitle, setNewTitle]         = useState('')
   const [newArtist, setNewArtist]       = useState('')
   const [showAdd, setShowAdd]           = useState(false)
-  const [showExport, setShowExport]     = useState(false)
-  const [selectedPRO, setSelectedPRO]   = useState<PRO>('SOCAN')
   const [editSheet, setEditSheet]       = useState<Song | null>(null)
   // UNDO for the last removed or skipped song (5 seconds), and the explicit
   // confirmation before saving a show with no songs.
@@ -1127,39 +1124,6 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
     await awaitWithTimeout(reviewCompletedLogged)
   }, [performance, songs, setlistId, actingAsArtistId])
 
-  async function generateExportCSV(pro: PRO) {
-    if (!performance) return
-    const day = showDay(performance, performance.show_timezone) || parseLocalDate(performance.started_at)
-    const date = day.toLocaleDateString()
-    const confirmedSongs = songs.filter(s => s.source !== 'planned' && !s.isRemoved)
-    const headers: Record<PRO, string[]> = {
-      SOCAN: ['Title', 'Artist', 'Composer', 'Publisher', 'ISRC', 'Duration', 'Date', 'Venue', 'City'],
-      ASCAP: ['Title', 'Performer', 'Composer/Author', 'Publisher', 'ISRC', 'Venue', 'Date', 'City', 'State'],
-      BMI:   ['Song Title', 'Artist', 'BMI Work #', 'Composer', 'Publisher', 'Venue Name', 'Date', 'City'],
-    }
-    const rows = confirmedSongs.map(s => {
-      const c = s.composer || '', p = s.publisher || '', i = s.isrc || ''
-      if (pro === 'SOCAN') return [s.title, s.artist, c, p, i, '', date, performance.venue_name, performance.city]
-      if (pro === 'ASCAP') return [s.title, performance.artist_name, c, p, i, performance.venue_name, date, performance.city, performance.country || '']
-      return [s.title, performance.artist_name, '', c, p, performance.venue_name, date, performance.city]
-    })
-    const csv = [headers[pro], ...rows].map(r => r.map(v => `"${v}"`).join(',')).join('\n')
-    const blob = new Blob([csv], { type: 'text/csv' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a'); a.href = url
-    a.download = `${pro}-setlist-${performance.venue_name}-${date.replace(/\//g, '-')}.csv`
-    a.click(); URL.revokeObjectURL(url)
-    // Download already triggered synchronously above — this only bounds
-    // how long we wait for the telemetry insert before the artist might
-    // navigate away, it never delays the export itself.
-    await awaitWithTimeout(logProductEvent(createClient(), {
-      event_name: 'export_generated', user_id: actingAsArtistId || performance.user_id, performance_id: performance.id,
-      show_id: performance.show_id || null, flow_source: flowSourceRef.current,
-      actor_type: actingAsArtistId && actingAsArtistId !== performance.user_id ? 'delegate' : 'owner',
-      song_count_current: confirmedSongs.length,
-    }))
-  }
-
   function parseLocalDate(d: string): Date {
     const datePart = d.split('T')[0].split(' ')[0]
     const [y, m, day] = datePart.split('-').map(Number)
@@ -1789,10 +1753,11 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
           </div>
         )}
 
-        {/* ── More for this show: the photo and the CSV export (unchanged) ── */}
+        {/* ── More for this show: the optional photo. Exports live on the claim
+             sheet in Submissions (Other formats). ── */}
         {!songsError && (
           <div style={{ marginTop: 26 }}>
-            <p style={{ ...sectionLabel, minHeight: 32 }}>More for this show</p>
+            <p style={{ ...sectionLabel, minHeight: 32 }}>Show photo <span style={{ fontWeight: 400, color: C.muted }}>· optional</span></p>
             <div style={{ background: 'var(--sl-group)', borderRadius: 16, overflow: 'hidden', opacity: locked ? 0.55 : 1, pointerEvents: locked ? 'none' : 'auto' }}>
               {photoUrl && <img src={photoUrl} alt="Show photo" style={{ width: '100%', aspectRatio: '16/9', objectFit: 'cover', display: 'block' }} />}
               <label style={{ ...moreRow, borderTop: photoUrl ? '1px solid var(--sl-line)' : 'none' }}>
@@ -1801,22 +1766,6 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
                 <ChevronRight size={18} aria-hidden="true" style={{ color: 'var(--sl-text-4)' }} />
                 <input type="file" accept="image/*" onChange={handlePhotoUpload} disabled={photoUploading || locked} style={{ display: 'none' }} />
               </label>
-              <button onClick={() => setShowExport(!showExport)} aria-expanded={showExport} style={{ ...moreRow, borderTop: '1px solid var(--sl-line)' }}>
-                <Download size={18} aria-hidden="true" style={{ color: C.muted, flexShrink: 0, width: 20 }} />
-                <span style={{ flex: 1 }}>Export CSV for SOCAN, ASCAP or BMI</span>
-                <ChevronRight size={18} aria-hidden="true" style={{ color: 'var(--sl-text-4)', transform: showExport ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s ease' }} />
-              </button>
-              {showExport ? (
-                <div style={{ padding: '0 14px 14px', display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {(['SOCAN', 'ASCAP', 'BMI'] as PRO[]).map(pro => (
-                    <button key={pro} onClick={() => generateExportCSV(pro)} onMouseEnter={() => setSelectedPRO(pro)}
-                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', minHeight: 44, padding: '0 14px', background: selectedPRO === pro ? C.goldDim : 'transparent', border: `1px solid ${selectedPRO === pro ? C.borderGold : C.border}`, borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit' }}>
-                      <span style={{ fontSize: 14, fontWeight: 600, color: selectedPRO === pro ? C.gold : C.text }}>{pro}</span>
-                      <span style={{ fontSize: 13, color: C.muted }}>{pro === 'SOCAN' ? 'Canada' : 'USA'} · CSV ↓</span>
-                    </button>
-                  ))}
-                </div>
-              ) : null}
             </div>
             {photoError && <p role="alert" style={{ fontSize: 13.5, color: C.text, margin: '8px 0 0' }}>The photo couldn’t be added. Try again.</p>}
           </div>
