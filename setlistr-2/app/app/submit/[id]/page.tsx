@@ -1132,14 +1132,22 @@ export default function SubmitPage({ params }: { params: { id: string } }) {
   }
 
   // Other formats: secondary, folded. The artist's own PRO's layout first when
-  // there is one; the claim sheet above stays the main route.
+  // there is one; the claim sheet above stays the main route. When their PRO
+  // (or no PRO) has no layout here, the three are named for what they are and
+  // none is chosen or called theirs.
+  const ownLayout = orderedLayouts(rule?.code)[0] === rule?.code
+  const otherLabel = ownLayout ? 'Other formats' : 'Other CSV layouts'
+  const otherIntro = ownLayout ? null
+    : rule ? `These layouts are for SOCAN, ASCAP and BMI. Compatibility with ${isDelegate ? `${artistDisplayName}’s` : 'your'} PRO hasn’t been confirmed.`
+    : 'These layouts are for SOCAN, ASCAP and BMI.'
   const otherFormats = (
-    <section className="sb-other" aria-label="Other formats" style={SECTION}>
+    <section className="sb-other" aria-label={otherLabel} style={SECTION}>
       <details className="sb-more" open={sheetFor === 'csv' && !!(sheetError || sheetText) ? true : undefined}>
         <summary style={{ minHeight: 52, padding: '0 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, fontSize: 15, fontWeight: 700, color: C.text }}>
-          Other formats <ChevronDown className="sb-chev" size={16} aria-hidden="true" />
+          {otherLabel} <ChevronDown className="sb-chev" size={16} aria-hidden="true" />
         </summary>
         <div style={{ padding: '0 18px 16px' }}>
+          {otherIntro && <p style={{ ...SUB, margin: '0 0 6px' }}>{otherIntro}</p>}
           <p style={{ ...SUB, margin: '0 0 10px' }}>The setlist as a spreadsheet (CSV){songs.some(s => s.plannedOnly) ? ', without planned songs not marked played' : ''}. Downloading doesn’t submit anything or mark this show.</p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {orderedLayouts(rule?.code).map(layout => {
