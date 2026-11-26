@@ -990,14 +990,16 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
   const offline     = netProblem && isListening && !micStopped
   const statusColor = micStopped || loopStopped ? 'var(--sl-danger)' : offline ? C.amber : engineDot
   const statusText  = micStopped ? 'Microphone stopped'
-    : loopStopped ? 'Recording interrupted'
+    : loopStopped ? 'Capture interrupted'
     : offline ? 'No connection'
     : `Recognition ${engineLabel.toLowerCase()}`
   // Anything wrong right now takes the place of the last-caught title.
   const hasProblem  = micStopped || loopStopped || offline || recognitionUnavailable || detectionLimited
     || (!!micProblem && !isListening) || ((engineState === 'stalled' || engineState === 'slow') && isListening)
-  // The orb shows the microphone as it is: never LISTENING once it has stopped.
-  const orbLive     = isListening && !micStopped
+  // The orb shows the microphone as it is: never LISTENING once it has
+  // stopped, nor while capture has stopped answering and its activity is
+  // unknown (neutral idle orb, no rings; recording logic unchanged).
+  const orbLive     = isListening && !micStopped && !loopStopped
 
   const recoveryButton = (tone: string): React.CSSProperties => ({ display: 'flex', alignItems: 'center', gap: 7, minHeight: 44, padding: '0 18px', background: 'transparent', border: `1px solid color-mix(in srgb, ${tone} 40%, transparent)`, borderRadius: 22, color: tone, fontSize: 12.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'inherit', opacity: restarting ? 0.6 : 1, WebkitTapHighlightColor: 'transparent' })
 
@@ -1150,7 +1152,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
           {/* RESUME only where tapping the orb recovers: a stopped microphone is
               resumed with the button below; denied access needs Settings first. */}
           <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: orbLive ? '#0a0908' : 'var(--sl-orb-idle-ink)' }}>
-            {micStopped ? 'mic stopped' : isDetecting ? 'catching' : isListening ? 'listening' : micProblem === 'denied' ? 'mic off' : confirmedSongs.length > 0 ? 'resume' : 'tap to start'}
+            {micStopped ? 'mic stopped' : loopStopped ? 'capture interrupted' : isDetecting ? 'catching' : isListening ? 'listening' : micProblem === 'denied' ? 'mic off' : confirmedSongs.length > 0 ? 'resume' : 'tap to start'}
           </span>
         </button>
 
@@ -1158,7 +1160,7 @@ export default function LiveCapturePage({ params }: { params: { id: string } }) 
             recovery action; none is repeated elsewhere on the screen. */}
         {loopStopped && (
           <div role="alert" style={{ marginTop: 14, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, animation: 'fadeIn 0.2s ease' }}>
-            <span style={{ fontSize: 15, color: 'var(--sl-danger)', fontWeight: 600, textAlign: 'center' as const }}>{micStopped ? 'The microphone stopped.' : 'Recording interrupted.'}</span>
+            <span style={{ fontSize: 15, color: 'var(--sl-danger)', fontWeight: 600, textAlign: 'center' as const }}>{micStopped ? 'The microphone stopped.' : 'Capture interrupted.'}</span>
             <button onClick={restartListening} disabled={restarting} style={{ ...recoveryButton('var(--sl-danger)'), cursor: restarting ? 'default' : 'pointer' }}>
               <RefreshCw size={13} style={{ flexShrink: 0, animation: restarting ? 'spin 0.7s linear infinite' : 'none' }} />
               {restarting ? 'Resuming…' : 'Tap to resume'}
