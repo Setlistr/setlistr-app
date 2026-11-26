@@ -22,6 +22,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { normalizeSongTitle, normalizeArtistName } from '@/lib/song-utils'
 import { Search, Music2 } from 'lucide-react'
+import { Skeleton } from '@/components/ui/Skeleton'
 
 const C = {
   bg: 'var(--sl-bg)', card: 'var(--sl-surface)', cardHover: 'var(--sl-surface-2)',
@@ -127,7 +128,10 @@ export default function CatalogSearch({
     setResults([])
   }
 
-  const showResults = focused && (results.length > 0 || query.trim().length > 0)
+  // A first search with nothing to show yet opens the list with placeholder
+  // rows; results already on screen stay put while a newer search runs.
+  const searchingEmpty = loading && results.length === 0
+  const showResults = focused && (results.length > 0 || query.trim().length > 0 || searchingEmpty)
   const showAddNew  = query.trim().length > 0 &&
     !results.some(r => r.title.toLowerCase() === normalizeSongTitle(query.trim()).toLowerCase())
 
@@ -159,11 +163,9 @@ export default function CatalogSearch({
             transition: 'border-color 0.15s ease',
           }}
         />
+        {/* The field stays clean while searching: progress shows as result rows below. */}
         <div style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}>
-          {loading
-            ? <div style={{ width: 13, height: 13, borderRadius: '50%', border: `2px solid ${C.muted}`, borderTopColor: C.gold, animation: 'spin 0.7s linear infinite' }} />
-            : <Search size={13} style={{ color: C.muted }} />
-          }
+          <Search size={13} style={{ color: C.muted }} />
         </div>
       </div>
 
@@ -180,7 +182,18 @@ export default function CatalogSearch({
           animation: 'fadeIn 0.12s ease',
         }}>
 
-          {results.length === 0 && !showAddNew ? (
+          {searchingEmpty ? (
+            <div aria-busy="true" aria-label="Searching your songs" style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {[0, 1].map(i => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <Skeleton w={28} h={28} r={14} />
+                  <div style={{ flex: 1 }}><Skeleton w="60%" h={12} r={4} /><Skeleton w="35%" h={10} r={4} mt={6} /></div>
+                </div>
+              ))}
+            </div>
+          ) : null}
+
+          {results.length === 0 && !showAddNew && !searchingEmpty ? (
             <div style={{ padding: '16px', textAlign: 'center' }}>
               <p style={{ fontSize: 13, color: C.muted, margin: 0 }}>No songs in your catalog yet</p>
               <p style={{ fontSize: 11, color: 'var(--sl-text-4)', margin: '4px 0 0' }}>Songs you confirm during shows appear here</p>

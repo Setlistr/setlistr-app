@@ -10,6 +10,7 @@ import { TonightLead, useTonightShows } from '@/components/scheduling/TonightSho
 import { toCoords } from '@/lib/geolocation'
 import { logProductEvent, actorTypeFor, awaitWithTimeout } from '@/lib/telemetry'
 import { ensureSetlistAiConsent } from '@/components/SetlistAiConsent'
+import { Skeleton } from '@/components/ui/Skeleton'
 import { AI_CONSENT_FIELD, AI_CONSENT_GRANTED, needsAiConsent } from '@/lib/aiConsent'
 import { Calendar, ArrowRight, ArrowLeft, RefreshCw, Check, MapPin, Search, X, Plus, ChevronDown, ChevronUp, Camera, Upload, ListMusic } from 'lucide-react'
 import mapboxgl from 'mapbox-gl'
@@ -834,9 +835,7 @@ export default function NewShowPage() {
                     style={{ background: C.input, border: `1px solid ${venueSelected ? 'var(--sl-input-line-active)' : venueQuery.trim() ? 'var(--sl-input-line-active)' : 'var(--sl-input-line)'}`, borderRadius: 10, padding: '14px 40px 14px 16px', color: C.text, fontSize: 16, fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' as const, outline: 'none' }}
                   />
                   <div style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center' }}>
-                    {venueSearching
-                      ? <div style={{ width: 13, height: 13, borderRadius: '50%', border: `2px solid ${C.muted}`, borderTopColor: C.gold, animation: 'spin 0.7s linear infinite', pointerEvents: 'none' as const }} />
-                      : isPrefilled
+                    {isPrefilled
                       ? <button
                           onClick={clearPrefill}
                           style={{ background: 'color-mix(in srgb, var(--sl-text) 8%, transparent)', border: 'none', color: C.secondary, cursor: 'pointer', width: 22, height: 22, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, fontFamily: 'inherit', fontSize: 15, lineHeight: '1' }}
@@ -862,9 +861,21 @@ export default function NewShowPage() {
                   </div>
                 )}
 
+                {/* While a search runs, its status is the first row of the
+                    results (earlier results stay underneath until replaced),
+                    never a spinner inside the field. */}
+                {venueSearching && !(showDropdown && venueResults.length > 0) && (
+                  <div role="status" style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--sl-surface-2)', border: `1px solid ${C.border}`, borderRadius: 10, marginTop: 4, zIndex: 50, padding: '11px 14px' }}>
+                    <p style={{ fontSize: 13, color: C.secondary, margin: 0 }}>Searching venues…</p>
+                  </div>
+                )}
+
                 {showDropdown && venueResults.length > 0 && (
                   <div onMouseDown={e => e.preventDefault()}
                     style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--sl-surface-2)', border: `1px solid ${C.borderGold}`, borderRadius: 10, marginTop: 4, zIndex: 50, overflow: 'hidden', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
+                    {venueSearching && (
+                      <p role="status" style={{ fontSize: 13, color: C.secondary, margin: 0, padding: '11px 14px', borderBottom: `1px solid ${C.border}` }}>Searching venues…</p>
+                    )}
                     {venueResults.map((v, i) => (
                       <button key={v.id} onMouseDown={() => selectVenue(v)}
                         style={{ width: '100%', padding: '11px 14px', background: 'transparent', border: 'none', borderBottom: i < venueResults.length - 1 ? `1px solid ${C.border}` : 'none', cursor: 'pointer', textAlign: 'left' as const, display: 'flex', flexDirection: 'column', gap: 2, fontFamily: 'inherit' }}
@@ -1087,9 +1098,9 @@ export default function NewShowPage() {
               </div>
 
               {uploading && (
-                <div style={{ margin: '12px 16px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, padding: '14px', background: C.goldDim, border: `1px solid ${C.borderGold}`, borderRadius: 10 }}>
-                  <div style={{ width: 16, height: 16, borderRadius: '50%', border: `2px solid ${C.muted}`, borderTopColor: C.gold, animation: 'spin 0.7s linear infinite' }} />
-                  <span style={{ fontSize: 13, color: C.gold, fontWeight: 600 }}>Reading your setlist...</span>
+                <div role="status" aria-busy="true" style={{ margin: '12px 16px 0' }}>
+                  <p style={{ fontSize: 13, color: C.gold, fontWeight: 600, margin: '0 0 8px' }}>Reading your setlist…</p>
+                  {[0, 1, 2].map(i => <Skeleton key={i} h={38} r={8} mt={i ? 4 : 0} />)}
                 </div>
               )}
 
@@ -1187,13 +1198,14 @@ export default function NewShowPage() {
                   <button onClick={handleSubmit} disabled={!isValid || loading}
                     style={{ width: '100%', padding: '18px', background: isValid ? C.gold : C.muted, border: 'none', borderRadius: 14, color: 'var(--sl-on-accent)', fontSize: 15, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' as const, cursor: isValid && !loading ? 'pointer' : 'not-allowed', opacity: loading ? 0.7 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit' }}>
                     {loading
-                      ? <><div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid color-mix(in srgb, var(--sl-on-accent) 25%, transparent)', borderTopColor: 'var(--sl-on-accent)', animation: 'spin 0.7s linear infinite' }} />Starting...</>
+                      ? 'Starting…'
                       : <>Start <ArrowRight size={15} strokeWidth={2.5} /></>}
                   </button>
                 ) : (
                   <button onClick={() => setShowSkipConfirm(true)} disabled={!isValid || loading}
-                    style={{ width: '100%', padding: '15px', background: 'transparent', border: `1px solid ${C.border}`, borderRadius: 14, color: C.secondary, fontSize: 13, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' as const, cursor: isValid ? 'pointer' : 'not-allowed', fontFamily: 'inherit' }}>
-                    Skip for now
+                    style={{ width: '100%', padding: '15px', background: 'transparent', border: `1px solid ${C.border}`, borderRadius: 14, color: C.secondary, fontSize: 13, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' as const, cursor: isValid && !loading ? 'pointer' : 'not-allowed', fontFamily: 'inherit' }}>
+                    {/* After "Skip anyway" the sheet closes; the start shows here. */}
+                    {loading ? 'Starting…' : 'Skip for now'}
                   </button>
                 )}
               </>
@@ -1208,8 +1220,8 @@ export default function NewShowPage() {
             {showReuse && (
               <div style={{ marginTop: 10 }}>
                 {pastLoading ? (
-                  <div style={{ background: CARD.background, border: `1px solid ${C.border}`, borderRadius: 12, boxShadow: CARD.boxShadow, padding: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <div style={{ width: 20, height: 20, borderRadius: '50%', border: `2px solid ${C.border}`, borderTopColor: C.gold, animation: 'spin 0.7s linear infinite' }} />
+                  <div aria-busy="true" aria-label="Loading past shows" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {[0, 1, 2].map(i => <Skeleton key={i} h={58} r={10} />)}
                   </div>
                 ) : pastPerfs.length === 0 ? (
                   <div style={{ background: CARD.background, border: `1px solid ${C.border}`, borderRadius: 12, boxShadow: CARD.boxShadow, padding: '20px', textAlign: 'center' as const }}>
@@ -1245,7 +1257,7 @@ export default function NewShowPage() {
                     <button onClick={handleClone} disabled={!isValid || cloning}
                       style={{ width: '100%', padding: '15px', background: isValid ? C.gold : C.muted, border: 'none', borderRadius: 12, color: 'var(--sl-on-accent)', fontSize: 13, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' as const, cursor: isValid && !cloning ? 'pointer' : 'not-allowed', opacity: cloning ? 0.7 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit' }}>
                       {cloning
-                        ? <><div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid color-mix(in srgb, var(--sl-on-accent) 25%, transparent)', borderTopColor: 'var(--sl-on-accent)', animation: 'spin 0.7s linear infinite' }} />Cloning...</>
+                        ? 'Copying setlist…'
                         : <><RefreshCw size={14} />Use this set →</>}
                     </button>
                   </div>
@@ -1280,7 +1292,7 @@ export default function NewShowPage() {
                 disabled={!isValid || loading}
                 style={{ flex: 1, padding: '14px', background: C.gold, border: 'none', borderRadius: 12, color: 'var(--sl-on-accent)', fontSize: 13, fontWeight: 800, cursor: isValid && !loading ? 'pointer' : 'not-allowed', opacity: loading ? 0.7 : 1, fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
                 {loading
-                  ? <><div style={{ width: 12, height: 12, borderRadius: '50%', border: '2px solid color-mix(in srgb, var(--sl-on-accent) 25%, transparent)', borderTopColor: 'var(--sl-on-accent)', animation: 'spin 0.7s linear infinite' }} />Starting...</>
+                  ? 'Starting…'
                   : 'Skip anyway'}
               </button>
             </div>

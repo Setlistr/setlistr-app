@@ -86,6 +86,11 @@ Consistency applies to frame, controls and states, not to every layout. Each scr
 
 Audited on the shipped dashboard (`app/app/dashboard/page.tsx`): the frame stays; skeleton blocks shaped like the poster and ledger; one shimmer (1.4s, Light-tuned, removed under reduced motion); a page-level error with Try again (and Switch workspace for delegates).
 
+- **Which treatment, one sentence each:**
+  - **Brand loader** (`components/SetlistrLoader`) only when there's no page to show yet: opening the app (`WorkspaceGate`). It assembles once per app open, then pulses; under reduced motion it appears complete and still.
+  - **Placeholders** (`Skeleton`) wherever content is about to appear: result rows, setlist rows, past-show rows.
+  - **Button text** for an action the artist started ("Starting…", "Copying setlist…", "Saving…"). The button keeps its size; no spinner beside the text.
+  - **Fields stay clean:** no spinner inside an input. Search progress shows as the first result row ("Searching venues…") or as placeholder result rows.
 - **App frame:** the AppShell header, nav and sidebar never re-render into a loader. The page header and view switcher render immediately and stay usable.
 - **Initial load:**
   - Skeletons use `Skeleton` blocks with the same columns, block sizes and order as the finished page, so nothing moves when data arrives (Career measured: the map moves 0px).
@@ -164,7 +169,7 @@ Audited on the shipped dashboard (`app/app/dashboard/page.tsx`): the frame stays
 | `/app/proof` | ○ | ○ | n/a | ○ | ○ | ○ | |
 | `/app/review/[id]` — post-save celebration | ✅ | (ceremony header) | n/a | ✅ intelligence skeleton, failed state | ✅ save failure + Try again | ✅ estimate, "First appearance on your record" | Branch design/celebration-earned |
 | `/app/review/[id]` — editing, `/app/submit/[id]` | ○ | ○ | n/a | ○ | ○ | ◐ | Fields already on input tokens |
-| `/app/show/new`, `/app/upload/new` | ○ | ○ | n/a | ○ | ○ | ○ | |
+| `/app/show/new`, `/app/upload/new` | ○ | ○ | n/a | ✅ button text, placeholders, no field spinners | ○ | ○ | `/app/show/upload` is unlinked legacy and unchanged |
 | `/app/live/[id]` | exception | exception | n/a | — | — | — | Full-screen capture: owns its documented safe areas; orb; no changes |
 | `/app/settings`, `/app/team`, `/app/accept-invite`, `/app/onboarding` | ○ | ○ | ○ | ○ | ○ | ○ | |
 | `/app/artist/[id]`, `/app/manager/*` | ○ | ○ | ○ | ○ | ○ | ○ | ManagerShell |
