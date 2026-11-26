@@ -69,7 +69,9 @@ for (const name of ['downloadCsv', 'download']) {
   const body = fn(name)
   check(`Submissions ${name}(): no write to the show (no update/insert/markSubmitted)`, body.length > 100 && !/\.update\(|\.insert\(|\.upsert\(|markSubmitted|submission_status/.test(body))
 }
-check('Submissions: Other formats is folded (details) and holds the CSV', /<details className="sb-more"[^>]*>\s*<summary[^>]*>\s*Other formats/.test(submit) && submit.includes('downloadCsv(layout)'))
+check('Submissions: the CSV section is folded (details) and holds the CSV', /<details className="sb-more"[^>]*>\s*<summary[^>]*>\s*\{otherLabel\}/.test(submit) && submit.includes('downloadCsv(layout)'))
+check('Submissions: "Other formats" only when the PRO has a layout; otherwise "Other CSV layouts"', submit.includes("const otherLabel = ownLayout ? 'Other formats' : 'Other CSV layouts'"))
+check('Submissions: no-layout PRO wording, no compatibility claimed', submit.includes('These layouts are for SOCAN, ASCAP and BMI. Compatibility with ') && submit.includes('PRO hasn’t been confirmed.'))
 check('Submissions: layouts ordered by the show owner\'s PRO (rule from the loaded owner profile)', submit.includes('orderedLayouts(rule?.code)'))
 
 console.log(`${pass} passed, ${fail} failed`)
