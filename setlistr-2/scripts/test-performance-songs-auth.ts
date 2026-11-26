@@ -56,6 +56,9 @@ const RUN = Date.now().toString(36)
 // performances.artist_name is NOT NULL in the local fixture schema — same
 // fixture value the viewer-write-containment suite uses.
 const FIXTURE_ARTIST_NAME = 'Fixture Artist'
+// performances.performance_date and profiles.email are NOT NULL in the
+// current schema; fixture values only, no assertion depends on them.
+const FIXTURE_PERFORMANCE_DATE = new Date().toISOString()
 const createdUserIds: string[] = []
 const createdPerformanceIds: string[] = []
 
@@ -81,7 +84,7 @@ async function createPersona(label: string): Promise<Persona> {
   const userId = data.user.id
   createdUserIds.push(userId)
 
-  const { error: profErr } = await service.from('profiles').upsert({ id: userId, full_name: label }, { onConflict: 'id' })
+  const { error: profErr } = await service.from('profiles').upsert({ id: userId, full_name: label, email }, { onConflict: 'id' })
   if (profErr) throw new Error(`profile insert failed for ${label}: ${profErr.message}`)
 
   const jar = new Map<string, string>()
@@ -120,7 +123,7 @@ async function seedDelegation(opts: {
 
 async function createPerformanceWithSong(ownerId: string, venueName: string, songTitle: string) {
   const { data: perf, error: perfErr } = await service.from('performances').insert({ artist_name: FIXTURE_ARTIST_NAME,
-    user_id: ownerId, venue_name: venueName,
+    user_id: ownerId, venue_name: venueName, performance_date: FIXTURE_PERFORMANCE_DATE,
   }).select().single()
   if (perfErr || !perf) throw new Error(`performance insert failed: ${perfErr?.message}`)
   createdPerformanceIds.push(perf.id)
@@ -138,7 +141,7 @@ async function createPerformanceWithSong(ownerId: string, venueName: string, son
 // change) the existing empty-result contract.
 async function createPerformanceWithoutSongs(ownerId: string, venueName: string) {
   const { data: perf, error: perfErr } = await service.from('performances').insert({ artist_name: FIXTURE_ARTIST_NAME,
-    user_id: ownerId, venue_name: venueName,
+    user_id: ownerId, venue_name: venueName, performance_date: FIXTURE_PERFORMANCE_DATE,
   }).select().single()
   if (perfErr || !perf) throw new Error(`performance insert failed: ${perfErr?.message}`)
   createdPerformanceIds.push(perf.id)
