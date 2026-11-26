@@ -83,6 +83,7 @@ function formatElapsed(fromIso: string) {
   return `${Math.floor(mins / 60)}:${String(mins % 60).padStart(2, '0')}`
 }
 function possessive(name: string) { return /s$/i.test(name) ? `${name}’` : `${name}’s` }
+function songsText(n: number) { return `${n} ${n === 1 ? 'song' : 'songs'}` }
 function money(n: number) { return `~$${Math.round(n).toLocaleString('en-US')}` }
 function isCanadian(country?: string | null, city?: string | null) {
   return ['CA','Canada','ca'].includes(country || '') ||
@@ -630,7 +631,7 @@ export default function DashboardPage() {
         <span style={bandSub}>
           {actingAs ? `${morningAfterPerf.venue_name}` : ''}
           {actingAs && songCountMap[morningAfterPerf.id] ? ' · ' : ''}
-          {songCountMap[morningAfterPerf.id] ? `${songCountMap[morningAfterPerf.id]} songs on the setlist` : (!actingAs ? (morningAfterPerf.city || 'Last night') : '')}
+          {songCountMap[morningAfterPerf.id] ? `${songsText(songCountMap[morningAfterPerf.id])} on the setlist` : (!actingAs ? (morningAfterPerf.city || 'Last night') : '')}
         </span>
       </span>
       {chevron}
@@ -905,7 +906,7 @@ export default function DashboardPage() {
               </span>
               <span className="sl-recent-name" style={{ minWidth: 0 }}>
                 <span style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', overflowWrap: 'anywhere', fontSize: 16, fontWeight: 600, lineHeight: 1.25, color: 'var(--sl-text)' } as React.CSSProperties}>{perf.venue_name || 'Untitled show'}</span>
-                <span style={{ display: 'block', fontSize: 13, color: 'var(--sl-text-3)' }}>{[perf.city, songCount > 0 ? `${songCount} songs` : null].filter(Boolean).join(' · ')}</span>
+                <span style={{ display: 'block', fontSize: 13, color: 'var(--sl-text-3)' }}>{[perf.city, songCount > 0 ? songsText(songCount) : null].filter(Boolean).join(' · ')}</span>
               </span>
               <span className="sl-recent-status" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 13, fontWeight: displayStatus.label === 'Needs review' ? 700 : 600, color: displayStatus.color }}>
                 {displayStatus.label === 'Needs review' && <AlertCircle size={14} aria-hidden="true" />}{displayStatus.label}
