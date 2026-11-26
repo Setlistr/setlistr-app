@@ -80,6 +80,11 @@
   --sl-orb-idle-shadow: 0 8px 40px rgba(0,0,0,0.6), 0 2px 8px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06);
   --sl-orb-idle-ink: #c9a84c;
   --sl-font-display: 'Bebas Neue', 'Oswald', 'Arial Narrow', sans-serif;
+  /* Charcoal layers (approved with the Review redesign): grouped rows, a
+     raised card on the page, and sheets above everything. */
+  --sl-group: #161514;
+  --sl-raised: #1d1c1a;
+  --sl-sheet: #252321;
 }
 :root[data-appearance="light"] {
   --sl-bg: #ffffff;
@@ -128,6 +133,9 @@
   /* Deliberately faint Dark details (section overlines, quiet delete
      marks) render at full strength on white, where faint fails contrast. */
   --sl-faint: 100%;
+  --sl-group: #f4f4f5;
+  --sl-raised: #ececee;
+  --sl-sheet: #ffffff;
   color-scheme: light;
 }
 /* Placeholder text in the app passes 4.5:1 in both themes; page-level

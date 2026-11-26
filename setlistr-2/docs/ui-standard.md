@@ -64,6 +64,10 @@ Consistency applies to frame, controls and states, not to every layout. Each scr
   - Items `role="menuitem"`, min-height 44.
 - **Touch targets:** 44px minimum for anything tappable. Rows can be the whole target (one button, no nested controls).
 
+## Charcoal layers
+
+`--sl-group` (grouped rows), `--sl-raised` (a card on the page) and `--sl-sheet` (sheets and toasts), with Light values. Review, the recap and Home's recent shows use them; other screens keep their surfaces until they adopt them.
+
 ## Status, dates and estimates
 
 - **Filing status:** `StatusLabel`, an uppercase label with a gold dot, outline by default.
@@ -146,7 +150,7 @@ Audited on the shipped dashboard (`app/app/dashboard/page.tsx`): the frame stays
   - Mobile gutter is 16px (standard 20px). Its layout was approved before this standard. Fix when it adopts `PageFrame`.
   - Has its own container (`.subm-cq`, same tiers as `PageFrame`) and hand-built headers that match `PageHeader` visually. Migrate both.
   - History's banner uses "Estimate only, not guaranteed — actual payouts vary by PRO." Switch to `ESTIMATE_DISCLAIMER`.
-- **Dashboard:** its recent-shows rows say "Completed" where Submissions says "Ready to submit" / "Needs review". (The missing stale-response guard on workspace switches is fixed in 377d798.)
+- **Dashboard:** recent-show rows read "Needs review" (amber) and "Saved"; Submissions keeps its own filing labels. (The missing stale-response guard on workspace switches is fixed in 377d798.)
 - **Career:**
   - Counts shows by status, so imported shows are included (29 vs 27 on the dashboard and full map). Count-definition alignment is a separate decision.
   - Map-card geocoding runs up to 6 lookups one after another. A candidate fix, not changed until traced with Mapbox.
@@ -159,7 +163,7 @@ Audited on the shipped dashboard (`app/app/dashboard/page.tsx`): the frame stays
 
 | Route | Frame | Header | Switch / filters | Loading | Errors | Copy | Notes |
 |---|---|---|---|---|---|---|---|
-| `/app/dashboard` | ✅ (own tiers) | ✅ | n/a | ✅ shared Skeleton, stale responses dropped | ✅ (page-level exception) | ◐ "Completed" label | |
+| `/app/dashboard` | ✅ (own tiers) | ✅ | n/a | ✅ shared Skeleton, stale responses dropped | ✅ (page-level exception) | ✅ | Recent shows before the ledger on one column |
 | `/app/stats` (Career Overview) | ✅ | ✅ | ✅ tabs | ✅ | ✅ page + section | ✅ | My Songs tab internals ○ |
 | `/app/file` (Filing Queue) | ◐ `.subm-cq`, 16px | ◐ hand-built | ✅ | ✅ | ✅ | ✅ | Migrate to PageFrame/PageHeader |
 | `/app/history` | ◐ `.subm-cq`, 16px | ◐ hand-built | ✅ switcher + filter chips | ✅ | ✅ | ◐ banner disclaimer | |
@@ -168,7 +172,8 @@ Audited on the shipped dashboard (`app/app/dashboard/page.tsx`): the frame stays
 | `/app/venue/[id]` | ○ | ○ | n/a | ○ | ○ | ○ | |
 | `/app/proof` | ○ | ○ | n/a | ○ | ○ | ○ | |
 | `/app/review/[id]` — post-save celebration | ✅ | (ceremony header) | n/a | ✅ intelligence skeleton, failed state | ✅ save failure + Try again | ✅ estimate, "First appearance on your record" | Branch design/celebration-earned |
-| `/app/review/[id]` — editing, `/app/submit/[id]` | ○ | ○ | n/a | ○ | ○ | ◐ | Fields already on input tokens |
+| `/app/review/[id]` — editing | ◐ own column | ◐ own header | n/a | ✅ page-shaped placeholders; SAVING… locks the list | ✅ load error, save error with Try again | ✅ ALL CAPS actions, DETECTED/ADDED in the song sheet only | Pinned SAVE SHOW above the tab bar |
+| `/app/submit/[id]` | ○ | ○ | n/a | ○ | ○ | ◐ | Fields already on input tokens |
 | `/app/show/new`, `/app/upload/new` | ○ | ○ | n/a | ✅ button text, placeholders, no field spinners | ○ | ○ | `/app/show/upload` is unlinked legacy and unchanged |
 | `/app/live/[id]` | exception | exception | n/a | — | — | — | Full-screen capture: owns its documented safe areas; orb; no changes |
 | `/app/settings`, `/app/team`, `/app/accept-invite`, `/app/onboarding` | ○ | ○ | ○ | ○ | ○ | ○ | |
