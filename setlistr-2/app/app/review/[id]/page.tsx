@@ -236,6 +236,10 @@ function SortableRow({ song, index, onDelete, onTap, editMode, locked, first }: 
       <div
         onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}
         onClick={() => { if (locked) return; if (swipeX < -10) { closeSwipe(); return } if (!editMode) onTap(song.id) }}
+        // The row is the keyboard and screen-reader way in (Enter or Space opens
+        // the song sheet), so the swipe actions never need to be reachable.
+        onKeyDown={e => { if (editMode || locked) return; if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onTap(song.id) } }}
+        tabIndex={editMode || locked ? -1 : 0} className="rv-row"
         role={editMode ? undefined : 'button'} aria-label={editMode ? undefined : (isUnknown ? `Song ${index + 1}, not identified. Name it` : `${song.title}. Open`)}
         style={{ transform: `translateX(${swipeX}px)`, transition: swiping ? 'none' : 'transform 0.22s cubic-bezier(0.25,1,0.5,1)', background: needsReview ? 'color-mix(in srgb, var(--sl-warn) 9%, var(--sl-group))' : isDragging ? C.cardHover : 'var(--sl-group)', display: 'flex', alignItems: 'center', gap: 12, padding: '8px 12px 8px 14px', minHeight: 54, cursor: locked || editMode ? 'default' : 'pointer', WebkitTapHighlightColor: 'transparent', userSelect: 'none' }}>
         {editMode && (
@@ -1886,6 +1890,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
         /* SAVE SHOW sits above the phone tab bar (65px + the raised capture
            disc) and the home-indicator inset; beside the sidebar on desktop. */
         .rv-savebar { position: fixed; left: 0; right: 0; bottom: calc(79px + env(safe-area-inset-bottom, 0px)); z-index: 39; padding: 14px max(20px, env(safe-area-inset-right, 0px)) 10px max(20px, env(safe-area-inset-left, 0px)); background: linear-gradient(180deg, color-mix(in srgb, var(--sl-bg) 0%, transparent) 0, color-mix(in srgb, var(--sl-bg) 94%, transparent) 18px, var(--sl-bg) 100%); }
+        .rv-row:focus-visible { outline: 2px solid var(--sl-gold); outline-offset: -2px; }
         .rv-toast { position: fixed; left: 16px; right: 16px; bottom: calc(190px + env(safe-area-inset-bottom, 0px)); z-index: 41; max-width: 488px; margin: 0 auto; }
         @media (min-width: 900px) { .rv-savebar { left: 248px; bottom: 0; padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px)); } .rv-toast { left: 264px; bottom: 140px; } }
         ::-webkit-scrollbar{width:4px}
