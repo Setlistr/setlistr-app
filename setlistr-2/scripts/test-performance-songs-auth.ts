@@ -302,6 +302,28 @@ async function main() {
     check('no error field on this successful empty response', r.json.error === undefined, JSON.stringify(r.json))
   }
 
+  console.log('\n16. Planned songs never marked played stay off the claim sheet; unidentified entries stay, distinct')
+  {
+    const perfPlanned = await createPerformanceWithoutSongs(ownerA.userId, 'Venue Planned')
+    const { error: rowsErr } = await service.from('performance_songs').insert([
+      { performance_id: perfPlanned, position: 1, title: 'Heard Song', artist: 'Test Artist', source: 'fingerprint' },
+      { performance_id: perfPlanned, position: 2, title: 'Unknown Song', artist: null, source: 'unidentified' },
+      { performance_id: perfPlanned, position: 3, title: 'Played Planned', artist: 'Test Artist', source: 'manual', was_planned: true },
+      { performance_id: perfPlanned, position: 4, title: 'Skipped Planned', artist: 'Test Artist', source: 'planned', was_planned: true, artist_removed: true },
+      { performance_id: perfPlanned, position: 5, title: 'Unplayed Planned', artist: 'Test Artist', source: 'planned', was_planned: true },
+      { performance_id: perfPlanned, position: 6, title: 'No Source Song', artist: 'Test Artist', source: null },
+    ])
+    if (rowsErr) throw new Error(`planned fixture insert failed: ${rowsErr.message}`)
+    const want = ['Heard Song', 'Unknown Song', 'Played Planned', 'No Source Song']
+    for (const [label, persona] of [['owner', ownerA], ['manager', managerDelegate]] as [string, Persona][]) {
+      const r = await callPerformanceSongs(persona, perfPlanned)
+      const titles = (r.json.songs || []).map((x: any) => x.title)
+      check(`${label}: 200, exactly the performed entries in order (no unplayed or skipped planned songs)`, r.status === 200 && JSON.stringify(titles) === JSON.stringify(want), JSON.stringify(titles))
+    }
+    const r = await callPerformanceSongs(unrelatedUser, perfPlanned)
+    check('unrelated user still denied on this performance', r.status === 403 && hasNoSongData(r.json), JSON.stringify(r.json))
+  }
+
   console.log(`\n${pass} passed, ${fail} failed`)
 
   await cleanup()
