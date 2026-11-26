@@ -56,6 +56,9 @@ const RUN = Date.now().toString(36)
 // performances.artist_name is NOT NULL in the local fixture schema — same
 // fixture value the viewer-write-containment suite uses.
 const FIXTURE_ARTIST_NAME = 'Fixture Artist'
+// performances.performance_date and profiles.email are NOT NULL in the
+// current schema; fixture values only, no assertion depends on them.
+const FIXTURE_PERFORMANCE_DATE = new Date().toISOString()
 const createdUserIds: string[] = []
 const createdPerformanceIds: string[] = []
 
@@ -81,7 +84,7 @@ async function createPersona(label: string): Promise<Persona> {
   const userId = data.user.id
   createdUserIds.push(userId)
 
-  const { error: profErr } = await service.from('profiles').upsert({ id: userId, full_name: label }, { onConflict: 'id' })
+  const { error: profErr } = await service.from('profiles').upsert({ id: userId, full_name: label, email }, { onConflict: 'id' })
   if (profErr) throw new Error(`profile insert failed for ${label}: ${profErr.message}`)
 
   const jar = new Map<string, string>()
@@ -120,7 +123,7 @@ async function seedDelegation(opts: {
 
 async function createPerformanceWithSong(ownerId: string, venueName: string, songTitle: string) {
   const { data: perf, error: perfErr } = await service.from('performances').insert({ artist_name: FIXTURE_ARTIST_NAME,
-    user_id: ownerId, venue_name: venueName,
+    user_id: ownerId, venue_name: venueName, performance_date: FIXTURE_PERFORMANCE_DATE,
   }).select().single()
   if (perfErr || !perf) throw new Error(`performance insert failed: ${perfErr?.message}`)
   createdPerformanceIds.push(perf.id)
@@ -138,7 +141,7 @@ async function createPerformanceWithSong(ownerId: string, venueName: string, son
 // change) the existing empty-result contract.
 async function createPerformanceWithoutSongs(ownerId: string, venueName: string) {
   const { data: perf, error: perfErr } = await service.from('performances').insert({ artist_name: FIXTURE_ARTIST_NAME,
-    user_id: ownerId, venue_name: venueName,
+    user_id: ownerId, venue_name: venueName, performance_date: FIXTURE_PERFORMANCE_DATE,
   }).select().single()
   if (perfErr || !perf) throw new Error(`performance insert failed: ${perfErr?.message}`)
   createdPerformanceIds.push(perf.id)
@@ -297,6 +300,28 @@ async function main() {
       Array.isArray(r.json.songs) && r.json.songs.length === 0 && r.json.source === 'none' && r.json.performanceId === perfEmpty,
       JSON.stringify(r.json))
     check('no error field on this successful empty response', r.json.error === undefined, JSON.stringify(r.json))
+  }
+
+  console.log('\n16. Planned songs never marked played stay off the claim sheet; unidentified entries stay, distinct')
+  {
+    const perfPlanned = await createPerformanceWithoutSongs(ownerA.userId, 'Venue Planned')
+    const { error: rowsErr } = await service.from('performance_songs').insert([
+      { performance_id: perfPlanned, position: 1, title: 'Heard Song', artist: 'Test Artist', source: 'fingerprint' },
+      { performance_id: perfPlanned, position: 2, title: 'Unknown Song', artist: null, source: 'unidentified' },
+      { performance_id: perfPlanned, position: 3, title: 'Played Planned', artist: 'Test Artist', source: 'manual', was_planned: true },
+      { performance_id: perfPlanned, position: 4, title: 'Skipped Planned', artist: 'Test Artist', source: 'planned', was_planned: true, artist_removed: true },
+      { performance_id: perfPlanned, position: 5, title: 'Unplayed Planned', artist: 'Test Artist', source: 'planned', was_planned: true },
+      { performance_id: perfPlanned, position: 6, title: 'No Source Song', artist: 'Test Artist', source: null },
+    ])
+    if (rowsErr) throw new Error(`planned fixture insert failed: ${rowsErr.message}`)
+    const want = ['Heard Song', 'Unknown Song', 'Played Planned', 'No Source Song']
+    for (const [label, persona] of [['owner', ownerA], ['manager', managerDelegate]] as [string, Persona][]) {
+      const r = await callPerformanceSongs(persona, perfPlanned)
+      const titles = (r.json.songs || []).map((x: any) => x.title)
+      check(`${label}: 200, exactly the performed entries in order (no unplayed or skipped planned songs)`, r.status === 200 && JSON.stringify(titles) === JSON.stringify(want), JSON.stringify(titles))
+    }
+    const r = await callPerformanceSongs(unrelatedUser, perfPlanned)
+    check('unrelated user still denied on this performance', r.status === 403 && hasNoSongData(r.json), JSON.stringify(r.json))
   }
 
   console.log(`\n${pass} passed, ${fail} failed`)

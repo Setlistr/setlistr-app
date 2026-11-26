@@ -86,6 +86,11 @@ export async function GET(req: NextRequest) {
     .from('performance_songs_visible')
     .select('title, artist, isrc, composer, publisher, source')
     .eq('performance_id', performanceId)
+    // Planned songs never marked played aren't songs performed: leave them off
+    // the claim sheet, as the proof record does (lib/proof/summary.ts
+    // UNPLAYED_SOURCE). Played ones are stored as 'manual'; unidentified
+    // entries keep their own source and stay. A null source is kept.
+    .or('source.is.null,source.neq.planned')
     .order('position')
 
   if (error) {
