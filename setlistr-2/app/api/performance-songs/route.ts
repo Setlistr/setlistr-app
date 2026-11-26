@@ -84,7 +84,7 @@ export async function GET(req: NextRequest) {
   // that it was broken. No replacement linkage is invented here.
   const { data: perfSongs, error } = await supabaseAdmin
     .from('performance_songs_visible')
-    .select('title, artist, isrc, composer, publisher')
+    .select('title, artist, isrc, composer, publisher, source')
     .eq('performance_id', performanceId)
     .order('position')
 
@@ -102,6 +102,9 @@ export async function GET(req: NextRequest) {
       isrc: s.isrc || null,
       composer: s.composer || null,
       publisher: s.publisher || null,
+      // Lets the setlist CSV leave out planned songs not marked played, as
+      // it did in Review. Additive; existing readers ignore it.
+      song_source: s.source || null,
     }))
     source = 'performance_songs'
   }
